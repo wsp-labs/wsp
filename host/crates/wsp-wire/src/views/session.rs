@@ -23,7 +23,11 @@ pub enum SessionStatus {
     Failed,
 }
 
-impl Check for SessionStatus {}
+impl Check for SessionStatus {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["running", "completed", "interrupted", "failed"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/session.ts:15 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -36,7 +40,11 @@ pub enum SessionOrigin {
     Agent,
 }
 
-impl Check for SessionOrigin {}
+impl Check for SessionOrigin {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["person", "cli", "agent"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/session.ts:22 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -49,7 +57,11 @@ pub enum TitleSource {
     Person,
 }
 
-impl Check for TitleSource {}
+impl Check for TitleSource {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["seed", "auto", "person"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/session.ts:28 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -58,7 +70,11 @@ pub enum TurnRefusal {
     SignIn,
 }
 
-impl Check for TurnRefusal {}
+impl Check for TurnRefusal {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["sign-in"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/session.ts:34 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -73,7 +89,11 @@ pub enum PermissionOutcome {
     Cancelled,
 }
 
-impl Check for PermissionOutcome {}
+impl Check for PermissionOutcome {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["allowed", "denied", "unanswered", "cancelled"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/session.ts:37 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -94,7 +114,24 @@ pub struct ThreadPrompt {
 impl Check for ThreadPrompt {
     /// Nested checks: options.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.options.check().map_err(|e| e.under("options"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "askId" => <String as Check>::describe(rest),
+                "toolName" => <String as Check>::describe(rest),
+                "toolUseId" => <Option<String> as Check>::describe(rest),
+                "parentToolUseId" => <Option<String> as Check>::describe(rest),
+                "input" => <String as Check>::describe(rest),
+                "detail" => <Option<String> as Check>::describe(rest),
+                "options" => <Vec<PermissionOption> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -112,7 +149,22 @@ pub struct ThreadWaitingOn {
 impl Check for ThreadWaitingOn {
     /// Nested checks: prompt.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.prompt.check().map_err(|e| e.under("prompt"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "threadId" => <String as Check>::describe(rest),
+                "workspaceId" => <String as Check>::describe(rest),
+                "sessionId" => <String as Check>::describe(rest),
+                "title" => <String as Check>::describe(rest),
+                "prompt" => <ThreadPrompt as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -124,7 +176,11 @@ pub enum ThreadCapWaitWhy {
     Minute,
 }
 
-impl Check for ThreadCapWaitWhy {}
+impl Check for ThreadCapWaitWhy {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["slot", "minute"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/session.ts:58 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -140,7 +196,22 @@ pub struct ThreadCapWait {
 
 impl Check for ThreadCapWait {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.why.check().map_err(|e| e.under("why"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "placeId" => <String as Check>::describe(rest),
+                "place" => <String as Check>::describe(rest),
+                "running" => <i64 as Check>::describe(rest),
+                "atOnce" => <i64 as Check>::describe(rest),
+                "why" => <Option<ThreadCapWaitWhy> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -157,7 +228,11 @@ pub enum ThreadSection {
     Idle,
 }
 
-impl Check for ThreadSection {}
+impl Check for ThreadSection {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["needs-you", "working", "done", "idle"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/session.ts:77 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -170,7 +245,19 @@ pub struct ThreadPlacement {
 impl Check for ThreadPlacement {
     /// Nested checks: name.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.name.check().map_err(|e| e.under("name"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <ThreadSection as Check>::describe(rest),
+                "whileState" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -184,7 +271,15 @@ pub enum ThreadMarksPinned {
 
 impl Check for ThreadMarksPinned {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        match self {
+            ThreadMarksPinned::V0(v) => v.check(),
+            ThreadMarksPinned::V1(v) => v.check(),
+        }
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { return Some(crate::types::check::Zod::Union); }
+        <bool as Check>::describe(path).or_else(|| <JsNumber as Check>::describe(path))
     }
 }
 
@@ -211,7 +306,24 @@ impl Check for ThreadMarks {
     /// Nested checks: pinned, section.
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.pinned.check().map_err(|e| e.under("pinned"))?;
+        self.section.check().map_err(|e| e.under("section"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "pinned" => <Option<ThreadMarksPinned> as Check>::describe(rest),
+                "order" => <Option<Option<JsNumber>> as Check>::describe(rest),
+                "snoozedUntil" => <Option<Option<JsNumber>> as Check>::describe(rest),
+                "section" => <Option<Option<ThreadPlacement>> as Check>::describe(rest),
+                "resumeAtReset" => <Option<bool> as Check>::describe(rest),
+                "folded" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -228,7 +340,11 @@ pub enum SubagentState {
     Stopped,
 }
 
-impl Check for SubagentState {}
+impl Check for SubagentState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["running", "done", "failed", "stopped"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/session.ts:110 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -246,7 +362,26 @@ impl Check for SubagentUsage {
     /// Rules: toolUses: >= 0; durationMs: >= 0.
     /// Nested checks: tokens.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.tokens.check().map_err(|e| e.under("tokens"))?;
+        if let Some(v) = self.tool_uses {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("toolUses"))?;
+        }
+        if let Some(v) = self.duration_ms {
+            crate::types::check::num_at_least(v.0, 0.0).map_err(|e| e.under("durationMs"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "tokens" => <Option<UsageTokens> as Check>::describe(rest),
+                "toolUses" => <Option<i64> as Check>::describe(rest),
+                "durationMs" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -280,7 +415,33 @@ impl Check for SubagentView {
     /// Rules: depth: > 0.
     /// Nested checks: state, usage.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.state.check().map_err(|e| e.under("state"))?;
+        if let Some(v) = self.depth {
+            crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("depth"))?;
+        }
+        self.usage.check().map_err(|e| e.under("usage"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "title" => <String as Check>::describe(rest),
+                "state" => <SubagentState as Check>::describe(rest),
+                "parentToolUseId" => <Option<String> as Check>::describe(rest),
+                "depth" => <Option<i64> as Check>::describe(rest),
+                "model" => <Option<String> as Check>::describe(rest),
+                "asked" => <Option<String> as Check>::describe(rest),
+                "startedAt" => <JsNumber as Check>::describe(rest),
+                "endedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "lastLine" => <Option<String> as Check>::describe(rest),
+                "failure" => <Option<String> as Check>::describe(rest),
+                "usage" => <Option<SubagentUsage> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -298,7 +459,22 @@ pub struct ForkSource {
 impl Check for ForkSource {
     /// Rules: at: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.at {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("at"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "threadId" => <String as Check>::describe(rest),
+                "turnId" => <Option<String> as Check>::describe(rest),
+                "at" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -314,7 +490,19 @@ pub struct ForkedFrom {
 
 impl Check for ForkedFrom {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "threadId" => <String as Check>::describe(rest),
+                "turnId" => <Option<String> as Check>::describe(rest),
+                "title" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -327,7 +515,18 @@ pub struct SessionViewProject {
 
 impl Check for SessionViewProject {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -440,7 +639,80 @@ pub struct SessionView {
 impl Check for SessionView {
     /// Nested checks: status, startedBy, titleSource, refusal, limit, waitingOn, project, sub, capped, subagents, section, forkedFrom.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.status.check().map_err(|e| e.under("status"))?;
+        self.started_by.check().map_err(|e| e.under("startedBy"))?;
+        self.title_source.check().map_err(|e| e.under("titleSource"))?;
+        self.refusal.check().map_err(|e| e.under("refusal"))?;
+        self.limit.check().map_err(|e| e.under("limit"))?;
+        self.waiting_on.check().map_err(|e| e.under("waitingOn"))?;
+        self.project.check().map_err(|e| e.under("project"))?;
+        self.sub.check().map_err(|e| e.under("sub"))?;
+        self.capped.check().map_err(|e| e.under("capped"))?;
+        self.subagents.check().map_err(|e| e.under("subagents"))?;
+        self.section.check().map_err(|e| e.under("section"))?;
+        self.forked_from.check().map_err(|e| e.under("forkedFrom"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "workspaceId" => <String as Check>::describe(rest),
+                "harness" => <String as Check>::describe(rest),
+                "status" => <SessionStatus as Check>::describe(rest),
+                "startedBy" => <Option<SessionOrigin> as Check>::describe(rest),
+                "claudeSessionId" => <Option<String> as Check>::describe(rest),
+                "threadId" => <Option<String> as Check>::describe(rest),
+                "parentThreadId" => <Option<String> as Check>::describe(rest),
+                "rootThreadId" => <Option<String> as Check>::describe(rest),
+                "attempt" => <Option<String> as Check>::describe(rest),
+                "prompt" => <Option<String> as Check>::describe(rest),
+                "harnessTitle" => <Option<String> as Check>::describe(rest),
+                "titleSource" => <Option<TitleSource> as Check>::describe(rest),
+                "startedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "endedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "cwd" => <Option<String> as Check>::describe(rest),
+                "refusal" => <Option<TurnRefusal> as Check>::describe(rest),
+                "limit" => <Option<TurnLimit> as Check>::describe(rest),
+                "resumeAt" => <Option<JsNumber> as Check>::describe(rest),
+                "costUsd" => <Option<JsNumber> as Check>::describe(rest),
+                "lastLine" => <Option<String> as Check>::describe(rest),
+                "failure" => <Option<String> as Check>::describe(rest),
+                "model" => <Option<String> as Check>::describe(rest),
+                "effort" => <Option<String> as Check>::describe(rest),
+                "permissionMode" => <Option<String> as Check>::describe(rest),
+                "contextWindow" => <Option<String> as Check>::describe(rest),
+                "fast" => <Option<bool> as Check>::describe(rest),
+                "asking" => <Option<String> as Check>::describe(rest),
+                "waitingOn" => <Option<ThreadWaitingOn> as Check>::describe(rest),
+                "setupRefusal" => <Option<String> as Check>::describe(rest),
+                "project" => <Option<SessionViewProject> as Check>::describe(rest),
+                "computerName" => <Option<String> as Check>::describe(rest),
+                "sub" => <Option<SubRow> as Check>::describe(rest),
+                "diskKeptUntil" => <Option<JsNumber> as Check>::describe(rest),
+                "diskGone" => <Option<String> as Check>::describe(rest),
+                "capped" => <Option<ThreadCapWait> as Check>::describe(rest),
+                "waitsFor" => <Option<String> as Check>::describe(rest),
+                "pid" => <Option<i64> as Check>::describe(rest),
+                "agentPid" => <Option<i64> as Check>::describe(rest),
+                "subagents" => <Option<Vec<SubagentView>> as Check>::describe(rest),
+                "readAt" => <Option<JsNumber> as Check>::describe(rest),
+                "settledAt" => <Option<JsNumber> as Check>::describe(rest),
+                "pinnedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "order" => <Option<JsNumber> as Check>::describe(rest),
+                "foldedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "replaces" => <Option<String> as Check>::describe(rest),
+                "replacedBy" => <Option<String> as Check>::describe(rest),
+                "snoozedUntil" => <Option<JsNumber> as Check>::describe(rest),
+                "wokeAt" => <Option<JsNumber> as Check>::describe(rest),
+                "section" => <Option<ThreadPlacement> as Check>::describe(rest),
+                "rewoundAt" => <Option<JsNumber> as Check>::describe(rest),
+                "forkedFrom" => <Option<ForkedFrom> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -537,7 +809,72 @@ impl Check for ThreadView {
     /// Rules: turns: > 0.
     /// Nested checks: startedBy, status, waitingOn, sub, capped, limit, section, forkedFrom, subagents.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.started_by.check().map_err(|e| e.under("startedBy"))?;
+        self.status.check().map_err(|e| e.under("status"))?;
+        crate::types::check::num_above(self.turns as f64, 0.0).map_err(|e| e.under("turns"))?;
+        self.waiting_on.check().map_err(|e| e.under("waitingOn"))?;
+        self.sub.check().map_err(|e| e.under("sub"))?;
+        self.capped.check().map_err(|e| e.under("capped"))?;
+        self.limit.check().map_err(|e| e.under("limit"))?;
+        self.section.check().map_err(|e| e.under("section"))?;
+        self.forked_from.check().map_err(|e| e.under("forkedFrom"))?;
+        self.subagents.check().map_err(|e| e.under("subagents"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "threadId" => <Option<String> as Check>::describe(rest),
+                "workspaceId" => <String as Check>::describe(rest),
+                "harness" => <String as Check>::describe(rest),
+                "startedBy" => <SessionOrigin as Check>::describe(rest),
+                "status" => <SessionStatus as Check>::describe(rest),
+                "title" => <String as Check>::describe(rest),
+                "sessionId" => <String as Check>::describe(rest),
+                "claudeSessionId" => <Option<String> as Check>::describe(rest),
+                "startedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "endedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "cwd" => <Option<String> as Check>::describe(rest),
+                "turns" => <i64 as Check>::describe(rest),
+                "ran" => <bool as Check>::describe(rest),
+                "parentThreadId" => <Option<String> as Check>::describe(rest),
+                "rootThreadId" => <Option<String> as Check>::describe(rest),
+                "attempt" => <Option<String> as Check>::describe(rest),
+                "asking" => <Option<String> as Check>::describe(rest),
+                "waitingOn" => <Option<ThreadWaitingOn> as Check>::describe(rest),
+                "setupRefusal" => <Option<String> as Check>::describe(rest),
+                "sub" => <Option<SubRow> as Check>::describe(rest),
+                "diskKeptUntil" => <Option<JsNumber> as Check>::describe(rest),
+                "diskGone" => <Option<String> as Check>::describe(rest),
+                "capped" => <Option<ThreadCapWait> as Check>::describe(rest),
+                "limit" => <Option<TurnLimit> as Check>::describe(rest),
+                "resumeAt" => <Option<JsNumber> as Check>::describe(rest),
+                "costUsd" => <Option<JsNumber> as Check>::describe(rest),
+                "lastLine" => <Option<String> as Check>::describe(rest),
+                "failure" => <Option<String> as Check>::describe(rest),
+                "pid" => <Option<i64> as Check>::describe(rest),
+                "agentPid" => <Option<i64> as Check>::describe(rest),
+                "readAt" => <Option<JsNumber> as Check>::describe(rest),
+                "settledAt" => <Option<JsNumber> as Check>::describe(rest),
+                "pinnedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "order" => <Option<JsNumber> as Check>::describe(rest),
+                "foldedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "replaces" => <Option<String> as Check>::describe(rest),
+                "replacedBy" => <Option<String> as Check>::describe(rest),
+                "snoozedUntil" => <Option<JsNumber> as Check>::describe(rest),
+                "wokeAt" => <Option<JsNumber> as Check>::describe(rest),
+                "section" => <Option<ThreadPlacement> as Check>::describe(rest),
+                "rewoundAt" => <Option<JsNumber> as Check>::describe(rest),
+                "forkedFrom" => <Option<ForkedFrom> as Check>::describe(rest),
+                "permissionMode" => <Option<String> as Check>::describe(rest),
+                "fast" => <Option<bool> as Check>::describe(rest),
+                "subagents" => <Option<Vec<SubagentView>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 

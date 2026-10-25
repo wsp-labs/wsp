@@ -15,7 +15,18 @@ pub use wsp_frames::GitStartOnReply;
 
 impl Check for GitStartOnReply {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "branch" => <String as Check>::describe(rest),
+                "oid" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -26,7 +37,26 @@ pub use wsp_frames::GitBranchCompareReply;
 impl Check for GitBranchCompareReply {
     /// Rules: aheadBy: >= 0; behindBy: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.ahead_by {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("aheadBy"))?;
+        }
+        if let Some(v) = self.behind_by {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("behindBy"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "pushed" => <bool as Check>::describe(rest),
+                "aheadBy" => <Option<u64> as Check>::describe(rest),
+                "behindBy" => <Option<u64> as Check>::describe(rest),
+                "status" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -47,7 +77,23 @@ pub struct GitMergeInReply {
 impl Check for GitMergeInReply {
     /// Rules: commits: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.commits as f64, 0.0).map_err(|e| e.under("commits"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "branch" => <String as Check>::describe(rest),
+                "merged" => <bool as Check>::describe(rest),
+                "commits" => <i64 as Check>::describe(rest),
+                "oid" => <Option<String> as Check>::describe(rest),
+                "head" => <Option<String> as Check>::describe(rest),
+                "conflicts" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -62,7 +108,19 @@ pub struct TreeRecordMerged {
 
 impl Check for TreeRecordMerged {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "oid" => <String as Check>::describe(rest),
+                "at" => <JsNumber as Check>::describe(rest),
+                "head" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -81,7 +139,20 @@ pub struct TreeRecord {
 impl Check for TreeRecord {
     /// Nested checks: merged.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.merged.check().map_err(|e| e.under("merged"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "merged" => <Option<TreeRecordMerged> as Check>::describe(rest),
+                "conflicts" => <Option<Vec<String>> as Check>::describe(rest),
+                "pushRefused" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -110,7 +181,32 @@ pub struct TreeChild {
 impl Check for TreeChild {
     /// Rules: aheadOfLead: >= 0; behindLead: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.merged.check().map_err(|e| e.under("merged"))?;
+        if let Some(v) = self.ahead_of_lead {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("aheadOfLead"))?;
+        }
+        if let Some(v) = self.behind_lead {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("behindLead"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "merged" => <Option<TreeRecordMerged> as Check>::describe(rest),
+                "conflicts" => <Option<Vec<String>> as Check>::describe(rest),
+                "pushRefused" => <Option<String> as Check>::describe(rest),
+                "workspaceId" => <String as Check>::describe(rest),
+                "threadId" => <Option<String> as Check>::describe(rest),
+                "branch" => <String as Check>::describe(rest),
+                "pushed" => <Option<bool> as Check>::describe(rest),
+                "aheadOfLead" => <Option<i64> as Check>::describe(rest),
+                "behindLead" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -126,7 +222,20 @@ pub struct TreeFact {
 impl Check for TreeFact {
     /// Nested checks: children.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.children.check().map_err(|e| e.under("children"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "leadBranch" => <String as Check>::describe(rest),
+                "children" => <Vec<TreeChild> as Check>::describe(rest),
+                "readAt" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -147,6 +256,26 @@ pub struct MergeInResult {
 impl Check for MergeInResult {
     /// Rules: commits: >= 0; unpushed: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.commits as f64, 0.0).map_err(|e| e.under("commits"))?;
+        if let Some(v) = self.unpushed {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("unpushed"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "lead" => <String as Check>::describe(rest),
+                "child" => <String as Check>::describe(rest),
+                "branch" => <String as Check>::describe(rest),
+                "merged" => <bool as Check>::describe(rest),
+                "commits" => <i64 as Check>::describe(rest),
+                "conflicts" => <Vec<String> as Check>::describe(rest),
+                "unpushed" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

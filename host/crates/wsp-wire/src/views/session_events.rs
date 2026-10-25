@@ -92,7 +92,11 @@ pub enum DeltaKind {
     ToolResult,
 }
 
-impl Check for DeltaKind {}
+impl Check for DeltaKind {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["text", "thinking", "note", "tool_use", "tool_result"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/session-events.ts:19 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -105,7 +109,11 @@ pub enum TurnStatus {
     Failed,
 }
 
-impl Check for TurnStatus {}
+impl Check for TurnStatus {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["completed", "interrupted", "failed"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/session-events.ts:25 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -127,7 +135,23 @@ pub struct TurnTokens {
 
 impl Check for TurnTokens {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "input" => <JsNumber as Check>::describe(rest),
+                "output" => <JsNumber as Check>::describe(rest),
+                "cached" => <Option<JsNumber> as Check>::describe(rest),
+                "cacheWrite" => <Option<JsNumber> as Check>::describe(rest),
+                "reasoning" => <Option<JsNumber> as Check>::describe(rest),
+                "context" => <Option<JsNumber> as Check>::describe(rest),
+                "window" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -143,7 +167,20 @@ pub struct TurnResultModelsItem {
 impl Check for TurnResultModelsItem {
     /// Nested checks: tokens.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.tokens.check().map_err(|e| e.under("tokens"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "model" => <String as Check>::describe(rest),
+                "tokens" => <UsageTokens as Check>::describe(rest),
+                "costUsd" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -179,7 +216,33 @@ pub struct TurnResult {
 impl Check for TurnResult {
     /// Nested checks: status, tokens, models, refusal, limit.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.status.check().map_err(|e| e.under("status"))?;
+        self.tokens.check().map_err(|e| e.under("tokens"))?;
+        self.models.check().map_err(|e| e.under("models"))?;
+        self.refusal.check().map_err(|e| e.under("refusal"))?;
+        self.limit.check().map_err(|e| e.under("limit"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "status" => <TurnStatus as Check>::describe(rest),
+                "durationMs" => <Option<JsNumber> as Check>::describe(rest),
+                "waitedMs" => <Option<JsNumber> as Check>::describe(rest),
+                "costUsd" => <Option<JsNumber> as Check>::describe(rest),
+                "tokens" => <Option<TurnTokens> as Check>::describe(rest),
+                "model" => <Option<String> as Check>::describe(rest),
+                "models" => <Option<Vec<TurnResultModelsItem>> as Check>::describe(rest),
+                "text" => <Option<String> as Check>::describe(rest),
+                "error" => <Option<String> as Check>::describe(rest),
+                "unreached" => None,
+                "refusal" => <Option<TurnRefusal> as Check>::describe(rest),
+                "limit" => <Option<TurnLimit> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -197,7 +260,19 @@ pub struct SessionHarness {
 
 impl Check for SessionHarness {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "slashCommands" => <Option<Vec<String>> as Check>::describe(rest),
+                "permissionMode" => <Option<String> as Check>::describe(rest),
+                "agents" => <Option<Vec<String>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -258,7 +333,45 @@ impl Check for SessionStartEvent {
     /// Rules: pos: > 0.
     /// Nested checks: attachments, startedBy, harness.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.pos {
+            crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("pos"))?;
+        }
+        self.attachments.check().map_err(|e| e.under("attachments"))?;
+        self.via.check().map_err(|e| e.under("via"))?;
+        self.started_by.check().map_err(|e| e.under("startedBy"))?;
+        self.harness.check().map_err(|e| e.under("harness"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "sessionId" => <String as Check>::describe(rest),
+                "at" => <Option<JsNumber> as Check>::describe(rest),
+                "turnId" => <Option<String> as Check>::describe(rest),
+                "threadId" => <Option<String> as Check>::describe(rest),
+                "pos" => <Option<i64> as Check>::describe(rest),
+                "copiedFrom" => <Option<String> as Check>::describe(rest),
+                "prompt" => <Option<String> as Check>::describe(rest),
+                "attachments" => <Option<Vec<AttachmentRecord>> as Check>::describe(rest),
+                "requestId" => <Option<String> as Check>::describe(rest),
+                "via" => <Option<SlateLit> as Check>::describe(rest),
+                "afterCut" => None,
+                "afterLimit" => <Option<JsNumber> as Check>::describe(rest),
+                "opensThread" => None,
+                "startedBy" => <Option<SessionOrigin> as Check>::describe(rest),
+                "model" => <Option<String> as Check>::describe(rest),
+                "cwd" => <Option<String> as Check>::describe(rest),
+                "permissionMode" => <Option<String> as Check>::describe(rest),
+                "effort" => <Option<String> as Check>::describe(rest),
+                "agent" => <Option<String> as Check>::describe(rest),
+                "tools" => <Option<Vec<String>> as Check>::describe(rest),
+                "harness" => <Option<SessionHarness> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -275,7 +388,21 @@ pub struct PatchHunk {
 
 impl Check for PatchHunk {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "oldStart" => <i64 as Check>::describe(rest),
+                "oldLines" => <i64 as Check>::describe(rest),
+                "newStart" => <i64 as Check>::describe(rest),
+                "newLines" => <i64 as Check>::describe(rest),
+                "lines" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -292,7 +419,20 @@ pub struct FilePatch {
 impl Check for FilePatch {
     /// Nested checks: hunks.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.hunks.check().map_err(|e| e.under("hunks"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "hunks" => <Vec<PatchHunk> as Check>::describe(rest),
+                "movedTo" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -351,7 +491,55 @@ impl Check for SessionDeltaEvent {
     /// Rules: pos: > 0; line: > 0; cut: > 0; bytes: >= 0; durationMs: >= 0.
     /// Nested checks: kind, patch.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.pos {
+            crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("pos"))?;
+        }
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        if let Some(v) = self.line {
+            crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("line"))?;
+        }
+        if let Some(v) = self.cut {
+            crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("cut"))?;
+        }
+        if let Some(v) = self.bytes {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("bytes"))?;
+        }
+        if let Some(v) = self.duration_ms {
+            crate::types::check::num_at_least(v.0, 0.0).map_err(|e| e.under("durationMs"))?;
+        }
+        self.patch.check().map_err(|e| e.under("patch"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "sessionId" => <String as Check>::describe(rest),
+                "at" => <Option<JsNumber> as Check>::describe(rest),
+                "turnId" => <Option<String> as Check>::describe(rest),
+                "threadId" => <Option<String> as Check>::describe(rest),
+                "pos" => <Option<i64> as Check>::describe(rest),
+                "copiedFrom" => <Option<String> as Check>::describe(rest),
+                "kind" => <DeltaKind as Check>::describe(rest),
+                "text" => <String as Check>::describe(rest),
+                "messageId" => <Option<String> as Check>::describe(rest),
+                "toolName" => <Option<String> as Check>::describe(rest),
+                "toolUseId" => <Option<String> as Check>::describe(rest),
+                "isError" => <Option<bool> as Check>::describe(rest),
+                "parentToolUseId" => <Option<String> as Check>::describe(rest),
+                "cwd" => <Option<String> as Check>::describe(rest),
+                "line" => <Option<i64> as Check>::describe(rest),
+                "cut" => <Option<i64> as Check>::describe(rest),
+                "bytes" => <Option<i64> as Check>::describe(rest),
+                "exitCode" => <Option<i64> as Check>::describe(rest),
+                "durationMs" => <Option<JsNumber> as Check>::describe(rest),
+                "patch" => <Option<Vec<FilePatch>> as Check>::describe(rest),
+                "patchCut" => None,
+                _ => None,
+            },
+        }
     }
 }
 
@@ -383,7 +571,28 @@ impl Check for SessionDoneEvent {
     /// Rules: pos: > 0.
     /// Nested checks: result.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.pos {
+            crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("pos"))?;
+        }
+        self.result.check().map_err(|e| e.under("result"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "sessionId" => <String as Check>::describe(rest),
+                "at" => <Option<JsNumber> as Check>::describe(rest),
+                "turnId" => <Option<String> as Check>::describe(rest),
+                "threadId" => <Option<String> as Check>::describe(rest),
+                "pos" => <Option<i64> as Check>::describe(rest),
+                "copiedFrom" => <Option<String> as Check>::describe(rest),
+                "result" => <TurnResult as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -424,7 +633,32 @@ impl SessionEndEvent {
 impl Check for SessionEndEvent {
     /// Rules: pos: > 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.pos {
+            crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("pos"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "sessionId" => <String as Check>::describe(rest),
+                "at" => <Option<JsNumber> as Check>::describe(rest),
+                "turnId" => <Option<String> as Check>::describe(rest),
+                "threadId" => <Option<String> as Check>::describe(rest),
+                "pos" => <Option<i64> as Check>::describe(rest),
+                "copiedFrom" => <Option<String> as Check>::describe(rest),
+                "exitCode" => <Option<JsNumber> as Check>::describe(rest),
+                "sawResult" => <bool as Check>::describe(rest),
+                "reason" => <Option<String> as Check>::describe(rest),
+                "unstarted" => None,
+                "prompt" => <Option<String> as Check>::describe(rest),
+                "promptless" => None,
+                _ => None,
+            },
+        }
     }
 }
 
@@ -464,7 +698,33 @@ impl Check for SessionSteerEvent {
     /// Rules: pos: > 0.
     /// Nested checks: attachments.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.pos {
+            crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("pos"))?;
+        }
+        self.attachments.check().map_err(|e| e.under("attachments"))?;
+        self.via.check().map_err(|e| e.under("via"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "sessionId" => <String as Check>::describe(rest),
+                "at" => <Option<JsNumber> as Check>::describe(rest),
+                "turnId" => <Option<String> as Check>::describe(rest),
+                "threadId" => <Option<String> as Check>::describe(rest),
+                "pos" => <Option<i64> as Check>::describe(rest),
+                "copiedFrom" => <Option<String> as Check>::describe(rest),
+                "prompt" => <String as Check>::describe(rest),
+                "attachments" => <Option<Vec<AttachmentRecord>> as Check>::describe(rest),
+                "requestId" => <Option<String> as Check>::describe(rest),
+                "via" => <Option<SlateLit> as Check>::describe(rest),
+                "waiting" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -489,7 +749,22 @@ impl SessionQueuedEvent {
 
 impl Check for SessionQueuedEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "threadId" => <String as Check>::describe(rest),
+                "harness" => <String as Check>::describe(rest),
+                "prompt" => <String as Check>::describe(rest),
+                "requestId" => <Option<String> as Check>::describe(rest),
+                "waitsFor" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -510,7 +785,19 @@ impl SessionHeldEvent {
 
 impl Check for SessionHeldEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "threadId" => <String as Check>::describe(rest),
+                "requestId" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -534,7 +821,21 @@ impl SessionRowEvent {
 impl Check for SessionRowEvent {
     /// Nested checks: row.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.row.check().map_err(|e| e.under("row"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "threadId" => <Option<String> as Check>::describe(rest),
+                "id" => <String as Check>::describe(rest),
+                "row" => <Option<SessionView> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -558,7 +859,21 @@ impl SessionStartingEvent {
 
 impl Check for SessionStartingEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "threadId" => <String as Check>::describe(rest),
+                "harness" => <String as Check>::describe(rest),
+                "installs" => None,
+                "requestId" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -590,7 +905,28 @@ impl SessionNotifyEvent {
 impl Check for SessionNotifyEvent {
     /// Rules: pos: > 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.pos {
+            crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("pos"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "sessionId" => <String as Check>::describe(rest),
+                "at" => <Option<JsNumber> as Check>::describe(rest),
+                "turnId" => <Option<String> as Check>::describe(rest),
+                "threadId" => <Option<String> as Check>::describe(rest),
+                "pos" => <Option<i64> as Check>::describe(rest),
+                "copiedFrom" => <Option<String> as Check>::describe(rest),
+                "notify" => <String as Check>::describe(rest),
+                "text" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -606,7 +942,20 @@ pub struct TurnChangedFile {
 
 impl Check for TurnChangedFile {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "kind" => <String as Check>::describe(rest),
+                "additions" => <JsNumber as Check>::describe(rest),
+                "deletions" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -645,7 +994,34 @@ impl Check for SessionChangesEvent {
     /// Rules: pos: > 0.
     /// Nested checks: files, others.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.pos {
+            crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("pos"))?;
+        }
+        self.files.check().map_err(|e| e.under("files"))?;
+        self.others.check().map_err(|e| e.under("others"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "sessionId" => <String as Check>::describe(rest),
+                "at" => <Option<JsNumber> as Check>::describe(rest),
+                "turnId" => <Option<String> as Check>::describe(rest),
+                "threadId" => <Option<String> as Check>::describe(rest),
+                "pos" => <Option<i64> as Check>::describe(rest),
+                "copiedFrom" => <Option<String> as Check>::describe(rest),
+                "from" => <String as Check>::describe(rest),
+                "to" => <String as Check>::describe(rest),
+                "files" => <Vec<TurnChangedFile> as Check>::describe(rest),
+                "moved" => <Vec<String> as Check>::describe(rest),
+                "shared" => None,
+                "others" => <Option<Vec<TurnChangedFile>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -659,7 +1035,11 @@ pub enum PlanStepState {
     Done,
 }
 
-impl Check for PlanStepState {}
+impl Check for PlanStepState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["pending", "working", "done"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/session-events.ts:408 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -671,7 +1051,19 @@ pub struct PlanStep {
 
 impl Check for PlanStep {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.state.check().map_err(|e| e.under("state"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "text" => <String as Check>::describe(rest),
+                "state" => <PlanStepState as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 

@@ -32,7 +32,18 @@ pub struct ProjectBranch {
 
 impl Check for ProjectBranch {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "branch" => <Option<String> as Check>::describe(rest),
+                "folder" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -48,7 +59,20 @@ pub struct ProjectRef {
 
 impl Check for ProjectRef {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "path" => <String as Check>::describe(rest),
+                "computer" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -63,7 +87,11 @@ pub enum DaemonKind {
     Place,
 }
 
-impl Check for DaemonKind {}
+impl Check for DaemonKind {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["cloud", "local", "place"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/workspace.ts:270 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -76,7 +104,11 @@ pub enum WorkspaceOrigin {
     Paired,
 }
 
-impl Check for WorkspaceOrigin {}
+impl Check for WorkspaceOrigin {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["here", "relayed", "paired"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/workspace.ts:276 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -90,7 +122,20 @@ pub struct ThreadScope {
 
 impl Check for ThreadScope {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "kind" => None,
+                "threadId" => <String as Check>::describe(rest),
+                "workspaceId" => <String as Check>::describe(rest),
+                "rootThreadId" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -104,7 +149,18 @@ pub struct EventAsker {
 
 impl Check for EventAsker {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "threadId" => <String as Check>::describe(rest),
+                "rootThreadId" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -120,7 +176,21 @@ pub struct WorkspaceAgents {
 impl Check for WorkspaceAgents {
     /// Rules: maxMachines: >= 0; maxDepth: >= 1.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.max_machines as f64, 0.0).map_err(|e| e.under("maxMachines"))?;
+        crate::types::check::num_at_least(self.max_depth as f64, 1.0).map_err(|e| e.under("maxDepth"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "spawn" => <bool as Check>::describe(rest),
+                "maxMachines" => <i64 as Check>::describe(rest),
+                "maxDepth" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -133,13 +203,21 @@ pub enum CopyRoad {
     Worktree,
 }
 
-impl Check for CopyRoad {}
+impl Check for CopyRoad {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["clonefile", "worktree"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/workspace.ts:321 at a3b870a6e.
 /// The daemon's own enum: wsp-frames declares it, with the same values in the same order.
 pub use wsp_frames::Carried;
 
-impl Check for Carried {}
+impl Check for Carried {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["DepsAndConfig", "ConfigOnly", "Nothing"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/workspace.ts:327 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -159,7 +237,24 @@ impl Check for CopyAsk {
     /// Rules: sizeLineBytes: >= 0.
     /// Nested checks: road.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.size_line_bytes as f64, 0.0).map_err(|e| e.under("sizeLineBytes"))?;
+        self.road.check().map_err(|e| e.under("road"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "from" => <String as Check>::describe(rest),
+                "to" => <String as Check>::describe(rest),
+                "base" => <Option<String> as Check>::describe(rest),
+                "exclude" => <Vec<String> as Check>::describe(rest),
+                "sizeLineBytes" => <i64 as Check>::describe(rest),
+                "road" => <Option<CopyRoad> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -186,7 +281,31 @@ impl Check for CopyReport {
     /// Rules: bytes: >= 0; ms: >= 0.
     /// Nested checks: road, carried.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.road.check().map_err(|e| e.under("road"))?;
+        self.carried.check().map_err(|e| e.under("carried"))?;
+        crate::types::check::num_at_least(self.bytes as f64, 0.0).map_err(|e| e.under("bytes"))?;
+        crate::types::check::num_at_least(self.ms as f64, 0.0).map_err(|e| e.under("ms"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "road" => <CopyRoad as Check>::describe(rest),
+                "path" => <String as Check>::describe(rest),
+                "base" => <String as Check>::describe(rest),
+                "branch" => <String as Check>::describe(rest),
+                "fetched" => <bool as Check>::describe(rest),
+                "carried" => <Carried as Check>::describe(rest),
+                "excluded" => <Vec<String> as Check>::describe(rest),
+                "skipped" => <Option<Vec<String>> as Check>::describe(rest),
+                "bytes" => <i64 as Check>::describe(rest),
+                "ms" => <i64 as Check>::describe(rest),
+                "fellBack" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -196,7 +315,21 @@ pub use wsp_frames::CarryModule;
 
 impl Check for CarryModule {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "lockfiles" => <Vec<String> as Check>::describe(rest),
+                "carry" => <Vec<String> as Check>::describe(rest),
+                "never" => <Vec<String> as Check>::describe(rest),
+                "installed" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -216,7 +349,23 @@ pub struct WorktreeAsk {
 impl Check for WorktreeAsk {
     /// Nested checks: modules.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.modules.check().map_err(|e| e.under("modules"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "from" => <String as Check>::describe(rest),
+                "home" => <String as Check>::describe(rest),
+                "project" => <String as Check>::describe(rest),
+                "branch" => <String as Check>::describe(rest),
+                "modules" => <Vec<CarryModule> as Check>::describe(rest),
+                "checkpoint" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -237,7 +386,25 @@ pub struct ProjectCopy {
 impl Check for ProjectCopy {
     /// Nested checks: carried, road.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.carried.check().map_err(|e| e.under("carried"))?;
+        self.road.check().map_err(|e| e.under("road"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "base" => <String as Check>::describe(rest),
+                "branch" => <String as Check>::describe(rest),
+                "carried" => <Carried as Check>::describe(rest),
+                "fellBack" => <Option<String> as Check>::describe(rest),
+                "road" => <CopyRoad as Check>::describe(rest),
+                "source" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -253,7 +420,11 @@ pub enum WorktreeSettledWhy {
     Removed,
 }
 
-impl Check for WorktreeSettledWhy {}
+impl Check for WorktreeSettledWhy {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["merged", "closed", "deleted", "removed"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/workspace.ts:394 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -265,7 +436,19 @@ pub struct WorktreeSettled {
 
 impl Check for WorktreeSettled {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.why.check().map_err(|e| e.under("why"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "at" => <JsNumber as Check>::describe(rest),
+                "why" => <WorktreeSettledWhy as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -292,7 +475,25 @@ pub struct WorktreeFolder {
 impl Check for WorktreeFolder {
     /// Nested checks: settled.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.settled.check().map_err(|e| e.under("settled"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "branch" => <Option<String> as Check>::describe(rest),
+                "made" => <bool as Check>::describe(rest),
+                "madeFor" => <Option<String> as Check>::describe(rest),
+                "settled" => <Option<WorktreeSettled> as Check>::describe(rest),
+                "kept" => <Option<String> as Check>::describe(rest),
+                "removeFailed" => <Option<String> as Check>::describe(rest),
+                "gone" => None,
+                _ => None,
+            },
+        }
     }
 }
 
@@ -307,7 +508,19 @@ pub struct FoundModule {
 
 impl Check for FoundModule {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "folder" => <String as Check>::describe(rest),
+                "rebuild" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -332,7 +545,27 @@ impl Check for WorktreeReport {
     /// Rules: ms: >= 0.
     /// Nested checks: modules.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.modules.check().map_err(|e| e.under("modules"))?;
+        crate::types::check::num_at_least(self.ms as f64, 0.0).map_err(|e| e.under("ms"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "branch" => <String as Check>::describe(rest),
+                "made" => <bool as Check>::describe(rest),
+                "carried" => <Vec<String> as Check>::describe(rest),
+                "plain" => <Option<Vec<String>> as Check>::describe(rest),
+                "overlaid" => <Option<Vec<String>> as Check>::describe(rest),
+                "fresh" => <bool as Check>::describe(rest),
+                "modules" => <Vec<FoundModule> as Check>::describe(rest),
+                "ms" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -347,7 +580,18 @@ pub struct WorktreeRemoval {
 
 impl Check for WorktreeRemoval {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "rescued" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -362,7 +606,19 @@ pub struct WorktreeMade {
 
 impl Check for WorktreeMade {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "branch" => <String as Check>::describe(rest),
+                "made" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -374,7 +630,11 @@ pub enum WorkspaceViewQueueWhy {
     Minute,
 }
 
-impl Check for WorkspaceViewQueueWhy {}
+impl Check for WorkspaceViewQueueWhy {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["slot", "minute"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -385,7 +645,19 @@ pub struct WorkspaceViewQueue {
 
 impl Check for WorkspaceViewQueue {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.why.check().map_err(|e| e.under("why"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "since" => <String as Check>::describe(rest),
+                "why" => <WorkspaceViewQueueWhy as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -397,7 +669,17 @@ pub struct WorkspaceViewScreen {
 
 impl Check for WorkspaceViewScreen {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "streamUrl" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -411,7 +693,19 @@ pub struct WorkspaceViewDaemonRefusedAt {
 
 impl Check for WorkspaceViewDaemonRefusedAt {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "machineId" => <String as Check>::describe(rest),
+                "at" => <String as Check>::describe(rest),
+                "why" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -483,7 +777,60 @@ pub struct WorkspaceView {
 impl Check for WorkspaceView {
     /// Nested checks: phase, kind, project, queue, screen, theme, glyph, daemonRefusedAt, agents, worktree, pauseMode, from, review, branchOfRecord.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        self.project.check().map_err(|e| e.under("project"))?;
+        self.queue.check().map_err(|e| e.under("queue"))?;
+        self.screen.check().map_err(|e| e.under("screen"))?;
+        self.theme.check().map_err(|e| e.under("theme"))?;
+        self.glyph.check().map_err(|e| e.under("glyph"))?;
+        self.daemon_refused_at.check().map_err(|e| e.under("daemonRefusedAt"))?;
+        self.agents.check().map_err(|e| e.under("agents"))?;
+        self.worktree.check().map_err(|e| e.under("worktree"))?;
+        self.from.check().map_err(|e| e.under("from"))?;
+        self.review.check().map_err(|e| e.under("review"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "machineId" => <String as Check>::describe(rest),
+                "phase" => None,
+                "kind" => <Option<WorkspaceKind> as Check>::describe(rest),
+                "golden" => <String as Check>::describe(rest),
+                "createdAt" => <String as Check>::describe(rest),
+                "project" => <ProjectRef as Check>::describe(rest),
+                "folder" => <Option<String> as Check>::describe(rest),
+                "home" => <Option<String> as Check>::describe(rest),
+                "claudeSessionId" => <Option<String> as Check>::describe(rest),
+                "queue" => <Option<WorkspaceViewQueue> as Check>::describe(rest),
+                "screen" => <Option<WorkspaceViewScreen> as Check>::describe(rest),
+                "gone" => <Option<String> as Check>::describe(rest),
+                "theme" => <Option<WorkspaceTheme> as Check>::describe(rest),
+                "glyph" => <Option<WorkspaceGlyph> as Check>::describe(rest),
+                "daemonNote" => <Option<String> as Check>::describe(rest),
+                "vaultedAt" => <Option<String> as Check>::describe(rest),
+                "vaultRefused" => <Option<String> as Check>::describe(rest),
+                "daemonRefusedAt" => <Option<WorkspaceViewDaemonRefusedAt> as Check>::describe(rest),
+                "wakeRefused" => <Option<String> as Check>::describe(rest),
+                "diskGone" => <Option<String> as Check>::describe(rest),
+                "agents" => <Option<WorkspaceAgents> as Check>::describe(rest),
+                "parentThreadId" => <Option<String> as Check>::describe(rest),
+                "rootThreadId" => <Option<String> as Check>::describe(rest),
+                "parentWorkspaceId" => <Option<String> as Check>::describe(rest),
+                "place" => <Option<String> as Check>::describe(rest),
+                "worktree" => <Option<WorktreeFolder> as Check>::describe(rest),
+                "provider" => <Option<String> as Check>::describe(rest),
+                "pauseMode" => None,
+                "from" => <Option<WorkspaceFrom> as Check>::describe(rest),
+                "review" => <Option<ReviewDraft> as Check>::describe(rest),
+                "branchOfRecord" => None,
+                _ => None,
+            },
+        }
     }
 }
 
@@ -498,7 +845,19 @@ pub struct MachineFacts {
 
 impl Check for MachineFacts {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "os" => <String as Check>::describe(rest),
+                "uptimeMs" => <JsNumber as Check>::describe(rest),
+                "folder" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -511,7 +870,18 @@ pub struct WorkspaceStatusWakeAsk {
 
 impl Check for WorkspaceStatusWakeAsk {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "ask" => <JsNumber as Check>::describe(rest),
+                "of" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -601,7 +971,76 @@ pub struct WorkspaceStatus {
 impl Check for WorkspaceStatus {
     /// Nested checks: phase, kind, project, theme, glyph, agents, worktree, pauseMode, from, review, branchOfRecord, machineState, reach, size, facts, wakeAsk, checkout, pr, tree.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        self.project.check().map_err(|e| e.under("project"))?;
+        self.queue.check().map_err(|e| e.under("queue"))?;
+        self.screen.check().map_err(|e| e.under("screen"))?;
+        self.theme.check().map_err(|e| e.under("theme"))?;
+        self.glyph.check().map_err(|e| e.under("glyph"))?;
+        self.daemon_refused_at.check().map_err(|e| e.under("daemonRefusedAt"))?;
+        self.agents.check().map_err(|e| e.under("agents"))?;
+        self.worktree.check().map_err(|e| e.under("worktree"))?;
+        self.from.check().map_err(|e| e.under("from"))?;
+        self.review.check().map_err(|e| e.under("review"))?;
+        self.facts.check().map_err(|e| e.under("facts"))?;
+        self.wake_ask.check().map_err(|e| e.under("wakeAsk"))?;
+        self.checkout.check().map_err(|e| e.under("checkout"))?;
+        self.pr.check().map_err(|e| e.under("pr"))?;
+        self.tree.check().map_err(|e| e.under("tree"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "machineId" => <String as Check>::describe(rest),
+                "phase" => None,
+                "kind" => <Option<WorkspaceKind> as Check>::describe(rest),
+                "golden" => <String as Check>::describe(rest),
+                "createdAt" => <String as Check>::describe(rest),
+                "project" => <ProjectRef as Check>::describe(rest),
+                "folder" => <Option<String> as Check>::describe(rest),
+                "home" => <Option<String> as Check>::describe(rest),
+                "claudeSessionId" => <Option<String> as Check>::describe(rest),
+                "queue" => <Option<WorkspaceViewQueue> as Check>::describe(rest),
+                "screen" => <Option<WorkspaceViewScreen> as Check>::describe(rest),
+                "gone" => <Option<String> as Check>::describe(rest),
+                "theme" => <Option<WorkspaceTheme> as Check>::describe(rest),
+                "glyph" => <Option<WorkspaceGlyph> as Check>::describe(rest),
+                "daemonNote" => <Option<String> as Check>::describe(rest),
+                "vaultedAt" => <Option<String> as Check>::describe(rest),
+                "vaultRefused" => <Option<String> as Check>::describe(rest),
+                "daemonRefusedAt" => <Option<WorkspaceViewDaemonRefusedAt> as Check>::describe(rest),
+                "wakeRefused" => <Option<String> as Check>::describe(rest),
+                "diskGone" => <Option<String> as Check>::describe(rest),
+                "agents" => <Option<WorkspaceAgents> as Check>::describe(rest),
+                "parentThreadId" => <Option<String> as Check>::describe(rest),
+                "rootThreadId" => <Option<String> as Check>::describe(rest),
+                "parentWorkspaceId" => <Option<String> as Check>::describe(rest),
+                "place" => <Option<String> as Check>::describe(rest),
+                "worktree" => <Option<WorktreeFolder> as Check>::describe(rest),
+                "provider" => <Option<String> as Check>::describe(rest),
+                "pauseMode" => None,
+                "from" => <Option<WorkspaceFrom> as Check>::describe(rest),
+                "review" => <Option<ReviewDraft> as Check>::describe(rest),
+                "branchOfRecord" => None,
+                "machineState" => None,
+                "reach" => None,
+                "size" => None,
+                "rateUsdPerHour" => <JsNumber as Check>::describe(rest),
+                "facts" => <Option<MachineFacts> as Check>::describe(rest),
+                "reason" => <Option<String> as Check>::describe(rest),
+                "wakeAsk" => <Option<WorkspaceStatusWakeAsk> as Check>::describe(rest),
+                "idleAt" => <Option<JsNumber> as Check>::describe(rest),
+                "checkout" => <Option<Checkout> as Check>::describe(rest),
+                "pr" => <Option<PullRequestSeen> as Check>::describe(rest),
+                "tree" => <Option<TreeFact> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -667,7 +1106,55 @@ pub struct WorkspaceOut {
 impl Check for WorkspaceOut {
     /// Nested checks: phase, kind, project, theme, glyph, agents, pauseMode, worktree, from, review.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        self.project.check().map_err(|e| e.under("project"))?;
+        self.theme.check().map_err(|e| e.under("theme"))?;
+        self.glyph.check().map_err(|e| e.under("glyph"))?;
+        self.daemon_refused_at.check().map_err(|e| e.under("daemonRefusedAt"))?;
+        self.agents.check().map_err(|e| e.under("agents"))?;
+        self.worktree.check().map_err(|e| e.under("worktree"))?;
+        self.from.check().map_err(|e| e.under("from"))?;
+        self.review.check().map_err(|e| e.under("review"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "machineId" => <String as Check>::describe(rest),
+                "phase" => None,
+                "kind" => <Option<WorkspaceKind> as Check>::describe(rest),
+                "golden" => <String as Check>::describe(rest),
+                "createdAt" => <String as Check>::describe(rest),
+                "project" => <ProjectRef as Check>::describe(rest),
+                "folder" => <Option<String> as Check>::describe(rest),
+                "home" => <Option<String> as Check>::describe(rest),
+                "claudeSessionId" => <Option<String> as Check>::describe(rest),
+                "gone" => <Option<String> as Check>::describe(rest),
+                "theme" => <Option<WorkspaceTheme> as Check>::describe(rest),
+                "glyph" => <Option<WorkspaceGlyph> as Check>::describe(rest),
+                "daemonNote" => <Option<String> as Check>::describe(rest),
+                "daemonRefusedAt" => <Option<WorkspaceViewDaemonRefusedAt> as Check>::describe(rest),
+                "vaultedAt" => <Option<String> as Check>::describe(rest),
+                "vaultRefused" => <Option<String> as Check>::describe(rest),
+                "wakeRefused" => <Option<String> as Check>::describe(rest),
+                "diskGone" => <Option<String> as Check>::describe(rest),
+                "agents" => <Option<WorkspaceAgents> as Check>::describe(rest),
+                "parentThreadId" => <Option<String> as Check>::describe(rest),
+                "rootThreadId" => <Option<String> as Check>::describe(rest),
+                "parentWorkspaceId" => <Option<String> as Check>::describe(rest),
+                "place" => <Option<String> as Check>::describe(rest),
+                "provider" => <Option<String> as Check>::describe(rest),
+                "pauseMode" => None,
+                "worktree" => <Option<WorktreeFolder> as Check>::describe(rest),
+                "from" => <Option<WorkspaceFrom> as Check>::describe(rest),
+                "review" => <Option<ReviewDraft> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -691,7 +1178,27 @@ pub struct WorkspaceTalked {
 impl Check for WorkspaceTalked {
     /// Nested checks: phase, kind, project.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        self.project.check().map_err(|e| e.under("project"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "machineId" => <String as Check>::describe(rest),
+                "phase" => None,
+                "kind" => <Option<WorkspaceKind> as Check>::describe(rest),
+                "golden" => <String as Check>::describe(rest),
+                "createdAt" => <String as Check>::describe(rest),
+                "project" => <ProjectRef as Check>::describe(rest),
+                "gone" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -767,6 +1274,62 @@ pub struct WorkspaceListing {
 impl Check for WorkspaceListing {
     /// Nested checks: phase, kind, project, theme, glyph, agents, pauseMode, worktree, from, review, machineState, size, facts, reach.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        self.project.check().map_err(|e| e.under("project"))?;
+        self.theme.check().map_err(|e| e.under("theme"))?;
+        self.glyph.check().map_err(|e| e.under("glyph"))?;
+        self.daemon_refused_at.check().map_err(|e| e.under("daemonRefusedAt"))?;
+        self.agents.check().map_err(|e| e.under("agents"))?;
+        self.worktree.check().map_err(|e| e.under("worktree"))?;
+        self.from.check().map_err(|e| e.under("from"))?;
+        self.review.check().map_err(|e| e.under("review"))?;
+        self.facts.check().map_err(|e| e.under("facts"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "machineId" => <String as Check>::describe(rest),
+                "phase" => None,
+                "kind" => <Option<WorkspaceKind> as Check>::describe(rest),
+                "golden" => <String as Check>::describe(rest),
+                "createdAt" => <String as Check>::describe(rest),
+                "project" => <ProjectRef as Check>::describe(rest),
+                "folder" => <Option<String> as Check>::describe(rest),
+                "home" => <Option<String> as Check>::describe(rest),
+                "claudeSessionId" => <Option<String> as Check>::describe(rest),
+                "gone" => <Option<String> as Check>::describe(rest),
+                "theme" => <Option<WorkspaceTheme> as Check>::describe(rest),
+                "glyph" => <Option<WorkspaceGlyph> as Check>::describe(rest),
+                "daemonNote" => <Option<String> as Check>::describe(rest),
+                "daemonRefusedAt" => <Option<WorkspaceViewDaemonRefusedAt> as Check>::describe(rest),
+                "vaultedAt" => <Option<String> as Check>::describe(rest),
+                "vaultRefused" => <Option<String> as Check>::describe(rest),
+                "wakeRefused" => <Option<String> as Check>::describe(rest),
+                "diskGone" => <Option<String> as Check>::describe(rest),
+                "agents" => <Option<WorkspaceAgents> as Check>::describe(rest),
+                "parentThreadId" => <Option<String> as Check>::describe(rest),
+                "rootThreadId" => <Option<String> as Check>::describe(rest),
+                "parentWorkspaceId" => <Option<String> as Check>::describe(rest),
+                "place" => <Option<String> as Check>::describe(rest),
+                "provider" => <Option<String> as Check>::describe(rest),
+                "pauseMode" => None,
+                "worktree" => <Option<WorktreeFolder> as Check>::describe(rest),
+                "from" => <Option<WorkspaceFrom> as Check>::describe(rest),
+                "review" => <Option<ReviewDraft> as Check>::describe(rest),
+                "machineState" => None,
+                "size" => None,
+                "rateUsdPerHour" => <JsNumber as Check>::describe(rest),
+                "reason" => <Option<String> as Check>::describe(rest),
+                "idleAt" => <Option<JsNumber> as Check>::describe(rest),
+                "facts" => <Option<MachineFacts> as Check>::describe(rest),
+                "reach" => None,
+                _ => None,
+            },
+        }
     }
 }

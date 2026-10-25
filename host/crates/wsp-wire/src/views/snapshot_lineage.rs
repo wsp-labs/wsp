@@ -27,7 +27,20 @@ pub struct SnapshotLineage {
 impl Check for SnapshotLineage {
     /// Nested checks: versions.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.versions.check().map_err(|e| e.under("versions"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "head" => <Option<JsNumber> as Check>::describe(rest),
+                "versions" => <Vec<GoldenVersion> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -50,7 +63,25 @@ pub struct ProjectGolden {
 impl Check for ProjectGolden {
     /// Nested checks: projects.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.projects.check().map_err(|e| e.under("projects"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "snapshotId" => <String as Check>::describe(rest),
+                "projects" => <Vec<WorkspaceProject> as Check>::describe(rest),
+                "golden" => <String as Check>::describe(rest),
+                "version" => <Option<i64> as Check>::describe(rest),
+                "workspaceId" => <String as Check>::describe(rest),
+                "workspaceName" => <String as Check>::describe(rest),
+                "createdAt" => <String as Check>::describe(rest),
+                "place" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -65,7 +96,19 @@ pub struct ProjectGoldenRemoved {
 impl Check for ProjectGoldenRemoved {
     /// Nested checks: projectGolden.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.project_golden.check().map_err(|e| e.under("projectGolden"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "projectGolden" => <ProjectGolden as Check>::describe(rest),
+                "alreadyGone" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -90,7 +133,26 @@ pub struct SealedProjectImage {
 impl Check for SealedProjectImage {
     /// Nested checks: projects.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.projects.check().map_err(|e| e.under("projects"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "snapshotId" => <String as Check>::describe(rest),
+                "projects" => <Vec<WorkspaceProject> as Check>::describe(rest),
+                "golden" => <String as Check>::describe(rest),
+                "version" => <Option<i64> as Check>::describe(rest),
+                "workspaceId" => <String as Check>::describe(rest),
+                "workspaceName" => <String as Check>::describe(rest),
+                "createdAt" => <String as Check>::describe(rest),
+                "place" => <Option<String> as Check>::describe(rest),
+                "sizeBytes" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -107,7 +169,22 @@ pub struct SealedImageView {
 impl Check for SealedImageView {
     /// Nested checks: image, copies, projects.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.image.check().map_err(|e| e.under("image"))?;
+        self.copies.check().map_err(|e| e.under("copies"))?;
+        self.projects.check().map_err(|e| e.under("projects"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "image" => <Option<SealedImage> as Check>::describe(rest),
+                "copies" => <Vec<SealedImageCopy> as Check>::describe(rest),
+                "projects" => <Vec<SealedProjectImage> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -121,7 +198,18 @@ pub struct SnapshotGroup {
 
 impl Check for SnapshotGroup {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "count" => <JsNumber as Check>::describe(rest),
+                "bytes" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -134,7 +222,18 @@ pub struct SnapshotStorageNamed {
 
 impl Check for SnapshotStorageNamed {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "count" => <JsNumber as Check>::describe(rest),
+                "free" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -158,7 +257,30 @@ pub struct SnapshotStorage {
 impl Check for SnapshotStorage {
     /// Nested checks: named, kept, orphans, others.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.named.check().map_err(|e| e.under("named"))?;
+        self.kept.check().map_err(|e| e.under("kept"))?;
+        self.orphans.check().map_err(|e| e.under("orphans"))?;
+        self.others.check().map_err(|e| e.under("others"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "count" => <JsNumber as Check>::describe(rest),
+                "totalBytes" => <JsNumber as Check>::describe(rest),
+                "freeGb" => <JsNumber as Check>::describe(rest),
+                "usdPerGbMonth" => <JsNumber as Check>::describe(rest),
+                "billedFrom" => <String as Check>::describe(rest),
+                "monthlyUsd" => <JsNumber as Check>::describe(rest),
+                "named" => <Option<SnapshotStorageNamed> as Check>::describe(rest),
+                "kept" => <SnapshotGroup as Check>::describe(rest),
+                "orphans" => <SnapshotGroup as Check>::describe(rest),
+                "others" => <SnapshotGroup as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -173,7 +295,20 @@ pub struct SnapshotRollbackResult {
 impl Check for SnapshotRollbackResult {
     /// Nested checks: lineage.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.lineage.check().map_err(|e| e.under("lineage"))?;
+        self.existing_workspaces.check().map_err(|e| e.under("existingWorkspaces"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "lineage" => <SnapshotLineage as Check>::describe(rest),
+                "existingWorkspaces" => <UntouchedLit as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -189,6 +324,18 @@ pub struct WorkspaceCreateResult {
 impl Check for WorkspaceCreateResult {
     /// Nested checks: workspace.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.workspace.check().map_err(|e| e.under("workspace"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspace" => <WorkspaceView as Check>::describe(rest),
+                "notice" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

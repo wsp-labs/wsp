@@ -12,7 +12,22 @@ pub use wsp_frames::GitPushReply;
 
 impl Check for GitPushReply {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "branch" => <String as Check>::describe(rest),
+                "base" => <String as Check>::describe(rest),
+                "remote" => <String as Check>::describe(rest),
+                "ahead" => <u64 as Check>::describe(rest),
+                "uncommitted" => <u64 as Check>::describe(rest),
+                "stat" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -23,7 +38,19 @@ pub use wsp_frames::GitPrReply;
 impl Check for GitPrReply {
     /// Nested checks: pr.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.pr.check().map_err(|e| e.under("pr"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "pr" => <PullRequest as Check>::describe(rest),
+                "created" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -47,6 +74,24 @@ pub struct BringBackResult {
 impl Check for BringBackResult {
     /// Nested checks: pr.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.pr.check().map_err(|e| e.under("pr"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "branch" => <String as Check>::describe(rest),
+                "base" => <String as Check>::describe(rest),
+                "ahead" => <i64 as Check>::describe(rest),
+                "uncommitted" => <i64 as Check>::describe(rest),
+                "stat" => <Vec<String> as Check>::describe(rest),
+                "pr" => <Option<PullRequest> as Check>::describe(rest),
+                "note" => <Option<String> as Check>::describe(rest),
+                "refused" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

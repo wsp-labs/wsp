@@ -34,7 +34,29 @@ pub struct SubResult {
 impl Check for SubResult {
     /// Rules: commits: >= 0; unpushed: >= 0; changed: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.commits as f64, 0.0).map_err(|e| e.under("commits"))?;
+        crate::types::check::num_at_least(self.unpushed as f64, 0.0).map_err(|e| e.under("unpushed"))?;
+        crate::types::check::num_at_least(self.changed as f64, 0.0).map_err(|e| e.under("changed"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "branch" => <String as Check>::describe(rest),
+                "pushedSha" => <Option<String> as Check>::describe(rest),
+                "commits" => <i64 as Check>::describe(rest),
+                "unpushed" => <i64 as Check>::describe(rest),
+                "changed" => <i64 as Check>::describe(rest),
+                "onBranch" => <Option<String> as Check>::describe(rest),
+                "norepo" => None,
+                "readFailed" => <Option<String> as Check>::describe(rest),
+                "readAt" => <String as Check>::describe(rest),
+                "pushRefused" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -49,7 +71,20 @@ pub struct SubSpawnBranch {
 impl Check for SubSpawnBranch {
     /// Rules: ms: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.ms as f64, 0.0).map_err(|e| e.under("ms"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "branch" => <String as Check>::describe(rest),
+                "sha" => <String as Check>::describe(rest),
+                "ms" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -67,7 +102,23 @@ pub struct SubSpawnMachine {
 impl Check for SubSpawnMachine {
     /// Rules: ms: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.ms {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("ms"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "since" => <JsNumber as Check>::describe(rest),
+                "id" => <Option<String> as Check>::describe(rest),
+                "states" => <Vec<String> as Check>::describe(rest),
+                "ms" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -84,7 +135,24 @@ pub struct SubSpawnFiles {
 impl Check for SubSpawnFiles {
     /// Rules: bytes: >= 0; ms: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.bytes as f64, 0.0).map_err(|e| e.under("bytes"))?;
+        if let Some(v) = self.ms {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("ms"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "since" => <JsNumber as Check>::describe(rest),
+                "paths" => <Vec<String> as Check>::describe(rest),
+                "bytes" => <i64 as Check>::describe(rest),
+                "ms" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -96,7 +164,11 @@ pub enum SubSpawnFailedStep {
     Files,
 }
 
-impl Check for SubSpawnFailedStep {}
+impl Check for SubSpawnFailedStep {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["machine", "files"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -109,7 +181,20 @@ pub struct SubSpawnFailed {
 
 impl Check for SubSpawnFailed {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.step.check().map_err(|e| e.under("step"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "step" => <SubSpawnFailedStep as Check>::describe(rest),
+                "said" => <String as Check>::describe(rest),
+                "fix" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -143,7 +228,34 @@ impl Check for SubSpawn {
     /// Rules: uncommitted: >= 0.
     /// Nested checks: branch, machine, files, failed.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.branch.check().map_err(|e| e.under("branch"))?;
+        self.machine.check().map_err(|e| e.under("machine"))?;
+        self.files.check().map_err(|e| e.under("files"))?;
+        self.failed.check().map_err(|e| e.under("failed"))?;
+        if let Some(v) = self.uncommitted {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("uncommitted"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "startedAt" => <JsNumber as Check>::describe(rest),
+                "branch" => <Option<SubSpawnBranch> as Check>::describe(rest),
+                "machine" => <Option<SubSpawnMachine> as Check>::describe(rest),
+                "files" => <Option<SubSpawnFiles> as Check>::describe(rest),
+                "readyAt" => <Option<JsNumber> as Check>::describe(rest),
+                "failed" => <Option<SubSpawnFailed> as Check>::describe(rest),
+                "uncommitted" => <Option<i64> as Check>::describe(rest),
+                "asked" => <Option<String> as Check>::describe(rest),
+                "notSent" => <Option<String> as Check>::describe(rest),
+                "replaced" => <Option<Vec<String>> as Check>::describe(rest),
+                "log" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -162,7 +274,11 @@ pub enum SubState {
     Released,
 }
 
-impl Check for SubState {}
+impl Check for SubState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["waiting", "starting", "running", "napping", "released"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/sub-row.ts:66 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -175,7 +291,20 @@ pub struct SubHeld {
 impl Check for SubHeld {
     /// Rules: files: >= 0; commits: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.files as f64, 0.0).map_err(|e| e.under("files"))?;
+        crate::types::check::num_at_least(self.commits as f64, 0.0).map_err(|e| e.under("commits"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "files" => <i64 as Check>::describe(rest),
+                "commits" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -190,7 +319,19 @@ pub struct SubRowSize {
 
 impl Check for SubRowSize {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "cpu" => <i64 as Check>::describe(rest),
+                "memMb" => <i64 as Check>::describe(rest),
+                "name" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -224,7 +365,34 @@ pub struct SubRow {
 impl Check for SubRow {
     /// Nested checks: state, size, result, held, spawn.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.state.check().map_err(|e| e.under("state"))?;
+        self.size.check().map_err(|e| e.under("size"))?;
+        self.result.check().map_err(|e| e.under("result"))?;
+        self.held.check().map_err(|e| e.under("held"))?;
+        self.spawn.check().map_err(|e| e.under("spawn"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "state" => <SubState as Check>::describe(rest),
+                "on" => <String as Check>::describe(rest),
+                "machine" => <String as Check>::describe(rest),
+                "size" => <SubRowSize as Check>::describe(rest),
+                "rateUsdPerHour" => <Option<JsNumber> as Check>::describe(rest),
+                "branch" => <String as Check>::describe(rest),
+                "result" => <Option<SubResult> as Check>::describe(rest),
+                "held" => <Option<SubHeld> as Check>::describe(rest),
+                "deleteAt" => <Option<JsNumber> as Check>::describe(rest),
+                "releasedAt" => <Option<JsNumber> as Check>::describe(rest),
+                "cloudGone" => None,
+                "sessionNotKept" => <Option<String> as Check>::describe(rest),
+                "spawn" => <Option<SubSpawn> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 

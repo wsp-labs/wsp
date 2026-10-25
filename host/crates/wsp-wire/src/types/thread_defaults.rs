@@ -36,7 +36,11 @@ pub enum AccessChoice {
     Plan,
 }
 
-impl Check for AccessChoice {}
+impl Check for AccessChoice {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["ask", "auto-edit", "full", "plan"]))
+    }
+}
 
 /// TS: packages/protocol/src/thread-defaults.ts:24 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -53,7 +57,19 @@ pub struct ModelPicker {
 impl Check for ModelPicker {
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "hide" => <Option<Vec<String>> as Check>::describe(rest),
+                "order" => <Option<Vec<String>> as Check>::describe(rest),
+                "custom" => <Option<Vec<String>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -75,7 +91,22 @@ impl Check for AgentDefaults {
     /// Nested checks: access, models.
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.access.check().map_err(|e| e.under("access"))?;
+        self.models.check().map_err(|e| e.under("models"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "model" => <Option<String> as Check>::describe(rest),
+                "effort" => <Option<String> as Check>::describe(rest),
+                "access" => <Option<AccessChoice> as Check>::describe(rest),
+                "models" => <Option<ModelPicker> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -97,7 +128,22 @@ impl Check for AgentDefaultsPatch {
     /// Nested checks: access, models.
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.access.check().map_err(|e| e.under("access"))?;
+        self.models.check().map_err(|e| e.under("models"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "model" => <Option<Option<String>> as Check>::describe(rest),
+                "effort" => <Option<Option<String>> as Check>::describe(rest),
+                "access" => <Option<Option<AccessChoice>> as Check>::describe(rest),
+                "models" => <Option<Option<ModelPicker>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -117,7 +163,7 @@ pub struct ProjectOverrides {
     pub effort: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub access: Option<AccessChoice>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::trimmed_opt")]
     pub after_worktree: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trackers: Option<Vec<TrackerRepo>>,
@@ -128,7 +174,31 @@ impl Check for ProjectOverrides {
     /// Nested checks: access, trackers.
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.access.check().map_err(|e| e.under("access"))?;
+        if let Some(v) = &self.after_worktree {
+            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("afterWorktree"))?;
+        }
+        if let Some(list) = &self.trackers {
+            for (i, item) in list.iter().enumerate() {
+                crate::types::check::regex_check(crate::types::check::tracker_repo(item)).map_err(|e| e.under(i).under("trackers"))?;
+            }
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "agent" => <Option<String> as Check>::describe(rest),
+                "model" => <Option<String> as Check>::describe(rest),
+                "effort" => <Option<String> as Check>::describe(rest),
+                "access" => <Option<AccessChoice> as Check>::describe(rest),
+                "afterWorktree" => <Option<String> as Check>::describe(rest),
+                "trackers" => <Option<Vec<TrackerRepo>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -144,7 +214,7 @@ pub struct ProjectOverridesPatch {
     pub effort: Option<Option<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
     pub access: Option<Option<AccessChoice>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option_trimmed")]
     pub after_worktree: Option<Option<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
     pub trackers: Option<Option<Vec<TrackerRepo>>>,
@@ -155,7 +225,31 @@ impl Check for ProjectOverridesPatch {
     /// Nested checks: access, trackers.
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.access.check().map_err(|e| e.under("access"))?;
+        if let Some(Some(v)) = &self.after_worktree {
+            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("afterWorktree"))?;
+        }
+        if let Some(Some(list)) = &self.trackers {
+            for (i, item) in list.iter().enumerate() {
+                crate::types::check::regex_check(crate::types::check::tracker_repo(item)).map_err(|e| e.under(i).under("trackers"))?;
+            }
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "agent" => <Option<Option<String>> as Check>::describe(rest),
+                "model" => <Option<Option<String>> as Check>::describe(rest),
+                "effort" => <Option<Option<String>> as Check>::describe(rest),
+                "access" => <Option<Option<AccessChoice>> as Check>::describe(rest),
+                "afterWorktree" => <Option<Option<String>> as Check>::describe(rest),
+                "trackers" => <Option<Option<Vec<TrackerRepo>>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -180,7 +274,21 @@ pub struct AgentSetupView {
 impl Check for AgentSetupView {
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "on" => <bool as Check>::describe(rest),
+                "program" => <Option<String> as Check>::describe(rest),
+                "configDir" => <Option<String> as Check>::describe(rest),
+                "args" => <Option<Vec<String>> as Check>::describe(rest),
+                "envNames" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -204,7 +312,27 @@ impl Check for AgentSetupSet {
     /// Rules: program: at least 1 UTF-16 units; configDir: at least 1 UTF-16 units.
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(Some(v)) = &self.program {
+            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("program"))?;
+        }
+        if let Some(Some(v)) = &self.config_dir {
+            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("configDir"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "on" => <Option<bool> as Check>::describe(rest),
+                "program" => <Option<Option<String>> as Check>::describe(rest),
+                "configDir" => <Option<Option<String>> as Check>::describe(rest),
+                "args" => <Option<Option<Vec<String>>> as Check>::describe(rest),
+                "env" => <Option<IndexMap<String, Option<String>>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -221,7 +349,11 @@ pub enum DefaultFrom {
     Catalog,
 }
 
-impl Check for DefaultFrom {}
+impl Check for DefaultFrom {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["named", "project", "default", "catalog"]))
+    }
+}
 
 /// TS: packages/protocol/src/thread-defaults.ts:123 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -234,7 +366,19 @@ pub struct ResolvedPick {
 impl Check for ResolvedPick {
     /// Nested checks: from.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.from.check().map_err(|e| e.under("from"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "value" => <String as Check>::describe(rest),
+                "from" => <DefaultFrom as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -250,7 +394,21 @@ pub struct ResolvedAccess {
 impl Check for ResolvedAccess {
     /// Nested checks: value, from.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.value.check().map_err(|e| e.under("value"))?;
+        self.from.check().map_err(|e| e.under("from"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "value" => <AccessChoice as Check>::describe(rest),
+                "mode" => <String as Check>::describe(rest),
+                "from" => <DefaultFrom as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -270,7 +428,24 @@ pub struct ThreadDefaults {
 impl Check for ThreadDefaults {
     /// Nested checks: agent, model, effort, access.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.agent.check().map_err(|e| e.under("agent"))?;
+        self.model.check().map_err(|e| e.under("model"))?;
+        self.effort.check().map_err(|e| e.under("effort"))?;
+        self.access.check().map_err(|e| e.under("access"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "agent" => <ResolvedPick as Check>::describe(rest),
+                "model" => <Option<ResolvedPick> as Check>::describe(rest),
+                "effort" => <Option<ResolvedPick> as Check>::describe(rest),
+                "access" => <Option<ResolvedAccess> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 

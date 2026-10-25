@@ -30,7 +30,11 @@ pub enum CredentialSignal {
     History,
 }
 
-impl Check for CredentialSignal {}
+impl Check for CredentialSignal {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["name", "mode", "keys", "pem", "url", "gitleaks", "catalog", "exports", "history"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/project-bundle.ts:16 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -42,7 +46,18 @@ pub struct ProjectRewrite {
 
 impl Check for ProjectRewrite {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "urls" => <Vec<String> as Check>::describe(rest),
+                "drop" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -60,7 +75,22 @@ pub struct ProjectSecret {
 impl Check for ProjectSecret {
     /// Nested checks: signals, rewrite.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.signals.check().map_err(|e| e.under("signals"))?;
+        self.rewrite.check().map_err(|e| e.under("rewrite"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "bytes" => <JsNumber as Check>::describe(rest),
+                "signals" => <Vec<CredentialSignal> as Check>::describe(rest),
+                "rewrite" => <Option<ProjectRewrite> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -73,7 +103,11 @@ pub enum ProjectCarry {
     TranscriptOnly,
 }
 
-impl Check for ProjectCarry {}
+impl Check for ProjectCarry {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["moves", "transcript-only"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/project-bundle.ts:31 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -91,7 +125,23 @@ pub struct ProjectAgent {
 impl Check for ProjectAgent {
     /// Nested checks: carry.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.carry.check().map_err(|e| e.under("carry"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "agent" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "sessions" => <JsNumber as Check>::describe(rest),
+                "bytes" => <JsNumber as Check>::describe(rest),
+                "carry" => <ProjectCarry as Check>::describe(rest),
+                "error" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -104,7 +154,18 @@ pub struct ProjectPlanSkippedItem {
 
 impl Check for ProjectPlanSkippedItem {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "note" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -127,7 +188,28 @@ pub struct ProjectPlan {
 impl Check for ProjectPlan {
     /// Nested checks: secrets, skipped, agents.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.secrets.check().map_err(|e| e.under("secrets"))?;
+        self.skipped.check().map_err(|e| e.under("skipped"))?;
+        self.agents.check().map_err(|e| e.under("agents"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "source" => <String as Check>::describe(rest),
+                "repo" => <bool as Check>::describe(rest),
+                "files" => <JsNumber as Check>::describe(rest),
+                "bytes" => <JsNumber as Check>::describe(rest),
+                "secrets" => <Vec<ProjectSecret> as Check>::describe(rest),
+                "values" => <Option<Vec<String>> as Check>::describe(rest),
+                "excluded" => <Vec<String> as Check>::describe(rest),
+                "skipped" => <Vec<ProjectPlanSkippedItem> as Check>::describe(rest),
+                "agents" => <Vec<ProjectAgent> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -150,7 +232,11 @@ pub enum ProjectImportStage {
     Failed,
 }
 
-impl Check for ProjectImportStage {}
+impl Check for ProjectImportStage {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["planned", "consented", "packing", "uploading", "landing", "done", "failed"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/project-bundle.ts:57 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -176,7 +262,25 @@ impl ProjectImportEvent {
 impl Check for ProjectImportEvent {
     /// Nested checks: stage.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.stage.check().map_err(|e| e.under("stage"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "source" => <String as Check>::describe(rest),
+                "dest" => <String as Check>::describe(rest),
+                "stage" => <ProjectImportStage as Check>::describe(rest),
+                "message" => <String as Check>::describe(rest),
+                "elapsedMs" => <JsNumber as Check>::describe(rest),
+                "bytes" => <Option<JsNumber> as Check>::describe(rest),
+                "total" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -195,7 +299,11 @@ pub enum ProjectAgentOutcome {
     Failed,
 }
 
-impl Check for ProjectAgentOutcome {}
+impl Check for ProjectAgentOutcome {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["moved", "transcript-only", "carried", "nothing", "failed"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/project-bundle.ts:81 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -220,7 +328,26 @@ pub struct ProjectAgentResult {
 impl Check for ProjectAgentResult {
     /// Nested checks: outcome.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.outcome.check().map_err(|e| e.under("outcome"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "agent" => <String as Check>::describe(rest),
+                "files" => <JsNumber as Check>::describe(rest),
+                "bytes" => <JsNumber as Check>::describe(rest),
+                "outcome" => <ProjectAgentOutcome as Check>::describe(rest),
+                "sessions" => <Option<JsNumber> as Check>::describe(rest),
+                "skipped" => <Option<JsNumber> as Check>::describe(rest),
+                "error" => <Option<String> as Check>::describe(rest),
+                "rows" => <Option<JsNumber> as Check>::describe(rest),
+                "note" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -241,7 +368,26 @@ pub struct ProjectImportResult {
 impl Check for ProjectImportResult {
     /// Nested checks: agents, project.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.agents.check().map_err(|e| e.under("agents"))?;
+        self.project.check().map_err(|e| e.under("project"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "dest" => <String as Check>::describe(rest),
+                "files" => <JsNumber as Check>::describe(rest),
+                "bytes" => <JsNumber as Check>::describe(rest),
+                "parts" => <JsNumber as Check>::describe(rest),
+                "cut" => <Vec<String> as Check>::describe(rest),
+                "rewritten" => <Vec<String> as Check>::describe(rest),
+                "agents" => <Vec<ProjectAgentResult> as Check>::describe(rest),
+                "project" => <WorkspaceProject as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -260,7 +406,11 @@ pub enum ProjectExportStage {
     Failed,
 }
 
-impl Check for ProjectExportStage {}
+impl Check for ProjectExportStage {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["packing", "downloading", "landing", "done", "failed"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/project-bundle.ts:105 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -286,7 +436,25 @@ impl ProjectExportEvent {
 impl Check for ProjectExportEvent {
     /// Nested checks: stage.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.stage.check().map_err(|e| e.under("stage"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "source" => <String as Check>::describe(rest),
+                "dest" => <String as Check>::describe(rest),
+                "stage" => <ProjectExportStage as Check>::describe(rest),
+                "message" => <String as Check>::describe(rest),
+                "elapsedMs" => <JsNumber as Check>::describe(rest),
+                "bytes" => <Option<JsNumber> as Check>::describe(rest),
+                "total" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -304,7 +472,22 @@ pub struct ProjectExportResult {
 impl Check for ProjectExportResult {
     /// Nested checks: agents.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.agents.check().map_err(|e| e.under("agents"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "dest" => <String as Check>::describe(rest),
+                "files" => <JsNumber as Check>::describe(rest),
+                "bytes" => <JsNumber as Check>::describe(rest),
+                "excluded" => <Vec<String> as Check>::describe(rest),
+                "agents" => <Vec<ProjectAgentResult> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -314,7 +497,20 @@ pub use wsp_frames::HostFolder;
 
 impl Check for HostFolder {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "repo" => <bool as Check>::describe(rest),
+                "branch" => <Option<String> as Check>::describe(rest),
+                "touchedAt" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -325,7 +521,21 @@ pub use wsp_frames::HostFolderListing;
 impl Check for HostFolderListing {
     /// Nested checks: folders.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.folders.check().map_err(|e| e.under("folders"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "dir" => <String as Check>::describe(rest),
+                "roots" => <Vec<String> as Check>::describe(rest),
+                "folders" => <Vec<HostFolder> as Check>::describe(rest),
+                "hidden" => <u64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -338,7 +548,11 @@ pub enum TerminalScheme {
     Dark,
 }
 
-impl Check for TerminalScheme {}
+impl Check for TerminalScheme {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["light", "dark"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/project-bundle.ts:154 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -352,7 +566,25 @@ pub struct TerminalRgb {
 impl Check for TerminalRgb {
     /// Rules: r: >= 0; r: <= 255; g: >= 0; g: <= 255; b: >= 0; b: <= 255.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.r as f64, 0.0).map_err(|e| e.under("r"))?;
+        crate::types::check::num_at_most(self.r as f64, 255.0).map_err(|e| e.under("r"))?;
+        crate::types::check::num_at_least(self.g as f64, 0.0).map_err(|e| e.under("g"))?;
+        crate::types::check::num_at_most(self.g as f64, 255.0).map_err(|e| e.under("g"))?;
+        crate::types::check::num_at_least(self.b as f64, 0.0).map_err(|e| e.under("b"))?;
+        crate::types::check::num_at_most(self.b as f64, 255.0).map_err(|e| e.under("b"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "r" => <i64 as Check>::describe(rest),
+                "g" => <i64 as Check>::describe(rest),
+                "b" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -369,7 +601,11 @@ pub enum TerminalCursorStyle {
     BlockHollow,
 }
 
-impl Check for TerminalCursorStyle {}
+impl Check for TerminalCursorStyle {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["block", "bar", "underline", "block_hollow"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -381,7 +617,20 @@ pub struct TerminalConfigWindowPaddingX {
 impl Check for TerminalConfigWindowPaddingX {
     /// Rules: left: >= 0; right: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.left.0, 0.0).map_err(|e| e.under("left"))?;
+        crate::types::check::num_at_least(self.right.0, 0.0).map_err(|e| e.under("right"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "left" => <JsNumber as Check>::describe(rest),
+                "right" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -395,7 +644,20 @@ pub struct TerminalConfigWindowPaddingY {
 impl Check for TerminalConfigWindowPaddingY {
     /// Rules: top: >= 0; bottom: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.top.0, 0.0).map_err(|e| e.under("top"))?;
+        crate::types::check::num_at_least(self.bottom.0, 0.0).map_err(|e| e.under("bottom"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "top" => <JsNumber as Check>::describe(rest),
+                "bottom" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -436,6 +698,51 @@ impl Check for TerminalConfig {
     /// Rules: fontSize: > 0; palette: exactly 16 items; backgroundOpacity: >= 0; backgroundOpacity: <= 1; backgroundBlur: >= 0.
     /// Nested checks: background, foreground, palette, selectionBackground, cursorColor, cursorStyle, windowPaddingX, windowPaddingY.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.font_size {
+            crate::types::check::num_above(v.0, 0.0).map_err(|e| e.under("fontSize"))?;
+        }
+        self.background.check().map_err(|e| e.under("background"))?;
+        self.foreground.check().map_err(|e| e.under("foreground"))?;
+        crate::types::check::items_exactly(self.palette.len(), 16).map_err(|e| e.under("palette"))?;
+        self.palette.check().map_err(|e| e.under("palette"))?;
+        self.selection_background.check().map_err(|e| e.under("selectionBackground"))?;
+        self.cursor_color.check().map_err(|e| e.under("cursorColor"))?;
+        self.cursor_style.check().map_err(|e| e.under("cursorStyle"))?;
+        self.window_padding_x.check().map_err(|e| e.under("windowPaddingX"))?;
+        self.window_padding_y.check().map_err(|e| e.under("windowPaddingY"))?;
+        if let Some(v) = self.background_opacity {
+            crate::types::check::num_at_least(v.0, 0.0).map_err(|e| e.under("backgroundOpacity"))?;
+        }
+        if let Some(v) = self.background_opacity {
+            crate::types::check::num_at_most(v.0, 1.0).map_err(|e| e.under("backgroundOpacity"))?;
+        }
+        if let Some(v) = self.background_blur {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("backgroundBlur"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "files" => <Vec<String> as Check>::describe(rest),
+                "fontFamily" => <Vec<String> as Check>::describe(rest),
+                "fontSize" => <Option<JsNumber> as Check>::describe(rest),
+                "theme" => <Option<String> as Check>::describe(rest),
+                "background" => <Option<TerminalRgb> as Check>::describe(rest),
+                "foreground" => <Option<TerminalRgb> as Check>::describe(rest),
+                "palette" => <Vec<Option<TerminalRgb>> as Check>::describe(rest),
+                "selectionBackground" => <Option<TerminalRgb> as Check>::describe(rest),
+                "cursorColor" => <Option<TerminalRgb> as Check>::describe(rest),
+                "cursorStyle" => <Option<TerminalCursorStyle> as Check>::describe(rest),
+                "cursorStyleBlink" => <Option<bool> as Check>::describe(rest),
+                "windowPaddingX" => <Option<TerminalConfigWindowPaddingX> as Check>::describe(rest),
+                "windowPaddingY" => <Option<TerminalConfigWindowPaddingY> as Check>::describe(rest),
+                "backgroundOpacity" => <Option<JsNumber> as Check>::describe(rest),
+                "backgroundBlur" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

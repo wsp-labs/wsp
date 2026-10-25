@@ -34,7 +34,11 @@ pub enum InitRoad {
     Terminal,
 }
 
-impl Check for InitRoad {}
+impl Check for InitRoad {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["manual", "agent", "terminal"]))
+    }
+}
 
 /// TS: packages/protocol/src/init-job.ts:19 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -61,7 +65,11 @@ pub enum InitPhase {
     Cancelled,
 }
 
-impl Check for InitPhase {}
+impl Check for InitPhase {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["agent", "reading", "answering", "building", "signing-in", "sealing", "finishing", "done", "failed", "cancelled"]))
+    }
+}
 
 /// TS: packages/protocol/src/init-job.ts:23 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -78,7 +86,11 @@ pub enum InitScreenId {
     Wsp,
 }
 
-impl Check for InitScreenId {}
+impl Check for InitScreenId {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["agents", "tools", "also", "logins", "wsp"]))
+    }
+}
 
 /// TS: packages/protocol/src/init-job.ts:26 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -90,7 +102,18 @@ pub struct InitChoice {
 
 impl Check for InitChoice {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "value" => <String as Check>::describe(rest),
+                "label" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -102,7 +125,11 @@ pub enum InitScreenItemLock {
     Off,
 }
 
-impl Check for InitScreenItemLock {}
+impl Check for InitScreenItemLock {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["on", "off"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -113,7 +140,18 @@ pub struct InitScreenItemKey {
 
 impl Check for InitScreenItemKey {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "saved" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -146,7 +184,33 @@ impl Check for InitScreenItem {
     /// Rules: size: >= 0.
     /// Nested checks: choices, key.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(Some(v)) = self.size {
+            crate::types::check::num_at_least(v.0, 0.0).map_err(|e| e.under("size"))?;
+        }
+        self.lock.check().map_err(|e| e.under("lock"))?;
+        self.choices.check().map_err(|e| e.under("choices"))?;
+        self.key.check().map_err(|e| e.under("key"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "label" => <String as Check>::describe(rest),
+                "size" => <Option<Option<JsNumber>> as Check>::describe(rest),
+                "why" => <Option<String> as Check>::describe(rest),
+                "group" => <Option<String> as Check>::describe(rest),
+                "detail" => <Vec<String> as Check>::describe(rest),
+                "lock" => <Option<InitScreenItemLock> as Check>::describe(rest),
+                "choices" => <Option<Vec<InitChoice>> as Check>::describe(rest),
+                "key" => <Option<InitScreenItemKey> as Check>::describe(rest),
+                "state" => <Option<String> as Check>::describe(rest),
+                "mark" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -160,7 +224,11 @@ pub enum InitFooterLineTone {
     Red,
 }
 
-impl Check for InitFooterLineTone {}
+impl Check for InitFooterLineTone {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["yellow", "yellowBright", "red"]))
+    }
+}
 
 /// TS: packages/protocol/src/init-job.ts:51 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -173,7 +241,19 @@ pub struct InitFooterLine {
 
 impl Check for InitFooterLine {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.tone.check().map_err(|e| e.under("tone"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "text" => <String as Check>::describe(rest),
+                "tone" => <Option<InitFooterLineTone> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -195,7 +275,27 @@ pub struct InitScreen {
 impl Check for InitScreen {
     /// Nested checks: id, items, footer.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.id.check().map_err(|e| e.under("id"))?;
+        self.items.check().map_err(|e| e.under("items"))?;
+        self.footer.check().map_err(|e| e.under("footer"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <InitScreenId as Check>::describe(rest),
+                "title" => <String as Check>::describe(rest),
+                "top" => <String as Check>::describe(rest),
+                "items" => <Vec<InitScreenItem> as Check>::describe(rest),
+                "ticks" => <Vec<String> as Check>::describe(rest),
+                "answers" => <IndexMap<String, String> as Check>::describe(rest),
+                "footer" => <Vec<InitFooterLine> as Check>::describe(rest),
+                "tally" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -220,7 +320,11 @@ pub enum InitRowKind {
     Machine,
 }
 
-impl Check for InitRowKind {}
+impl Check for InitRowKind {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["fact", "stage", "sign-in", "secret", "agent", "workspace", "project", "machine"]))
+    }
+}
 
 /// TS: packages/protocol/src/init-job.ts:86 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -239,7 +343,11 @@ pub enum LoginState {
     Deferred,
 }
 
-impl Check for LoginState {}
+impl Check for LoginState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["signed-in", "not-signed-in", "not-verified", "skipped", "copied", "deferred"]))
+    }
+}
 
 /// TS: packages/protocol/src/init-job.ts:94 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -258,7 +366,11 @@ pub enum LoginChoice {
     Token,
 }
 
-impl Check for LoginChoice {}
+impl Check for LoginChoice {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["copy", "machine", "later", "key", "skip", "token"]))
+    }
+}
 
 /// TS: packages/protocol/src/init-job.ts:101 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -271,7 +383,11 @@ pub enum SignInFinish {
     None,
 }
 
-impl Check for SignInFinish {}
+impl Check for SignInFinish {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["callback", "code", "none"]))
+    }
+}
 
 /// TS: packages/protocol/src/init-job.ts:108 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -304,7 +420,32 @@ pub struct InitRow {
 impl Check for InitRow {
     /// Nested checks: kind, login, finish.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        self.login.check().map_err(|e| e.under("login"))?;
+        self.finish.check().map_err(|e| e.under("finish"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "kind" => <InitRowKind as Check>::describe(rest),
+                "tool" => <Option<String> as Check>::describe(rest),
+                "label" => <String as Check>::describe(rest),
+                "state" => <String as Check>::describe(rest),
+                "login" => <Option<LoginState> as Check>::describe(rest),
+                "detail" => <Option<String> as Check>::describe(rest),
+                "page" => <Option<String> as Check>::describe(rest),
+                "code" => <Option<String> as Check>::describe(rest),
+                "finish" => <Option<SignInFinish> as Check>::describe(rest),
+                "ms" => <Option<JsNumber> as Check>::describe(rest),
+                "since" => <Option<JsNumber> as Check>::describe(rest),
+                "lines" => <Option<Vec<String>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -322,7 +463,19 @@ pub struct InitDraft {
 
 impl Check for InitDraft {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "at" => <String as Check>::describe(rest),
+                "ticks" => <Vec<String> as Check>::describe(rest),
+                "answers" => <IndexMap<String, String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -337,7 +490,19 @@ pub struct InitNeedsYou {
 impl Check for InitNeedsYou {
     /// Rules: since: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.since as f64, 0.0).map_err(|e| e.under("since"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "what" => <String as Check>::describe(rest),
+                "since" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -354,7 +519,20 @@ pub struct SetupPlace {
 impl Check for SetupPlace {
     /// Nested checks: kind.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "kind" => <Option<PlaceKind> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -370,7 +548,11 @@ pub enum InitSaidLineLevel {
     Warn,
 }
 
-impl Check for InitSaidLineLevel {}
+impl Check for InitSaidLineLevel {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["info", "step", "success", "warn"]))
+    }
+}
 
 /// TS: packages/protocol/src/init-job.ts:177 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -382,7 +564,19 @@ pub struct InitSaidLine {
 
 impl Check for InitSaidLine {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.level.check().map_err(|e| e.under("level"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "level" => <InitSaidLineLevel as Check>::describe(rest),
+                "line" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -396,7 +590,20 @@ pub struct InitJobDisk {
 impl Check for InitJobDisk {
     /// Rules: fixed: >= 0; total: > 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.fixed.0, 0.0).map_err(|e| e.under("fixed"))?;
+        crate::types::check::num_above(self.total.0, 0.0).map_err(|e| e.under("total"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "fixed" => <JsNumber as Check>::describe(rest),
+                "total" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -410,7 +617,20 @@ pub struct InitJobProgress {
 impl Check for InitJobProgress {
     /// Rules: done: >= 0; total: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.done as f64, 0.0).map_err(|e| e.under("done"))?;
+        crate::types::check::num_at_least(self.total as f64, 0.0).map_err(|e| e.under("total"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "done" => <i64 as Check>::describe(rest),
+                "total" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -425,7 +645,20 @@ pub struct InitJobThread {
 
 impl Check for InitJobThread {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "workspaceId" => <String as Check>::describe(rest),
+                "session" => <String as Check>::describe(rest),
+                "harness" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -437,7 +670,17 @@ pub struct InitJobGolden {
 
 impl Check for InitJobGolden {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "version" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -450,7 +693,18 @@ pub struct InitJobWorkspace {
 
 impl Check for InitJobWorkspace {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -500,7 +754,55 @@ impl Check for InitJob {
     /// Rules: step: >= 0.
     /// Nested checks: road, phase, keys, disk, screens, rows, progress, needsYou, drafts, thread, golden, cleanup, update, builders, workspace, place.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.road.check().map_err(|e| e.under("road"))?;
+        self.phase.check().map_err(|e| e.under("phase"))?;
+        crate::types::check::num_at_least(self.step as f64, 0.0).map_err(|e| e.under("step"))?;
+        self.disk.check().map_err(|e| e.under("disk"))?;
+        self.screens.check().map_err(|e| e.under("screens"))?;
+        self.rows.check().map_err(|e| e.under("rows"))?;
+        self.progress.check().map_err(|e| e.under("progress"))?;
+        self.needs_you.check().map_err(|e| e.under("needsYou"))?;
+        self.drafts.check().map_err(|e| e.under("drafts"))?;
+        self.thread.check().map_err(|e| e.under("thread"))?;
+        self.golden.check().map_err(|e| e.under("golden"))?;
+        self.cleanup.check().map_err(|e| e.under("cleanup"))?;
+        self.update.check().map_err(|e| e.under("update"))?;
+        self.builders.check().map_err(|e| e.under("builders"))?;
+        self.workspace.check().map_err(|e| e.under("workspace"))?;
+        self.place.check().map_err(|e| e.under("place"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "road" => <InitRoad as Check>::describe(rest),
+                "phase" => <InitPhase as Check>::describe(rest),
+                "keys" => <InitKeys as Check>::describe(rest),
+                "step" => <i64 as Check>::describe(rest),
+                "stoppable" => <bool as Check>::describe(rest),
+                "disk" => <Option<InitJobDisk> as Check>::describe(rest),
+                "screens" => <Vec<InitScreen> as Check>::describe(rest),
+                "rows" => <Vec<InitRow> as Check>::describe(rest),
+                "progress" => <InitJobProgress as Check>::describe(rest),
+                "needsYou" => <Option<InitNeedsYou> as Check>::describe(rest),
+                "drafts" => <Option<Vec<InitDraft>> as Check>::describe(rest),
+                "log" => <Vec<String> as Check>::describe(rest),
+                "thread" => <Option<InitJobThread> as Check>::describe(rest),
+                "line" => <Option<String> as Check>::describe(rest),
+                "error" => <Option<String> as Check>::describe(rest),
+                "keyRefused" => <Option<bool> as Check>::describe(rest),
+                "golden" => <Option<InitJobGolden> as Check>::describe(rest),
+                "cleanup" => <Option<Vec<InitSaidLine>> as Check>::describe(rest),
+                "update" => <Option<Vec<InitSaidLine>> as Check>::describe(rest),
+                "builders" => <Option<Vec<InitSaidLine>> as Check>::describe(rest),
+                "workspace" => <Option<InitJobWorkspace> as Check>::describe(rest),
+                "place" => <Option<SetupPlace> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -516,7 +818,20 @@ pub struct InitAgent {
 
 impl Check for InitAgent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "configured" => <bool as Check>::describe(rest),
+                "takesTools" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -535,7 +850,18 @@ impl InitJobEvent {
 impl Check for InitJobEvent {
     /// Nested checks: job.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.job.check().map_err(|e| e.under("job"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "job" => <InitJob as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -555,6 +881,18 @@ impl InitNeedsYouEvent {
 impl Check for InitNeedsYouEvent {
     /// Nested checks: needsYou.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.needs_you.check().map_err(|e| e.under("needsYou"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "jobId" => <String as Check>::describe(rest),
+                "needsYou" => <InitNeedsYou as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

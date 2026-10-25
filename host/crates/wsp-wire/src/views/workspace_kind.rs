@@ -7,4 +7,8 @@ use crate::types::check::Check;
 /// The daemon's own enum: wsp-frames declares it, with the same values in the same order.
 pub use wsp_frames::WorkspaceKind;
 
-impl Check for WorkspaceKind {}
+impl Check for WorkspaceKind {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["Cloud", "Local", "Place"]))
+    }
+}

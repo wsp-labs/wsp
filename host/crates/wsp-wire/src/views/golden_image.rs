@@ -41,7 +41,11 @@ pub const BREW_ID_PREFIX: &str = "tools/brew/";
 /// The daemon's own enum: wsp-frames declares it, with the same values in the same order.
 pub use wsp_frames::MachineKind;
 
-impl Check for MachineKind {}
+impl Check for MachineKind {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["Sandbox", "Desktop"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/golden-image.ts:13 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -54,7 +58,19 @@ pub struct GoldenLogin {
 impl Check for GoldenLogin {
     /// Nested checks: state.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.state.check().map_err(|e| e.under("state"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "state" => <LoginState as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -66,7 +82,11 @@ pub enum GoldenMissingToolOutcome {
     Failed,
 }
 
-impl Check for GoldenMissingToolOutcome {}
+impl Check for GoldenMissingToolOutcome {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["skipped", "failed"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/golden-image.ts:18 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -80,7 +100,21 @@ pub struct GoldenMissingTool {
 
 impl Check for GoldenMissingTool {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.outcome.check().map_err(|e| e.under("outcome"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "outcome" => <GoldenMissingToolOutcome as Check>::describe(rest),
+                "note" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -95,7 +129,19 @@ pub struct GoldenLeftBehind {
 
 impl Check for GoldenLeftBehind {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "path" => <String as Check>::describe(rest),
+                "note" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -109,7 +155,18 @@ pub struct GoldenBaseTool {
 
 impl Check for GoldenBaseTool {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "version" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -123,7 +180,18 @@ pub struct GoldenRetired {
 
 impl Check for GoldenRetired {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -136,7 +204,18 @@ pub struct GoldenVersionSmoke {
 
 impl Check for GoldenVersionSmoke {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "cmd" => <String as Check>::describe(rest),
+                "exitCode" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -188,7 +267,51 @@ impl Check for GoldenVersion {
     /// Rules: usedBytes: >= 0; imageHash: exactly 64 UTF-16 units.
     /// Nested checks: kind, smoke, size, logins, missingTools, leftBehind, base, retired.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        self.smoke.check().map_err(|e| e.under("smoke"))?;
+        self.logins.check().map_err(|e| e.under("logins"))?;
+        self.missing_tools.check().map_err(|e| e.under("missingTools"))?;
+        self.left_behind.check().map_err(|e| e.under("leftBehind"))?;
+        self.base.check().map_err(|e| e.under("base"))?;
+        self.retired.check().map_err(|e| e.under("retired"))?;
+        if let Some(v) = self.used_bytes {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("usedBytes"))?;
+        }
+        if let Some(v) = &self.image_hash {
+            crate::types::check::text_exactly(v, 64).map_err(|e| e.under("imageHash"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "version" => <JsNumber as Check>::describe(rest),
+                "snapshotId" => <String as Check>::describe(rest),
+                "templateId" => <Option<String> as Check>::describe(rest),
+                "baseTemplate" => <String as Check>::describe(rest),
+                "kind" => <Option<MachineKind> as Check>::describe(rest),
+                "setupSha" => <String as Check>::describe(rest),
+                "createdAt" => <String as Check>::describe(rest),
+                "smoke" => <GoldenVersionSmoke as Check>::describe(rest),
+                "size" => None,
+                "browserShim" => <Option<bool> as Check>::describe(rest),
+                "npmBin" => <Option<String> as Check>::describe(rest),
+                "logins" => <Option<Vec<GoldenLogin>> as Check>::describe(rest),
+                "missingTools" => <Option<Vec<GoldenMissingTool>> as Check>::describe(rest),
+                "silenced" => <Option<Vec<String>> as Check>::describe(rest),
+                "shellNoise" => <Option<String> as Check>::describe(rest),
+                "leftBehind" => <Option<Vec<GoldenLeftBehind>> as Check>::describe(rest),
+                "parentSnapshotId" => <Option<String> as Check>::describe(rest),
+                "base" => <Option<Vec<GoldenBaseTool>> as Check>::describe(rest),
+                "retired" => <Option<Vec<GoldenRetired>> as Check>::describe(rest),
+                "usedBytes" => <Option<i64> as Check>::describe(rest),
+                "imageHash" => <Option<String> as Check>::describe(rest),
+                "noSecrets" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -203,7 +326,19 @@ pub struct GoldenManifest {
 impl Check for GoldenManifest {
     /// Nested checks: versions.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.versions.check().map_err(|e| e.under("versions"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "head" => <JsNumber as Check>::describe(rest),
+                "versions" => <Vec<GoldenVersion> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -215,7 +350,11 @@ pub enum ToolPinArch {
     Aarch64,
 }
 
-impl Check for ToolPinArch {}
+impl Check for ToolPinArch {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["x86_64", "aarch64"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/golden-image.ts:126 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -233,7 +372,25 @@ pub struct ToolPin {
 impl Check for ToolPin {
     /// Rules: tag: at least 1 UTF-16 units; sha256: at least 1 UTF-16 units.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.tag, 1).map_err(|e| e.under("tag"))?;
+        if let Some(v) = &self.sha256 {
+            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("sha256"))?;
+        }
+        self.arch.check().map_err(|e| e.under("arch"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "tag" => <String as Check>::describe(rest),
+                "sha256" => <Option<String> as Check>::describe(rest),
+                "arch" => <Option<ToolPinArch> as Check>::describe(rest),
+                "latest" => None,
+                _ => None,
+            },
+        }
     }
 }
 
@@ -256,7 +413,24 @@ pub struct RecipeDigestTicksItem {
 impl Check for RecipeDigestTicksItem {
     /// Nested checks: choice, pin.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.choice.check().map_err(|e| e.under("choice"))?;
+        self.pin.check().map_err(|e| e.under("pin"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "choice" => <Option<LoginChoice> as Check>::describe(rest),
+                "version" => <Option<String> as Check>::describe(rest),
+                "road" => <Option<String> as Check>::describe(rest),
+                "installer" => <Option<String> as Check>::describe(rest),
+                "pin" => <Option<ToolPin> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -273,7 +447,21 @@ pub struct RecipeDigestFilesItem {
 
 impl Check for RecipeDigestFilesItem {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "path" => <String as Check>::describe(rest),
+                "dest" => <String as Check>::describe(rest),
+                "digest" => <String as Check>::describe(rest),
+                "volatile" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -290,7 +478,21 @@ pub struct RecipeDigest {
 impl Check for RecipeDigest {
     /// Nested checks: ticks, files.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.ticks.check().map_err(|e| e.under("ticks"))?;
+        self.files.check().map_err(|e| e.under("files"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "ticks" => <Vec<RecipeDigestTicksItem> as Check>::describe(rest),
+                "login" => <Option<String> as Check>::describe(rest),
+                "files" => <Vec<RecipeDigestFilesItem> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -308,7 +510,18 @@ impl RecipeSourceProject {
 impl Check for RecipeSourceProject {
     /// Rules: why: at least 1 UTF-16 units.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.why, 1).map_err(|e| e.under("why"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "why" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -326,7 +539,18 @@ impl RecipeSourceInstalled {
 
 impl Check for RecipeSourceInstalled {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "paths" => <Vec<String> as Check>::describe(rest),
+                "bin" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -345,7 +569,20 @@ impl RecipeSourceUsed {
 impl Check for RecipeSourceUsed {
     /// Rules: sessions: >= 0; calls: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.sessions as f64, 0.0).map_err(|e| e.under("sessions"))?;
+        crate::types::check::num_at_least(self.calls as f64, 0.0).map_err(|e| e.under("calls"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "sessions" => <i64 as Check>::describe(rest),
+                "calls" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -364,7 +601,20 @@ impl RecipeSourcePopular {
 impl Check for RecipeSourcePopular {
     /// Rules: sessions: >= 0; images: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.sessions as f64, 0.0).map_err(|e| e.under("sessions"))?;
+        crate::types::check::num_at_least(self.images as f64, 0.0).map_err(|e| e.under("images"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "sessions" => <i64 as Check>::describe(rest),
+                "images" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -385,7 +635,18 @@ pub enum RecipeSource {
 
 impl Check for RecipeSource {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        match self {
+            RecipeSource::Project(v) => v.check(),
+            RecipeSource::Installed(v) => v.check(),
+            RecipeSource::Used(v) => v.check(),
+            RecipeSource::Popular(v) => v.check(),
+        }
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { return Some(crate::types::check::Zod::Word("object")); }
+        if path.len() == 1 && path[0].as_str() == Some("kind") { return Some(crate::types::check::Zod::Tags("kind", &["project", "installed", "used", "popular"])); }
+        <RecipeSourceProject as Check>::describe(path).or_else(|| <RecipeSourceInstalled as Check>::describe(path)).or_else(|| <RecipeSourceUsed as Check>::describe(path)).or_else(|| <RecipeSourcePopular as Check>::describe(path))
     }
 }
 
@@ -397,7 +658,11 @@ pub enum RecipeRowKind {
     Tool,
 }
 
-impl Check for RecipeRowKind {}
+impl Check for RecipeRowKind {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["agent", "tool"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/golden-image.ts:173 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -419,7 +684,31 @@ impl Check for RecipeRow {
     /// Rules: id: at least 1 UTF-16 units; size: >= 0.
     /// Nested checks: source, signIn, pin.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.id, 1).map_err(|e| e.under("id"))?;
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        self.source.check().map_err(|e| e.under("source"))?;
+        if let Some(v) = self.size {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("size"))?;
+        }
+        self.sign_in.check().map_err(|e| e.under("signIn"))?;
+        self.pin.check().map_err(|e| e.under("pin"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "kind" => <RecipeRowKind as Check>::describe(rest),
+                "on" => <bool as Check>::describe(rest),
+                "source" => <RecipeSource as Check>::describe(rest),
+                "size" => <Option<i64> as Check>::describe(rest),
+                "signIn" => <Option<LoginChoice> as Check>::describe(rest),
+                "pin" => <Option<ToolPin> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -435,7 +724,11 @@ pub enum RecipeHistoryState {
     NoReader,
 }
 
-impl Check for RecipeHistoryState {}
+impl Check for RecipeHistoryState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["read", "empty", "unreadable", "no-reader"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/golden-image.ts:189 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -450,7 +743,24 @@ pub struct RecipeHistory {
 impl Check for RecipeHistory {
     /// Rules: agent: at least 1 UTF-16 units; sessions: >= 0; calls: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.agent, 1).map_err(|e| e.under("agent"))?;
+        self.state.check().map_err(|e| e.under("state"))?;
+        crate::types::check::num_at_least(self.sessions as f64, 0.0).map_err(|e| e.under("sessions"))?;
+        crate::types::check::num_at_least(self.calls as f64, 0.0).map_err(|e| e.under("calls"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "agent" => <String as Check>::describe(rest),
+                "state" => <RecipeHistoryState as Check>::describe(rest),
+                "sessions" => <i64 as Check>::describe(rest),
+                "calls" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -465,7 +775,11 @@ pub enum RecipeTick {
     Default,
 }
 
-impl Check for RecipeTick {}
+impl Check for RecipeTick {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["used", "installed", "default"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/golden-image.ts:208 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -486,7 +800,39 @@ pub struct RecipeCustomRow {
 impl Check for RecipeCustomRow {
     /// Rules: id: at least 1 UTF-16 units; name: at least 1 UTF-16 units; install[]: at least 1 UTF-16 units; install: at least 1 items; check: at least 1 UTF-16 units; manager: at least 1 UTF-16 units; size: >= 0; why: at least 1 UTF-16 units.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        crate::types::check::text_at_least(&self.id, 1).map_err(|e| e.under("id"))?;
+        crate::types::check::text_at_least(&self.name, 1).map_err(|e| e.under("name"))?;
+        for (i, item) in self.install.iter().enumerate() {
+            crate::types::check::text_at_least(item, 1).map_err(|e| e.under(i).under("install"))?;
+        }
+        crate::types::check::items_at_least(self.install.len(), 1).map_err(|e| e.under("install"))?;
+        crate::types::check::text_at_least(&self.check, 1).map_err(|e| e.under("check"))?;
+        if let Some(v) = &self.manager {
+            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("manager"))?;
+        }
+        if let Some(v) = self.size {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("size"))?;
+        }
+        crate::types::check::text_at_least(&self.why, 1).map_err(|e| e.under("why"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "kind" => <CustomLit as Check>::describe(rest),
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "install" => <Vec<String> as Check>::describe(rest),
+                "check" => <String as Check>::describe(rest),
+                "manager" => <Option<String> as Check>::describe(rest),
+                "size" => <Option<i64> as Check>::describe(rest),
+                "why" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -510,7 +856,29 @@ impl Check for Recipe {
     /// Rules: at: at least 1 UTF-16 units.
     /// Nested checks: tick, histories, rows, custom.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.version.check().map_err(|e| e.under("version"))?;
+        crate::types::check::text_at_least(&self.at, 1).map_err(|e| e.under("at"))?;
+        self.tick.check().map_err(|e| e.under("tick"))?;
+        self.histories.check().map_err(|e| e.under("histories"))?;
+        self.rows.check().map_err(|e| e.under("rows"))?;
+        self.custom.check().map_err(|e| e.under("custom"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "version" => <LitV1 as Check>::describe(rest),
+                "at" => <String as Check>::describe(rest),
+                "tick" => <Option<RecipeTick> as Check>::describe(rest),
+                "histories" => <Vec<RecipeHistory> as Check>::describe(rest),
+                "rows" => <Vec<RecipeRow> as Check>::describe(rest),
+                "custom" => <Option<Vec<RecipeCustomRow>> as Check>::describe(rest),
+                "engine" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -523,7 +891,18 @@ pub struct GoldenBuilderViewSize {
 
 impl Check for GoldenBuilderViewSize {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "cpu" => <JsNumber as Check>::describe(rest),
+                "memMb" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -535,7 +914,17 @@ pub struct GoldenBuilderViewScreen {
 
 impl Check for GoldenBuilderViewScreen {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "streamUrl" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -549,7 +938,19 @@ pub struct GoldenBuilderViewHeldBy {
 
 impl Check for GoldenBuilderViewHeldBy {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "host" => <String as Check>::describe(rest),
+                "pid" => <JsNumber as Check>::describe(rest),
+                "heartbeat" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -562,7 +963,18 @@ pub struct GoldenBuilderViewSealed {
 
 impl Check for GoldenBuilderViewSealed {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "at" => <String as Check>::describe(rest),
+                "version" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -600,7 +1012,38 @@ pub struct GoldenBuilderView {
 impl Check for GoldenBuilderView {
     /// Nested checks: kind, size, screen, recipe, heldBy, sealed.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        self.size.check().map_err(|e| e.under("size"))?;
+        self.screen.check().map_err(|e| e.under("screen"))?;
+        self.recipe.check().map_err(|e| e.under("recipe"))?;
+        self.held_by.check().map_err(|e| e.under("heldBy"))?;
+        self.sealed.check().map_err(|e| e.under("sealed"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "kind" => <MachineKind as Check>::describe(rest),
+                "createdAt" => <String as Check>::describe(rest),
+                "placeId" => <String as Check>::describe(rest),
+                "placeName" => <String as Check>::describe(rest),
+                "size" => <GoldenBuilderViewSize as Check>::describe(rest),
+                "rateUsdPerHour" => <Option<JsNumber> as Check>::describe(rest),
+                "screen" => <Option<GoldenBuilderViewScreen> as Check>::describe(rest),
+                "sealable" => <Option<bool> as Check>::describe(rest),
+                "recipeHash" => <Option<String> as Check>::describe(rest),
+                "recipe" => <Option<RecipeDigest> as Check>::describe(rest),
+                "foreignOwner" => <Option<String> as Check>::describe(rest),
+                "heldBy" => <Option<GoldenBuilderViewHeldBy> as Check>::describe(rest),
+                "building" => <Option<bool> as Check>::describe(rest),
+                "sealed" => <Option<GoldenBuilderViewSealed> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -635,7 +1078,11 @@ pub enum GoldenStage {
     Failed,
 }
 
-impl Check for GoldenStage {}
+impl Check for GoldenStage {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["creating", "deploying-daemon", "applying-setup", "uploading-files", "installing-harness", "installing-tools", "installing-mcp", "ready", "snapshotting", "promoting", "smoke-forking", "sealed", "failed"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/golden-image.ts:312 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -647,7 +1094,18 @@ pub struct GoldenStep {
 
 impl Check for GoldenStep {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "label" => <String as Check>::describe(rest),
+                "command" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -675,7 +1133,24 @@ impl GoldenStageEvent {
 impl Check for GoldenStageEvent {
     /// Nested checks: stage, step.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.stage.check().map_err(|e| e.under("stage"))?;
+        self.step.check().map_err(|e| e.under("step"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "stage" => <GoldenStage as Check>::describe(rest),
+                "detail" => <Option<String> as Check>::describe(rest),
+                "step" => <Option<GoldenStep> as Check>::describe(rest),
+                "left" => <Option<Vec<String>> as Check>::describe(rest),
+                "place" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -694,7 +1169,24 @@ pub struct SealedVault {
 impl Check for SealedVault {
     /// Rules: sha256: exactly 64 UTF-16 units; bytes: >= 0; paths: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_exactly(&self.sha256, 64).map_err(|e| e.under("sha256"))?;
+        crate::types::check::num_at_least(self.bytes as f64, 0.0).map_err(|e| e.under("bytes"))?;
+        crate::types::check::num_at_least(self.paths as f64, 0.0).map_err(|e| e.under("paths"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "sha256" => <String as Check>::describe(rest),
+                "bytes" => <i64 as Check>::describe(rest),
+                "paths" => <i64 as Check>::describe(rest),
+                "held" => <Option<Vec<String>> as Check>::describe(rest),
+                "takenAt" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -717,7 +1209,28 @@ pub struct SealedPin {
 impl Check for SealedPin {
     /// Rules: tag: at least 1 UTF-16 units; sha256: at least 1 UTF-16 units; id: at least 1 UTF-16 units.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.tag, 1).map_err(|e| e.under("tag"))?;
+        if let Some(v) = &self.sha256 {
+            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("sha256"))?;
+        }
+        self.arch.check().map_err(|e| e.under("arch"))?;
+        crate::types::check::text_at_least(&self.id, 1).map_err(|e| e.under("id"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "tag" => <String as Check>::describe(rest),
+                "sha256" => <Option<String> as Check>::describe(rest),
+                "arch" => <Option<ToolPinArch> as Check>::describe(rest),
+                "latest" => None,
+                "id" => <String as Check>::describe(rest),
+                "road" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -750,7 +1263,38 @@ impl Check for SealedImage {
     /// Rules: version: > 0; hash: exactly 64 UTF-16 units; usedBytes: >= 0.
     /// Nested checks: recipe, pins, logins, vault.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_above(self.version as f64, 0.0).map_err(|e| e.under("version"))?;
+        crate::types::check::text_exactly(&self.hash, 64).map_err(|e| e.under("hash"))?;
+        self.recipe.check().map_err(|e| e.under("recipe"))?;
+        self.pins.check().map_err(|e| e.under("pins"))?;
+        self.logins.check().map_err(|e| e.under("logins"))?;
+        self.vault.check().map_err(|e| e.under("vault"))?;
+        if let Some(v) = self.used_bytes {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("usedBytes"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "version" => <i64 as Check>::describe(rest),
+                "hash" => <String as Check>::describe(rest),
+                "recipeHash" => <String as Check>::describe(rest),
+                "recipe" => <Option<Recipe> as Check>::describe(rest),
+                "pins" => <Option<Vec<SealedPin>> as Check>::describe(rest),
+                "logins" => <Vec<GoldenLogin> as Check>::describe(rest),
+                "sealedAt" => <String as Check>::describe(rest),
+                "sealedFrom" => <String as Check>::describe(rest),
+                "vault" => <Option<SealedVault> as Check>::describe(rest),
+                "usedBytes" => <Option<i64> as Check>::describe(rest),
+                "place" => <Option<String> as Check>::describe(rest),
+                "noSecrets" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -773,7 +1317,30 @@ pub struct SealedImageCopy {
 impl Check for SealedImageCopy {
     /// Rules: version: > 0; hash: exactly 64 UTF-16 units; sizeBytes: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_above(self.version as f64, 0.0).map_err(|e| e.under("version"))?;
+        if let Some(v) = &self.hash {
+            crate::types::check::text_exactly(v, 64).map_err(|e| e.under("hash"))?;
+        }
+        if let Some(v) = self.size_bytes {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("sizeBytes"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "place" => <String as Check>::describe(rest),
+                "version" => <i64 as Check>::describe(rest),
+                "hash" => <Option<String> as Check>::describe(rest),
+                "snapshotId" => <String as Check>::describe(rest),
+                "templateId" => <Option<String> as Check>::describe(rest),
+                "builtAt" => <String as Check>::describe(rest),
+                "sizeBytes" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -788,7 +1355,19 @@ pub struct SealedImageBuilt {
 impl Check for SealedImageBuilt {
     /// Nested checks: copy.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.copy.check().map_err(|e| e.under("copy"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "copy" => <SealedImageCopy as Check>::describe(rest),
+                "built" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -804,7 +1383,21 @@ pub struct SealedImageExport {
 impl Check for SealedImageExport {
     /// Rules: bytes: >= 0; hash: exactly 64 UTF-16 units.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.bytes as f64, 0.0).map_err(|e| e.under("bytes"))?;
+        crate::types::check::text_exactly(&self.hash, 64).map_err(|e| e.under("hash"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "bytes" => <i64 as Check>::describe(rest),
+                "hash" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -816,7 +1409,11 @@ pub enum SealedVaultHeaderTo {
     Key,
 }
 
-impl Check for SealedVaultHeaderTo {}
+impl Check for SealedVaultHeaderTo {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["passphrase", "key"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/golden-image.ts:424 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -835,7 +1432,27 @@ pub struct SealedVaultHeader {
 impl Check for SealedVaultHeader {
     /// Nested checks: image.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.format.check().map_err(|e| e.under("format"))?;
+        self.cipher.check().map_err(|e| e.under("cipher"))?;
+        self.to.check().map_err(|e| e.under("to"))?;
+        self.image.check().map_err(|e| e.under("image"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "format" => <WspVault1Lit as Check>::describe(rest),
+                "cipher" => <Aes256GcmLit as Check>::describe(rest),
+                "to" => <SealedVaultHeaderTo as Check>::describe(rest),
+                "salt" => <String as Check>::describe(rest),
+                "nonce" => <String as Check>::describe(rest),
+                "ephemeral" => <Option<String> as Check>::describe(rest),
+                "image" => <SealedImage as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 

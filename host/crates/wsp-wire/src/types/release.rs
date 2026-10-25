@@ -26,7 +26,20 @@ pub struct ReleaseLatest {
 
 impl Check for ReleaseLatest {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "version" => <String as Check>::describe(rest),
+                "tag" => <String as Check>::describe(rest),
+                "url" => <String as Check>::describe(rest),
+                "publishedAt" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -43,7 +56,11 @@ pub enum ReleaseState {
     Off,
 }
 
-impl Check for ReleaseState {}
+impl Check for ReleaseState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["checking", "read", "unreached", "off"]))
+    }
+}
 
 /// TS: packages/protocol/src/release.ts:18 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -56,7 +73,11 @@ pub enum HostShape {
     Service,
 }
 
-impl Check for HostShape {}
+impl Check for HostShape {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["verb", "up", "service"]))
+    }
+}
 
 /// TS: packages/protocol/src/release.ts:28 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -82,7 +103,27 @@ pub struct ReleaseView {
 impl Check for ReleaseView {
     /// Nested checks: state, latest, shape.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.state.check().map_err(|e| e.under("state"))?;
+        self.latest.check().map_err(|e| e.under("latest"))?;
+        self.shape.check().map_err(|e| e.under("shape"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "state" => <ReleaseState as Check>::describe(rest),
+                "latest" => <Option<ReleaseLatest> as Check>::describe(rest),
+                "checkedAt" => <Option<String> as Check>::describe(rest),
+                "triedAt" => <Option<String> as Check>::describe(rest),
+                "installed" => <Option<String> as Check>::describe(rest),
+                "update" => <Option<String> as Check>::describe(rest),
+                "shape" => <Option<HostShape> as Check>::describe(rest),
+                "restartRefusal" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -101,6 +142,17 @@ impl ReleaseChangedEvent {
 impl Check for ReleaseChangedEvent {
     /// Nested checks: release.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.release.check().map_err(|e| e.under("release"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "release" => <ReleaseView as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

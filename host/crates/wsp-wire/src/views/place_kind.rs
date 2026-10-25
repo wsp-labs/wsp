@@ -14,4 +14,8 @@ pub enum PlaceKind {
     Provider,
 }
 
-impl Check for PlaceKind {}
+impl Check for PlaceKind {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["computer", "provider"]))
+    }
+}

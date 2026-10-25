@@ -65,7 +65,11 @@ pub enum AgentSignInState {
     None,
 }
 
-impl Check for AgentSignInState {}
+impl Check for AgentSignInState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["signed-in", "vault-key", "none"]))
+    }
+}
 
 /// TS: packages/protocol/src/agents-report.ts:26 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -78,7 +82,11 @@ pub enum AgentSignInKind {
     Oauth,
 }
 
-impl Check for AgentSignInKind {}
+impl Check for AgentSignInKind {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["api-key", "subscription", "oauth"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -91,7 +99,18 @@ pub struct AgentsTargetV0 {
 impl Check for AgentsTargetV0 {
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "placeId" => <String as Check>::describe(rest),
+                "project" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -104,7 +123,17 @@ pub struct AgentsTargetV1 {
 impl Check for AgentsTargetV1 {
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -119,7 +148,15 @@ pub enum AgentsTarget {
 
 impl Check for AgentsTarget {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        match self {
+            AgentsTarget::V0(v) => v.check(),
+            AgentsTarget::V1(v) => v.check(),
+        }
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { return Some(crate::types::check::Zod::Union); }
+        <AgentsTargetV0 as Check>::describe(path).or_else(|| <AgentsTargetV1 as Check>::describe(path))
     }
 }
 
@@ -134,7 +171,19 @@ pub struct AgentsProject {
 
 impl Check for AgentsProject {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "path" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -151,7 +200,11 @@ pub enum AgentRoad {
     None,
 }
 
-impl Check for AgentRoad {}
+impl Check for AgentRoad {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["wsp", "own", "shim", "none"]))
+    }
+}
 
 /// TS: packages/protocol/src/agents-report.ts:58 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -170,7 +223,11 @@ pub enum SignInRoad {
     None,
 }
 
-impl Check for SignInRoad {}
+impl Check for SignInRoad {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["device", "code", "key", "token", "terminal", "none"]))
+    }
+}
 
 /// A zod union: the first variant that parses wins, in this order.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -182,7 +239,15 @@ pub enum AgentRowSignIn {
 
 impl Check for AgentRowSignIn {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        match self {
+            AgentRowSignIn::AgentSignInState(v) => v.check(),
+            AgentRowSignIn::V1(v) => v.check(),
+        }
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { return Some(crate::types::check::Zod::Union); }
+        <AgentSignInState as Check>::describe(path).or_else(|| <UnknownLit as Check>::describe(path))
     }
 }
 
@@ -195,7 +260,18 @@ pub struct AgentRowUpdate {
 
 impl Check for AgentRowUpdate {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "to" => <String as Check>::describe(rest),
+                "command" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -239,7 +315,41 @@ pub struct AgentRow {
 impl Check for AgentRow {
     /// Nested checks: road, signIn, signInRoad, signInKind, update, setup.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.road.check().map_err(|e| e.under("road"))?;
+        self.sign_in.check().map_err(|e| e.under("signIn"))?;
+        self.sign_in_road.check().map_err(|e| e.under("signInRoad"))?;
+        self.sign_in_kind.check().map_err(|e| e.under("signInKind"))?;
+        self.update.check().map_err(|e| e.under("update"))?;
+        self.setup.check().map_err(|e| e.under("setup"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "installed" => <bool as Check>::describe(rest),
+                "version" => <Option<String> as Check>::describe(rest),
+                "latest" => <Option<String> as Check>::describe(rest),
+                "pinned" => <Option<String> as Check>::describe(rest),
+                "road" => <AgentRoad as Check>::describe(rest),
+                "installsOnFirstRun" => None,
+                "versionUnread" => None,
+                "path" => <Option<String> as Check>::describe(rest),
+                "via" => <Option<String> as Check>::describe(rest),
+                "signIn" => <AgentRowSignIn as Check>::describe(rest),
+                "signInRoad" => <SignInRoad as Check>::describe(rest),
+                "wspTools" => <bool as Check>::describe(rest),
+                "signInDetail" => <Option<String> as Check>::describe(rest),
+                "signInKind" => <Option<AgentSignInKind> as Check>::describe(rest),
+                "signInPlan" => <Option<String> as Check>::describe(rest),
+                "update" => <Option<AgentRowUpdate> as Check>::describe(rest),
+                "setup" => <Option<AgentSetupView> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -258,7 +368,20 @@ pub struct SkillPath {
 
 impl Check for SkillPath {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "agent" => <Option<String> as Check>::describe(rest),
+                "linkTo" => <Option<String> as Check>::describe(rest),
+                "off" => None,
+                _ => None,
+            },
+        }
     }
 }
 
@@ -273,7 +396,11 @@ pub enum SkillScope {
     Plugin,
 }
 
-impl Check for SkillScope {}
+impl Check for SkillScope {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["user", "project", "plugin"]))
+    }
+}
 
 /// TS: packages/protocol/src/agents-report.ts:112 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -294,7 +421,26 @@ impl Check for SkillRow {
     /// Rules: paths: at least 1 items.
     /// Nested checks: paths, scope, project.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::items_at_least(self.paths.len(), 1).map_err(|e| e.under("paths"))?;
+        self.paths.check().map_err(|e| e.under("paths"))?;
+        self.scope.check().map_err(|e| e.under("scope"))?;
+        self.project.check().map_err(|e| e.under("project"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "description" => <Option<String> as Check>::describe(rest),
+                "paths" => <Vec<SkillPath> as Check>::describe(rest),
+                "scope" => <SkillScope as Check>::describe(rest),
+                "project" => <Option<AgentsProject> as Check>::describe(rest),
+                "plugin" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -312,7 +458,22 @@ pub struct SkillHit {
 impl Check for SkillHit {
     /// Rules: installs: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.installs as f64, 0.0).map_err(|e| e.under("installs"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "source" => <String as Check>::describe(rest),
+                "skillId" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "installs" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -327,7 +488,19 @@ pub struct SkillPreview {
 impl Check for SkillPreview {
     /// Rules: size: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.size as f64, 0.0).map_err(|e| e.under("size"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "text" => <String as Check>::describe(rest),
+                "size" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -340,7 +513,18 @@ pub struct SkillAddedAgentsItem {
 
 impl Check for SkillAddedAgentsItem {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "agent" => <String as Check>::describe(rest),
+                "path" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -355,7 +539,19 @@ pub struct SkillAdded {
 impl Check for SkillAdded {
     /// Nested checks: agents.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.agents.check().map_err(|e| e.under("agents"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "agents" => <Vec<SkillAddedAgentsItem> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -370,7 +566,11 @@ pub enum PluginScope {
     Local,
 }
 
-impl Check for PluginScope {}
+impl Check for PluginScope {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["user", "project", "local"]))
+    }
+}
 
 /// TS: packages/protocol/src/agents-report.ts:229 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -387,7 +587,23 @@ pub struct PluginBrings {
 
 impl Check for PluginBrings {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "skills" => <Vec<String> as Check>::describe(rest),
+                "commands" => <Vec<String> as Check>::describe(rest),
+                "subagents" => <Vec<String> as Check>::describe(rest),
+                "hooks" => <Vec<String> as Check>::describe(rest),
+                "servers" => <Vec<String> as Check>::describe(rest),
+                "lsp" => <Vec<String> as Check>::describe(rest),
+                "apps" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -404,7 +620,11 @@ pub enum PluginMissing {
     Uninstalled,
 }
 
-impl Check for PluginMissing {}
+impl Check for PluginMissing {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["folder", "marketplace", "unlisted", "uninstalled"]))
+    }
+}
 
 /// TS: packages/protocol/src/agents-report.ts:249 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -436,7 +656,34 @@ pub struct PluginRow {
 impl Check for PluginRow {
     /// Nested checks: scope, project, missing, brings.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.scope.check().map_err(|e| e.under("scope"))?;
+        self.project.check().map_err(|e| e.under("project"))?;
+        self.missing.check().map_err(|e| e.under("missing"))?;
+        self.brings.check().map_err(|e| e.under("brings"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "agent" => <String as Check>::describe(rest),
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "marketplace" => <String as Check>::describe(rest),
+                "version" => <Option<String> as Check>::describe(rest),
+                "scope" => <PluginScope as Check>::describe(rest),
+                "project" => <Option<AgentsProject> as Check>::describe(rest),
+                "on" => <bool as Check>::describe(rest),
+                "missing" => <Option<PluginMissing> as Check>::describe(rest),
+                "path" => <Option<String> as Check>::describe(rest),
+                "setIn" => <Option<String> as Check>::describe(rest),
+                "description" => <Option<String> as Check>::describe(rest),
+                "source" => <Option<String> as Check>::describe(rest),
+                "brings" => <PluginBrings as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -450,7 +697,18 @@ pub struct PluginAsk {
 
 impl Check for PluginAsk {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "agent" => <String as Check>::describe(rest),
+                "plugin" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -468,7 +726,20 @@ pub struct McpToolParam {
 
 impl Check for McpToolParam {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "type" => <Option<String> as Check>::describe(rest),
+                "required" => <bool as Check>::describe(rest),
+                "description" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -486,7 +757,20 @@ pub struct McpTool {
 impl Check for McpTool {
     /// Nested checks: params.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.params.check().map_err(|e| e.under("params"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "description" => <Option<String> as Check>::describe(rest),
+                "params" => <Option<Vec<McpToolParam>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -503,7 +787,17 @@ impl McpRowTransportStdio {
 
 impl Check for McpRowTransportStdio {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "line" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -520,7 +814,17 @@ impl McpRowTransportHttp {
 
 impl Check for McpRowTransportHttp {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "host" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -537,7 +841,16 @@ pub enum McpRowTransport {
 
 impl Check for McpRowTransport {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        match self {
+            McpRowTransport::Stdio(v) => v.check(),
+            McpRowTransport::Http(v) => v.check(),
+        }
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { return Some(crate::types::check::Zod::Word("object")); }
+        if path.len() == 1 && path[0].as_str() == Some("kind") { return Some(crate::types::check::Zod::Tags("kind", &["stdio", "http"])); }
+        <McpRowTransportStdio as Check>::describe(path).or_else(|| <McpRowTransportHttp as Check>::describe(path))
     }
 }
 
@@ -560,7 +873,11 @@ pub enum McpAuth {
     Unknown,
 }
 
-impl Check for McpAuth {}
+impl Check for McpAuth {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["open", "env-key", "connected", "signed-in", "needs-sign-in", "failed", "unknown"]))
+    }
+}
 
 /// TS: packages/protocol/src/agents-report.ts:319 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -573,7 +890,11 @@ pub enum PageReach {
     None,
 }
 
-impl Check for PageReach {}
+impl Check for PageReach {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["here", "relay", "none"]))
+    }
+}
 
 /// TS: packages/protocol/src/agents-report.ts:324 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -588,7 +909,11 @@ pub enum McpScope {
     Project,
 }
 
-impl Check for McpScope {}
+impl Check for McpScope {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["user", "home", "local", "project"]))
+    }
+}
 
 /// TS: packages/protocol/src/agents-report.ts:329 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -603,7 +928,20 @@ pub struct ServerAsk {
 impl Check for ServerAsk {
     /// Nested checks: scope.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.scope.check().map_err(|e| e.under("scope"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "agent" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "scope" => <Option<McpScope> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -629,7 +967,24 @@ pub struct ServerAdd {
 
 impl Check for ServerAdd {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "agent" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "project" => <Option<bool> as Check>::describe(rest),
+                "command" => <Option<String> as Check>::describe(rest),
+                "args" => <Option<Vec<String>> as Check>::describe(rest),
+                "env" => <Option<IndexMap<String, String>> as Check>::describe(rest),
+                "url" => <Option<String> as Check>::describe(rest),
+                "headers" => <Option<IndexMap<String, String>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -663,7 +1018,35 @@ pub struct McpRow {
 impl Check for McpRow {
     /// Nested checks: scope, transport, auth, tools, project.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.scope.check().map_err(|e| e.under("scope"))?;
+        self.transport.check().map_err(|e| e.under("transport"))?;
+        self.auth.check().map_err(|e| e.under("auth"))?;
+        self.tools.check().map_err(|e| e.under("tools"))?;
+        self.project.check().map_err(|e| e.under("project"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "agent" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "scope" => <McpScope as Check>::describe(rest),
+                "file" => <Option<String> as Check>::describe(rest),
+                "launch" => None,
+                "transport" => <McpRowTransport as Check>::describe(rest),
+                "envNames" => <Vec<String> as Check>::describe(rest),
+                "auth" => <McpAuth as Check>::describe(rest),
+                "enabled" => <bool as Check>::describe(rest),
+                "inRecipe" => <Option<bool> as Check>::describe(rest),
+                "tools" => <Option<Vec<McpTool>> as Check>::describe(rest),
+                "project" => <Option<AgentsProject> as Check>::describe(rest),
+                "signInLine" => <Option<String> as Check>::describe(rest),
+                "off" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -684,7 +1067,23 @@ pub struct ServerToolsAnswer {
 impl Check for ServerToolsAnswer {
     /// Nested checks: auth, tools.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.auth.check().map_err(|e| e.under("auth"))?;
+        self.tools.check().map_err(|e| e.under("tools"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "auth" => <McpAuth as Check>::describe(rest),
+                "tools" => <Option<Vec<McpTool>> as Check>::describe(rest),
+                "holder" => <Option<String> as Check>::describe(rest),
+                "refused" => <Option<String> as Check>::describe(rest),
+                "readAt" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -715,7 +1114,37 @@ pub struct AgentsReport {
 impl Check for AgentsReport {
     /// Nested checks: target, pauseMode, agents, skills, servers, plugins, projects, reach.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.target.check().map_err(|e| e.under("target"))?;
+        self.stale.check().map_err(|e| e.under("stale"))?;
+        self.agents.check().map_err(|e| e.under("agents"))?;
+        self.skills.check().map_err(|e| e.under("skills"))?;
+        self.servers.check().map_err(|e| e.under("servers"))?;
+        self.plugins.check().map_err(|e| e.under("plugins"))?;
+        self.projects.check().map_err(|e| e.under("projects"))?;
+        self.reach.check().map_err(|e| e.under("reach"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "target" => <AgentsTarget as Check>::describe(rest),
+                "home" => <String as Check>::describe(rest),
+                "user" => <String as Check>::describe(rest),
+                "readAt" => <String as Check>::describe(rest),
+                "stale" => <Option<NappingLit> as Check>::describe(rest),
+                "pauseMode" => None,
+                "agents" => <Vec<AgentRow> as Check>::describe(rest),
+                "skills" => <Vec<SkillRow> as Check>::describe(rest),
+                "servers" => <Vec<McpRow> as Check>::describe(rest),
+                "plugins" => <Option<Vec<PluginRow>> as Check>::describe(rest),
+                "refused" => <Vec<String> as Check>::describe(rest),
+                "projects" => <Option<Vec<AgentsProject>> as Check>::describe(rest),
+                "reach" => <Option<PageReach> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -731,12 +1160,21 @@ pub enum AgentsSignInEventState {
     Failed,
 }
 
-impl Check for AgentsSignInEventState {}
+impl Check for AgentsSignInEventState {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["running", "waiting", "signed-in", "failed"]))
+    }
+}
+
+literal!(AgentsSignInEventType, "agents.signIn");
 
 /// TS: packages/protocol/src/agents-report.ts:446 at a3b870a6e.
+/// Read and written with its `type` key, as `last` of a sign-in run holds it (zod writes the key there).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentsSignInEvent {
+    #[serde(rename = "type")]
+    pub kind: AgentsSignInEventType,
     pub sign_in_id: String,
     pub state: AgentsSignInEventState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -758,7 +1196,26 @@ impl AgentsSignInEvent {
 
 impl Check for AgentsSignInEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("type"))?;
+        self.state.check().map_err(|e| e.under("state"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "type" => <AgentsSignInEventType as Check>::describe(rest),
+                "signInId" => <String as Check>::describe(rest),
+                "state" => <AgentsSignInEventState as Check>::describe(rest),
+                "url" => <Option<String> as Check>::describe(rest),
+                "code" => <Option<String> as Check>::describe(rest),
+                "paste" => <Option<bool> as Check>::describe(rest),
+                "said" => <Option<String> as Check>::describe(rest),
+                "ptyId" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -784,7 +1241,27 @@ pub struct AgentsSignInRun {
 impl Check for AgentsSignInRun {
     /// Nested checks: target, scope, last.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.target.check().map_err(|e| e.under("target"))?;
+        self.scope.check().map_err(|e| e.under("scope"))?;
+        self.last.check().map_err(|e| e.under("last"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "signInId" => <String as Check>::describe(rest),
+                "target" => <AgentsTarget as Check>::describe(rest),
+                "agent" => <String as Check>::describe(rest),
+                "server" => <Option<String> as Check>::describe(rest),
+                "scope" => <Option<McpScope> as Check>::describe(rest),
+                "project" => <Option<String> as Check>::describe(rest),
+                "last" => <Option<AgentsSignInEvent> as Check>::describe(rest),
+                "ended" => None,
+                _ => None,
+            },
+        }
     }
 }
 
@@ -804,7 +1281,18 @@ impl AgentsChangedEvent {
 impl Check for AgentsChangedEvent {
     /// Nested checks: target.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.target.check().map_err(|e| e.under("target"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "target" => <Option<AgentsTarget> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -823,6 +1311,19 @@ pub struct SignInLine {
 
 impl Check for SignInLine {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "command" => <String as Check>::describe(rest),
+                "env" => <Option<IndexMap<String, String>> as Check>::describe(rest),
+                "prepare" => <Option<String> as Check>::describe(rest),
+                "status" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

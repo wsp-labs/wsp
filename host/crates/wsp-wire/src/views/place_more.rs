@@ -31,7 +31,18 @@ pub struct ComputerCap {
 impl Check for ComputerCap {
     /// Rules: threads: >= 1.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.threads as f64, 1.0).map_err(|e| e.under("threads"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "threads" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -46,7 +57,20 @@ pub struct CloudCap {
 impl Check for CloudCap {
     /// Rules: machines: >= 1; spendPerDayUsd: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.machines as f64, 1.0).map_err(|e| e.under("machines"))?;
+        crate::types::check::num_at_least(self.spend_per_day_usd.0, 0.0).map_err(|e| e.under("spendPerDayUsd"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "machines" => <i64 as Check>::describe(rest),
+                "spendPerDayUsd" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -61,7 +85,15 @@ pub enum PlaceCap {
 
 impl Check for PlaceCap {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        match self {
+            PlaceCap::ComputerCap(v) => v.check(),
+            PlaceCap::CloudCap(v) => v.check(),
+        }
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { return Some(crate::types::check::Zod::Union); }
+        <ComputerCap as Check>::describe(path).or_else(|| <CloudCap as Check>::describe(path))
     }
 }
 
@@ -80,7 +112,28 @@ pub struct PlaceCapSet {
 impl Check for PlaceCapSet {
     /// Rules: threads: >= 1; machines: >= 1; spendPerDayUsd: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.threads {
+            crate::types::check::num_at_least(v as f64, 1.0).map_err(|e| e.under("threads"))?;
+        }
+        if let Some(v) = self.machines {
+            crate::types::check::num_at_least(v as f64, 1.0).map_err(|e| e.under("machines"))?;
+        }
+        if let Some(v) = self.spend_per_day_usd {
+            crate::types::check::num_at_least(v.0, 0.0).map_err(|e| e.under("spendPerDayUsd"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "threads" => <Option<i64> as Check>::describe(rest),
+                "machines" => <Option<i64> as Check>::describe(rest),
+                "spendPerDayUsd" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -98,7 +151,25 @@ pub struct PlaceSettingsSpawn {
 impl Check for PlaceSettingsSpawn {
     /// Rules: maxMachines: >= 0; maxDepth: >= 1.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.max_machines {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("maxMachines"))?;
+        }
+        if let Some(v) = self.max_depth {
+            crate::types::check::num_at_least(v as f64, 1.0).map_err(|e| e.under("maxDepth"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "spawn" => <Option<bool> as Check>::describe(rest),
+                "maxMachines" => <Option<i64> as Check>::describe(rest),
+                "maxDepth" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -111,7 +182,18 @@ pub struct PlaceSettingsSize {
 
 impl Check for PlaceSettingsSize {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "cpu" => <i64 as Check>::describe(rest),
+                "memMb" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -141,7 +223,53 @@ impl Check for PlaceSettings {
     /// Rules: threads: >= 1; machines: >= 1; spendPerDayUsd: >= 0; napMs: >= 60000; napMs: <= 10800000; turnLimitMs: >= 3600000; turnLimitMs: <= 86400000; deleteAfterMs: >= 0; deleteAfterMs: <= 86400000.
     /// Nested checks: spawn, size.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.threads {
+            crate::types::check::num_at_least(v as f64, 1.0).map_err(|e| e.under("threads"))?;
+        }
+        if let Some(v) = self.machines {
+            crate::types::check::num_at_least(v as f64, 1.0).map_err(|e| e.under("machines"))?;
+        }
+        if let Some(v) = self.spend_per_day_usd {
+            crate::types::check::num_at_least(v.0, 0.0).map_err(|e| e.under("spendPerDayUsd"))?;
+        }
+        if let Some(Some(v)) = self.nap_ms {
+            crate::types::check::num_at_least(v as f64, 60000.0).map_err(|e| e.under("napMs"))?;
+        }
+        if let Some(Some(v)) = self.nap_ms {
+            crate::types::check::num_at_most(v as f64, 10800000.0).map_err(|e| e.under("napMs"))?;
+        }
+        if let Some(Some(v)) = self.turn_limit_ms {
+            crate::types::check::num_at_least(v as f64, 3600000.0).map_err(|e| e.under("turnLimitMs"))?;
+        }
+        if let Some(Some(v)) = self.turn_limit_ms {
+            crate::types::check::num_at_most(v as f64, 86400000.0).map_err(|e| e.under("turnLimitMs"))?;
+        }
+        self.spawn.check().map_err(|e| e.under("spawn"))?;
+        self.size.check().map_err(|e| e.under("size"))?;
+        if let Some(v) = self.delete_after_ms {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("deleteAfterMs"))?;
+        }
+        if let Some(v) = self.delete_after_ms {
+            crate::types::check::num_at_most(v as f64, 86400000.0).map_err(|e| e.under("deleteAfterMs"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "threads" => <Option<i64> as Check>::describe(rest),
+                "machines" => <Option<i64> as Check>::describe(rest),
+                "spendPerDayUsd" => <Option<JsNumber> as Check>::describe(rest),
+                "napMs" => <Option<Option<i64>> as Check>::describe(rest),
+                "turnLimitMs" => <Option<Option<i64>> as Check>::describe(rest),
+                "spawn" => <Option<PlaceSettingsSpawn> as Check>::describe(rest),
+                "size" => <Option<PlaceSettingsSize> as Check>::describe(rest),
+                "deleteAfterMs" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -170,7 +298,53 @@ pub struct PlaceSettingsAsk {
 impl Check for PlaceSettingsAsk {
     /// Rules: threads: >= 1; machines: >= 1; spendPerDayUsd: >= 0; napMs: >= 60000; napMs: <= 10800000; turnLimitMs: >= 3600000; turnLimitMs: <= 86400000; deleteAfterMs: >= 0; deleteAfterMs: <= 86400000.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.threads {
+            crate::types::check::num_at_least(v as f64, 1.0).map_err(|e| e.under("threads"))?;
+        }
+        if let Some(v) = self.machines {
+            crate::types::check::num_at_least(v as f64, 1.0).map_err(|e| e.under("machines"))?;
+        }
+        if let Some(v) = self.spend_per_day_usd {
+            crate::types::check::num_at_least(v.0, 0.0).map_err(|e| e.under("spendPerDayUsd"))?;
+        }
+        if let Some(Some(v)) = self.nap_ms {
+            crate::types::check::num_at_least(v as f64, 60000.0).map_err(|e| e.under("napMs"))?;
+        }
+        if let Some(Some(v)) = self.nap_ms {
+            crate::types::check::num_at_most(v as f64, 10800000.0).map_err(|e| e.under("napMs"))?;
+        }
+        if let Some(Some(v)) = self.turn_limit_ms {
+            crate::types::check::num_at_least(v as f64, 3600000.0).map_err(|e| e.under("turnLimitMs"))?;
+        }
+        if let Some(Some(v)) = self.turn_limit_ms {
+            crate::types::check::num_at_most(v as f64, 86400000.0).map_err(|e| e.under("turnLimitMs"))?;
+        }
+        self.spawn.check().map_err(|e| e.under("spawn"))?;
+        self.size.check().map_err(|e| e.under("size"))?;
+        if let Some(v) = self.delete_after_ms {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("deleteAfterMs"))?;
+        }
+        if let Some(v) = self.delete_after_ms {
+            crate::types::check::num_at_most(v as f64, 86400000.0).map_err(|e| e.under("deleteAfterMs"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "threads" => <Option<i64> as Check>::describe(rest),
+                "machines" => <Option<i64> as Check>::describe(rest),
+                "spendPerDayUsd" => <Option<JsNumber> as Check>::describe(rest),
+                "napMs" => <Option<Option<i64>> as Check>::describe(rest),
+                "turnLimitMs" => <Option<Option<i64>> as Check>::describe(rest),
+                "spawn" => <Option<PlaceSettingsSpawn> as Check>::describe(rest),
+                "size" => <Option<PlaceSettingsSize> as Check>::describe(rest),
+                "deleteAfterMs" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -197,7 +371,11 @@ pub enum PlaceSettingWord {
     MaxDepth,
 }
 
-impl Check for PlaceSettingWord {}
+impl Check for PlaceSettingWord {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["threads", "machines", "spend", "size", "delete-after", "nap", "turn-limit", "spawn", "max-depth"]))
+    }
+}
 
 /// TS: packages/protocol/src/views/place.ts:473 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -214,7 +392,21 @@ pub struct CloudPlan {
 
 impl Check for CloudPlan {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "key" => <Option<String> as Check>::describe(rest),
+                "trial" => <bool as Check>::describe(rest),
+                "machinesAtOnce" => <i64 as Check>::describe(rest),
+                "sizes" => <Vec<String> as Check>::describe(rest),
+                "running" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -228,7 +420,18 @@ pub struct StartsWindow {
 
 impl Check for StartsWindow {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "used" => <i64 as Check>::describe(rest),
+                "limit" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -244,7 +447,22 @@ pub struct CloudStarts {
 impl Check for CloudStarts {
     /// Nested checks: minute, hour, day.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.minute.check().map_err(|e| e.under("minute"))?;
+        self.hour.check().map_err(|e| e.under("hour"))?;
+        self.day.check().map_err(|e| e.under("day"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "minute" => <StartsWindow as Check>::describe(rest),
+                "hour" => <StartsWindow as Check>::describe(rest),
+                "day" => <StartsWindow as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -262,7 +480,21 @@ pub struct CloudLimits {
 impl Check for CloudLimits {
     /// Nested checks: plan, starts.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.plan.check().map_err(|e| e.under("plan"))?;
+        self.starts.check().map_err(|e| e.under("starts"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "plan" => <CloudPlan as Check>::describe(rest),
+                "starts" => <Option<CloudStarts> as Check>::describe(rest),
+                "creditHours" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -281,7 +513,11 @@ pub enum MacKind {
     MacPro,
 }
 
-impl Check for MacKind {}
+impl Check for MacKind {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["macbook", "imac", "mac-mini", "mac-studio", "mac-pro"]))
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PlaceViewEngine {
@@ -293,7 +529,11 @@ pub enum PlaceViewEngine {
     Podman,
 }
 
-impl Check for PlaceViewEngine {}
+impl Check for PlaceViewEngine {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["none", "docker", "podman"]))
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PlaceViewBehindAct {
@@ -303,7 +543,11 @@ pub enum PlaceViewBehindAct {
     Install,
 }
 
-impl Check for PlaceViewBehindAct {}
+impl Check for PlaceViewBehindAct {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["update", "install"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -315,7 +559,20 @@ pub struct PlaceViewBehind {
 
 impl Check for PlaceViewBehind {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.act.check().map_err(|e| e.under("act"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "word" => <String as Check>::describe(rest),
+                "fix" => <String as Check>::describe(rest),
+                "act" => <PlaceViewBehindAct as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -328,7 +585,18 @@ pub struct PlaceViewForks {
 
 impl Check for PlaceViewForks {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "running" => <i64 as Check>::describe(rest),
+                "room" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -341,7 +609,18 @@ pub struct PlaceViewSize {
 
 impl Check for PlaceViewSize {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "cpu" => <i64 as Check>::describe(rest),
+                "memMb" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -354,7 +633,18 @@ pub struct PlaceViewSizeDefault {
 
 impl Check for PlaceViewSizeDefault {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "cpu" => <i64 as Check>::describe(rest),
+                "memMb" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -478,7 +768,96 @@ impl Check for PlaceView {
     /// Rules: uptimeMs: >= 0; running: >= 0.
     /// Nested checks: kind, mac, shape, copies, behind, signIns, sizes, forks, road, dialled, setup, applied, picks, sync, cap, capDefault, settings, spawn, spawnDefault, plan, starts, size, sizeDefault.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        self.mac.check().map_err(|e| e.under("mac"))?;
+        self.engine.check().map_err(|e| e.under("engine"))?;
+        self.behind.check().map_err(|e| e.under("behind"))?;
+        self.sign_ins.check().map_err(|e| e.under("signIns"))?;
+        self.sizes.check().map_err(|e| e.under("sizes"))?;
+        self.forks.check().map_err(|e| e.under("forks"))?;
+        if let Some(v) = self.uptime_ms {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("uptimeMs"))?;
+        }
+        self.picks.check().map_err(|e| e.under("picks"))?;
+        self.cap.check().map_err(|e| e.under("cap"))?;
+        self.cap_default.check().map_err(|e| e.under("capDefault"))?;
+        self.settings.check().map_err(|e| e.under("settings"))?;
+        self.spawn.check().map_err(|e| e.under("spawn"))?;
+        self.spawn_default.check().map_err(|e| e.under("spawnDefault"))?;
+        if let Some(v) = self.running {
+            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("running"))?;
+        }
+        self.plan.check().map_err(|e| e.under("plan"))?;
+        self.starts.check().map_err(|e| e.under("starts"))?;
+        self.size.check().map_err(|e| e.under("size"))?;
+        self.size_default.check().map_err(|e| e.under("sizeDefault"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "kind" => <PlaceKind as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "label" => <Option<String> as Check>::describe(rest),
+                "mac" => <Option<MacKind> as Check>::describe(rest),
+                "default" => <bool as Check>::describe(rest),
+                "os" => <Option<String> as Check>::describe(rest),
+                "shape" => None,
+                "diskFreeBytes" => <Option<i64> as Check>::describe(rest),
+                "engine" => <Option<PlaceViewEngine> as Check>::describe(rest),
+                "copies" => None,
+                "present" => <Option<bool> as Check>::describe(rest),
+                "takesRuntime" => <Option<bool> as Check>::describe(rest),
+                "joinedAt" => <Option<String> as Check>::describe(rest),
+                "lastSeenAt" => <Option<String> as Check>::describe(rest),
+                "daemonVersion" => <Option<i64> as Check>::describe(rest),
+                "behind" => <Option<PlaceViewBehind> as Check>::describe(rest),
+                "agents" => <Option<Vec<String>> as Check>::describe(rest),
+                "agentVersions" => <Option<IndexMap<String, String>> as Check>::describe(rest),
+                "signIns" => <Option<IndexMap<String, AgentSignInState>> as Check>::describe(rest),
+                "logins" => <Option<String> as Check>::describe(rest),
+                "rateUsdPerHour" => <Option<JsNumber> as Check>::describe(rest),
+                "sizes" => <Option<Vec<MachineSizeOffer>> as Check>::describe(rest),
+                "forks" => <Option<PlaceViewForks> as Check>::describe(rest),
+                "takesForks" => <Option<bool> as Check>::describe(rest),
+                "road" => None,
+                "home" => <Option<String> as Check>::describe(rest),
+                "uptimeMs" => <Option<i64> as Check>::describe(rest),
+                "reportedAt" => <Option<String> as Check>::describe(rest),
+                "dialled" => None,
+                "blocked" => <Option<String> as Check>::describe(rest),
+                "toolsBlocked" => <Option<String> as Check>::describe(rest),
+                "build" => <Option<String> as Check>::describe(rest),
+                "buildStopped" => <Option<bool> as Check>::describe(rest),
+                "buildsImages" => <Option<bool> as Check>::describe(rest),
+                "setup" => None,
+                "applied" => None,
+                "picks" => <Option<RecipeFile> as Check>::describe(rest),
+                "recipe" => <Option<String> as Check>::describe(rest),
+                "sync" => None,
+                "cap" => <Option<PlaceCap> as Check>::describe(rest),
+                "capDefault" => <Option<PlaceCap> as Check>::describe(rest),
+                "settings" => <Option<PlaceSettings> as Check>::describe(rest),
+                "napMs" => <Option<Option<i64>> as Check>::describe(rest),
+                "napDefault" => <Option<i64> as Check>::describe(rest),
+                "turnLimitMs" => <Option<Option<i64>> as Check>::describe(rest),
+                "turnLimitDefault" => <Option<Option<i64>> as Check>::describe(rest),
+                "spawn" => <Option<WorkspaceAgents> as Check>::describe(rest),
+                "spawnDefault" => <Option<WorkspaceAgents> as Check>::describe(rest),
+                "running" => <Option<i64> as Check>::describe(rest),
+                "plan" => <Option<CloudPlan> as Check>::describe(rest),
+                "starts" => <Option<CloudStarts> as Check>::describe(rest),
+                "size" => <Option<PlaceViewSize> as Check>::describe(rest),
+                "sizeDefault" => <Option<PlaceViewSizeDefault> as Check>::describe(rest),
+                "deleteAfterMs" => <Option<i64> as Check>::describe(rest),
+                "creditHours" => <Option<JsNumber> as Check>::describe(rest),
+                "spentTodayUsd" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -494,7 +873,20 @@ pub struct PlaceDial {
 impl Check for PlaceDial {
     /// Nested checks: dialled, place.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.place.check().map_err(|e| e.under("place"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "dialled" => None,
+                "line" => <String as Check>::describe(rest),
+                "place" => <PlaceView as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -506,7 +898,11 @@ pub enum PlaceUpdateReplyDaemonRoad {
     Ssh,
 }
 
-impl Check for PlaceUpdateReplyDaemonRoad {}
+impl Check for PlaceUpdateReplyDaemonRoad {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["link", "ssh"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -523,7 +919,23 @@ pub struct PlaceUpdateReplyDaemon {
 
 impl Check for PlaceUpdateReplyDaemon {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.road.check().map_err(|e| e.under("road"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "from" => <i64 as Check>::describe(rest),
+                "to" => <i64 as Check>::describe(rest),
+                "road" => <PlaceUpdateReplyDaemonRoad as Check>::describe(rest),
+                "at" => <String as Check>::describe(rest),
+                "kept" => <Option<String> as Check>::describe(rest),
+                "note" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -540,7 +952,20 @@ impl Check for PlaceUpdateReply {
     /// Rules: name: at least 1 UTF-16 units.
     /// Nested checks: daemon.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.name, 1).map_err(|e| e.under("name"))?;
+        self.daemon.check().map_err(|e| e.under("daemon"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "daemon" => <Option<PlaceUpdateReplyDaemon> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -553,7 +978,18 @@ pub struct PlaceHoldsForksItem {
 
 impl Check for PlaceHoldsForksItem {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "threads" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -568,7 +1004,21 @@ pub struct PlaceHoldsImagesItem {
 impl Check for PlaceHoldsImagesItem {
     /// Rules: sizeBytes: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if let Some(v) = self.size_bytes {
+            crate::types::check::num_at_least(v.0, 0.0).map_err(|e| e.under("sizeBytes"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "sizeBytes" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -588,7 +1038,24 @@ pub struct PlaceHolds {
 impl Check for PlaceHolds {
     /// Nested checks: forks, images.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.forks.check().map_err(|e| e.under("forks"))?;
+        self.projects.check().map_err(|e| e.under("projects"))?;
+        self.images.check().map_err(|e| e.under("images"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "forks" => <Vec<PlaceHoldsForksItem> as Check>::describe(rest),
+                "projects" => <Vec<PlaceHoldsForksItem> as Check>::describe(rest),
+                "unsaved" => <Vec<String> as Check>::describe(rest),
+                "away" => None,
+                "images" => <Option<Vec<PlaceHoldsImagesItem>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -605,7 +1072,23 @@ pub struct PlaceRemovedTook {
 
 impl Check for PlaceRemovedTook {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.forks.check().map_err(|e| e.under("forks"))?;
+        self.projects.check().map_err(|e| e.under("projects"))?;
+        self.images.check().map_err(|e| e.under("images"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "forks" => <Vec<PlaceHoldsForksItem> as Check>::describe(rest),
+                "projects" => <Vec<PlaceHoldsForksItem> as Check>::describe(rest),
+                "away" => None,
+                "images" => <Option<Vec<PlaceHoldsImagesItem>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -628,7 +1111,23 @@ pub struct PlaceRemoved {
 impl Check for PlaceRemoved {
     /// Nested checks: took.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.took.check().map_err(|e| e.under("took"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "removed" => <bool as Check>::describe(rest),
+                "took" => <Option<PlaceRemovedTook> as Check>::describe(rest),
+                "swept" => <Vec<String> as Check>::describe(rest),
+                "note" => <Option<String> as Check>::describe(rest),
+                "deleted" => <Option<i64> as Check>::describe(rest),
+                "snapshots" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -644,7 +1143,20 @@ pub struct PlaceSpend {
 
 impl Check for PlaceSpend {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "place" => <String as Check>::describe(rest),
+                "todayUsd" => <JsNumber as Check>::describe(rest),
+                "monthUsd" => <JsNumber as Check>::describe(rest),
+                "rateUsdPerHour" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -664,7 +1176,19 @@ impl PlaceJoinedEvent {
 impl Check for PlaceJoinedEvent {
     /// Nested checks: place.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.place.check().map_err(|e| e.under("place"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "place" => <PlaceView as Check>::describe(rest),
+                "from" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -683,7 +1207,18 @@ impl PlacePresentEvent {
 
 impl Check for PlacePresentEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "placeId" => <String as Check>::describe(rest),
+                "from" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -703,7 +1238,18 @@ impl PlaceAbsentEvent {
 
 impl Check for PlaceAbsentEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "placeId" => <String as Check>::describe(rest),
+                "said" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -721,7 +1267,17 @@ impl PlaceRemovedEvent {
 
 impl Check for PlaceRemovedEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "placeId" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -740,7 +1296,18 @@ impl PlaceChangedEvent {
 impl Check for PlaceChangedEvent {
     /// Nested checks: place.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.place.check().map_err(|e| e.under("place"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "place" => <PlaceView as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -761,7 +1328,18 @@ impl PlacePendingEvent {
 impl Check for PlacePendingEvent {
     /// Nested checks: pending.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "pending" => None,
+                _ => None,
+            },
+        }
     }
 }
 
@@ -780,7 +1358,18 @@ impl ProjectAddedEvent {
 impl Check for ProjectAddedEvent {
     /// Nested checks: project.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.project.check().map_err(|e| e.under("project"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "project" => <ProjectView as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -803,7 +1392,22 @@ impl ProjectAddEvent {
 impl Check for ProjectAddEvent {
     /// Nested checks: stage.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.stage.check().map_err(|e| e.under("stage"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "projectId" => <String as Check>::describe(rest),
+                "computer" => <String as Check>::describe(rest),
+                "stage" => <ProjectAddStage as Check>::describe(rest),
+                "message" => <String as Check>::describe(rest),
+                "elapsedMs" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -821,7 +1425,17 @@ impl HostNoticeEvent {
 
 impl Check for HostNoticeEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "message" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -843,7 +1457,20 @@ impl AsideTextEvent {
 
 impl Check for AsideTextEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "threadId" => <Option<String> as Check>::describe(rest),
+                "askId" => <String as Check>::describe(rest),
+                "text" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -861,6 +1488,16 @@ impl ProjectRemovedEvent {
 
 impl Check for ProjectRemovedEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "projectId" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

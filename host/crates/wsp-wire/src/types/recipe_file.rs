@@ -46,7 +46,11 @@ pub enum RecipeSignIn {
     Key,
 }
 
-impl Check for RecipeSignIn {}
+impl Check for RecipeSignIn {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["vault", "machine", "token", "key"]))
+    }
+}
 
 /// TS: packages/protocol/src/recipe-file.ts:22 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -59,7 +63,11 @@ pub enum GitHubSignIn {
     Skip,
 }
 
-impl Check for GitHubSignIn {}
+impl Check for GitHubSignIn {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["vault", "machine", "skip"]))
+    }
+}
 
 /// TS: packages/protocol/src/recipe-file.ts:40 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -74,7 +82,11 @@ pub enum ServerSignIn {
     Oauth,
 }
 
-impl Check for ServerSignIn {}
+impl Check for ServerSignIn {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["none", "key", "token", "oauth"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -86,7 +98,18 @@ pub struct RecipeFileAgentsValue {
 impl Check for RecipeFileAgentsValue {
     /// Nested checks: signin.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.signin.check().map_err(|e| e.under("signin"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "signin" => <Option<RecipeSignIn> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -99,7 +122,21 @@ pub struct RecipeFileMcpValue {
 impl Check for RecipeFileMcpValue {
     /// Rules: agents[]: at least 1 UTF-16 units; agents: at least 1 items.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        for (i, item) in self.agents.iter().enumerate() {
+            crate::types::check::text_at_least(item, 1).map_err(|e| e.under(i).under("agents"))?;
+        }
+        crate::types::check::items_at_least(self.agents.len(), 1).map_err(|e| e.under("agents"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "agents" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -114,7 +151,24 @@ pub struct RecipeFileClisValue {
 impl Check for RecipeFileClisValue {
     /// Rules: via: at least 1 UTF-16 units; needs[]: at least 1 UTF-16 units.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.via, 1).map_err(|e| e.under("via"))?;
+        if let Some(list) = &self.needs {
+            for (i, item) in list.iter().enumerate() {
+                crate::types::check::text_at_least(item, 1).map_err(|e| e.under(i).under("needs"))?;
+            }
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "via" => <String as Check>::describe(rest),
+                "needs" => <Option<Vec<String>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -127,7 +181,18 @@ pub struct RecipeFileSkillsValue {
 impl Check for RecipeFileSkillsValue {
     /// Rules: from: at least 1 UTF-16 units.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.from, 1).map_err(|e| e.under("from"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "from" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -137,7 +202,11 @@ pub struct RecipeFilePluginsValue {}
 
 impl Check for RecipeFilePluginsValue {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { Some(crate::types::check::Zod::Word("object")) } else { None }
     }
 }
 
@@ -161,7 +230,31 @@ impl Check for RecipeFileFoldersValue {
     /// Rules: from: at least 1 UTF-16 units; name: at least 1 UTF-16 units; keep[]: at least 1 UTF-16 units.
     /// Nested checks: icon, hue, image.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.from, 1).map_err(|e| e.under("from"))?;
+        if let Some(v) = &self.name {
+            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("name"))?;
+        }
+        self.icon.check().map_err(|e| e.under("icon"))?;
+        self.hue.check().map_err(|e| e.under("hue"))?;
+        for (i, item) in self.keep.iter().enumerate() {
+            crate::types::check::text_at_least(item, 1).map_err(|e| e.under(i).under("keep"))?;
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "from" => <String as Check>::describe(rest),
+                "name" => <Option<String> as Check>::describe(rest),
+                "icon" => <Option<ProjectIcon> as Check>::describe(rest),
+                "hue" => <Option<ProjectHue> as Check>::describe(rest),
+                "image" => None,
+                "keep" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -175,7 +268,11 @@ pub struct RecipeFileConfigsGit {}
 
 impl Check for RecipeFileConfigsGit {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { Some(crate::types::check::Zod::Word("object")) } else { None }
     }
 }
 
@@ -185,7 +282,11 @@ pub struct RecipeFileConfigsShell {}
 
 impl Check for RecipeFileConfigsShell {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { Some(crate::types::check::Zod::Word("object")) } else { None }
     }
 }
 
@@ -199,7 +300,18 @@ pub struct RecipeFileConfigsGithub {
 impl Check for RecipeFileConfigsGithub {
     /// Nested checks: signin.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.signin.check().map_err(|e| e.under("signin"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "signin" => <Option<GitHubSignIn> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -217,7 +329,22 @@ pub struct RecipeFileConfigs {
 impl Check for RecipeFileConfigs {
     /// Nested checks: git, shell, github.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.git.check().map_err(|e| e.under("git"))?;
+        self.shell.check().map_err(|e| e.under("shell"))?;
+        self.github.check().map_err(|e| e.under("github"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "git" => <Option<RecipeFileConfigsGit> as Check>::describe(rest),
+                "shell" => <Option<RecipeFileConfigsShell> as Check>::describe(rest),
+                "github" => <Option<RecipeFileConfigsGithub> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -225,6 +352,7 @@ impl Check for RecipeFileConfigs {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RecipeFile {
+    #[serde(deserialize_with = "crate::types::check::trimmed")]
     pub name: String,
     #[serde(default = "default_recipe_file_agents")]
     pub agents: IndexMap<String, RecipeFileAgentsValue>,
@@ -249,7 +377,34 @@ impl Check for RecipeFile {
     /// Nested checks: agents, mcp, clis, skills, plugins, folders, configs.
     /// Strict: an unknown key is refused (zod .strict()).
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.name, 1).map_err(|e| e.under("name"))?;
+        crate::types::check::text_at_most(&self.name, 64).map_err(|e| e.under("name"))?;
+        self.agents.check().map_err(|e| e.under("agents"))?;
+        self.mcp.check().map_err(|e| e.under("mcp"))?;
+        self.clis.check().map_err(|e| e.under("clis"))?;
+        self.skills.check().map_err(|e| e.under("skills"))?;
+        self.plugins.check().map_err(|e| e.under("plugins"))?;
+        self.folders.check().map_err(|e| e.under("folders"))?;
+        self.configs.check().map_err(|e| e.under("configs"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "agents" => <IndexMap<String, RecipeFileAgentsValue> as Check>::describe(rest),
+                "mcp" => <IndexMap<String, RecipeFileMcpValue> as Check>::describe(rest),
+                "copyKeys" => None,
+                "clis" => <IndexMap<String, RecipeFileClisValue> as Check>::describe(rest),
+                "skills" => <IndexMap<String, RecipeFileSkillsValue> as Check>::describe(rest),
+                "plugins" => <IndexMap<String, RecipeFilePluginsValue> as Check>::describe(rest),
+                "folders" => <IndexMap<String, RecipeFileFoldersValue> as Check>::describe(rest),
+                "configs" => <RecipeFileConfigs as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -298,6 +453,28 @@ impl Check for RecipeView {
     /// Rules: name: at least 1 UTF-16 units; slug: at least 1 UTF-16 units; summary: at least 1 UTF-16 units; machines[]: at least 1 UTF-16 units.
     /// Nested checks: file.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.name, 1).map_err(|e| e.under("name"))?;
+        crate::types::check::text_at_least(&self.slug, 1).map_err(|e| e.under("slug"))?;
+        crate::types::check::text_at_least(&self.summary, 1).map_err(|e| e.under("summary"))?;
+        for (i, item) in self.machines.iter().enumerate() {
+            crate::types::check::text_at_least(item, 1).map_err(|e| e.under(i).under("machines"))?;
+        }
+        self.file.check().map_err(|e| e.under("file"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "name" => <String as Check>::describe(rest),
+                "slug" => <String as Check>::describe(rest),
+                "summary" => <String as Check>::describe(rest),
+                "machines" => <Vec<String> as Check>::describe(rest),
+                "savedAt" => <Option<String> as Check>::describe(rest),
+                "file" => <RecipeFile as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

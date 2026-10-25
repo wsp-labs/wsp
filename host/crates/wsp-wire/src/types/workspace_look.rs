@@ -86,7 +86,11 @@ pub enum WorkspaceGlyph {
     Lamp,
 }
 
-impl Check for WorkspaceGlyph {}
+impl Check for WorkspaceGlyph {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["terminal", "code", "bug", "wrench", "hammer", "rocket", "flask", "database", "cloud", "globe", "compass", "map", "book", "feather", "palette", "leaf", "star", "bolt", "key", "shield", "box", "folder", "chip", "lamp"]))
+    }
+}
 
 /// TS: packages/protocol/src/workspace-look.ts:46 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -99,7 +103,22 @@ pub struct ThemeDot {
 impl Check for ThemeDot {
     /// Rules: angle: >= 0; angle: <= 360; radius: >= 0; radius: <= 1.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.angle.0, 0.0).map_err(|e| e.under("angle"))?;
+        crate::types::check::num_at_most(self.angle.0, 360.0).map_err(|e| e.under("angle"))?;
+        crate::types::check::num_at_least(self.radius.0, 0.0).map_err(|e| e.under("radius"))?;
+        crate::types::check::num_at_most(self.radius.0, 1.0).map_err(|e| e.under("radius"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "angle" => <JsNumber as Check>::describe(rest),
+                "radius" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -120,7 +139,11 @@ pub enum ThemeHarmony {
     AnalogousThree,
 }
 
-impl Check for ThemeHarmony {}
+impl Check for ThemeHarmony {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["single", "complementary", "analogous", "splitComplementary", "triadic", "analogousThree"]))
+    }
+}
 
 /// TS: packages/protocol/src/workspace-look.ts:75 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -133,7 +156,11 @@ pub enum ThemeMode {
     Dark,
 }
 
-impl Check for ThemeMode {}
+impl Check for ThemeMode {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["auto", "light", "dark"]))
+    }
+}
 
 /// TS: packages/protocol/src/workspace-look.ts:83 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -150,7 +177,30 @@ impl Check for WorkspaceTheme {
     /// Rules: dots: at least 1 items; dots: at most 3 items; grain: >= 0; grain: <= 1; opacity: >= 0.1; opacity: <= 1.
     /// Nested checks: dots, harmony, mode.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::items_at_least(self.dots.len(), 1).map_err(|e| e.under("dots"))?;
+        crate::types::check::items_at_most(self.dots.len(), 3).map_err(|e| e.under("dots"))?;
+        self.dots.check().map_err(|e| e.under("dots"))?;
+        self.harmony.check().map_err(|e| e.under("harmony"))?;
+        crate::types::check::num_at_least(self.grain.0, 0.0).map_err(|e| e.under("grain"))?;
+        crate::types::check::num_at_most(self.grain.0, 1.0).map_err(|e| e.under("grain"))?;
+        crate::types::check::num_at_least(self.opacity.0, 0.1).map_err(|e| e.under("opacity"))?;
+        crate::types::check::num_at_most(self.opacity.0, 1.0).map_err(|e| e.under("opacity"))?;
+        self.mode.check().map_err(|e| e.under("mode"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "dots" => <Vec<ThemeDot> as Check>::describe(rest),
+                "harmony" => <ThemeHarmony as Check>::describe(rest),
+                "grain" => <JsNumber as Check>::describe(rest),
+                "opacity" => <JsNumber as Check>::describe(rest),
+                "mode" => <ThemeMode as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -167,6 +217,19 @@ pub struct WorkspaceLook {
 impl Check for WorkspaceLook {
     /// Nested checks: theme, glyph.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.theme.check().map_err(|e| e.under("theme"))?;
+        self.glyph.check().map_err(|e| e.under("glyph"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "theme" => <Option<Option<WorkspaceTheme>> as Check>::describe(rest),
+                "glyph" => <Option<Option<WorkspaceGlyph>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

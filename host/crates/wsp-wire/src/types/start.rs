@@ -20,7 +20,11 @@ pub enum GithubLinkKind {
     PullRequest,
 }
 
-impl Check for GithubLinkKind {}
+impl Check for GithubLinkKind {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["issue", "pull_request"]))
+    }
+}
 
 /// TS: packages/protocol/src/start.ts:12 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -36,7 +40,24 @@ pub struct GithubLink {
 impl Check for GithubLink {
     /// Rules: number: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.host.check().map_err(|e| e.under("host"))?;
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        crate::types::check::num_at_least(self.number as f64, 0.0).map_err(|e| e.under("number"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "host" => <GithubComLit as Check>::describe(rest),
+                "repo" => <String as Check>::describe(rest),
+                "kind" => <GithubLinkKind as Check>::describe(rest),
+                "number" => <i64 as Check>::describe(rest),
+                "url" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -50,7 +71,11 @@ pub enum WorkspaceFromKind {
     Review,
 }
 
-impl Check for WorkspaceFromKind {}
+impl Check for WorkspaceFromKind {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["issue", "pull_request", "review"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -61,7 +86,18 @@ pub struct WorkspaceFromHeadFork {
 
 impl Check for WorkspaceFromHeadFork {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "owner" => <String as Check>::describe(rest),
+                "pushable" => <bool as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -78,7 +114,20 @@ pub struct WorkspaceFromHead {
 impl Check for WorkspaceFromHead {
     /// Nested checks: fork.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.fork.check().map_err(|e| e.under("fork"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "branch" => <String as Check>::describe(rest),
+                "oid" => <Option<String> as Check>::describe(rest),
+                "fork" => <Option<WorkspaceFromHeadFork> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -101,7 +150,26 @@ impl Check for WorkspaceFrom {
     /// Rules: number: >= 0.
     /// Nested checks: head.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        crate::types::check::num_at_least(self.number as f64, 0.0).map_err(|e| e.under("number"))?;
+        self.head.check().map_err(|e| e.under("head"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "kind" => <WorkspaceFromKind as Check>::describe(rest),
+                "repo" => <String as Check>::describe(rest),
+                "number" => <i64 as Check>::describe(rest),
+                "url" => <String as Check>::describe(rest),
+                "title" => <String as Check>::describe(rest),
+                "base" => <Option<String> as Check>::describe(rest),
+                "head" => <Option<WorkspaceFromHead> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -115,7 +183,19 @@ pub struct IssueReadCommentsItem {
 
 impl Check for IssueReadCommentsItem {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "author" => <String as Check>::describe(rest),
+                "body" => <String as Check>::describe(rest),
+                "at" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -127,7 +207,23 @@ impl Check for IssueRead {
     /// Rules: number: >= 0.
     /// Nested checks: comments.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.number as f64, 0.0).map_err(|e| e.under("number"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "number" => <u64 as Check>::describe(rest),
+                "url" => <String as Check>::describe(rest),
+                "title" => <String as Check>::describe(rest),
+                "body" => <String as Check>::describe(rest),
+                "state" => <String as Check>::describe(rest),
+                "comments" => None,
+                _ => None,
+            },
+        }
     }
 }
 
@@ -138,7 +234,18 @@ pub use wsp_frames::GitIssueReadReply;
 impl Check for GitIssueReadReply {
     /// Nested checks: issue.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.issue.check().map_err(|e| e.under("issue"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "issue" => <IssueRead as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -148,7 +255,19 @@ pub use wsp_frames::GitPrDiffReply;
 
 impl Check for GitPrDiffReply {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "diff" => <String as Check>::describe(rest),
+                "truncated" => <bool as Check>::describe(rest),
+                "left" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -158,7 +277,17 @@ pub use wsp_frames::GitPrCheckoutReply;
 
 impl Check for GitPrCheckoutReply {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "branch" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -168,7 +297,18 @@ pub use wsp_frames::GitPrReviewReply;
 
 impl Check for GitPrReviewReply {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "url" => <String as Check>::describe(rest),
+                "folded" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -182,7 +322,11 @@ pub enum ReviewBlockVerdict {
     RequestChanges,
 }
 
-impl Check for ReviewBlockVerdict {}
+impl Check for ReviewBlockVerdict {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["comment", "approve", "request_changes"]))
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ReviewBlockCommentsItemSide {
@@ -192,7 +336,11 @@ pub enum ReviewBlockCommentsItemSide {
     RIGHT,
 }
 
-impl Check for ReviewBlockCommentsItemSide {}
+impl Check for ReviewBlockCommentsItemSide {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["LEFT", "RIGHT"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -206,7 +354,23 @@ pub struct ReviewBlockCommentsItem {
 impl Check for ReviewBlockCommentsItem {
     /// Rules: path: at least 1 UTF-16 units; line: > 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::text_at_least(&self.path, 1).map_err(|e| e.under("path"))?;
+        crate::types::check::num_above(self.line as f64, 0.0).map_err(|e| e.under("line"))?;
+        self.side.check().map_err(|e| e.under("side"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "path" => <String as Check>::describe(rest),
+                "line" => <i64 as Check>::describe(rest),
+                "side" => <ReviewBlockCommentsItemSide as Check>::describe(rest),
+                "body" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -214,6 +378,7 @@ impl Check for ReviewBlockCommentsItem {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewBlock {
+    #[serde(deserialize_with = "review_verdict")]
     pub verdict: ReviewBlockVerdict,
     pub summary: String,
     pub comments: Vec<ReviewBlockCommentsItem>,
@@ -223,7 +388,21 @@ impl Check for ReviewBlock {
     /// Rules: verdict: a zod preprocess (spec/shapes.md rule 7).
     /// Nested checks: comments.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.verdict.check().map_err(|e| e.under("verdict"))?;
+        self.comments.check().map_err(|e| e.under("comments"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "verdict" => <ReviewBlockVerdict as Check>::describe(rest),
+                "summary" => <String as Check>::describe(rest),
+                "comments" => <Vec<ReviewBlockCommentsItem> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -235,7 +414,11 @@ pub enum ReviewDraftCommentSide {
     RIGHT,
 }
 
-impl Check for ReviewDraftCommentSide {}
+impl Check for ReviewDraftCommentSide {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["LEFT", "RIGHT"]))
+    }
+}
 
 /// TS: packages/protocol/src/start.ts:253 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -254,7 +437,25 @@ pub struct ReviewDraftComment {
 impl Check for ReviewDraftComment {
     /// Rules: line: > 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_above(self.line as f64, 0.0).map_err(|e| e.under("line"))?;
+        self.side.check().map_err(|e| e.under("side"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "path" => <String as Check>::describe(rest),
+                "line" => <i64 as Check>::describe(rest),
+                "side" => <ReviewDraftCommentSide as Check>::describe(rest),
+                "body" => <String as Check>::describe(rest),
+                "on" => <bool as Check>::describe(rest),
+                "inSummary" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -268,7 +469,11 @@ pub enum ReviewDraftV0Verdict {
     RequestChanges,
 }
 
-impl Check for ReviewDraftV0Verdict {}
+impl Check for ReviewDraftV0Verdict {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["comment", "approve", "request_changes"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -280,7 +485,19 @@ pub struct ReviewDraftV0Posted {
 
 impl Check for ReviewDraftV0Posted {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "url" => <String as Check>::describe(rest),
+                "at" => <JsNumber as Check>::describe(rest),
+                "folded" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -300,7 +517,26 @@ pub struct ReviewDraftV0 {
 impl Check for ReviewDraftV0 {
     /// Nested checks: comments, posted.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.verdict.check().map_err(|e| e.under("verdict"))?;
+        self.comments.check().map_err(|e| e.under("comments"))?;
+        self.posted.check().map_err(|e| e.under("posted"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "verdict" => <ReviewDraftV0Verdict as Check>::describe(rest),
+                "summary" => <String as Check>::describe(rest),
+                "comments" => <Vec<ReviewDraftComment> as Check>::describe(rest),
+                "headOid" => <String as Check>::describe(rest),
+                "threadId" => <String as Check>::describe(rest),
+                "at" => <JsNumber as Check>::describe(rest),
+                "posted" => <Option<ReviewDraftV0Posted> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -315,7 +551,19 @@ pub struct ReviewDraftV1 {
 
 impl Check for ReviewDraftV1 {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "note" => <String as Check>::describe(rest),
+                "at" => <JsNumber as Check>::describe(rest),
+                "reasked" => <Option<bool> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -330,6 +578,30 @@ pub enum ReviewDraft {
 
 impl Check for ReviewDraft {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        match self {
+            ReviewDraft::V0(v) => v.check(),
+            ReviewDraft::V1(v) => v.check(),
+        }
     }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { return Some(crate::types::check::Zod::Union); }
+        <ReviewDraftV0 as Check>::describe(path).or_else(|| <ReviewDraftV1 as Check>::describe(path))
+    }
+}
+
+// ---- Hand-written below: the generated part above is rewritten by the generator, this part is kept.
+
+/// zod's `preprocess` on a review's verdict (start.ts:196): a string is lower-cased and each white space or dash
+/// becomes `_` before the word is read.
+pub fn review_verdict<'de, D: serde::Deserializer<'de>>(d: D) -> Result<ReviewBlockVerdict, D::Error> {
+    use serde::de::Error;
+    let v = serde_json::Value::deserialize(d)?;
+    let v = match v {
+        serde_json::Value::String(s) => {
+            serde_json::Value::String(s.to_lowercase().chars().map(|c| if c.is_whitespace() || c == '-' { '_' } else { c }).collect())
+        }
+        other => other,
+    };
+    ReviewBlockVerdict::deserialize(v).map_err(D::Error::custom)
 }

@@ -77,7 +77,11 @@ pub enum LimitKind {
     Overage,
 }
 
-impl Check for LimitKind {}
+impl Check for LimitKind {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["session", "week", "week_opus", "week_sonnet", "month", "overage"]))
+    }
+}
 
 /// TS: packages/protocol/src/usage.ts:17 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -92,7 +96,20 @@ pub struct LimitWindow {
 impl Check for LimitWindow {
     /// Nested checks: kind.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "kind" => <LimitKind as Check>::describe(rest),
+                "usedPercent" => <JsNumber as Check>::describe(rest),
+                "resetsAt" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -107,7 +124,11 @@ pub enum LimitStatus {
     Reached,
 }
 
-impl Check for LimitStatus {}
+impl Check for LimitStatus {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["ok", "warning", "reached"]))
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ResetCreditStatus {
@@ -121,7 +142,11 @@ pub enum ResetCreditStatus {
     Unknown,
 }
 
-impl Check for ResetCreditStatus {}
+impl Check for ResetCreditStatus {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["available", "redeeming", "redeemed", "unknown"]))
+    }
+}
 
 /// TS: packages/protocol/src/usage.ts:27 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -135,7 +160,20 @@ pub struct ResetCredit {
 
 impl Check for ResetCredit {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.status.check().map_err(|e| e.under("status"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "status" => <ResetCreditStatus as Check>::describe(rest),
+                "expiresAt" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -152,7 +190,20 @@ impl Check for BankedResets {
     /// Rules: count: >= 0.
     /// Nested checks: credits.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.count as f64, 0.0).map_err(|e| e.under("count"))?;
+        self.credits.check().map_err(|e| e.under("credits"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "count" => <i64 as Check>::describe(rest),
+                "credits" => <Option<Vec<ResetCredit>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -166,7 +217,18 @@ pub struct HarnessLimitAccount {
 
 impl Check for HarnessLimitAccount {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "label" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -190,7 +252,26 @@ pub struct HarnessLimit {
 impl Check for HarnessLimit {
     /// Nested checks: windows, status, account, credits.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.windows.check().map_err(|e| e.under("windows"))?;
+        self.status.check().map_err(|e| e.under("status"))?;
+        self.account.check().map_err(|e| e.under("account"))?;
+        self.credits.check().map_err(|e| e.under("credits"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "windows" => <Vec<LimitWindow> as Check>::describe(rest),
+                "plan" => <Option<String> as Check>::describe(rest),
+                "status" => <Option<LimitStatus> as Check>::describe(rest),
+                "account" => <Option<HarnessLimitAccount> as Check>::describe(rest),
+                "keyed" => <Option<bool> as Check>::describe(rest),
+                "credits" => <Option<BankedResets> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -205,7 +286,11 @@ pub enum AccountRoad {
     Own,
 }
 
-impl Check for AccountRoad {}
+impl Check for AccountRoad {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["named", "vault", "own"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -222,7 +307,22 @@ impl Check for AccountLimitCredits {
     /// Rules: count: >= 0.
     /// Nested checks: credits.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.count as f64, 0.0).map_err(|e| e.under("count"))?;
+        self.credits.check().map_err(|e| e.under("credits"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "count" => <i64 as Check>::describe(rest),
+                "credits" => <Option<Vec<ResetCredit>> as Check>::describe(rest),
+                "readAt" => <JsNumber as Check>::describe(rest),
+                "detailAt" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -251,7 +351,31 @@ pub struct AccountLimit {
 impl Check for AccountLimit {
     /// Nested checks: road, windows, status, credits.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.road.check().map_err(|e| e.under("road"))?;
+        self.windows.check().map_err(|e| e.under("windows"))?;
+        self.status.check().map_err(|e| e.under("status"))?;
+        self.credits.check().map_err(|e| e.under("credits"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "key" => <String as Check>::describe(rest),
+                "agent" => <String as Check>::describe(rest),
+                "label" => <String as Check>::describe(rest),
+                "road" => <Option<AccountRoad> as Check>::describe(rest),
+                "plan" => <Option<String> as Check>::describe(rest),
+                "windows" => <Vec<LimitWindow> as Check>::describe(rest),
+                "status" => <Option<LimitStatus> as Check>::describe(rest),
+                "keyed" => <Option<bool> as Check>::describe(rest),
+                "readAt" => <JsNumber as Check>::describe(rest),
+                "computers" => <Vec<String> as Check>::describe(rest),
+                "credits" => <Option<AccountLimitCredits> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -266,7 +390,11 @@ pub enum AccountNote {
     NotReadYetShowsAfterItsNextTurn,
 }
 
-impl Check for AccountNote {}
+impl Check for AccountNote {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["reports no plan limit", "pays per token, no plan limit", "not read yet: shows after its next turn"]))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -277,7 +405,18 @@ pub struct AccountRowBurn {
 
 impl Check for AccountRowBurn {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "tokensPerMinute" => <JsNumber as Check>::describe(rest),
+                "threads" => <i64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -298,7 +437,23 @@ impl Check for AccountRowCredits {
     /// Rules: count: >= 0.
     /// Nested checks: credits.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.count as f64, 0.0).map_err(|e| e.under("count"))?;
+        self.credits.check().map_err(|e| e.under("credits"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "count" => <i64 as Check>::describe(rest),
+                "credits" => <Option<Vec<ResetCredit>> as Check>::describe(rest),
+                "nextExpiresAt" => <Option<JsNumber> as Check>::describe(rest),
+                "readAt" => <JsNumber as Check>::describe(rest),
+                "detailAt" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -331,7 +486,33 @@ pub struct AccountRow {
 impl Check for AccountRow {
     /// Nested checks: windows, status, note, burn, credits.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.windows.check().map_err(|e| e.under("windows"))?;
+        self.status.check().map_err(|e| e.under("status"))?;
+        self.note.check().map_err(|e| e.under("note"))?;
+        self.burn.check().map_err(|e| e.under("burn"))?;
+        self.credits.check().map_err(|e| e.under("credits"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "key" => <String as Check>::describe(rest),
+                "agent" => <String as Check>::describe(rest),
+                "label" => <String as Check>::describe(rest),
+                "computers" => <Vec<String> as Check>::describe(rest),
+                "plan" => <Option<String> as Check>::describe(rest),
+                "windows" => <Option<Vec<LimitWindow>> as Check>::describe(rest),
+                "status" => <Option<LimitStatus> as Check>::describe(rest),
+                "readAt" => <Option<JsNumber> as Check>::describe(rest),
+                "note" => <Option<AccountNote> as Check>::describe(rest),
+                "burn" => <Option<AccountRowBurn> as Check>::describe(rest),
+                "address" => <Option<String> as Check>::describe(rest),
+                "credits" => <Option<AccountRowCredits> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -351,7 +532,19 @@ impl UsageAccountEvent {
 impl Check for UsageAccountEvent {
     /// Nested checks: row.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.row.check().map_err(|e| e.under("row"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "key" => <String as Check>::describe(rest),
+                "row" => <AccountRow as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -365,7 +558,18 @@ pub struct AccountsAnswer {
 impl Check for AccountsAnswer {
     /// Nested checks: accounts.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.accounts.check().map_err(|e| e.under("accounts"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "accounts" => <Vec<AccountRow> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -386,7 +590,11 @@ pub enum ResetOutcome {
     Unknown,
 }
 
-impl Check for ResetOutcome {}
+impl Check for ResetOutcome {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["reset", "nothingToReset", "noCredit", "alreadyRedeemed", "earlier", "unknown"]))
+    }
+}
 
 /// TS: packages/protocol/src/usage.ts:133 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -401,7 +609,21 @@ pub struct ResetAnswer {
 impl Check for ResetAnswer {
     /// Nested checks: outcome, account.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.outcome.check().map_err(|e| e.under("outcome"))?;
+        self.account.check().map_err(|e| e.under("account"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "outcome" => <ResetOutcome as Check>::describe(rest),
+                "said" => <String as Check>::describe(rest),
+                "account" => <Option<AccountRow> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -416,7 +638,11 @@ pub enum UsageRange {
     Month,
 }
 
-impl Check for UsageRange {}
+impl Check for UsageRange {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["day", "week", "month"]))
+    }
+}
 
 /// TS: packages/protocol/src/usage.ts:174 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -435,7 +661,11 @@ pub enum UsageSplit {
     Source,
 }
 
-impl Check for UsageSplit {}
+impl Check for UsageSplit {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["agent", "account", "computer", "project", "model", "source"]))
+    }
+}
 
 /// TS: packages/protocol/src/usage.ts:187 at a3b870a6e.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -450,7 +680,11 @@ pub enum ReadingsRange {
     Month,
 }
 
-impl Check for ReadingsRange {}
+impl Check for ReadingsRange {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["15m", "day", "week", "month"]))
+    }
+}
 
 /// TS: packages/protocol/src/usage.ts:198 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -467,7 +701,23 @@ pub struct UsageKey {
 
 impl Check for UsageKey {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "day" => <String as Check>::describe(rest),
+                "hour" => <i64 as Check>::describe(rest),
+                "agent" => <String as Check>::describe(rest),
+                "account" => <String as Check>::describe(rest),
+                "computer" => <String as Check>::describe(rest),
+                "project" => <String as Check>::describe(rest),
+                "model" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -477,7 +727,21 @@ pub use wsp_frames::UsageTokens;
 
 impl Check for UsageTokens {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "input" => <u64 as Check>::describe(rest),
+                "output" => <u64 as Check>::describe(rest),
+                "cached" => <u64 as Check>::describe(rest),
+                "cacheWrite" => <u64 as Check>::describe(rest),
+                "reasoning" => <u64 as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -489,7 +753,11 @@ pub enum UsageRowSource {
     Log,
 }
 
-impl Check for UsageRowSource {}
+impl Check for UsageRowSource {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["wsp", "log"]))
+    }
+}
 
 /// TS: packages/protocol/src/usage.ts:215 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -514,7 +782,31 @@ pub struct UsageRow {
 impl Check for UsageRow {
     /// Nested checks: tokens, unreported.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.tokens.check().map_err(|e| e.under("tokens"))?;
+        self.unreported.check().map_err(|e| e.under("unreported"))?;
+        self.source.check().map_err(|e| e.under("source"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "day" => <String as Check>::describe(rest),
+                "hour" => <i64 as Check>::describe(rest),
+                "agent" => <String as Check>::describe(rest),
+                "account" => <String as Check>::describe(rest),
+                "computer" => <String as Check>::describe(rest),
+                "project" => <String as Check>::describe(rest),
+                "model" => <String as Check>::describe(rest),
+                "turns" => <i64 as Check>::describe(rest),
+                "tokens" => <UsageTokens as Check>::describe(rest),
+                "costReported" => <Option<JsNumber> as Check>::describe(rest),
+                "unreported" => <Option<UsageTokens> as Check>::describe(rest),
+                "source" => <UsageRowSource as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -531,7 +823,20 @@ pub struct UsageDay {
 impl Check for UsageDay {
     /// Nested checks: rows.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.rows.check().map_err(|e| e.under("rows"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "day" => <String as Check>::describe(rest),
+                "rows" => <Vec<UsageRow> as Check>::describe(rest),
+                "sessions" => <Option<Vec<String>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -549,7 +854,21 @@ pub struct UsedRowTokens {
 
 impl Check for UsedRowTokens {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "input" => <JsNumber as Check>::describe(rest),
+                "output" => <JsNumber as Check>::describe(rest),
+                "cached" => <JsNumber as Check>::describe(rest),
+                "cacheWrite" => <Option<JsNumber> as Check>::describe(rest),
+                "reasoning" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -578,7 +897,27 @@ pub struct UsedRow {
 impl Check for UsedRow {
     /// Nested checks: tokens.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.tokens.check().map_err(|e| e.under("tokens"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "key" => <String as Check>::describe(rest),
+                "label" => <String as Check>::describe(rest),
+                "agent" => <Option<String> as Check>::describe(rest),
+                "tokens" => <UsedRowTokens as Check>::describe(rest),
+                "costReported" => <Option<JsNumber> as Check>::describe(rest),
+                "costList" => <Option<JsNumber> as Check>::describe(rest),
+                "priced" => <bool as Check>::describe(rest),
+                "estimate" => <Option<JsNumber> as Check>::describe(rest),
+                "saved" => <Option<JsNumber> as Check>::describe(rest),
+                "turns" => <Option<i64> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -591,7 +930,18 @@ pub struct UsedAnswerSeriesItem {
 
 impl Check for UsedAnswerSeriesItem {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "t" => <JsNumber as Check>::describe(rest),
+                "tokens" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -604,7 +954,18 @@ pub struct UsedAnswerLogs {
 
 impl Check for UsedAnswerLogs {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "agents" => <Vec<String> as Check>::describe(rest),
+                "computers" => <Vec<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -618,7 +979,19 @@ pub struct UsedAnswerLinesItem {
 
 impl Check for UsedAnswerLinesItem {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "key" => <String as Check>::describe(rest),
+                "label" => <String as Check>::describe(rest),
+                "points" => <Vec<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -641,7 +1014,30 @@ pub struct UsedAnswer {
 impl Check for UsedAnswer {
     /// Nested checks: range, split, rows, series, logs, lines.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.range.check().map_err(|e| e.under("range"))?;
+        self.split.check().map_err(|e| e.under("split"))?;
+        self.rows.check().map_err(|e| e.under("rows"))?;
+        self.series.check().map_err(|e| e.under("series"))?;
+        self.logs.check().map_err(|e| e.under("logs"))?;
+        self.lines.check().map_err(|e| e.under("lines"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "range" => <UsageRange as Check>::describe(rest),
+                "split" => <UsageSplit as Check>::describe(rest),
+                "rows" => <Vec<UsedRow> as Check>::describe(rest),
+                "series" => <Vec<UsedAnswerSeriesItem> as Check>::describe(rest),
+                "since" => <JsNumber as Check>::describe(rest),
+                "until" => <JsNumber as Check>::describe(rest),
+                "logs" => <Option<UsedAnswerLogs> as Check>::describe(rest),
+                "lines" => <Option<Vec<UsedAnswerLinesItem>> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -655,6 +1051,16 @@ pub struct TurnLimit {
 
 impl Check for TurnLimit {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "resetsAt" => <Option<JsNumber> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

@@ -25,7 +25,19 @@ impl PlanAlertLow {
 impl Check for PlanAlertLow {
     /// Nested checks: window.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.window.check().map_err(|e| e.under("window"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "window" => <LimitKind as Check>::describe(rest),
+                "step" => <JsNumber as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -40,7 +52,11 @@ impl PlanAlertBlocked {
 
 impl Check for PlanAlertBlocked {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { Some(crate::types::check::Zod::Word("object")) } else { None }
     }
 }
 
@@ -55,7 +71,11 @@ impl PlanAlertBack {
 
 impl Check for PlanAlertBack {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { Some(crate::types::check::Zod::Word("object")) } else { None }
     }
 }
 
@@ -74,7 +94,17 @@ pub enum PlanAlert {
 
 impl Check for PlanAlert {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        match self {
+            PlanAlert::Low(v) => v.check(),
+            PlanAlert::Blocked(v) => v.check(),
+            PlanAlert::Back(v) => v.check(),
+        }
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() { return Some(crate::types::check::Zod::Word("object")); }
+        if path.len() == 1 && path[0].as_str() == Some("kind") { return Some(crate::types::check::Zod::Tags("kind", &["low", "blocked", "back"])); }
+        <PlanAlertLow as Check>::describe(path).or_else(|| <PlanAlertBlocked as Check>::describe(path)).or_else(|| <PlanAlertBack as Check>::describe(path))
     }
 }
 
@@ -96,6 +126,20 @@ impl UsageAlertEvent {
 impl Check for UsageAlertEvent {
     /// Nested checks: alert.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.alert.check().map_err(|e| e.under("alert"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "key" => <String as Check>::describe(rest),
+                "agent" => <String as Check>::describe(rest),
+                "label" => <String as Check>::describe(rest),
+                "alert" => <PlanAlert as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }

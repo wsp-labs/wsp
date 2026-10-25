@@ -41,7 +41,19 @@ pub struct Attachment {
 
 impl Check for Attachment {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "mediaType" => <String as Check>::describe(rest),
+                "bytes" => <String as Check>::describe(rest),
+                "name" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -58,7 +70,20 @@ pub struct AttachmentRecord {
 impl Check for AttachmentRecord {
     /// Rules: bytes: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::num_at_least(self.bytes as f64, 0.0).map_err(|e| e.under("bytes"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "mediaType" => <String as Check>::describe(rest),
+                "bytes" => <i64 as Check>::describe(rest),
+                "name" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -72,6 +97,17 @@ pub struct KeptAttachment {
 
 impl Check for KeptAttachment {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "mediaType" => <String as Check>::describe(rest),
+                "bytes" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
