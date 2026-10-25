@@ -38,7 +38,7 @@ replaced when this computer's copy changed. What survives a host restart is that
   a key overwrites its value and keeps its first place.
 - `standing_digests(machine, home, paths)` (:237): no paths is `None` with no call. Exec the script with timeout
   `STAND_MS` (120,000) and stdin each path followed by NUL. `None` where the exec failed, exited `EXEC_DEADLINE_EXIT`
-  (124) or `NO_SHELL_EXIT` (127), or both maps came back empty. Any other exit is read (a missing path exits 123).
+  (124) or `NO_SHELL_EXIT` (127), or both maps came back empty. Any other exit is read. The script ends `exit 0`: a missing path prints nothing and is not an exit of its own (no 123 leaves it); only its three `|| exit 1` lines (mkdir, cat, cd) exit non-zero.
   No path appears in the command text.
 
 ## The landing (:250-301, :400-510)
@@ -72,10 +72,28 @@ under the home when it still holds the bytes the list says, then empty folders u
   `landed_at`, in order (a repeat keeps its place, takes the later value). `skipped`: each kept path as `{ id: its
   owner's id or files/<rel>, path: landed_at, note: "already there with other content; wsp did not write over it" }`.
 
+## Pinned since (F-rules, values from running the TS)
+
+- F1. Roads and bounds: `standing_digests` is an exec under `STAND_MS` 120,000 with the paths on stdin
+  (`<p>\0` each, duplicates kept); the staging sweep an exec under `INLINE_EXEC_MS` 20,000; the import a run under
+  `LAND_MS`; the landing a run under `LAND_MS` 300,000, `unlogged` false. The box guest runs exec and run alike, so
+  only a recording machine tells them apart.
+- F7. The sweep's exit is not read (exit 1 goes on); only an `Err` fails `land_agent_files`, and then nothing else runs.
+  A landing exit other than 0 is `the agents' files did not land on <id> (exit <n>): <last 300 UTF-16 units of
+  stderr>` (ends `: ` when stderr is empty); a cut inside a surrogate pair writes U+FFFD for the half kept.
+- F8. Every parser here (`parse_landed`, `parse_landed_servers`, `own_marks`, `outside_marks`, unland's) splits on
+  `\n` alone: a trailing `\r` stays part of the path. `str::lines()` would strip it.
+- F9. `file_label(Some(""), ..)` is `" <landed at>"` (an empty label is a label). Two lands on one dest are two rows,
+  each counting the same landed paths.
+
 ## Rules against tests
 
 | Rule | Tests |
 |---|---|
+| F1 | files_hard.rs: `each_call_rides_the_road_and_bound_the_ts_gives_it` |
+| F7 | files_hard.rs: `the_sweep_fails_the_landing_only_by_err_and_the_landing_error_keeps_the_last_300_units` |
+| F8 | files_hard.rs: `a_carriage_return_stays_in_the_path` |
+| F9 | files_hard.rs: `an_empty_label_is_kept_and_two_lands_on_one_dest_are_two_rows` |
 | may land: own row, catalog path; never dotfile, store, other agent, unknown | files_land.rs: the two "which files may land" tests; `an_agent_file_is_its_own_rows_path_and_never_a_lookalike_folder` |
 | rows: installed, present, skipped, failed, loose path, notes, labels | files_land.rs: the two rows tests; `the_rows_name_three_paths_then_how_many_more_put_failed_first_and_read_a_moved_store`; `no_planned_path_and_nothing_landed_is_no_row` |
 | landing: missing lands, same stands, person's file kept; empty file written over | files_land.rs: "lands what is missing ...", "writes over an empty file ..." |

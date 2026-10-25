@@ -4,7 +4,7 @@ What a setup on a computer somebody owns writes outside the agents' homes (`/usr
 install step and taken off by a leave. The record survives a host restart and is the only state: `/opt/wsp/landed`
 (`$root$TOOL_PREFIX/landed`), lines `<state>\t<absolute path>`, appended only, each in one write, so two steps closing
 at once lose none; every reader takes the last line a path has. `<state>` is a file's sha256, `link:<sha256 of the
-link's target text>`, or `dir`.
+link's target text and a newline>` (`readlink | sha256sum`: a link to `abc` is the digest of `abc\n`), or `dir`.
 
 All four scripts are pure text functions, byte for byte the TS's (oracle `outside`), run by `provision_step` (before
 and after) and by the leave on both roads (the daemon runs `outside_sweep_script` through sh; with `{root}` plus a
