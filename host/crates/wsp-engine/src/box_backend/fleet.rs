@@ -151,7 +151,7 @@ impl MachineBackend for BoxBackend {
         todo!()
     }
     /// sandbox and desktop both boot `base`.
-    fn base_templates(&self) -> Option<IndexMap<MachineKind, String>> {
+    fn base_templates(&self) -> Option<crate::machine::BaseTemplates> {
         todo!()
     }
     /// keyed_create, check_key, place_limits, root_disk_of, limits, list_snapshots, templates.

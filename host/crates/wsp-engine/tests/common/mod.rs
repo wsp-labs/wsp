@@ -4,4 +4,5 @@
 #![allow(dead_code)]
 pub mod fake_box;
 pub mod fake_clock;
+pub mod fake_machine;
 pub mod warn;
