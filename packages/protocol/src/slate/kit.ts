@@ -460,7 +460,7 @@ const PIECES: Record<string, SlatePieceModule> = {
     fallback: "text", example: `<sparkline label="Load" values={pluck($hist, 'v')} />`,
   },
   table: {
-    type: "table", level: "core", reads: "words", purpose: "Rows with columns from a bound list: <col> per column, <action> per row button.", holdsChildren: false, repeating: true,
+    type: "table", level: "core", reads: "words", purpose: "Rows from a bound list: <col> per column, <action> per row. No error text in cells.", holdsChildren: false, repeating: true,
     props: { items: { type: "list", binds: "yes", required: true }, key: rowKey(), empty: str(), rows: { type: "integer", binds: "no", min: 1, max: 5000 } },
     items: {
       col: { prop: "columns", row: true, min: 1, max: SLATE_LIMITS.columns, fields: { title: str({ ...req, binds: "no" }), value: { type: "text", binds: "item", required: true }, tone: { type: SLATE_TONES, binds: "item" }, emphasis: { type: EMPHASIS, binds: "item" }, mono: flag(), align: enm(["start", "end"], "start"), width: enm(["fit", "fill"]) } },
