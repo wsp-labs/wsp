@@ -111,7 +111,7 @@ pub enum Zod {
 /// The refinements of one type. A type with none keeps the default, which checks nothing; a struct's check runs the
 /// check of every field whose type has one, in field order, and answers the first issue with the field's key in front
 /// of its path.
-pub trait Check: DeserializeOwned {
+pub trait Check: DeserializeOwned + 'static {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
     }
@@ -126,13 +126,55 @@ pub trait Check: DeserializeOwned {
     }
 
     /// What zod calls the value at `path` below this type, or None where the type does not say. A missing key, a wrong
-    /// type or an unknown tag names its expected word through this, since serde's error does not.
-    fn describe(_path: &[Value]) -> Option<Zod>
+    /// type or an unknown tag names its expected word through this, since serde's error does not. Where a type says
+    /// nothing, the value itself is worded as serde words it: a unit enum by its words, a struct as an object.
+    fn describe(path: &[Value]) -> Option<Zod>
+    where
+        Self: Sized,
+    {
+        if path.is_empty() {
+            probe_word::<Self>()
+        } else {
+            None
+        }
+    }
+
+    /// The value of a number whose only fault is zod's integer rule, so the key's bounds are still checked on it as
+    /// zod checks them (the integer check leaves the parse dirty and goes on).
+    fn dirty(_value: &Value) -> Option<Self>
     where
         Self: Sized,
     {
         None
     }
+}
+
+/// What serde says of a string it cannot read as `T`: a unit enum's words, or that `T` is a struct.
+fn probe_word<T: Check>() -> Option<Zod> {
+    static WORDS: std::sync::Mutex<Vec<(std::any::TypeId, Option<Zod>)>> = std::sync::Mutex::new(Vec::new());
+    let id = std::any::TypeId::of::<T>();
+    let mut words = WORDS.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((_, zod)) = words.iter().find(|(known, _)| *known == id) {
+        return *zod;
+    }
+    let zod = match serde_json::from_value::<T>(Value::from("\u{1}probe")) {
+        Err(e) => {
+            let msg = e.to_string();
+            if msg.starts_with("unknown variant `") {
+                variant_names(&msg).map(|names| {
+                    let words: Vec<&'static str> = names.into_iter().map(|n| &*Box::leak(n.into_boxed_str())).collect();
+                    Zod::Options(Box::leak(words.into_boxed_slice()))
+                })
+            } else if msg.contains("expected struct ") || msg.contains("expected a map") {
+                Some(Zod::Word("object"))
+            } else {
+                None
+            }
+        }
+        Ok(_) => None,
+    };
+    words.push((id, zod));
+    zod
 }
 
 /// The word of a type that is one value and has no path below it.
@@ -178,6 +220,10 @@ impl<T: Check> Check for Option<T> {
 
     fn describe(path: &[Value]) -> Option<Zod> {
         T::describe(path)
+    }
+
+    fn dirty(value: &Value) -> Option<Self> {
+        T::dirty(value).map(Some)
     }
 }
 
@@ -527,6 +573,11 @@ pub fn issues_of<T: DeserializeOwned + Check>(value: &Value) -> Vec<SchemaError>
 /// The value serde reads as `T` and the first issue of its `check`, or serde's one error. The way a type with no
 /// pass is read, and the rules of a tagged union's member whose fields its pass has read clean.
 pub fn rules_of<T: DeserializeOwned + Check>(value: &Value) -> Vec<SchemaError> {
+    match T::describe(&[]) {
+        Some(Zod::Options(words)) if !value.is_string() => return vec![wrong_type(Vec::new(), options_text(words), value)],
+        Some(Zod::Word("object")) if !value.is_object() => return vec![not_object(value)],
+        _ => {}
+    }
     match serde_path_to_error::deserialize::<_, T>(value) {
         Ok(read) => read.check().err().into_iter().collect(),
         Err(e) => vec![serde_issue::<T>(&e.inner().to_string(), segments(e.path()), value)],
@@ -567,9 +618,6 @@ pub fn read_trimmed(value: &Value) -> Result<String, Vec<SchemaError>> {
 }
 
 pub fn read_trimmed_opt(value: &Value) -> Result<Option<String>, Vec<SchemaError>> {
-    if value.is_null() {
-        return Ok(None);
-    }
     read_trimmed(value).map(Some)
 }
 
@@ -590,6 +638,15 @@ pub fn null_issue<T: Check>() -> SchemaError {
     serde_issue::<T>("invalid type: null, expected a value", Vec::new(), &Value::Null)
 }
 
+/// A value of the wrong JSON type: invalid_type with the word zod expects there and the word of what it got.
+fn wrong_type(path: Vec<Value>, expected: String, value: &Value) -> SchemaError {
+    let received = received_word(Some(value));
+    let mut detail = IndexMap::new();
+    detail.insert("expected".to_string(), Value::from(expected.as_str()));
+    detail.insert("received".to_string(), Value::from(received));
+    SchemaError { code: "invalid_type".into(), path, message: format!("Expected {expected}, received {received}"), detail }
+}
+
 /// A JSON value where zod reads an object: invalid_type, "Expected object, received <its word>".
 pub fn not_object(value: &Value) -> SchemaError {
     let received = received_word(Some(value));
@@ -608,9 +665,13 @@ pub fn unknown_tag<T: Check>(key: &str, value: &Value) -> SchemaError {
     serde_issue::<T>(&format!("unknown variant `{text}`"), vec![Value::from(key)], value)
 }
 
-/// zod's issues that abort a parse, as opposed to the ones that leave a value dirty (its refinements and unknown keys).
-fn is_aborted(code: &str) -> bool {
-    matches!(code, "invalid_type" | "invalid_enum_value" | "invalid_literal" | "invalid_union" | "invalid_union_discriminator")
+/// zod's issues that abort a parse, as opposed to the ones that leave a value dirty (its refinements, an unknown key
+/// and the integer check of a number).
+fn is_aborted(issue: &SchemaError) -> bool {
+    match issue.code.as_str() {
+        "invalid_type" => issue.detail.get("expected") != Some(&Value::from("integer")),
+        code => matches!(code, "invalid_enum_value" | "invalid_literal" | "invalid_union" | "invalid_union_discriminator"),
+    }
 }
 
 /// zod's z.union: the first member that reads clean wins; else the first member with issues that abort nothing answers
@@ -620,7 +681,7 @@ pub fn union_answer(members: Vec<Vec<SchemaError>>) -> Vec<SchemaError> {
         return Vec::new();
     }
     for issues in members.iter() {
-        if !issues.iter().any(|e| is_aborted(&e.code)) {
+        if !issues.iter().any(is_aborted) {
             return issues.clone();
         }
     }
@@ -678,12 +739,15 @@ fn received_word(value: Option<&Value>) -> &'static str {
         None => "undefined",
         Some(Value::Null) => "null",
         Some(Value::Bool(_)) => "boolean",
-        Some(Value::Number(n)) if n.is_f64() && n.as_f64().is_some_and(|f| f.fract() != 0.0) => "float",
         Some(Value::Number(_)) => "number",
         Some(Value::String(_)) => "string",
         Some(Value::Array(_)) => "array",
         Some(Value::Object(_)) => "object",
     }
+}
+
+fn is_fraction(value: Option<&Value>) -> bool {
+    matches!(value, Some(Value::Number(n)) if n.is_f64() && n.as_f64().is_some_and(|f| f.is_finite() && f.fract() != 0.0))
 }
 
 fn options_text(options: &[&str]) -> String {
@@ -771,7 +835,7 @@ fn serde_issue<T: Check>(msg: &str, path: Vec<Value>, work: &Value) -> SchemaErr
             Some(Zod::Literal(word)) => invalid_literal(path, Some(at.cloned().unwrap_or(Value::Null)), word()),
             zod => {
                 let (expected, received) = match zod {
-                    Some(Zod::Int) if received_word(at) == "float" => ("integer".to_string(), "float"),
+                    Some(Zod::Int) if is_fraction(at) => ("integer".to_string(), "float"),
                     Some(Zod::Int) => ("number".to_string(), received_word(at)),
                     Some(Zod::Word(w)) => (w.to_string(), received_word(at)),
                     Some(Zod::Options(o)) => (options_text(o), received_word(at)),
@@ -808,7 +872,7 @@ fn variant_names(msg: &str) -> Option<Vec<String>> {
 }
 
 /// zod's `invalid_literal`. `received` is None where the value is absent: zod's `undefined` is left out of its JSON.
-fn invalid_literal(path: Vec<Value>, received: Option<Value>, expected: Value) -> SchemaError {
+pub(crate) fn invalid_literal(path: Vec<Value>, received: Option<Value>, expected: Value) -> SchemaError {
     let mut detail = IndexMap::new();
     if let Some(received) = received {
         detail.insert("received".to_string(), received);
@@ -934,13 +998,6 @@ impl Check for wsp_frames::True {
 impl Check for wsp_frames::False {
     fn describe(path: &[Value]) -> Option<Zod> {
         leaf(path, Zod::Literal(|| Value::Bool(false)))
-    }
-}
-
-/// The request id: zod's `z.union([z.string(), z.number()])`, which answers invalid_union where it is neither.
-impl Check for wsp_frames::RequestId {
-    fn describe(path: &[Value]) -> Option<Zod> {
-        leaf(path, Zod::Union)
     }
 }
 

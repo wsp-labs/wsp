@@ -9,7 +9,7 @@ description = "The host's wire: the frames clients and computers send it, the vi
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip", "raw_value"] }
 indexmap = { version = "2", features = ["serde"] }
 serde_path_to_error = "0.1"
 serde_with = { version = "3", default-features = false, features = ["macros"] }
