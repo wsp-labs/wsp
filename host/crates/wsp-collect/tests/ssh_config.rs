@@ -52,3 +52,45 @@ mod with_ignore_unknown {
         assert_eq!(ignore_unknown(""), PRELUDE);
     }
 }
+
+/// Every case of tests/fixtures/oracle/w2/small.json (oracle/w2-small.oracle.ts): spec small's wave-2 rules.
+mod w2_oracle {
+    use serde_json::{json, Value};
+    use wsp_collect::cache_names::{CACHE_DIRS, FINDER_METADATA};
+    use wsp_collect::host::{expand, tilde};
+    use wsp_collect::ssh_config::{with_ignore_unknown, PRELUDE, SSH_CONFIG_PATH, SSH_IGNORE_UNKNOWN_DETAIL};
+
+    fn fixture() -> Value {
+        let path = format!("{}/tests/fixtures/oracle/w2/small.json", env!("CARGO_MANIFEST_DIR"));
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+    }
+
+    fn s(v: &Value) -> &str {
+        v.as_str().unwrap()
+    }
+
+    #[test]
+    fn expand_tilde_and_the_prelude_answer_what_the_ts_answered() {
+        let f = fixture();
+        for case in f["expand"].as_array().unwrap() {
+            assert_eq!(json!(expand(s(&case["args"][0]), s(&case["args"][1]))), case["out"], "{}", case["name"]);
+        }
+        for case in f["tilde"].as_array().unwrap() {
+            assert_eq!(json!(tilde(s(&case["args"][0]), s(&case["args"][1]))), case["out"], "{}", case["name"]);
+        }
+        for case in f["with_ignore_unknown"].as_array().unwrap() {
+            assert_eq!(json!(with_ignore_unknown(s(&case["args"][0]))), case["out"], "{}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn the_constants_are_the_ts_text() {
+        let f = fixture();
+        let want = |name: &str| f["constants"].as_array().unwrap().iter().find(|c| c["name"] == name).unwrap()["out"].clone();
+        assert_eq!(json!(SSH_CONFIG_PATH), want("SSH_CONFIG_PATH"));
+        assert_eq!(json!(SSH_IGNORE_UNKNOWN_DETAIL), want("SSH_IGNORE_UNKNOWN_DETAIL"));
+        assert_eq!(json!(PRELUDE), want("PRELUDE"));
+        assert_eq!(json!(FINDER_METADATA), want("FINDER_METADATA"));
+        assert_eq!(json!(CACHE_DIRS.to_vec()), want("CACHE_DIRS in order"));
+    }
+}

@@ -45,6 +45,30 @@ Turns one shell line an agent ran into names: the program each command in it sta
 
 - `npm install -g` with no package names an empty list but `npm i -g x y` reads both; `command ls` (no `-v`) is skipped as a prefix, so it counts `ls`. Kept.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/history_commands.json` (252 lines, each through all five functions, written by
+`oracle/w2-history_commands.oracle.ts`), replayed by `tests/history_hard.rs`
+`w2_oracle::every_line_splits_names_and_installs_as_the_ts_did`.
+
+- W1. Heredocs: a here-string `<<< foo` and a shift `1<<2` open a body; a `<<TAG` inside quotes opens one too (the
+  heredoc pass runs before quotes are known); the closer is any line whose `js_trim`med text equals the tag, even for
+  a plain `<<EOF` and even indented; only the first marker on a line counts.
+- W2. Splitting: backslash-newline leaves `\n` inside the word; `{` and `}` are separators (brace expansion and
+  `find -exec ... {} \;` give fake names such as `;`); `${...}` copies through its matching brace; `$((`, `((` and
+  `<(` split like subshells; quotes are dropped before words split, so `FOO="a b" ls` gives head `b`; a trailing `&`
+  is a separator (`echo >&` is `["echo >"]`).
+- W3. Words: `!` is a prefix only as its own word (`!ls` is a name); the NOT_COMMANDS and version tests read the
+  uncut head; a head ending in `/` gives the name `""`, which is kept; a version flag with any third word is a use
+  (`node --version 2>&1` counts); `env`'s options skip no value; the assignment regex needs a letter or `_` first
+  (`=b ls` and `1a=b ls` are heads); a leading redirection and a lone one's target are skipped.
+- W4. Whitespace is JavaScript's: U+0085 stays inside a word (`ls\u0085 x` is the name `ls\u0085`), U+FEFF and
+  U+00A0 split and trim.
+- W5. Installs: every non-dash positional is a package, option values included (`npm i -g typescript --prefix
+  /usr/local` installs `typescript` and `/usr/local`); `-g`/`--global` anywhere after the head; one-shot runners keep
+  the first name after empties are dropped; `go install` names follow rule 7's fallback; apt keeps version pins and
+  needs `install` as word 1; substitutions stay in the word as written.
+
 ## Rules pinned
 
 | Rule | Test |

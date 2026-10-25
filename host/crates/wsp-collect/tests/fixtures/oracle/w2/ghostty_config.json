@@ -1,0 +1,4614 @@
+{
+ "parse_ghostty_directives": [
+  {
+   "name": "\"font-size = 12 # big\"",
+   "args": [
+    "font-size = 12 # big"
+   ],
+   "out": [
+    {
+     "key": "font-size",
+     "value": "12 # big"
+    }
+   ]
+  },
+  {
+   "name": "\"font-family = \\\"a\\\" \\\"b\\\"\"",
+   "args": [
+    "font-family = \"a\" \"b\""
+   ],
+   "out": [
+    {
+     "key": "font-family",
+     "value": "a\" \"b"
+    }
+   ]
+  },
+  {
+   "name": "\"font-family = \\\"\"",
+   "args": [
+    "font-family = \""
+   ],
+   "out": [
+    {
+     "key": "font-family",
+     "value": "\""
+    }
+   ]
+  },
+  {
+   "name": "\"font-family = \\\"\\\"\"",
+   "args": [
+    "font-family = \"\""
+   ],
+   "out": [
+    {
+     "key": "font-family",
+     "value": ""
+    }
+   ]
+  },
+  {
+   "name": "\"font-family = \\\" \\\"\"",
+   "args": [
+    "font-family = \" \""
+   ],
+   "out": [
+    {
+     "key": "font-family",
+     "value": " "
+    }
+   ]
+  },
+  {
+   "name": "\"font-family = \\\"  Menlo  \\\"\"",
+   "args": [
+    "font-family = \"  Menlo  \""
+   ],
+   "out": [
+    {
+     "key": "font-family",
+     "value": "  Menlo  "
+    }
+   ]
+  },
+  {
+   "name": "\"font-family = \\\"A B\\\"\"",
+   "args": [
+    "font-family = \"A B\""
+   ],
+   "out": [
+    {
+     "key": "font-family",
+     "value": "\"A B\""
+    }
+   ]
+  },
+  {
+   "name": "\"font-family = \\\"A\\rB\\\"\"",
+   "args": [
+    "font-family = \"A\rB\""
+   ],
+   "out": [
+    {
+     "key": "font-family",
+     "value": "\"A\rB\""
+    }
+   ]
+  },
+  {
+   "name": "\"Font-Size = 12\"",
+   "args": [
+    "Font-Size = 12"
+   ],
+   "out": [
+    {
+     "key": "Font-Size",
+     "value": "12"
+    }
+   ]
+  },
+  {
+   "name": "\"a\\n﻿b = c\\n﻿\"",
+   "args": [
+    "a\n﻿b = c\n﻿"
+   ],
+   "out": [
+    {
+     "key": "b",
+     "value": "c"
+    }
+   ]
+  },
+  {
+   "name": "\"k = v\\rk2 = v2\"",
+   "args": [
+    "k = v\rk2 = v2"
+   ],
+   "out": [
+    {
+     "key": "k",
+     "value": "v\rk2 = v2"
+    }
+   ]
+  },
+  {
+   "name": "\"= =\"",
+   "args": [
+    "= ="
+   ],
+   "out": []
+  },
+  {
+   "name": "\"k==v\"",
+   "args": [
+    "k==v"
+   ],
+   "out": [
+    {
+     "key": "k",
+     "value": "=v"
+    }
+   ]
+  },
+  {
+   "name": "\"k = \\\"a\\\" \"",
+   "args": [
+    "k = \"a\" "
+   ],
+   "out": [
+    {
+     "key": "k",
+     "value": "a"
+    }
+   ]
+  },
+  {
+   "name": "\"k = \\\"\\\"x\\\"\\\"\"",
+   "args": [
+    "k = \"\"x\"\""
+   ],
+   "out": [
+    {
+     "key": "k",
+     "value": "\"x\""
+    }
+   ]
+  },
+  {
+   "name": "\"  =\\n=x\"",
+   "args": [
+    "  =\n=x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"﻿font-size = 12\"",
+   "args": [
+    "﻿font-size = 12"
+   ],
+   "out": [
+    {
+     "key": "font-size",
+     "value": "12"
+    }
+   ]
+  },
+  {
+   "name": "\"a=b=c\"",
+   "args": [
+    "a=b=c"
+   ],
+   "out": [
+    {
+     "key": "a",
+     "value": "b=c"
+    }
+   ]
+  },
+  {
+   "name": "\" = x\"",
+   "args": [
+    " = x"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"key =\"",
+   "args": [
+    "key ="
+   ],
+   "out": [
+    {
+     "key": "key",
+     "value": ""
+    }
+   ]
+  },
+  {
+   "name": "\"k = \\\"q\\\"\"",
+   "args": [
+    "k = \"q\""
+   ],
+   "out": [
+    {
+     "key": "k",
+     "value": "q"
+    }
+   ]
+  },
+  {
+   "name": "\"k = \\\"a\\\"b\\\"\"",
+   "args": [
+    "k = \"a\"b\""
+   ],
+   "out": [
+    {
+     "key": "k",
+     "value": "a\"b"
+    }
+   ]
+  },
+  {
+   "name": "\"k = 'a'\"",
+   "args": [
+    "k = 'a'"
+   ],
+   "out": [
+    {
+     "key": "k",
+     "value": "'a'"
+    }
+   ]
+  },
+  {
+   "name": "\"#c = d\"",
+   "args": [
+    "#c = d"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"  # c\"",
+   "args": [
+    "  # c"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"k=v\\r\"",
+   "args": [
+    "k=v\r"
+   ],
+   "out": [
+    {
+     "key": "k",
+     "value": "v"
+    }
+   ]
+  },
+  {
+   "name": "\"k\\t=\\tv\"",
+   "args": [
+    "k\t=\tv"
+   ],
+   "out": [
+    {
+     "key": "k",
+     "value": "v"
+    }
+   ]
+  },
+  {
+   "name": "\"\"",
+   "args": [
+    ""
+   ],
+   "out": []
+  }
+ ],
+ "theme_for": [
+  {
+   "name": "\"Mocha\" for light",
+   "args": [
+    "Mocha",
+    "light"
+   ],
+   "out": "Mocha"
+  },
+  {
+   "name": "\"Mocha\" for dark",
+   "args": [
+    "Mocha",
+    "dark"
+   ],
+   "out": "Mocha"
+  },
+  {
+   "name": "\" Mocha \" for light",
+   "args": [
+    " Mocha ",
+    "light"
+   ],
+   "out": "Mocha"
+  },
+  {
+   "name": "\" Mocha \" for dark",
+   "args": [
+    " Mocha ",
+    "dark"
+   ],
+   "out": "Mocha"
+  },
+  {
+   "name": "\"light:A,dark:B\" for light",
+   "args": [
+    "light:A,dark:B",
+    "light"
+   ],
+   "out": "A"
+  },
+  {
+   "name": "\"light:A,dark:B\" for dark",
+   "args": [
+    "light:A,dark:B",
+    "dark"
+   ],
+   "out": "B"
+  },
+  {
+   "name": "\"dark:B\" for light",
+   "args": [
+    "dark:B",
+    "light"
+   ],
+   "out": ""
+  },
+  {
+   "name": "\"dark:B\" for dark",
+   "args": [
+    "dark:B",
+    "dark"
+   ],
+   "out": "B"
+  },
+  {
+   "name": "\"light:A\" for light",
+   "args": [
+    "light:A",
+    "light"
+   ],
+   "out": "A"
+  },
+  {
+   "name": "\"light:A\" for dark",
+   "args": [
+    "light:A",
+    "dark"
+   ],
+   "out": ""
+  },
+  {
+   "name": "\"light:A,Mocha\" for light",
+   "args": [
+    "light:A,Mocha",
+    "light"
+   ],
+   "out": "A"
+  },
+  {
+   "name": "\"light:A,Mocha\" for dark",
+   "args": [
+    "light:A,Mocha",
+    "dark"
+   ],
+   "out": ""
+  },
+  {
+   "name": "\":x\" for light",
+   "args": [
+    ":x",
+    "light"
+   ],
+   "out": ":x"
+  },
+  {
+   "name": "\":x\" for dark",
+   "args": [
+    ":x",
+    "dark"
+   ],
+   "out": ":x"
+  },
+  {
+   "name": "\"a:b:c\" for light",
+   "args": [
+    "a:b:c",
+    "light"
+   ],
+   "out": ""
+  },
+  {
+   "name": "\"a:b:c\" for dark",
+   "args": [
+    "a:b:c",
+    "dark"
+   ],
+   "out": ""
+  },
+  {
+   "name": "\"light: A , dark: B \" for light",
+   "args": [
+    "light: A , dark: B ",
+    "light"
+   ],
+   "out": "A"
+  },
+  {
+   "name": "\"light: A , dark: B \" for dark",
+   "args": [
+    "light: A , dark: B ",
+    "dark"
+   ],
+   "out": "B"
+  },
+  {
+   "name": "\"light:,dark:B\" for light",
+   "args": [
+    "light:,dark:B",
+    "light"
+   ],
+   "out": ""
+  },
+  {
+   "name": "\"light:,dark:B\" for dark",
+   "args": [
+    "light:,dark:B",
+    "dark"
+   ],
+   "out": "B"
+  },
+  {
+   "name": "\"\" for light",
+   "args": [
+    "",
+    "light"
+   ],
+   "out": ""
+  },
+  {
+   "name": "\"\" for dark",
+   "args": [
+    "",
+    "dark"
+   ],
+   "out": ""
+  },
+  {
+   "name": "\"Foo: Bar\" for light",
+   "args": [
+    "Foo: Bar",
+    "light"
+   ],
+   "out": ""
+  },
+  {
+   "name": "\"Foo: Bar\" for dark",
+   "args": [
+    "Foo: Bar",
+    "dark"
+   ],
+   "out": ""
+  },
+  {
+   "name": "\"light:A,light:B,dark:C\" for light",
+   "args": [
+    "light:A,light:B,dark:C",
+    "light"
+   ],
+   "out": "B"
+  },
+  {
+   "name": "\"light:A,light:B,dark:C\" for dark",
+   "args": [
+    "light:A,light:B,dark:C",
+    "dark"
+   ],
+   "out": "C"
+  },
+  {
+   "name": "\"a,b\" for light",
+   "args": [
+    "a,b",
+    "light"
+   ],
+   "out": "a,b"
+  },
+  {
+   "name": "\"a,b\" for dark",
+   "args": [
+    "a,b",
+    "dark"
+   ],
+   "out": "a,b"
+  },
+  {
+   "name": "\"light:A;dark:B\" for light",
+   "args": [
+    "light:A;dark:B",
+    "light"
+   ],
+   "out": "A;dark:B"
+  },
+  {
+   "name": "\"light:A;dark:B\" for dark",
+   "args": [
+    "light:A;dark:B",
+    "dark"
+   ],
+   "out": ""
+  }
+ ],
+ "ghostty_config_paths": [
+  {
+   "name": "darwin default",
+   "laptop": {},
+   "args": [],
+   "out": [
+    "/Users/dev/.config/ghostty/config.ghostty",
+    "/Users/dev/.config/ghostty/config",
+    "/Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "/Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "linux default",
+   "laptop": {
+    "platform": "linux"
+   },
+   "args": [],
+   "out": [
+    "/Users/dev/.config/ghostty/config.ghostty",
+    "/Users/dev/.config/ghostty/config"
+   ]
+  },
+  {
+   "name": "empty xdg",
+   "laptop": {
+    "xdgConfigHome": ""
+   },
+   "args": [],
+   "out": [
+    "/ghostty/config.ghostty",
+    "/ghostty/config",
+    "/Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "/Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "xdg with a trailing slash",
+   "laptop": {
+    "platform": "linux",
+    "xdgConfigHome": "/cfg/"
+   },
+   "args": [],
+   "out": [
+    "/cfg//ghostty/config.ghostty",
+    "/cfg//ghostty/config"
+   ]
+  },
+  {
+   "name": "xdg set, darwin",
+   "laptop": {
+    "xdgConfigHome": "/Users/dev/cfg"
+   },
+   "args": [],
+   "out": [
+    "/Users/dev/cfg/ghostty/config.ghostty",
+    "/Users/dev/cfg/ghostty/config",
+    "/Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "/Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  }
+ ],
+ "read_ghostty_config": [
+  {
+   "name": "no file",
+   "laptop": {},
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "CRLF, BOM, key with spaces",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "﻿font-size = 14\r\nfont-family = \"Fira Code\"\r\n  background   =   #102030  \r\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[\"Fira Code\"],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":14,\"background\":{\"r\":16,\"g\":32,\"b\":48}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "xdg trailing slash is normalised when loading",
+   "laptop": {
+    "files": {
+     "/Users/dev/cfg/ghostty/config": "font-size = 9"
+    },
+    "xdgConfigHome": "/Users/dev/cfg/"
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/cfg/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":9}",
+   "calls": [
+    "read /Users/dev/cfg/ghostty/config.ghostty",
+    "read /Users/dev/cfg/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "empty XDG_CONFIG_HOME is used as is",
+   "laptop": {
+    "files": {
+     "/ghostty/config": "font-size = 9",
+     "~/.config/ghostty/config": "font-size = 8"
+    },
+    "xdgConfigHome": ""
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":9}",
+   "calls": [
+    "read /ghostty/config.ghostty",
+    "read /ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "xdg dir changes the pair on linux",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "/cfg/ghostty/config.ghostty": "font-size = 20\n",
+     "/cfg/ghostty/config": "font-size = 10\n",
+     "~/.config/ghostty/config": "font-size = 1\n"
+    },
+    "xdgConfigHome": "/cfg"
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/cfg/ghostty/config.ghostty\",\"/cfg/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":10}",
+   "calls": [
+    "read /cfg/ghostty/config.ghostty",
+    "read /cfg/ghostty/config"
+   ]
+  },
+  {
+   "name": "an include missing twice is read twice",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "config-file = ?gone\nconfig-file = gone\nfont-size = 5\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":5}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/.config/ghostty/gone",
+    "read /Users/dev/.config/ghostty/gone",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "include double unquote",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "config-file = \"\"b\"\"\nconfig-file = ?\"\"c\"\"\nconfig-file = \"?\"d\"\"\n",
+     "~/.config/ghostty/b": "font-size = 2",
+     "~/.config/ghostty/c": "font-size = 3",
+     "~/.config/ghostty/d": "font-size = 4"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\",\"/Users/dev/.config/ghostty/b\",\"/Users/dev/.config/ghostty/d\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":4}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/.config/ghostty/b",
+    "read /Users/dev/.config/ghostty/\"c\"",
+    "read /Users/dev/.config/ghostty/d",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "include odd values",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "config-file = ?\nconfig-file = \"\"\nconfig-file = ?\"\"\nconfig-file = ./a/../b\nconfig-file = ~\nconfig-file = ~/h\nconfig-file = ~other/x\nconfig-file = a, b\n",
+     "~/.config/ghostty/b": "font-size = 2",
+     "~/h": "font-size = 3",
+     "~/.config/ghostty/~other/x": "font-size = 4",
+     "~/.config/ghostty/a, b": "font-size = 5"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\",\"/Users/dev/.config/ghostty/b\",\"/Users/dev/h\",\"/Users/dev/.config/ghostty/~other/x\",\"/Users/dev/.config/ghostty/a, b\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":5}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/.config/ghostty/b",
+    "read /Users/dev",
+    "read /Users/dev/h",
+    "read /Users/dev/.config/ghostty/~other/x",
+    "read /Users/dev/.config/ghostty/a, b",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "include order across the default files",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config.ghostty": "font-size = 1\nconfig-file = ~/Library/Application Support/com.mitchellh.ghostty/config\n",
+     "~/.config/ghostty/config": "font-size = 2\n",
+     "~/Library/Application Support/com.mitchellh.ghostty/config.ghostty": "font-size = 3\n",
+     "~/Library/Application Support/com.mitchellh.ghostty/config": "font-size = 4\nconfig-file = ../../../.config/ghostty/config\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config.ghostty\",\"/Users/dev/Library/Application Support/com.mitchellh.ghostty/config\",\"/Users/dev/.config/ghostty/config\",\"/Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":3}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty"
+   ]
+  },
+  {
+   "name": "includes normalised past the root",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "config-file = /../../etc/x\nconfig-file = /a/b/../../../c\n",
+     "/etc/x": "font-size = 7",
+     "/c": "font-size = 8"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\",\"/etc/x\",\"/c\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":8}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /etc/x",
+    "read /c",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "an empty last theme line cancels an earlier one",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "theme = A\ntheme =\n",
+     "~/.config/ghostty/themes/A": "background = #000001\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "the theme line of an include wins, light side",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "theme = A\nconfig-file = m\n",
+     "~/.config/ghostty/m": "theme = light:L,dark:D",
+     "~/.config/ghostty/themes/D": "background = #000009",
+     "~/.config/ghostty/themes/L": "background = #00000a"
+    }
+   },
+   "args": [
+    "light"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\",\"/Users/dev/.config/ghostty/m\",\"/Users/dev/.config/ghostty/themes/L\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"background\":{\"r\":0,\"g\":0,\"b\":10},\"theme\":\"L\"}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/.config/ghostty/m",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.config/ghostty/themes/L"
+   ]
+  },
+  {
+   "name": "a theme name with .. is joined as written",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "theme = ../x\n",
+     "~/.config/ghostty/themes/../x": "background = #010203\n",
+     "~/.config/ghostty/x": "background = #040506\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\",\"/Users/dev/.config/ghostty/themes/../x\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"background\":{\"r\":1,\"g\":2,\"b\":3},\"theme\":\"../x\"}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.config/ghostty/themes/../x"
+   ]
+  },
+  {
+   "name": "the first theme file that reads wins even when empty",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "theme = T\n",
+     "~/.config/ghostty/themes/T": "",
+     "/Applications/Ghostty.app/Contents/Resources/ghostty/themes/T": "background = #000001\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\",\"/Users/dev/.config/ghostty/themes/T\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"theme\":\"T\"}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.config/ghostty/themes/T"
+   ]
+  },
+  {
+   "name": "the theme is the config file itself",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "theme = /Users/dev/.config/ghostty/config\nfont-size = 3\ncursor-style-blink = true\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\",\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":3,\"cursorStyleBlink\":true,\"theme\":\"/Users/dev/.config/ghostty/config\"}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.config/ghostty/config"
+   ]
+  },
+  {
+   "name": "linux theme order",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.config/ghostty/config": "theme = T\n",
+     "/usr/share/ghostty/themes/T": "background = #000003\n",
+     "/Applications/Ghostty.app/Contents/Resources/ghostty/themes/T": "background = #000005\n",
+     "~/.config/ghostty/themes/T/x": "a"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\",\"/usr/share/ghostty/themes/T\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"background\":{\"r\":0,\"g\":0,\"b\":3},\"theme\":\"T\"}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/.config/ghostty/themes/T",
+    "read /usr/local/share/ghostty/themes/T",
+    "read /usr/share/ghostty/themes/T"
+   ]
+  },
+  {
+   "name": "linux theme in the local share first",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.config/ghostty/config": "theme = T\n",
+     "/usr/share/ghostty/themes/T": "background = #000003\n",
+     "/usr/local/share/ghostty/themes/T": "background = #000004\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\",\"/usr/local/share/ghostty/themes/T\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"background\":{\"r\":0,\"g\":0,\"b\":4},\"theme\":\"T\"}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/.config/ghostty/themes/T",
+    "read /usr/local/share/ghostty/themes/T"
+   ]
+  },
+  {
+   "name": "theme name with spaces is trimmed",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "theme =   My Theme  \n",
+     "~/.config/ghostty/themes/My Theme": "foreground = #000003\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\",\"/Users/dev/.config/ghostty/themes/My Theme\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"foreground\":{\"r\":0,\"g\":0,\"b\":3},\"theme\":\"My Theme\"}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.config/ghostty/themes/My Theme"
+   ]
+  },
+  {
+   "name": "a theme nobody has keeps its name",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "theme = T\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"theme\":\"T\"}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.config/ghostty/themes/T",
+    "read /Applications/Ghostty.app/Contents/Resources/ghostty/themes/T"
+   ]
+  },
+  {
+   "name": "theme and config fonts merge, theme first",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-family = Mine\ntheme = T\n",
+     "/Applications/Ghostty.app/Contents/Resources/ghostty/themes/T": "font-family = FromTheme\nfont-family = Second\nfont-size = 9\ncursor-style-blink = true\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\",\"/Applications/Ghostty.app/Contents/Resources/ghostty/themes/T\"],\"fontFamily\":[\"FromTheme\",\"Second\",\"Mine\"],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":9,\"cursorStyleBlink\":true,\"theme\":\"T\"}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.config/ghostty/themes/T",
+    "read /Applications/Ghostty.app/Contents/Resources/ghostty/themes/T"
+   ]
+  },
+  {
+   "name": "config clears the theme's fonts and blink; fontSize keeps the theme's place",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-family =\ntheme = T\ncursor-style-blink =\nfont-size = 4\n",
+     "/Applications/Ghostty.app/Contents/Resources/ghostty/themes/T": "font-family = FromTheme\nfont-size = 9\ncursor-style-blink = true\nbackground = #000000\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\",\"/Applications/Ghostty.app/Contents/Resources/ghostty/themes/T\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":4,\"background\":{\"r\":0,\"g\":0,\"b\":0},\"theme\":\"T\"}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.config/ghostty/themes/T",
+    "read /Applications/Ghostty.app/Contents/Resources/ghostty/themes/T"
+   ]
+  },
+  {
+   "name": "a re-set key keeps its place",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-style-blink = true\nbackground = #000000\ncursor-style-blink = false\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"cursorStyleBlink\":false,\"background\":{\"r\":0,\"g\":0,\"b\":0}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "fonts: clear, then add, then re-size",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-family = A\nfont-family =\nfont-family = B\nfont-size = 1\nfont-size = 2\nbackground = #000000\nfont-size = 3\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[\"B\"],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":3,\"background\":{\"r\":0,\"g\":0,\"b\":0}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "fonts keep what the value says",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-family = Menlo\nfont-family = \" \"\nfont-family = \"  Padded  \"\nfont-family = Menlo\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[\"Menlo\",\" \",\"  Padded  \",\"Menlo\"],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "an empty quoted family clears",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-family = A\nfont-family = \"\"\nfont-family = B\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[\"B\"],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "a family with =, a lone quote, a quoted pair, a U+2028",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-family = Fira=Code\nfont-family = \"\nfont-family = \"a\" \"b\"\nfont-family = \"A B\"\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[\"Fira=Code\",\"\\\"\",\"a\\\" \\\"b\",\"\\\"A B\\\"\"],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "two blur keys feed one field",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = 5\nbackground-blur-radius = false\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":0}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "a bad blur leaves the earlier one",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur-radius = 5\nbackground-blur = bad\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":5}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"12\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 12\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":12}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"+12\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = +12\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":12}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"-12\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = -12\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \".5\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = .5\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":0.5}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"5.\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 5.\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":5}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"1e1\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 1e1\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":10}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"1E1\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 1E1\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":10}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"1e400\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 1e400\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"0x10\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 0x10\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":16}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"0X1F\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 0X1F\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":31}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"-0x10\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = -0x10\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"+0x10\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = +0x10\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"0b11\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 0b11\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":3}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"0o7\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 0o7\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":7}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"0b102\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 0b102\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"1_000\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 1_000\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \" 12 \"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size =  12 \n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":12}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"12px\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 12px\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"0\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 0\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"-0\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = -0\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"0.0000001\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 0.0000001\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":1e-7}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"1e21\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 1e21\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":1e+21}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"123456789012345680000\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 123456789012345680000\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":123456789012345680000}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"1e-7\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 1e-7\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":1e-7}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"0.000001\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 0.000001\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":0.000001}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"1.5e300\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 1.5e300\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":1.5e+300}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"0x7fffffffffffffff\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 0x7fffffffffffffff\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":9223372036854776000}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"Infinity\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = Infinity\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"-Infinity\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = -Infinity\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"NaN\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = NaN\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"inf\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = inf\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"infinity\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = infinity\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"0x\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 0x\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"1e\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 1e\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"012\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 012\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":12}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"00012\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 00012\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":12}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"٣\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = ٣\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"1 2\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 1 2\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"1,5\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 1,5\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \" 12\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size =  12\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":12}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"9007199254740993\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 9007199254740993\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":9007199254740992}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"100000000000000000000\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 100000000000000000000\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":100000000000000000000}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "font-size = \"1e20\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-size = 1e20\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"fontSize\":100000000000000000000}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"-0\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = -0\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"windowPaddingX\":{\"left\":0,\"right\":0}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"-1\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = -1\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"1,-1\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = 1,-1\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"-1,1\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = -1,1\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"0x10\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = 0x10\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"windowPaddingX\":{\"left\":16,\"right\":16}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"1e1,2\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = 1e1,2\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"windowPaddingX\":{\"left\":10,\"right\":2}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \" , 3\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x =  , 3\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = \n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"1,2\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = 1,2\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"windowPaddingX\":{\"left\":1,\"right\":2}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \" 1 , 2 \"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x =  1 , 2 \n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"windowPaddingX\":{\"left\":1,\"right\":2}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"Infinity\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = Infinity\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"1,Infinity\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = 1,Infinity\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"1;2\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = 1;2\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"1,,2\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = 1,,2\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"+1\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = +1\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"windowPaddingX\":{\"left\":1,\"right\":1}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"1e-7\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = 1e-7\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"windowPaddingX\":{\"left\":1e-7,\"right\":1e-7}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"1,0x2\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = 1,0x2\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"windowPaddingX\":{\"left\":1,\"right\":2}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"1,2,3\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = 1,2,3\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"3,\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = 3,\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"0\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = 0\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"windowPaddingX\":{\"left\":0,\"right\":0}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-x = \"2 , 4\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-x = 2 , 4\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"windowPaddingX\":{\"left\":2,\"right\":4}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-y = \"2\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-y = 2\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"windowPaddingY\":{\"top\":2,\"bottom\":2}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-y = \"3,\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-y = 3,\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "window-padding-y = \"0\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "window-padding-y = 0\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"windowPaddingY\":{\"top\":0,\"bottom\":0}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-opacity = \"-0\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-opacity = -0\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundOpacity\":0}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-opacity = \"0.5\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-opacity = 0.5\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundOpacity\":0.5}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-opacity = \"2\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-opacity = 2\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundOpacity\":1}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-opacity = \"-3\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-opacity = -3\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundOpacity\":0}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-opacity = \"1e-400\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-opacity = 1e-400\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundOpacity\":0}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-opacity = \"nan\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-opacity = nan\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-opacity = \"\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-opacity = \n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-opacity = \"0x1\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-opacity = 0x1\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundOpacity\":1}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-opacity = \"50%\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-opacity = 50%\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-opacity = \".25\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-opacity = .25\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundOpacity\":0.25}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-opacity = \"1e0\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-opacity = 1e0\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundOpacity\":1}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-opacity = \"0.1234567890123456789\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-opacity = 0.1234567890123456789\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundOpacity\":0.12345678901234568}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-opacity = \"1.5\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-opacity = 1.5\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundOpacity\":1}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-opacity = \"lots\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-opacity = lots\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"false\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = false\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":0}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"FALSE\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = FALSE\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":0}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"True\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = True\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":20}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"true\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = true\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":20}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"macos-glass-regular\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = macos-glass-regular\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":20}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"MACOS-GLASS-CLEAR\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = MACOS-GLASS-CLEAR\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":20}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"macos-glass-\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = macos-glass-\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":20}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"macos-glass\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = macos-glass\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"0x10\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = 0x10\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":16}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"1e1\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = 1e1\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":10}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"20.0\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = 20.0\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":20}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"1.5\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = 1.5\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"-1\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = -1\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"-0\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = -0\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":0}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"+5\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = +5\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":5}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = \n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"1e21\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = 1e21\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":1e+21}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"1e30\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = 1e30\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":1e+30}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"99999999999999999999\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = 99999999999999999999\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":100000000000000000000}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"9007199254740993\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = 9007199254740993\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":9007199254740992}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"yes\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = yes\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \"0\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur = 0\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":0}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur = \" 7 \"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur =  7 \n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":7}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur-radius = \"3\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur-radius = 3\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":3}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur-radius = \"false\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur-radius = false\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"backgroundBlur\":0}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background-blur-radius = \"1.5\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background-blur-radius = 1.5\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"=#112233\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = =#112233\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[{\"r\":17,\"g\":34,\"b\":51},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \" =#112233\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette =  =#112233\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[{\"r\":17,\"g\":34,\"b\":51},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"1.0=#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 1.0=#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,{\"r\":17,\"g\":17,\"b\":17},null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"1e1=#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 1e1=#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,{\"r\":17,\"g\":17,\"b\":17},null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \" 7 =#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette =  7 =#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,{\"r\":17,\"g\":17,\"b\":17},null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"+3=#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = +3=#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,{\"r\":17,\"g\":17,\"b\":17},null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"0x0F=#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 0x0F=#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{\"r\":17,\"g\":17,\"b\":17}]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"0b1111=#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 0b1111=#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{\"r\":17,\"g\":17,\"b\":17}]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"0o7=#040506\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 0o7=#040506\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,{\"r\":4,\"g\":5,\"b\":6},null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"-0=#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = -0=#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[{\"r\":17,\"g\":17,\"b\":17},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"15=#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 15=#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{\"r\":17,\"g\":17,\"b\":17}]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"16=#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 16=#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"0x10=#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 0x10=#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"08=#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 08=#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,{\"r\":17,\"g\":17,\"b\":17},null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"1_0=#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 1_0=#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"1,5=#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 1,5=#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"Infinity=#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = Infinity=#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"2 = #aabbcc \"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 2 = #aabbcc \n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,{\"r\":170,\"g\":187,\"b\":204},null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"2=#abc\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 2=#abc\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"2=aabbcc\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 2=aabbcc\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,{\"r\":170,\"g\":187,\"b\":204},null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"2=#AABBCC\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 2=#AABBCC\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,{\"r\":170,\"g\":187,\"b\":204},null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"2=##aabbcc\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 2=##aabbcc\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"2\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 2\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"2=\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 2=\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"0=#111111=#222222\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 0=#111111=#222222\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"3=#ff0000 # c\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 3=#ff0000 # c\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"-1=#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = -1=#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"1.5=#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 1.5=#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \" 5=#111111\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette =  5=#111111\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,{\"r\":17,\"g\":17,\"b\":17},null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"x=#0a0b0c\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = x=#0a0b0c\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "palette = \"3=#zzzzzz\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "palette = 3=#zzzzzz\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-style = \"Block\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-style = Block\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-style = \"block_hollow\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-style = block_hollow\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"cursorStyle\":\"block_hollow\"}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-style = \"bar \"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-style = bar \n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"cursorStyle\":\"bar\"}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-style = \"\\\"bar\\\"\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-style = \"bar\"\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"cursorStyle\":\"bar\"}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-style = \"block\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-style = block\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"cursorStyle\":\"block\"}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-style = \"underline\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-style = underline\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"cursorStyle\":\"underline\"}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-style = \"wobble\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-style = wobble\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-style-blink = \"True\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-style-blink = True\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-style-blink = \"yes\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-style-blink = yes\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-style-blink = \"\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-style-blink = \n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-style-blink = \"\\\"true\\\"\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-style-blink = \"true\"\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"cursorStyleBlink\":true}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-style-blink = \"true\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-style-blink = true\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"cursorStyleBlink\":true}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-style-blink = \"false\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-style-blink = false\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"cursorStyleBlink\":false}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background = \"#FFF\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background = #FFF\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background = \"#11223344\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background = #11223344\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background = \"112233\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background = 112233\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"background\":{\"r\":17,\"g\":34,\"b\":51}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background = \"##112233\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background = ##112233\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background = \"\\\"#112233\\\"\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background = \"#112233\"\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"background\":{\"r\":17,\"g\":34,\"b\":51}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background = \"#11223g\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background = #11223g\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background = \"#ABCDEF\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background = #ABCDEF\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"background\":{\"r\":171,\"g\":205,\"b\":239}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background = \"abcdef\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background = abcdef\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"background\":{\"r\":171,\"g\":205,\"b\":239}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background = \"cell-foreground\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background = cell-foreground\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "background = \"#abcdef  \"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "background = #abcdef  \n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"background\":{\"r\":171,\"g\":205,\"b\":239}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "foreground = \"#FFF\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "foreground = #FFF\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "foreground = \"#11223344\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "foreground = #11223344\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "foreground = \"112233\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "foreground = 112233\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"foreground\":{\"r\":17,\"g\":34,\"b\":51}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "foreground = \"##112233\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "foreground = ##112233\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "foreground = \"\\\"#112233\\\"\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "foreground = \"#112233\"\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"foreground\":{\"r\":17,\"g\":34,\"b\":51}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "foreground = \"#11223g\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "foreground = #11223g\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "foreground = \"#ABCDEF\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "foreground = #ABCDEF\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"foreground\":{\"r\":171,\"g\":205,\"b\":239}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "foreground = \"abcdef\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "foreground = abcdef\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"foreground\":{\"r\":171,\"g\":205,\"b\":239}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "foreground = \"cell-foreground\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "foreground = cell-foreground\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "foreground = \"#abcdef  \"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "foreground = #abcdef  \n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"foreground\":{\"r\":171,\"g\":205,\"b\":239}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "selection-background = \"#FFF\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "selection-background = #FFF\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "selection-background = \"#11223344\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "selection-background = #11223344\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "selection-background = \"112233\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "selection-background = 112233\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"selectionBackground\":{\"r\":17,\"g\":34,\"b\":51}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "selection-background = \"##112233\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "selection-background = ##112233\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "selection-background = \"\\\"#112233\\\"\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "selection-background = \"#112233\"\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"selectionBackground\":{\"r\":17,\"g\":34,\"b\":51}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "selection-background = \"#11223g\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "selection-background = #11223g\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "selection-background = \"#ABCDEF\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "selection-background = #ABCDEF\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"selectionBackground\":{\"r\":171,\"g\":205,\"b\":239}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "selection-background = \"abcdef\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "selection-background = abcdef\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"selectionBackground\":{\"r\":171,\"g\":205,\"b\":239}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "selection-background = \"cell-foreground\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "selection-background = cell-foreground\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "selection-background = \"#abcdef  \"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "selection-background = #abcdef  \n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"selectionBackground\":{\"r\":171,\"g\":205,\"b\":239}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-color = \"#FFF\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-color = #FFF\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-color = \"#11223344\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-color = #11223344\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-color = \"112233\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-color = 112233\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"cursorColor\":{\"r\":17,\"g\":34,\"b\":51}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-color = \"##112233\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-color = ##112233\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-color = \"\\\"#112233\\\"\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-color = \"#112233\"\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"cursorColor\":{\"r\":17,\"g\":34,\"b\":51}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-color = \"#11223g\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-color = #11223g\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-color = \"#ABCDEF\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-color = #ABCDEF\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"cursorColor\":{\"r\":171,\"g\":205,\"b\":239}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-color = \"abcdef\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-color = abcdef\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"cursorColor\":{\"r\":171,\"g\":205,\"b\":239}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-color = \"cell-foreground\"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-color = cell-foreground\n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "cursor-color = \"#abcdef  \"",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "cursor-color = #abcdef  \n"
+    }
+   },
+   "args": [
+    "dark"
+   ],
+   "out_text": "{\"files\":[\"/Users/dev/.config/ghostty/config\"],\"fontFamily\":[],\"palette\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],\"cursorColor\":{\"r\":171,\"g\":205,\"b\":239}}",
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  }
+ ]
+}

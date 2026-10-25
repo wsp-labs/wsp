@@ -42,6 +42,44 @@ The cache file only. A new `file_history_cache` over the same path trusts every 
 - `on_agent` is told an agent's result before the cache is saved, so a failed save throws after every agent was announced as read. Kept.
 - Integer-like command names (`"7"`) would sort first in a JS object; Rust keeps insertion order. Only the cache file sees it.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/history_store.json` (`oracle/w2-history_store.oracle.ts`), replayed by
+`tests/history_hard.rs` `w2_oracle::*`; the worker traces are `tests/history_hard.rs` `workers::*`, their expected
+values printed by a gated reader in the TS.
+
+- W1. Four workers in start order over one shared index; a worker takes the next file as soon as its last one lands
+  (`workers::with_no_failure_every_file_is_read_four_at_a_time_in_file_order`).
+- W2. The lowest-numbered failing worker's error wins, not the first in time; no file starts after a failure; reads
+  open at the failure still land, are told and are cached (`workers::the_lowest_numbered_worker_s_failure_*`,
+  `workers::a_later_file_on_worker_0_beats_*`, `workers::a_failed_store_keeps_the_reads_that_landed_*`).
+- W3. The cache's `files` map is in the order entries were kept: a hit when asked, a read when it lands; across a
+  restart a moved stamp goes to the end (`workers::the_cache_keeps_files_in_the_order_they_were_kept_across_a_restart`).
+- W4. Cache shape: 29 shapes, each with the answer of `get` and the file after (`file_history_cache` cases named
+  `shape: ...`): unknown keys accepted and dropped on the next write; `null` folder or at, a fractional or negative
+  count, a string count, `installs` as an array, a numeric stamp, missing `buckets`, `files` not an object, version
+  `"1"`, `parse` missing or `1`, a numeric session: the whole file refused. A BOM before the JSON, or text after it,
+  refuses it (JSON.parse); blank lines after it do not; a duplicate key keeps the last value; `1.0`, `2.0` and `1e3`
+  are the integers they write.
+- W5. Bookkeeping: save with nothing asked and no file makes no file and no folder; over a garbage file leaves it; a
+  set over a garbage file replaces it whole; a set makes the missing folder; set twice replaces in place; hits and a
+  miss with nothing set write nothing; a hit then a miss on one path keeps the hit; escapes in text survive
+  (`file_history_cache`). No temp file is left in the folder after any save.
+- W6. `read_histories`: first and second runs, a later mtime or a grown file re-reads one file, a gone file leaves the
+  cache, a half-written or other-version cache reads as none, a run over a subset or over no-reader agents drops the
+  rest, `folders` matching nothing says `empty`, an unreadable file among three leaves the other two cached, the
+  states for every catalog agent, a cleared copy under one holder counted twice, two holders resolved by newest time
+  (`read_histories`, with `told`, `progress`, the host's calls where one store ran, and the cache file after).
+- W7. Tally: `reduce_calls` keeps the greatest `at` (0 beats -3) and the first-seen key order; `one_holder` merges a
+  holder's files and keeps the first on a tie; `usage_of` sorts sessions desc, calls desc, then UTF-16 name, and the
+  tools tally adds commands and installs; `in_folders` with `/`, `""`, `/ab` and a trailing slash; the
+  `meets_used_floor` and `is_heavy` boundaries (`reduce_calls`, `one_holder`, `usage_of`, `in_folders`,
+  `meets_used_floor`, `is_heavy`, `installed_name`, `install_key`).
+- W8. Not copied from the TS: a command named `toString`, `constructor` or `valueOf` is an ordinary name in Rust (the
+  TS object turns its count into text), and `__proto__` is an ordinary name (the TS drops it). Integer-like names keep
+  first-seen order in Rust (the TS lists them first); the fixture's cases named `[JS key order ...]` are compared as
+  maps.
+
 ## Rules pinned
 
 | Rule | Test |

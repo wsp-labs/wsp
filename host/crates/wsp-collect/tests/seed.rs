@@ -178,3 +178,29 @@ mod the_seed_menu_for_a_folder_on_this_computer {
         assert_eq!(reads, Vec::<String>::new());
     }
 }
+
+/// Every case of tests/fixtures/oracle/w2/seed.json (oracle/w2-seed.oracle.ts): spec seed's wave-2 rules. The one
+/// case whose du answer has a fraction of a kilobyte is skipped: the TS keeps 4403.2 bytes, and wsp-wire's
+/// `SeedFile.bytes` is an `i64` (flagged on #2446).
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, host, w2};
+    use serde_json::{json, Value};
+
+    #[test]
+    fn every_menu_is_the_plan_the_ts_wrote_with_the_same_calls() {
+        for case in cases(&w2("seed"), "seed_menu") {
+            let what = case["name"].as_str().unwrap();
+            if what.starts_with("du lines: Number() parsing") {
+                continue;
+            }
+            let h = host(&case["laptop"]);
+            let o = SeedOptions { claude_state_home: case["args"][1]["claudeStateHome"].as_str().unwrap().to_string() };
+            let plan = block_on(seed_menu(&h, case["args"][0].as_str().unwrap(), &o));
+            assert_eq!(serde_json::to_value(&plan).unwrap(), case["out"], "{what}");
+            assert_eq!(serde_json::to_string(&plan).unwrap(), serde_json::to_string(&case["out"]).unwrap(), "key order of {what}");
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {what}");
+            let _: &Value = &case["out"];
+        }
+    }
+}

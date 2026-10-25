@@ -268,3 +268,40 @@ mod pins {
         assert_eq!(ghostty_font("font-family = Menlo\nfont-family = monospace\n"), None);
     }
 }
+
+/// Every case of tests/fixtures/oracle/w2/terminal.json (oracle/w2-terminal.oracle.ts): spec terminal's wave-2 rules.
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, host, w2};
+    use serde_json::{json, Value};
+    use wsp_collect::detect::terminal::{alacritty_font, detect_terminal_font, ghostty_font, iterm_font, kitty_font, wezterm_font};
+
+    #[test]
+    fn every_config_parser_reads_the_font_the_ts_read() {
+        let f = w2("terminal");
+        let parsers: [(&str, fn(&str) -> Option<String>); 5] = [
+            ("kitty_font", kitty_font),
+            ("wezterm_font", wezterm_font),
+            ("alacritty_font", alacritty_font),
+            ("ghostty_font", ghostty_font),
+            ("iterm_font", iterm_font),
+        ];
+        for (key, parse) in parsers {
+            for case in cases(&f, key) {
+                assert_eq!(json!(parse(case["args"][0].as_str().unwrap())), case["out"], "{key}: {}", case["name"]);
+            }
+        }
+    }
+
+    #[test]
+    fn detect_terminal_font_answers_and_reads_what_the_ts_did() {
+        for case in cases(&w2("terminal"), "detect_terminal_font") {
+            let h = host(&case["laptop"]);
+            let got: Vec<Value> = block_on(detect_terminal_font(&h)).iter().map(|r| serde_json::to_value(r).unwrap()).collect();
+            assert_eq!(Value::Array(got), case["out"], "{}", case["name"]);
+            if !case["calls"].is_null() {
+                assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+            }
+        }
+    }
+}

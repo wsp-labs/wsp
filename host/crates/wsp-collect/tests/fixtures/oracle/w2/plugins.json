@@ -1,0 +1,1295 @@
+{
+ "peek_line": [
+  {
+   "name": "rootsFrom with no files: two spaces after the key",
+   "args": [
+    [
+     {
+      "rootsFrom": {
+       "key": "installPath",
+       "files": []
+      },
+      "dirs": [
+       {
+        "path": ".",
+        "depth": 1
+       }
+      ]
+     }
+    ]
+   ],
+   "out": "peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\nfrom 'installPath'  | while IFS= read -r r; do peek '' '1 .' \"$r\"; done\nprintf '\\036END\\n'",
+   "calls": [
+    "run sh -c peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\nfrom 'installPath'  | while IFS= read -r r; do peek '' '1 .' \"$r\"; done\nprintf '\\036END\\n' (30000 ms)"
+   ]
+  },
+  {
+   "name": "an empty roots list adds no peek call",
+   "args": [
+    [
+     {
+      "roots": [],
+      "rootsFrom": {
+       "key": "k",
+       "files": [
+        "/i.json"
+       ]
+      },
+      "files": [
+       "a"
+      ]
+     }
+    ]
+   ],
+   "out": "peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\nfrom 'k' '/i.json' | while IFS= read -r r; do peek 'a' '' \"$r\"; done\nprintf '\\036END\\n'",
+   "calls": [
+    "run sh -c peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\nfrom 'k' '/i.json' | while IFS= read -r r; do peek 'a' '' \"$r\"; done\nprintf '\\036END\\n' (30000 ms)"
+   ]
+  },
+  {
+   "name": "roots and rootsFrom: roots first",
+   "args": [
+    [
+     {
+      "roots": [
+       "/r"
+      ],
+      "rootsFrom": {
+       "key": "k",
+       "files": [
+        "/i.json"
+       ]
+      },
+      "files": [
+       "a"
+      ],
+      "dirs": [
+       {
+        "path": "x y",
+        "depth": 3
+       }
+      ]
+     }
+    ]
+   ],
+   "out": "peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\npeek 'a' '3 x y' '/r'\nfrom 'k' '/i.json' | while IFS= read -r r; do peek 'a' '3 x y' \"$r\"; done\nprintf '\\036END\\n'",
+   "calls": [
+    "run sh -c peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\npeek 'a' '3 x y' '/r'\nfrom 'k' '/i.json' | while IFS= read -r r; do peek 'a' '3 x y' \"$r\"; done\nprintf '\\036END\\n' (30000 ms)"
+   ]
+  },
+  {
+   "name": "roots only",
+   "args": [
+    [
+     {
+      "roots": [
+       "/r"
+      ]
+     }
+    ]
+   ],
+   "out": "peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\npeek '' '' '/r'\nprintf '\\036END\\n'",
+   "calls": [
+    "run sh -c peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\npeek '' '' '/r'\nprintf '\\036END\\n' (30000 ms)"
+   ]
+  },
+  {
+   "name": "an empty root",
+   "args": [
+    [
+     {
+      "roots": [
+       ""
+      ]
+     }
+    ]
+   ],
+   "out": "peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\npeek '' '' ''\nprintf '\\036END\\n'",
+   "calls": [
+    "run sh -c peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\npeek '' '' ''\nprintf '\\036END\\n' (30000 ms)"
+   ]
+  },
+  {
+   "name": "a key and a file with quotes and spaces",
+   "args": [
+    [
+     {
+      "rootsFrom": {
+       "key": "it's",
+       "files": [
+        "/a b"
+       ]
+      }
+     }
+    ]
+   ],
+   "out": "peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\nfrom 'it'\\''s' '/a b' | while IFS= read -r r; do peek '' '' \"$r\"; done\nprintf '\\036END\\n'",
+   "calls": [
+    "run sh -c peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\nfrom 'it'\\''s' '/a b' | while IFS= read -r r; do peek '' '' \"$r\"; done\nprintf '\\036END\\n' (30000 ms)"
+   ]
+  },
+  {
+   "name": "three groups keep their order",
+   "args": [
+    [
+     {
+      "roots": [
+       "/r1"
+      ],
+      "files": [
+       "a"
+      ]
+     },
+     {
+      "roots": [
+       "/r2"
+      ],
+      "files": [
+       "b"
+      ]
+     },
+     {
+      "rootsFrom": {
+       "key": "k",
+       "files": [
+        "/f"
+       ]
+      }
+     }
+    ]
+   ],
+   "out": "peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\npeek 'a' '' '/r1'\npeek 'b' '' '/r2'\nfrom 'k' '/f' | while IFS= read -r r; do peek '' '' \"$r\"; done\nprintf '\\036END\\n'",
+   "calls": [
+    "run sh -c peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\npeek 'a' '' '/r1'\npeek 'b' '' '/r2'\nfrom 'k' '/f' | while IFS= read -r r; do peek '' '' \"$r\"; done\nprintf '\\036END\\n' (30000 ms)"
+   ]
+  },
+  {
+   "name": "dirs at depth 0 and 10 joined by a newline",
+   "args": [
+    [
+     {
+      "roots": [
+       "/r"
+      ],
+      "dirs": [
+       {
+        "path": "a",
+        "depth": 0
+       },
+       {
+        "path": "b",
+        "depth": 10
+       }
+      ]
+     }
+    ]
+   ],
+   "out": "peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\npeek '' '0 a\n10 b' '/r'\nprintf '\\036END\\n'",
+   "calls": [
+    "run sh -c peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\npeek '' '0 a\n10 b' '/r'\nprintf '\\036END\\n' (30000 ms)"
+   ]
+  },
+  {
+   "name": "a group with neither adds nothing",
+   "args": [
+    [
+     {
+      "files": [
+       "a"
+      ]
+     }
+    ]
+   ],
+   "out": "peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\nprintf '\\036END\\n'",
+   "calls": [
+    "run sh -c peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\nprintf '\\036END\\n' (30000 ms)"
+   ]
+  },
+  {
+   "name": "no groups",
+   "args": [
+    []
+   ],
+   "out": "peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\nprintf '\\036END\\n'",
+   "calls": [
+    "run sh -c peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\nprintf '\\036END\\n' (30000 ms)"
+   ]
+  }
+ ],
+ "peek_records": [
+  {
+   "name": "an f body is not split on U+001F",
+   "args": [
+    "\u001ef/a\u001fx\u001fy\u001eEND\n"
+   ],
+   "probes": {
+    "f": [
+     "/a"
+    ]
+   },
+   "out": {
+    "f": {
+     "/a": "x\u001fy"
+    },
+    "d": {},
+    "r": {}
+   }
+  },
+  {
+   "name": "an f body keeps its newline",
+   "args": [
+    "\u001ef/a\u001fline\n\u001eEND\n"
+   ],
+   "probes": {
+    "f": [
+     "/a"
+    ]
+   },
+   "out": {
+    "f": {
+     "/a": "line\n"
+    },
+    "d": {},
+    "r": {}
+   }
+  },
+  {
+   "name": "an empty f body is present",
+   "args": [
+    "\u001ef/a\u001f\u001eEND\n"
+   ],
+   "probes": {
+    "f": [
+     "/a"
+    ]
+   },
+   "out": {
+    "f": {
+     "/a": ""
+    },
+    "d": {},
+    "r": {}
+   }
+  },
+  {
+   "name": "a later d record replaces the earlier",
+   "args": [
+    "\u001ed/r/skills\u001fa\u001fb\u001ed/r/skills\u001fc\u001f\u001eEND\n"
+   ],
+   "probes": {
+    "d": [
+     "/r/skills"
+    ]
+   },
+   "out": {
+    "f": {},
+    "d": {
+     "/r/skills": [
+      "c"
+     ]
+    },
+    "r": {}
+   }
+  },
+  {
+   "name": "d names holding a newline",
+   "args": [
+    "\u001ed/r/s\u001fa\u001f\n\u001fb\nc\u001f\n\u001f\u001f\u001eEND\n"
+   ],
+   "probes": {
+    "d": [
+     "/r/s"
+    ]
+   },
+   "out": {
+    "f": {},
+    "d": {
+     "/r/s": [
+      "a",
+      "b\nc"
+     ]
+    },
+    "r": {}
+   }
+  },
+  {
+   "name": "an empty d list is present",
+   "args": [
+    "\u001ed/r/s\u001f\u001eEND\n"
+   ],
+   "probes": {
+    "d": [
+     "/r/s"
+    ]
+   },
+   "out": {
+    "f": {},
+    "d": {
+     "/r/s": []
+    },
+    "r": {}
+   }
+  },
+  {
+   "name": "an unknown kind is ignored",
+   "args": [
+    "\u001ex/a\u001fstuff\u001ef/b\u001fok\u001eEND\n"
+   ],
+   "probes": {
+    "f": [
+     "/a",
+     "/b"
+    ],
+    "d": [
+     "/a"
+    ],
+    "r": [
+     "/a"
+    ]
+   },
+   "out": {
+    "f": {
+     "/a": null,
+     "/b": "ok"
+    },
+    "d": {
+     "/a": null
+    },
+    "r": {
+     "/a": false
+    }
+   }
+  },
+  {
+   "name": "an r record marks its root, any spelling",
+   "args": [
+    "\u001er/x\u001f\u001ef/x/a\u001ft\u001eEND\n"
+   ],
+   "probes": {
+    "f": [
+     "/x/a"
+    ],
+    "r": [
+     "/x",
+     "/x/",
+     "//x",
+     "/y",
+     "/x/a"
+    ]
+   },
+   "out": {
+    "f": {
+     "/x/a": "t"
+    },
+    "d": {},
+    "r": {
+     "/x": true,
+     "/x/": true,
+     "//x": true,
+     "/y": false,
+     "/x/a": false
+    }
+   }
+  },
+  {
+   "name": "text before the first record is dropped",
+   "args": [
+    "motd\n\u001ef/a\u001fx\u001eEND\n"
+   ],
+   "probes": {
+    "f": [
+     "/a"
+    ]
+   },
+   "out": {
+    "f": {
+     "/a": "x"
+    },
+    "d": {},
+    "r": {}
+   }
+  },
+  {
+   "name": "blanks after the end mark",
+   "args": [
+    "\u001ef/a\u001fx\u001eEND  \n\n"
+   ],
+   "probes": {
+    "f": [
+     "/a"
+    ]
+   },
+   "out": {
+    "f": {
+     "/a": "x"
+    },
+    "d": {},
+    "r": {}
+   }
+  },
+  {
+   "name": "NBSP after the end mark",
+   "args": [
+    "\u001ef/a\u001fx\u001eEND "
+   ],
+   "probes": {
+    "f": [
+     "/a"
+    ]
+   },
+   "out": {
+    "f": {
+     "/a": "x"
+    },
+    "d": {},
+    "r": {}
+   }
+  },
+  {
+   "name": "an end mark in the middle",
+   "args": [
+    "\u001ef/a\u001fx\u001eEND\n\u001ef/b\u001fy\u001eEND\n"
+   ],
+   "probes": {
+    "f": [
+     "/a",
+     "/b"
+    ]
+   },
+   "out": {
+    "f": {
+     "/a": "x",
+     "/b": "y"
+    },
+    "d": {},
+    "r": {}
+   }
+  },
+  {
+   "name": "no end mark",
+   "args": [
+    "\u001ef/a\u001fx"
+   ],
+   "probes": {
+    "f": [
+     "/a"
+    ]
+   },
+   "out": null
+  },
+  {
+   "name": "the end mark alone, no newline",
+   "args": [
+    "\u001eEND"
+   ],
+   "probes": {
+    "f": [
+     "/a"
+    ]
+   },
+   "out": {
+    "f": {
+     "/a": null
+    },
+    "d": {},
+    "r": {}
+   }
+  },
+  {
+   "name": "an empty path",
+   "args": [
+    "\u001ef\u001fv\u001eEND\n"
+   ],
+   "probes": {
+    "f": [
+     "",
+     "/"
+    ]
+   },
+   "out": {
+    "f": {
+     "": "v",
+     "/": "v"
+    },
+    "d": {},
+    "r": {}
+   }
+  },
+  {
+   "name": "record paths are joined",
+   "args": [
+    "\u001ef/a//b/../c/\u001fv\u001eEND\n"
+   ],
+   "probes": {
+    "f": [
+     "/a/c",
+     "/a//c/",
+     "/a/b/../c"
+    ]
+   },
+   "out": {
+    "f": {
+     "/a/c": "v",
+     "/a//c/": "v",
+     "/a/b/../c": "v"
+    },
+    "d": {},
+    "r": {}
+   }
+  },
+  {
+   "name": "a record separator inside a body cuts it",
+   "args": [
+    "\u001ef/a\u001fx\u001ey\u001eEND\n"
+   ],
+   "probes": {
+    "f": [
+     "/a"
+    ]
+   },
+   "out": {
+    "f": {
+     "/a": "x"
+    },
+    "d": {},
+    "r": {}
+   }
+  },
+  {
+   "name": "f and d of one path are separate",
+   "args": [
+    "\u001ef/a\u001ft\u001ed/a\u001fn\u001eEND\n"
+   ],
+   "probes": {
+    "f": [
+     "/a"
+    ],
+    "d": [
+     "/a"
+    ]
+   },
+   "out": {
+    "f": {
+     "/a": "t"
+    },
+    "d": {
+     "/a": [
+      "n"
+     ]
+    },
+    "r": {}
+   }
+  },
+  {
+   "name": "kind letters with no path",
+   "args": [
+    "\u001ef\u001fx\u001ed\u001fy\u001eEND\n"
+   ],
+   "probes": {
+    "f": [
+     "/"
+    ],
+    "d": [
+     "/"
+    ]
+   },
+   "out": {
+    "f": {
+     "/": "x"
+    },
+    "d": {
+     "/": [
+      "y"
+     ]
+    },
+    "r": {}
+   }
+  },
+  {
+   "name": "lookups are joined too",
+   "args": [
+    "\u001ef/a/b\u001ft\u001ed/a/c\u001fz\u001eEND\n"
+   ],
+   "probes": {
+    "f": [
+     "a/b",
+     "/a/./b",
+     "/a/x/../b"
+    ],
+    "d": [
+     "/a/c/",
+     "a/c"
+    ]
+   },
+   "out": {
+    "f": {
+     "a/b": "t",
+     "/a/./b": "t",
+     "/a/x/../b": "t"
+    },
+    "d": {
+     "/a/c/": [
+      "z"
+     ],
+     "a/c": [
+      "z"
+     ]
+    },
+    "r": {}
+   }
+  },
+  {
+   "name": "two end marks",
+   "args": [
+    "\u001ef/a\u001fx\u001eEND\nmore\u001eEND\n"
+   ],
+   "probes": {
+    "f": [
+     "/a"
+    ]
+   },
+   "out": {
+    "f": {
+     "/a": "x"
+    },
+    "d": {},
+    "r": {}
+   }
+  },
+  {
+   "name": "nothing came back",
+   "args": [
+    null
+   ],
+   "probes": {
+    "f": [
+     "/a"
+    ]
+   },
+   "out": null
+  },
+  {
+   "name": "an empty answer",
+   "args": [
+    ""
+   ],
+   "probes": {
+    "f": [
+     "/a"
+    ]
+   },
+   "out": null
+  },
+  {
+   "name": "the end mark with a newline only",
+   "args": [
+    "\u001eEND\n"
+   ],
+   "probes": {
+    "f": [
+     "/a"
+    ]
+   },
+   "out": {
+    "f": {
+     "/a": null
+    },
+    "d": {},
+    "r": {}
+   }
+  }
+ ],
+ "plugin_io": [
+  {
+   "name": "no stores, no seeds",
+   "laptop": {},
+   "args": [
+    "claude",
+    "echo hi"
+   ],
+   "out": {
+    "home": "/Users/dev",
+    "store": null,
+    "seed": null,
+    "line": "echo hi"
+   },
+   "calls": [
+    "run bash -c echo hi (30000 ms)"
+   ]
+  },
+  {
+   "name": "claude with a store",
+   "laptop": {
+    "stores": {
+     "claude": "/Users/dev/s",
+     "codex": ""
+    }
+   },
+   "args": [
+    "claude",
+    "echo hi"
+   ],
+   "out": {
+    "home": "/Users/dev",
+    "store": "/Users/dev/s",
+    "seed": null,
+    "line": "export CLAUDE_CONFIG_DIR='/Users/dev/s'; echo hi"
+   },
+   "calls": [
+    "run bash -c export CLAUDE_CONFIG_DIR='/Users/dev/s'; echo hi (30000 ms)"
+   ]
+  },
+  {
+   "name": "codex when only claude has a store",
+   "laptop": {
+    "stores": {
+     "claude": "/Users/dev/s"
+    },
+    "seeds": {
+     "claude": "/seed:/seed2"
+    }
+   },
+   "args": [
+    "codex",
+    "echo hi"
+   ],
+   "out": {
+    "home": "/Users/dev",
+    "store": null,
+    "seed": null,
+    "line": "echo hi"
+   },
+   "calls": [
+    "run bash -c echo hi (30000 ms)"
+   ]
+  },
+  {
+   "name": "codex with a store",
+   "laptop": {
+    "stores": {
+     "claude": "/Users/dev/s",
+     "codex": "/Users/dev/c"
+    }
+   },
+   "args": [
+    "codex",
+    "echo hi"
+   ],
+   "out": {
+    "home": "/Users/dev",
+    "store": "/Users/dev/c",
+    "seed": null,
+    "line": "export CODEX_HOME='/Users/dev/c'; echo hi"
+   },
+   "calls": [
+    "run bash -c export CODEX_HOME='/Users/dev/c'; echo hi (30000 ms)"
+   ]
+  },
+  {
+   "name": "empty store and seed strings are present",
+   "laptop": {
+    "stores": {
+     "claude": ""
+    },
+    "seeds": {
+     "claude": ""
+    }
+   },
+   "args": [
+    "claude",
+    "echo hi"
+   ],
+   "out": {
+    "home": "/Users/dev",
+    "store": "",
+    "seed": "",
+    "line": "export CLAUDE_CONFIG_DIR=''; echo hi"
+   },
+   "calls": [
+    "run bash -c export CLAUDE_CONFIG_DIR=''; echo hi (30000 ms)"
+   ]
+  },
+  {
+   "name": "a seed does not change the line",
+   "laptop": {
+    "stores": {
+     "claude": "/Users/dev/s"
+    },
+    "seeds": {
+     "claude": "/seed"
+    }
+   },
+   "args": [
+    "claude",
+    "echo hi"
+   ],
+   "out": {
+    "home": "/Users/dev",
+    "store": "/Users/dev/s",
+    "seed": "/seed",
+    "line": "export CLAUDE_CONFIG_DIR='/Users/dev/s'; echo hi"
+   },
+   "calls": [
+    "run bash -c export CLAUDE_CONFIG_DIR='/Users/dev/s'; echo hi (30000 ms)"
+   ]
+  }
+ ],
+ "plugin_row": [
+  {
+   "name": "a path equal to home and a lookalike prefix",
+   "args": [
+    "/Users/dev",
+    "claude",
+    {
+     "id": "b@m",
+     "name": "b@m",
+     "marketplace": "m",
+     "scope": "user",
+     "on": true,
+     "brings": {
+      "skills": [],
+      "commands": [],
+      "subagents": [],
+      "hooks": [],
+      "servers": [],
+      "lsp": [],
+      "apps": []
+     },
+     "path": "/Users/dev",
+     "setIn": "/Users/devx/y",
+     "project": {
+      "id": "p",
+      "name": "P",
+      "path": "/elsewhere"
+     }
+    }
+   ],
+   "out": {
+    "agent": "claude",
+    "id": "b@m",
+    "name": "b@m",
+    "marketplace": "m",
+    "scope": "user",
+    "on": true,
+    "brings": {
+     "skills": [],
+     "commands": [],
+     "subagents": [],
+     "hooks": [],
+     "servers": [],
+     "lsp": [],
+     "apps": []
+    },
+    "project": {
+     "id": "p",
+     "name": "P",
+     "path": "/elsewhere"
+    },
+    "path": "~",
+    "setIn": "/Users/devx/y"
+   }
+  },
+  {
+   "name": "a trailing slash and a dot segment",
+   "args": [
+    "/Users/dev",
+    "claude",
+    {
+     "id": "c@m",
+     "name": "c@m",
+     "marketplace": "m",
+     "scope": "user",
+     "on": true,
+     "brings": {
+      "skills": [],
+      "commands": [],
+      "subagents": [],
+      "hooks": [],
+      "servers": [],
+      "lsp": [],
+      "apps": []
+     },
+     "path": "/Users/dev/",
+     "setIn": "/Users/dev/./x"
+    }
+   ],
+   "out": {
+    "agent": "claude",
+    "id": "c@m",
+    "name": "c@m",
+    "marketplace": "m",
+    "scope": "user",
+    "on": true,
+    "brings": {
+     "skills": [],
+     "commands": [],
+     "subagents": [],
+     "hooks": [],
+     "servers": [],
+     "lsp": [],
+     "apps": []
+    },
+    "path": "~/",
+    "setIn": "~/./x"
+   }
+  },
+  {
+   "name": "a project path with a trailing slash, an undefined version, skills dropped",
+   "args": [
+    "/Users/dev",
+    "claude",
+    {
+     "id": "a@m",
+     "name": "a@m",
+     "marketplace": "m",
+     "scope": "user",
+     "on": true,
+     "brings": {
+      "skills": [],
+      "commands": [],
+      "subagents": [],
+      "hooks": [],
+      "servers": [],
+      "lsp": [],
+      "apps": []
+     },
+     "skills": {
+      "dirs": [
+       "/s"
+      ],
+      "prefix": "a"
+     },
+     "path": "/Users/dev/.claude/x",
+     "setIn": "/Users/dev",
+     "project": {
+      "id": "p",
+      "name": "P",
+      "path": "/Users/dev/p/"
+     },
+     "source": "src"
+    }
+   ],
+   "out": {
+    "agent": "claude",
+    "id": "a@m",
+    "name": "a@m",
+    "marketplace": "m",
+    "scope": "user",
+    "on": true,
+    "brings": {
+     "skills": [],
+     "commands": [],
+     "subagents": [],
+     "hooks": [],
+     "servers": [],
+     "lsp": [],
+     "apps": []
+    },
+    "source": "src",
+    "project": {
+     "id": "p",
+     "name": "P",
+     "path": "~/p/"
+    },
+    "path": "~/.claude/x",
+    "setIn": "~"
+   }
+  },
+  {
+   "name": "a missing plugin",
+   "args": [
+    "/Users/dev",
+    "claude",
+    {
+     "id": "d@m",
+     "name": "d@m",
+     "marketplace": "m",
+     "scope": "user",
+     "on": true,
+     "brings": {
+      "skills": [],
+      "commands": [],
+      "subagents": [],
+      "hooks": [],
+      "servers": [],
+      "lsp": [],
+      "apps": []
+     },
+     "missing": "gone"
+    }
+   ],
+   "out": {
+    "agent": "claude",
+    "id": "d@m",
+    "name": "d@m",
+    "marketplace": "m",
+    "scope": "user",
+    "on": true,
+    "brings": {
+     "skills": [],
+     "commands": [],
+     "subagents": [],
+     "hooks": [],
+     "servers": [],
+     "lsp": [],
+     "apps": []
+    },
+    "missing": "gone"
+   }
+  }
+ ],
+ "detect_plugins": [
+  {
+   "name": "no agents with a shelf in the list",
+   "laptop": {},
+   "args": [
+    [],
+    []
+   ],
+   "out": {
+    "plugins": [],
+    "refused": [],
+    "agents": []
+   },
+   "calls": []
+  },
+  {
+   "name": "claude with no answer",
+   "laptop": {},
+   "args": [
+    [
+     "claude"
+    ],
+    []
+   ],
+   "out": {
+    "plugins": [],
+    "refused": [
+     "plugins: Claude Code's plugin files could not be read"
+    ],
+    "agents": [
+     {
+      "agent": "claude",
+      "found": {
+       "plugins": [],
+       "refused": [
+        "plugins: Claude Code's plugin files could not be read"
+       ]
+      }
+     }
+    ]
+   },
+   "calls": [
+    "run sh -c peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\npeek '/Users/dev/.claude/plugins/installed_plugins.json\n/Users/dev/.claude/plugins/known_marketplaces.json\n/Users/dev/.claude/settings.json' '' '/'\nfrom 'installPath' '/Users/dev/.claude/plugins/installed_plugins.json' | while IFS= read -r r; do peek '.claude-plugin/plugin.json\nhooks/hooks.json\n.mcp.json\n.lsp.json' '1 .\n2 skills\n1 commands\n1 agents' \"$r\"; done\nfrom 'installLocation' '/Users/dev/.claude/plugins/known_marketplaces.json' | while IFS= read -r r; do peek '.claude-plugin/marketplace.json' '' \"$r\"; done\nprintf '\\036END\\n' (30000 ms)"
+   ]
+  },
+  {
+   "name": "claude under a store",
+   "laptop": {
+    "stores": {
+     "claude": "/Users/dev/s"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    []
+   ],
+   "out": {
+    "plugins": [],
+    "refused": [
+     "plugins: Claude Code's plugin files could not be read"
+    ],
+    "agents": [
+     {
+      "agent": "claude",
+      "found": {
+       "plugins": [],
+       "refused": [
+        "plugins: Claude Code's plugin files could not be read"
+       ]
+      }
+     }
+    ]
+   },
+   "calls": [
+    "run sh -c peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\npeek '/Users/dev/s/plugins/installed_plugins.json\n/Users/dev/s/plugins/known_marketplaces.json\n/Users/dev/s/settings.json' '' '/'\nfrom 'installPath' '/Users/dev/s/plugins/installed_plugins.json' | while IFS= read -r r; do peek '.claude-plugin/plugin.json\nhooks/hooks.json\n.mcp.json\n.lsp.json' '1 .\n2 skills\n1 commands\n1 agents' \"$r\"; done\nfrom 'installLocation' '/Users/dev/s/plugins/known_marketplaces.json' | while IFS= read -r r; do peek '.claude-plugin/marketplace.json' '' \"$r\"; done\nprintf '\\036END\\n' (30000 ms)"
+   ]
+  },
+  {
+   "name": "claude with a project",
+   "laptop": {
+    "stores": {
+     "claude": "/Users/dev/s"
+    }
+   },
+   "args": [
+    [
+     "claude"
+    ],
+    [
+     {
+      "id": "p",
+      "name": "P",
+      "path": "/Users/dev/p"
+     }
+    ]
+   ],
+   "out": {
+    "plugins": [],
+    "refused": [
+     "plugins: Claude Code's plugin files could not be read"
+    ],
+    "agents": [
+     {
+      "agent": "claude",
+      "found": {
+       "plugins": [],
+       "refused": [
+        "plugins: Claude Code's plugin files could not be read"
+       ]
+      }
+     }
+    ]
+   },
+   "calls": [
+    "run sh -c peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\npeek '/Users/dev/s/plugins/installed_plugins.json\n/Users/dev/s/plugins/known_marketplaces.json\n/Users/dev/s/settings.json' '' '/'\npeek '.claude/settings.json\n.claude/settings.local.json' '' '/Users/dev/p'\nfrom 'installPath' '/Users/dev/s/plugins/installed_plugins.json' | while IFS= read -r r; do peek '.claude-plugin/plugin.json\nhooks/hooks.json\n.mcp.json\n.lsp.json' '1 .\n2 skills\n1 commands\n1 agents' \"$r\"; done\nfrom 'installLocation' '/Users/dev/s/plugins/known_marketplaces.json' | while IFS= read -r r; do peek '.claude-plugin/marketplace.json' '' \"$r\"; done\nprintf '\\036END\\n' (30000 ms)"
+   ]
+  },
+  {
+   "name": "codex with no answer",
+   "laptop": {},
+   "args": [
+    [
+     "codex"
+    ],
+    []
+   ],
+   "out": {
+    "plugins": [],
+    "refused": [
+     "plugins: Codex's app server did not answer, so Codex's plugins were not read"
+    ],
+    "agents": [
+     {
+      "agent": "codex",
+      "found": {
+       "plugins": [],
+       "refused": [
+        "plugins: Codex's app server did not answer, so Codex's plugins were not read"
+       ]
+      }
+     }
+    ]
+   },
+   "calls": [
+    "run bash -c command -v codex >/dev/null 2>&1 || { echo __WSP_NO_CODEX__; exit 0; }\ncd ~ || exit 1\nWSP_PROBE_DIR=$(mktemp -d) && mkfifo \"$WSP_PROBE_DIR/in\" \"$WSP_PROBE_DIR/out\"\ncodex app-server <\"$WSP_PROBE_DIR/in\" >\"$WSP_PROBE_DIR/out\" &\nWSP_APP_SERVER_PID=$!\nexec 3>\"$WSP_PROBE_DIR/in\" 4<\"$WSP_PROBE_DIR/out\"\nanswers=0\nprintf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"clientInfo\":{\"name\":\"wsp\",\"version\":\"0\"}}}' '{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"plugin/list\",\"params\":{}}' '{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"config/read\",\"params\":{\"includeLayers\":true}}' >&3\nwhile [ \"$answers\" -lt 3 ] && IFS= read -r -t 10 -u 4 line; do\n  printf '%s\\n' \"$line\"\n  case $line in '{\"id\":'*) answers=$((answers + 1)) ;; esac\ndone\nexec 3>&- 4<&-\nkill \"$WSP_APP_SERVER_PID\" 2>/dev/null || :\nrm -rf \"$WSP_PROBE_DIR\" (30000 ms)"
+   ]
+  },
+  {
+   "name": "codex under a store",
+   "laptop": {
+    "stores": {
+     "codex": "/Users/dev/c"
+    }
+   },
+   "args": [
+    [
+     "codex"
+    ],
+    []
+   ],
+   "out": {
+    "plugins": [],
+    "refused": [
+     "plugins: Codex's app server did not answer, so Codex's plugins were not read"
+    ],
+    "agents": [
+     {
+      "agent": "codex",
+      "found": {
+       "plugins": [],
+       "refused": [
+        "plugins: Codex's app server did not answer, so Codex's plugins were not read"
+       ]
+      }
+     }
+    ]
+   },
+   "calls": [
+    "run bash -c export CODEX_HOME='/Users/dev/c'; command -v codex >/dev/null 2>&1 || { echo __WSP_NO_CODEX__; exit 0; }\ncd ~ || exit 1\nWSP_PROBE_DIR=$(mktemp -d) && mkfifo \"$WSP_PROBE_DIR/in\" \"$WSP_PROBE_DIR/out\"\ncodex app-server <\"$WSP_PROBE_DIR/in\" >\"$WSP_PROBE_DIR/out\" &\nWSP_APP_SERVER_PID=$!\nexec 3>\"$WSP_PROBE_DIR/in\" 4<\"$WSP_PROBE_DIR/out\"\nanswers=0\nprintf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"clientInfo\":{\"name\":\"wsp\",\"version\":\"0\"}}}' '{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"plugin/list\",\"params\":{}}' '{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"config/read\",\"params\":{\"includeLayers\":true}}' >&3\nwhile [ \"$answers\" -lt 3 ] && IFS= read -r -t 10 -u 4 line; do\n  printf '%s\\n' \"$line\"\n  case $line in '{\"id\":'*) answers=$((answers + 1)) ;; esac\ndone\nexec 3>&- 4<&-\nkill \"$WSP_APP_SERVER_PID\" 2>/dev/null || :\nrm -rf \"$WSP_PROBE_DIR\" (30000 ms)"
+   ]
+  },
+  {
+   "name": "every catalog agent with a shelf",
+   "laptop": {},
+   "args": [
+    null,
+    []
+   ],
+   "out": {
+    "plugins": [],
+    "refused": [
+     "plugins: Claude Code's plugin files could not be read",
+     "plugins: Codex's app server did not answer, so Codex's plugins were not read"
+    ],
+    "agents": [
+     {
+      "agent": "claude",
+      "found": {
+       "plugins": [],
+       "refused": [
+        "plugins: Claude Code's plugin files could not be read"
+       ]
+      }
+     },
+     {
+      "agent": "codex",
+      "found": {
+       "plugins": [],
+       "refused": [
+        "plugins: Codex's app server did not answer, so Codex's plugins were not read"
+       ]
+      }
+     }
+    ]
+   },
+   "calls": [
+    "run sh -c peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\npeek '/Users/dev/.claude/plugins/installed_plugins.json\n/Users/dev/.claude/plugins/known_marketplaces.json\n/Users/dev/.claude/settings.json' '' '/'\nfrom 'installPath' '/Users/dev/.claude/plugins/installed_plugins.json' | while IFS= read -r r; do peek '.claude-plugin/plugin.json\nhooks/hooks.json\n.mcp.json\n.lsp.json' '1 .\n2 skills\n1 commands\n1 agents' \"$r\"; done\nfrom 'installLocation' '/Users/dev/.claude/plugins/known_marketplaces.json' | while IFS= read -r r; do peek '.claude-plugin/marketplace.json' '' \"$r\"; done\nprintf '\\036END\\n' (30000 ms)",
+    "run bash -c command -v codex >/dev/null 2>&1 || { echo __WSP_NO_CODEX__; exit 0; }\ncd ~ || exit 1\nWSP_PROBE_DIR=$(mktemp -d) && mkfifo \"$WSP_PROBE_DIR/in\" \"$WSP_PROBE_DIR/out\"\ncodex app-server <\"$WSP_PROBE_DIR/in\" >\"$WSP_PROBE_DIR/out\" &\nWSP_APP_SERVER_PID=$!\nexec 3>\"$WSP_PROBE_DIR/in\" 4<\"$WSP_PROBE_DIR/out\"\nanswers=0\nprintf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"clientInfo\":{\"name\":\"wsp\",\"version\":\"0\"}}}' '{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"plugin/list\",\"params\":{}}' '{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"config/read\",\"params\":{\"includeLayers\":true}}' >&3\nwhile [ \"$answers\" -lt 3 ] && IFS= read -r -t 10 -u 4 line; do\n  printf '%s\\n' \"$line\"\n  case $line in '{\"id\":'*) answers=$((answers + 1)) ;; esac\ndone\nexec 3>&- 4<&-\nkill \"$WSP_APP_SERVER_PID\" 2>/dev/null || :\nrm -rf \"$WSP_PROBE_DIR\" (30000 ms)"
+   ]
+  },
+  {
+   "name": "an agent without a shelf is left out",
+   "laptop": {},
+   "args": [
+    [
+     "gemini",
+     "claude"
+    ],
+    []
+   ],
+   "out": {
+    "plugins": [],
+    "refused": [
+     "plugins: Claude Code's plugin files could not be read"
+    ],
+    "agents": [
+     {
+      "agent": "claude",
+      "found": {
+       "plugins": [],
+       "refused": [
+        "plugins: Claude Code's plugin files could not be read"
+       ]
+      }
+     }
+    ]
+   },
+   "calls": [
+    "run sh -c peek() {\n  files=$1; dirs=$2; shift 2\n  for r; do\n    printf '\\036r%s\\037' \"$r\"\n    printf '%s\\n' \"$files\" | while IFS= read -r f; do [ -n \"$f\" ] && [ -f \"$r/$f\" ] && { printf '\\036f%s/%s\\037' \"$r\" \"$f\"; head -c 262144 \"$r/$f\"; }; done\n    printf '%s\\n' \"$dirs\" | while IFS=' ' read -r k d; do\n      [ -n \"$d\" ] || continue\n      if [ \"$d\" = . ]; then p=$r; else p=$r/$d; fi\n      [ -d \"$p\" ] || continue\n      printf '\\036d%s\\037' \"$p\"\n      find -L \"$p\" -mindepth 1 -maxdepth \"$k\" 2>/dev/null | while IFS= read -r x; do printf '%s\\037' \"${x#\"$p\"/}\"; done\n    done\n  done\n}\nfrom() {\n  k=$1; shift\n  for f; do [ -f \"$f\" ] && LC_ALL=C grep -o \"\\\"$k\\\"[[:space:]]*:[[:space:]]*\\\"[^\\\"\\\\]*\\\"\" \"$f\"; done | sed 's/^\"[^\"]*\"[[:space:]]*:[[:space:]]*\"//; s/\"$//' | sort -u\n}\npeek '/Users/dev/.claude/plugins/installed_plugins.json\n/Users/dev/.claude/plugins/known_marketplaces.json\n/Users/dev/.claude/settings.json' '' '/'\nfrom 'installPath' '/Users/dev/.claude/plugins/installed_plugins.json' | while IFS= read -r r; do peek '.claude-plugin/plugin.json\nhooks/hooks.json\n.mcp.json\n.lsp.json' '1 .\n2 skills\n1 commands\n1 agents' \"$r\"; done\nfrom 'installLocation' '/Users/dev/.claude/plugins/known_marketplaces.json' | while IFS= read -r r; do peek '.claude-plugin/marketplace.json' '' \"$r\"; done\nprintf '\\036END\\n' (30000 ms)"
+   ]
+  }
+ ]
+}

@@ -21,10 +21,23 @@ Which Homebrew formulae have a Linux bottle, from a dated snapshot shipped with 
 - `classify_formulae("nope")` and `[{nope:1}, null, 4]` give empty lists.
 - `oven-sh/bun/bun` (a tap) is unknown.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/brew_bottles.json` (`oracle/w2-brew_bottles.oracle.ts`), replayed by
+`tests/brew_bottles.rs` `w2_oracle::*`.
+
+- W1. A tag counts when its key is present whatever its value (`null`, `0`, `""`); `files` that is not an object, or
+  a step that is not an object, is no tag; a non-string name is skipped; both lists sorted by UTF-16 units, repeats
+  kept (`classify_formulae`).
+- W2. `linux_support`: exact match, `yes` first when a name is in both lists, `""` and `constructor` are ordinary
+  names (`linux_support`, `linux_support_embedded`).
+- W3. `render_snapshot` of empty lists and strings (`render_snapshot`); the embedded table's counts and ends
+  (`embedded_table`).
+
 ## Decisions
 
-1. The TS renders a TS source file; the crate's generated file is JSON, so `render_snapshot` renders that. A TS-side refresh and the Python script stay the only writers.
-2. The TS caches a `Set` per snapshot object (`WeakMap`); the Rust may search the lists. Only the time differs.
+1. The TS renders a TS source file; the crate's generated file is JSON, so `render_snapshot` renders that. This is the one place this crate does not port the TS output, flagged for the coordinator: it only writes the crate's own data file, never anything a host or a tape sees. A TS-side refresh and the Python script stay the only writers.
+2. The TS caches a `Set` per snapshot object (`WeakMap`) and never invalidates it, so a snapshot changed after its first lookup keeps answering from the first reading. The Rust snapshot is not changed after it is built, so the difference cannot be observed; a Rust caller must not change a snapshot after asking it.
 
 ## Rules pinned
 
