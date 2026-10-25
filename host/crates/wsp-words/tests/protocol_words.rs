@@ -166,7 +166,6 @@ mod what_a_computer_says_about_its_agents_and_what_a_person_reads_off_it {
 }
 
 mod a_workspace_s_look {
-    use super::*;
     use regex::Regex;
     use std::collections::HashSet;
     use wsp_wire::types::workspace_look::WORKSPACE_GLYPHS;
@@ -185,7 +184,6 @@ mod a_workspace_s_look {
 }
 
 mod daemon_files_and_diff_ops {
-    use super::*;
     use wsp_words::exit::HostError;
     use wsp_words::project_path::{place_daemon_paths, roots_path_in, PlaceDaemonPaths};
     use wsp_words::words::computer::*;
@@ -706,7 +704,6 @@ mod the_newest_release_as_the_host_read_it {
 }
 
 mod bringing_work_back {
-    use super::*;
     use regex::Regex;
     use wsp_wire::views::workspace_kind::WorkspaceKind;
     use wsp_words::projects::child_on_another_computer_line;

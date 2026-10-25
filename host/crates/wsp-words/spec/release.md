@@ -1,5 +1,5 @@
 # release
-Source: the functions of `packages/protocol/src/release.ts` (58 lines) at a3b870a6e; its zod shapes (`ReleaseLatest`, `ReleaseState`, `HostShape`, `ReleaseView`, `ReleaseChangedEvent`) and flat constants (`UP_RESTART_LINE`, `HOST_NO_RESTART_LINE`, `HOST_RESTART_TICKET_REFUSAL`) are `wsp_wire::types::release`. Tests: none in this crate; there is no `tests/release.rs`. The one TS case on these functions is `packages/protocol/test/protocol.test.ts:2076` (`releaseAbove`, five asserts), not ported yet.
+Source: the functions of `packages/protocol/src/release.ts` (58 lines) at a3b870a6e; its zod shapes (`ReleaseLatest`, `ReleaseState`, `HostShape`, `ReleaseView`, `ReleaseChangedEvent`) and flat constants (`UP_RESTART_LINE`, `HOST_NO_RESTART_LINE`, `HOST_RESTART_TICKET_REFUSAL`) are `wsp_wire::types::release`. Tests: the one TS case on these functions is `packages/protocol/test/protocol.test.ts:2076` (`releaseAbove`, five asserts), ported in `tests/protocol_words.rs`; `pinned` in `tests/release.rs` holds the rest.
 
 ## What it does
 Whether the newest release the host read off GitHub is above a version that runs, and the one word a reading shows: the version number once one was read, else the state of the check.
@@ -28,5 +28,5 @@ The `release.changed` event and the `release.get` answer carry the view; the hos
 ## Rules pinned
 | Rule | Test |
 |---|---|
-| 1 | none: no Rust test pins it (protocol.test.ts:2076 is not ported) |
-| 2 | none: no test pins it, in TS or Rust |
+| 1 | `pinned::a_release_is_ahead_only_of_a_version_that_runs`, `protocol_words.rs: the_newest_release_as_the_host_read_it::*` |
+| 2 | `pinned::a_release_reads_its_version_else_its_state` |

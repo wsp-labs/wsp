@@ -1,5 +1,5 @@
 # tree
-Source: the functions of `packages/protocol/src/tree.ts` (166 lines) at a3b870a6e; its zod shapes (`GitStartOnReply`, `GitBranchCompareReply`, `GitMergeInReply`, `TreeRecord`, `TreeChild`, `TreeFact`, `MergeInResult`) and flat constant (`FIX_CHECK_OR_CHILD`) are `wsp_wire::types::tree`. Tests: no TS test file of its own in `packages/protocol/test`, and no `tests/tree.rs` yet. Its words are read by `packages/runtime/test/tree.test.ts`, `packages/runtime/test/sub-results.test.ts:159-169` and `apps/web/src/sidebar/tileCheckout.test.ts`, which compare against the function itself.
+Source: the functions of `packages/protocol/src/tree.ts` (166 lines) at a3b870a6e; its zod shapes (`GitStartOnReply`, `GitBranchCompareReply`, `GitMergeInReply`, `TreeRecord`, `TreeChild`, `TreeFact`, `MergeInResult`) and flat constant (`FIX_CHECK_OR_CHILD`) are `wsp_wire::types::tree`. Tests: no TS test file of its own in `packages/protocol/test`, so `pinned` in `tests/tree.rs` holds every value the TS printed for the same input. Its words are read by `packages/runtime/test/tree.test.ts`, `packages/runtime/test/sub-results.test.ts:159-169` and `apps/web/src/sidebar/tileCheckout.test.ts`, which compare against the function itself.
 
 ## What it does
 The words of a lead's tree of children, each on a branch cut from the lead's: what a child's card says of its branch, what a fork says as it makes a child, the lines and refusals of `wsp merge in` and `wsp fix --child`, and the message a lead's thread is handed when a merge stopped on conflicts.
@@ -41,4 +41,7 @@ The words of a lead's tree of children, each on a branch cut from the lead's: wh
 ## Rules pinned
 | Rule | Test |
 |---|---|
-| 1 to 7 | not pinned: `tests/tree.rs` is not written; the TS reaches these words only through the runtime's and the app's tests named above |
+| 1 | `pinned::the_tree_words`, `pinned::a_childs_branch_and_its_push` |
+| 2 | `pinned::a_childs_branch_and_its_push` |
+| 3, 4, 5, 7 | `pinned::a_merge_says_what_came_in_what_stopped_it_and_what_stayed_out` |
+| 6 | `pinned::a_merge_refused` |
