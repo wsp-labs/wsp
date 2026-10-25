@@ -34,7 +34,7 @@ use wsp_wire::wire::runtime::{
 use wsp_words::exit::HostError;
 
 use crate::activity::ActivityDoor;
-use crate::pending::{Entry, Joined, Records, Rows, SessionEntry, SharedView};
+use crate::pending::{Entry, HeldThread, Joined, Records, Rows, SessionEntry, SharedView};
 use crate::threads::launch::{AdapterAsk, BuiltAdapter, LaunchArea, LaunchCtx, LaunchServers, ThreadLaunch};
 use crate::threads::trimmed_row::TrimmedCtx;
 use crate::threads::turns::TurnStart;
@@ -48,6 +48,9 @@ pub mod settle;
 pub mod start;
 pub mod start_launch;
 pub mod stop;
+
+/// The stamps a mark writes on each thread (a type of its own: async-trait misreads the elided lifetime in place).
+pub type StampsOf = Rc<dyn Fn(&str) -> ThreadStamps>;
 
 /// A start as forks.ts's `forkStart` calls it back.
 pub type StartFn = Rc<dyn Fn(String, StartOptions) -> LocalBoxFuture<'static, Result<Rc<dyn SessionHandle>, HostError>>>;
@@ -279,7 +282,7 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     fn title_rows(&self, rows: Vec<SessionView>) -> Vec<SessionView>;
     fn booting(&self, workspace_id: &str) -> bool;
     async fn refresh_title(&self, view: SessionView, ended: bool) -> Result<(), HostError>;
-    fn tree_records(&self, origin: Option<&Caller>, talk: TreeTalk, workspace_id: Option<&str>) -> Vec<(String, crate::pending::HeldThread)>;
+    fn tree_records(&self, origin: Option<&Caller>, talk: TreeTalk, workspace_id: Option<&str>) -> Vec<(String, HeldThread)>;
     fn listed_rows(&self, rows: Vec<SessionView>) -> Vec<SessionView>;
     fn placed_rows(&self, rows: Vec<SessionView>) -> Vec<SessionView>;
     fn drives_thread(&self, thread_id: Option<&str>, origin: Option<&Caller>) -> bool;
@@ -302,7 +305,7 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     async fn write_session(&self, session: &str, entry: &Entry, adapter: Arc<dyn HarnessAdapter>, title: &str) -> Result<SessionWrite, HostError>;
     fn brokered(&self, record: &WorkspaceRecord) -> bool;
     async fn server_values_for(&self, entry: &Entry, harness: &str, cwd: &str) -> Result<Option<wsp_adapters::port::ServerValues>, HostError>;
-    async fn mark(&self, thread_ids: &[String], stamps: &dyn Fn(&str) -> ThreadStamps, origin: Option<&Caller>) -> Result<(), HostError>;
+    async fn mark(&self, thread_ids: &[String], stamps: StampsOf, origin: Option<&Caller>) -> Result<(), HostError>;
     async fn arm_resume(&self, thread_ids: &[String], on: bool, origin: Option<&Caller>) -> Result<(), HostError>;
     async fn aside(&self, adapter: &dyn HarnessAdapter, ask: AsideQuestion) -> Result<String, HostError>;
 
