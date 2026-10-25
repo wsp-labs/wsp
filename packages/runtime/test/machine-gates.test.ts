@@ -78,7 +78,6 @@ describe("what a refusal calls a machine wsp forks", () => {
     const gates = [
       ["have its machine replaced", () => rt.workspaces.upgrade(ws.id)],
       ["be rebuilt", () => rt.workspaces.rebuild(ws.id)],
-      ["be snapshotted", () => rt.workspaces.snapshot(ws.id)],
       ["be paused", () => rt.workspaces.nap(ws.id)],
     ] as const;
     for (const [action, run] of gates) {

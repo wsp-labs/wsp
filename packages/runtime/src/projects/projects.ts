@@ -115,14 +115,13 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
 
   /** Which landing road a computer takes, off the kind of workspace it makes rather than off its id: the computer
    * the app runs on works the folder beside itself, a computer the person joined holds the project as a folder in
-   * its login's home, and everything else is a provider, where a project lives in an image. */
+   * its login's home, and everything else is a provider, which holds nothing of a project. */
   const landingKind = (computer: string, _at?: MachineBackend): ProjectLanding["kind"] => {
     const kind = ctx.kindOf(computer);
     return copiesFolder(kind) ? "mac" : runsInFolder(kind) ? "box" : "provider";
   };
 
-  /** What a landing road may ask of this runtime, for one computer: a short-lived machine of that computer's image
-   * to clone, seed and install in, the road that puts the seed archive on it, the snapshot a project image is, and
+  /** What a landing road may ask of this runtime, for one computer: the road that puts the seed archive on it, and
    * where that computer and this Mac keep what a project needs. */
   const landingDeps = async (computer: string): Promise<{ deps: LandingDeps; at: MachineBackend | undefined; placeId: string | undefined }> => {
     const { placeId } = await ctx.landingPlace(computer);
@@ -131,58 +130,9 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
     const at = await ctx.forkingAt(placeId).catch(() => undefined);
     const joined = placeId === undefined ? undefined : placeDoor?.folderComputer(placeId);
     const deps: LandingDeps = {
-      async worker(o) {
-        const forking = await ctx.landingBackend(placeId);
-        // A computer that keeps no image is worked in a copy of its own directories, the same machine a workspace
-        // there is; only a provider names an image to fork, and the add read which one once.
-        const golden = o.from === "" ? undefined : await ctx.copyForFork(o.from, placeId);
-        const spec: MachineSpec = {
-          kind: "sandbox",
-          ...(golden !== undefined ? { fromSnapshot: golden } : {}),
-          // On a computer somebody joined this machine clones and installs with that computer's shared home
-          // bound in, as a workspace there does, so it reads the same order and the same knobs; this Mac and the
-          // provider this host forks on answer no place and keep the order an image is sealed with.
-          envs: { ...loginEnvOn(placeId, golden === undefined ? undefined : (await ctx.imageOf(o.from)).version?.npmBin) },
-          // A machine whose disk becomes an image is a builder, which is what keeps the computer's own logins out
-          // of it; one that only clones onto the computer is not, since the clone reads those logins.
-          labels: { [WSP_LABEL]: "1", [OWNER_LABEL]: ctx.state.owner, [CREATED_AT_LABEL]: new Date().toISOString(), ...(o.image ? { [BUILDER_LABEL]: "1" } : {}) },
-          ...(o.binds.length > 0 ? { binds: [...o.binds] } : {}),
-          // Nothing waits on a person here: an add that died leaves no machine running for hours.
-          onIdle: "kill",
-        };
-        // Claimed from the provider's first state until its stop: a sweep of that place reads it as nothing's otherwise.
-        const claimed = new Set<string>();
-        const claim = (id: string): void => {
-          claimed.add(id);
-          ctx.inflight.add(id);
-        };
-        try {
-          const machine = await forking.create(spec, (_line, box) => {
-            if (box !== undefined) claim(box.id);
-          });
-          claim(machine.id);
-          return machine;
-        } catch (e) {
-          for (const id of claimed) ctx.inflight.delete(id);
-          throw e;
-        }
-      },
-      stop: async machine => {
-        try {
-          await gone.stop(await ctx.landingBackend(placeId), machine);
-        } finally {
-          ctx.inflight.delete(machine.id);
-        }
-      },
       land: async (machine, path, bytes) => void (await landBytes(machine, path, bytes)),
-      // A first-life fork of the image: the one snapshot road, the same the project goldens take.
-      checkpoint: async (machine, name) => {
-        await syncDisk(machine);
-        return machine.snapshot(name, { firstLife: true });
-      },
       scratch: () => GUEST_TMP,
       ...(joined !== undefined ? { computer: { machine: joined.machine, home: joined.home } } : {}),
-      imageHead: () => ctx.imageHeadOrNone(),
       // The vault's GitHub token only where GitHub was set up from the vault there, as that computer's turns read it.
       cloneEnv: (): Record<string, string> => {
         const token = opts.vault?.()[GITHUB_TOKEN_ENV];

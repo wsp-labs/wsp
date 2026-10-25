@@ -123,7 +123,7 @@ function fakeApi(workspaces: WorkspaceView[], statuses: WorkspaceStatus[], sessi
 }
 
 const PLACES: PlaceView[] = [
-  { id: "here", kind: "computer", name: "studio.local", default: false, engine: "none", present: true, takesForks: false },
+  { id: "here", kind: "computer", name: "studio.local", default: false, present: true, takesForks: false },
   { id: "box", kind: "provider", name: "box", default: true, rateUsdPerHour: 0.018, takesForks: true },
 ];
 /** What the dialog makes a workspace of: one project on the computer these tests fork at. */

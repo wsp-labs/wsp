@@ -14,7 +14,6 @@ import { WebSocketServer } from "ws";
 import { CLOUD_ENV, escapeC1, HOST_TOKEN_ENV, HOST_URL_ENV, TURN_TOKEN_ENV } from "@wsp/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { guestTools } from "../src/guest-tools.js";
-import { mcpServerSpec, toolServerLine, type RunningWsp } from "../src/mcp-install.js";
 import { mcpBinNamed, ownEnv, served } from "./stdio-session.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
@@ -151,30 +150,6 @@ suite(`every recorded answer through the line wsp mcp runs${MCP_BIN === undefine
         await host.close();
         rmSync(dir, { recursive: true, force: true });
       }
-    }
-  });
-
-  it("runs the recipe tools on the person's state through the line a thread on this computer is launched with", async () => {
-    const recorded = JSON.parse(readFileSync(join(ANSWERS, "recipe_scan.json"), "utf8")) as { cases: Case[] };
-    const platform = process.platform === "darwin" ? "darwin" : "linux";
-    const c = recorded.cases.find(c => c.wsp !== undefined && c.platform === platform)!;
-    const dir = mkdtempSync(join(tmpdir(), "wsp-mcp-thread-"));
-    try {
-      writeFileSync(join(dir, "stdout"), c.wsp!.stdout);
-      writeFileSync(join(dir, "stderr"), c.wsp!.stderr);
-      const fake = writeStub(join(dir, "wsp"), `#!/bin/sh\nprintf '%s\\n' "$@" > '${dir}/argv'\ncat '${dir}/stdout'\ncat '${dir}/stderr' >&2\nexit ${c.wsp!.exit}\n`);
-      const run: RunningWsp = { execPath: "/bin/sh", execArgv: [], argv: ["/bin/sh", fake], version: "0.0.0", PATH: "", toolServer: MCP_BIN! };
-      const state = join(dir, "state.json");
-      // The runtime launches a thread's tools on the command line's own line with the scope on the end.
-      const line = mcpServerSpec(state, run);
-      const env = { ...ownEnv(), WSP_HOME: join(dir, "home"), HOME: join(dir, "user"), WSP_HOST_URL: "http://127.0.0.1:9", WSP_HOST_TOKEN: "thread-token" };
-      const call = { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "recipe_scan", arguments: c.arguments } };
-      const { out, code } = await served([line.command, ...line.args, "--scoped"], env, [call], dir);
-      expect(code).toBe(0);
-      expect(out[0]).toBe(c.line);
-      expect(readFileSync(join(dir, "argv"), "utf8").trim().split("\n")).toEqual(c.wsp!.argv.map(w => w.replace("{state}", state)));
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

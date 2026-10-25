@@ -229,9 +229,6 @@ const ALLOWED: Record<Rule, readonly Allowed[]> = {
   sharedHome: [
     { text: "{ type: \"daemon.hello\", root: resolve(process.env[\"HOME\"] ?? homedir()), version: DAEMON_VERSION },", count: 1, why: "compares the root the daemon's hello reports with the home's path; nothing is written there" },
     { text: "const imp = importFor(BRING, { home: homedir(), secrets: new Map(), platform: \"darwin\", onResult: r ", count: 1, why: "a live import reads the person's own home on purpose" },
-    { text: "expect(folderOf(\"~/code/proj\")).toBe(join(homedir(), \"code/proj\"));", count: 1, why: "expands ~ in a string and compares the paths; nothing is read or written there" },
-    { text: "expect(folderOf(\"  ~/code/proj  \")).toBe(join(homedir(), \"code/proj\"));", count: 1, why: "expands ~ in a string and compares the paths; nothing is read or written there" },
-    { text: "expect(folderOf(\"~\")).toBe(homedir());", count: 1, why: "expands ~ in a string and compares the paths; nothing is read or written there" },
     { text: "expect(saveQuestion(join(homedir(), \".wsp\"), 1)).toBe(\"Save the key so wsp stops asking?\");", count: 1, why: "names a folder under the home in a question's words; nothing is read or written there" },
     { text: "expect(saveQuestion(join(homedir(), \".wsp\"), 2)).toBe(\"Save the keys so wsp stops asking?\");", count: 1, why: "names a folder under the home in a question's words; nothing is read or written there" },
     { text: "expect(wspHome()).toBe(join(homedir(), \".wsp\"));", count: 1, why: "checks the default wsp home's path; nothing is read or written there" },

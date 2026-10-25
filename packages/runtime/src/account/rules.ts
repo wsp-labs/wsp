@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { type Capabilities, type PreferencesPatch, type ProjectView, type McpServerSpec, type Caller, type WorkspaceAgents, type WorkspaceKind, ThreadScope, phaseHoldsSlot, SPAWN_ACTS_ALLOWED, agentsOffRefusal, roadOf, scopeOf, spawnActRefusal, spawnCapRefusal, spawnDepthRefusal, spawnRepositoryRefusal, spawnReachRefusal, type SpawnAct, threadPlace, forksNoMachines, kindWords, NO_PROVIDER_LINE, providerCannotRefusal, machineWord, noWorkspaceRefusal, notFoundRefusal, type WorktreeFolder, runsInFolder, copiesFolder, childOnAnotherComputerLine, childToLeadsComputerLine, elsewhereWorkspaceLine, treeThreadOutOfReachLine, threadWord, folderGoneRefusal, type AcrossAct, agentsOffComputerRefusal, rootGoneRefusal, refusal, spawnFolderRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX, relayedRecordRefusal, relayedRefusal, undrivenRefusal, workspaceState, HERE_PLACE_ID, subStartsNothingRefusal } from "@wsp/protocol";
+import { type Capabilities, type PreferencesPatch, type ProjectView, type McpServerSpec, type Caller, type WorkspaceAgents, type WorkspaceKind, ThreadScope, phaseHoldsSlot, SPAWN_ACTS_ALLOWED, roadOf, scopeOf, spawnActRefusal, spawnCapRefusal, spawnDepthRefusal, spawnRepositoryRefusal, spawnReachRefusal, type SpawnAct, threadPlace, forksNoMachines, kindWords, NO_PROVIDER_LINE, providerCannotRefusal, machineWord, noWorkspaceRefusal, notFoundRefusal, type WorktreeFolder, runsInFolder, copiesFolder, childOnAnotherComputerLine, childToLeadsComputerLine, elsewhereWorkspaceLine, treeThreadOutOfReachLine, threadWord, folderGoneRefusal, type AcrossAct, rootGoneRefusal, refusal, spawnFolderRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX, relayedRecordRefusal, relayedRefusal, undrivenRefusal, workspaceState, HERE_PLACE_ID, subStartsNothingRefusal } from "@wsp/protocol";
 import type { WorkspaceRecord, LiveWorkspace } from "../types/wiring.js";
 import { PROJECTS, type WorkspaceLike } from "../types/internal.js";
 import type { RuntimeContext, RulesArea } from "../context.js";
@@ -220,11 +220,11 @@ export function rulesArea(ctx: RuntimeContext): RulesArea {
   const refuseRecording = (named: string, caller: Caller | undefined): void => {
     if (roadOf(caller) === "relayed") throw new Error(relayedRecordRefusal(named));
   };
-  /** The switch that governs a workspace, which is the one on the workspace the root thread of its tree runs on: a
-   * fork carries the tree it belongs to and not a rule of its own, so turning a lead's switch off stops everything
-   * its threads spawned rather than leaving a copy of the old answer standing on every machine under it. A root
-   * whose workspace this host no longer holds governs nothing, so the tree under it spawns nothing more. A switch
-   * nobody set on the workspace reads as its place's, and one set on neither as the default. */
+  /** The caps that govern a workspace, which are the ones on the workspace the root thread of its tree runs on: a
+   * fork carries the tree it belongs to and not a rule of its own, so lowering a lead's caps binds everything its
+   * threads spawned rather than leaving a copy of the old answer standing on every machine under it. A root
+   * whose workspace this host no longer holds governs nothing, so the tree under it spawns nothing more. Caps
+   * nobody set on the workspace read as its place's, and ones set on neither as the default. */
   const agentsRecordOf = (record: WorkspaceRecord): WorkspaceRecord | undefined => (record.rootThreadId === undefined ? record : recordOfThread(record.rootThreadId));
   /** The workspace a thread runs on, read off its record, which no cap trims, and off its rows for a thread from
    * before the record. */
@@ -236,18 +236,12 @@ export function rulesArea(ctx: RuntimeContext): RulesArea {
     const held = agentsRecordOf(record);
     return held === undefined ? undefined : ctx.agentsHeld(held);
   };
-  /** Where the switch a record runs under is held, as the depth refusal names the setting to raise. */
+  /** Where the caps a record runs under are held, as the depth refusal names the setting to raise. */
   const agentsHeldAt = (record: WorkspaceRecord): { computer: string } | { workspace: string } => {
     const held = agentsRecordOf(record) ?? record;
     if (held.agents !== undefined) return { workspace: held.name };
     const placeId = ctx.placeIdOf(held) ?? HERE_PLACE_ID;
     return { computer: placeDoor?.nameOf(placeId) ?? placeId };
-  };
-  /** The refusal for a switch that is off, naming where it is held: a record made with its own switch, or else the
-   * computer whose switch it reads, with the line that turns that one on. */
-  const agentsOffLine = (record: WorkspaceRecord, act: SpawnAct, threadId: string): string => {
-    const held = agentsHeldAt(record);
-    return "workspace" in held ? agentsOffRefusal(held.workspace, act) : agentsOffComputerRefusal(threadId, held.computer, act);
   };
   /** The tree a thread sits in, read off its record, which no cap trims, and off its rows for a thread from before the
    * record: its parent, then its parent's, up to the thread a person opened. The walk is bounded by the threads there
@@ -283,8 +277,7 @@ export function rulesArea(ctx: RuntimeContext): RulesArea {
   /** The refusal for an act no thread may ask for, in the usage class: the line asked for something the caps never
    * open, which no retry changes. */
   const actRefusal = (scope: ThreadScope, act: SpawnAct): Error => Object.assign(new Error(spawnActRefusal(scope.threadId, act, placeOfThread(scope))), { kind: "usage" });
-  /** The one door every act a thread's own token asks for goes through: the switch on the workspace that thread
-   * runs on, then the acts a thread may ask for at all, then how deep it already is, then how many machines its
+  /** The one door every act a thread's own token asks for goes through: the acts a thread may ask for at all, then how deep it already is, then how many machines its
    * root already holds. A caller that is not a thread passes straight through; nothing here is a second copy of a
    * rule any verb also keeps. */
   const spawnGuard = (act: SpawnAct, caller: Caller | undefined): (() => void) => {
@@ -293,16 +286,15 @@ export function rulesArea(ctx: RuntimeContext): RulesArea {
     if (scope === undefined) return free;
     const own = live.get(scope.workspaceId)?.record;
     if (own === undefined) throw new Error(folderGoneRefusal(scope.threadId, act));
-    // Every switch over the thread holds, each read at the act and not at the mint, since a person who turns one off
-    // while a turn runs has turned it off: the one on the workspace its root runs on, which a fork carries, and where
-    // it runs in a folder its root does not, that folder's own, which is its computer's where the folder holds none.
+    // Every cap over the thread holds, each read at the act and not at the mint: the one on the workspace its root
+    // runs on, which a fork carries, and where it runs in a folder its root does not, that folder's own, which is its
+    // computer's where the folder holds none.
     const rooted = scope.rootThreadId === scope.threadId ? own : recordOfThread(scope.rootThreadId);
     const over = rooted === undefined ? undefined : [{ record: rooted, policy: agentsOf(rooted) }, ...(rooted.id !== own.id && runsInFolder(own.kind) ? [{ record: own, policy: agentsOf(own) }] : [])];
     if (over === undefined) throw new Error(rootGoneRefusal(scope.threadId, act));
-    for (const { record, policy } of over) if (policy?.spawn !== true) throw new Error(agentsOffLine(record, act, scope.threadId));
     if (!SPAWN_ACTS_ALLOWED.includes(act)) throw actRefusal(scope, act);
     // A sub-thread starts nothing of its own; it still sends to its lead, merges in, updates, fixes and commits (10).
-    if (own.lead !== undefined && own.agents?.spawn !== true && (act === "thread_new" || act === "fork")) throw subStartsNothingRefusal(scope.threadId, own.lead.threadId);
+    if (own.lead !== undefined && (act === "thread_new" || act === "fork")) throw subStartsNothingRefusal(scope.threadId, own.lead.threadId);
     // The depth cap counts what a thread starts under itself; a send and a bring back start nothing, so a thread
     // at the cap still talks to its tree and still gets its work out.
     if (act === "send" || act === "bring_back" || act === "delete_sub") return free;

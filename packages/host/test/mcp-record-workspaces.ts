@@ -4,7 +4,6 @@
 // side fills, and the calls recorded per tool. A sentence is taken off the
 // function or the tool that says it here, with each value it names standing
 // in as {name}, so its words keep one home in this package.
-import { CATALOG, ROAD_MODULES } from "@wsp/catalog";
 import {
   refusalLine,
   noProjectLine,
@@ -27,11 +26,9 @@ import {
   COPY_STALE,
   HERE_PLACE_ID,
   IMAGE_NO_VAULT,
-  INSTALLS_LATEST,
   LoginState,
   NOTIFY_ME,
   NO_SEALED_IMAGE,
-  SUM_SHOWN,
   WORKSPACE_KIND_WORDS,
   addedProjectOn,
   committedLine,
@@ -47,11 +44,8 @@ import {
   discardedLine,
   goneRefusal,
   goneRoadRefusal,
-  noProjectImageLine,
   onDeleteOf,
   UNNAMED_COMPUTER,
-  projectImageRemoveNotice,
-  projectImageRemovedLine,
   sealedLoginsHeld,
   shellQuote,
   thisComputer,
@@ -114,8 +108,6 @@ export async function workspaceWords(line: LineOf, host: HostOf): Promise<Record
   const running = { name: "{name}", phase: "running", machineId: "{machine}" } as never;
   const ws = (over: Record<string, unknown>) => ({ id: "{id}", name: "{name}", machineId: "{machine}", phase: "running", golden: "g", createdAt: "c", project: { id: "p", name: "n", path: "/p", computer: "c" }, ...over });
   const deleteText = textOf(await line("delete", { workspace: "w" }, { "workspaces.resolve": reply({ workspace: ws({ machineId: "m", kind: "cloud" }) }), "sessions.list": reply({ sessions: [] }) }, { cloud: true }));
-  const golden = { snapshotId: "{id}", projects: [], golden: "g", workspaceId: "w", workspaceName: "W", createdAt: "2026-01-01T00:00:00.000Z" };
-  const removeText = textOf(await line("image_remove", { image: "{id}" }, { "projectGoldens.list": reply({ projectGoldens: [golden] }) }, { cloud: true }));
   const project = { id: "p", name: "{project}", path: "/p", computer: HERE_PLACE_ID, source: { kind: "folder", path: "/p" } };
   const forkOf = (asked: Record<string, unknown>) => ({ "workspaces.resolve": reply({ workspace: ws({}) }), "projects.resolve": reply({ project: asked }) });
   const copyText = textOf(await line("fork", { workspace: "w", size: "2x4" }, forkOf(project), { cloud: true }));
@@ -159,20 +151,11 @@ export async function workspaceWords(line: LineOf, host: HostOf): Promise<Record
     deletedOne: slot(deletedLine({ workspace: { name: "{name}", id: "{id}", machineId: "{machine}", kind: "cloud" } as never, threads: 1 }), cloud.done("{machine}"), "done"),
     deletedMany: slot(deletedLine({ workspace: { name: "{name}", id: "{id}", machineId: "{machine}", kind: "cloud" } as never, threads: "{count}" as never }), cloud.done("{machine}"), "done"),
     deleteKept: slot(deleteText, deleteNotice(0, "cloud", undefined, "m"), "notice"),
-    noProjectImage: noProjectImageLine("{id}"),
-    removeKept: slot(removeText, projectImageRemoveNotice(golden), "notice"),
-    removeNotice: projectImageRemoveNotice({ workspaceName: "{workspace}", createdAt: "{date}" }),
-    removedGone: projectImageRemovedLine("{id}", true),
-    removedNow: projectImageRemovedLine("{id}", false),
     noSealedImage: NO_SEALED_IMAGE,
     imageNoVault: IMAGE_NO_VAULT,
     copyCurrent: COPY_CURRENT,
     copyStale: COPY_STALE,
-    installsLatest: INSTALLS_LATEST,
     loginsHeld: LoginState.options.filter(state => sealedLoginsHeld({ logins: [{ name: "n", state }] }) === 1),
-    sumShown: SUM_SHOWN,
-    catalogNames: Object.fromEntries(CATALOG.map(e => [e.id, e.name])),
-    roadWords: Object.fromEntries(Object.entries(ROAD_MODULES).map(([road, module]) => [road, module.words])),
     addedProject: addedProjectOn({ name: "{name}", id: "{id}", computer: "pl_x", source: { kind: "folder", path: "{source}" }, path: "{path}" } as never, "{computer}"),
     addedProjectHere: slot(addedProjectOn({ name: "{name}", id: "{id}", computer: HERE_PLACE_ID, source: { kind: "folder", path: "{source}" }, path: "{path}" } as never, "{computer}"), shellQuote("{name}"), "quoted"),
     thisMac: thisComputer("darwin"),
@@ -266,7 +249,7 @@ const WORKSPACE = {
   project: { id: "proj-1", name: "alpha", path: "/root/alpha", computer: "place-9" },
   home: "/root",
   theme: { dots: [{ angle: 12.5, radius: 0.1 + 0.2 }], harmony: "single", grain: 0.5, opacity: 1, mode: "auto" },
-  agents: { spawn: true, maxMachines: 2, maxDepth: 1 },
+  agents: { maxMachines: 2, maxDepth: 1 },
   place: "place-9",
   provider: "solari",
 };
@@ -323,20 +306,12 @@ const SESSIONS = [
   { id: "s-2", workspaceId: "ws-1", harness: "claude", status: "completed", threadId: "t-1" },
   { id: "s-3", workspaceId: "ws-1", harness: "codex", status: "running" },
 ];
-const GOLDEN = { snapshotId: "snap-p1", projects: [{ name: "alpha", dest: "/root/alpha", importedAt: "2026-09-20T00:00:00.000Z", size: 1234 }], golden: "snap-g1", version: 3, workspaceId: "ws-1", workspaceName: "alpha \u0085", createdAt: "2026-09-21T10:00:00.000Z" };
-/** The same record in an order the schema does not hold and with a field it does not know, which a parse drops. */
-const GOLDEN_SHUFFLED = { createdAt: GOLDEN.createdAt, workspaceName: GOLDEN.workspaceName, extra: true, workspaceId: GOLDEN.workspaceId, version: 3, golden: GOLDEN.golden, projects: [{ importedAt: "2026-09-20T00:00:00.000Z", dest: "/root/alpha", name: "alpha" }], snapshotId: GOLDEN.snapshotId };
 const HASH = "a".repeat(64);
 const IMAGE = {
   name: "default",
   version: 2,
   hash: HASH,
   recipeHash: "r-1",
-  pins: [
-    { id: "node", tag: "22.9.0", sha256: "b".repeat(64) },
-    { id: "brew/core/some/formula", tag: "1.0", latest: true, road: "brew" },
-    { id: "unknown-road-row", tag: "2", latest: true, road: "nowhere" },
-  ],
   logins: [
     { name: "claude", state: "signed-in" },
     { name: "gh", state: "copied" },
@@ -405,10 +380,6 @@ export const WORKSPACE_ANSWERED: Record<string, TurnCase[]> = {
     { case: "a word that names no size", arguments: { thread: "t-1", size: "0x8" }, replies: {} },
     { case: "a turn running", arguments: { thread: "t-1", size: "4x8" }, replies: { "sessions.list": reply({ sessions: THREAD_ROWS }), "workspaces.resize": refused("alpha has a turn running, and the stop a move to another size takes would end it. Stop the turn or wait for it to end, then move it.", "conflict") } },
   ],
-  snapshot: onCloud([
-    { case: "taken", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "workspaces.snapshot": reply({ projectGolden: GOLDEN_SHUFFLED }) } },
-    { case: "refused", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "workspaces.snapshot": refused("only a first-life machine can be snapshotted") } },
-  ]),
   rename: onCloud([{ case: "renamed", arguments: { workspace: "alpha", name: "beta \u0085" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "workspaces.rename": reply({ workspace: { ...WORKSPACE, name: "beta \u0085" } }) } }]),
   rebuild: onCloud([
     { case: "rebuilt", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: GONE }), "status.list": reply({ statuses: [] }), "workspaces.rebuild": reply({ workspace: { ...WORKSPACE, machineId: "m-2" } }) } },
@@ -463,16 +434,10 @@ export const WORKSPACE_ANSWERED: Record<string, TurnCase[]> = {
     { case: "kept", arguments: { project: "alpha", branch: "feat/x", force: false }, replies: { "worktree.remove": reply({ removed: true }) } },
     { case: "refused", arguments: { project: "alpha", branch: "feat/x" }, replies: { "worktree.remove": refused("a thread is working in that worktree; let its turn end or stop it first", "usage") } },
   ],
-  image_remove: onCloud([
-    { case: "unconfirmed", arguments: { image: "snap-p1" }, replies: { "projectGoldens.list": reply({ projectGoldens: [GOLDEN_SHUFFLED] }) } },
-    { case: "removed", arguments: { image: "snap-p1", confirm: true }, replies: { "projectGoldens.list": reply({ projectGoldens: [GOLDEN] }), "projectGoldens.remove": reply({ alreadyGone: false, projectGolden: GOLDEN_SHUFFLED }) } },
-    { case: "already gone", arguments: { image: "snap-p1", confirm: true }, replies: { "projectGoldens.list": reply({ projectGoldens: [GOLDEN] }), "projectGoldens.remove": reply({ projectGolden: GOLDEN, alreadyGone: true }) } },
-    { case: "no such", arguments: { image: "snap-x", confirm: true }, replies: { "projectGoldens.list": reply({ projectGoldens: [GOLDEN] }) } },
-  ]),
   image: [
-    { case: "record", arguments: {}, replies: { "image.get": reply({ view: { projects: [{ ...GOLDEN, sizeBytes: 900 }, GOLDEN_SHUFFLED], copies: COPIES, image: IMAGE } }) } },
-    { case: "no vault", arguments: {}, replies: { "image.get": reply({ view: { image: { ...IMAGE, vault: undefined, usedBytes: undefined, pins: undefined, logins: [] }, copies: COPIES.slice(1), projects: [] } }) } },
-    { case: "none", arguments: {}, replies: { "image.get": reply({ view: { image: null, copies: [], projects: [] } }) } },
+    { case: "record", arguments: {}, replies: { "image.get": reply({ view: { copies: COPIES, image: IMAGE } }) } },
+    { case: "no vault", arguments: {}, replies: { "image.get": reply({ view: { image: { ...IMAGE, vault: undefined, usedBytes: undefined, logins: [] }, copies: COPIES.slice(1) } }) } },
+    { case: "none", arguments: {}, replies: { "image.get": reply({ view: { image: null, copies: [] } }) } },
   ],
   image_build: onCloud([
     {
@@ -480,8 +445,8 @@ export const WORKSPACE_ANSWERED: Record<string, TurnCase[]> = {
       arguments: { place: "attic \u0085" },
       replies: { "places.list": reply({ places: PLACES }), "image.build": reply({ build: { built: true, copy: { builtAt: "2026-09-27T00:00:00.000Z", snapshotId: "snap-c3", place: "place-9", version: 1, hash: HASH, sizeBytes: 2_147_483_648 } } }), "image.get": reply({ view: { image: IMAGE, copies: COPIES, projects: [] } }) },
     },
-    { case: "already", arguments: { place: "solari", force: true }, replies: { "places.list": reply({ places: PLACES }), "image.build": reply({ build: { copy: COPIES[0], built: false } }), "image.get": reply({ view: { image: { ...IMAGE, vault: undefined }, copies: COPIES, projects: [] } }) } },
-    { case: "no image", arguments: { place: "solari" }, replies: { "places.list": reply({ places: PLACES }), "image.build": reply({ build: { copy: COPIES[0], built: false } }), "image.get": reply({ view: { image: null, copies: [], projects: [] } }) } },
+    { case: "already", arguments: { place: "solari", force: true }, replies: { "places.list": reply({ places: PLACES }), "image.build": reply({ build: { copy: COPIES[0], built: false } }), "image.get": reply({ view: { image: { ...IMAGE, vault: undefined }, copies: COPIES } }) } },
+    { case: "no image", arguments: { place: "solari" }, replies: { "places.list": reply({ places: PLACES }), "image.build": reply({ build: { copy: COPIES[0], built: false } }), "image.get": reply({ view: { image: null, copies: [] } }) } },
   ]),
   projects_add: [
     { case: "added", arguments: { source: "dev/alpha", on: "attic", base: "main" }, replies: { "projects.add": reply({ project: PROJECT }), "places.list": reply({ places: PLACES }) } },
@@ -621,7 +586,7 @@ export const WORKSPACE_ANSWERED: Record<string, TurnCase[]> = {
     { case: "forked", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "projects.resolve": reply({ project: PROJECT }), "workspaces.landing": reply({ capabilities: { sizes: [] } }), "workspaces.create": reply({ workspace: { ...WORKSPACE, id: "ws-3", name: "alpha-fork", parentWorkspaceId: "ws-1" } }) } },
     {
       case: "named and sized",
-      arguments: { workspace: "alpha", name: "beta", size: "4x8", spawn: "off" },
+      arguments: { workspace: "alpha", name: "beta", size: "4x8", max_depth: 2 },
       replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "projects.resolve": reply({ project: PROJECT }), "workspaces.landing": reply({ capabilities: { sizes: [{ cpu: 4, memMb: 8192, rateUsdPerHour: 0.2 }] } }), "workspaces.create": reply({ workspace: { ...WORKSPACE, id: "ws-4", name: "beta" }, notice: "built a copy first" }) },
     },
     { case: "relative folder", arguments: { workspace: "alpha", cwd: "src \"x\"" }, replies: {} },

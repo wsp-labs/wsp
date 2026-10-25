@@ -1354,9 +1354,9 @@ export interface DoctorOptions {
   /** What the vault holds right now, read at the ask rather than copied, for the line that says which keys this
    * computer holds by name. Absent leaves the step saying no vault was wired. */
   vault?: () => Readonly<Record<string, string>>;
-  /** What the tools inside a workspace are read against: a computer's own picks planned as its setup plans them, or
-   * for a computer with none and for a cloud the recipe beside the state, or the path one would be written to. */
-  plan?: (computer?: PlaceView) => Promise<ProvisionPlan | { noRecipe: string }>;
+  /** What the tools inside a workspace are read against: a computer's own picks planned as its setup plans them;
+   * nothing for a computer with none. */
+  plan?: (computer?: PlaceView) => Promise<ProvisionPlan | undefined>;
   /** The daemon this host runs for its own computer's workspace, for the line that says it is behind. */
   hereDaemon?: HereDaemon;
   /** The newest release as the command line read it off the host's file, worded; absent where none was kept. */
@@ -1562,11 +1562,11 @@ export async function toolsInside(machine: Pick<Machine, "exec">, plan: Pick<Pro
 export type DoctorRuntime = Pick<Runtime, "places" | "projects" | "workspaces">;
 
 /** The plan the tools step reads, or the sentence that stands in its place: a host that wired no recipe reader,
- * and a computer whose recipe has never been written here. */
+ * and a computer that follows none. */
 async function planToRead(opts: DoctorOptions, computer?: PlaceView): Promise<ProvisionPlan | string> {
   if (opts.plan === undefined) return "this host wired no recipe plan, so there is nothing to read inside";
   const plan = await opts.plan(computer);
-  return "noRecipe" in plan ? `this computer holds no recipe at ${plan.noRecipe}, so there is nothing to read inside` : plan;
+  return plan ?? "this computer follows no recipe, so there is nothing to read inside";
 }
 
 /** The project the doctor reads that computer through: the one `--project` names, else the first there. Throws the
@@ -1753,7 +1753,7 @@ export async function forkDoctor(rt: Runtime, io: CliIO, opts: DoctorOptions = {
 
   const buildGolden = async (): Promise<string> => {
     if (!opts.envs) {
-      throw new Error(`no image here, and no ${ANTHROPIC_KEY} to build one from this computer; run wsp init to build your image, or put the key in ${KEY_LAYER_WORDS}`);
+      throw new Error(`no image here, and no ${ANTHROPIC_KEY} to build one from this computer; put the key in ${KEY_LAYER_WORDS}`);
     }
     const { version } = await rt.golden.build({
       setup: GOLDEN_SETUP,
@@ -1793,7 +1793,6 @@ export async function forkDoctor(rt: Runtime, io: CliIO, opts: DoctorOptions = {
         // inside the fork is part of what the run proves.
         const project = await rt.projects.add({ source: opts.repo ?? DOCTOR_REPO, ...(on !== undefined ? { on } : {}) });
         const spec = {
-          golden,
           project: project.id,
           name: `doctor-${Date.now().toString(36)}`,
           ...(opts.envs !== undefined && opts.broker?.ready() !== true ? { envs: opts.envs } : {}),
@@ -1804,8 +1803,8 @@ export async function forkDoctor(rt: Runtime, io: CliIO, opts: DoctorOptions = {
         } catch (e) {
           if (!isMissing(e)) throw e;
           io.log("your image is gone at the provider; building it again");
-          const rebuilt = await buildGolden();
-          return rt.workspaces.create({ ...spec, golden: rebuilt });
+          await buildGolden();
+          return rt.workspaces.create(spec);
         }
       },
       w => `machine ${w.machineId.slice(0, 24)}…`,

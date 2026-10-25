@@ -2,21 +2,10 @@
 // Add a cloud provider as one dialog, Add a computer's own: its width, head,
 // body of cards and foot. The key step says where the key is made, what it
 // needs and what the machines cost, and checks it with the provider before
-// Continue; the picks are the host's own setup screens drawn as Add a
-// computer's pick lists; the summary names the sign-ins on the computer the
-// host runs on, which cloud machines use through wsp; then the image builds as
-// a box's setup runs, in the background once closed, and the ready page starts
-// the first thread.
-import { CheckIcon, CircleAlertIcon, CloudIcon, ExternalLinkIcon, KeyRoundIcon, TerminalIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { catalogEntry } from "@wsp/catalog";
-import { CLOUD_SETUP_WORDS, HERE_PLACE_ID, INIT_ROW_STATES, PROVIDER_KEY_WORDS, SIGN_IN_STAGE_ID, UNKNOWN_SIZE, fmtBytes, fmtDuration, hereName, initBuildRows, initJobBuilding, initRowFailed, initRowOver, initRowUnrun, initSizeTone, initStageCount, isLocalWorkspace, type AgentRow, type AgentsReport, type AgentsTarget, type InitJob, type InitRow, type InitScreen, type InitSetup, type RecipeOptions } from "@wsp/protocol";
-import { ActButton } from "../../components/agents/agentsParts.js";
-import { agentSignInStart, catalogSignInRow, signInAct, type FlowView, type RowAct, type RowsContext } from "../../components/agents/agentsRows.js";
-import { SignInFlowView } from "../../components/agents/SignInFlowView.js";
-import { useAgentActs } from "../../components/agents/useAgentActs.js";
-import { useAgentsReport } from "../../components/agents/useAgentsReport.js";
-import { EMPTY_DRAFT, useComposerDraftStore } from "../../components/chat/composerDraftStore.js";
+// Continue saves it.
+import { CheckIcon, CircleAlertIcon, CloudIcon, ExternalLinkIcon, KeyRoundIcon } from "lucide-react";
+import { useRef, useState, type ReactNode } from "react";
+import { PROVIDER_KEY_WORDS } from "@wsp/protocol";
 import { Button } from "../../components/ui/button.js";
 import { Dialog, DialogDescription, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "../../components/ui/dialog.js";
 import { Input } from "../../components/ui/input.js";
@@ -24,36 +13,19 @@ import { RadioGroup } from "../../components/ui/radio-group.js";
 import { Spinner } from "../../components/ui/spinner.js";
 import { keyTakenAt } from "../../keyOwners.js";
 import { cn } from "../../lib/utils.js";
-import { saySealed } from "../../notices/hostNotices.js";
 import { failureOf, type Failure } from "../../protocol/failure.js";
 import { useStore } from "../../protocol/store.js";
-import { requestComposerFocus } from "../../shell/shellRequests.js";
-import { AGENTS_PAGE_WORDS, FACT } from "../format.js";
+import { FACT } from "../format.js";
 import { CARD_INSET, GLYPH, NOTE } from "../layout.js";
-import { placeName } from "../places.js";
 import { INPUT } from "../ProviderKey.js";
-import { RowMark, hasRowMark } from "../recipe/SignInMark.js";
-import { useRecipeJob } from "../recipe/useRecipeJob.js";
-import { Card, Line, Row } from "../rows.js";
+import { Card, Row } from "../rows.js";
 import { cloudsOffered } from "../providers.js";
 import { useSettingsStore } from "../settingsStore.js";
 import { CopyRow, RefusalSlot } from "../sheetParts.js";
 import { CLOUD_KEY_STEPS } from "./cloudKey.js";
-import { CLOUD_PICKS, checkKey, closeCloudAdd, cloudSteps, goCloud, jobFor, keyWorksLine, oweReady, pickScreens, useCloudFlow, type CloudPick, type CloudStep, type KeyCheck } from "./cloudFlow.js";
-import { PickList, RANGE_HOVER } from "./PickList.js";
-import { Choice, Size } from "./PickLists.js";
-import { PickRow } from "./PickRow.js";
-import { ReadyPage } from "./AddComputerDialog.js";
+import { checkKey, closeCloudAdd, goCloud, keyWorksLine, useCloudFlow, type CloudStep, type KeyCheck } from "./cloudFlow.js";
+import { Choice } from "./PickLists.js";
 import { STEP_BODY, STEP_FRAME, STEP_HEAD, StepFoot } from "./StepDialog.js";
-import { StepLog, StepRow } from "./StepRow.js";
-import type { StepLine, StepState } from "./setup.js";
-
-/** Each pick step's title and its line, `cloud` the provider's name and `here` the computer the host runs on. */
-const PICK_WORDS: Record<CloudPick, (cloud: string, here: string) => { title: string; line: string }> = {
-  agents: (cloud, here) => ({ title: "Agents", line: `The coding agents to put on your image on ${cloud}. They use the sign-ins on ${here} through wsp.` }),
-  tools: cloud => ({ title: "CLIs", line: `The command-line tools your agents run, to put on your image on ${cloud}. Most used first.` }),
-  also: (cloud, here) => ({ title: `Also on ${here}`, line: `What a package manager put on ${here}, to put on your image on ${cloud} too.` }),
-};
 
 /** The key check's line under the field: nothing while typing, the spinner while it asks, the check where it works,
  * the alert where it was refused, and Try again where the provider never answered. */
@@ -155,244 +127,24 @@ function KeyStep({ provider, name, held, keyText, onKey, check, refused }: { pro
   );
 }
 
-/** One of the host's setup screens as a pick list: filter, order, All, None, Invert and shift-click ranges; a row the
- * host fixed on stays ticked, and a press on it says why. */
-function PickStep({ screen, ticks, onTicks, here }: { screen: InitScreen; ticks: ReadonlySet<string>; onTicks: (next: ReadonlySet<string>) => void; here: { report: ReturnType<typeof useAgentsReport>["report"]; name: string } }) {
-  const locked = new Set(screen.items.filter(i => i.lock !== undefined).map(i => i.id));
-  const items = screen.items.map(item => ({ key: item.id, name: item.label, on: item.lock === "on" || ticks.has(item.id), item }));
-  const set = (changes: readonly (readonly [string, boolean])[]): void => {
-    const next = new Set(ticks);
-    for (const [id, on] of changes) {
-      if (locked.has(id)) continue;
-      if (on) next.add(id);
-      else next.delete(id);
-    }
-    onTicks(next);
-  };
-  const agentNote = (id: string): string | undefined => {
-    if (screen.id !== "agents") return undefined;
-    const row = here.report?.agents.find(a => a.id === id);
-    if (row === undefined) return undefined;
-    return row.signIn === "signed-in" || row.signIn === "vault-key" ? `Uses your sign-in on ${here.name}.` : `Needs a sign-in on ${here.name} first.`;
-  };
-  return (
-    <PickList
-      id={`cloud-${screen.id}`}
-      items={items}
-      own={screen.id === "tools" ? "Most used" : "As found"}
-      onSet={set}
-      row={({ item, on }, tick) => {
-        const signsIn = screen.id === "tools" && (catalogEntry(item.id)?.signIn.kind ?? "none") !== "none";
-        const note = agentNote(item.id) ?? (item.lock === "on" ? CLOUD_SETUP_WORDS.screen.alwaysOn : signsIn ? "Installed signed out." : screen.id === "tools" ? undefined : item.why);
-        const tag = screen.id === "tools" ? item.why : undefined;
-        return (
-          <PickRow
-            key={item.id}
-            id={item.id}
-            checked={on}
-            {...(item.lock === undefined ? { onCheckedChange: tick } : { locked: true, ...(item.lock === "on" ? { why: CLOUD_SETUP_WORDS.screen.alwaysOnWhy } : {}) })}
-            hover={item.detail.length > 0 ? item.detail.join("\n") : RANGE_HOVER}
-            glyph={hasRowMark(item.mark ?? item.id) ? <RowMark id={item.mark ?? item.id} /> : <TerminalIcon aria-hidden className={GLYPH} />}
-            name={item.label}
-            {...(tag === undefined ? {} : { tag })}
-            {...(note === undefined ? {} : { note })}
-            {...(item.size === undefined || item.size === null ? {} : { slot: <Size bytes={item.size} /> })}
-          />
-        );
-      }}
-    />
-  );
-}
-
-/** One sign-in on the computer the host runs on, as the summary lists it: ready with its word, or its one act and
- * the sign-in it opens under the row. */
-interface SignInLine {
-  id: string;
-  name: string;
-  ready: boolean;
-  word: string;
-  act?: RowAct;
-  flow?: FlowView;
-}
-
-/** How a ready agent is signed in, in the Agents page's words; a plan sold under a brand other than the agent's own
- * name says that brand (Codex on ChatGPT), and an OAuth login is a token's. */
-function signedInWord(row: AgentRow, here: string): string {
-  const entry = catalogEntry(row.id);
-  const brand = entry?.kind === "agent" ? entry.planBrand : undefined;
-  if (row.signIn === "vault-key" || row.signInKind === "api-key") return AGENTS_PAGE_WORDS.signedInAs["api-key"];
-  if (row.signInKind === "subscription") return brand !== undefined && !row.name.includes(brand) ? `${AGENTS_PAGE_WORDS.signedInWith}${brand}` : AGENTS_PAGE_WORDS.signedInAs.subscription;
-  if (row.signInKind === "oauth") return `${AGENTS_PAGE_WORDS.signedInWith}a token`;
-  return `Signed in on ${here}`;
-}
-
-/** The sign-ins cloud machines use through wsp, one per ticked agent that signs in and GitHub: off this computer's
- * agents report and the GitHub login the setup read here. Sign in runs the agent's own sign-in here, the road the
- * Agents page takes. */
-function useSignIns(ticked: readonly { id: string; name: string }[], options: RecipeOptions | null, report: AgentsReport | null, here: string): SignInLine[] {
-  const target = useMemo<AgentsTarget>(() => ({ placeId: HERE_PLACE_ID }), []);
-  const acts = useAgentActs(target);
-  const ctx: RowsContext = { where: "here", heldWhy: null, ...(acts === undefined ? {} : { acts }) };
-  const agents = ticked.flatMap((agent): SignInLine[] => {
-    if (report === null) return [{ id: agent.id, name: agent.name, ready: false, word: `Reading the sign-ins on ${here}` }];
-    const row = report.agents.find(a => a.id === agent.id);
-    const road = row ?? catalogSignInRow(agent.id);
-    if (road === undefined || road.signInRoad === "none") return [];
-    if (row !== undefined && (row.signIn === "signed-in" || row.signIn === "vault-key")) return [{ id: agent.id, name: agent.name, ready: true, word: signedInWord(row, here) }];
-    const { act, flow } = signInAct(`cloud-sign-in:${agent.id}`, agentSignInStart(road, ctx), ctx);
-    return [{ id: agent.id, name: agent.name, ready: false, word: `Not signed in on ${here}`, act, ...(flow === undefined ? {} : { flow }) }];
-  });
-  const account = options?.configs.find(c => c.id === "github")?.account;
-  const github: SignInLine = { id: "github", name: "GitHub", ready: account !== undefined, word: account === undefined ? `Run it in a terminal on ${here}` : `Signed in as ${account}` };
-  return [...agents, github];
-}
-
-function SummaryStep({ job, signIns, cloud, here }: { job: InitJob; signIns: readonly SignInLine[]; cloud: string; here: string }) {
-  const lines = pickScreens(job).map(screen => {
-    const on = screen.items.filter(i => i.lock === "on" || screen.ticks.includes(i.id));
-    const label = PICK_WORDS[screen.id as CloudPick](cloud, here).title;
-    return [label, screen.id === "agents" ? on.map(i => i.label).join(", ") : `${on.length} of ${screen.items.length}`] as const;
-  });
-  return (
-    <>
-      <Card id="summary-lines">
-        {lines.map(([label, value]) => (
-          <Line key={label} id={label} label={label} value={value === "" ? "None" : value} valueClass="fact" />
-        ))}
-      </Card>
-      <Card id="cloud-sign-ins" head={`Sign-ins on ${here}`} lede={`Threads on ${cloud} use these through wsp. Nothing is signed in on ${cloud}.`}>
-        {signIns.map(line =>
-          line.id === "github" && !line.ready ? (
-            <div key={line.id} data-k="sign-in-github" className="flex flex-col">
-              <Row id="github" title="GitHub" description={line.word} />
-              <div className={cn(CARD_INSET, "-mt-1 pb-4")}>
-                <CopyRow k="gh-auth-login" value="gh auth login" />
-              </div>
-            </div>
-          ) : (
-            <div key={line.id} className="flex flex-col">
-              <Row id={line.id} title={line.name} description={line.word} control={line.act === undefined ? <CheckIcon aria-label="Ready" className="size-4 text-foreground/80" /> : <ActButton act={line.act} k={`sign-in-${line.id}`} />} attrs={{ "data-k": `sign-in-row-${line.id}`, "data-ready": String(line.ready) }} />
-              {line.flow === undefined ? null : (
-                <div className={cn(CARD_INSET, "-mt-1 pb-4")}>
-                  <SignInFlowView view={line.flow} label={line.name} reserve={false} />
-                </div>
-              )}
-            </div>
-          ),
-        )}
-      </Card>
-    </>
-  );
-}
-
-/** A build row as a step row reads it. */
-const stepState = (row: InitRow): StepState => (initRowFailed(row) ? "failed" : row.state === INIT_ROW_STATES.running || row.state === INIT_ROW_STATES.slot ? "working" : row.state === INIT_ROW_STATES.open ? "needs-you" : initRowUnrun(row.state) ? "waiting" : initRowOver(row) ? "done" : "waiting");
-
-/** The image's build as a box's setup draws it: one step row per stage, a failed one with its reason. */
-function BuildingView({ job }: { job: InitJob }) {
-  const rows: StepLine[] = initBuildRows(job.rows).rows.map(row => {
-    const state = stepState(row);
-    return { id: row.id, name: row.label, state, ...(row.ms === undefined ? {} : { ms: row.ms }), ...(state === "working" && row.since !== undefined ? { since: row.since } : {}), ...(state === "failed" && row.detail !== undefined ? { said: row.detail } : {}) };
-  });
-  const lines = new Map(job.rows.map(r => [r.id, r.lines]));
-  const [turned, setTurned] = useState<ReadonlyMap<string, boolean>>(new Map());
-  const opens = (row: StepLine): boolean => row.state !== "waiting" && row.id !== SIGN_IN_STAGE_ID;
-  const isOpen = (row: StepLine): boolean => opens(row) && (turned.get(row.id) ?? row.state === "failed");
-  return (
-    <>
-      <Card id="cloud-setup">
-        {rows.map(row => (
-          <StepRow key={row.id} row={row} toggle={opens(row) ? { open: isOpen(row), onToggle: () => setTurned(was => new Map(was).set(row.id, !isOpen(row))) } : { open: false }}>
-            {isOpen(row) ? <StepLog lines={lines.get(row.id)} /> : undefined}
-          </StepRow>
-        ))}
-      </Card>
-      {job.phase === "failed" && job.error !== undefined ? <RefusalSlot k="build-failed" said={job.error} /> : null}
-    </>
-  );
-}
-
-/** What a public build's cloud runs: a sub-thread a thread on the computer the host runs on starts, so the first
- * thread opens there with the ask begun. */
-export const firstCloudAsk = (cloud: string): string => `Start a sub-thread on ${cloud} to `;
-
-/** A new thread on the computer the host runs on, its composer holding the first ask with the caret at its end: the
- * workspace a thread last started on where it is that computer's, else its first. */
-function startFirstThread(cloud: string): void {
-  const s = useStore.getState();
-  const last = s.preferences.target?.workspace;
-  const local = s.workspaces.filter(isLocalWorkspace);
-  const workspace = local.find(w => w.id === last) ?? local[0];
-  closeCloudAdd();
-  s.closeSettings();
-  if (workspace === undefined) return;
-  s.newThread(workspace.id);
-  const prompt = firstCloudAsk(cloud);
-  const drafts = useComposerDraftStore.getState();
-  if ((drafts.drafts[workspace.id] ?? EMPTY_DRAFT).prompt === "") drafts.setDraft(workspace.id, { prompt, cursor: prompt.length });
-  requestComposerFocus(workspace.id);
-}
-
 export function AddCloudDialog() {
   const flow = useCloudFlow();
   const api = useStore(s => s.api);
-  const places = useStore(s => s.places);
   const saveKeys = useStore(s => s.saveKeys);
-  const job = useStore(s => jobFor(s.initJob, flow.provider));
-  const heldBefore = useSettingsStore(s => s.reads.setup?.keys[flow.provider] === true);
-  const image = useSettingsStore(s => s.reads.image?.image ?? null);
-  const recipe = useRecipeJob(flow.provider);
+  const held = useSettingsStore(s => s.reads.setup?.keys[flow.provider] === true);
+  const setup = useSettingsStore(s => s.reads.setup);
   const [keyText, setKeyText] = useState("");
   const keyNow = useRef("");
   const [refused, setRefused] = useState<Failure | null>(null);
   const [busy, setBusy] = useState(false);
-  const [setup, setSetup] = useState<InitSetup | null>(null);
-  const [setupRefused, setSetupRefused] = useState<string | null>(null);
-  const [options, setOptions] = useState<RecipeOptions | null>(null);
-  const here = hereName(places);
-  const held = setup === null ? heldBefore : setup.keys[flow.provider] === true;
-  const { report } = useAgentsReport(flow.open ? { placeId: HERE_PLACE_ID } : null);
   const cloud = PROVIDER_KEY_WORDS[flow.provider]?.name ?? flow.provider;
-  const place = places.find(p => p.id === flow.provider);
-  const agentsScreen = job?.screens.find(s => s.id === "agents");
-  const ticked = (agentsScreen?.items ?? []).filter(i => i.lock === "on" || agentsScreen!.ticks.includes(i.id)).map(i => ({ id: i.id, name: i.label }));
-  const signIns = useSignIns(ticked, options, report, here);
-
-  useEffect(() => {
-    if (!flow.open || api === null) return;
-    // Named by no place: a cloud with no key yet is no place, and the host refuses a read that names one.
-    void api.initGet?.().then(
-      read => (setSetup(read), setSetupRefused(null)),
-      (e: unknown) => setSetupRefused(failureOf(e).said),
-    );
-    void api.recipesOptions?.().then(setOptions, () => undefined);
-  }, [flow.open, api]);
-
-  // A build started from another window moves a dialog left on the summary on to the build.
-  const phase = job?.phase;
-  useEffect(() => {
-    if (!flow.open || phase === undefined) return;
-    if (initJobBuilding(phase) && flow.step === "summary") goCloud("building");
-  }, [flow.open, phase, flow.step]);
-
-  // A close before the seal leaves the ready page to the seal's Open.
-  const jobId = job?.id;
-  useEffect(() => {
-    if (!flow.open || jobId === undefined) return;
-    if (flow.step === "building") oweReady(flow.provider, jobId);
-    else if (flow.step === "ready") oweReady(flow.provider, null);
-  }, [flow.open, flow.step, flow.provider, jobId]);
 
   if (!flow.open) return null;
 
   const offered = cloudsOffered(setup);
-  const steps = cloudSteps(job, offered.length);
-  const afterKey = steps[steps.indexOf("key") + 1] ?? "summary";
-  const screen = (CLOUD_PICKS as readonly string[]).includes(flow.step) ? job?.screens.find(s => s.id === flow.step) : undefined;
   const close = (): void => {
     setKeyText("");
     keyNow.current = "";
-    if (flow.step === "building" && job?.phase === "done") saySealed(job);
     closeCloudAdd();
   };
 
@@ -404,19 +156,13 @@ export function AddCloudDialog() {
     else useCloudFlow.setState({ check: { state: "idle" } });
   };
 
-  /** Continue from the key: the key saved where one was typed, then the setup started for this cloud unless one stands. */
+  /** Continue from the key: the key saved where one was typed, then the dialog closes on the cloud added. */
   const keyOn = async (): Promise<void> => {
     setBusy(true);
     setRefused(null);
     try {
-      if (keyText.trim() !== "") {
-        setSetup(await saveKeys({ provider: flow.provider, key: keyText.trim() }));
-        setSetupRefused(null);
-      }
-      setKeyText("");
-      keyNow.current = "";
-      if (job === null || (!initJobBuilding(job.phase) && job.phase !== "answering" && job.phase !== "reading")) await api!.initStart!({ road: "manual", on: flow.provider });
-      goCloud(afterKey);
+      if (keyText.trim() !== "") await saveKeys({ provider: flow.provider, key: keyText.trim() });
+      close();
     } catch (e) {
       setRefused(failureOf(e));
     } finally {
@@ -424,183 +170,61 @@ export function AddCloudDialog() {
     }
   };
 
-  const pickAt = steps.indexOf(flow.step);
-  /** The host's step moved to a screen the dialog shows, by its id; the key and the summary move nothing. */
-  const hostTo = (step: CloudStep): void => {
-    const at = job?.screens.findIndex(s => s.id === step) ?? -1;
-    if (at >= 0 && api?.initStep !== undefined) void recipe.attempt(() => api.initStep!({ at }));
-  };
-  const back = (): void => {
-    const to = steps[pickAt - 1];
-    if (to === undefined) return;
-    hostTo(to);
-    goCloud(to);
-  };
-  const next = (): void => {
-    const to = steps[pickAt + 1] ?? "summary";
-    if (screen === undefined || job === null) return goCloud(to);
-    recipe.answer(screen, async () => goCloud(to));
-  };
-  const build = (): void => {
-    if (setup === null) return;
-    void recipe.attempt(async () => {
-      await recipe.build(setup.agents, { on: flow.provider });
-      goCloud("building");
-    });
-  };
-  const startOver = (): void => {
-    void recipe.attempt(async () => {
-      await api!.initStart!({ road: "manual", on: flow.provider });
-      goCloud(afterKey);
-    });
-  };
-
   const keyReady = keyText.trim() === "" ? held : flow.check.state === "works";
-  const reading = job === null || job.phase === "reading" || job.phase === "agent";
-  const count = job === null ? { done: 0, total: 0 } : initStageCount(initBuildRows(job.rows).rows);
-  const sealed = job?.phase === "done";
-  const tookMs = job === null ? 0 : initBuildRows(job.rows).rows.reduce((n, r) => n + (r.ms ?? 0), 0);
-  const version = job?.golden?.version ?? image?.version;
-  const refusal = recipe.refusal ?? setupRefused;
+  const steps: CloudStep[] = offered.length > 1 ? ["provider", "key"] : ["key"];
+  const head = flow.step === "provider" ? { title: "Add a cloud provider", line: "Where your sub-threads run." } : { title: `Add ${cloud}`, line: `wsp runs your sub-threads on your ${cloud} account with this key.` };
 
-  const head = ((): { title: string; line?: string } => {
-    switch (flow.step) {
-      case "provider":
-        return { title: "Add a cloud provider", line: "Where your sub-threads run." };
-      case "key":
-        return { title: `Add ${cloud}`, line: `wsp runs your sub-threads on your ${cloud} account with this key.` };
-      case "agents":
-      case "tools":
-      case "also":
-        return PICK_WORDS[flow.step](cloud, here);
-      case "summary":
-        return { title: "Summary", line: `What goes on ${cloud}'s image, before it builds.` };
-      default:
-        return job?.phase === "failed" ? { title: `Setup on ${cloud} failed` } : sealed ? { title: `${cloud} is ready` } : { title: `Setting up ${cloud}` };
-    }
-  })();
-  const figure = flow.step === "building" ? `${count.done} of ${count.total} done` : `${pickAt + 1} of ${steps.length}`;
+  const body = (): ReactNode =>
+    flow.step === "provider" ? (
+      <ProviderStep offered={offered} picked={flow.provider} onPick={id => useCloudFlow.setState({ provider: id, check: { state: "idle" } })} />
+    ) : (
+      <KeyStep provider={flow.provider} name={cloud} held={held} keyText={keyText} onKey={onKey} check={flow.check} refused={refused} />
+    );
 
-  const body = (): ReactNode => {
-    switch (flow.step) {
-      case "provider":
-        return <ProviderStep offered={offered} picked={flow.provider} onPick={id => useCloudFlow.setState({ provider: id, check: { state: "idle" } })} />;
-      case "key":
-        return <KeyStep provider={flow.provider} name={cloud} held={held} keyText={keyText} onKey={onKey} check={flow.check} refused={refused} />;
-      case "agents":
-      case "tools":
-      case "also":
-        return reading || screen === undefined ? (
-          <div data-k="options-loading" className="flex flex-1 flex-col items-center justify-center gap-2">
-            <Spinner className="size-4 text-muted-foreground" />
-            <p className={NOTE}>Reading what {here} has</p>
-          </div>
-        ) : (
-          <PickStep key={screen.id} screen={screen} ticks={recipe.draftAt(screen).ticks} onTicks={ticks => recipe.edit(screen, recipe.draftAt(screen), { ...recipe.draftAt(screen), ticks })} here={{ report, name: here }} />
-        );
-      case "summary":
-        return job === null ? null : <SummaryStep job={job} signIns={signIns} cloud={cloud} here={here} />;
-      default:
-        return job === null ? null : <BuildingView job={job} />;
-    }
-  };
-
-  const primary = (word: string, run: () => void, isHeld = false) => (
-    <Button data-k="continue" held={isHeld} onClick={run}>
-      {word}
+  const cancel = (
+    <Button variant="outline" data-k="cancel" onClick={close}>
+      Cancel
     </Button>
   );
-  const backButton =
-    pickAt > 0 && flow.step !== "building" ? (
-      <Button variant="outline" data-k="back" onClick={back}>
-        Back
-      </Button>
-    ) : null;
-  const foot = ((): ReactNode => {
-    switch (flow.step) {
-      case "provider":
-        return (
-          <>
-            <Button variant="outline" data-k="cancel" onClick={close}>
-              Cancel
-            </Button>
-            {primary("Continue", () => goCloud("key"))}
-          </>
-        );
-      case "key":
-        return (
-          <>
-            {backButton ?? (
-              <Button variant="outline" data-k="cancel" onClick={close}>
-                Cancel
-              </Button>
-            )}
-            {primary("Continue", () => void keyOn(), !keyReady || busy || api?.initStart === undefined)}
-          </>
-        );
-      case "summary":
-        return (
-          <>
-            {backButton}
-            {primary("Build image", build, setup === null || recipe.busy || signIns.some(s => !s.ready))}
-          </>
-        );
-      case "building":
-        return sealed ? (
-          <>
-            <Button variant="outline" data-k="close" onClick={close}>
-              Close
-            </Button>
-            {primary("Next", () => goCloud("ready"))}
-          </>
-        ) : job?.phase === "failed" ? (
-          <>
-            <Button variant="outline" data-k="close" onClick={close}>
-              Close
-            </Button>
-            {primary(CLOUD_SETUP_WORDS.build.again, startOver, recipe.busy)}
-          </>
-        ) : (
-          <Button variant="outline" data-k="close" onClick={close}>
-            Run in background
+  const foot: ReactNode =
+    flow.step === "provider" ? (
+      <>
+        {cancel}
+        <Button data-k="continue" onClick={() => goCloud("key")}>
+          Continue
+        </Button>
+      </>
+    ) : (
+      <>
+        {offered.length > 1 ? (
+          <Button variant="outline" data-k="back" onClick={() => goCloud("provider")}>
+            Back
           </Button>
-        );
-      default:
-        return (
-          <>
-            {backButton}
-            {primary("Continue", next, reading || recipe.busy)}
-          </>
-        );
-    }
-  })();
+        ) : (
+          cancel
+        )}
+        <Button data-k="continue" held={!keyReady || busy} onClick={() => void keyOn()}>
+          Continue
+        </Button>
+      </>
+    );
 
   return (
     <Dialog open onOpenChange={(open, how) => (open || (how.reason === "escape-key" && keyTakenAt(how.event.target, "Escape")) ? undefined : close())}>
       <DialogPopup data-add-cloud={flow.step} initialFocus={flow.step === "key" ? undefined : false} className={STEP_FRAME}>
-        {flow.step === "ready" ? (
-          <>
-            <DialogTitle className="sr-only">{`${cloud} is ready`}</DialogTitle>
-            {place === undefined ? null : <ReadyPage place={place} line={version === undefined ? undefined : `Image v${version} sealed${tookMs > 0 ? ` in ${fmtDuration(tookMs)}` : ""}.`} act="Start a thread" k="start-thread" onStart={() => startFirstThread(cloud)} onClose={close} />}
-          </>
-        ) : (
-          <div className="flex min-h-0 flex-1 flex-col">
-            <DialogHeader className={STEP_HEAD}>
-              <div className="flex min-w-0 flex-col gap-1">
-                <DialogTitle>{head.title}</DialogTitle>
-                {head.line === undefined ? null : <DialogDescription>{head.line}</DialogDescription>}
-              </div>
-              <span data-k="progress" className={cn(FACT, "shrink-0 pt-0.5")}>
-                {figure}
-              </span>
-            </DialogHeader>
-            <DialogPanel className={STEP_BODY}>
-              {body()}
-              {refusal === null || flow.step === "key" ? null : <RefusalSlot k="cloud-refusal" said={refusal} />}
-            </DialogPanel>
-            <StepFoot left={null}>{foot}</StepFoot>
-          </div>
-        )}
+        <div className="flex min-h-0 flex-1 flex-col">
+          <DialogHeader className={STEP_HEAD}>
+            <div className="flex min-w-0 flex-col gap-1">
+              <DialogTitle>{head.title}</DialogTitle>
+              <DialogDescription>{head.line}</DialogDescription>
+            </div>
+            <span data-k="progress" className={cn(FACT, "shrink-0 pt-0.5")}>
+              {`${steps.indexOf(flow.step) + 1} of ${steps.length}`}
+            </span>
+          </DialogHeader>
+          <DialogPanel className={STEP_BODY}>{body()}</DialogPanel>
+          <StepFoot left={null}>{foot}</StepFoot>
+        </div>
       </DialogPopup>
     </Dialog>
   );

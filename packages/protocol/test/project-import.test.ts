@@ -48,15 +48,7 @@ describe("importRequest", () => {
     expect(importRequest(plan, "/Users/me/code/proj", new Set(), new Set(["codex", "claude"]))).toMatchObject({ agents: ["claude", "codex"] });
   });
 
-  it("is assembled once: the command line and the MCP tool reach it through the verb table, the dialog and the wizard's first import call it, and none spells the request out again", () => {
-    // The import verb left the command line with the projects recut, so init's own first import is the one caller.
-    const callers = ["packages/host/src/init-first.ts"];
-    for (const rel of callers) {
-      const source = readFileSync(join(ROOT, rel), "utf8");
-      expect(source, rel).toContain("importRequest(");
-      expect(source, rel).not.toMatch(/dest: plan\.source/);
-      expect(source, rel).not.toMatch(/consentRequest\(/);
-    }
+  it("is assembled once: the command line and the MCP tool reach it through the verb table and none spells the request out again", () => {
     // The MCP server registers the table and assembles no request of its own.
     const mcp = readFileSync(join(ROOT, "packages/host/src/mcp.ts"), "utf8");
     expect(mcp).not.toMatch(/importRequest\(|project\.import|\b(source|dest|keep|cut|agents):/);

@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { act, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AT_ITS_TERMINAL, PLACE_HOST_KEY_KIND, closedBeforeSignInLine, PLACE_SUDO_KIND, RecipeFile, SKIPPED_FOR_NOW, copiedFromLine, noCopyLine, noKeyLine, placeNoPicksLine, placeProvisioningLine, placeSyncingLine, signInThereFix, signInWaysFix, waitLine, type AgentsSignInEvent, type AgentsTarget, type AgentRow, type AgentsReport, type PlaceAddJob, type PlaceAddStep, type EventUnion, type PendingComputer, type PlaceSetup, type PlaceView, type ProjectView, type RecipeOptions, type RecipeView } from "@wsp/protocol";
+import { type RecipeOptions, AT_ITS_TERMINAL, PLACE_HOST_KEY_KIND, closedBeforeSignInLine, PLACE_SUDO_KIND, RecipeFile, SKIPPED_FOR_NOW, copiedFromLine, noCopyLine, noKeyLine, placeNoPicksLine, placeProvisioningLine, placeSyncingLine, signInThereFix, signInWaysFix, waitLine, type AgentsSignInEvent, type AgentsTarget, type AgentRow, type AgentsReport, type PlaceAddJob, type PlaceAddStep, type EventUnion, type PendingComputer, type PlaceSetup, type PlaceView, type ProjectView, type RecipeView } from "@wsp/protocol";
 import { RequestError, type Api, type SshLogin } from "../src/protocol/client.js";
 import { useNotices } from "../src/notices/store.js";
 import { useStore } from "../src/protocol/store.js";
@@ -1672,6 +1672,6 @@ describe("Add a computer, the running sheet as the host has it", () => {
     }
     expect(said.join(" ")).toContain("Connects back");
     // The verbs come whole off the command table, the two the last review slipped past it included.
-    expect(VERBS).toEqual(expect.arrayContaining(["add", "agents", "computers", "init", "mcp", "remove", "servers", "recipes"]));
+    expect(VERBS).toEqual(expect.arrayContaining(["add", "agents", "computers", "mcp", "remove", "servers", "recipes"]));
   });
 });

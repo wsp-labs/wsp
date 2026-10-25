@@ -35,20 +35,11 @@ pub struct Words {
     pub deleted_one: String,
     pub deleted_many: String,
     pub delete_kept: String,
-    pub no_project_image: String,
-    pub remove_kept: String,
-    pub remove_notice: String,
-    pub removed_gone: String,
-    pub removed_now: String,
     pub no_sealed_image: String,
     pub image_no_vault: String,
     pub copy_current: String,
     pub copy_stale: String,
-    pub installs_latest: String,
     pub logins_held: Vec<String>,
-    pub sum_shown: usize,
-    pub catalog_names: HashMap<String, String>,
-    pub road_words: HashMap<String, String>,
     pub added_project: String,
     pub added_project_here: String,
     pub this_mac: String,
@@ -326,38 +317,20 @@ pub async fn thread_count(client: &Client, workspace_id: &str) -> Result<u64, Fa
     Ok(threads.len() as u64)
 }
 
-/// What the agents arguments ask of the host: nothing when none was named, and a cap named alone tightens the switch
-/// as it stands. The schema has already held the caps to whole numbers at their least.
-/// A spawn word as the switch it names: on or off, and any other word handed back unread.
-pub fn spawn_word(word: &str) -> Result<bool, String> {
-    match word {
-        "on" => Ok(true),
-        "off" => Ok(false),
-        other => Err(other.to_owned()),
-    }
-}
-
-/// What a spawn word and its caps ask for, nothing where none was named; a word that is neither on nor off is
-/// handed back unread.
-pub fn agents_asked(
-    spawn: Option<&str>,
-    max_machines: Option<&Number>,
-    max_depth: Option<&Number>,
-) -> Result<Option<Map<String, Value>>, String> {
-    if spawn.is_none() && max_machines.is_none() && max_depth.is_none() {
-        return Ok(None);
+/// What the caps a call names ask of the host, nothing where none was named. The schema has already held them to whole
+/// numbers at their least.
+pub fn agents_asked(max_machines: Option<&Number>, max_depth: Option<&Number>) -> Option<Map<String, Value>> {
+    if max_machines.is_none() && max_depth.is_none() {
+        return None;
     }
     let mut asked = Map::new();
-    if let Some(spawn) = spawn {
-        asked.insert("spawn".to_owned(), Value::from(spawn_word(spawn)?));
-    }
     if let Some(n) = max_machines {
         asked.insert("maxMachines".to_owned(), Value::Number(n.clone()));
     }
     if let Some(n) = max_depth {
         asked.insert("maxDepth".to_owned(), Value::Number(n.clone()));
     }
-    Ok(Some(asked))
+    Some(asked)
 }
 
 /// A string as JSON.stringify writes it, less its quotes: the part of a sentence that quotes a word as it was given.
@@ -369,11 +342,6 @@ pub fn quoted_inner(text: &str) -> String {
 /// One POSIX sh word: single quotes keep every byte, and an embedded quote closes, escapes and reopens.
 pub fn shell_quote(text: &str) -> String {
     format!("'{}'", text.replace('\'', r"'\''"))
-}
-
-/// The first `n` UTF-16 code units of a string, as String.prototype.slice(0, n) takes them.
-pub fn js_prefix(text: &str, n: usize) -> String {
-    String::from_utf16_lossy(&text.encode_utf16().take(n).collect::<Vec<_>>())
 }
 
 /// `n` with `noun`, the noun plural unless there is one.
@@ -455,13 +423,6 @@ pub fn fmt_rate(usd: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_spawn_word_is_on_or_off_and_any_other_is_handed_back() {
-        assert_eq!(spawn_word("on"), Ok(true));
-        assert_eq!(spawn_word("off"), Ok(false));
-        assert_eq!(spawn_word("yes"), Err("yes".to_owned()));
-    }
 
     #[test]
     fn to_fixed_rounds_as_javascript_does() {

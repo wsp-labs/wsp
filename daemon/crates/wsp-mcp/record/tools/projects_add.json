@@ -197,25 +197,6 @@
               ],
               "additionalProperties": false
             },
-            "image": {
-              "type": "object",
-              "properties": {
-                "snapshotId": {
-                  "type": "string"
-                },
-                "builtAt": {
-                  "type": "string"
-                },
-                "lockfileSha": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "snapshotId",
-                "builtAt"
-              ],
-              "additionalProperties": false
-            },
             "base": {
               "type": "string"
             },
@@ -461,25 +442,6 @@
                 "command",
                 "at",
                 "seconds"
-              ],
-              "additionalProperties": false
-            },
-            "image": {
-              "type": "object",
-              "properties": {
-                "snapshotId": {
-                  "type": "string"
-                },
-                "builtAt": {
-                  "type": "string"
-                },
-                "lockfileSha": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "snapshotId",
-                "builtAt"
               ],
               "additionalProperties": false
             },

@@ -9,10 +9,6 @@ import { rememberTerminalFile } from "./terminalFile";
 
 const zoomOf = (workspaceId: string): number | undefined => useStore.getState().preferences.terminalZoom[workspaceId];
 
-const boot = (terminalFont?: string) => {
-  (window as unknown as { __WSP__?: unknown }).__WSP__ = { token: "", ...(terminalFont !== undefined ? { terminalFont } : {}) };
-};
-
 describe("terminal font setting", () => {
   afterEach(() => {
     window.localStorage.clear();
@@ -32,13 +28,10 @@ describe("terminal font setting", () => {
     expect(readTerminalFont()).toBeUndefined();
   });
 
-  it("the effective family is the choice, else the one the collector found, else none", () => {
+  it("the effective family is the choice, else none", () => {
     expect(effectiveTerminalFont()).toBeUndefined();
-    boot("Hack");
-    expect(effectiveTerminalFont()).toBe("Hack");
     writeTerminalFont("Iosevka");
     expect(effectiveTerminalFont()).toBe("Iosevka");
-    boot("");
     writeTerminalFont("");
     expect(effectiveTerminalFont()).toBeUndefined();
   });
@@ -55,12 +48,11 @@ describe("terminal font setting", () => {
   });
 
   it("the hooks follow a change from anywhere on the page and keep the config's identity until the family changes", () => {
-    boot("Hack");
     const font = renderHook(() => useTerminalFont());
     const config = renderHook(() => useTerminalViewportConfig("ws_a"));
-    expect(font.result.current).toMatchObject({ family: "", detected: "Hack" });
+    expect(font.result.current).toMatchObject({ family: "" });
     const first = config.result.current;
-    expect(first).toEqual({ font: { family: "Hack" }, chosenFont: false, sizing: { source: "app", zoom: 0 }, onPathActivate: expect.any(Function) });
+    expect(first).toEqual({ font: {}, chosenFont: false, sizing: { source: "app", zoom: 0 }, onPathActivate: expect.any(Function) });
     config.rerender();
     expect(config.result.current).toBe(first);
     act(() => font.result.current.setFamily("Iosevka"));
@@ -69,10 +61,10 @@ describe("terminal font setting", () => {
     act(() => window.dispatchEvent(new StorageEvent("storage", { key: TERMINAL_FONT_KEY, newValue: null })));
     window.localStorage.removeItem(TERMINAL_FONT_KEY);
     act(() => window.dispatchEvent(new StorageEvent("storage", { key: TERMINAL_FONT_KEY, newValue: null })));
-    expect(config.result.current).toEqual({ font: { family: "Hack" }, chosenFont: false, sizing: { source: "app", zoom: 0 }, onPathActivate: expect.any(Function) });
+    expect(config.result.current).toEqual({ font: {}, chosenFont: false, sizing: { source: "app", zoom: 0 }, onPathActivate: expect.any(Function) });
     // The sizing follows the host's record: the source for every workspace, the zoom for this one.
     act(() => useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, terminalSize: "file", terminalZoom: { ws_a: 2, ws_b: -1 } } }));
-    expect(config.result.current).toEqual({ font: { family: "Hack" }, chosenFont: false, sizing: { source: "file", zoom: 2 }, onPathActivate: expect.any(Function) });
+    expect(config.result.current).toEqual({ font: {}, chosenFont: false, sizing: { source: "file", zoom: 2 }, onPathActivate: expect.any(Function) });
   });
 
   it("the zoom is one workspace's own on the record, steps by a pixel, stops where the surface's sizes end over the app's base, and a reset drops the workspace's entry", () => {

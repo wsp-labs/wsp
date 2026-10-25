@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
 import { INSTALLER_MOVED_LINE, LOGIN_CHOICES, type LoginChoice, type RecipeDigest } from "@wsp/protocol";
-import { SMALL_BYTES, SMALL_TOOLS, changeCounts, describeDiff, diffRecipes, isEmptyDiff, isSmallDelta, retiredBy, rowsToApply, type RecipeDiff } from "../src/golden-diff.js";
+import { diffRecipes, isEmptyDiff, retiredBy, rowsToApply, type RecipeDiff } from "../src/golden-diff.js";
 import type { RecipeEntry } from "../src/golden-import.js";
 
 const row = (rung: string, id: string, over: Partial<RecipeEntry> = {}): RecipeEntry => ({ rung, id, label: id.slice(id.lastIndexOf("/") + 1), paths: [], bytes: 0, default: "bring", bring: true, ...over });
@@ -138,33 +138,6 @@ describe("recipe diff", () => {
     expect(retiredBy(got).map(r => r.id)).toEqual(dropped.filter(id => !rowsToApply(got).has(id)));
   });
 
-  it("a missing file is described as kept, and a login flipped to sign in says it will not be in the golden", () => {
-    const from = snap([row("shell", "shell/zshrc"), row("logins", "logins/gh", { choice: "copy" })], [file("shell/zshrc", ".zshrc")]);
-    const to = snap([row("shell", "shell/zshrc"), row("logins", "logins/gh", { choice: "machine" })], []);
-    expect(describeDiff(diffRecipes(from, to))).toEqual([
-      "kept on the golden, no longer on this computer: ~/.zshrc",
-      "gh: a sign-in during the build is not done by an update, so it would not be in the golden; pick the rebuild for it",
-    ]);
-    expect(isSmallDelta(diffRecipes(from, to), bytesIn(to))).toBe(false);
-  });
-
-  it("a missing file the update takes off is said to come off, not to stay", () => {
-    const from = snap([row("agents", "agents/claude")], [file("agents/claude", ".claude-cfg/plugins/known_marketplaces.json"), file("agents/claude", ".claude-cfg/settings.json")]);
-    const to = snap([row("agents", "agents/claude")], [file("agents/claude", ".claude-cfg/settings.json")]);
-    expect(describeDiff(diffRecipes(from, to), { takenOff: new Set([".claude-cfg/plugins/known_marketplaces.json"]) })).toEqual(["taken off the golden, no longer copied: ~/.claude-cfg/plugins/known_marketplaces.json"]);
-  });
-
-  it("the plugin folder an update builds is said as the plugins it holds, never counted as a file, and has no line with nothing to build", () => {
-    const from = snap([row("agents", "agents/claude")], [file("agents/claude", ".claude-cfg/settings.json")]);
-    const to = snap([row("agents", "agents/claude")], [file("agents/claude", ".claude-cfg/settings.json"), file("agents/claude", ".claude-plugin-seed")]);
-    const d = diffRecipes(from, to);
-    const plugins = { dest: ".claude-plugin-seed", count: 2 };
-    expect(describeDiff(d, { plugins })).toEqual(["build 2 plugins into ~/.claude-plugin-seed, which every turn reads in place of fetching their marketplaces"]);
-    expect(changeCounts(d, { plugins }).filter(c => c.count > 0)).toEqual([{ count: 2, noun: "plugin", word: "built in" }]);
-    expect(describeDiff(d, { plugins: { ...plugins, count: 0 } })).toEqual([]);
-    expect(describeDiff(d)).toEqual(["add 1 file: ~/.claude-plugin-seed"]);
-  });
-
   it("an unticked row on either side is not a tool, agent or login of that side", () => {
     const from = snap([row("tools", "tools/brew/jq", { bring: false }), row("agents", "agents/codex", { bring: false })]);
     const to = snap([row("tools", "tools/brew/jq"), row("agents", "agents/codex")]);
@@ -200,13 +173,6 @@ describe("a tool's road, pin and install lines", () => {
     expect(isEmptyDiff(got)).toBe(diff === EMPTY);
   });
 
-  it("the words name the row and why, and the build line counts it as a tool updated", () => {
-    const d = diffRecipes(release({ installer: "a" }), release({ installer: "b" }));
-    expect(describeDiff(d)).toEqual([`update 1 tool: gh (${INSTALLER_MOVED_LINE})`]);
-    expect(changeCounts(d).filter(c => c.count > 0)).toEqual([{ count: 1, noun: "tool", word: "updated" }]);
-    expect(isSmallDelta(d, () => 0)).toBe(true);
-    expect(describeDiff(diffRecipes(gh({ road: "brew", installer: "a" }), gh({ road: "script", installer: "b" })))).toEqual(["update 1 tool: gh (now by its own installer, was with Homebrew)"]);
-  });
 });
 
 describe("rows the recipe stopped asking for", () => {
@@ -232,107 +198,12 @@ describe("rows the recipe stopped asking for", () => {
   });
 });
 
-describe("describing and sizing the delta", () => {
-  it("one line per kind of change, in plain words", () => {
-    const from = snap([row("shell", "shell/zshrc"), row("tools", "tools/npm/bun", { version: "1.4.0" }), row("tools", "tools/brew/yq"), row("agents", "agents/codex"), row("logins", "logins/gh", { choice: "copy" }), row("logins", "logins/codex", { choice: "machine" })], [
-      file("shell/zshrc", ".zshrc"),
-      file("logins/gh", ".config/gh/hosts.yml"),
-    ]);
-    const to = snap(
-      [row("shell", "shell/zshrc"), row("shell", "shell/starship"), row("tools", "tools/npm/bun", { version: "1.5.0" }), row("tools", "tools/brew/jq"), row("agents", "agents/aider"), row("logins", "logins/gh", { choice: "machine" }), row("logins", "logins/codex", { choice: "copy" })],
-      [file("shell/zshrc", ".zshrc", 99), file("shell/starship", ".config/starship.toml"), file("logins/codex", ".codex/auth.json")],
-    );
-    expect(describeDiff(diffRecipes(from, to))).toEqual([
-      "add 2 files: ~/.config/starship.toml, ~/.codex/auth.json",
-      "add 1 tool: jq",
-      "add 1 agent: aider",
-      "update 1 file: ~/.zshrc",
-      "update 1 tool: bun (1.4.0 to 1.5.0)",
-      "retire 1 file: ~/.config/gh/hosts.yml, left on the image",
-      "retire 1 tool: yq, left on the image",
-      "retire 1 agent: codex, left on the image",
-      "gh: a sign-in during the build is not done by an update, so it would not be in the golden; pick the rebuild for it",
-      "copy the codex",
-    ]);
-  });
-
-  it("quotes a tool label that carries the comma these lines join their names with, added and updated alike", () => {
-    const pair = "tools/custom/swift-format, swiftlint";
-    const added = describeDiff(diffRecipes(snap([]), snap([row("tools", pair), row("tools", "tools/brew/just")])));
-    expect(added).toEqual([`add 2 tools: "swift-format, swiftlint", just`]);
-    // With the quoted label read as one word, the count and the entries the line splits into agree.
-    expect(added[0]!.replace(/"[^"]*"/g, "row").split(": ")[1]!.split(", ")).toHaveLength(2);
-    const updated = describeDiff(diffRecipes(snap([row("tools", pair, { version: "1.0" })]), snap([row("tools", pair, { version: "1.1" })])));
-    expect(updated).toEqual([`update 1 tool: "swift-format, swiftlint" (1.0 to 1.1)`]);
-  });
-
-  it("small: no agent added, at most SMALL_TOOLS tool installs, at most SMALL_BYTES to upload", () => {
-    const base = snap([]);
-    const tools = (n: number) => Array.from({ length: n }, (_, i) => row("tools", `tools/brew/t${i}`));
-    expect(isSmallDelta(diffRecipes(base, snap(tools(SMALL_TOOLS))), bytesIn(snap(tools(SMALL_TOOLS))))).toBe(true);
-    expect(isSmallDelta(diffRecipes(base, snap(tools(SMALL_TOOLS + 1))), bytesIn(snap(tools(SMALL_TOOLS + 1))))).toBe(false);
-    const agent = snap([row("agents", "agents/codex")]);
-    expect(isSmallDelta(diffRecipes(base, agent), bytesIn(agent))).toBe(false);
-    const gone = snap([row("agents", "agents/codex")]);
-    expect(isSmallDelta(diffRecipes(gone, base), bytesIn(base))).toBe(true);
-    const big = snap([row("shell", "shell/nvim", { bytes: SMALL_BYTES + 1 })], [file("shell/nvim", ".config/nvim")]);
-    expect(isSmallDelta(diffRecipes(base, big), bytesIn(big))).toBe(false);
-    const fits = snap([row("shell", "shell/nvim", { bytes: SMALL_BYTES })], [file("shell/nvim", ".config/nvim")]);
-    expect(isSmallDelta(diffRecipes(base, fits), bytesIn(fits))).toBe(true);
-    // A row already on the golden and unchanged does not count against the upload.
-    const same = snap([row("shell", "shell/nvim", { bytes: SMALL_BYTES + 1 }), row("shell", "shell/zshrc", { bytes: 5 })], [file("shell/nvim", ".config/nvim"), file("shell/zshrc", ".zshrc")]);
-    const before = snap([row("shell", "shell/nvim", { bytes: SMALL_BYTES + 1 })], [file("shell/nvim", ".config/nvim")]);
-    expect(isSmallDelta(diffRecipes(before, same), bytesIn(same))).toBe(true);
-  });
-});
-
-describe("what the build line counts", () => {
-  it("added and updated rows by their noun, everything the update retires as one, and no login taking the rebuild road", () => {
-    const from = snap([row("tools", "tools/brew/yq"), row("logins", "logins/gh", { choice: "copy" })], [file("logins/gh", ".config/gh/hosts.yml")]);
-    const to = snap([row("tools", "tools/brew/jq"), row("tools", "tools/npm/bun"), row("logins", "logins/gh", { choice: "machine" })]);
-    expect(changeCounts(diffRecipes(from, to)).filter(c => c.count > 0)).toEqual([
-      { count: 2, noun: "tool", word: "added" },
-      { count: 2, noun: "row", word: "retired" },
-    ]);
-  });
-});
-
 describe("a login answered with an API key or a token", () => {
   const keyed = (from: LoginChoice, to: LoginChoice) => diffRecipes(snap([row("logins", "logins/claude", { choice: from })]), snap([row("logins", "logins/claude", { choice: to })]));
-
-  it("is named for what it is, never as a login taken off the machine", () => {
-    expect(describeDiff(keyed("copy", "key"))).toEqual(["claude: the API key is held on this computer and set on every turn, so nothing of it lands on the machine"]);
-    expect(describeDiff(keyed("copy", "token"))).toEqual(["claude: the token is held on this computer and set on every turn, so nothing of it lands on the machine"]);
-  });
-
-  it("takes no rebuild: the vault hands both to a turn at launch, so a machine already running carries them", () => {
-    expect(isSmallDelta(keyed("copy", "key"), () => 0)).toBe(true);
-    expect(isSmallDelta(keyed("copy", "token"), () => 0)).toBe(true);
-    expect(isSmallDelta(keyed("copy", "machine"), () => 0)).toBe(false);
-    // The answers an update can carry stay small.
-    expect(isSmallDelta(keyed("machine", "copy"), () => 0)).toBe(true);
-    expect(isSmallDelta(keyed("copy", "skip"), () => 0)).toBe(true);
-  });
 
   it("brings nothing and retires nothing of its own: the key is not a row with bytes", () => {
     expect([...rowsToApply(keyed("machine", "key"))]).toEqual([]);
     expect(retiredBy(keyed("machine", "key"))).toEqual([]);
   });
 
-  it("a row the new recipe carries no answer for is retired, not taken off the machine", () => {
-    const gone = diffRecipes(snap([row("logins", "logins/claude", { choice: "copy" })]), snap([row("logins", "logins/claude")]));
-    expect(describeDiff(gone)).toEqual(["retire the claude, left signed in on the image"]);
-  });
-
-  it("every answer the sign-ins screen can give has its own words and its own road: a fifth one does not compile", () => {
-    // LOGIN_ANSWERS is keyed by LoginChoice, so an answer added to the union without an entry fails the build.
-    // This proves the entries that exist say something of their own rather than all falling to the same line.
-    const dropped = describeDiff(diffRecipes(snap([row("logins", "logins/claude", { choice: "copy" })]), snap([row("logins", "logins/claude")])));
-    for (const choice of LOGIN_CHOICES) {
-      const line = describeDiff(keyed(choice === "copy" ? "machine" : "copy", choice));
-      expect(line).toHaveLength(1);
-      if (choice !== "skip") expect(line).not.toEqual(dropped);
-    }
-    expect(new Set(LOGIN_CHOICES.map(c => describeDiff(keyed(c === "copy" ? "machine" : "copy", c))[0])).size).toBe(LOGIN_CHOICES.length);
-  });
 });

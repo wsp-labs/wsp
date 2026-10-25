@@ -859,7 +859,7 @@ export const BLANK_NAME_REFUSAL = "a workspace name cannot be blank";
  * It ends on the verb off the front page that fixes it, never on a shell variable: this is the first refusal a
  * person who typed wsp new on a fresh home reads, and a variable named there is neither one of the sixteen words
  * nor true of the other providers. wsp add with no argument prints the words it takes. */
-export const NO_PROVIDER_LINE = "no machine provider is set up on this computer, so wsp forks no machines here; wsp add <provider> connects one, and wsp init then builds your image on it";
+export const NO_PROVIDER_LINE = "no machine provider is set up on this computer, so wsp forks no machines here; wsp add <provider> connects one";
 
 /** The same refusal where no provider can be added at all: what is missing, and the one road that brings it. */
 export const NO_MACHINES_LINE = "this needs a machine wsp starts, and nothing here starts one; wsp add user@host joins a computer of yours that does";
@@ -875,13 +875,6 @@ export const buildPlaceAskLine = (names: readonly string[]): string => `${names.
  * places that do, so the sentence never sends a person to a provider they do not need. With none at all the
  * refusal is NO_PROVIDER_LINE. */
 export const placeForksNothingPickLine = (place: string, names: readonly string[]): string => `${place} forks no machines; name a place that runs workspaces with --on: ${names.join(", ")}`;
-
-/** The line under wsp init's opening that names where the image is built, so the first screen says it. */
-export const imageBuiltOnLine = (place: string): string => `your image is built on ${place}`;
-
-/** The line beside it when --on named a place other than the image's own: a rebuild never moves the image's home. */
-export const imageHomeKeptLine = (on: string | undefined, home: { id: string; name: string; kind?: string }): string | undefined =>
-  on === undefined || namesPlace(home, on) ? undefined : `your image lives on ${placeSaid(home)}, so it is built there and not on ${on}`;
 
 /** What a line that takes a thread answers a word naming no thread but a project, or with a cloud a machine: what the
  * word is, the line's own name and where its threads are listed. The lines that read an agent's config take a

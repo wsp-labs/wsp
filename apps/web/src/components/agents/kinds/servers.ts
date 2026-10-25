@@ -12,7 +12,7 @@
 import { ActivityIcon, PowerIcon, PowerOffIcon, RefreshCwIcon, ServerIcon, Trash2Icon } from "lucide-react";
 import { agentName, mcpSwitch, serverMark } from "@wsp/catalog";
 import type { AgentsProject, AgentsReport, McpRow, McpScope, McpTool, ServerToolsAnswer } from "@wsp/protocol";
-import { AGENTS_LIST_WORDS as W, editImageAct, heldReason, holdAll, notYet, onImage, serverSignInStart, signInAct, waitingFlow, type FlowView, type RowAct, type RowsContext, type ToolsState } from "../agentsRows.js";
+import { AGENTS_LIST_WORDS as W, heldReason, holdAll, notYet, onImage, serverSignInStart, signInAct, waitingFlow, type FlowView, type RowAct, type RowsContext, type ToolsState } from "../agentsRows.js";
 import { AddServerRows } from "../../../settings/AddServerRows.js";
 import { byName, kind, matchesAny, projectGroups, rowKey, type Fact, type GroupView, type KindModule, type Lead, type ServerState, type Status, type UnderRow } from "./kind.js";
 
@@ -149,7 +149,7 @@ function actsOf(entry: ServerEntry, ctx: RowsContext) {
   };
   const waitsForCheck = asked?.answer === undefined && asked?.listing !== true && entry.rows.some(r => r.off === undefined && heldCommand(r, ctx));
   // A fork is a copy of the image, so its one act besides Check is the image's.
-  if (onImage(ctx)) return { all, worst, asked, acts: [...(waitsForCheck ? [check] : []), editImageAct(ctx)], signIns: new Map<string, RowAct>(), flow: undefined };
+  if (onImage(ctx)) return { all, worst, asked, acts: [...(waitsForCheck ? [check] : [])], signIns: new Map<string, RowAct>(), flow: undefined };
   const primary = asked?.row ?? worst.row;
   const listing = asked?.listing === true;
   const reconnect: RowAct = { id: "reconnect", label: listing ? W.listing : W.reconnect, icon: RefreshCwIcon, ...(listing ? { busy: true } : tools === undefined ? {} : { run: () => tools.list(worst.state === "failed" ? worst.row : primary, true) }) };

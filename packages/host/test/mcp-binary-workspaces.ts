@@ -27,5 +27,4 @@ export const WORKSPACE_CALLED: Called[] = [
   { tool: "worktree", argv: ["worktree", "nope", "feat"], arguments: { project: "nope", branch: "feat" }, refused: true },
   { tool: "worktree_remove", argv: ["worktree", "remove", "nope", "feat", "--force"], arguments: { project: "nope", branch: "feat", force: true }, refused: true },
   { tool: "fork", argv: ["fork", "alpha", "--size", "3x3"], arguments: { workspace: "alpha", size: "3x3" }, given: alpha, refused: true, cloud: true },
-  { tool: "image_remove", argv: ["image", "remove", "snap-none", "--yes"], arguments: { image: "snap-none", confirm: true }, refused: true, cloud: true },
 ];

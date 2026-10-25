@@ -288,7 +288,7 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
         holdBack(held);
         // The size the box reported is not here: every road that draws this line draws the box's row beside it, and
         // a fact already in the row costs the line the room it needs to read whole.
-        stage("join", "done", [linkedOver(held.report.dialed, held.road?.back, req.hostUrls), `engine ${held.report.engine}`].filter(Boolean).join(", "), placeId, Date.now() - joining);
+        stage("join", "done", [linkedOver(held.report.dialed, held.road?.back, req.hostUrls)].filter(Boolean).join(", "), placeId, Date.now() - joining);
         // What that computer forks with, read over the link it has just opened and before this answers: the row a
         // join prints carries where that computer keeps the logins its workspaces share, which is what the
         // sign-in offered right after it reads. Waited for no longer than one frame on a fresh link takes: a

@@ -10,14 +10,13 @@ import type { HostStarted } from "./host-lock.js";
 import type { RunningWsp } from "./mcp-install.js";
 
 /** How a host comes back, as it names itself beside its release when a socket comes in: the desktop app's, which its
- * service runs off the app's bundle and which comes back on the app's own release; one of the roads below; or the
- * host wsp init serves while it runs, which no road started and none brings back. */
-export type HostRoad = "app" | HostStarted | "init";
+ * service runs off the app's bundle and which comes back on the app's own release; or one of the roads below. */
+export type HostRoad = "app" | HostStarted;
 
 /** This host's road, off the install it runs from and the road that started it: the same key the roads below are
  * read by, so a release refusal names the fix a restart of this host would take. */
 export function hostRoadOf(run: Pick<RunningWsp, "argv" | "shim">, started: HostStarted | undefined): HostRoad {
-  return roadOf(run) === "app" ? "app" : (started ?? "init");
+  return roadOf(run) === "app" ? "app" : (started ?? "up");
 }
 
 /** What a road reads and stops of the host it restarts. */

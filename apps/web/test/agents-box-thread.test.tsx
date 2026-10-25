@@ -19,8 +19,8 @@ import { AGENTS_REPORT } from "./fixtures/agents-report.js";
 import { openRow, panel, stateOf, stepOf, tab } from "./agents-panel-harness.js";
 import { settingsApi, settle } from "./settings-harness.js";
 
-const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", default: true, present: true, takesForks: false, engine: "none", buildsImages: false };
-const hetzner: PlaceView = { id: "p_2", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true, engine: "docker", buildsImages: true };
+const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", default: true, present: true, takesForks: false, buildsImages: false };
+const hetzner: PlaceView = { id: "p_2", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true, buildsImages: true };
 const THREAD: WorkspaceView = { id: "ws_b", project: { id: "pr_wsp", name: "wsp", path: "~/wsp", computer: "p_2" }, name: "ws_b", kind: "place", place: "p_2", machineId: "p_2", phase: "running", golden: "", createdAt: "2026-10-07T00:00:00.000Z" };
 const NOTION = "server-global-notion-http-mcp.notion.com";
 const METRICS = "server-project-pr_wsp-spoo-metrics-stdio-node scripts/metrics-mcp.js --token ${METRICS_TOKEN}";

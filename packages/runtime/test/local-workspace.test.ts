@@ -906,7 +906,6 @@ describe("local workspace", () => {
     expect((await rt.workspaces.wake(ws.id)).phase).toBe("running");
     await expect(rt.workspaces.upgrade(ws.id)).rejects.toThrow(cannot);
     await expect(rt.workspaces.rebuild(ws.id)).rejects.toThrow(cannot);
-    await expect(rt.workspaces.snapshot(ws.id)).rejects.toThrow(undrivenRefusal("mac", machineWord("local"), "be snapshotted"));
   });
 
   it("every verb refuses a request relayed from a machine with the one sentence", async () => {
@@ -925,7 +924,6 @@ describe("local workspace", () => {
       ["workspaces.rebuild", () => rt.workspaces.rebuild(ws.id, "relayed")],
       ["workspaces.rename", () => rt.workspaces.rename(ws.id, "mac2", "relayed")],
       ["workspaces.look", () => rt.workspaces.look(ws.id, { glyph: "flask" }, "relayed")],
-      ["workspaces.snapshot", () => rt.workspaces.snapshot(ws.id, "relayed")],
       ["workspaces.updateDaemon", () => rt.workspaces.updateDaemon(ws.id, "relayed")],
       ["workspaces.delete", () => rt.workspaces.delete(ws.id, "relayed")],
       ["workspaces.forget", () => rt.workspaces.forget(ws.id, "relayed")],

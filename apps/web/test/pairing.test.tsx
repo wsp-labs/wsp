@@ -7,7 +7,7 @@ import { createServer, type Server } from "node:http";
 import { createRuntime, memoryStore, serveRuntime, type RuntimeServer } from "@wsp/runtime";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { openingHash, PAIR_CODE_SHAPE_REFUSAL, pairToken, shownPairCode, WS_PATH, type BootPayload } from "@wsp/protocol";
+import { PAIR_CODE_SHAPE_REFUSAL, pairToken, shownPairCode, WS_PATH, type BootPayload } from "@wsp/protocol";
 import { BootGate } from "../src/BootGate.js";
 import { PAIR_HEADING } from "../src/PairScreen.js";
 import { DEVICE_TOKEN_KEY, deviceName, redeemPairingCode, runtimeUrl, storedDeviceToken } from "../src/protocol/pairing.js";
@@ -341,7 +341,7 @@ describe("this computer's own page", () => {
   it("in a browser spends the code wsp init put in its address, keeps the token it bought, and writes the address back without the code", async () => {
     const { port, runtime } = await serving();
     const code = await codeFrom(port, true);
-    window.location.hash = openingHash(code, "ws_first");
+    window.location.hash = `#w/ws_first/c/${encodeURIComponent(code)}`;
     mount(boot(), port);
     await waitFor(() => expect(storedDeviceToken(window.localStorage)).toBeDefined());
     await waitFor(() => expect(document.querySelector("[data-k=booting]")).toBeNull());
@@ -354,7 +354,7 @@ describe("this computer's own page", () => {
 
   it("in a browser with a spent or made up code in its address ends on the pair screen, with the code gone from the address", async () => {
     const { port } = await serving();
-    window.location.hash = openingHash("AAAAAAAA");
+    window.location.hash = "#c/AAAAAAAA";
     mount(boot(), port);
     expect(await screen.findByText(PAIR_HEADING)).toBeTruthy();
     expect(window.location.hash).toBe("");

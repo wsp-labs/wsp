@@ -425,20 +425,6 @@ export const subagentAskerLine = (task: string): string => `${task} asks`;
  * question, named, since the thread reading this one is only held up until somebody answers it. */
 export const waitingAskerLine = (title: string): string => `${title} asks; this thread waits on the answer`;
 
-/** What a thread is doing, as the one line a client with no transcript shows: the tool call it is running, the
- * prompt it is blocked on, else its own latest line of prose. Nothing for an event that says nothing about the
- * work, so a caller keeps the line it had. */
-export function threadWorkingLine(e: SessionEvent): string | undefined {
-  switch (e.type) {
-    case "session.delta":
-      return e.kind === "text" || e.kind === "thinking" ? lastLine(e.text) : e.kind === "tool_use" ? toolActivityLine(e.toolName, e.text) : undefined;
-    case "session.permission":
-      return permissionAskLine(e.toolName, e.input, e.detail);
-    default:
-      return undefined;
-  }
-}
-
 /** A prompt's lead in two parts: the words, and the call's own text where the call has some. They are apart because
  * a command is judged by characters a sentence face blurs, two hyphens reading as one dash among them, so a client
  * with more than one face draws the second part as code while a one-face surface joins them back into a sentence. */

@@ -395,7 +395,7 @@ describe("a fork at a place that holds no copy of the image", () => {
       await expect(createOn(rt, { golden: await head(), name: `x-${on}`, on })).rejects.toMatchObject({ kind: "conflict", message: line, fix: imageRebuildFix("fake") });
     }
     expect([fake.machines.length, box.machines.length]).toEqual(machines);
-    expect(refusalLine(imageHeldSignInsLine("Boat"), imageRebuildFix("boat"))).toBe("Your image on Boat was sealed with sign-ins on it. Rebuild it: wsp init --on boat --rebuild.");
+    expect(refusalLine(imageHeldSignInsLine("Boat"), imageRebuildFix("boat"))).toBe("Your image on Boat was sealed with sign-ins on it. Seal your image again for boat.");
     // The rebuild at the image's own place marks the record and its version; the copy on Boat reads stale against the
     // new hash and is built again, clean, before the fork there.
     await seal();

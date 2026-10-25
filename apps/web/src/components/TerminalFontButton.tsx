@@ -13,7 +13,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 
 export const TERMINAL_FONT_LABEL = "Terminal font";
-/** The first face the pane asks for when nothing is chosen or detected, unquoted. */
+/** The first face the pane asks for when nothing is chosen, unquoted. */
 const DEFAULT_FACE = DEFAULT_TERMINAL_TEXT_FACES.split(",")[0]!.trim().replace(/^"(.*)"$/, "$1");
 
 export function TerminalFontButton({ className, open, onToggle }: { className: string; open: boolean; onToggle: () => void }) {
@@ -25,10 +25,10 @@ export function TerminalFontButton({ className, open, onToggle }: { className: s
 }
 
 export function TerminalFontCard({ className, onClose }: { className?: string; onClose: () => void }) {
-  const { family, detected, setFamily } = useTerminalFont();
+  const { family, setFamily } = useTerminalFont();
   const field = useCommitOnBlur(family, setFamily);
   const id = useId();
-  const whenEmpty = detected !== undefined ? `Empty draws with ${detected}, your terminal's font.` : "Empty draws with the default font.";
+  const whenEmpty = "Empty draws with the default font.";
   return (
     <div
       className={cn("flex w-72 flex-col gap-2 rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-md", className)}
@@ -37,7 +37,7 @@ export function TerminalFontCard({ className, onClose }: { className?: string; o
       }}
     >
       <Label htmlFor={id}>{TERMINAL_FONT_LABEL}</Label>
-      <Input id={id} nativeInput size="compact" placeholder={detected ?? DEFAULT_FACE} autoComplete="off" spellCheck={false} autoFocus {...field} />
+      <Input id={id} nativeInput size="compact" placeholder={DEFAULT_FACE} autoComplete="off" spellCheck={false} autoFocus {...field} />
       <p className="text-xs text-muted-foreground">A font installed on this computer. {whenEmpty} Icons a face lacks come from a bundled symbols font.</p>
     </div>
   );

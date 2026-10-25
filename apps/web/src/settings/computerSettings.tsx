@@ -249,8 +249,7 @@ export function LimitsCard({ place }: { place: PlaceView }) {
   );
 }
 
-/** Threads here: whether a thread on this computer may open threads of its own, and how far. Machines are named only
- * where this computer forks them. */
+/** Threads here: how many levels deep a thread on this computer may open threads of its own. */
 export function SpawnCard({ place }: { place: PlaceView }) {
   const spawn = place.spawn;
   if (spawn === undefined) return null;
@@ -258,21 +257,12 @@ export function SpawnCard({ place }: { place: PlaceView }) {
   return (
     <Card id="computer-spawn" head={W.threadsHere}>
       <Row
-        id="agents-start-agents"
-        title={W.spawnTitle}
-        description={W.spawnLine(spawn.maxDepth, place.takesForks === true ? spawn.maxMachines : undefined)}
-        control={<Switch data-k="agents-start-agents" aria-label={W.spawnTitle} checked={spawn.spawn} onCheckedChange={on => void setOn(place, { spawn: { spawn: on } })} />}
-        {...(placeSettingNamed(set, "spawn") ? { reset: resetOn(place, "spawn") } : {})}
+        id="levels-deep"
+        title={W.levelsTitle}
+        description={W.levelsLine}
+        control={<Stepper k="levels-deep" value={spawn.maxDepth} label={W.levelsTitle} onChange={n => setOn(place, { spawn: { maxDepth: n } })} />}
+        {...(placeSettingNamed(set, "max-depth") ? { reset: resetOn(place, "max-depth") } : {})}
       />
-      {!spawn.spawn ? null : (
-        <Row
-          id="levels-deep"
-          title={W.levelsTitle}
-          description={W.levelsLine}
-          control={<Stepper k="levels-deep" value={spawn.maxDepth} label={W.levelsTitle} onChange={n => setOn(place, { spawn: { maxDepth: n } })} />}
-          {...(placeSettingNamed(set, "max-depth") ? { reset: resetOn(place, "max-depth") } : {})}
-        />
-      )}
     </Card>
   );
 }
