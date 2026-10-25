@@ -259,7 +259,7 @@ pub fn lead_on_a_box() -> Fixture {
 pub fn lead_record(kind: &str, name: &str) -> Value {
     json!({
         "id": LEAD_WS, "name": name, "kind": kind, "machineId": "local", "phase": "running", "golden": "", "createdAt": "2026-10-12T05:00:00.000Z",
-        "project": "pr_1", "spec": {}, "size": { "cpu": 2, "memMb": 4096 }
+        "project": "pr_1", "spec": {}, "firstLife": true, "size": { "cpu": 2, "memMb": 4096 }
     })
 }
 
@@ -684,7 +684,7 @@ impl SubSpawnCtx for FakeHost {
     async fn fork(&self, record: &Rc<RefCell<WorkspaceRecord>>, on_machine: Box<dyn Fn(Arc<dyn Machine>)>, report: StageReport) -> AreaResult<()> {
         let (id, name, golden, size) = {
             let r = record.borrow();
-            (r.id.clone(), r.name.clone(), r.golden.clone(), r.size)
+            (r.id.clone(), r.name.clone(), r.golden.clone(), r.size.clone())
         };
         self.call("fork", &[&id, &name]);
         let off = w().borrow().broker_off.contains(&id);
