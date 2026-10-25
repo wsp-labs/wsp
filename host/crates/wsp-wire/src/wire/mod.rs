@@ -11,6 +11,7 @@ pub mod events_union;
 pub mod helpers;
 pub mod limits;
 pub mod machine_link;
+pub mod node_host;
 pub mod place_link;
 pub mod runtime;
 pub mod runtime_ops;
