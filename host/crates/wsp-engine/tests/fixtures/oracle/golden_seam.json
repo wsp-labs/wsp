@@ -1,0 +1,53 @@
+{
+ "BASE_VERSION_LINES": "echo \"VERSION curl: $(curl --version 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"\necho \"VERSION uv: $(uv --version 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"\necho \"VERSION python3: $(python3 --version 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"\necho \"VERSION git: $(git --version 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"\necho \"VERSION jq: $(jq --version 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"\necho \"VERSION rg: $(rg --version 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"\necho \"VERSION cc: $(cc --version 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"\necho \"VERSION cmake: $(cmake --version 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"\necho \"VERSION ninja: $(ninja --version 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"\necho \"VERSION fd: $(fd --version 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"\necho \"VERSION sqlite3: $(sqlite3 --version 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"\necho \"VERSION wget: $(wget --version 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"\necho \"VERSION zip: $(zip --version 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"\necho \"VERSION unzip: $(unzip -v 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"\necho \"VERSION xz: $(xz --version 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"\necho \"VERSION rsync: $(rsync --version 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"\necho \"VERSION sshd: $(sh -c 'sshd -V 2>&1' 2>/dev/null | grep -m1 -E '[0-9]+\\.[0-9]+')\"",
+ "TOOLS_PATH": "/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+ "EXEC_ENV": "export HOME=/root USER=root",
+ "TOOLS_DISK_FLOOR": 2147483648,
+ "dfKbCmd": [
+  {
+   "columns": [
+    "size",
+    "free"
+   ],
+   "path": "/root",
+   "out": "df -Pk /root | awk 'NR==2{print $2, $4}'"
+  },
+  {
+   "columns": [
+    "free"
+   ],
+   "path": null,
+   "out": "df -Pk /root | awk 'NR==2{print $4}'"
+  },
+  {
+   "columns": [
+    "used"
+   ],
+   "path": "/x y",
+   "out": "df -Pk /x y | awk 'NR==2{print $3}'"
+  }
+ ],
+ "parseVersions": [
+  {
+   "in": "VERSION python3: Python 3.12.13\nVERSION cc: \nVERSION zip: Copyright 1990\nVERSION zip2: This is Zip 3.0 (July 5th 2008)\nnoise\nVERSION git: git version 2.43.0  \nVERSION a:b: 1.2.3.4\n",
+   "out": [
+    {
+     "name": "python3",
+     "version": "3.12.13"
+    },
+    {
+     "name": "zip2",
+     "version": "3.0"
+    },
+    {
+     "name": "git",
+     "version": "2.43.0"
+    }
+   ]
+  },
+  {
+   "in": "",
+   "out": []
+  }
+ ]
+}

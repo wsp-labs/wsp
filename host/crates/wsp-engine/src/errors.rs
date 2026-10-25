@@ -125,6 +125,9 @@ pub enum EngineError {
     /// vault.ts: kind "exists".
     #[error("{message}")]
     Exists { message: String },
+    /// no-provider-backend.ts:20. The refusal of every road on a host with no provider key; kind "noProvider".
+    #[error("{line}")]
+    NoProvider { line: String },
     /// Any other thrown Error: its message, and its `code` where it had one.
     #[error("{message}")]
     Other { message: String, code: Option<String> },

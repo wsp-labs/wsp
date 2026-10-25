@@ -295,22 +295,24 @@ pub struct RootDisk {
 /// machine.ts:252.
 #[async_trait]
 pub trait MachineBackend: Send + Sync {
-    fn capabilities(&self) -> &Capabilities;
-    fn pricing(&self) -> &dyn BackendPricing;
+    /// Owned: a backend may compute it per read (Box's sizes follow its last read of /limits), and a slot that swaps
+    /// backends under its callers holds none it could lend from.
+    fn capabilities(&self) -> Capabilities;
+    fn pricing(&self) -> Arc<dyn BackendPricing>;
     /// Present on every backend whose capabilities carry a pauseMode.
-    fn lifecycle(&self) -> Option<&dyn Lifecycle> {
+    fn lifecycle(&self) -> Option<Arc<dyn Lifecycle>> {
         None
     }
-    fn base_templates(&self) -> Option<&IndexMap<MachineKind, String>> {
+    fn base_templates(&self) -> Option<IndexMap<MachineKind, String>> {
         None
     }
     fn names_workspace(&self) -> bool {
         false
     }
-    fn logins(&self) -> Option<&str> {
+    fn logins(&self) -> Option<String> {
         None
     }
-    fn projects(&self) -> Option<&str> {
+    fn projects(&self) -> Option<String> {
         None
     }
     fn offers(&self) -> BackendOffers {

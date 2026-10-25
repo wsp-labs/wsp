@@ -1,0 +1,262 @@
+{
+ "classify": [
+  {
+   "status": 200,
+   "code": "c",
+   "error": "e",
+   "requestId": null,
+   "out": {
+    "kind": "unknown",
+    "status": 200,
+    "code": "c",
+    "message": "e"
+   }
+  },
+  {
+   "status": 400,
+   "code": "c",
+   "error": "e",
+   "requestId": null,
+   "out": {
+    "kind": "unknown",
+    "status": 400,
+    "code": "c",
+    "message": "e"
+   }
+  },
+  {
+   "status": 401,
+   "code": "c",
+   "error": "e",
+   "requestId": null,
+   "out": {
+    "kind": "auth",
+    "status": 401,
+    "code": "c",
+    "message": "e"
+   }
+  },
+  {
+   "status": 402,
+   "code": "c",
+   "error": "e",
+   "requestId": null,
+   "out": {
+    "kind": "plan",
+    "status": 402,
+    "code": "c",
+    "message": "e"
+   }
+  },
+  {
+   "status": 403,
+   "code": "c",
+   "error": "e",
+   "requestId": null,
+   "out": {
+    "kind": "plan",
+    "status": 403,
+    "code": "c",
+    "message": "e"
+   }
+  },
+  {
+   "status": 404,
+   "code": "c",
+   "error": "e",
+   "requestId": null,
+   "out": {
+    "kind": "missing",
+    "status": 404,
+    "code": "c",
+    "message": "e"
+   }
+  },
+  {
+   "status": 409,
+   "code": "c",
+   "error": "e",
+   "requestId": null,
+   "out": {
+    "kind": "conflict",
+    "status": 409,
+    "code": "c",
+    "message": "e"
+   }
+  },
+  {
+   "status": 429,
+   "code": "c",
+   "error": "e",
+   "requestId": null,
+   "out": {
+    "kind": "concurrency",
+    "status": 429,
+    "code": "c",
+    "message": "e"
+   }
+  },
+  {
+   "status": 500,
+   "code": "c",
+   "error": "e",
+   "requestId": null,
+   "out": {
+    "kind": "unknown",
+    "status": 500,
+    "code": "c",
+    "message": "e"
+   }
+  },
+  {
+   "status": 501,
+   "code": "c",
+   "error": "e",
+   "requestId": null,
+   "out": {
+    "kind": "unknown",
+    "status": 501,
+    "code": "c",
+    "message": "e"
+   }
+  },
+  {
+   "status": 502,
+   "code": "c",
+   "error": "e",
+   "requestId": null,
+   "out": {
+    "kind": "transient",
+    "status": 502,
+    "code": "c",
+    "message": "e"
+   }
+  },
+  {
+   "status": 503,
+   "code": "c",
+   "error": "e",
+   "requestId": null,
+   "out": {
+    "kind": "transient",
+    "status": 503,
+    "code": "c",
+    "message": "e"
+   }
+  },
+  {
+   "status": 504,
+   "code": "c",
+   "error": "e",
+   "requestId": null,
+   "out": {
+    "kind": "transient",
+    "status": 504,
+    "code": "c",
+    "message": "e"
+   }
+  },
+  {
+   "status": 505,
+   "code": "c",
+   "error": "e",
+   "requestId": null,
+   "out": {
+    "kind": "unknown",
+    "status": 505,
+    "code": "c",
+    "message": "e"
+   }
+  },
+  {
+   "status": 502,
+   "code": null,
+   "error": "Failed to snapshot sandbox",
+   "requestId": "req_1",
+   "out": {
+    "kind": "snapshotUnavailable",
+    "status": 502,
+    "code": null,
+    "message": "Failed to snapshot sandbox",
+    "requestId": "req_1"
+   }
+  },
+  {
+   "status": 502,
+   "code": null,
+   "error": "failed to snapshot sandbox",
+   "requestId": null,
+   "out": {
+    "kind": "transient",
+    "status": 502,
+    "code": null,
+    "message": "failed to snapshot sandbox"
+   }
+  },
+  {
+   "status": 500,
+   "code": null,
+   "error": null,
+   "requestId": "",
+   "out": {
+    "kind": "unknown",
+    "status": 500,
+    "code": null,
+    "message": "",
+    "requestId": ""
+   }
+  }
+ ],
+ "fetchCapMs": [
+  {
+   "in": 0,
+   "out": 0
+  },
+  {
+   "in": 0.5,
+   "out": 1
+  },
+  {
+   "in": 1,
+   "out": 1
+  },
+  {
+   "in": 1.5,
+   "out": 2
+  },
+  {
+   "in": -3,
+   "out": 0
+  },
+  {
+   "in": 2147483647,
+   "out": 2147483647
+  },
+  {
+   "in": 2147483648,
+   "out": 2147483647
+  },
+  {
+   "in": 4294967295,
+   "out": 2147483647
+  },
+  {
+   "in": 10000.0001,
+   "out": 10001
+  }
+ ],
+ "messages": {
+  "notFirstLife": "snapshot refused: machine m1 is not first-life (it was resumed); snapshots only come from fresh machines",
+  "envNotLanded": "environment did not land on m1 (exit 124): timed out",
+  "guestUnusable": "box left m1 running but nothing on it can run: the shell died",
+  "machineUnreachable": "LINE",
+  "execFailed": "the provider cannot run commands on the machine (exec failed) while the machine and its threads may still be running; wait, or pause and wake the workspace, or delete it",
+  "stopRefused": "the provider will not stop this machine while the snapshot of its disk fails (its latest snapshot failed): push its work, then free space on its disk, since a full disk fails the snapshot and a machine left like this has been dropped with its disk",
+  "napRefused": "the provider does not pause this machine (no): its memory and disk together are over what it pauses; it runs until you delete it",
+  "unreached": "the machine could not be reached from this computer after 4 attempts over 32s"
+ },
+ "constants": {
+  "PROVIDER_READ_CAP_MS": 20000,
+  "ROAD_TRIES": 3
+ }
+}

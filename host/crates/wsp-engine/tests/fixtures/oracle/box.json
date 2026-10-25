@@ -1,0 +1,894 @@
+{
+ "classes": [
+  {
+   "type": "small",
+   "name": "small",
+   "cpu": 2,
+   "memMb": 4096,
+   "diskGb": 12,
+   "rateUsdPerHour": 0.018
+  },
+  {
+   "type": "default",
+   "name": "default",
+   "cpu": 4,
+   "memMb": 8192,
+   "diskGb": 50,
+   "rateUsdPerHour": 0.036
+  },
+  {
+   "type": "large",
+   "name": "large",
+   "cpu": 8,
+   "memMb": 16384,
+   "diskGb": 125,
+   "rateUsdPerHour": 0.072
+  },
+  {
+   "type": "xlarge",
+   "name": "extra large",
+   "cpu": 16,
+   "memMb": 32768,
+   "diskGb": 251,
+   "rateUsdPerHour": 0.2
+  }
+ ],
+ "rootDisk": {
+  "small": 75,
+  "default": 75,
+  "large": 160
+ },
+ "pricing": {
+  "defaultSize": {
+   "cpu": 2,
+   "memMb": 4096
+  },
+  "snapshotStorage": {
+   "freeGb": 0,
+   "usdPerGbMonth": 0,
+   "billedFrom": "",
+   "freeNamed": 10,
+   "usdPerNamedMonth": 1.7
+  }
+ },
+ "budgets": {
+  "wakeAttempts": 1,
+  "daemonAnswersMs": 900000
+ },
+ "constants": {
+  "BOX_API_URL": "https://boat.dev/api/v1",
+  "BOX_BASE_TEMPLATE": "base",
+  "BOX_PAUSE_MS": 600000,
+  "BOX_RESUME_MS": 300000,
+  "BOX_CREATE_MS": 600000,
+  "BOX_SNAPSHOT_MS": 600000,
+  "BOX_POLL_MS": 2000,
+  "BOX_RESTORE_MS": 120000,
+  "BOX_KEY_KEPT_MS": 86400000,
+  "LOST_ANSWER_MS": 120000,
+  "LOST_ANSWER_EVERY_MS": 5000,
+  "IN_PROGRESS_WAIT_MS": 2000,
+  "BACKSTOP_SLACK_MS": 60000,
+  "BACKSTOP_RETRY_MS": 30000,
+  "BACKSTOP_RETRY_MAX_MS": 300000,
+  "BACKSTOP_CAP_MS": 20000,
+  "TRIAL_TTL_S": 7200,
+  "LIMITS_KEPT_MS": 10000,
+  "REFUSAL_LOG_QUIET_MS": 60000,
+  "FIREWALL_HOLD_MS": 30000,
+  "FIREWALL_WATCH_MS": 5000,
+  "ENV_LANDING_MS": 60000,
+  "FILE_PUT_MAX": 5242880,
+  "FILE_GET_MAX": 4194304,
+  "BOX_INLINE_MAX_MS": 30000,
+  "BOX_WORK_DIR": "/home/user",
+  "BOX_NAME_MAX": 120,
+  "SNAPSHOT_NAME_MAX": 63
+ },
+ "capabilities": {
+  "liveCloneForks": false,
+  "pauseMode": "disk",
+  "replacesMachine": true,
+  "previewUrls": true,
+  "signedUrls": false,
+  "callbackRelay": true,
+  "diskSnapshots": true,
+  "images": true,
+  "snapshotsAnyLife": true,
+  "snapshotListing": true,
+  "templates": true,
+  "kept": false,
+  "copies": true,
+  "ownNetwork": true,
+  "sizes": [
+   {
+    "name": "small",
+    "cpu": 2,
+    "memMb": 4096,
+    "rateUsdPerHour": 0.018
+   },
+   {
+    "name": "default",
+    "cpu": 4,
+    "memMb": 8192,
+    "rateUsdPerHour": 0.036
+   },
+   {
+    "name": "large",
+    "cpu": 8,
+    "memMb": 16384,
+    "rateUsdPerHour": 0.072
+   },
+   {
+    "name": "extra large",
+    "cpu": 16,
+    "memMb": 32768,
+    "rateUsdPerHour": 0.2
+   }
+  ]
+ },
+ "capabilitiesKeys": [
+  "liveCloneForks",
+  "pauseMode",
+  "replacesMachine",
+  "previewUrls",
+  "signedUrls",
+  "callbackRelay",
+  "diskSnapshots",
+  "images",
+  "snapshotsAnyLife",
+  "snapshotListing",
+  "templates",
+  "kept",
+  "copies",
+  "ownNetwork",
+  "sizes"
+ ],
+ "boxClassFor": [
+  {
+   "in": {},
+   "out": "small"
+  },
+  {
+   "in": {
+    "cpu": 2,
+    "memMb": 4096
+   },
+   "out": "small"
+  },
+  {
+   "in": {
+    "cpu": 4,
+    "memMb": 8192
+   },
+   "out": "default"
+  },
+  {
+   "in": {
+    "cpu": 3
+   },
+   "out": "default"
+  },
+  {
+   "in": {
+    "memMb": 9000
+   },
+   "out": "large"
+  },
+  {
+   "in": {
+    "cpu": 2,
+    "memMb": 8192
+   },
+   "out": "default"
+  },
+  {
+   "in": {
+    "cpu": 64,
+    "memMb": 1
+   },
+   "out": "xlarge"
+  },
+  {
+   "in": {
+    "cpu": 16,
+    "memMb": 32768
+   },
+   "out": "xlarge"
+  },
+  {
+   "in": {
+    "cpu": 0.5,
+    "memMb": 512
+   },
+   "out": "small"
+  }
+ ],
+ "planSizes": [
+  {
+   "trial": true,
+   "planUsd": null,
+   "out": [
+    "small",
+    "default"
+   ]
+  },
+  {
+   "trial": true,
+   "planUsd": 500,
+   "out": [
+    "small",
+    "default"
+   ]
+  },
+  {
+   "trial": false,
+   "planUsd": null,
+   "out": [
+    "small",
+    "default",
+    "large"
+   ]
+  },
+  {
+   "trial": false,
+   "planUsd": 99.99,
+   "out": [
+    "small",
+    "default",
+    "large"
+   ]
+  },
+  {
+   "trial": false,
+   "planUsd": 100,
+   "out": [
+    "small",
+    "default",
+    "large",
+    "xlarge"
+   ]
+  },
+  {
+   "trial": false,
+   "planUsd": 0,
+   "out": [
+    "small",
+    "default",
+    "large"
+   ]
+  }
+ ],
+ "limitsOf": [
+  {
+   "in": {},
+   "out": {
+    "trial": false,
+    "sizes": [
+     "small",
+     "default",
+     "large"
+    ],
+    "canStart": true
+   },
+   "keys": [
+    "trial",
+    "sizes",
+    "canStart"
+   ],
+   "place": null
+  },
+  {
+   "in": {
+    "accessTier": "trial",
+    "maxActiveSandboxes": 2,
+    "activeSandboxes": 1,
+    "starts": {
+     "minute": {
+      "limit": 5,
+      "used": 1
+     },
+     "hour": {
+      "limit": 20
+     },
+     "day": {
+      "limit": 75,
+      "used": 70
+     }
+    },
+    "canStart": true,
+    "creditBalanceHours": 3.5,
+    "billingStatus": ""
+   },
+   "out": {
+    "trial": true,
+    "machinesAtOnce": 2,
+    "activeBoxes": 1,
+    "starts": {
+     "minute": {
+      "used": 1,
+      "limit": 5
+     },
+     "hour": {
+      "used": 0,
+      "limit": 20
+     },
+     "day": {
+      "used": 70,
+      "limit": 75
+     }
+    },
+    "sizes": [
+     "small",
+     "default"
+    ],
+    "canStart": true,
+    "creditBalanceHours": 3.5
+   },
+   "keys": [
+    "trial",
+    "machinesAtOnce",
+    "activeBoxes",
+    "starts",
+    "sizes",
+    "canStart",
+    "creditBalanceHours"
+   ],
+   "place": {
+    "plan": {
+     "trial": true,
+     "machinesAtOnce": 2,
+     "sizes": [
+      "2x4",
+      "4x8"
+     ],
+     "running": 1
+    },
+    "starts": {
+     "minute": {
+      "used": 1,
+      "limit": 5
+     },
+     "hour": {
+      "used": 0,
+      "limit": 20
+     },
+     "day": {
+      "used": 70,
+      "limit": 75
+     }
+    },
+    "creditHours": 3.5
+   }
+  },
+  {
+   "in": {
+    "sandboxPlanKey": "box_20",
+    "maxActiveSandboxes": 100,
+    "starts": {
+     "unlimited": true,
+     "minute": {
+      "limit": 5,
+      "used": 0
+     },
+     "hour": {
+      "limit": 1,
+      "used": 0
+     },
+     "day": {
+      "limit": 1,
+      "used": 0
+     }
+    },
+    "canStart": false,
+    "startBlockedReason": "billing",
+    "billingStatus": "active"
+   },
+   "out": {
+    "trial": false,
+    "planKey": "box_20",
+    "planUsd": 20,
+    "machinesAtOnce": 100,
+    "sizes": [
+     "small",
+     "default",
+     "large"
+    ],
+    "canStart": false,
+    "startBlockedReason": "billing",
+    "billingStatus": "active"
+   },
+   "keys": [
+    "trial",
+    "planKey",
+    "planUsd",
+    "machinesAtOnce",
+    "sizes",
+    "canStart",
+    "startBlockedReason",
+    "billingStatus"
+   ],
+   "place": {
+    "plan": {
+     "key": "box_20",
+     "trial": false,
+     "machinesAtOnce": 100,
+     "sizes": [
+      "2x4",
+      "4x8",
+      "8x16"
+     ]
+    }
+   }
+  },
+  {
+   "in": {
+    "sandboxPlanKey": "pro",
+    "sandboxPlanTiers": [
+     {
+      "key": "pro",
+      "dollars": 100
+     }
+    ],
+    "maxActiveSandboxes": 10,
+    "starts": {
+     "minute": {
+      "limit": 5,
+      "used": 0
+     },
+     "hour": null,
+     "day": {
+      "limit": 1
+     }
+    }
+   },
+   "out": {
+    "trial": false,
+    "planKey": "pro",
+    "planUsd": 100,
+    "machinesAtOnce": 10,
+    "sizes": [
+     "small",
+     "default",
+     "large",
+     "xlarge"
+    ],
+    "canStart": true
+   },
+   "keys": [
+    "trial",
+    "planKey",
+    "planUsd",
+    "machinesAtOnce",
+    "sizes",
+    "canStart"
+   ],
+   "place": {
+    "plan": {
+     "key": "pro",
+     "trial": false,
+     "machinesAtOnce": 10,
+     "sizes": [
+      "2x4",
+      "4x8",
+      "8x16",
+      "16x32"
+     ]
+    }
+   }
+  },
+  {
+   "in": {
+    "sandboxPlanKey": "box_250",
+    "sandboxPlanDollars": "x",
+    "maxActiveSandboxes": null,
+    "activeSandboxes": null,
+    "canStart": "no"
+   },
+   "out": {
+    "trial": false,
+    "planKey": "box_250",
+    "planUsd": 250,
+    "sizes": [
+     "small",
+     "default",
+     "large",
+     "xlarge"
+    ],
+    "canStart": true
+   },
+   "keys": [
+    "trial",
+    "planKey",
+    "planUsd",
+    "sizes",
+    "canStart"
+   ],
+   "place": null
+  },
+  {
+   "in": {
+    "sandboxPlanKey": "trial",
+    "sandboxPlanDollars": 500,
+    "maxActiveSandboxes": 2
+   },
+   "out": {
+    "trial": true,
+    "planKey": "trial",
+    "machinesAtOnce": 2,
+    "sizes": [
+     "small",
+     "default"
+    ],
+    "canStart": true
+   },
+   "keys": [
+    "trial",
+    "planKey",
+    "machinesAtOnce",
+    "sizes",
+    "canStart"
+   ],
+   "place": {
+    "plan": {
+     "key": "trial",
+     "trial": true,
+     "machinesAtOnce": 2,
+     "sizes": [
+      "2x4",
+      "4x8"
+     ]
+    }
+   }
+  },
+  {
+   "in": {
+    "sandboxPlanKey": "",
+    "sandboxPlanDollars": 99.5,
+    "maxActiveSandboxes": 0,
+    "starts": null
+   },
+   "out": {
+    "trial": false,
+    "planUsd": 99.5,
+    "machinesAtOnce": 0,
+    "sizes": [
+     "small",
+     "default",
+     "large"
+    ],
+    "canStart": true
+   },
+   "keys": [
+    "trial",
+    "planUsd",
+    "machinesAtOnce",
+    "sizes",
+    "canStart"
+   ],
+   "place": {
+    "plan": {
+     "trial": false,
+     "machinesAtOnce": 0,
+     "sizes": [
+      "2x4",
+      "4x8",
+      "8x16"
+     ]
+    }
+   }
+  }
+ ],
+ "boxName": [
+  {
+   "in": {},
+   "out": "wsp"
+  },
+  {
+   "in": {
+    "wsp": "1"
+   },
+   "out": "wsp"
+  },
+  {
+   "in": {
+    "wsp-name": "my ws",
+    "wsp-owner": "zing@x.dev",
+    "wsp": "1",
+    "wsp-workspace": "w1",
+    "createdAt": "2026-09-11T06:28:06.053Z",
+    "wsp-builder": "1",
+    "wsp-golden": "g;=%v",
+    "wsp-host": "h",
+    "wsp-smoke": "1",
+    "wsp-doctor": "1",
+    "zeta": "z",
+    "Alpha": "a",
+    "beta": "b",
+    "a=b": "c"
+   },
+   "out": "wsp;o=zing@x.dev;w=w1;t=2026-09-11T06:28:06.053Z;b=1;s=1;d=1;h=h;g=g%3b%3d%25v;n=my ws;a=b=c;Alpha=a;beta=b;zeta=z"
+  },
+  {
+   "in": {
+    "wsp-owner": "oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo",
+    "wsp-workspace": "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+    "createdAt": "t"
+   },
+   "out": "wsp;o=oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo"
+  },
+  {
+   "in": {
+    "wsp-owner": "oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo"
+   },
+   "out": "wsp;o=oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo"
+  },
+  {
+   "in": {
+    "wsp-owner": "ooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo"
+   },
+   "out": "wsp"
+  }
+ ],
+ "boxLabels": [
+  {
+   "in": null,
+   "isUndefined": true,
+   "out": null,
+   "keys": []
+  },
+  {
+   "in": null,
+   "isUndefined": false,
+   "out": null,
+   "keys": []
+  },
+  {
+   "in": "",
+   "isUndefined": false,
+   "out": null,
+   "keys": []
+  },
+  {
+   "in": "wsp",
+   "isUndefined": false,
+   "out": {
+    "wsp": "1"
+   },
+   "keys": [
+    "wsp"
+   ]
+  },
+  {
+   "in": "Box 2026",
+   "isUndefined": false,
+   "out": null,
+   "keys": []
+  },
+  {
+   "in": "wsp;o=a%3bb%3dc%25d;w=w1;zz=1;=x;noeq;t=",
+   "isUndefined": false,
+   "out": {
+    "wsp": "1",
+    "wsp-owner": "a;b=c%d",
+    "wsp-workspace": "w1",
+    "zz": "1",
+    "createdAt": ""
+   },
+   "keys": [
+    "wsp",
+    "wsp-owner",
+    "wsp-workspace",
+    "zz",
+    "createdAt"
+   ]
+  },
+  {
+   "in": "wsp;o=%zz%41",
+   "isUndefined": false,
+   "out": {
+    "wsp": "1",
+    "wsp-owner": "%zzA"
+   },
+   "keys": [
+    "wsp",
+    "wsp-owner"
+   ]
+  },
+  {
+   "in": "WSP;o=a",
+   "isUndefined": false,
+   "out": null,
+   "keys": []
+  },
+  {
+   "in": "wsp;o=1;o=2",
+   "isUndefined": false,
+   "out": {
+    "wsp": "1",
+    "wsp-owner": "2"
+   },
+   "keys": [
+    "wsp",
+    "wsp-owner"
+   ]
+  }
+ ],
+ "boxSnapshotName": [
+  {
+   "in": "wsp-golden-v3",
+   "out": {
+    "ok": "wsp-golden-v3"
+   }
+  },
+  {
+   "in": "WSP Golden V3",
+   "out": {
+    "ok": "wsp-golden-v3"
+   }
+  },
+  {
+   "in": "--lead",
+   "out": {
+    "ok": "lead"
+   }
+  },
+  {
+   "in": "___",
+   "out": {
+    "threw": "\"___\" leaves nothing a named snapshot can be called"
+   }
+  },
+  {
+   "in": "!!!",
+   "out": {
+    "threw": "\"!!!\" leaves nothing a named snapshot can be called"
+   }
+  },
+  {
+   "in": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "out": {
+    "ok": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   }
+  },
+  {
+   "in": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "out": {
+    "ok": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-ffe054fe"
+   }
+  },
+  {
+   "in": "owner-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "out": {
+    "ok": "owner-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-f3ea8b14"
+   }
+  },
+  {
+   "in": "owner-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--tail-differs-1",
+   "out": {
+    "ok": "owner-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-7bb590e1"
+   }
+  },
+  {
+   "in": "Ünïcode-name",
+   "out": {
+    "ok": "n-code-name"
+   }
+  },
+  {
+   "in": "",
+   "out": {
+    "threw": "\"\" leaves nothing a named snapshot can be called"
+   }
+  }
+ ],
+ "stopRefusalOf": [
+  {
+   "in": {
+    "error": "the disk is full"
+   },
+   "out": "the disk is full"
+  },
+  {
+   "in": {
+    "error": "",
+    "lastSnapshotStatus": "failed",
+    "lastSnapshotAttemptAt": "2026-10-01T00:00:00Z",
+    "snapshotCompletedAt": "2026-09-30T00:00:00Z"
+   },
+   "out": "its latest snapshot failed at 2026-10-01T00:00:00Z, and the last that completed was at 2026-09-30T00:00:00Z"
+  },
+  {
+   "in": {
+    "error": null,
+    "lastSnapshotStatus": "in_progress"
+   },
+   "out": "its latest snapshot in_progress, and the last that completed was none"
+  },
+  {
+   "in": {},
+   "out": "it reported no snapshot attempt, and the last that completed was none"
+  },
+  {
+   "in": {
+    "snapshotCompletedAt": "2026-09-30T00:00:00Z"
+   },
+   "out": "it reported no snapshot attempt, and the last that completed was at 2026-09-30T00:00:00Z"
+  }
+ ],
+ "envLandingScript": [
+  {
+   "in": {
+    "A": "1",
+    "B": "he said \"hi\" \\ there",
+    "C D": "$x\n`y`"
+   },
+   "out": "mkdir -p '/etc/wsp'\ncat > '/etc/wsp/daemon.env' <<'WSP_ENV'\nA=\"1\"\nB=\"he said \\\"hi\\\" \\\\ there\"\nC D=\"$x\n`y`\"\nWSP_ENV\nchmod 0600 '/etc/wsp/daemon.env'"
+  },
+  {
+   "in": {},
+   "out": "mkdir -p '/etc/wsp'\ncat > '/etc/wsp/daemon.env' <<'WSP_ENV'\nWSP_ENV\nchmod 0600 '/etc/wsp/daemon.env'"
+  }
+ ],
+ "sudoCommand": [
+  {
+   "in": "true",
+   "out": "sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\nexport HOME=/root USER=root\ntrue'"
+  },
+  {
+   "in": "echo 'x' \"y\"",
+   "out": "sudo -n bash -c 'unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND\nexport HOME=/root USER=root\necho '\\''x'\\'' \"y\"'"
+  }
+ ],
+ "DAEMON_EXITS_CMD": "u=wsp-daemon.service\na=$(systemctl show -p NRestarts --value \"$u\")\nsleep 5\nb=$(systemctl show -p NRestarts --value \"$u\")\nif [ \"$(systemctl show -p ActiveState --value \"$u\")\" = failed ] || [ $(( ${b:-0} - ${a:-0} )) -ge 2 ] || { [ \"${b:-0}\" -ge 5 ] && [ \"${b:-0}\" -gt \"${a:-0}\" ]; }; then\n  echo \"WSP_DAEMON_EXITS $(systemctl show -p SubState --value \"$u\") $(systemctl show -p Result --value \"$u\") $(systemctl show -p ExecMainStatus --value \"$u\")\"\n  journalctl _SYSTEMD_UNIT=\"$u\" -n 20 --no-pager -o cat\nfi",
+ "daemonExitsOf": [
+  {
+   "in": "",
+   "out": null
+  },
+  {
+   "in": "noise\n",
+   "out": null
+  },
+  {
+   "in": "WSP_DAEMON_EXITS auto-restart exit-code 2\n",
+   "out": "exit status 2"
+  },
+  {
+   "in": "WSP_DAEMON_EXITS failed signal 9\n",
+   "out": "killed by signal 9"
+  },
+  {
+   "in": "WSP_DAEMON_EXITS failed core-dump 11\n",
+   "out": "killed by signal 11"
+  },
+  {
+   "in": "WSP_DAEMON_EXITS auto-restart oom-kill 9\n",
+   "out": "killed for want of memory"
+  },
+  {
+   "in": "WSP_DAEMON_EXITS running success 0\n",
+   "out": "it printed nothing"
+  },
+  {
+   "in": "WSP_DAEMON_EXITS auto-restart  \n",
+   "out": "it printed nothing"
+  },
+  {
+   "in": "WSP_DAEMON_EXITS failed start-limit-hit 1\n",
+   "out": "start-limit-hit"
+  },
+  {
+   "in": "WSP_DAEMON_EXITS\n",
+   "out": "it printed nothing"
+  },
+  {
+   "in": "x\nWSP_DAEMON_EXITS auto-restart exit-code 2\na\nb\n  a  \nc\nd\ne\nuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu\n\n",
+   "out": "c; d; e; uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu…"
+  },
+  {
+   "in": "WSP_DAEMON_EXITS auto-restart exit-code 2\nWSP_DAEMON_EXITS again\nerr\n",
+   "out": "WSP_DAEMON_EXITS again; err"
+  }
+ ]
+}
