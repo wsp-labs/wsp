@@ -28,13 +28,14 @@ failed, or building for any other word; `error` only on a failed one that has on
   matching `/concurrent (box|sandbox)/i`, are concurrency; any other 429 keeps classify's reading and puts its own
   message in `said`; codes `billing_required`, `team_member_cap_reached`, `out_of_capacity` take wsp's line with
   Boat's words in `said`; anything else stands as classify read it.
-- `request_limit_wait_ms(body)` (:446): `retryAfter` at the top, else `error.details.retryAfter`; a positive number
+- `request_limit_wait_ms(body)` (:446): `body.retryAfter ?? body.error.details.retryAfter` (only a null or absent top value falls through, so a top `"7"` or 0 waits the minute even with a number below); a positive number
   of seconds times 1000, at most 60,000; anything else 60,000.
 - `still_restoring(e)` (:472): never the request limit; any transient; a conflict with code `sandbox_restoring` or
   `sandbox_starting`. snapshotUnavailable is not.
 - `road_words(e)` (:480): `<status> <message>` where the error has a status; else `<message>: <cause code>` where the
   cause has a code; else the message.
-- `fail(w)` (:487): `EngineError::Provider(w)`, its message `w.message`, or `<kind> (<status>)` where that is empty.
+- `fail(w)` (:487): `EngineError::Provider(w)` with its message `w.message`, kept even when empty: the TS's
+  `<kind> (<status>)` fallback is dead, since `Object.assign` copies the refusal's own `message: ""` over it.
 
 ## request(method, path, opts) (:603)
 

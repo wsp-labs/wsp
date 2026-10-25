@@ -99,7 +99,7 @@ describe. Nothing it holds survives a restart beyond the provider's box.
 
 ## Pins (wave 2)
 
-Each line is a scene in `oracle/box_scenes.oracle.ts`, replayed by `tests/box_scenes.rs::<name>` against
+Each line is a scene in `oracle/box_scenes.oracle.ts`, replayed by `tests/box_machine_scenes.rs::<name>` against
 `tests/fixtures/scenes/box.json`: every request (method, path, query pairs in order, headers, the body's exact bytes),
 every sleep, every warn line, the clock's travel and the answer must be the TS's. Budgets are the test ones (poll 10,
 every other budget 100) unless a line says.
