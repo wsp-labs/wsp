@@ -60,7 +60,7 @@ merging a child into its lead.
     "head", paths?}`; `model` = `smallestModel(catalogOn(..))` where a table exists; `promptFile` =
     `/tmp/wsp-draft-<12 hex>.txt`; `putFiles(machine, [{path, text: draftPrompt(cutDiff(patches joined), opening)}],
     {before: ["umask 077"]})`; a non-zero exit: `noAnswer`; `draftFor({promptFile, model?}, harnessExec(machine,
-    TITLE_MAKE_TIMEOUT_MS))`; `commitMessage(answer)`; none: `noAnswer`; else `{message}`; always `rm -f <file>` on the
+    TITLE_MAKE_TIMEOUT_MS))`; `commitMessage(answer)`; none: `noAnswer`; else `{message}`; once the file is put (the `finally` opens after the put's check), `rm -f <file>` on the
     machine, failure ignored.
 12. `viewed({workspaceId, path, blob}, origin)` (:881-891): marks copied; no path: `{viewed}`; a string blob sets,
     anything else deletes; stored in `viewedMarks`; `persistSessions(id)`; emit `{type: "workspace.viewed",

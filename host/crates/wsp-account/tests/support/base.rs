@@ -293,18 +293,17 @@ pub fn rec_json(entry: &Entry) -> Value {
     serde_json::to_value(rec(entry)).unwrap()
 }
 
-/// The `Caller` of a thread: road `thread`, scope `{kind: thread, threadId, workspaceId, rootThreadId}`.
+/// The `Caller` of a thread: road `paired` (a thread's token), scope `{kind: thread, threadId, workspaceId, rootThreadId}`.
 pub fn thread(thread_id: &str, workspace_id: &str, root: &str) -> Caller {
-    serde_json::from_value::<Value>(json!(null)).ok();
     let scope = serde_json::from_value(json!({ "kind": "thread", "threadId": thread_id, "workspaceId": workspace_id, "rootThreadId": root }))
         .expect("a scope reads");
-    let origin = serde_json::from_value(json!("thread")).expect("an origin reads");
+    let origin = serde_json::from_value(json!("paired")).expect("an origin reads");
     Caller::Scoped { origin, by: scope }
 }
 
-/// The person's `Caller`: road `app`.
+/// The person's `Caller`: road `here`.
 pub fn person() -> Caller {
-    Caller::Road(serde_json::from_value(json!("app")).expect("an origin reads"))
+    Caller::Road(serde_json::from_value(json!("here")).expect("an origin reads"))
 }
 
 // ---------------------------------------------------------------------------------------------------------------
