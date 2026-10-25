@@ -233,12 +233,14 @@ exit 7
             let real = dir.join("usr bin");
             let notes = dir.join("docker-notes");
             let folder = dir.join("acme").join("lab");
+            // The shim's text first: a stub that panics then leaves no folder behind.
+            let shim = docker_shim(s(&bin), s(&notes));
             for d in [&bin, &real, &folder] {
                 fs::create_dir_all(d).unwrap();
             }
             // A shell started in a folder with no PWD reads the folder's real path: /private/var on a Mac.
             let folder = fs::canonicalize(&folder).unwrap();
-            write_script(&bin.join("docker"), &docker_shim(s(&bin), s(&notes)));
+            write_script(&bin.join("docker"), &shim);
             write_script(&real.join("docker"), REAL);
             Fixture { bin: s(&bin).to_string(), real: s(&real).to_string(), dir, notes, folder, label: ["--label", "wsp.thread=t_1f0c-ab"] }
         }
