@@ -1,0 +1,4 @@
+# Differences between a host and the TS host's goldens that the owner said yes to, one a line:
+# tape<TAB>field<TAB>why. A * in the tape or the field matches any run of characters. A difference no line names
+# fails cargo xtask parity; a line that matches no difference is named, so the list only shrinks. Each line needs
+# the owner's yes in review.

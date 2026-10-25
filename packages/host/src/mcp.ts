@@ -7,6 +7,7 @@
 import type { Readable, Writable } from "node:stream";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import type { Tape } from "@wsp/runtime";
 import { instructions } from "./skill.js";
 import { SLATE_TOOL_NAMES, VERBS, c1Escaped, dialHost, hasTool, toolFailure, toolName, type DialOpts, type HostClient, type Verb, type VerbDeps } from "./verbs.js";
 import { VERSION } from "./version.js";
@@ -71,7 +72,7 @@ export function mcpServer(statePath: string, opts: { dial?: Dialer; dialAnyRelea
 }
 
 /** The server on stdio until the agent is done with it: its stdin ending closes the transport, and the host socket with it. */
-export async function serveMcp(statePath: string, opts: { alsoHere?: VerbDeps["alsoHere"]; cwd?: string; env: VerbDeps["env"]; host?: string; start?: VerbDeps["start"]; scoped?: boolean; noSlate?: boolean }, streams: { input: Readable; output: Writable } = { input: process.stdin, output: process.stdout }): Promise<void> {
+export async function serveMcp(statePath: string, opts: { alsoHere?: VerbDeps["alsoHere"]; cwd?: string; env: VerbDeps["env"]; host?: string; start?: VerbDeps["start"]; scoped?: boolean; noSlate?: boolean; tape?: Tape }, streams: { input: Readable; output: Writable } = { input: process.stdin, output: process.stdout }): Promise<void> {
   const dial = dialer(statePath, pickOf(opts));
   const dialAnyRelease = dialer(statePath, { ...pickOf(opts), anyRelease: true });
   const server = mcpServer(statePath, { dial, dialAnyRelease, ...opts });
@@ -81,6 +82,19 @@ export async function serveMcp(statePath: string, opts: { alsoHere?: VerbDeps["a
   });
   streams.input.once("end", () => void transport.close());
   await server.connect(transport);
+  const tape = opts.tape;
+  if (tape !== undefined) {
+    const heard = transport.onmessage;
+    transport.onmessage = message => {
+      tape.in(message);
+      heard?.(message);
+    };
+    const say = transport.send.bind(transport);
+    transport.send = async message => {
+      tape.out(message);
+      return say(message);
+    };
+  }
   await closed;
   await dial.close();
   await dialAnyRelease.close();
