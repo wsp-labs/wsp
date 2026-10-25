@@ -7,7 +7,7 @@
 // place-link.ts:253
 // export const placeStillInstalledLine = (name: string): string => `${name} is off this host, but the daemon on it is still installed; run ${PLACE_LEAVE_LINE} on that computer when it is back`;
 pub fn place_still_installed_line(name: &str) -> String {
-    todo!()
+    format!("{name} is off this host, but the daemon on it is still installed; run wsp leave on that computer when it is back")
 }
 
 /// What a forget says about a computer whose forks and projects went here with no road to it: nothing was done
@@ -16,7 +16,8 @@ pub fn place_still_installed_line(name: &str) -> String {
 // export const placeForgottenLine = (name: string, forks: boolean): string =>
 //   `${name} is forgotten here and nothing was done on it; whatever of wsp's is still there${forks ? ", the copies its forks ran in among it," : ""} comes off with ${PLACE_LEAVE_LINE} run on that computer`;
 pub fn place_forgotten_line(name: &str, forks: bool) -> String {
-    todo!()
+    let copies = if forks { ", the copies its forks ran in among it," } else { "" };
+    format!("{name} is forgotten here and nothing was done on it; whatever of wsp's is still there{copies} comes off with wsp leave run on that computer")
 }
 
 /// The refusal a second join on one computer gets: a place file is the one wsp this computer belongs to.

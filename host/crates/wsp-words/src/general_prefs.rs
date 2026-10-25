@@ -18,5 +18,8 @@ pub struct NotifyHow {
 //   return { show: choice !== "sound", sound: choice !== "notify" };
 // }
 pub fn notify_by(choice: NotifyChoice) -> Option<NotifyHow> {
-    todo!()
+    if matches!(choice, NotifyChoice::Off) {
+        return None;
+    }
+    Some(NotifyHow { show: !matches!(choice, NotifyChoice::Sound), sound: !matches!(choice, NotifyChoice::Notify) })
 }
