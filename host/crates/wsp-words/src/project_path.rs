@@ -6,13 +6,18 @@
 
 use serde::Serialize;
 
+use wsp_wire::types::daemon_contract::TOOLS_PATH;
+use wsp_wire::types::docker_shim::DOCKER_NOTES_FOLDER;
+use wsp_wire::types::project_path::{PLACE_HELD_LINE, PLACE_LEFT_LINE, SSH_ALIAS_PREFIX};
+use wsp_wire::types::shell_quote::shell_quote;
+
 /// Whether path is the folder itself or sits inside it; a sibling that shares the prefix is not.
 // project-path.ts:16
 // export function underProject(path: string, root: string): boolean {
 //   return path === root || path.startsWith(`${root}/`);
 // }
 pub fn under_project(path: &str, root: &str) -> bool {
-    todo!()
+    path == root || path.strip_prefix(root).is_some_and(|rest| rest.starts_with('/'))
 }
 
 // A folder git named by its real path, as cwd may name it: the path itself, then each tail of it cwd sits under, since
@@ -24,6 +29,15 @@ pub fn under_project(path: &str, root: &str) -> bool {
 //   for (let at = real.indexOf("/", 1); at > 0; at = real.indexOf("/", at + 1)) if (underProject(cwd, real.slice(at))) names.push(real.slice(at));
 //   return names;
 // }
+fn names_of(real: &str, cwd: &str) -> Vec<String> {
+    let mut names = vec![real.to_string()];
+    for (at, _) in real.char_indices().skip(1).filter(|(_, c)| *c == '/') {
+        if under_project(cwd, &real[at..]) {
+            names.push(real[at..].to_string());
+        }
+    }
+    names
+}
 
 /// A path an agent's tool call named, absolute or from cwd, as git names it from the top of the repo at root; undefined
 /// for one outside it. An absolute path is matched under root as git names it, a relative one through cwd as namesOf
@@ -41,7 +55,18 @@ pub fn under_project(path: &str, root: &str) -> bool {
 //   return top === undefined ? undefined : full.slice(top.length + 1);
 // }
 pub fn repo_path_of(path: &str, cwd: &str, root: &str) -> Option<String> {
-    todo!()
+    let joined = if path.starts_with('/') { path.to_string() } else { format!("{cwd}/{path}") };
+    let mut parts: Vec<&str> = Vec::new();
+    for part in joined.split('/') {
+        if part == ".." {
+            parts.pop();
+        } else if !part.is_empty() && part != "." {
+            parts.push(part);
+        }
+    }
+    let full = format!("/{}", parts.join("/"));
+    let top = names_of(root, cwd).into_iter().find(|t| full.strip_prefix(t.as_str()).is_some_and(|rest| rest.starts_with('/')))?;
+    Some(full[top.len() + 1..].to_string())
 }
 
 /// The worktree cwd sits in, of the ones git lists for its repo by their real paths: the deepest, since a worktree may
@@ -56,7 +81,17 @@ pub fn repo_path_of(path: &str, cwd: &str, root: &str) -> Option<String> {
 //   return deepest?.path;
 // }
 pub fn worktree_of(cwd: &str, worktrees: &[impl AsRef<str>]) -> Option<String> {
-    todo!()
+    let mut deepest: Option<(&str, usize)> = None;
+    for path in worktrees {
+        let path = path.as_ref();
+        let at = names_of(path, cwd).iter().filter(|name| under_project(cwd, name)).map(|name| name.encode_utf16().count()).max();
+        if let Some(at) = at {
+            if deepest.is_none_or(|(_, depth)| at > depth) {
+                deepest = Some((path, at));
+            }
+        }
+    }
+    deepest.map(|(path, _)| path.to_string())
 }
 
 /// The folder Claude Code keeps one project's sessions and memory under, its projects directory name: the resolved
@@ -68,7 +103,12 @@ pub fn worktree_of(cwd: &str, worktrees: &[impl AsRef<str>]) -> Option<String> {
 // project-path.ts:60
 // export const claudeProjectKey = (path: string): string => path.replace(/[^A-Za-z0-9]/g, "-");
 pub fn claude_project_key(path: &str) -> String {
-    todo!()
+    path.encode_utf16()
+        .map(|unit| match u8::try_from(unit) {
+            Ok(byte) if byte.is_ascii_alphanumeric() => char::from(byte),
+            _ => '-',
+        })
+        .collect()
 }
 
 /// Where Claude Code keeps one project's own memory under a state home: the keyed projects folder, and `memory`
@@ -77,7 +117,7 @@ pub fn claude_project_key(path: &str) -> String {
 // project-path.ts:65
 // export const claudeMemoryDir = (stateHome: string, key: string): string => `${stateHome.replace(/\/+$/, "")}/projects/${key}/memory`;
 pub fn claude_memory_dir(state_home: &str, key: &str) -> String {
-    todo!()
+    format!("{}/projects/{key}/memory", state_home.trim_end_matches('/'))
 }
 
 /// A folder's own name, its last segment: what a project is called, what the import dialog and the register line
@@ -85,7 +125,7 @@ pub fn claude_memory_dir(state_home: &str, key: &str) -> String {
 // project-path.ts:69
 // export const folderName = (path: string): string => path.replace(/\/+$/, "").split("/").at(-1) ?? path;
 pub fn folder_name(path: &str) -> String {
-    todo!()
+    path.trim_end_matches('/').rsplit('/').next().unwrap_or("").to_string()
 }
 
 /// A piece of work's name as a folder name: lowercase, every run of anything else one dash, nothing hanging off
@@ -97,7 +137,22 @@ pub fn folder_name(path: &str) -> String {
 //   return slug === "" ? "work" : slug;
 // }
 pub fn folder_slug(name: &str) -> String {
-    todo!()
+    let mut dashed = String::new();
+    for c in name.to_lowercase().chars() {
+        if c.is_ascii_lowercase() || c.is_ascii_digit() {
+            dashed.push(c);
+        } else if !dashed.ends_with('-') {
+            dashed.push('-');
+        }
+    }
+    let trimmed = dashed.trim_matches('-');
+    let cut = &trimmed[..trimmed.len().min(40)];
+    let slug = cut.trim_end_matches('-');
+    if slug.is_empty() {
+        "work".to_string()
+    } else {
+        slug.to_string()
+    }
 }
 
 // project-path.ts:81
@@ -106,7 +161,7 @@ pub fn folder_slug(name: &str) -> String {
 // project-path.ts:82
 // export const sshAlias = (name: string): string => `${SSH_ALIAS_PREFIX}${folderSlug(name)}`;
 pub fn ssh_alias(name: &str) -> String {
-    todo!()
+    format!("{SSH_ALIAS_PREFIX}{}", folder_slug(name))
 }
 
 /// The machine a folder browser is walking, as far as the hidden rule cares: the home that machine reports, and
@@ -136,15 +191,23 @@ pub struct FolderMachine {
 //   return machine.mac === true && home !== undefined && home !== "" && at === `${home}/Library`;
 // }
 pub fn hidden_folder(path: &str, machine: Option<&FolderMachine>) -> bool {
-    todo!()
+    let at = path.trim_end_matches('/');
+    folder_name(at).starts_with('.') || mac_home(machine).is_some_and(|home| at == format!("{home}/Library"))
 }
 
 // The folders of a Mac home whose contents macOS keeps behind a permission prompt per program, iCloud Drive and
 // the cloud folders among them, and the media folders beside them, as paths under the home. Listing one, or reading
 // any path inside it, holds the read until the person answers the prompt.
 // project-path.ts:106
-// private in the TS: port it as a private helper
-// const MAC_GUARDED = ["Desktop", "Documents", "Downloads", "Pictures", "Movies", "Music", "Library/Mobile Documents", "Library/CloudStorage"];
+const MAC_GUARDED: [&str; 8] =
+    ["Desktop", "Documents", "Downloads", "Pictures", "Movies", "Music", "Library/Mobile Documents", "Library/CloudStorage"];
+
+/// The home of a Mac machine, without its trailing slashes, where the machine says it is one and names a home.
+fn mac_home(machine: Option<&FolderMachine>) -> Option<&str> {
+    let machine = machine?;
+    let home = machine.home.as_deref()?.trim_end_matches('/');
+    (machine.mac == Some(true) && !home.is_empty()).then_some(home)
+}
 
 /// Whether a folder browser stays out of this folder unless a path was typed into it: one of the folders a Mac
 /// guards in its home. Shown as a row, never looked inside on its own.
@@ -156,7 +219,8 @@ pub fn hidden_folder(path: &str, machine: Option<&FolderMachine>) -> bool {
 //   return MAC_GUARDED.some(name => at === `${home}/${name}`);
 // }
 pub fn guarded_folder(path: &str, machine: Option<&FolderMachine>) -> bool {
-    todo!()
+    let at = path.trim_end_matches('/');
+    mac_home(machine).is_some_and(|home| MAC_GUARDED.iter().any(|name| at == format!("{home}/{name}")))
 }
 
 /// The name of the folder a path sits in, empty where it sits at the root or is a bare name.
@@ -166,7 +230,12 @@ pub fn guarded_folder(path: &str, machine: Option<&FolderMachine>) -> bool {
 //   return parts.length < 2 ? "" : parts[parts.length - 2]!;
 // };
 pub fn parent_folder_name(path: &str) -> String {
-    todo!()
+    let parts: Vec<&str> = path.trim_end_matches('/').split('/').collect();
+    if parts.len() < 2 {
+        String::new()
+    } else {
+        parts[parts.len() - 2].to_string()
+    }
 }
 
 /// The PATH a daemon on a computer that runs workspaces resolves a command through, and the one every script of
@@ -183,7 +252,8 @@ pub fn parent_folder_name(path: &str) -> String {
 //   return TOOLS_PATH.split(":").filter(dir => dir !== "" && !underProject(dir, at)).join(":");
 // }
 pub fn probe_path(home: &str) -> String {
-    todo!()
+    let at = home.trim_end_matches('/');
+    TOOLS_PATH.split(':').filter(|dir| !dir.is_empty() && !under_project(dir, at)).collect::<Vec<_>>().join(":")
 }
 
 /// The file naming the imported project folders a daemon may browse, one absolute path per line. It sits beside the
@@ -194,7 +264,7 @@ pub fn probe_path(home: &str) -> String {
 //   return `${home.replace(/\/+$/, "")}/.wsp/roots`;
 // }
 pub fn roots_path_in(home: &str) -> String {
-    todo!()
+    format!("{}/.wsp/roots", home.trim_end_matches('/'))
 }
 
 /// The folder every turn and every exec starts in on a computer somebody owns, wsp's own under their home. Not the
@@ -206,7 +276,7 @@ pub fn roots_path_in(home: &str) -> String {
 //   return `${home.replace(/\/+$/, "")}/wsp-work`;
 // }
 pub fn work_folder_in(home: &str) -> String {
-    todo!()
+    format!("{}/wsp-work", home.trim_end_matches('/'))
 }
 
 /// Everywhere the daemon on a computer the person owns keeps something, whether wsp put it there over ssh or the
@@ -330,7 +400,37 @@ pub struct PlaceDaemonPaths {
 }
 
 pub fn place_daemon_paths(home: &str) -> PlaceDaemonPaths {
-    todo!()
+    let at = home.trim_end_matches('/');
+    let wsp = format!("{at}/.wsp");
+    PlaceDaemonPaths {
+        dir: format!("{wsp}/daemon"),
+        bundle: format!("{wsp}/daemon.tgz"),
+        inbox: format!("{wsp}/inbox"),
+        token_path: format!("{wsp}/daemon-token"),
+        port_file: format!("{wsp}/daemon.port"),
+        run_dir: format!("{wsp}/run"),
+        put_dir: format!("{wsp}/put"),
+        open_socket: format!("{wsp}/open.sock"),
+        guest_socket: format!("{wsp}/daemon.sock"),
+        guest_bin: format!("{wsp}/place-bin"),
+        docker_notes: format!("{wsp}/{DOCKER_NOTES_FOLDER}"),
+        manifest_path: format!("{wsp}/manifest.json"),
+        profile_file: format!("{wsp}/profile.sh"),
+        unit_dir: format!("{at}/.config/systemd/user"),
+        bin_dir: format!("{at}/.local/bin"),
+        open_shim: format!("{at}/.local/bin/wsp-open"),
+        roots_path: roots_path_in(at),
+        place_file: format!("{wsp}/place.json"),
+        place_key: format!("{wsp}/place-key.pem"),
+        place_log: format!("{wsp}/place.log"),
+        place_found: format!("{wsp}/place-found"),
+        place_found_part: format!("{wsp}/place-found.part"),
+        join_code: format!("{wsp}/join-code"),
+        install_logs: format!("{wsp}/install-logs"),
+        readings: format!("{wsp}/readings"),
+        ssh_dir: format!("{wsp}/ssh"),
+        wsp,
+    }
 }
 
 /// The login files wsp puts its one line in on that computer, the first always and the rest only where they stand:
@@ -343,14 +443,15 @@ pub fn place_daemon_paths(home: &str) -> PlaceDaemonPaths {
 //   return [`${at}/.profile`, `${at}/.bash_profile`, `${at}/.bash_login`];
 // };
 pub fn place_login_files(home: &str) -> Vec<String> {
-    todo!()
+    let at = home.trim_end_matches('/');
+    vec![format!("{at}/.profile"), format!("{at}/.bash_profile"), format!("{at}/.bash_login")]
 }
 
 /// The log a project's landing on that computer writes its install's output to, which a leave takes with its folder.
 // project-path.ts:248
 // export const placeInstallLog = (home: string, projectId: string): string => `${placeDaemonPaths(home).installLogs}/${projectId}.log`;
 pub fn place_install_log(home: &str, project_id: &str) -> String {
-    todo!()
+    format!("{}/{project_id}.log", place_daemon_paths(home).install_logs)
 }
 
 /// How much of a box's place file is read: a real one is well under a kilobyte, and the box is the untrusted side.
@@ -379,7 +480,15 @@ const HELD_PLACE_READ_BYTES: i64 = 65_536;
 //   ].join("\n");
 // };
 pub fn held_place_script(home: &str) -> String {
-    todo!()
+    let at = place_daemon_paths(home);
+    let (file, key) = (shell_quote(&at.place_file), shell_quote(&at.place_key));
+    [
+        format!("echo; echo {PLACE_HELD_LINE}"),
+        format!("if [ -e {file} ]; then {{ [ -f {file} ] && [ ! -s {file} ] && echo '{PLACE_LEFT_LINE} file'; head -c {HELD_PLACE_READ_BYTES} {file} 2>/dev/null || echo '{PLACE_LEFT_LINE} file'; }}"),
+        format!("elif [ -L {file} ]; then echo '{PLACE_LEFT_LINE} file'"),
+        format!("elif [ -e {key} ] || [ -L {key} ]; then echo '{PLACE_LEFT_LINE} key'; fi; true"),
+    ]
+    .join("\n")
 }
 
 /// What the job that puts the recipe on a computer you own keeps there: the scratch its long steps run under, the
@@ -411,7 +520,17 @@ pub struct PlaceProvisionPaths {
 }
 
 pub fn place_provision_paths(home: &str) -> PlaceProvisionPaths {
-    todo!()
+    let dir = format!("{}/provision", place_daemon_paths(home).wsp);
+    PlaceProvisionPaths {
+        run_dir: format!("{dir}/run"),
+        log: format!("{dir}/log"),
+        result: format!("{dir}/result.json"),
+        staging: format!("{dir}/files"),
+        landed: format!("{dir}/landed"),
+        landing: format!("{dir}/landing"),
+        asked: format!("{dir}/asked"),
+        dir,
+    }
 }
 
 /// Every path a leave takes off a computer joined as a place, in the order they go: the place file, its key and the
@@ -455,7 +574,37 @@ pub fn place_provision_paths(home: &str) -> PlaceProvisionPaths {
 //   ];
 // }
 pub fn place_owned_paths(home: &str) -> Vec<String> {
-    todo!()
+    let at = place_daemon_paths(home);
+    vec![
+        at.place_file.clone(),
+        at.place_key.clone(),
+        at.place_log.clone(),
+        at.place_found.clone(),
+        at.place_found_part.clone(),
+        at.join_code.clone(),
+        at.dir.clone(),
+        place_provision_paths(home).dir,
+        at.bundle.clone(),
+        at.inbox.clone(),
+        at.token_path.clone(),
+        at.roots_path.clone(),
+        at.profile_file.clone(),
+        at.open_socket.clone(),
+        at.guest_socket.clone(),
+        format!("{}/wsp", at.guest_bin),
+        format!("{}/docker", at.guest_bin),
+        at.guest_bin.clone(),
+        at.docker_notes.clone(),
+        at.run_dir.clone(),
+        at.port_file.clone(),
+        at.manifest_path.clone(),
+        at.put_dir.clone(),
+        at.install_logs.clone(),
+        at.readings.clone(),
+        at.ssh_dir.clone(),
+        at.open_shim.clone(),
+        format!("{}/xdg-open", at.bin_dir),
+    ]
 }
 
 /// What a stand-in provider keeps in the folder a harness names for it: the records every host on that state file
@@ -465,12 +614,11 @@ pub fn place_owned_paths(home: &str) -> Vec<String> {
 // project-path.ts:335
 // export const standInRecordsPath = (root: string): string => `${root.replace(/\/+$/, "")}/records.json`;
 pub fn stand_in_records_path(root: &str) -> String {
-    todo!()
+    format!("{}/records.json", root.trim_end_matches('/'))
 }
 
 // project-path.ts:336
 // export const standInMachinePath = (root: string, machineId: string): string => `${root.replace(/\/+$/, "")}/machines/${machineId}`;
 pub fn stand_in_machine_path(root: &str, machine_id: &str) -> String {
-    todo!()
+    format!("{}/machines/{machine_id}", root.trim_end_matches('/'))
 }
-

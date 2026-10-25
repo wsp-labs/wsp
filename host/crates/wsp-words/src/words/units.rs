@@ -6,10 +6,17 @@
 use wsp_wire::types::init_job::{InitDraft, InitJob, InitScreen, InitScreenId};
 use wsp_wire::wire::capabilities::{MachineSizeOffer, PlaceCapacity, WorkspaceSize};
 
+use crate::js::{js_round, js_trim, locale_number, number_string, to_fixed, utf16, Grouping};
+use crate::words::base::plural;
 use indexmap::IndexSet;
+use regex::Regex;
+use wsp_wire::types::init_job::InitScreenItemLock;
+use wsp_wire::types::js_number::JsNumber;
 
 // units.ts:4
 pub const KIB: f64 = 1024.0;
+const MIB: f64 = KIB * 1024.0;
+const GIB: f64 = MIB * 1024.0;
 
 // units.ts:5
 // private in the TS: port it as a private helper
@@ -38,7 +45,15 @@ pub const KIB: f64 = 1024.0;
 //   return `${text}${COMPACT_UNITS[i]}`;
 // }
 pub fn compact_bytes(n: f64) -> String {
-    todo!()
+    const COMPACT_UNITS: [&str; 5] = ["", "K", "M", "G", "T"];
+    let mut v = if n > 0.0 || n.is_nan() { n } else { 0.0 };
+    let mut i = 0;
+    while v >= 1000.0 && i < COMPACT_UNITS.len() - 1 {
+        v /= KIB;
+        i += 1;
+    }
+    let text = if i == 0 || v >= 10.0 { number_string(js_round(v)) } else { to_fixed(v, 1) };
+    format!("{text}{}", COMPACT_UNITS[i])
 }
 
 // units.ts:24
@@ -46,7 +61,7 @@ pub fn compact_bytes(n: f64) -> String {
 //   return bytesIn(n, KIB);
 // }
 pub fn fmt_bytes(n: f64) -> String {
-    todo!()
+    bytes_in(n, KIB)
 }
 
 /// Bytes in decimal units, as a provider sells a disk: a 160 GB disk reads 160 GB, where fmtBytes says 149.
@@ -55,7 +70,7 @@ pub fn fmt_bytes(n: f64) -> String {
 //   return bytesIn(n, 1000);
 // }
 pub fn fmt_disk_bytes(n: f64) -> String {
-    todo!()
+    bytes_in(n, 1000.0)
 }
 
 // units.ts:33
@@ -76,7 +91,10 @@ pub fn fmt_disk_bytes(n: f64) -> String {
 //   return `${(Math.ceil((n / MIB) * 10) / 10).toFixed(1)} MB`;
 // }
 pub fn fmt_bytes_over(n: f64) -> String {
-    todo!()
+    if !(MIB..GIB).contains(&n) {
+        return fmt_bytes(n);
+    }
+    format!("{} MB", to_fixed(((n / MIB) * 10.0).ceil() / 10.0, 1))
 }
 
 /// What a row reads where the catalog has measured no size.
@@ -87,7 +105,7 @@ pub const UNKNOWN_SIZE: &str = "size unknown";
 // units.ts:52
 // export const fmtCalls = (n: number): string => `${n.toLocaleString("en-US")} ${n === 1 ? "call" : "calls"}`;
 pub fn fmt_calls(n: f64) -> String {
-    todo!()
+    format!("{} {}", locale_number(n, Grouping::EnUs, 0, 3), if n == 1.0 { "call" } else { "calls" })
 }
 
 /// The tally under a screen's card, first half: the count of rows on the image, so a view can colour the estimate after it on its own. The
@@ -95,7 +113,11 @@ pub fn fmt_calls(n: f64) -> String {
 // units.ts:56
 // export const initTallyCount = (count: number, noun: string): string => `${noun.endsWith("s") ? plural(count, noun.replace(/s$/, "")) : `${count} ${noun}`} on the image`;
 pub fn init_tally_count(count: f64, noun: &str) -> String {
-    todo!()
+    let body = match noun.strip_suffix('s') {
+        Some(singular) => plural(count, singular),
+        None => format!("{} {noun}", number_string(count)),
+    };
+    format!("{body} on the image")
 }
 
 /// Two byte counts against each other, each under the byte rule ("4.9 GB of 20 GB"): the tally's running estimate
@@ -104,7 +126,10 @@ pub fn init_tally_count(count: f64, noun: &str) -> String {
 // units.ts:60
 // export const fmtBytesOfTotal = (used: number, total?: number): string => (total === undefined ? fmtBytes(used) : `${fmtBytes(used)} of ${fmtBytes(total)}`);
 pub fn fmt_bytes_of_total(used: f64, total: Option<f64>) -> String {
-    todo!()
+    match total {
+        None => fmt_bytes(used),
+        Some(total) => format!("{} of {}", fmt_bytes(used), fmt_bytes(total)),
+    }
 }
 
 /// How many rows of a screen are on the image with these ticks and the bytes they come to: a locked row is on, a row
@@ -129,7 +154,21 @@ pub struct InitTally {
 }
 
 pub fn init_tally_of(screen: &InitScreen, ticks: &IndexSet<String>) -> InitTally {
-    todo!()
+    let mut count = 0.0;
+    let mut bytes = 0.0;
+    for item in &screen.items {
+        if item.choices.is_some() {
+            continue;
+        }
+        if !(matches!(item.lock, Some(InitScreenItemLock::On)) || ticks.contains(&item.id)) {
+            continue;
+        }
+        count += 1.0;
+        if let Some(Some(size)) = &item.size {
+            bytes += size.0;
+        }
+    }
+    InitTally { count, bytes }
 }
 
 /// The ticks of a screen as they stand: the draft kept on its step where the person left one, else what the host last
@@ -137,7 +176,10 @@ pub fn init_tally_of(screen: &InitScreen, ticks: &IndexSet<String>) -> InitTally
 // units.ts:78
 // export const initTicksOf = (screen: Pick<InitScreen, "ticks">, kept?: Pick<InitDraft, "ticks">): ReadonlySet<string> => new Set(kept?.ticks ?? screen.ticks);
 pub fn init_ticks_of(screen: &InitScreen, kept: Option<&InitDraft>) -> IndexSet<String> {
-    todo!()
+    match kept {
+        Some(draft) => draft.ticks.iter().cloned().collect(),
+        None => screen.ticks.iter().cloned().collect(),
+    }
 }
 
 /// The running estimate of the image in bytes: what the disk holds before any tick plus every screen's ticked rows as
@@ -156,7 +198,17 @@ pub struct CurrentTicks {
 }
 
 pub fn init_image_bytes(job: &InitJob, current: Option<&CurrentTicks>) -> f64 {
-    todo!()
+    let fixed = job.disk.as_ref().map_or(0.0, |disk| disk.fixed.0);
+    job.screens.iter().fold(fixed, |sum, screen| {
+        let ticks: IndexSet<String> = match current {
+            Some(current) if current.at == screen_word(screen.id) => current.ticks.iter().cloned().collect(),
+            _ => {
+                let draft = job.drafts.as_ref().and_then(|drafts| drafts.iter().find(|d| d.at == screen_word(screen.id)));
+                init_ticks_of(screen, draft)
+            }
+        };
+        sum + init_tally_of(screen, &ticks).bytes
+    })
 }
 
 /// The tone a size is read in, by weight, the one table every size cell reads: a gigabyte and over is the danger
@@ -178,7 +230,12 @@ pub enum SizeTone {
 impl SizeTone {
     /// The TS string literal.
     pub fn as_str(self) -> &'static str {
-        todo!()
+        match self {
+            SizeTone::Danger => "danger",
+            SizeTone::Warning => "warning",
+            SizeTone::Yellow => "yellow",
+            SizeTone::Muted => "muted",
+        }
     }
 }
 
@@ -195,7 +252,15 @@ impl SizeTone {
 //   return SIZE_TONES.find(([from]) => bytes >= from)?.[1] ?? "muted";
 // }
 pub fn size_tone(bytes: f64) -> SizeTone {
-    todo!()
+    if bytes >= GIB {
+        SizeTone::Danger
+    } else if bytes >= 200.0 * MIB {
+        SizeTone::Warning
+    } else if bytes >= 50.0 * MIB {
+        SizeTone::Yellow
+    } else {
+        SizeTone::Muted
+    }
 }
 
 // The screens where a person is choosing weight, whose size cells wear the weight tone. The agents screen's sizes
@@ -209,7 +274,10 @@ pub fn size_tone(bytes: f64) -> SizeTone {
 // units.ts:105
 // export const initSizeTone = (screen: Pick<InitScreen, "id">, bytes: number | null): SizeTone => (bytes === null || !WEIGHED_SCREENS.has(screen.id) ? "muted" : sizeTone(bytes));
 pub fn init_size_tone(screen_id: InitScreenId, bytes: Option<f64>) -> SizeTone {
-    todo!()
+    match bytes {
+        Some(bytes) if matches!(screen_id, InitScreenId::Tools | InitScreenId::Also) => size_tone(bytes),
+        _ => SizeTone::Muted,
+    }
 }
 
 /// The tone of the disk meter and the tally's estimate by the share the estimate takes of the disk: muted under 70
@@ -222,7 +290,14 @@ pub fn init_size_tone(screen_id: InitScreenId, bytes: Option<f64>) -> SizeTone {
 // }
 /// `diskTone`'s answer: never Yellow.
 pub fn disk_tone(used: f64, total: f64) -> SizeTone {
-    todo!()
+    let share = if total > 0.0 { used / total } else { 1.0 };
+    if share >= 0.9 {
+        SizeTone::Danger
+    } else if share >= 0.7 {
+        SizeTone::Warning
+    } else {
+        SizeTone::Muted
+    }
 }
 
 /// The disk meter's tooltip: what the image holds against the machine's disk, and by how much it is over once it is;
@@ -230,14 +305,15 @@ pub fn disk_tone(used: f64, total: f64) -> SizeTone {
 // units.ts:117
 // export const initDiskLine = (used: number, total: number): string => `about ${fmtBytes(used)} of ${fmtBytes(total)} on the image${used > total ? `, ${initDiskOverLine(used - total)}` : ""}`;
 pub fn init_disk_line(used: f64, total: f64) -> String {
-    todo!()
+    let over = if used > total { format!(", {}", init_disk_over_line(used - total)) } else { String::new() };
+    format!("about {} of {} on the image{over}", fmt_bytes(used), fmt_bytes(total))
 }
 
 /// The primary's refusal once the ticks pass the disk, and the tail of the meter's tooltip.
 // units.ts:120
 // export const initDiskOverLine = (over: number): string => `over by ${fmtBytes(over)}`;
 pub fn init_disk_over_line(over: f64) -> String {
-    todo!()
+    format!("over by {}", fmt_bytes(over))
 }
 
 // Memory in GB as the size table names it: whole when whole, else one decimal; a size spec, not a byte count.
@@ -251,7 +327,7 @@ pub fn init_disk_over_line(over: f64) -> String {
 //   return `${px} px`;
 // }
 pub fn fmt_px(px: f64) -> String {
-    todo!()
+    format!("{} px", number_string(px))
 }
 
 /// A machine size's memory with its unit.
@@ -260,7 +336,7 @@ pub fn fmt_px(px: f64) -> String {
 //   return `${memGb(memMb)} GB`;
 // }
 pub fn fmt_mem_gb(mem_mb: f64) -> String {
-    todo!()
+    format!("{} GB", number_string(mem_gb(mem_mb)))
 }
 
 /// What one of a machine's cpus is called: a provider's are virtual, this computer's are the cores it has.
@@ -277,7 +353,10 @@ pub enum CpuWord {
 impl CpuWord {
     /// The TS string literal.
     pub fn as_str(self) -> &'static str {
-        todo!()
+        match self {
+            CpuWord::VCPU => "vCPU",
+            CpuWord::Cores => "cores",
+        }
     }
 }
 
@@ -287,7 +366,11 @@ impl CpuWord {
 //   return `${n} ${cpu === "cores" && n === 1 ? "core" : cpu}`;
 // }
 pub fn fmt_cpus(n: f64, cpu: Option<CpuWord>) -> String {
-    todo!()
+    let word = match cpu.unwrap_or(CpuWord::VCPU) {
+        CpuWord::Cores if n == 1.0 => "core",
+        word => word.as_str(),
+    };
+    format!("{} {word}", number_string(n))
 }
 
 /// A size as the sidebar row and the Machine tab show it: "2 vCPU, 4 GB", or "10 cores, 16 GB"
@@ -298,7 +381,7 @@ pub fn fmt_cpus(n: f64, cpu: Option<CpuWord>) -> String {
 //   return `${fmtCpus(size.cpu, cpu)},\u00a0${fmtMemGb(size.memMb)}`.replace(/ /g, "\u00a0");
 // }
 pub fn fmt_size(size: &WorkspaceSize, cpu: Option<CpuWord>) -> String {
-    todo!()
+    format!("{},\u{a0}{}", fmt_cpus(size.cpu.0, cpu), fmt_mem_gb(size.mem_mb.0)).replace(' ', "\u{a0}")
 }
 
 /// What the create says where the machine it got is not the size it was forked at, the one asked for or else the
@@ -308,7 +391,8 @@ pub fn fmt_size(size: &WorkspaceSize, cpu: Option<CpuWord>) -> String {
 //   return `${named ? "asked for" : "the image's size is"} ${fmtSize(asked)}; the machine has ${fmtSize(got)}`;
 // }
 pub fn size_got_line(asked: &WorkspaceSize, got: &WorkspaceSize, named: bool) -> String {
-    todo!()
+    let asked_word = if named { "asked for" } else { "the image's size is" };
+    format!("{asked_word} {}; the machine has {}", fmt_size(asked, None), fmt_size(got, None))
 }
 
 /// What a computer of the person's own is worth saying in one line: the cores and memory it has, and the room left
@@ -321,7 +405,11 @@ pub fn size_got_line(asked: &WorkspaceSize, got: &WorkspaceSize, named: bool) ->
 //   return parts.join(", ").replace(/ /g, "\u00a0");
 // }
 pub fn place_facts_line(shape: &WorkspaceSize, disk_free_bytes: Option<f64>) -> String {
-    todo!()
+    let mut parts = vec![fmt_size(shape, Some(CpuWord::Cores))];
+    if let Some(free) = disk_free_bytes {
+        parts.push(format!("{} free", fmt_bytes(free)));
+    }
+    parts.join(", ").replace(' ', "\u{a0}")
 }
 
 /// The room a box has left, as the doctor reads it back: what the computer has, what the workspaces on it hold
@@ -337,7 +425,20 @@ pub fn place_facts_line(shape: &WorkspaceSize, disk_free_bytes: Option<f64>) -> 
 //   ];
 // }
 pub fn box_room_lines(capacity: &PlaceCapacity) -> Vec<String> {
-    todo!()
+    let (Some(cpu_taken), Some(mem_taken)) = (&capacity.cpu_taken, &capacity.mem_taken_mb) else {
+        return Vec::new();
+    };
+    let (cores, mem_mb) = (capacity.cores.0, capacity.mem_mb.0);
+    let (cpu_taken, mem_taken) = (cpu_taken.0, mem_taken.0);
+    vec![
+        format!(
+            "{}, {} in use by forks, {} free",
+            fmt_cpus(cores, Some(CpuWord::Cores)),
+            number_string(cpu_taken),
+            number_string((cores - cpu_taken).max(0.0))
+        ),
+        format!("{}, {} in use by forks, {} free", fmt_mem_gb(mem_mb), fmt_mem_gb(mem_taken), fmt_mem_gb((mem_mb - mem_taken).max(0.0))),
+    ]
 }
 
 /// What a row the computer already had says where the command answered from a directory that row's own road never
@@ -348,7 +449,9 @@ pub fn box_room_lines(capacity: &PlaceCapacity) -> Vec<String> {
 // export const presentElsewhereLine = (bin: string, path: string, roadWords: string, bins: readonly string[]): string =>
 //   `${bin} answers from ${path}, outside where ${roadWords.replace(/^(?:by|with|as|from) /, "")} puts it (${bins.join(", ")})`;
 pub fn present_elsewhere_line(bin: &str, path: &str, road_words: &str, bins: &[impl AsRef<str>]) -> String {
-    todo!()
+    let road = ["by ", "with ", "as ", "from "].iter().find_map(|prefix| road_words.strip_prefix(prefix)).unwrap_or(road_words);
+    let bins: Vec<&str> = bins.iter().map(|bin| bin.as_ref()).collect();
+    format!("{bin} answers from {path}, outside where {road} puts it ({})", bins.join(", "))
 }
 
 /// What the doctor adds to a tool it found missing inside a workspace that the computer's own row read present:
@@ -358,7 +461,7 @@ pub fn present_elsewhere_line(bin: &str, path: &str, road_words: &str, bins: &[i
 // export const doctorComputerRowLine = (name: string, finishedAt: string): string =>
 //   `the computers row read it present at ${finishedAt}; wsp add ${name} --update reads it again`;
 pub fn doctor_computer_row_line(name: &str, finished_at: &str) -> String {
-    todo!()
+    format!("the computers row read it present at {finished_at}; wsp add {name} --update reads it again")
 }
 
 /// Why the folders of a provider are refused: a workspace there is forked fresh, so there is no computer standing
@@ -367,7 +470,7 @@ pub fn doctor_computer_row_line(name: &str, finished_at: &str) -> String {
 // export const providerFoldersRefusal = (name: string): string =>
 //   `${name} keeps no computer to browse, since every workspace there is forked fresh; add the project from a repository address, or from a folder on this computer, which seeds it`;
 pub fn provider_folders_refusal(name: &str) -> String {
-    todo!()
+    format!("{name} keeps no computer to browse, since every workspace there is forked fresh; add the project from a repository address, or from a folder on this computer, which seeds it")
 }
 
 /// Why a doctor's computer road was refused for a row that is not a computer somebody joined: the computer the
@@ -377,7 +480,7 @@ pub fn provider_folders_refusal(name: &str) -> String {
 // export const doctorRowRefusal = (name: string): string =>
 //   `wsp doctor proves a computer you added on the host that holds its link; ${name} is proved at the terminal that typed the line`;
 pub fn doctor_row_refusal(name: &str) -> String {
-    todo!()
+    format!("wsp doctor proves a computer you added on the host that holds its link; {name} is proved at the terminal that typed the line")
 }
 
 /// Why a second doctor on one computer is refused while the first is still going: two of them would make two
@@ -385,7 +488,7 @@ pub fn doctor_row_refusal(name: &str) -> String {
 // units.ts:203
 // export const doctorRunningLine = (name: string): string => `the doctor is already proving ${name}; wait for it`;
 pub fn doctor_running_line(name: &str) -> String {
-    todo!()
+    format!("the doctor is already proving {name}; wait for it")
 }
 
 /// What a host that serves the op without wiring the road answers: the road is the host's own, so a runtime served
@@ -400,7 +503,11 @@ pub const DOCTOR_UNSERVED: &str = "the host that answered wired no doctor for th
 // export const hereDaemonBehindLine = (version: number, host: number, fix: string): string =>
 //   `this computer's wsp daemon is version ${version} and this wsp needs ${host}; ${fix} stages the right one`;
 pub fn here_daemon_behind_line(version: f64, host: f64, fix: &str) -> String {
-    todo!()
+    format!(
+        "this computer's wsp daemon is version {} and this wsp needs {}; {fix} stages the right one",
+        number_string(version),
+        number_string(host)
+    )
 }
 
 /// What a child verb's failure that the verb itself never worded comes to: one sentence naming the verb and where
@@ -408,7 +515,7 @@ pub fn here_daemon_behind_line(version: f64, host: f64, fix: &str) -> String {
 // units.ts:217
 // export const copyVerbFailedLine = (exitCode: number): string => `the daemon's copy verb failed (exit ${exitCode}); the host log has its output`;
 pub fn copy_verb_failed_line(exit_code: f64) -> String {
-    todo!()
+    format!("the daemon's copy verb failed (exit {}); the host log has its output", number_string(exit_code))
 }
 
 /// What a machine wsp neither forks nor pays for costs, on its row's cost line and the Machine tab's Cost row.
@@ -421,7 +528,10 @@ pub const FREE_WORD: &str = "free";
 // units.ts:225
 // export const chargesNothing = (usdPerHour: number | undefined): usdPerHour is undefined | 0 => usdPerHour === undefined || usdPerHour === 0;
 pub fn charges_nothing(usd_per_hour: Option<f64>) -> bool {
-    todo!()
+    match usd_per_hour {
+        None => true,
+        Some(rate) => rate == 0.0,
+    }
 }
 
 /// A rate a person is being quoted before they pick: a size on offer, a place's own hourly price. A place that
@@ -431,7 +541,11 @@ pub fn charges_nothing(usd_per_hour: Option<f64>) -> bool {
 // units.ts:231
 // export const fmtPrice = (usdPerHour: number): string => (chargesNothing(usdPerHour) ? FREE_WORD : fmtRate(usdPerHour));
 pub fn fmt_price(usd_per_hour: f64) -> String {
-    todo!()
+    if charges_nothing(Some(usd_per_hour)) {
+        FREE_WORD.to_string()
+    } else {
+        fmt_rate(usd_per_hour)
+    }
 }
 
 /// What a pane prints in the slot a reading would fill on a kind whose machines serve that reading on no road: the
@@ -446,7 +560,7 @@ pub const NOT_ON_THIS_KIND: &str = "not on this kind";
 //   return `${size.cpu}x${memGb(size.memMb)}`;
 // }
 pub fn size_word(size: &WorkspaceSize) -> String {
-    todo!()
+    word_of(size.cpu.0, size.mem_mb.0)
 }
 
 /// The size a word names, or nothing when the word is not one.
@@ -459,7 +573,10 @@ pub fn size_word(size: &WorkspaceSize) -> String {
 //   return cpu > 0 && memMb > 0 ? { cpu, memMb } : undefined;
 // }
 pub fn size_from_word(word: &str) -> Option<WorkspaceSize> {
-    todo!()
+    let m = Regex::new(r"^([0-9]+)x([0-9]+(?:\.[0-9]+)?)$").ok()?.captures(js_trim(word))?;
+    let cpu: f64 = m[1].parse().ok()?;
+    let mem_mb = js_round(m[2].parse::<f64>().ok()? * 1024.0);
+    (cpu > 0.0 && mem_mb > 0.0).then_some(WorkspaceSize { cpu: JsNumber(cpu), mem_mb: JsNumber(mem_mb) })
 }
 
 /// The row a size names among the ones offered, with whatever that row carries beside the shape, or nothing where
@@ -477,27 +594,27 @@ pub trait Shape {
 
 impl Shape for WorkspaceSize {
     fn cpu(&self) -> f64 {
-        todo!()
+        self.cpu.0
     }
 
     fn mem_mb(&self) -> f64 {
-        todo!()
+        self.mem_mb.0
     }
 }
 
 impl Shape for MachineSizeOffer {
     fn cpu(&self) -> f64 {
-        todo!()
+        self.cpu.0
     }
 
     fn mem_mb(&self) -> f64 {
-        todo!()
+        self.mem_mb.0
     }
 }
 
 /// The first row whose cpu and memMb both equal the size's.
 pub fn size_offer<'a, T: Shape>(sizes: &'a [T], size: &WorkspaceSize) -> Option<&'a T> {
-    todo!()
+    sizes.iter().find(|offer| offer.cpu() == size.cpu.0 && offer.mem_mb() == size.mem_mb.0)
 }
 
 /// Whether a size is one the provider offers; the golden's own size is taken without this check.
@@ -506,7 +623,7 @@ pub fn size_offer<'a, T: Shape>(sizes: &'a [T], size: &WorkspaceSize) -> Option<
 //   return sizeOffer(sizes, size) !== undefined;
 // }
 pub fn offered_size<T: Shape>(sizes: &[T], size: &WorkspaceSize) -> bool {
-    todo!()
+    size_offer(sizes, size).is_some()
 }
 
 /// An awake rate in dollars an hour, at the fewest places that do not round the price: cents where cents are the
@@ -522,7 +639,7 @@ pub fn offered_size<T: Shape>(sizes: &[T], size: &WorkspaceSize) -> bool {
 //   return `${fmtRateDollars(usdPerHour)}/hr`;
 // }
 pub fn fmt_rate(usd_per_hour: f64) -> String {
-    todo!()
+    format!("{}/hr", fmt_rate_dollars(usd_per_hour))
 }
 
 /// That rate's dollars alone, for a line that spells the hour its own way.
@@ -532,7 +649,12 @@ pub fn fmt_rate(usd_per_hour: f64) -> String {
 //   return `$${mils.endsWith("0") ? usdPerHour.toFixed(2) : mils}`;
 // }
 pub fn fmt_rate_dollars(usd_per_hour: f64) -> String {
-    todo!()
+    let mils = to_fixed(usd_per_hour, 3);
+    if mils.ends_with('0') {
+        format!("${}", to_fixed(usd_per_hour, 2))
+    } else {
+        format!("${mils}")
+    }
 }
 
 /// The one refusal every road gives a size the provider does not offer, malformed or merely absent: the word as it
@@ -544,7 +666,12 @@ pub fn fmt_rate_dollars(usd_per_hour: f64) -> String {
 //   return `${word} is not a size this provider offers; the sizes are ${offered}`;
 // }
 pub fn size_refusal(word: &str, sizes: &[MachineSizeOffer]) -> String {
-    todo!()
+    let offered = sizes
+        .iter()
+        .map(|s| format!("{} ({})", word_of(s.cpu.0, s.mem_mb.0), fmt_rate(s.rate_usd_per_hour.0)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{word} is not a size this provider offers; the sizes are {offered}")
 }
 
 /// What to do about such a size on a road with no flag to name: the app's picker and the wire both ask for one of
@@ -569,7 +696,27 @@ pub const SIZE_PICK_FIX: &str = "Ask for one of those instead.";
 // }
 /// `builders` defaults to none.
 pub fn machine_cap_refusal(workspaces: &[impl AsRef<str>], builders: &[impl AsRef<str>], said: Option<&str>) -> String {
-    todo!()
+    let mut holders: Vec<String> = workspaces.iter().map(|w| w.as_ref().to_string()).collect();
+    holders.extend(builders.iter().map(|b| format!("{} (builder)", b.as_ref())));
+    let words = match said {
+        None | Some("") => String::new(),
+        Some(said) => format!(" The provider said: {said}"),
+    };
+    match holders.len() {
+        0 => {
+            let period = if words.is_empty() { String::new() } else { format!(".{words}") };
+            format!("the provider is at its machine cap and no machine of this computer holds a slot; free one at the provider and try again{period}")
+        }
+        held => {
+            let slots = match held {
+                1 => "a machine slot is",
+                2 => "both machine slots are",
+                _ => "machine slots are",
+            };
+            let pause = if held == 1 { "it" } else { "one" };
+            format!("{slots} in use: {}. Pause {pause} or wait for a nap.{words}", holders.join(", "))
+        }
+    }
 }
 
 /// Boat's three windows of starts: a create, a fork, a deploy from a named snapshot and a resume each count once.
@@ -588,7 +735,11 @@ pub enum StartWindow {
 impl StartWindow {
     /// The TS string literal.
     pub fn as_str(self) -> &'static str {
-        todo!()
+        match self {
+            StartWindow::Minute => "minute",
+            StartWindow::Hour => "hour",
+            StartWindow::Day => "day",
+        }
     }
 }
 
@@ -602,14 +753,30 @@ impl StartWindow {
 //   return `${head}; Boat counts the day again tomorrow, or a plan with more starts is at boat.dev/dashboard.`;
 // }
 pub fn starts_used_line(window: StartWindow, used: f64, limit: f64, plan: Option<&str>, what: Option<&str>) -> String {
-    todo!()
+    let when = if window == StartWindow::Day { "today".to_string() } else { format!("this {}", window.as_str()) };
+    let plan = plan.map_or(String::new(), |plan| format!(" on {plan}"));
+    let what = match what {
+        None | Some("") => "the machine",
+        Some(what) => what,
+    };
+    let head =
+        format!("Boat's starts for {when} are used ({} of {}{plan}), so {what} was not started", number_string(used), number_string(limit));
+    match window {
+        StartWindow::Minute => format!("{head}; start it again in a minute."),
+        StartWindow::Hour => format!("{head}; start it again later in the hour, or move to a plan with more at boat.dev/dashboard."),
+        StartWindow::Day => format!("{head}; Boat counts the day again tomorrow, or a plan with more starts is at boat.dev/dashboard."),
+    }
 }
 
 /// The plan a start line names: the trial, or the plan by its monthly price.
 // units.ts:322
 // export const boatPlanWords = (trial: boolean, usd: number | undefined): string | undefined => (trial ? "the trial" : usd === undefined ? undefined : `the $${usd} plan`);
 pub fn boat_plan_words(trial: bool, usd: Option<f64>) -> Option<String> {
-    todo!()
+    if trial {
+        Some("the trial".to_string())
+    } else {
+        usd.map(|usd| format!("the ${} plan", number_string(usd)))
+    }
 }
 
 // units.ts:324
@@ -629,7 +796,12 @@ pub const BOAT_REQUEST_LIMIT_LINE: &str = "Boat is refusing requests from this c
 // export const boatRequestLimitWaitLine = (call: string, waitMs: number, tryNumber: number, tries: number): string =>
 //   `${call} met Boat's limit of 1,000 requests a minute from one address; asking again in ${Math.ceil(waitMs / 1000)}s, try ${tryNumber} of ${tries}`;
 pub fn boat_request_limit_wait_line(call: &str, wait_ms: f64, try_number: f64, tries: f64) -> String {
-    todo!()
+    format!(
+        "{call} met Boat's limit of 1,000 requests a minute from one address; asking again in {}s, try {} of {}",
+        number_string((wait_ms / 1000.0).ceil()),
+        number_string(try_number),
+        number_string(tries)
+    )
 }
 
 /// A resume Boat refused because the box sat stopped past the 14 days it keeps a disk.
@@ -640,14 +812,14 @@ pub const BOAT_DISK_GONE_LINE: &str = "Boat deleted this machine's disk once it 
 // units.ts:335
 // export const diskGoneReleasedLine = (said: string): string => `${said}; the next send starts a new machine from the image`;
 pub fn disk_gone_released_line(said: &str) -> String {
-    todo!()
+    format!("{said}; the next send starts a new machine from the image")
 }
 
 /// A workspace whose cloud deleted its machine's disk, moved onto a new machine by the wake that met it.
 // units.ts:337
 // export const diskGoneReplacedLine = (said: string): string => `${said}; it runs on a new machine from the image now`;
 pub fn disk_gone_replaced_line(said: &str) -> String {
-    todo!()
+    format!("{said}; it runs on a new machine from the image now")
 }
 
 /// The status a thread reads once its napping machine is past the days its cloud promises to keep the disk.
@@ -659,7 +831,7 @@ pub const DISK_EXPIRED_WORD: &str = "Expired";
 // units.ts:342
 // export const diskExpiredLine = (when: string): string => `Its machine's disk was kept until ${when}, so a send may find it gone and start a new machine`;
 pub fn disk_expired_line(when: &str) -> String {
-    todo!()
+    format!("Its machine's disk was kept until {when}, so a send may find it gone and start a new machine")
 }
 
 /// Whether a thread reads expired: its napping machine is past the keep of its disk, and no turn of it runs or asks.
@@ -675,7 +847,7 @@ pub struct DiskKeep<'a> {
 }
 
 pub fn disk_expired(t: &DiskKeep<'_>, now: f64) -> bool {
-    todo!()
+    t.disk_kept_until.is_some_and(|kept_until| kept_until <= now) && t.status != "running" && t.asking.is_none()
 }
 
 /// A create or a fork Boat could not get a machine for: it removed the box, reported cancelled once, then 404.
@@ -684,14 +856,19 @@ pub fn disk_expired(t: &DiskKeep<'_>, now: f64) -> bool {
 //   return `Boat could not get a machine${what === undefined ? "" : ` for ${what}`} and cancelled the create${said === undefined || said === "" ? "" : ` (${said})`}; start it again.`;
 // }
 pub fn boat_cancelled_line(what: Option<&str>, said: Option<&str>) -> String {
-    todo!()
+    let for_what = what.map_or(String::new(), |what| format!(" for {what}"));
+    let said = match said {
+        None | Some("") => String::new(),
+        Some(said) => format!(" ({said})"),
+    };
+    format!("Boat could not get a machine{for_what} and cancelled the create{said}; start it again.")
 }
 
 /// A create's line as the box Boat made for it moves through Boat's own states.
 // units.ts:353
 // export const boatBoxStateLine = (id: string, state: string): string => `Boat's machine ${id} is ${state}`;
 pub fn boat_box_state_line(id: &str, state: &str) -> String {
-    todo!()
+    format!("Boat's machine {id} is {state}")
 }
 
 /// The host log's line for a call Boat refused: the status, Boat's code and request id, and the first line of its words.
@@ -701,7 +878,14 @@ pub fn boat_box_state_line(id: &str, state: &str) -> String {
 //   return `Boat refused ${call}: ${status} code=${code ?? "none"} requestId=${requestId ?? "none"}: ${(end === -1 ? said : said.slice(0, end)).slice(0, 300)}`;
 // }
 pub fn boat_refused_log_line(call: &str, status: f64, code: Option<&str>, request_id: Option<&str>, said: &str) -> String {
-    todo!()
+    let first_line = said.split('\n').next().unwrap_or(said);
+    format!(
+        "Boat refused {call}: {} code={} requestId={}: {}",
+        number_string(status),
+        code.unwrap_or("none"),
+        request_id.unwrap_or("none"),
+        utf16::cut(first_line, 300)
+    )
 }
 
 /// How a duration reads: short is the chat footer's and the notify line's ("1.5s", "8m 12s"), clock is the cut
@@ -719,7 +903,10 @@ pub enum DurationStyle {
 impl DurationStyle {
     /// The TS string literal.
     pub fn as_str(self) -> &'static str {
-        todo!()
+        match self {
+            DurationStyle::Short => "short",
+            DurationStyle::Clock => "clock",
+        }
     }
 }
 
@@ -753,7 +940,20 @@ impl DurationStyle {
 //   return hours === 0 ? `${minutes}m ${pad2(seconds)}s` : `${hours}h ${pad2(minutes)}m ${pad2(seconds)}s`;
 // }
 pub fn fmt_duration(ms: f64, style: Option<DurationStyle>) -> String {
-    todo!()
+    let style = style.unwrap_or(DurationStyle::Short);
+    if style == DurationStyle::Short && (ms < 60_000.0 || !ms.is_finite()) {
+        return short_seconds(ms);
+    }
+    let total = if ms.is_finite() && ms > 0.0 { js_round(ms / 1000.0) } else { 0.0 };
+    let hours = (total / 3600.0).floor();
+    let minutes = ((total % 3600.0) / 60.0).floor();
+    let seconds = total % 60.0;
+    match style {
+        DurationStyle::Short if seconds == 0.0 => format!("{}m", number_string(hours * 60.0 + minutes)),
+        DurationStyle::Short => format!("{}m {}s", number_string(hours * 60.0 + minutes), number_string(seconds)),
+        DurationStyle::Clock if hours == 0.0 => format!("{}m {:02}s", number_string(minutes), seconds as u64),
+        DurationStyle::Clock => format!("{}h {:02}m {:02}s", number_string(hours), minutes as u64, seconds as u64),
+    }
 }
 
 /// A token count as a reply's footer reads it: whole under a thousand, then thousands and millions to one place,
@@ -767,7 +967,25 @@ pub fn fmt_duration(ms: f64, style: Option<DurationStyle>) -> String {
 //   return `${Number(value.toFixed(value < 10 ? 2 : value < 100 ? 1 : 0))}${unit}`;
 // }
 pub fn fmt_tokens(n: f64) -> String {
-    todo!()
+    let count = if n.is_finite() && n > 0.0 { js_round(n) } else { 0.0 };
+    if count < 1_000.0 {
+        return number_string(count);
+    }
+    let (value, unit) = if count < 999_500.0 {
+        (count / 1_000.0, "k")
+    } else if count < 999_500_000.0 {
+        (count / 1_000_000.0, "M")
+    } else {
+        (count / 1_000_000_000.0, "B")
+    };
+    let digits = if value < 10.0 {
+        2
+    } else if value < 100.0 {
+        1
+    } else {
+        0
+    };
+    format!("{}{unit}", number_string(to_fixed(value, digits).parse().unwrap_or(f64::NAN)))
 }
 
 /// How long a machine has been up, as the Machine tab reads it: minutes under an hour, hours and minutes under a
@@ -781,7 +999,15 @@ pub fn fmt_tokens(n: f64) -> String {
 //   return `${Math.floor(hours / 24)}d ${hours % 24}h`;
 // }
 pub fn fmt_uptime(ms: f64) -> String {
-    todo!()
+    let minutes = if ms.is_finite() && ms > 0.0 { (ms / 60_000.0).floor() } else { 0.0 };
+    if minutes < 60.0 {
+        return format!("{}m", number_string(minutes));
+    }
+    let hours = (minutes / 60.0).floor();
+    if hours < 24.0 {
+        return format!("{}h {}m", number_string(hours), number_string(minutes % 60.0));
+    }
+    format!("{}d {}h", number_string((hours / 24.0).floor()), number_string(hours % 24.0))
 }
 
 /// A running clock on a row redrawn every tick: whole seconds, then the short style's minutes and seconds; tenths
@@ -792,7 +1018,12 @@ pub fn fmt_uptime(ms: f64) -> String {
 //   return seconds < 60 ? `${seconds}s` : fmtDuration(seconds * 1_000);
 // }
 pub fn fmt_elapsed(ms: f64) -> String {
-    todo!()
+    let seconds = if ms.is_finite() && ms > 0.0 { (ms / 1_000.0).floor() } else { 0.0 };
+    if seconds < 60.0 {
+        format!("{}s", number_string(seconds))
+    } else {
+        fmt_duration(seconds * 1_000.0, None)
+    }
 }
 
 /// Every spend figure a person reads, in one shape: cents, whatever the size. Three figures in one thread used to
@@ -803,7 +1034,7 @@ pub fn fmt_elapsed(ms: f64) -> String {
 //   return `$${usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 // }
 pub fn fmt_cost(usd: f64) -> String {
-    todo!()
+    format!("${}", locale_number(usd, Grouping::EnUs, 2, 2))
 }
 
 /// Rupees as India writes them, lakh grouping and the ₹ sign: ₹1,44,740, paise only where the value has them.
@@ -813,7 +1044,9 @@ pub fn fmt_cost(usd: f64) -> String {
 //   return inr.toLocaleString("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: paise ? 2 : 0, maximumFractionDigits: paise ? 2 : 0 });
 // }
 pub fn fmt_inr(inr: f64) -> String {
-    todo!()
+    let digits = if js_round(inr * 100.0) % 100.0 != 0.0 { 2 } else { 0 };
+    let sign = if inr.is_sign_negative() { "-" } else { "" };
+    format!("{sign}\u{20b9}{}", locale_number(inr.abs(), Grouping::EnIn, digits, digits))
 }
 
 /// The word beside a figure nobody is billed for: what the agent's own table lists for the tokens a turn spent, on
@@ -830,6 +1063,65 @@ pub const LIST_PRICE_WORD: &str = "list price";
 //   return `${u.endsWith(unit) ? u.slice(0, -unit.length) : u} of ${t}`;
 // }
 pub fn fmt_bytes_of(used: f64, total: f64, fmt: Option<fn(f64) -> String>) -> String {
-    todo!()
+    let fmt = fmt.unwrap_or(fmt_bytes);
+    let t = fmt(total);
+    let u = fmt(used);
+    let unit = &t[t.rfind(' ').unwrap_or(t.len() - 1)..];
+    let u = u.strip_suffix(unit).unwrap_or(u.as_str());
+    format!("{u} of {t}")
 }
 
+fn bytes_in(n: f64, k: f64) -> String {
+    if n < k {
+        return format!("{} B", number_string(n));
+    }
+    if n < k * k {
+        return format!("{} KB", number_string(js_round(n / k)));
+    }
+    if n < k * k * k {
+        return format!("{} MB", number_string(js_round(n / (k * k))));
+    }
+    let gb = n / (k * k * k);
+    let one_place = to_fixed(gb, 1);
+    if one_place.parse::<f64>().is_ok_and(|x| x.fract() == 0.0) {
+        format!("{} GB", number_string(js_round(gb)))
+    } else {
+        format!("{one_place} GB")
+    }
+}
+
+/// `Number((memMb / 1024).toFixed(1))`: the figure the size table names, one decimal at most.
+fn mem_gb(mem_mb: f64) -> f64 {
+    to_fixed(mem_mb / 1024.0, 1).parse().unwrap_or(f64::NAN)
+}
+
+/// `sizeWord`'s text for a cpu count and a memory figure in MB.
+fn word_of(cpu: f64, mem_mb: f64) -> String {
+    format!("{}x{}", number_string(cpu), number_string(mem_gb(mem_mb)))
+}
+
+/// The id a screen's `id` field carries on the wire, which a draft's `at` names.
+fn screen_word(id: InitScreenId) -> &'static str {
+    match id {
+        InitScreenId::Agents => "agents",
+        InitScreenId::Tools => "tools",
+        InitScreenId::Also => "also",
+        InitScreenId::Logins => "logins",
+        InitScreenId::Wsp => "wsp",
+    }
+}
+
+/// The short style under a minute: ms under a second, tenths under ten, whole seconds after; nothing sensible is "0ms".
+fn short_seconds(ms: f64) -> String {
+    if !ms.is_finite() || ms < 0.0 {
+        return "0ms".to_string();
+    }
+    if ms < 1_000.0 {
+        return format!("{}ms", number_string(1f64.max(js_round(ms))));
+    }
+    if ms < 10_000.0 {
+        let tenths = js_round(ms / 100.0) / 10.0;
+        return if tenths >= 10.0 { "10s".to_string() } else { format!("{}s", to_fixed(tenths, 1)) };
+    }
+    format!("{}s", number_string(js_round(ms / 1_000.0)))
+}
