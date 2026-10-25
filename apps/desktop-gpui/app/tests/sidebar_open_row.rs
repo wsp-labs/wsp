@@ -141,6 +141,7 @@ fn card_shot(installed: bool, download: Option<Phase>, running: usize) -> (RgbaI
         gpui_kit::platform::current_headless_renderer,
     );
     let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("wsp.AppImage"), b"\x7fELF\x02\x01\x01\x00AI\x02").unwrap();
     let family = cx.update(|cx| {
         gpui_kit::init(cx);
         ui::init(Side::Light, cx);

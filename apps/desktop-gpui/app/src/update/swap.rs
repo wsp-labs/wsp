@@ -4,7 +4,8 @@
 //! swap refused before anything moves where one is missing. One swap runs at a time, holding a lock in the stage. It
 //! ignores the TERM, HUP and INT a logout sends, so nothing stops it between the
 //! two renames, and hands the new app those signals as the system gives them. It checks the staged copy again right
-//! before the rename, so what was checked is what moves, then launches the new app itself and waits for it to write
+//! before the rename, so what was checked is what moves, and on Linux that the installed app is still an AppImage file
+//! of its own, never a link or a folder it would half replace, then launches the new app itself and waits for it to write
 //! the version it runs into the stage, which it does once its host accepted it and its first window drew. On any
 //! failed step
 //! it stops that app, TERM then KILL, puts the old app back and opens it, leaving a note that says whether the host
@@ -106,6 +107,12 @@ while alive "$pid"; do
   if [ "$n" -gt $((patience * 10)) ]; then say "the app (pid $pid) did not quit; nothing was changed"; exit 1; fi
   "$sleep" 0.1
 done
+if [ "$kind" != mac ] && { [ -L "$app" ] || [ ! -f "$app" ]; }; then
+  say "$app is not an AppImage file of its own, so the update cannot tell what it would replace; nothing was changed"
+  "$rm" -rf "$stage"
+  reopen
+  exit 1
+fi
 if ! why=$(recheck); then
   say "the checked app changed after it was checked ($why); nothing was changed"
   "$rm" -rf "$stage"
@@ -207,7 +214,8 @@ const LOCK: &str = "swapping";
 
 /// What the script and the app it launches run with (`swapEnv`): the system's own PATH and, of this launch's
 /// environment, only what says whose login and which wsp home it is, the person's switch for update checks, which the
-/// host the new app restarts keeps, and on Linux which display to draw on.
+/// host the new app restarts keeps, and on Linux which display to draw on and whether the AppImage unpacks itself for
+/// want of FUSE, without which the new app would not start where the old one did.
 pub fn env(get: impl Fn(&str) -> Option<String>) -> Vec<(String, String)> {
     let mut kept = vec![("PATH".to_owned(), path().to_owned())];
     let names: &[&str] = if cfg!(target_os = "macos") {
@@ -228,6 +236,7 @@ pub fn env(get: impl Fn(&str) -> Option<String>) -> Vec<(String, String)> {
             "XDG_SESSION_TYPE",
             "XDG_CURRENT_DESKTOP",
             "DBUS_SESSION_BUS_ADDRESS",
+            "APPIMAGE_EXTRACT_AND_RUN",
         ]
     };
     kept.extend(names.iter().filter_map(|name| get(name).map(|v| ((*name).to_owned(), v))));
