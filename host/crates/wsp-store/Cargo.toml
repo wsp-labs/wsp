@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[package]
+name = "wsp-store"
+version = "0.0.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+description = "The host's one writer under the owner's state folder, and the keys and seal of a wsp link"
+
+[dependencies]
+base64 = "0.22"
+ring = "0.17"
+ed25519-dalek = { version = "3", features = ["pem", "rand_core"] }
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+thiserror = "2"
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+tempfile = "3"

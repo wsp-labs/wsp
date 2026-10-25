@@ -1,0 +1,1025 @@
+{
+  "claudeStore": {
+    "plugins": [
+      {
+        "id": "code-simplifier@claude-plugins-official",
+        "name": "code-simplifier",
+        "marketplace": "claude-plugins-official",
+        "version": "1.0.0",
+        "scope": "user",
+        "on": true,
+        "path": "/x/claude/plugins/cache/claude-plugins-official/code-simplifier/1.0.0",
+        "description": "Agent that simplifies and refines code for clarity, consistency, and maintainability while preserving functionality",
+        "source": "anthropics/claude-plugins-official",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [
+            "code-simplifier:code-simplifier"
+          ],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "context7@claude-plugins-official",
+        "name": "context7",
+        "marketplace": "claude-plugins-official",
+        "version": "d4226d062928",
+        "scope": "user",
+        "on": false,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/claude-plugins-official/context7/d4226d062928",
+        "source": "anthropics/claude-plugins-official",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "playwright@claude-plugins-official",
+        "name": "playwright",
+        "marketplace": "claude-plugins-official",
+        "version": "d4226d062928",
+        "scope": "user",
+        "on": false,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/claude-plugins-official/playwright/d4226d062928",
+        "source": "anthropics/claude-plugins-official",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "skill-creator@claude-plugins-official",
+        "name": "skill-creator",
+        "marketplace": "claude-plugins-official",
+        "version": "d4226d062928",
+        "scope": "user",
+        "on": true,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/claude-plugins-official/skill-creator/d4226d062928",
+        "source": "anthropics/claude-plugins-official",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "claude-mem@thedotmack",
+        "name": "claude-mem",
+        "marketplace": "thedotmack",
+        "version": "13.9.2",
+        "scope": "user",
+        "on": false,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/thedotmack/claude-mem/13.9.2",
+        "source": "thedotmack/claude-mem",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "spotify-statusline@raazketan",
+        "name": "spotify-statusline",
+        "marketplace": "raazketan",
+        "version": "1.1.0",
+        "scope": "user",
+        "on": false,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/raazketan/spotify-statusline/1.1.0",
+        "source": "RaazKetan/claude-code-spotify",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "no-claude-coauthor@acme",
+        "name": "no-claude-coauthor",
+        "marketplace": "acme",
+        "version": "0.1.0",
+        "scope": "user",
+        "on": true,
+        "path": "/x/claude/plugins/cache/acme/no-claude-coauthor/0.1.0",
+        "description": "Keeps 'Co-Authored-By: Claude' trailers out of your git commits - strips them automatically (and teaches Claude to stop), or blocks the commit in strict mode",
+        "source": "acme/no-claude-coauthor",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [
+            "PreToolUse"
+          ],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "dodopayments@dodopayments",
+        "name": "dodopayments",
+        "marketplace": "dodopayments",
+        "version": "0.4.0",
+        "scope": "user",
+        "on": false,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/dodopayments/dodopayments/0.4.0",
+        "source": "dodopayments/dodo-agent-plugin",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "resend@claude-plugins-official",
+        "name": "resend",
+        "marketplace": "claude-plugins-official",
+        "version": "1.0.5",
+        "scope": "user",
+        "on": false,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/claude-plugins-official/resend/1.0.5",
+        "source": "anthropics/claude-plugins-official",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "posthog@claude-plugins-official",
+        "name": "posthog",
+        "marketplace": "claude-plugins-official",
+        "version": "1.1.64",
+        "scope": "user",
+        "on": false,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/claude-plugins-official/posthog/1.1.64",
+        "source": "anthropics/claude-plugins-official",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "rust-analyzer-lsp@claude-plugins-official",
+        "name": "rust-analyzer-lsp",
+        "marketplace": "claude-plugins-official",
+        "version": "1.0.0",
+        "scope": "user",
+        "on": true,
+        "path": "/x/claude/plugins/cache/claude-plugins-official/rust-analyzer-lsp/1.0.0",
+        "description": "Rust language server for code intelligence and analysis",
+        "source": "anthropics/claude-plugins-official",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [
+            "rust-analyzer"
+          ],
+          "apps": []
+        }
+      },
+      {
+        "id": "brag@brag",
+        "name": "brag",
+        "marketplace": "brag",
+        "version": "0.4.0",
+        "scope": "user",
+        "on": true,
+        "path": "/x/claude/plugins/cache/brag/brag/0.4.0",
+        "description": "Turn the current project into a short, polished, shareable launch video using HyperFrames.",
+        "source": "latent-spaces/brag",
+        "brings": {
+          "skills": [
+            "brag:brag",
+            "brag:brag-slim"
+          ],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        },
+        "skills": {
+          "dirs": [
+            "/x/claude/plugins/cache/brag/brag/0.4.0/skills"
+          ],
+          "prefix": "brag"
+        }
+      },
+      {
+        "id": "vercel@claude-plugins-official",
+        "name": "vercel",
+        "marketplace": "claude-plugins-official",
+        "version": "0.50.0",
+        "scope": "user",
+        "on": true,
+        "path": "/x/claude/plugins/cache/claude-plugins-official/vercel/0.50.0",
+        "description": "Build and deploy web apps and agents",
+        "source": "anthropics/claude-plugins-official",
+        "brings": {
+          "skills": [
+            "vercel:access-protected-vercel-deployment",
+            "vercel:ai-gateway",
+            "vercel:ai-sdk",
+            "vercel:auth",
+            "vercel:bootstrap",
+            "vercel:build-agents",
+            "vercel:cdn-caching",
+            "vercel:chat-sdk",
+            "vercel:create-a-backend",
+            "vercel:custom-metrics",
+            "vercel:deployments-cicd",
+            "vercel:env-vars",
+            "vercel:eve",
+            "vercel:flags-sdk",
+            "vercel:knowledge-update",
+            "vercel:marketplace",
+            "vercel:microfrontends",
+            "vercel:next-cache-components",
+            "vercel:next-forge",
+            "vercel:next-upgrade",
+            "vercel:nextjs",
+            "vercel:queues",
+            "vercel:react-best-practices",
+            "vercel:routing-middleware",
+            "vercel:runtime-cache",
+            "vercel:shadcn",
+            "vercel:turbopack",
+            "vercel:vercel-agent",
+            "vercel:vercel-cli",
+            "vercel:vercel-connect",
+            "vercel:vercel-firewall",
+            "vercel:vercel-functions",
+            "vercel:vercel-sandbox",
+            "vercel:vercel-services",
+            "vercel:vercel-storage",
+            "vercel:verification",
+            "vercel:workflow"
+          ],
+          "commands": [
+            "vercel:bootstrap",
+            "vercel:deploy",
+            "vercel:env",
+            "vercel:status"
+          ],
+          "subagents": [
+            "vercel:ai-architect",
+            "vercel:deployment-expert",
+            "vercel:performance-optimizer"
+          ],
+          "hooks": [
+            "PostToolUse",
+            "SessionEnd",
+            "SessionStart"
+          ],
+          "servers": [
+            "plugin:vercel:vercel"
+          ],
+          "lsp": [],
+          "apps": []
+        },
+        "skills": {
+          "dirs": [
+            "/x/claude/plugins/cache/claude-plugins-official/vercel/0.50.0/skills"
+          ],
+          "prefix": "vercel"
+        }
+      }
+    ],
+    "refused": []
+  },
+  "claudeStoreLab": {
+    "plugins": [
+      {
+        "id": "code-simplifier@claude-plugins-official",
+        "name": "code-simplifier",
+        "marketplace": "claude-plugins-official",
+        "version": "1.0.0",
+        "scope": "user",
+        "on": true,
+        "path": "/x/claude/plugins/cache/claude-plugins-official/code-simplifier/1.0.0",
+        "description": "Agent that simplifies and refines code for clarity, consistency, and maintainability while preserving functionality",
+        "source": "anthropics/claude-plugins-official",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [
+            "code-simplifier:code-simplifier"
+          ],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "context7@claude-plugins-official",
+        "name": "context7",
+        "marketplace": "claude-plugins-official",
+        "version": "d4226d062928",
+        "scope": "user",
+        "on": false,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/claude-plugins-official/context7/d4226d062928",
+        "source": "anthropics/claude-plugins-official",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "playwright@claude-plugins-official",
+        "name": "playwright",
+        "marketplace": "claude-plugins-official",
+        "version": "d4226d062928",
+        "scope": "user",
+        "on": false,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/claude-plugins-official/playwright/d4226d062928",
+        "source": "anthropics/claude-plugins-official",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "skill-creator@claude-plugins-official",
+        "name": "skill-creator",
+        "marketplace": "claude-plugins-official",
+        "version": "d4226d062928",
+        "scope": "user",
+        "on": true,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/claude-plugins-official/skill-creator/d4226d062928",
+        "source": "anthropics/claude-plugins-official",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "claude-mem@thedotmack",
+        "name": "claude-mem",
+        "marketplace": "thedotmack",
+        "version": "13.9.2",
+        "scope": "user",
+        "on": false,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/thedotmack/claude-mem/13.9.2",
+        "source": "thedotmack/claude-mem",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "spotify-statusline@raazketan",
+        "name": "spotify-statusline",
+        "marketplace": "raazketan",
+        "version": "1.1.0",
+        "scope": "user",
+        "on": false,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/raazketan/spotify-statusline/1.1.0",
+        "source": "RaazKetan/claude-code-spotify",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "no-claude-coauthor@acme",
+        "name": "no-claude-coauthor",
+        "marketplace": "acme",
+        "version": "0.1.0",
+        "scope": "user",
+        "on": true,
+        "path": "/x/claude/plugins/cache/acme/no-claude-coauthor/0.1.0",
+        "description": "Keeps 'Co-Authored-By: Claude' trailers out of your git commits - strips them automatically (and teaches Claude to stop), or blocks the commit in strict mode",
+        "source": "acme/no-claude-coauthor",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [
+            "PreToolUse"
+          ],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "dodopayments@dodopayments",
+        "name": "dodopayments",
+        "marketplace": "dodopayments",
+        "version": "0.4.0",
+        "scope": "user",
+        "on": false,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/dodopayments/dodopayments/0.4.0",
+        "source": "dodopayments/dodo-agent-plugin",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "resend@claude-plugins-official",
+        "name": "resend",
+        "marketplace": "claude-plugins-official",
+        "version": "1.0.5",
+        "scope": "user",
+        "on": false,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/claude-plugins-official/resend/1.0.5",
+        "source": "anthropics/claude-plugins-official",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "posthog@claude-plugins-official",
+        "name": "posthog",
+        "marketplace": "claude-plugins-official",
+        "version": "1.1.64",
+        "scope": "user",
+        "on": false,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/claude-plugins-official/posthog/1.1.64",
+        "source": "anthropics/claude-plugins-official",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "posthog-lab@lab-local",
+        "name": "posthog-lab",
+        "marketplace": "lab-local",
+        "version": "1.1.56",
+        "scope": "local",
+        "project": {
+          "id": "p1",
+          "name": "lab",
+          "path": "/x/lab"
+        },
+        "on": true,
+        "missing": "folder",
+        "path": "/x/claude/plugins/cache/lab-local/posthog-lab/1.1.56",
+        "setIn": "/x/lab/.claude/settings.local.json",
+        "source": "/x/lab/.claude/local-plugins",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "rust-analyzer-lsp@claude-plugins-official",
+        "name": "rust-analyzer-lsp",
+        "marketplace": "claude-plugins-official",
+        "version": "1.0.0",
+        "scope": "user",
+        "on": true,
+        "path": "/x/claude/plugins/cache/claude-plugins-official/rust-analyzer-lsp/1.0.0",
+        "description": "Rust language server for code intelligence and analysis",
+        "source": "anthropics/claude-plugins-official",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [
+            "rust-analyzer"
+          ],
+          "apps": []
+        }
+      },
+      {
+        "id": "brag@brag",
+        "name": "brag",
+        "marketplace": "brag",
+        "version": "0.4.0",
+        "scope": "user",
+        "on": true,
+        "path": "/x/claude/plugins/cache/brag/brag/0.4.0",
+        "description": "Turn the current project into a short, polished, shareable launch video using HyperFrames.",
+        "source": "latent-spaces/brag",
+        "brings": {
+          "skills": [
+            "brag:brag",
+            "brag:brag-slim"
+          ],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        },
+        "skills": {
+          "dirs": [
+            "/x/claude/plugins/cache/brag/brag/0.4.0/skills"
+          ],
+          "prefix": "brag"
+        }
+      },
+      {
+        "id": "vercel@claude-plugins-official",
+        "name": "vercel",
+        "marketplace": "claude-plugins-official",
+        "version": "0.50.0",
+        "scope": "user",
+        "on": true,
+        "path": "/x/claude/plugins/cache/claude-plugins-official/vercel/0.50.0",
+        "description": "Build and deploy web apps and agents",
+        "source": "anthropics/claude-plugins-official",
+        "brings": {
+          "skills": [
+            "vercel:access-protected-vercel-deployment",
+            "vercel:ai-gateway",
+            "vercel:ai-sdk",
+            "vercel:auth",
+            "vercel:bootstrap",
+            "vercel:build-agents",
+            "vercel:cdn-caching",
+            "vercel:chat-sdk",
+            "vercel:create-a-backend",
+            "vercel:custom-metrics",
+            "vercel:deployments-cicd",
+            "vercel:env-vars",
+            "vercel:eve",
+            "vercel:flags-sdk",
+            "vercel:knowledge-update",
+            "vercel:marketplace",
+            "vercel:microfrontends",
+            "vercel:next-cache-components",
+            "vercel:next-forge",
+            "vercel:next-upgrade",
+            "vercel:nextjs",
+            "vercel:queues",
+            "vercel:react-best-practices",
+            "vercel:routing-middleware",
+            "vercel:runtime-cache",
+            "vercel:shadcn",
+            "vercel:turbopack",
+            "vercel:vercel-agent",
+            "vercel:vercel-cli",
+            "vercel:vercel-connect",
+            "vercel:vercel-firewall",
+            "vercel:vercel-functions",
+            "vercel:vercel-sandbox",
+            "vercel:vercel-services",
+            "vercel:vercel-storage",
+            "vercel:verification",
+            "vercel:workflow"
+          ],
+          "commands": [
+            "vercel:bootstrap",
+            "vercel:deploy",
+            "vercel:env",
+            "vercel:status"
+          ],
+          "subagents": [
+            "vercel:ai-architect",
+            "vercel:deployment-expert",
+            "vercel:performance-optimizer"
+          ],
+          "hooks": [
+            "PostToolUse",
+            "SessionEnd",
+            "SessionStart"
+          ],
+          "servers": [
+            "plugin:vercel:vercel"
+          ],
+          "lsp": [],
+          "apps": []
+        },
+        "skills": {
+          "dirs": [
+            "/x/claude/plugins/cache/claude-plugins-official/vercel/0.50.0/skills"
+          ],
+          "prefix": "vercel"
+        }
+      }
+    ],
+    "refused": []
+  },
+  "claudeNoStore": {
+    "plugins": [],
+    "refused": []
+  },
+  "codex": {
+    "plugins": [
+      {
+        "id": "brag@brag",
+        "name": "brag",
+        "marketplace": "brag",
+        "version": "0.4.0",
+        "scope": "user",
+        "on": true,
+        "path": "/x/codex/plugins/cache/brag/brag/0.4.0",
+        "description": "Turn the current project into a short, polished, shareable launch video using Hyperframes.",
+        "source": "/x/mk/brag",
+        "brings": {
+          "skills": [
+            "brag:brag",
+            "brag:brag-slim"
+          ],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "no-claude-coauthor@acme",
+        "name": "no-claude-coauthor",
+        "marketplace": "acme",
+        "version": "0.1.0",
+        "scope": "user",
+        "on": true,
+        "path": "/x/codex/plugins/cache/acme/no-claude-coauthor/0.1.0",
+        "description": "Keeps 'Co-Authored-By: Claude' trailers out of your git commits - strips them automatically (and teaches Claude to stop), or blocks the commit in strict mode",
+        "source": "/x/mk/acme",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [
+            "preToolUse"
+          ],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "browser@openai-bundled",
+        "name": "browser",
+        "marketplace": "openai-bundled",
+        "scope": "user",
+        "on": true,
+        "missing": "marketplace",
+        "source": "/x/.codex/.tmp/bundled-marketplaces/openai-bundled",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "chrome@openai-bundled",
+        "name": "chrome",
+        "marketplace": "openai-bundled",
+        "scope": "user",
+        "on": true,
+        "missing": "marketplace",
+        "source": "/x/.codex/.tmp/bundled-marketplaces/openai-bundled",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "computer-use@openai-bundled",
+        "name": "computer-use",
+        "marketplace": "openai-bundled",
+        "scope": "user",
+        "on": false,
+        "missing": "marketplace",
+        "source": "/x/.codex/.tmp/bundled-marketplaces/openai-bundled",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "documents@openai-primary-runtime",
+        "name": "documents",
+        "marketplace": "openai-primary-runtime",
+        "scope": "user",
+        "on": true,
+        "missing": "marketplace",
+        "source": "/x/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "presentations@openai-primary-runtime",
+        "name": "presentations",
+        "marketplace": "openai-primary-runtime",
+        "scope": "user",
+        "on": true,
+        "missing": "marketplace",
+        "source": "/x/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "spreadsheets@openai-primary-runtime",
+        "name": "spreadsheets",
+        "marketplace": "openai-primary-runtime",
+        "scope": "user",
+        "on": true,
+        "missing": "marketplace",
+        "source": "/x/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      }
+    ],
+    "refused": [],
+    "file": "/x/codex/config.toml",
+    "version": "sha256:6e542174fd3edfc934b5de7580a377f888feb3ffb119e4dcf74a4c9eaea93acd"
+  },
+  "codexUninstalled": {
+    "plugins": [
+      {
+        "id": "no-claude-coauthor@acme",
+        "name": "no-claude-coauthor",
+        "marketplace": "acme",
+        "version": "0.1.0",
+        "scope": "user",
+        "on": true,
+        "path": "/x/codex/plugins/cache/acme/no-claude-coauthor/0.1.0",
+        "description": "Keeps 'Co-Authored-By: Claude' trailers out of your git commits - strips them automatically (and teaches Claude to stop), or blocks the commit in strict mode",
+        "source": "/x/mk/acme",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [
+            "preToolUse"
+          ],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "browser@openai-bundled",
+        "name": "browser",
+        "marketplace": "openai-bundled",
+        "scope": "user",
+        "on": true,
+        "missing": "marketplace",
+        "source": "/x/.codex/.tmp/bundled-marketplaces/openai-bundled",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "chrome@openai-bundled",
+        "name": "chrome",
+        "marketplace": "openai-bundled",
+        "scope": "user",
+        "on": true,
+        "missing": "marketplace",
+        "source": "/x/.codex/.tmp/bundled-marketplaces/openai-bundled",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "computer-use@openai-bundled",
+        "name": "computer-use",
+        "marketplace": "openai-bundled",
+        "scope": "user",
+        "on": false,
+        "missing": "marketplace",
+        "source": "/x/.codex/.tmp/bundled-marketplaces/openai-bundled",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "documents@openai-primary-runtime",
+        "name": "documents",
+        "marketplace": "openai-primary-runtime",
+        "scope": "user",
+        "on": true,
+        "missing": "marketplace",
+        "source": "/x/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "presentations@openai-primary-runtime",
+        "name": "presentations",
+        "marketplace": "openai-primary-runtime",
+        "scope": "user",
+        "on": true,
+        "missing": "marketplace",
+        "source": "/x/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "spreadsheets@openai-primary-runtime",
+        "name": "spreadsheets",
+        "marketplace": "openai-primary-runtime",
+        "scope": "user",
+        "on": true,
+        "missing": "marketplace",
+        "source": "/x/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      },
+      {
+        "id": "brag@brag",
+        "name": "brag",
+        "marketplace": "brag",
+        "scope": "user",
+        "on": true,
+        "missing": "uninstalled",
+        "source": "/x/mk/brag",
+        "brings": {
+          "skills": [],
+          "commands": [],
+          "subagents": [],
+          "hooks": [],
+          "servers": [],
+          "lsp": [],
+          "apps": []
+        }
+      }
+    ],
+    "refused": [],
+    "file": "/x/codex/config.toml",
+    "version": "sha256:6e542174fd3edfc934b5de7580a377f888feb3ffb119e4dcf74a4c9eaea93acd"
+  }
+}

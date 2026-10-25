@@ -1,0 +1,757 @@
+{
+  "constants": {
+    "MIB": 1048576,
+    "GUEST_HOME": "/root",
+    "HOME_BIN": "/root/.local/bin",
+    "LOCAL_BIN": "/usr/local/bin",
+    "APT_ENV": "export DEBIAN_FRONTEND=noninteractive",
+    "CLAUDE_CONFIG_REL": ".claude-cfg",
+    "GUEST_REWRITES": [
+      [
+        ".claude/",
+        ".claude-cfg/"
+      ],
+      [
+        ".claude.json",
+        ".claude-cfg/.claude.json"
+      ]
+    ],
+    "CLAUDE_CONFIG_DIR": "/root/.claude-cfg",
+    "CLAUDE_PLUGIN_SEED": "/root/.claude-plugin-seed",
+    "CLAUDE_KEY_FILE": "anthropic-api-key",
+    "CLAUDE_CODE": {
+      "version": "2.1.296",
+      "sha256": {
+        "x86_64": "24972e3bc859fab2b46ed4c1e51f7d6130f06d3bd550811a114640de3370d0de",
+        "aarch64": "f1f6e96e0d8342b9dbf41d7e88255397a6a52ce3d8736ad6a4c6b59c9b62fefa"
+      }
+    },
+    "CLAUDE_LATEST": "https://downloads.claude.ai/claude-code-releases/latest",
+    "CLAUDE_INSTALL": "arch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) plat=linux-x64 sha=24972e3bc859fab2b46ed4c1e51f7d6130f06d3bd550811a114640de3370d0de ;;\n  aarch64) plat=linux-arm64 sha=f1f6e96e0d8342b9dbf41d7e88255397a6a52ce3d8736ad6a4c6b59c9b62fefa ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ntrap 'rm -f /tmp/claude' EXIT\ncurl -o /tmp/claude \"https://downloads.claude.ai/claude-code-releases/2.1.296/$plat/claude\"\necho \"$sha  /tmp/claude\" | sha256sum -c - >/dev/null\ninstall -D -m 0755 /tmp/claude /usr/local/bin/claude",
+    "GOLDEN_SETUP": "rm -f /root/.local/bin/claude\narch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) plat=linux-x64 sha=24972e3bc859fab2b46ed4c1e51f7d6130f06d3bd550811a114640de3370d0de ;;\n  aarch64) plat=linux-arm64 sha=f1f6e96e0d8342b9dbf41d7e88255397a6a52ce3d8736ad6a4c6b59c9b62fefa ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ntrap 'rm -f /tmp/claude' EXIT\ncurl -o /tmp/claude \"https://downloads.claude.ai/claude-code-releases/2.1.296/$plat/claude\"\necho \"$sha  /tmp/claude\" | sha256sum -c - >/dev/null\ninstall -D -m 0755 /tmp/claude /usr/local/bin/claude",
+    "GOLDEN_SMOKE": "claude --version",
+    "UV": {
+      "version": "0.12.9",
+      "sha256": {
+        "x86_64": "ec7a99cd05e0cd7f80243f135ce1361c76835cb0ee60055d14d20eba8eba1460",
+        "aarch64": "c36fe17937ff6bd16dc42fc13854b5465999fcab2efe0af559381e945e3c6001"
+      }
+    },
+    "UV_INSTALL": "if ! command -v uv >/dev/null 2>&1; then\n  arch=\"$(uname -m)\"\n  case \"$arch\" in\n    x86_64) sha=ec7a99cd05e0cd7f80243f135ce1361c76835cb0ee60055d14d20eba8eba1460 ;;\n    aarch64) sha=c36fe17937ff6bd16dc42fc13854b5465999fcab2efe0af559381e945e3c6001 ;;\n    *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\n  esac\n  pkg=\"uv-$arch-unknown-linux-gnu.tar.gz\"\n  curl -o \"/tmp/$pkg\" \"https://github.com/astral-sh/uv/releases/download/0.12.9/$pkg\"\n  echo \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\n  tar -xzf \"/tmp/$pkg\" -C /tmp\n  install -m 0755 \"/tmp/uv-$arch-unknown-linux-gnu/uv\" /usr/local/bin/uv\n  install -m 0755 \"/tmp/uv-$arch-unknown-linux-gnu/uvx\" /usr/local/bin/uvx\n  rm -rf \"/tmp/$pkg\" \"/tmp/uv-$arch-unknown-linux-gnu\"\nfi",
+    "NODE_RELEASES": {
+      "20": {
+        "version": "20.20.2",
+        "sha256": {
+          "x86_64": "19e56f0825510207dd904f087fe52faa0a4eb6b2aab5f0ea7a33830d04888b8b",
+          "aarch64": "47ef73d543ecf6eb19435f6c03a0ac4809b3bf0dd6b26c7c571efc2a6572a74d"
+        },
+        "eol": "2026-04-30"
+      },
+      "22": {
+        "version": "22.23.2",
+        "sha256": {
+          "x86_64": "b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a",
+          "aarch64": "013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30"
+        },
+        "eol": "2027-04-30"
+      }
+    },
+    "NODE_PATH_LINE": "export PATH=\"/usr/local/bin:$PATH\"",
+    "NODE_BIN": "node",
+    "COMPOSE": {
+      "version": "v5.5.1",
+      "sha256": {
+        "x86_64": "db1889184726840f75c4f9c001048430d4f25b3be3cb084d3ddd762bc0aed576",
+        "aarch64": "732e3a84c1a0f67256ce80bc2598a24546b10ca05f9faa97efceb1171ece2ef7"
+      }
+    },
+    "COMPOSE_PLUGIN": "/usr/libexec/docker/cli-plugins/docker-compose",
+    "DOCKER_INSTALL": "export DEBIAN_FRONTEND=noninteractive\napt-get install -y -qq docker.io\narch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) sha=db1889184726840f75c4f9c001048430d4f25b3be3cb084d3ddd762bc0aed576 ;;\n  aarch64) sha=732e3a84c1a0f67256ce80bc2598a24546b10ca05f9faa97efceb1171ece2ef7 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o /tmp/docker-compose \"https://github.com/docker/compose/releases/download/v5.5.1/docker-compose-linux-$arch\"\necho \"$sha  /tmp/docker-compose\" | sha256sum -c - >/dev/null\ninstall -D -m 0755 /tmp/docker-compose /usr/libexec/docker/cli-plugins/docker-compose\nrm -f /tmp/docker-compose",
+    "PYTHON_INSTALL": "if ! command -v uv >/dev/null 2>&1; then\n  arch=\"$(uname -m)\"\n  case \"$arch\" in\n    x86_64) sha=ec7a99cd05e0cd7f80243f135ce1361c76835cb0ee60055d14d20eba8eba1460 ;;\n    aarch64) sha=c36fe17937ff6bd16dc42fc13854b5465999fcab2efe0af559381e945e3c6001 ;;\n    *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\n  esac\n  pkg=\"uv-$arch-unknown-linux-gnu.tar.gz\"\n  curl -o \"/tmp/$pkg\" \"https://github.com/astral-sh/uv/releases/download/0.12.9/$pkg\"\n  echo \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\n  tar -xzf \"/tmp/$pkg\" -C /tmp\n  install -m 0755 \"/tmp/uv-$arch-unknown-linux-gnu/uv\" /usr/local/bin/uv\n  install -m 0755 \"/tmp/uv-$arch-unknown-linux-gnu/uvx\" /usr/local/bin/uvx\n  rm -rf \"/tmp/$pkg\" \"/tmp/uv-$arch-unknown-linux-gnu\"\nfi\nuv python install 3.12\nln -sfn \"$(uv python find --managed-python 3.12)\" /usr/local/bin/python3",
+    "RUSTUP": {
+      "version": "1.29.1",
+      "sha256": {
+        "x86_64": "dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71",
+        "aarch64": "15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433"
+      }
+    },
+    "RUSTUP_INSTALL": "arch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) sha=dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71 ;;\n  aarch64) sha=15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o /tmp/rustup-init \"https://static.rust-lang.org/rustup/archive/1.29.1/$arch-unknown-linux-gnu/rustup-init\"\necho \"$sha  /tmp/rustup-init\" | sha256sum -c - >/dev/null\nchmod +x /tmp/rustup-init\n/tmp/rustup-init -y --no-modify-path --profile default --default-toolchain stable\nrm -f /tmp/rustup-init",
+    "FD_INSTALL": "export DEBIAN_FRONTEND=noninteractive\napt-get install -y -qq fd-find\nln -sfn /usr/bin/fdfind /usr/local/bin/fd",
+    "YARN_VERSION": "4.18.0",
+    "YARN_INSTALL": "corepack enable yarn\nCOREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack install -g yarn@4.18.0",
+    "HERMES": {
+      "tag": "v2026.8.31",
+      "commit": "29112bef099274229cadff79cdff7bf7b99c4b77"
+    },
+    "HERMES_INSTALL": "if ! command -v uv >/dev/null 2>&1; then\n  arch=\"$(uname -m)\"\n  case \"$arch\" in\n    x86_64) sha=ec7a99cd05e0cd7f80243f135ce1361c76835cb0ee60055d14d20eba8eba1460 ;;\n    aarch64) sha=c36fe17937ff6bd16dc42fc13854b5465999fcab2efe0af559381e945e3c6001 ;;\n    *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\n  esac\n  pkg=\"uv-$arch-unknown-linux-gnu.tar.gz\"\n  curl -o \"/tmp/$pkg\" \"https://github.com/astral-sh/uv/releases/download/0.12.9/$pkg\"\n  echo \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\n  tar -xzf \"/tmp/$pkg\" -C /tmp\n  install -m 0755 \"/tmp/uv-$arch-unknown-linux-gnu/uv\" /usr/local/bin/uv\n  install -m 0755 \"/tmp/uv-$arch-unknown-linux-gnu/uvx\" /usr/local/bin/uvx\n  rm -rf \"/tmp/$pkg\" \"/tmp/uv-$arch-unknown-linux-gnu\"\nfi\nif [ ! -d /root/.hermes/hermes-agent/.git ]; then\n  git clone -q --depth 1 --branch v2026.8.31 https://github.com/NousResearch/hermes-agent.git /root/.hermes/hermes-agent\nfi\ntest \"$(git -C /root/.hermes/hermes-agent rev-parse HEAD)\" = \"29112bef099274229cadff79cdff7bf7b99c4b77\"\nuv venv --python 3.11 /root/.hermes/venvs/hermes\nuv pip install --python /root/.hermes/venvs/hermes/bin/python -e /root/.hermes/hermes-agent\nln -sfn /root/.hermes/venvs/hermes/bin/hermes /usr/local/bin/hermes",
+    "PLAYWRIGHT": {
+      "version": "1.62.1"
+    },
+    "PLAYWRIGHT_INSTALL": "export DEBIAN_FRONTEND=noninteractive\nnpm install -g playwright@1.62.1\ncommand -v playwright >/dev/null || { b=\"$(npm prefix -g)/bin\"; case \"$b\" in /root/*) ;; *) PATH=\"$b:$PATH\" ;; esac; }\nplaywright install --with-deps chromium",
+    "SWIFT": {
+      "version": "6.3.3",
+      "sha256": {
+        "x86_64": "19e0c78cad5418ad48bfa87aa20c53ac9ac9996d1695d04dd94f7c7ea4eb133f",
+        "aarch64": "ecba8ef87b54a5048d466af500f3169c939a6b8a2cb7c600f76b5184457f293a"
+      }
+    },
+    "SWIFT_INSTALL": "export DEBIAN_FRONTEND=noninteractive\napt-get install -y -qq binutils libicu-dev libcurl4-openssl-dev libedit-dev libsqlite3-dev libncurses-dev libpython3-dev libxml2-dev pkg-config uuid-dev tzdata git gcc libstdc++-12-dev\narch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) dir=debian12 sha=19e0c78cad5418ad48bfa87aa20c53ac9ac9996d1695d04dd94f7c7ea4eb133f ;;\n  aarch64) dir=debian12-aarch64 sha=ecba8ef87b54a5048d466af500f3169c939a6b8a2cb7c600f76b5184457f293a ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\npkg=\"swift-6.3.3-RELEASE-$dir.tar.gz\"\ncurl -o \"/tmp/$pkg\" \"https://download.swift.org/swift-6.3.3-release/$dir/swift-6.3.3-RELEASE/$pkg\"\necho \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\nrm -rf /opt/swift && mkdir -p /opt/swift\ntar -xzf \"/tmp/$pkg\" -C /opt/swift --strip-components=1\nrm -f \"/tmp/$pkg\"\nchmod -R o+r /opt/swift/usr/lib/swift\nln -sfn /opt/swift/usr/bin/swift /usr/local/bin/swift\nln -sfn /opt/swift/usr/bin/swiftc /usr/local/bin/swiftc",
+    "OP_INSTALL": "export DEBIAN_FRONTEND=noninteractive\ncurl -o /usr/share/keyrings/1password-archive-keyring.asc https://downloads.1password.com/linux/keys/1password.asc\necho \"f39e7dd9dedc581ced85732832f217e0de5860a3b80279b5af4bc7c6d8157bae  /usr/share/keyrings/1password-archive-keyring.asc\" | sha256sum -c - >/dev/null\narch=\"$(dpkg --print-architecture)\"\necho \"deb [arch=$arch signed-by=/usr/share/keyrings/1password-archive-keyring.asc] https://downloads.1password.com/linux/debian/$arch stable main\" > /etc/apt/sources.list.d/1password.list\napt-get update -qq -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/1password.list -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0\napt-get install -y -qq 1password-cli",
+    "NET_READ_S": 60,
+    "NET_RETRIES": 1,
+    "CURL_NET": "curl() { command curl --connect-timeout 15 --speed-limit 1 --speed-time 60 --retry 1 --fail --silent --show-error --location \"$@\"; }",
+    "CARGO_BIN": "/root/.cargo/bin",
+    "APT_BIN": "/usr/bin",
+    "APT_INDEX": "apt-index",
+    "HOMEBREW_STEP": "homebrew",
+    "APT_UPDATE": "export DEBIAN_FRONTEND=noninteractive\napt-get update -qq",
+    "HOMEBREW": {
+      "tag": "6.0.21",
+      "commit": "560147012b9678b42ef5e83b690f0895552d1366"
+    },
+    "LINUXBREW_HOME": "/home/linuxbrew",
+    "BREW_PREFIX": "/home/linuxbrew/.linuxbrew",
+    "BREW_REPO": "/home/linuxbrew/.linuxbrew/Homebrew",
+    "BREW_ENV": "HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1",
+    "BREW": "/home/linuxbrew/.linuxbrew/bin/brew",
+    "BREW_REAL": "/home/linuxbrew/.linuxbrew/libexec/brew",
+    "FROM_A_READABLE_DIR": "[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew",
+    "LINUXBREW_SHIM": "#!/bin/sh\nif [ \"$(id -un)\" = linuxbrew ]; then exec /home/linuxbrew/.linuxbrew/libexec/brew \"$@\"; fi\nif [ -f Brewfile ]; then exec 9<Brewfile; else exec 9<&-; fi\nexec su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || { cd /home/linuxbrew; [ -e /dev/fd/9 ] && export HOMEBREW_BUNDLE_FILE=\"${HOMEBREW_BUNDLE_FILE:-/dev/fd/9}\"; }\nexec \"$0\" \"$@\"' -- /home/linuxbrew/.linuxbrew/libexec/brew \"$@\"",
+    "BREW_SHIM_PRESENT": "[ \"$(cat /home/linuxbrew/.linuxbrew/bin/brew)\" = '#!/bin/sh\nif [ \"$(id -un)\" = linuxbrew ]; then exec /home/linuxbrew/.linuxbrew/libexec/brew \"$@\"; fi\nif [ -f Brewfile ]; then exec 9<Brewfile; else exec 9<&-; fi\nexec su -s /bin/bash linuxbrew -c '\\''[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || { cd /home/linuxbrew; [ -e /dev/fd/9 ] && export HOMEBREW_BUNDLE_FILE=\"${HOMEBREW_BUNDLE_FILE:-/dev/fd/9}\"; }\nexec \"$0\" \"$@\"'\\'' -- /home/linuxbrew/.linuxbrew/libexec/brew \"$@\"' ]",
+    "ASSET_ARCH": {
+      "x86_64": "amd64|x86_64|x64",
+      "aarch64": "arm64|aarch64"
+    },
+    "ASSET_SKIPPED": "\\.(sha256|sha256sum|sha512|sig|asc|txt|md5|pem|deb|rpm|apk|zst|tar\\.zst|json)$",
+    "INSTALL_HOMES": [
+      "pnpm",
+      "bun",
+      "uv",
+      "pipx",
+      "cargo",
+      "go"
+    ],
+    "ROADS": [
+      "brew",
+      "npm",
+      "pnpm",
+      "bun",
+      "uv",
+      "pipx",
+      "cargo",
+      "go",
+      "release",
+      "vendor",
+      "apt",
+      "script"
+    ],
+    "TOOL_PREFIX": "/opt/wsp"
+  },
+  "nodeInstallScript": {
+    "floor22": "node_have=\"$(node --version 2>/dev/null || echo v0)\"\nnode_major=\"$(printf '%s' \"$node_have\" | sed 's/^v//; s/\\..*//')\"\necho \"NODE_HAVE $node_have\"\nif [ \"${node_major:-0}\" -ge 22 ] && [ \"${node_major:-0}\" -le 22 ]; then echo \"NODE_KEPT $node_have\"; exit 0; fi\narch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) pkg=node-v22.23.2-linux-x64.tar.gz sha=b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a ;;\n  aarch64) pkg=node-v22.23.2-linux-arm64.tar.gz sha=013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30 ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o \"/tmp/$pkg\" \"https://nodejs.org/dist/v22.23.2/$pkg\"\necho \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\ntar -xzf \"/tmp/$pkg\" -C /usr/local --strip-components=1\nrm -f \"/tmp/$pkg\"\nexport PATH=\"/usr/local/bin:$PATH\"\ntest \"$(node --version)\" = \"v22.23.2\"\necho \"NODE_INSTALLED v22.23.2\"",
+    "floor18on20": "node_have=\"$(node --version 2>/dev/null || echo v0)\"\nnode_major=\"$(printf '%s' \"$node_have\" | sed 's/^v//; s/\\..*//')\"\necho \"NODE_HAVE $node_have\"\nif [ \"${node_major:-0}\" -ge 18 ] && [ \"${node_major:-0}\" -le 20 ]; then echo \"NODE_KEPT $node_have\"; exit 0; fi\narch=\"$(uname -m)\"\ncase \"$arch\" in\n  x86_64) pkg=node-v20.20.2-linux-x64.tar.gz sha=19e56f0825510207dd904f087fe52faa0a4eb6b2aab5f0ea7a33830d04888b8b ;;\n  aarch64) pkg=node-v20.20.2-linux-arm64.tar.gz sha=47ef73d543ecf6eb19435f6c03a0ac4809b3bf0dd6b26c7c571efc2a6572a74d ;;\n  *) echo \"unsupported arch: $arch\" >&2; exit 1 ;;\nesac\ncurl -o \"/tmp/$pkg\" \"https://nodejs.org/dist/v20.20.2/$pkg\"\necho \"$sha  /tmp/$pkg\" | sha256sum -c - >/dev/null\ntar -xzf \"/tmp/$pkg\" -C /usr/local --strip-components=1\nrm -f \"/tmp/$pkg\"\nexport PATH=\"/usr/local/bin:$PATH\"\ntest \"$(node --version)\" = \"v20.20.2\"\necho \"NODE_INSTALLED v20.20.2\""
+  },
+  "casks": [
+    {
+      "version": "586.0.0",
+      "sha256": {
+        "x86_64": "6c774c76793eedd501150b59da653610fbe3eaac169e822965b722de75a2f001",
+        "aarch64": "e50ea0141a027d5118d7dd011d2870e706466dc0fc437d95cae86a14e0d871bc"
+      },
+      "bin": "gcloud",
+      "from": "Google's Linux release",
+      "detail": "from Google's Linux release, at the version and sum the catalog pins",
+      "install": "set -euo pipefail\narch=\"$(uname -m)\"\ntmp=\"$(mktemp -d /tmp/wsp-cask-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\ncase \"$arch\" in x86_64) a=x86_64 sha=6c774c76793eedd501150b59da653610fbe3eaac169e822965b722de75a2f001 ;; aarch64) a=arm sha=e50ea0141a027d5118d7dd011d2870e706466dc0fc437d95cae86a14e0d871bc ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\n[ \"$a\" != arm ] || command -v python3 >/dev/null || { echo \"Error: gcloud on arm needs python3 on the machine; Google's arm tarball bundles none\" >&2; exit 1; }\nver='586.0.0'\npkg=\"google-cloud-cli-$ver-linux-$a.tar.gz\"\ncurl -o \"$tmp/$pkg\" \"https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/$pkg\"\necho \"$sha  $tmp/$pkg\" | sha256sum -c - >/dev/null\nrm -rf /opt/google-cloud-sdk\ntar -xzf \"$tmp/$pkg\" -C /opt\nln -sf /opt/google-cloud-sdk/bin/gcloud /usr/local/bin/gcloud\nln -sf /opt/google-cloud-sdk/bin/gsutil /usr/local/bin/gsutil\nln -sf /opt/google-cloud-sdk/bin/bq /usr/local/bin/bq\necho \"WSP_ROAD release $pkg $sha $ver\"",
+      "uninstall": "rm -rf /opt/google-cloud-sdk /usr/local/bin/gcloud /usr/local/bin/gsutil /usr/local/bin/bq"
+    },
+    {
+      "version": "v1.37.0",
+      "sha256": {
+        "x86_64": "6129359f4e1f3848a5572ccb0b26cf28b8ca08cef38c95a765b2f64a2c961a2f",
+        "aarch64": "922df28df248cc00a9e025f947704f1d1482de64ece54cfe57e61f19eaf1eef3"
+      },
+      "bin": "kubectl",
+      "from": "Kubernetes release",
+      "detail": "kubectl only, from the Kubernetes release; Docker itself has no Linux build",
+      "install": "set -euo pipefail\narch=\"$(uname -m)\"\ntmp=\"$(mktemp -d /tmp/wsp-cask-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\ncase \"$arch\" in x86_64) a=amd64 sha=6129359f4e1f3848a5572ccb0b26cf28b8ca08cef38c95a765b2f64a2c961a2f ;; aarch64) a=arm64 sha=922df28df248cc00a9e025f947704f1d1482de64ece54cfe57e61f19eaf1eef3 ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\nver='v1.37.0'\ncurl -o \"$tmp/kubectl\" \"https://dl.k8s.io/release/$ver/bin/linux/$a/kubectl\"\necho \"$sha  $tmp/kubectl\" | sha256sum -c - >/dev/null\ninstall -m 0755 \"$tmp/kubectl\" /usr/local/bin/kubectl\necho \"WSP_ROAD release kubectl-$ver-linux-$a $sha $ver\"",
+      "uninstall": "rm -f /usr/local/bin/kubectl"
+    },
+    {
+      "version": "2026.09.26-dd393fe",
+      "sha256": {
+        "x86_64": "8085fd120f5c71f4eae7fea26a043718e5644e3071e4fab3220a0e58c51f9593",
+        "aarch64": "ab1178d0d8c10b254e7e427d1d673533a389338424e75034be9ab9da02845bde"
+      },
+      "bin": "cursor-agent",
+      "from": "Cursor's Linux release",
+      "detail": "from Cursor's Linux release, at the version and sum the catalog pins",
+      "install": "set -euo pipefail\narch=\"$(uname -m)\"\ntmp=\"$(mktemp -d /tmp/wsp-cask-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\ncase \"$arch\" in x86_64) a=x64 sha=8085fd120f5c71f4eae7fea26a043718e5644e3071e4fab3220a0e58c51f9593 ;; aarch64) a=arm64 sha=ab1178d0d8c10b254e7e427d1d673533a389338424e75034be9ab9da02845bde ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\nver='2026.09.26-dd393fe'\npkg=\"agent-cli-package.tar.gz\"\ncurl -o \"$tmp/$pkg\" \"https://downloads.cursor.com/lab/$ver/linux/$a/$pkg\"\necho \"$sha  $tmp/$pkg\" | sha256sum -c - >/dev/null\nrm -rf /opt/cursor-agent\nmkdir -p /opt/cursor-agent\ntar --strip-components=1 -xzf \"$tmp/$pkg\" -C /opt/cursor-agent\nln -sf /opt/cursor-agent/cursor-agent /usr/local/bin/cursor-agent\necho \"WSP_ROAD release cursor-agent-$ver-linux-$a $sha $ver\"",
+      "uninstall": "rm -rf /opt/cursor-agent /usr/local/bin/cursor-agent"
+    }
+  ],
+  "cursorCask": {
+    "version": "2026.09.26-dd393fe",
+    "sha256": {
+      "x86_64": "8085fd120f5c71f4eae7fea26a043718e5644e3071e4fab3220a0e58c51f9593",
+      "aarch64": "ab1178d0d8c10b254e7e427d1d673533a389338424e75034be9ab9da02845bde"
+    },
+    "bin": "cursor-agent",
+    "from": "Cursor's Linux release",
+    "detail": "from Cursor's Linux release, at the version and sum the catalog pins",
+    "install": "set -euo pipefail\narch=\"$(uname -m)\"\ntmp=\"$(mktemp -d /tmp/wsp-cask-XXXXXX)\"\ntrap 'rm -rf \"$tmp\"' EXIT\ncase \"$arch\" in x86_64) a=x64 sha=8085fd120f5c71f4eae7fea26a043718e5644e3071e4fab3220a0e58c51f9593 ;; aarch64) a=arm64 sha=ab1178d0d8c10b254e7e427d1d673533a389338424e75034be9ab9da02845bde ;; *) echo \"Error: unsupported arch: $arch\" >&2; exit 1 ;; esac\nver='2026.09.26-dd393fe'\npkg=\"agent-cli-package.tar.gz\"\ncurl -o \"$tmp/$pkg\" \"https://downloads.cursor.com/lab/$ver/linux/$a/$pkg\"\necho \"$sha  $tmp/$pkg\" | sha256sum -c - >/dev/null\nrm -rf /opt/cursor-agent\nmkdir -p /opt/cursor-agent\ntar --strip-components=1 -xzf \"$tmp/$pkg\" -C /opt/cursor-agent\nln -sf /opt/cursor-agent/cursor-agent /usr/local/bin/cursor-agent\necho \"WSP_ROAD release cursor-agent-$ver-linux-$a $sha $ver\"",
+    "uninstall": "rm -rf /opt/cursor-agent /usr/local/bin/cursor-agent"
+  },
+  "releasePins": {
+    "cli/cli": {
+      "tag": "v2.101.0",
+      "assets": {
+        "x86_64": {
+          "name": "gh_2.101.0_linux_amd64.tar.gz",
+          "sha256": "9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8"
+        },
+        "aarch64": {
+          "name": "gh_2.101.0_linux_arm64.tar.gz",
+          "sha256": "b57e8063f18862647c9d22727c32e9da1b963f8bf9db648fe123a6975695640f"
+        }
+      }
+    },
+    "cloudflare/cloudflared": {
+      "tag": "2026.9.1",
+      "assets": {
+        "x86_64": {
+          "name": "cloudflared-linux-amd64",
+          "sha256": "03f1f25d1cc93b9ad6c60569d44060bc4f17ed97075760ed8cfca4b12dcd68cc"
+        },
+        "aarch64": {
+          "name": "cloudflared-linux-arm64",
+          "sha256": "3d97437c71848bd8df68041e12436b484a661d95073ea1937f01a845ce88faa3"
+        }
+      }
+    },
+    "superfly/flyctl": {
+      "tag": "v0.4.105",
+      "assets": {
+        "x86_64": {
+          "name": "flyctl_0.4.105_Linux_x86_64.tar.gz",
+          "sha256": "6e78298d82503f2aff2c6f41ede1178463ed286ce910c6be946a4b994ee68f29"
+        },
+        "aarch64": {
+          "name": "flyctl_0.4.105_Linux_arm64.tar.gz",
+          "sha256": "6ec0dc3656ecbe281231994080ec00238cecaa11aa65a121f53c51e3d2a69940"
+        }
+      }
+    },
+    "supabase/cli": {
+      "tag": "v2.117.0",
+      "assets": {
+        "x86_64": {
+          "name": "supabase_2.117.0_linux_amd64.tar.gz",
+          "sha256": "69c05f85b9e47ee706d30f1a6ca8a526b4e337bfd12c7ef1ef522d24e7280d24"
+        },
+        "aarch64": {
+          "name": "supabase_2.117.0_linux_arm64.tar.gz",
+          "sha256": "598c56a936fdf179ea486717901e6e49bc5d777b3ad317eab02f41faf21a95cb"
+        }
+      }
+    },
+    "DopplerHQ/cli": {
+      "tag": "3.76.6",
+      "assets": {
+        "x86_64": {
+          "name": "doppler_3.76.6_linux_amd64.tar.gz",
+          "sha256": "67e4e020761adf3ffe5a030712d61721b4e2752182670bf90de5a2a88e4961e3"
+        },
+        "aarch64": {
+          "name": "doppler_3.76.6_linux_arm64.tar.gz",
+          "sha256": "621456ac08436c4037a72c8641e4bdcccd0e404ab43b79a61d449445bb02e6e5"
+        }
+      }
+    },
+    "mikefarah/yq": {
+      "tag": "v4.53.6",
+      "assets": {
+        "x86_64": {
+          "name": "yq_linux_amd64",
+          "sha256": "c5f056448f973ae7d39b5401949648a78f2dc1947d6a8eb65be60d5c504b9385"
+        },
+        "aarch64": {
+          "name": "yq_linux_arm64",
+          "sha256": "88a1016bc1d657375a35864e4f44b6f333df8ff97b559f51bba0adcb2169df09"
+        }
+      }
+    },
+    "golangci/golangci-lint": {
+      "tag": "v2.13.2",
+      "assets": {
+        "x86_64": {
+          "name": "golangci-lint-2.13.2-linux-amd64.tar.gz",
+          "sha256": "2277d43b98ec0054280f2ac26b53268bae97682444678a59a657dd565da021d6"
+        },
+        "aarch64": {
+          "name": "golangci-lint-2.13.2-linux-arm64.tar.gz",
+          "sha256": "a2a4e0065aa41be71f7c5ac90f271b61751331e5d04314e62afe4027855f0893"
+        }
+      }
+    },
+    "jdx/mise": {
+      "tag": "v2026.9.12",
+      "assets": {
+        "x86_64": {
+          "name": "mise-v2026.9.12-linux-x64",
+          "sha256": "e79ae57945034903aee8aa2ea66b4c7ca9cd4f4edd5a8a78a589cbae6d0f428a"
+        },
+        "aarch64": {
+          "name": "mise-v2026.9.12-linux-arm64",
+          "sha256": "f344c6961190ed2f68e595ed7cb4f03c36c17812bd608886bec799a3082180ff"
+        }
+      }
+    },
+    "dandavison/delta": {
+      "tag": "0.19.2",
+      "assets": {
+        "x86_64": {
+          "name": "delta-0.19.2-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "8e695c5f586a8c53d6c3b01be0b4a422ed218bfed2a56191caebe373a1c18ab2"
+        },
+        "aarch64": {
+          "name": "delta-0.19.2-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "0bfce159a5cddd5feb3d6db4a616d883ff51253ce08ac7ec11cb1d208cfaab9e"
+        }
+      }
+    },
+    "bazelbuild/bazelisk": {
+      "tag": "v1.29.0",
+      "assets": {
+        "x86_64": {
+          "name": "bazelisk-linux-amd64",
+          "sha256": "5a408715e932c0250d28bd84555f12edbf70117de42f9181691c736eacc4a992"
+        },
+        "aarch64": {
+          "name": "bazelisk-linux-arm64",
+          "sha256": "e20e8b0f4f240091b7a55bf17b9398bd4f40ee70ae0208dff95dd4c445fb4010"
+        }
+      }
+    },
+    "charmbracelet/crush": {
+      "tag": "v0.96.1",
+      "assets": {
+        "x86_64": {
+          "name": "crush_0.96.1_Linux_x86_64.tar.gz",
+          "sha256": "5411b0906a82162dcab4a99071d70accf1caad0eee69789416dd607943c6680d"
+        },
+        "aarch64": {
+          "name": "crush_0.96.1_Linux_arm64.tar.gz",
+          "sha256": "4bfe4a37aedeb4219d51eb7a25b837304084070378e77fd578999764b487f01f"
+        }
+      }
+    },
+    "aaif-goose/goose": {
+      "tag": "v1.52.0",
+      "assets": {
+        "x86_64": {
+          "name": "goose-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "4aee1f770b405c44194c0e9407df1fb06bda4c50eee935f0d8fd10731821cc5e"
+        },
+        "aarch64": {
+          "name": "goose-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "ae602c4f6e9a785bf087da52c89908d4dc6aa605dcc17bf83293873f626d9c85"
+        }
+      }
+    }
+  },
+  "pinnedRelease": {
+    "gh": {
+      "road": "release",
+      "repo": "cli/cli",
+      "version": "v2.101.0",
+      "assets": {
+        "x86_64": {
+          "name": "gh_2.101.0_linux_amd64.tar.gz",
+          "sha256": "9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8"
+        },
+        "aarch64": {
+          "name": "gh_2.101.0_linux_arm64.tar.gz",
+          "sha256": "b57e8063f18862647c9d22727c32e9da1b963f8bf9db648fe123a6975695640f"
+        }
+      },
+      "go": "github.com/cli/cli/v2/cmd/gh"
+    },
+    "mise": {
+      "road": "release",
+      "repo": "jdx/mise",
+      "version": "v2026.9.12",
+      "assets": {
+        "x86_64": {
+          "name": "mise-v2026.9.12-linux-x64",
+          "sha256": "e79ae57945034903aee8aa2ea66b4c7ca9cd4f4edd5a8a78a589cbae6d0f428a"
+        },
+        "aarch64": {
+          "name": "mise-v2026.9.12-linux-arm64",
+          "sha256": "f344c6961190ed2f68e595ed7cb4f03c36c17812bd608886bec799a3082180ff"
+        }
+      }
+    },
+    "missing": {
+      "error": "the release pins table names no nobody/nothing"
+    }
+  },
+  "macPaths": {
+    "MAC_BREW": "/opt/homebrew",
+    "MAC_ONLY": [
+      "/Applications/",
+      "/System/",
+      "/Library/",
+      "/Volumes/",
+      "/private/",
+      "/opt/homebrew/Caskroom/"
+    ],
+    "MAC_BIN_DIRS": [
+      "/opt/homebrew/bin/",
+      "/opt/homebrew/sbin/"
+    ]
+  },
+  "baseImageCommands": [
+    "sh",
+    "bash",
+    "dash",
+    "apt",
+    "apt-get",
+    "apt-cache",
+    "apt-key",
+    "dpkg",
+    "dpkg-query",
+    "dpkg-reconfigure",
+    "update-alternatives",
+    "debconf",
+    "adduser",
+    "addgroup",
+    "useradd",
+    "usermod",
+    "groupadd",
+    "passwd",
+    "chsh",
+    "login",
+    "su",
+    "id",
+    "whoami",
+    "groups",
+    "users",
+    "who",
+    "w",
+    "last",
+    "ls",
+    "dir",
+    "vdir",
+    "dircolors",
+    "cat",
+    "tac",
+    "head",
+    "tail",
+    "more",
+    "less",
+    "cp",
+    "mv",
+    "rm",
+    "ln",
+    "mkdir",
+    "rmdir",
+    "mktemp",
+    "touch",
+    "chmod",
+    "chown",
+    "chgrp",
+    "install",
+    "stat",
+    "df",
+    "du",
+    "sync",
+    "readlink",
+    "realpath",
+    "basename",
+    "dirname",
+    "pwd",
+    "pathchk",
+    "mkfifo",
+    "mknod",
+    "dd",
+    "truncate",
+    "shred",
+    "link",
+    "unlink",
+    "echo",
+    "printf",
+    "yes",
+    "true",
+    "false",
+    "test",
+    "expr",
+    "seq",
+    "sleep",
+    "date",
+    "cal",
+    "env",
+    "printenv",
+    "nice",
+    "nohup",
+    "timeout",
+    "stdbuf",
+    "tee",
+    "tty",
+    "stty",
+    "clear",
+    "reset",
+    "tput",
+    "tset",
+    "infocmp",
+    "uname",
+    "hostname",
+    "hostid",
+    "arch",
+    "nproc",
+    "uptime",
+    "logname",
+    "sort",
+    "uniq",
+    "wc",
+    "cut",
+    "paste",
+    "join",
+    "tr",
+    "fold",
+    "fmt",
+    "pr",
+    "nl",
+    "od",
+    "xxd",
+    "hexdump",
+    "base64",
+    "base32",
+    "basenc",
+    "md5sum",
+    "sha1sum",
+    "sha224sum",
+    "sha256sum",
+    "sha384sum",
+    "sha512sum",
+    "cksum",
+    "sum",
+    "comm",
+    "csplit",
+    "split",
+    "shuf",
+    "tsort",
+    "expand",
+    "unexpand",
+    "numfmt",
+    "factor",
+    "column",
+    "rev",
+    "look",
+    "grep",
+    "egrep",
+    "fgrep",
+    "rgrep",
+    "sed",
+    "awk",
+    "gawk",
+    "mawk",
+    "find",
+    "xargs",
+    "locate",
+    "updatedb",
+    "diff",
+    "diff3",
+    "cmp",
+    "sdiff",
+    "patch",
+    "file",
+    "strings",
+    "which",
+    "whereis",
+    "type",
+    "tar",
+    "gzip",
+    "gunzip",
+    "zcat",
+    "bzip2",
+    "bunzip2",
+    "bzcat",
+    "xz",
+    "unxz",
+    "xzcat",
+    "lzma",
+    "zstd",
+    "cpio",
+    "ar",
+    "ps",
+    "top",
+    "kill",
+    "killall",
+    "pkill",
+    "pgrep",
+    "pidof",
+    "free",
+    "vmstat",
+    "watch",
+    "pmap",
+    "sysctl",
+    "fuser",
+    "lsof",
+    "time",
+    "ulimit",
+    "renice",
+    "ionice",
+    "taskset",
+    "chrt",
+    "prlimit",
+    "setsid",
+    "setpriv",
+    "flock",
+    "script",
+    "scriptreplay",
+    "logger",
+    "dmesg",
+    "mount",
+    "umount",
+    "findmnt",
+    "lsblk",
+    "blkid",
+    "fdisk",
+    "losetup",
+    "swapon",
+    "swapoff",
+    "fstrim",
+    "mkswap",
+    "chroot",
+    "nsenter",
+    "unshare",
+    "ldd",
+    "ldconfig",
+    "getent",
+    "getconf",
+    "locale",
+    "localedef",
+    "iconv",
+    "ip",
+    "ping",
+    "ss",
+    "netstat",
+    "ifconfig",
+    "route",
+    "dig",
+    "nslookup",
+    "host",
+    "wget",
+    "curl",
+    "ssh",
+    "scp",
+    "sftp",
+    "ssh-add",
+    "ssh-agent",
+    "ssh-keygen",
+    "ssh-keyscan",
+    "nc",
+    "telnet",
+    "traceroute",
+    "gpg",
+    "gpgv",
+    "gpg-agent",
+    "openssl",
+    "vi",
+    "vim",
+    "nano",
+    "ed",
+    "editor",
+    "pager",
+    "sensible-editor",
+    "sensible-pager",
+    "sensible-browser",
+    "run-parts",
+    "savelog",
+    "tempfile",
+    "ischroot",
+    "add-shell",
+    "remove-shell",
+    "invoke-rc.d",
+    "service",
+    "start-stop-daemon",
+    "update-rc.d",
+    "perl",
+    "python3",
+    "pip3",
+    "make",
+    "gcc",
+    "cc",
+    "g++",
+    "c++",
+    "ld",
+    "as",
+    "nm",
+    "objdump",
+    "strip",
+    "readelf",
+    "cpp",
+    "gdb",
+    "man",
+    "info",
+    "whatis",
+    "apropos",
+    "help2man",
+    "groff",
+    "troff",
+    "nroff",
+    "crontab",
+    "at",
+    "batch",
+    "chattr",
+    "lsattr",
+    "getcap",
+    "setcap",
+    "getfacl",
+    "setfacl",
+    "chcon",
+    "runcon",
+    "mesg",
+    "wall",
+    "write",
+    "pinky",
+    "finger",
+    "sg",
+    "newgrp",
+    "chfn",
+    "expiry",
+    "chage",
+    "gpasswd",
+    "vipw",
+    "vigr",
+    "pwck",
+    "grpck"
+  ],
+  "rewrittenRel": {
+    ".claude/settings.json": ".claude-cfg/settings.json",
+    ".claude": ".claude-cfg",
+    ".claude.json": ".claude-cfg/.claude.json",
+    ".claude.jsonx": ".claude-cfg/.claude.jsonx",
+    ".claudex/a": ".claudex/a",
+    "x/.claude/a": "x/.claude/a",
+    "": ""
+  },
+  "pinCheckLine": "[ \"$sum\" = '0123456789abcdef0123456789abcdef' ] || { echo \"Error: $asset at $tag does not match the checksum recorded on its first install: recorded 0123456789ab, served ${sum:0:12}\" >&2; exit 1; }",
+  "goBinary": {
+    "github.com/cli/cli/v2/cmd/gh": "gh",
+    "github.com/x/y/v2": "y",
+    "github.com/x/y/v2@v2.1.0": "y",
+    "github.com/x/y@v1.0.0": "y",
+    "v2": "v2",
+    "github.com/x/v0": "v0",
+    "example.com/tool": "tool"
+  },
+  "formulaShortName": {
+    "go": "go",
+    "felixkratz/formulae/sketchybar": "sketchybar",
+    "a/b": "b"
+  },
+  "brewHasCheck": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew list --versions bat go'",
+  "asLinuxbrew": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nHOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1 /home/linuxbrew/.linuxbrew/bin/brew install bat'",
+  "asLinuxbrewScript": "su -s /bin/bash linuxbrew -c '[ -d \"$PWD\" ] && [ -r \"$PWD\" ] || cd /home/linuxbrew\nexport HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1 NONINTERACTIVE=1 HOMEBREW_CURL_RETRIES=1\nbrew update\nbrew upgrade'"
+}
