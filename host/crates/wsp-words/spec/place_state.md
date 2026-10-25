@@ -1,5 +1,5 @@
 # place_state
-Source: the functions of `packages/protocol/src/place-state.ts` (379 lines) at a3b870a6e; its flat constants (`THREAD_MEM_MB`, `CLOUD_CAP_DEFAULT`, `DELETE_AFTER_MS`, `CAP_RAISE_ACT`, ...) are `wsp_wire::types::place_state`. Tests: `packages/protocol/test/place-state.test.ts` (19 of 25 cases ported; the 6 of `describe("the word a place's row says")`, :175-271, need `placeStateOf` of `views/place-setup-words.ts`, which is not in this crate yet), plus `pinned` in `tests/place_state.rs`.
+Source: the functions of `packages/protocol/src/place-state.ts` (379 lines) at a3b870a6e; its flat constants (`THREAD_MEM_MB`, `CLOUD_CAP_DEFAULT`, `DELETE_AFTER_MS`, `CAP_RAISE_ACT`, ...) are `wsp_wire::types::place_state`. Tests: `packages/protocol/test/place-state.test.ts` (19 of 25 cases ported there; the 6 of `describe("the word a place's row says")`, :175-271, read `placeStateOf` of `views/place-setup-words.ts` and are ported in `tests/place_setup.rs`, `mod place_state`), plus `pinned` in `tests/place_state.rs`.
 
 ## What it does
 What a place's cap is and what it counts: which place a workspace runs on, the settings each kind of place takes and how a row says them, the room left under the cap, and the lines a thread waiting for a slot is told.
@@ -47,4 +47,4 @@ What a place's cap is and what it counts: which place a workspace runs on, the s
 | 6 | `the_turn_limit::*` |
 | 8 | `what_a_places_settings_read_as_in_a_line::*`, `the_turn_limit::reads_in_the_settings_line_at_what_it_runs_at_with_the_default_beside_one_the_pe` |
 | 10 | `a_held_spawns_words_and_the_slots_a_cloud_counts::*`, `pinned::held_turn_lines` |
-| 11 | not pinned: its TS test sits in the skipped describe (needs `placeStateOf`) |
+| 11 | `place_setup.rs: place_state::reads_at_limit_only_with_a_spend_figure_and_never_answers_it_without_one`, `place_state::reads_a_spend_limit_only_off_a_cloud_s_cap_and_the_refusal_opens_with_the_row_s` |
