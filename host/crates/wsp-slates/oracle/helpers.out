@@ -1,0 +1,51 @@
+defanged.line => "ok\nslate： {\"v\":2}\n  slate：{x}\nslate: not json\nmyslate: {"
+defanged.nested => {"a":["slate：{}",1,null],"b":{"c":" slate： {"}}
+longest.tie => {"at":["c",0],"length":3}
+longest.none => "undefined"
+longest.string => {"at":[],"length":3}
+cutAt.obj => {"a":"abcdefgh","b":["x","yy (cut)"]}
+cutAt.root => "abc (cut)"
+cutAt.keep0 => " (cut)"
+cutAt.nonstring => 5
+budget.burst22 => [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,1,1]
+budget.after100ms => 1
+budget.after200ms => null
+budget.10s => [null,null,null]
+budget.hour.600th_and_601st => [null,null,3000]
+budget.hour.at600s => 3000
+budget.hour.at3600s => null
+invalid.one => {"message":"slate refused: 1 error: line 1, text-1.value: S501 name-undeclared $nope is not declared. Did you mean $no?","kind":"invalid","errors":1,"warnings":0}
+invalid.two => {"message":"slate refused: 2 errors: 1) S501 a m1 2) meter-1: T306 b m2","kind":"invalid","errors":2,"warnings":1}
+invalid.zero => {"message":"slate refused: 0 errors: ","kind":"invalid","errors":0,"warnings":0}
+invalid.22 => " n m 19) C18 n m 20) C19 n m And 2 more."
+runShown.named => {"state":"done","why":"w","exit":0,"ms":3,"runs":1,"stale":true,"endedAt":9}
+runShown.json_drops_out => {"state":"done","json":{},"runs":1}
+runShown.cut => "yyyyy… (4001 characters; values [\"$raw.out\"] reads it whole)"
+runShown.cut4000 => 4000
+runShown.lines => ["10","11"]
+runShown.notrecord => {"state":"done"}
+runShown.undefined => null
+runShown.runsString => {"state":"x","runs":"1"}
+key.plain => "6144e0b9c343b38f3a9a13eb194e63bf"
+key.env => "d8ddf13625ab00f9e8014751fb9a4720"
+key.full => "4fd3f52da753cc4eadb19e8406b302e1"
+key.timeout60_same_as_absent => true
+key.on_thread_same_as_absent => true
+key.confirm_not_in_key => true
+stableJson => "{\"a\":null,\"b\":[1,{\"c\":\"x\",\"d\":null}],\"é\":true}"
+stableJson.undefined => "null"
+asText => ["","s","1.5","true","[1,\"a\"]","{\"b\":1,\"a\":2}","1e+21","0"]
+timeoutOf => [60,1,1,600,1,2.5]
+spent => [[0],"undefined",[1,2,3,4,5,6,7,8,9,10,11,60000]]
+secretForms.token => ["vrcl_Ab+9/zz&q=1 ünï_0123456789","dnJjbF9BYis5L3p6JnE9MSDDvG7Dr18wMTIzNDU2Nzg5","Y2xfQWIrOS96eiZxPTEgw7xuw69fMDEyMzQ1Njc4","cmNsX0FiKzkvenomcT0xIMO8bsOvXzAxMjM0NTY3","vrcl_Ab%2B9%2Fzz%26q%3D1%20%C3%BCn%C3%AF_0123456789","vrcl_Ab%2b9%2fzz%26q%3d1%20%c3%bcn%c3%af_0123456789","vrcl_Ab%2B9%2Fzz%26q%3D1+%C3%BCn%C3%AF_0123456789"]
+secretForms.short => ["4321","NDMyMQ==","NDMyMQ"]
+secretForms.space => ["a b","YSBi","a%20b","a+b"]
+scrub.nested => "a [se[secret:t]:s]"
+scrub.markword => "[secret:x] [secret:x]"
+scrub.plus => "[secret:sp], [secret:sp], [secret:sp], [secret:sp]"
+scrub.basic => "dXNlcjp2[secret:token]ODk="
+scrub.tie => "[secret:a] [secret:b]"
+forms.lone.throws => "URIError: URI malformed"
+forms.middle => ["0123456789abcdef","MDEyMzQ1Njc4OWFiY2RlZg==","MDEyMzQ1Njc4OWFiY2RlZg","MDEyMzQ1Njc4OWFiY2Rl","MjM0NTY3ODlhYmNk","MTIzNDU2Nzg5YWJjZGVm"]
+json.parse => [{"a":1},"SyntaxError: Unexpected end of JSON inpu"]
+firstline => "not json"
