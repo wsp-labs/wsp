@@ -2,6 +2,7 @@
 //! A workspace's cost history: the ticks where its burn rate changed, folded and read by one rule. Port of
 //! packages/protocol/src/cost-history.ts at a3b870a6e. See spec/costs_and_alerts.md.
 
+use wsp_wire::types::cost_history::COST_HISTORY_CAP;
 use wsp_wire::views::workspace_events::WorkspaceCostEvent;
 
 // cost-history.ts:9
@@ -19,7 +20,17 @@ use wsp_wire::views::workspace_events::WorkspaceCostEvent;
 //   return next.length > COST_HISTORY_CAP ? next.slice(next.length - COST_HISTORY_CAP) : next;
 // }
 pub fn append_cost_point(points: &[WorkspaceCostEvent], tick: &WorkspaceCostEvent) -> Vec<WorkspaceCostEvent> {
-    todo!()
+    let n = points.len();
+    let collinear = n >= 2
+        && points[n - 2].rate_usd_per_hour.0 == points[n - 1].rate_usd_per_hour.0
+        && points[n - 1].rate_usd_per_hour.0 == tick.rate_usd_per_hour.0;
+    let mut next: Vec<WorkspaceCostEvent> = if collinear { points[..n - 1].to_vec() } else { points.to_vec() };
+    next.push(tick.clone());
+    let cap = COST_HISTORY_CAP as usize;
+    if next.len() > cap {
+        next.drain(..next.len() - cap);
+    }
+    next
 }
 
 // The tick at or before t and the one after it, when t falls inside the series.
@@ -45,7 +56,7 @@ pub fn append_cost_point(points: &[WorkspaceCostEvent], tick: &WorkspaceCostEven
 //   return tick.accruedUsd + (tick.rateUsdPerHour * ms) / 3_600_000;
 // }
 pub fn accrued_past(tick: &WorkspaceCostEvent, ms: f64) -> f64 {
-    todo!()
+    tick.accrued_usd.0 + (tick.rate_usd_per_hour.0 * ms) / 3_600_000.0
 }
 
 /// The total accrued at t: linear between the ticks around it, flat past the newest, unknown before the first.
@@ -62,7 +73,17 @@ pub fn accrued_past(tick: &WorkspaceCostEvent, ms: f64) -> f64 {
 // }
 /// None is the TS null. `at` is read with `Date.parse` of an ISO stamp.
 pub fn accrued_at(points: &[WorkspaceCostEvent], t: f64) -> Option<f64> {
-    todo!()
+    let (before, after) = around(points, t)?;
+    let before = &points[before];
+    let Some(after) = after.map(|index| &points[index]) else {
+        return Some(before.accrued_usd.0);
+    };
+    let t0 = parse_at(&before.at);
+    let t1 = parse_at(&after.at);
+    if t1 <= t0 {
+        return Some(after.accrued_usd.0);
+    }
+    Some(before.accrued_usd.0 + ((after.accrued_usd.0 - before.accrued_usd.0) * (t - t0)) / (t1 - t0))
 }
 
 /// The burn rate at t: the rate of the tick at or before it, which holds until the next tick.
@@ -71,7 +92,7 @@ pub fn accrued_at(points: &[WorkspaceCostEvent], t: f64) -> Option<f64> {
 //   return around(points, t)?.before.rateUsdPerHour ?? null;
 // }
 pub fn rate_at(points: &[WorkspaceCostEvent], t: f64) -> Option<f64> {
-    todo!()
+    around(points, t).map(|(before, _)| points[before].rate_usd_per_hour.0)
 }
 
 /// The first instant of the month `at` falls in, in the zone the computer is set to, which is the zone every
@@ -84,7 +105,9 @@ pub fn rate_at(points: &[WorkspaceCostEvent], t: f64) -> Option<f64> {
 // }
 /// Local midnight of the first of `at`'s month in `zone` (the host's zone, rule 8.16), as ms epoch.
 pub fn month_start(at: f64, zone: &jiff::tz::TimeZone) -> f64 {
-    todo!()
+    let local = jiff::Timestamp::from_millisecond(at as i64).unwrap().to_zoned(zone.clone());
+    let start = local.date().first_of_month().at(0, 0, 0, 0).to_zoned(zone.clone()).unwrap();
+    start.timestamp().as_millisecond() as f64
 }
 
 /// The first instant of the day `at` falls in, in the zone the computer is set to, as monthStart reads the month.
@@ -95,7 +118,9 @@ pub fn month_start(at: f64, zone: &jiff::tz::TimeZone) -> f64 {
 // }
 /// Local midnight of `at`'s day in `zone`, as ms epoch.
 pub fn day_start(at: f64, zone: &jiff::tz::TimeZone) -> f64 {
-    todo!()
+    let local = jiff::Timestamp::from_millisecond(at as i64).unwrap().to_zoned(zone.clone());
+    let start = local.date().at(0, 0, 0, 0).to_zoned(zone.clone()).unwrap();
+    start.timestamp().as_millisecond() as f64
 }
 
 /// What a series accrued between `from` and its newest tick, or up to `until` where one is given: past the newest
@@ -112,6 +137,46 @@ pub fn day_start(at: f64, zone: &jiff::tz::TimeZone) -> f64 {
 //   return Math.max(0, (total(end) ?? 0) - (total(Math.min(from, end)) ?? 0));
 // }
 pub fn spent_since(points: &[WorkspaceCostEvent], from: f64, until: Option<f64>) -> f64 {
-    todo!()
+    let Some(last) = points.last() else {
+        return 0.0;
+    };
+    let last_at = parse_at(&last.at);
+    let end = until.unwrap_or(last_at);
+    let total = |t: f64| {
+        if t > last_at {
+            Some(accrued_past(last, t - last_at))
+        } else {
+            accrued_at(points, t)
+        }
+    };
+    let start = if from.is_nan() || end.is_nan() { f64::NAN } else { from.min(end) };
+    let spent = total(end).unwrap_or(0.0) - total(start).unwrap_or(0.0);
+    if spent.is_nan() {
+        spent
+    } else {
+        spent.max(0.0)
+    }
 }
 
+// Date.parse of a tick's stamp: NaN where it reads no date, so every comparison with it is false, as in the TS.
+fn parse_at(at: &str) -> f64 {
+    at.parse::<jiff::Timestamp>().map(|t| t.as_millisecond() as f64).unwrap_or(f64::NAN)
+}
+
+// The index of the tick at or before t and the one after it, when t falls inside the series.
+fn around(points: &[WorkspaceCostEvent], t: f64) -> Option<(usize, Option<usize>)> {
+    let first = points.first()?;
+    if t < parse_at(&first.at) {
+        return None;
+    }
+    let (mut lo, mut hi) = (0usize, points.len() - 1);
+    while lo < hi {
+        let mid = (lo + hi + 1) / 2;
+        if parse_at(&points[mid].at) <= t {
+            lo = mid;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    Some((lo, (lo + 1 < points.len()).then_some(lo + 1)))
+}
