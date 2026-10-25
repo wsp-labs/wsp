@@ -1,0 +1,21 @@
+<slate title="9 failing on main, 8c41f2e">
+  <value name="failures" start={[
+    {test: "refund applies partial tax", suite: "billing", fails: "3/3"},
+    {test: "invoice totals round half-even", suite: "billing", fails: "3/3"},
+    {test: "credit note keeps the original rate", suite: "billing", fails: "3/3"},
+    {test: "proration across a DST change", suite: "billing", fails: "1/3"},
+    {test: "webhook retries back off", suite: "hooks", fails: "2/10"},
+    {test: "search ranks exact SKU first", suite: "search", fails: "3/3"},
+    {test: "cart merges on sign-in", suite: "cart", fails: "3/3"},
+    {test: "coupon expires at midnight UTC", suite: "cart", fails: "1/3"},
+    {test: "export streams 10k rows", suite: "reports", fails: "3/3"}
+  ]} />
+  <column>
+    <table items={$failures} key={item.test}>
+      <col title="Test" value={item.test} />
+      <col title="Suite" value={item.suite} />
+      <col title="Failed" value={item.fails} mono={true} />
+      <action label="Fix" onPress={send("Fix this test", item.test)} />
+    </table>
+  </column>
+</slate>

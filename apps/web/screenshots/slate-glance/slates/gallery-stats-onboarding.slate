@@ -1,0 +1,26 @@
+<slate title="Onboarding Priya Raman">
+  <value name="accounts" start={6} />
+  <value name="accountsTotal" start={7} />
+  <value name="firstBuild" start={252000} />
+  <value name="localTests" start={2496} />
+  <value name="steps" start={[
+    {name: "Laptop enrolled in MDM", done: true, note: "Done"},
+    {name: "SSH key on GitHub", done: true, note: "Done"},
+    {name: "Repos cloned", done: true, note: "Done"},
+    {name: "Toolchain installed", done: true, note: "Done"},
+    {name: "Dev database seeded", done: true, note: "Done"},
+    {name: "First build", done: true, note: "Done"},
+    {name: "Tests pass locally", done: true, note: "Done"},
+    {name: "PagerDuty shadow rota", done: false, note: "Waiting on Dana"},
+    {name: "Staging deploy rights", done: false, note: "After day 3"},
+    {name: "First PR merged", done: false, note: "In review"}
+  ]} />
+  <column>
+    <stats>
+      <stat label="Accounts" value={$accounts} max={$accountsTotal} window="1 pending" />
+      <stat label="First build" value={$firstBuild} format="duration" window="cold cache" />
+      <stat label="Tests locally" value={$localTests} window="all passing" tone="good" />
+    </stats>
+    <progress label="setup steps done" items={$steps} key="name" name={item.name} done={item.done} note={item.note} />
+  </column>
+</slate>

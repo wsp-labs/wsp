@@ -1,0 +1,22 @@
+<slate title="Cloud spend, October">
+  <value name="spent" start={3120} />
+  <value name="budget" start={4000} />
+  <value name="today" start={142.8} />
+  <value name="projected" start={4310} />
+  <value name="daily" start={[
+    {day: 12, usd: 88.2}, {day: 13, usd: 91.5}, {day: 14, usd: 87.9},
+    {day: 15, usd: 94.3}, {day: 16, usd: 96.1}, {day: 17, usd: 99.8},
+    {day: 18, usd: 101.4}, {day: 19, usd: 104.6}, {day: 20, usd: 118.9},
+    {day: 21, usd: 121.3}, {day: 22, usd: 124.2}, {day: 23, usd: 128.0},
+    {day: 24, usd: 131.7}, {day: 25, usd: 142.8}
+  ]} />
+  <column>
+    <row>
+      <meter label="Budget used" value={$spent} max={$budget} note="$3,120 of $4,000" />
+      <number label="Today" value={$today} format="usd" note="so far" />
+      <number label="Projected" value={$projected} format="usd" tone="warning" />
+      <status tone="warning">$310 over</status>
+    </row>
+    <chart label="Spend a day, October" items={$daily} x={item.day} value={item.usd} format="usd" height="small" />
+  </column>
+</slate>

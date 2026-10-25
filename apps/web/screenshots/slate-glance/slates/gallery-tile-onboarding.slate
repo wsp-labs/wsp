@@ -1,0 +1,21 @@
+<slate title="Priya's first week">
+  <value name="accounts" start={6} />
+  <value name="accountsTotal" start={7} />
+  <value name="firstBuild" start={252000} />
+  <value name="starters" start={3} />
+  <value name="own" start={[
+    {title: "Turn on 2FA for GitHub", done: true},
+    {title: "Read the on-call runbook", done: true},
+    {title: "Pair with Dana on a deploy", done: false},
+    {title: "Pick a starter ticket", done: false},
+    {title: "Book a call with the payments team", done: false}
+  ]} />
+  <column>
+    <row>
+      <ring label="Accounts" value={$accounts} max={$accountsTotal} format="fraction" note="1 pending" />
+      <number label="First build" value={$firstBuild} format="duration" note="cold cache" />
+      <number label="Starter tickets" value={$starters} note="1 in review" />
+    </row>
+    <checklist items={$own} key={item.title} title={item.title} done={item.done} editable />
+  </column>
+</slate>

@@ -1,0 +1,20 @@
+<slate title="Review #4127, session store on SQLite">
+  <value name="checksPassed" start={11} />
+  <value name="checks" start={12} />
+  <value name="resolved" start={5} />
+  <value name="threads" start={9} />
+  <value name="coverage" start={87.4} />
+  <value name="verdict" start="" />
+  <column>
+    <stats>
+      <stat label="Checks" value={$checksPassed} max={$checks} window="e2e-linux failing" tone="warning" />
+      <stat label="Resolved" value={$resolved} max={$threads} window="2 open block merge" tone="bad" />
+      <stat label="Files" value={23} window="+612 −148" />
+      <stat label="Coverage" value={$coverage} unit="%" window="was 86.9%" />
+    </stats>
+    <decision id="verdict" label="Request changes on #4127?" value={$verdict} pick="changes" onChange={send("Review verdict for #4127", $verdict)}>
+      <option value="changes" label="Request changes" note="The migration drops rows with a null expires_at" />
+      <option value="comment" label="Comment only" note="Leaves the two blocking threads to the author" />
+    </decision>
+  </column>
+</slate>
