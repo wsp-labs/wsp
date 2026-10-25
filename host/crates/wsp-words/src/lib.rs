@@ -43,6 +43,8 @@ pub mod thread_state;
 pub mod tool_result;
 pub mod tree;
 pub mod usage;
+pub mod views;
+pub mod wire;
 pub mod words;
 pub mod workspace_look;
 pub mod workspace_state;
