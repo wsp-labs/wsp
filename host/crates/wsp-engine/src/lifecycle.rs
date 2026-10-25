@@ -82,6 +82,21 @@ pub struct WorkspaceInitial {
     pub first_life: Option<bool>,
 }
 
+/// Settles a wake's phase to napping if the wake's future is dropped before it answers, as the TS's `catch` does for a
+/// wake that throws: a TS wake cannot be cancelled, a Rust one can.
+struct SettleOnDrop {
+    phase: Arc<std::sync::Mutex<WorkspacePhase>>,
+    armed: bool,
+}
+
+impl Drop for SettleOnDrop {
+    fn drop(&mut self) {
+        if self.armed {
+            *self.phase.lock().unwrap_or_else(|e| e.into_inner()) = WorkspacePhase::Napping;
+        }
+    }
+}
+
 /// lifecycle.ts:42. Every method takes `&mut self`: the TS object is driven by one caller at a time.
 pub struct Workspace {
     machine: MachineRef,
@@ -190,7 +205,9 @@ impl Workspace {
             return Ok(WakeResult { reason: None });
         }
         self.set_phase(WorkspacePhase::Waking);
+        let mut settle = SettleOnDrop { phase: self.phase.clone(), armed: true };
         let answer = self.wake_attempts(landed).await;
+        settle.armed = false;
         if answer.is_err() {
             self.set_phase(WorkspacePhase::Napping);
         }

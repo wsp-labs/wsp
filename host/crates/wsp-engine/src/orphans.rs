@@ -10,29 +10,113 @@ use indexmap::IndexMap;
 
 use wsp_words::js::to_fixed;
 
+use crate::errors::EngineError;
 use crate::errors::{is_missing, RealRetryClock, Result, RetryClock};
 use crate::golden_seam::BUILDER_IDLE_MS;
-use crate::labels::{BUILDER_LABEL, CREATED_AT_LABEL, OWNER_LABEL, SMOKE_LABEL, WSP_LABEL};
-use crate::machine::{BackendPricing, Machine, MachineBackend, MachineListRow, MachineState, NamedMachine, Size};
-use crate::errors::EngineError;
 use crate::labels::is_reserved;
+use crate::labels::{BUILDER_LABEL, CREATED_AT_LABEL, OWNER_LABEL, SMOKE_LABEL, WSP_LABEL};
+use crate::machine::{Machine, MachineBackend, MachineListRow, MachineState, NamedMachine, Size};
 
-/// `Date.parse` for the ISO forms a stamp takes: a date alone (UTC midnight), a date and time read as UTC, and a time
-/// with an offset. NaN for anything else, as node answers.
-fn date_parse(s: &str) -> f64 {
-    if let Ok(t) = s.parse::<jiff::Timestamp>() {
-        return t.as_millisecond() as f64;
+/// `Date.parse` for the forms a stamp takes, read the way V8 reads them: `YYYY`, `YYYY-MM` or `YYYY-MM-DD` (UTC
+/// midnight; `+YYYYYY` and `-YYYYYY` for years past four digits), optionally followed by `T` or `t` (a space too after a
+/// whole date; V8 reads other spaced forms by its own looser rules, which are not followed here) and
+/// `HH:mm[:ss[.fff...]]` (hour 24 only as `24:00:00`) and then `Z` or an offset `+HH:mm` or `+HHmm`. A date and time with
+/// no offset reads as UTC where node reads local time (spec/sweeps.md accepts it: every stamp is a `toISOString()`).
+/// More than three fraction digits are cut, not rounded. A day past the month's end rolls into the next month. NaN for
+/// anything else and for a time outside +-8.64e15 ms, as node answers.
+pub(crate) fn date_parse(s: &str) -> f64 {
+    iso_millis(s).map_or(f64::NAN, |ms| ms as f64)
+}
+
+fn iso_millis(s: &str) -> Option<i64> {
+    let b = s.as_bytes();
+    let digits = |from: usize, n: usize| -> Option<i64> {
+        let part = b.get(from..from + n)?;
+        part.iter().all(u8::is_ascii_digit).then(|| part.iter().fold(0i64, |acc, d| acc * 10 + i64::from(d - b'0')))
+    };
+    let (year, mut at) = match b.first()? {
+        sign @ (b'+' | b'-') => {
+            let y = digits(1, 6)?;
+            if *sign == b'-' && y == 0 {
+                return None;
+            }
+            (if *sign == b'-' { -y } else { y }, 7)
+        }
+        _ => (digits(0, 4)?, 4),
+    };
+    let (mut month, mut day) = (1, 1);
+    if b.get(at) == Some(&b'-') {
+        month = digits(at + 1, 2)?;
+        at += 3;
+        if b.get(at) == Some(&b'-') {
+            day = digits(at + 1, 2)?;
+            at += 3;
+        }
     }
-    if let Ok(dt) = s.parse::<jiff::civil::DateTime>() {
-        return dt.to_zoned(jiff::tz::TimeZone::UTC).map_or(f64::NAN, |z| z.timestamp().as_millisecond() as f64);
+    if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
     }
-    let mut parts = s.split('-');
-    let year = parts.next().filter(|y| y.len() == 4 && y.bytes().all(|b| b.is_ascii_digit()));
-    let month = parts.next().map_or(Some(1), |m| (m.len() == 2 && m.bytes().all(|b| b.is_ascii_digit())).then(|| m.parse::<i8>().ok()).flatten());
-    let day = parts.next().map_or(Some(1), |d| (d.len() == 2 && d.bytes().all(|b| b.is_ascii_digit())).then(|| d.parse::<i8>().ok()).flatten());
-    let (Some(year), Some(month), Some(day), None) = (year, month, day, parts.next()) else { return f64::NAN };
-    let Ok(date) = jiff::civil::Date::new(year.parse().unwrap_or(0), month, day) else { return f64::NAN };
-    date.at(0, 0, 0, 0).to_zoned(jiff::tz::TimeZone::UTC).map_or(f64::NAN, |z| z.timestamp().as_millisecond() as f64)
+    let mut ms = days_from_civil(year, month, 1).checked_add(day - 1)?.checked_mul(86_400_000)?;
+    if at < b.len() {
+        let whole_date = b[1..at].iter().filter(|c| **c == b'-').count() == 2;
+        if !(matches!(b[at], b'T' | b't') || (b[at] == b' ' && whole_date)) {
+            return None;
+        }
+        let (hour, minute) = (digits(at + 1, 2)?, digits(at + 4, 2)?);
+        if b.get(at + 3) != Some(&b':') {
+            return None;
+        }
+        at += 6;
+        let (mut second, mut milli) = (0, 0);
+        if b.get(at) == Some(&b':') {
+            second = digits(at + 1, 2)?;
+            at += 3;
+            if b.get(at) == Some(&b'.') {
+                let end = (at + 1..b.len()).find(|&i| !b[i].is_ascii_digit()).unwrap_or(b.len());
+                if end == at + 1 {
+                    return None;
+                }
+                let kept = &b[at + 1..end.min(at + 4)];
+                milli = kept.iter().fold(0i64, |acc, d| acc * 10 + i64::from(d - b'0')) * 10i64.pow(3 - kept.len() as u32);
+                at = end;
+            }
+        }
+        if hour > 24 || minute > 59 || second > 59 || (hour == 24 && (minute, second, milli) != (0, 0, 0)) {
+            return None;
+        }
+        let mut offset = 0;
+        match b.get(at) {
+            Some(b'Z' | b'z') => at += 1,
+            Some(sign @ (b'+' | b'-')) => {
+                let (oh, om) = if b.get(at + 3) == Some(&b':') {
+                    (digits(at + 1, 2)?, digits(at + 4, 2)?)
+                } else {
+                    (digits(at + 1, 2)?, digits(at + 3, 2)?)
+                };
+                if oh > 23 || om > 59 {
+                    return None;
+                }
+                at += if b.get(at + 3) == Some(&b':') { 6 } else { 5 };
+                offset = (oh * 60 + om) * 60_000 * if *sign == b'-' { -1 } else { 1 };
+            }
+            _ => {}
+        }
+        if at != b.len() {
+            return None;
+        }
+        ms = ms.checked_add(((hour * 60 + minute) * 60 + second) * 1000 + milli - offset)?;
+    }
+    (ms.abs() <= 8_640_000_000_000_000).then_some(ms)
+}
+
+/// Days from 1970-01-01 to the first of a month, for any year (the proleptic Gregorian calendar).
+fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = y.div_euclid(400);
+    let yoe = y.rem_euclid(400);
+    let doy = (153 * (if month > 2 { month - 3 } else { month + 9 }) + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
 }
 
 /// orphans.ts:9. A machine of this owner this young is spared on age alone.
@@ -222,7 +306,7 @@ pub async fn reap(opts: ReapOptions) -> Result<ReapResult> {
         let builder = m.labels.get(BUILDER_LABEL).map(String::as_str) == Some("1");
         let whose = whose_machine(&m.labels, &opts.owner);
         let created = date_parse(m.labels.get(CREATED_AT_LABEL).map_or("", String::as_str));
-        let age_ms = (!created.is_nan()).then(|| (now as f64 - created) as i64);
+        let age_ms = (!created.is_nan()).then_some((now as f64 - created) as i64);
         let backstop_ms = match whose {
             Whose::Own => OWN_GRACE_MS,
             _ if builder => BUILDER_IDLE_MS as i64,
