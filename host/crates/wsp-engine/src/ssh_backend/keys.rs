@@ -96,7 +96,7 @@ pub fn host_key_found(found: &str, algorithms: &str) -> Option<String> {
 
 /// ssh-backend.ts:452. Whether the client knows this machine only through an authority.
 pub fn trusted_by_authority(found: &str) -> bool {
-    let lines: Vec<&str> = found.split('\n').map(|line| js_trim(line)).filter(|line| !line.is_empty() && !line.starts_with('#')).collect();
+    let lines: Vec<&str> = found.split('\n').map(js_trim).filter(|line| !line.is_empty() && !line.starts_with('#')).collect();
     !lines.is_empty() && lines.iter().all(|line| line.starts_with("@cert-authority "))
 }
 

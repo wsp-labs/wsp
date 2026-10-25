@@ -615,7 +615,7 @@ impl Pump {
     /// The words a dial's failure is reported in: the last line the client's own words keep, else the child's exit.
     fn settle(&mut self) {
         let kept: Vec<String> = self.said.iter().cloned().collect();
-        let line = client_words(&kept.join("\n")).split('\n').last().unwrap_or("").to_string();
+        let line = client_words(&kept.join("\n")).split('\n').next_back().unwrap_or("").to_string();
         let fallback = match self.exit_end.as_ref() {
             Some(ChildEnd::Exited(code)) => format!("ssh exited with {code}"),
             Some(ChildEnd::Signalled(signal)) => format!("ssh ended on {signal}"),

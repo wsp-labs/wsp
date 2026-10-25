@@ -91,7 +91,7 @@ fn sudo_mark(line: &str) -> Option<SshSudo> {
 pub async fn read_ssh_sudo(reach: &SshReach, transport: &SshTransport) -> Result<SshSudoRoad> {
     let opts = SshTransportOptions { timeout_ms: Some(SSH_DIAL_MS), ride: SshRide::Login, ..Default::default() };
     let read = transport(reach.clone(), SSH_SUDO_READ.to_string(), opts).await;
-    let said = read.stdout.split(|c| matches!(c, '\n' | '\r' | '\u{2028}' | '\u{2029}')).find_map(sudo_mark);
+    let said = read.stdout.split(['\n', '\r', '\u{2028}', '\u{2029}']).find_map(sudo_mark);
     match said {
         Some(road) => Ok(road),
         None if read.exit_code.get() == 255 => Err(plain(ssh_refusal_line(&read, reach))),
@@ -424,14 +424,16 @@ impl Machine for SshMachine {
     }
 }
 
+type SshReader<T> = Arc<dyn Fn(SshReach) -> LocalBoxFuture<'static, T>>;
+
 /// ssh-backend.ts:881. Every seam the backend reads through; `None` takes the real one.
 #[derive(Clone, Default)]
 pub struct SshBackendOptions {
     pub transport: Option<SshTransport>,
     pub host_key: Option<SshHostKeyReader>,
-    pub known_hosts: Option<Arc<dyn Fn(SshReach) -> LocalBoxFuture<'static, KnownHostsEntry>>>,
-    pub offered_key: Option<Arc<dyn Fn(SshReach) -> LocalBoxFuture<'static, OfferedKey>>>,
-    pub host_name: Option<Arc<dyn Fn(SshReach) -> LocalBoxFuture<'static, Option<String>>>>,
+    pub known_hosts: Option<SshReader<KnownHostsEntry>>,
+    pub offered_key: Option<SshReader<OfferedKey>>,
+    pub host_name: Option<SshReader<Option<String>>>,
 }
 
 /// ssh-backend.ts:896. What every script one backend carries rides with: the login's sudo password, or the login itself.

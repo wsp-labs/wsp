@@ -149,7 +149,7 @@ fn cancel_error(stop: &Cancel) -> EngineError {
 impl LinkMachine {
     /// link-backend.ts:123.
     pub fn new(link: Arc<dyn MachineLink>, handle: MachineHandle) -> Self {
-        let seen = handle.seen.as_ref().map(|s| Seen { state: s.state.clone(), created_at: s.created_at.clone(), paused_at: None });
+        let seen = handle.seen.as_ref().map(|s| Seen { state: s.state, created_at: s.created_at.clone(), paused_at: None });
         Self { link, handle, seen }
     }
 

@@ -5,14 +5,17 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::errors::EngineError;
-use crate::labels::{BUILDER_LABEL, CREATED_AT_LABEL, DOCTOR_LABEL, GOLDEN_LABEL, HOST_LABEL, NAME_LABEL, OWNER_LABEL, SMOKE_LABEL, WORKSPACE_LABEL, WSP_LABEL};
+use crate::labels::{
+    BUILDER_LABEL, CREATED_AT_LABEL, DOCTOR_LABEL, GOLDEN_LABEL, HOST_LABEL, NAME_LABEL, OWNER_LABEL, SMOKE_LABEL, WORKSPACE_LABEL,
+    WSP_LABEL,
+};
 use crate::machine::{CloudLimits, LifecycleBudgets, MachineState, Size, SnapshotStoragePricing, WireSnapshotStoragePricing};
-pub use wsp_words::words::units::StartWindow;
-use wsp_words::js::{collate, utf16};
-use wsp_words::words::units::size_word;
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::views::place_more::{CloudPlan, CloudStarts, StartsWindow};
 use wsp_wire::wire::capabilities::WorkspaceSize;
+use wsp_words::js::{collate, utf16};
+use wsp_words::words::units::size_word;
+pub use wsp_words::words::units::StartWindow;
 
 /// box-backend.ts:25.
 pub const BOX_API_URL: &str = r#"https://boat.dev/api/v1"#;
@@ -272,9 +275,7 @@ pub fn limits_of(raw: &Value) -> BoxLimits {
     let starts = raw.get("starts");
     let window = |name: &str| count(starts.and_then(|s| s.get(name)));
     let starts = match (window("minute"), window("hour"), window("day")) {
-        (Some(minute), Some(hour), Some(day))
-            if starts.and_then(|s| s.get("unlimited")) != Some(&Value::Bool(true)) =>
-        {
+        (Some(minute), Some(hour), Some(day)) if starts.and_then(|s| s.get("unlimited")) != Some(&Value::Bool(true)) => {
             Some(StartWindows { minute, hour, day })
         }
         _ => None,
@@ -425,6 +426,5 @@ pub fn box_snapshot_name(name: &str) -> crate::errors::Result<String> {
 pub fn is_uuid(id: &str) -> bool {
     let groups: Vec<&str> = id.split('-').collect();
     let widths = [8, 4, 4, 4, 12];
-    groups.len() == widths.len()
-        && groups.iter().zip(widths).all(|(g, w)| g.len() == w && g.bytes().all(|b| b.is_ascii_hexdigit()))
+    groups.len() == widths.len() && groups.iter().zip(widths).all(|(g, w)| g.len() == w && g.bytes().all(|b| b.is_ascii_hexdigit()))
 }
