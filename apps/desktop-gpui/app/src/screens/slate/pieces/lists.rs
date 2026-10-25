@@ -11,7 +11,7 @@ use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _, Icon, Sizable as _};
 use gpui_kit::{div, prelude::*, px, relative, AnyElement, App, Entity, Hsla, Pixels, SharedString, Window};
 use serde_json::{json, Value};
 
-use super::layout::{head, measured, place_of, tables_beside, tone_of, two_way, Place, INSET, ROW_FLOOR};
+use super::layout::{measured, place_of, tables_beside, tone_of, two_way, Place, INSET, ROW_FLOOR};
 use super::look::{self, is_figure, is_sentence, Tone};
 use super::PieceCx;
 use crate::screens::slate::model::Row;
@@ -282,7 +282,16 @@ pub fn table_view(p: &PieceCx, part: &str, t: Table, window: &mut Window, cx: &m
     let text_cols: Vec<usize> = t.widths.iter().enumerate().filter(|(_, w)| w.is_none()).map(|(at, _)| at).collect();
     let figures: Vec<bool> = (0..t.columns.len()).map(|at| shown > 0 && t.rows.iter().all(|r| is_figure(r.cells[at].as_ref()))).collect();
     let sentences = text_cols.iter().copied().find(|&at| t.rows.iter().filter(|r| is_sentence(r.cells[at].as_ref())).count() * 2 > shown);
-    let title = sentences.or(text_cols.first().copied()).unwrap_or(0);
+    // The row's name: a mono first column of names (a path, an id) in its own face, so no column after it draws larger;
+    // else the column most of whose cells are sentences, else the first text column. A cell led by a digit is a figure,
+    // a date or a time, never a name.
+    let mono_first = t.columns.first().is_some_and(|c| c.mono)
+        && figures.first() == Some(&false)
+        && !t.rows.iter().any(|r| {
+            is_sentence(r.cells[0].as_ref()) || look::str(r.cells[0].as_ref()).is_some_and(|s| s.starts_with(|c: char| c.is_ascii_digit()))
+        });
+    let title = if mono_first { 0 } else { sentences.or(text_cols.first().copied()).unwrap_or(0) };
+    let title_mono = t.columns.get(title).is_some_and(|c| c.mono) && !t.rows.iter().any(|r| is_sentence(r.cells[title].as_ref()));
     let end = |at: usize| at != title && (t.columns[at].align.as_deref() == Some("end") || (figures[at] && t.columns[at].align.is_none()));
     let edges = t.place != Place::Inside;
     let rule = palette.border.opacity(0.5);
@@ -405,7 +414,35 @@ pub fn table_view(p: &PieceCx, part: &str, t: Table, window: &mut Window, cx: &m
             .map(|o| div().pb(px(8.)).px(INSET).child(outcome_line(&o, cx)).into_any_element())
     };
 
-    if folds(&t.widths, shown) {
+    let (seen_width, probe) = measured(p.el(&format!("{part}-width")), window, cx);
+    let table_width = seen_width.unwrap_or(px(508.));
+    let ch = mono_ch(window, cx);
+    let longest = |at: usize| {
+        t.rows
+            .iter()
+            .map(|r| look::str(r.cells[at].as_ref()).map_or(0, |s| s.chars().count()))
+            .chain([t.columns[at].title.as_ref().map_or(0, |s| s.chars().count())])
+            .max()
+            .unwrap_or(0)
+    };
+    let fill = (0..t.columns.len()).filter(|&at| !figures[at]).max_by_key(|&at| (longest(at), std::cmp::Reverse(at))).unwrap_or(title);
+    let fill_word = t
+        .rows
+        .iter()
+        .filter_map(|r| look::str(r.cells[fill].as_ref()))
+        .flat_map(|s| s.split_whitespace().map(str::to_owned).collect::<Vec<_>>())
+        .map(|w| text::width(&w, if fill == title && !title_mono { 14. } else { 13. }, sans.clone(), window))
+        .fold(px(0.), Pixels::max)
+        .ceil();
+    // The tight columns at their widths and the filling column's longest word, 16 px apart, inside the insets: where the
+    // table is narrower than that it folds, rather than break a word or spill out of its card.
+    let needed = (0..t.columns.len()).filter_map(|at| t.widths[at].filter(|_| at != fill).map(|n| ch * n as f32)).fold(px(0.), |a, w| a + w)
+        + fill_word
+        + px(16.) * t.columns.len().saturating_sub(1) as f32
+        + act_w.map_or(px(0.), |w| w + px(16.))
+        + if edges { INSET * 2. } else { px(0.) };
+    let cramped = seen_width.is_some_and(|w| needed > w);
+    if folds(&t.widths, shown) || (cramped && shown > 0) {
         let note_order: Vec<usize> = text_cols.iter().copied().chain((0..t.columns.len()).filter(|at| !text_cols.contains(at))).collect();
         let mut items: Vec<(AnyElement, Option<AnyElement>)> = Vec::new();
         for row in &t.rows {
@@ -432,7 +469,7 @@ pub fn table_view(p: &PieceCx, part: &str, t: Table, window: &mut Window, cx: &m
                 .child(
                     div()
                         .min_w_0()
-                        .text_size(px(14.))
+                        .map(|d| if title_mono { d.font_family(mono_font.clone()).text_size(px(12.)) } else { d.text_size(px(14.)) })
                         .line_height(px(20.))
                         .text_color(row.tones[title].map_or(palette.foreground, |tone| tone.ink(cx)))
                         .child(name),
@@ -441,30 +478,23 @@ pub fn table_view(p: &PieceCx, part: &str, t: Table, window: &mut Window, cx: &m
             let body = h_flex().items_start().gap(px(16.)).when(edges, |d| d.px(INSET)).child(words).children(action_cell(row, cx));
             items.push((frame(row, body, window, cx).into_any_element(), open_said(row, cx)));
         }
-        let header = t.columns[title].title.clone().filter(|_| !t.in_section);
+        // The header names the list inside its card, its first row, as a grid's does.
+        if let Some(h) = t.columns[title].title.clone().filter(|_| !t.in_section) {
+            let row = head_row(cx).when(edges, |d| d.px(INSET)).child(h).into_any_element();
+            items.insert(0, (row, None));
+        }
         return v_flex()
             .debug_selector(|| "slate-table-folded".into())
+            .relative()
             .min_w_0()
             .gap(px(10.))
-            .children(header.map(|h| head(h, cx)))
             .child(rows_card(p.el(&format!("{part}-card")), items, edges, rule))
+            .child(probe)
             .children(below)
             .into_any_element();
     }
 
     // A grid: every row on one set of widths, the header's cells on the rows' own.
-    let (table_width, probe) = measured(p.el(&format!("{part}-width")), window, cx);
-    let table_width = table_width.unwrap_or(px(508.));
-    let ch = mono_ch(window, cx);
-    let longest = |at: usize| {
-        t.rows
-            .iter()
-            .map(|r| look::str(r.cells[at].as_ref()).map_or(0, |s| s.chars().count()))
-            .chain([t.columns[at].title.as_ref().map_or(0, |s| s.chars().count())])
-            .max()
-            .unwrap_or(0)
-    };
-    let fill = (0..t.columns.len()).filter(|&at| !figures[at]).max_by_key(|&at| (longest(at), std::cmp::Reverse(at))).unwrap_or(title);
     let tight = |at: usize| t.widths[at].is_some() && at != fill;
     // A column's width: the fill takes the room left, a tight one its widest cell, any other its words up to 40%.
     let widths: Vec<Option<Pixels>> = (0..t.columns.len())
@@ -493,11 +523,13 @@ pub fn table_view(p: &PieceCx, part: &str, t: Table, window: &mut Window, cx: &m
             Some(widest.min(table_width * 0.4).ceil())
         })
         .collect();
+    // The filling column never narrows past its longest word, so a word wraps whole rather than break mid-word.
+    let fill_word = fill_word.min(table_width * 0.5);
     let cell_box = |at: usize| {
         let d = div().min_w_0();
         let d = match widths[at] {
             Some(w) => d.w(w).flex_none(),
-            None => d.flex_1().flex_basis(relative(0.)),
+            None => d.flex_1().flex_basis(relative(0.)).min_w(fill_word),
         };
         let d = if end(at) { d.text_right() } else { d };
         if tight(at) {
@@ -506,26 +538,28 @@ pub fn table_view(p: &PieceCx, part: &str, t: Table, window: &mut Window, cx: &m
             d
         }
     };
+    // The header names the columns inside the card, its first row, so it reads as the card's own and never floats over it.
     let header = (!t.columns.iter().all(|c| c.title.as_deref().unwrap_or_default().is_empty())).then(|| {
-        h_flex()
+        head_row(cx)
             .debug_selector(|| "slate-table-head".into())
-            .min_h(px(33.))
-            .pb(px(5.))
             .gap(px(16.))
-            .when(edges, |d| d.px(INSET + px(1.)))
+            .when(edges, |d| d.px(INSET))
             .children((0..t.columns.len()).map(|at| {
                 let words = t.columns[at].title.clone().unwrap_or_default();
                 let named = format!("slate-{}-head-{at}", p.id());
-                let cell = cell_box(at).debug_selector(move || named.clone());
-                if at == 0 {
-                    cell.text_size(px(14.)).line_height(px(20.)).text_color(palette.foreground.opacity(0.7)).child(words)
-                } else {
-                    cell.text_size(px(13.)).line_height(px(20.)).text_color(palette.muted_foreground).child(words)
-                }
+                cell_box(at).debug_selector(move || named.clone()).child(words)
             }))
             .when_some(act_w, |d, w| d.child(div().flex_none().w(w)))
     });
     let mut items: Vec<(AnyElement, Option<AnyElement>)> = Vec::new();
+    // With no rows the header stands alone over nothing; with rows it is the card's first row.
+    let header = match header {
+        Some(h) if shown > 0 => {
+            items.push((h.into_any_element(), None));
+            None
+        }
+        other => other,
+    };
     for row in &t.rows {
         let cells = (0..t.columns.len()).map(|at| {
             let v = row.cells[at].as_ref();
@@ -554,6 +588,11 @@ pub fn table_view(p: &PieceCx, part: &str, t: Table, window: &mut Window, cx: &m
         .when(!below.is_empty(), |d| d.child(v_flex().children(below)))
         .child(probe)
         .into_any_element()
+}
+
+/// A table's header row: 12 px muted, 36 px at the least, as a row of its card.
+fn head_row(cx: &App) -> gpui_kit::Div {
+    h_flex().min_h(px(36.)).py(px(8.)).items_center().text_size(px(12.)).line_height(px(16.)).text_color(cx.palette().muted_foreground)
 }
 
 /// The rows of a table in their card, or bare with a hairline between them inside another card's row.

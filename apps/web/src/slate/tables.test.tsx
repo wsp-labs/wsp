@@ -60,7 +60,7 @@ describe("a table in its card", () => {
     expect(heads(t)).toEqual([false, true]);
     expect(ends(t)).toEqual([false, true]);
     // The card's border and the rows' inset are edge tracks the header shares, so no row pads its own tracks.
-    expect(tracks(t)).toBe("calc(var(--settings-inset,20px) - 15px) minmax(0,1fr) minmax(14ch,max-content) calc(var(--settings-inset,20px) - 15px)");
+    expect(tracks(t)).toBe("calc(var(--settings-inset,20px) - 15px) minmax(min(4ch,50%),1fr) minmax(14ch,max-content) calc(var(--settings-inset,20px) - 15px)");
     // The header is the card's first row, inside its border (#2439).
     const card = t.querySelector("[data-slate-head]")!.parentElement!;
     expect(card.className).toContain("bg-card/40");

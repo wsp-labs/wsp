@@ -299,7 +299,7 @@ describe("held runs ask on their own, held buttons say why, submit is Enter", ()
     expect(sheet.querySelector("[data-slate-consent-cadence]")?.textContent).toBe("Runs each time $project changes");
   });
 
-  it("draws a held button disabled with its sentence on hover, and lets null or false go", async () => {
+  it("draws a held button disabled with its sentence under it, and lets null or false go", async () => {
     const doc = slate({
       root: "root",
       values: { ok: { start: false } },
@@ -315,10 +315,7 @@ describe("held runs ask on their own, held buttons say why, submit is Enter", ()
     expect(next.disabled).toBe(true);
     const wrap = next.closest("[data-slate-held-button]") as HTMLElement;
     expect(wrap.dataset["slateHeldButton"]).toBe("Check the project first");
-    fireEvent.pointerEnter(wrap, { pointerType: "mouse" });
-    fireEvent.mouseEnter(wrap);
-    fireEvent.mouseMove(wrap);
-    expect(await screen.findByText("Check the project first", {}, { timeout: 2_000 })).toBeTruthy();
+    expect(wrap.querySelector("[data-slate-held-why]")?.textContent).toBe("Check the project first");
     for (const name of ["Free", "Off"]) {
       const button = screen.getByRole("button", { name }) as HTMLButtonElement;
       expect(button.disabled).toBe(false);

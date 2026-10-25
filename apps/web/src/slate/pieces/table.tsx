@@ -9,7 +9,6 @@ import type { SlateStep } from "../model.js";
 import { Button } from "../../components/ui/button.js";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
-import { SECTION_HEAD } from "../../settings/layout.js";
 import { cn } from "../../lib/utils.js";
 import type { SlateEngine } from "../engine.js";
 import type { PieceViewProps, PieceView } from "../SlateView.js";
@@ -20,6 +19,7 @@ import { isFigure, isSentence, NOTE, present, rowKeys, str, TONE_INK, toneOf } f
 import { Outcome } from "./outcome.js";
 import { usePress } from "./press.js";
 import { pressTitle } from "./button.js";
+import { useWidth } from "./chart.js";
 
 type Template = Record<string, SlatePropValue>;
 const records = (value: SlatePropValue | undefined): Template[] =>
@@ -75,6 +75,24 @@ function sharedWidths(slate: SlateEngine, id: string, own: (number | undefined)[
   return own.map((width, at) => (width === undefined ? undefined : Math.max(width, ...fellows.map(widths => widths[at] ?? 0))));
 }
 
+/** The column that takes a table's room, the one of the longest words or machine text that is not all figures (else the
+ * first), and its longest word in characters, the widest any table beside it with as many columns needs. The column
+ * never narrows past that word, so a word wraps whole rather than break mid-word. */
+function fillOf(slate: SlateEngine, id: string, beside = true): { at: number; word: number } {
+  const piece = slate.piece(id);
+  const items = slate.resolve(piece?.props?.["items"]);
+  const list = Array.isArray(items) ? items : [];
+  const shown = list.slice(0, drawnRows(slate.resolve(piece?.props?.["rows"]), list.length));
+  const columns = shownColumns(slate, piece?.props?.["columns"]);
+  const cells = columns.map(column => shown.map((item, index) => slate.resolve(column["value"], { item, index })));
+  const longest = (at: number) => Math.max(str(slate.resolve(columns[at]?.["title"]))?.length ?? 0, ...cells[at]!.map(cell => str(cell)?.length ?? 0));
+  const words = columns.map((_, at) => at).filter(at => !(cells[at]!.length > 0 && cells[at]!.every(isFigure)));
+  const at = words.reduce<number | undefined>((best, at) => (best === undefined || longest(at) > longest(best) ? at : best), undefined) ?? 0;
+  const word = Math.max(0, ...(cells[at] ?? []).flatMap(cell => (str(cell) ?? "").split(/\s+/).map(w => w.length)));
+  const fellows = beside ? slate.tablesBeside(id).filter(other => other !== id && shownColumns(slate, slate.piece(other)?.props?.["columns"]).length === columns.length) : [];
+  return { at, word: Math.max(word, ...fellows.map(other => fillOf(slate, other, false).word)) };
+}
+
 /** Past this many rows a table says how many more there are rather than draw them all on every push. */
 export const ROWS_DRAWN = 200;
 
@@ -85,6 +103,8 @@ const drawnRows = (asked: SlateJson | undefined, length: number): number => Math
 const NAME = "text-sm leading-5 text-foreground";
 const WORD = "text-[13px] leading-5 text-muted-foreground";
 const MONO = "font-mono text-xs leading-5 tabular-nums";
+/** One character of the 12 px mono face, the ch a tight column's width counts in. */
+const MONO_CH = 7.2;
 const INSET = "px-(--settings-inset,20px)";
 const ROW = "min-h-11 py-3 transition-colors duration-150";
 /** The chevron's button reaches over the whole row it stands in, so the row presses without its cells in a button. */
@@ -116,6 +136,7 @@ export const table: PieceView = {
   aligns: true,
   rowScoped: ["columns", "rowActions", "key"],
   component: function TablePiece({ id, piece, props, slate, raise }) {
+    const [ref, width] = useWidth();
     const items = Array.isArray(props["items"]) ? props["items"] : [];
     const columns = shownColumns(slate, piece.props?.["columns"]);
     const actions = records(piece.props?.["rowActions"]).slice(0, 3);
@@ -129,9 +150,13 @@ export const table: PieceView = {
     const text = widths.flatMap((width, at) => (width === undefined ? [at] : []));
     const cellsOf = (at: number) => shown.map((item, index) => slate.resolve(columns[at]?.["value"], { item, index }));
     const figures = columns.map((_, at) => shown.length > 0 && cellsOf(at).every(isFigure));
-    // The row's name: the first text column, or the one most of whose cells are sentences; else the first column.
+    // The row's name: a mono first column of names (a path, an id) in its own face, so no column after it draws larger;
+    // else the column most of whose cells are sentences, else the first text column. A cell led by a digit is a figure,
+    // a date or a time, never a name.
+    const monoFirst = columns[0]?.["mono"] === true && !figures[0] && !cellsOf(0).some(cell => isSentence(cell) || /^\d/.test(str(cell) ?? ""));
     const sentences = text.find(at => cellsOf(at).filter(isSentence).length * 2 > shown.length);
-    const title = sentences ?? text[0] ?? 0;
+    const title = monoFirst ? 0 : (sentences ?? text[0] ?? 0);
+    const titleMono = columns[title]?.["mono"] === true && !cellsOf(title).some(isSentence);
     const opens = actions.length === 1 && actions[0]!["when"] === undefined;
     const end = (column: Template, at: number) => at !== title && (column["align"] === "end" || (figures[at] === true && column["align"] === undefined));
     const header = (at: number) => str(slate.resolve(columns[at]?.["title"]));
@@ -158,20 +183,30 @@ export const table: PieceView = {
     // The note says the words first, then the figures and dates.
     const noteOrder = [...text, ...columns.map((_, at) => at).filter(at => !text.includes(at))];
     // A table with no rows has nothing to fold: it stands as a grid, its header naming every column.
-    if (text.length > 2 && shown.length > 0) {
+    // The tight columns at their widths and the filling column's longest word, with 16 px between columns and the inset
+    // at each edge: where the table is narrower than that it folds, rather than break a word or spill out of its card.
+    const { at: fillAt, word: fillWordCh } = fillOf(slate, id);
+    const needed = (widths.reduce<number>((sum, w, at) => sum + (w === undefined || at === fillAt ? 0 : w), 0) + fillWordCh * 1.2) * MONO_CH + 16 * (columns.length - 1) + (opens || actions.length > 0 ? 56 : 0) + (place === "inside" ? 0 : 40);
+    const cramped = width > 0 && needed > width;
+    if ((text.length > 2 || cramped) && shown.length > 0) {
       // Folded: the name over a note of every other cell, figures and dates in mono, 12 px apart; a section's head names
       // the list, so the column's own header stands only where there is none.
       return (
-        <div role="table" aria-label={header(title)} data-slate-folded className="flex min-w-0 flex-col gap-2.5">
-          {header(title) === undefined || slate.parent(id)?.type === "section" ? null : <span className={SECTION_HEAD}>{header(title)}</span>}
+        <div ref={ref} role="table" aria-label={header(title)} data-slate-folded className="flex min-w-0 flex-col gap-2.5">
             <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)_auto] [&>*+*]:border-t [&>*+*]:border-border/50", card)}>
+              {/* The header names the list inside its card, its first row, as a grid's does. */}
+              {header(title) === undefined || slate.parent(id)?.type === "section" ? null : (
+                <div role="row" data-slate-head className={cn("col-span-full flex min-h-9 items-center py-2 text-xs leading-4 text-muted-foreground", inset)}>
+                  <span role="columnheader">{header(title)}</span>
+                </div>
+              )}
               {shown.map((item, index) => {
                 const row = { item, index };
                 const name = str(slate.resolve(columns[title]?.["value"], row)) ?? "";
                 const body = (opener: ReactNode) => (
                   <>
                     <span role="cell" className="flex min-w-0 flex-col gap-1">
-                      <span className={cn(NAME, "break-words", tone(columns[title]!, row))}>{name}</span>
+                      <span className={cn(titleMono ? cn(MONO, "text-foreground break-all") : cn(NAME, "break-words"), tone(columns[title]!, row))}>{name}</span>
                       <span className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
                         {noteOrder.map(at => {
                           const column = columns[at]!;
@@ -211,17 +246,17 @@ export const table: PieceView = {
     // card's border and the rows' inset are two edge tracks, so no row pads its subgrid and no track overflows into the
     // next. A figure or machine-text column is as wide as its widest value (its header's included, the tables beside
     // it at the least), so every column stands 16 px off the next.
-    const longest = (at: number) => Math.max(str(slate.resolve(columns[at]?.["title"]))?.length ?? 0, ...cellsOf(at).map(cell => str(cell)?.length ?? 0));
     // The column of the longest words or machine text takes the room left, so the last column ends on the right inset
-    // however wide the panel.
-    const fill = columns.map((_, at) => at).filter(at => !figures[at]).reduce<number | undefined>((best, at) => (best === undefined || longest(at) > longest(best) ? at : best), undefined) ?? title;
+    // however wide the panel; its least is its longest word, in the 12 px mono ch, a little narrower than a 14 px name's.
+    const fill = fillAt;
+    const fillWord = Math.ceil(fillWordCh * 1.2);
     const tight = (at: number) => widths[at] !== undefined && at !== fill;
     const edges = place !== "inside";
     const edge = "calc(var(--settings-inset,20px) - 15px)";
     const tracks = [
       ...(edges ? [edge] : []),
       // With no rows to size them by, the columns share the card evenly, so the header spans it rather than bunching left.
-      ...columns.map((_, at) => (shown.length === 0 || at === fill ? "minmax(0,1fr)" : widths[at] !== undefined ? `minmax(${widths[at]}ch,max-content)` : "fit-content(40%)")),
+      ...columns.map((_, at) => (shown.length === 0 ? "minmax(0,1fr)" : at === fill ? `minmax(min(${fillWord}ch,50%),1fr)` : widths[at] !== undefined ? `minmax(${widths[at]}ch,max-content)` : "fit-content(40%)")),
       ...(opens || actions.length > 0 ? ["auto"] : []),
       ...(edges ? [edge] : []),
     ];
@@ -240,7 +275,7 @@ export const table: PieceView = {
       </div>
     );
     return (
-      <div role="table" className={cn("grid min-w-0 gap-x-4", MONO)} style={{ gridTemplateColumns: tracks.join(" ") }}>
+      <div ref={ref} role="table" className={cn("grid min-w-0 gap-x-4", MONO)} style={{ gridTemplateColumns: tracks.join(" ") }}>
         {columns.every((_, at) => (header(at) ?? "") === "") || shown.length > 0 ? null : head("min-h-7 pb-[5px]")}
         {shown.length === 0 ? null : (
           <div className={cn("col-span-full grid grid-cols-subgrid [&>*+*]:border-t [&>*+*]:border-border/50", card)}>

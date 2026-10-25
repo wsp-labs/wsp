@@ -25,6 +25,13 @@ export function fmtBytes(n: number): string {
   return bytesIn(n, KIB);
 }
 
+/** Bytes as a figure a person compares: one decimal under 10 of a unit, so 1,268,000 bytes reads 1.2 MB, not 1 MB. */
+export function fmtBytesFigure(n: number): string {
+  if (n < KIB) return `${n} B`;
+  const [size, unit] = n < MIB ? [n / KIB, "KB"] : n < GIB ? [n / MIB, "MB"] : [n / GIB, "GB"];
+  return `${size < 10 ? Number(size.toFixed(1)) : Math.round(size)} ${unit}`;
+}
+
 /** Bytes in decimal units, as a provider sells a disk: a 160 GB disk reads 160 GB, where fmtBytes says 149. */
 export function fmtDiskBytes(n: number): string {
   return bytesIn(n, 1000);
