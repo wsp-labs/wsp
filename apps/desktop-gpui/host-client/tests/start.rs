@@ -25,6 +25,7 @@ struct Stubbed {
 /// `ExecStart=` names, or `script` in its place.
 enum Runs {
     Host,
+    #[cfg(target_os = "linux")]
     Unit,
     Script(&'static str),
     Nothing,
@@ -51,6 +52,7 @@ impl Stubbed {
                     q(&bin)
                 )
             }
+            #[cfg(target_os = "linux")]
             Runs::Unit => {
                 let unit = q(&Manager::Systemd.unit(&home, &stubbed.state()));
                 format!(
@@ -314,11 +316,24 @@ fn a_host_that_answers_and_refuses_the_first_read_is_that_refusal_with_no_second
     assert_eq!(*asked.lock().unwrap(), 1);
 }
 
-/// Quit and stop, then the next launch: the stop keeps the unit and its login switch, so the next login still starts
-/// wsp, and the open after it loads that unit again and attaches to the host it started.
+/// Quit and stop, then the next launch: the stop unloads the unit and removes its file, as `wsp down` does, so the next
+/// login starts nothing, and the open after it writes the unit again through the app's `wsp up --service`, stood in for
+/// by a line that writes and loads it as that command does, and attaches to the host it started.
 fn stops_and_opens_again(manager: Manager, stops: impl Fn(&Stubbed) -> String) {
     let stubbed = Stubbed::new(Runs::Host);
-    let road = stubbed.start(manager, start::SERVICE_WAIT);
+    let mut road = stubbed.start(manager, start::SERVICE_WAIT);
+    let unit = manager.unit(&stubbed.home(), &stubbed.state());
+    let name = manager.name(&stubbed.state());
+    let (launchctl, systemctl) = (stubbed.stubs().join("launchctl"), stubbed.stubs().join("systemctl"));
+    let load = match manager {
+        Manager::Launchd => format!("'{}' bootstrap gui/{} '{}'", launchctl.display(), road.uid, unit.display()),
+        Manager::Systemd => format!("'{0}' --user enable {name} && '{0}' --user restart {name}", systemctl.display()),
+    };
+    let (wsp, written) = (stubbed.home().join("wsp"), stubbed.home().join("unit.written"));
+    std::fs::write(&written, UNIT).unwrap();
+    std::fs::write(&wsp, format!("#!/bin/sh\ncp '{}' '{}' && {load}\n", written.display(), unit.display())).unwrap();
+    std::fs::set_permissions(&wsp, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    road.wsp = Some(wsp);
     let runner = System::new(&road.env);
     let open = || {
         block(start::ready(&road, &runner, |_| async { Ok(()) })).map(|_| ()).unwrap_or_else(|f| {
@@ -335,22 +350,25 @@ fn stops_and_opens_again(manager: Manager, stops: impl Fn(&Stubbed) -> String) {
     assert!(stubbed.starts_at_next_login(manager), "the unit as today's app leaves it starts at login");
     block(start::stop(&road, &runner)).expect("Quit and stop stops the host");
     assert_eq!(stubbed.lock_pid(), None, "the host the unit ran let the lock go");
-    assert!(stubbed.starts_at_next_login(manager), "Quit and stop left wsp off at the next login: {:?}", stubbed.ran());
     assert!(stubbed.ran().contains(&stops(&stubbed)), "{:?}", stubbed.ran());
-    assert_eq!(std::fs::read_to_string(manager.unit(&stubbed.home(), &stubbed.state())).unwrap(), UNIT);
+    assert!(!unit.exists(), "Quit and stop left the unit's file");
+    assert!(!stubbed.starts_at_next_login(manager), "Quit and stop left wsp on at the next login: {:?}", stubbed.ran());
     open();
+    assert_eq!(std::fs::read_to_string(&unit).unwrap(), UNIT, "the next open wrote the unit again");
     let again = stubbed.lock_pid().expect("the next host holds the lock");
     assert_ne!(again, first);
     assert_eq!(Some(again), stubbed.pid().map(i64::from), "the host the stub started again holds the lock");
 }
 
 #[test]
-fn systemd_quit_and_stop_keeps_the_unit_and_the_next_open_starts_it_again() {
-    stops_and_opens_again(Manager::Systemd, |stubbed| format!("systemctl --user stop {}", Manager::Systemd.name(&stubbed.state())));
+fn systemd_quit_and_stop_removes_the_unit_and_the_next_open_writes_it_again() {
+    stops_and_opens_again(Manager::Systemd, |stubbed| {
+        format!("systemctl --user disable --now {}", Manager::Systemd.name(&stubbed.state()))
+    });
 }
 
 #[test]
-fn launchd_quit_and_stop_keeps_the_unit_and_the_next_open_starts_it_again() {
+fn launchd_quit_and_stop_removes_the_unit_and_the_next_open_writes_it_again() {
     // SAFETY: getuid reads this process's user and cannot fail.
     let uid = unsafe { libc::getuid() };
     stops_and_opens_again(Manager::Launchd, |stubbed| format!("launchctl bootout gui/{uid}/{}", Manager::Launchd.name(&stubbed.state())));
@@ -362,6 +380,7 @@ fn lock_port(state: &Path) -> Option<u16> {
 }
 
 /// The port the systemd unit's own words name.
+#[cfg(target_os = "linux")]
 fn unit_port(stubbed: &Stubbed) -> Option<u16> {
     let unit = std::fs::read_to_string(Manager::Systemd.unit(&stubbed.home(), &stubbed.state())).ok()?;
     let argv = Manager::Systemd.argv(&unit)?;
