@@ -139,8 +139,12 @@ pub fn is_watch_name(name: &str) -> bool {
 /// Whether a cgroup path is one /proc/[pid]/cgroup could name: at most 512 UTF-16 units, absolute, every name after the
 /// leading slash non-empty and neither `.` nor `..`. The root alone, `/`, is refused (its one name is empty).
 pub fn is_cgroup_path(path: &str) -> bool {
-    crate::types::check::utf16_len(path) <= CGROUP_PATH_MAX
-        && path.strip_prefix('/').is_some_and(|rest| rest.split('/').all(|name| !name.is_empty() && name != "." && name != ".."))
+    crate::types::check::utf16_len(path) <= CGROUP_PATH_MAX && cgroup_shape(path)
+}
+
+/// The refine alone, with no length: zod's `.max(512)` and its refine each answer on their own.
+pub fn cgroup_shape(path: &str) -> bool {
+    path.strip_prefix('/').is_some_and(|rest| rest.split('/').all(|name| !name.is_empty() && name != "." && name != ".."))
 }
 
 // helpers.ts:92

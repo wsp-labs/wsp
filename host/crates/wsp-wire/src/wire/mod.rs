@@ -3,6 +3,7 @@
 
 pub mod capabilities;
 pub mod daemon;
+pub mod daemon_checks;
 pub mod daemon_replies;
 pub mod daemon_events;
 pub mod daemon_version;
@@ -12,6 +13,7 @@ pub mod helpers;
 pub mod json_text;
 pub mod limits;
 pub mod machine_link;
+pub mod node_host;
 pub mod machine_replies;
 pub mod place_link;
 pub mod runtime;
