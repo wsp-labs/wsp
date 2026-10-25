@@ -47,6 +47,12 @@ pub const FORWARD_MAX_PER_TARGET: i64 = 16;
 #[serde(transparent)]
 pub struct RelayPort(pub i64);
 
+impl RelayPort {
+    pub fn get(self) -> i64 {
+        self.0
+    }
+}
+
 impl Check for RelayPort {
     fn check(&self) -> Result<(), SchemaError> {
         crate::types::check::num_at_least(self.0 as f64, 1024.0)?;
@@ -79,8 +85,23 @@ pub struct PortForward {
 /// No refinement of its own; checks every nested field that has one.
 impl Check for PortForward {
     fn check(&self) -> Result<(), SchemaError> {
+        self.port.check().map_err(|e| e.under("port"))?;
         self.kind.check().map_err(|e| e.under("kind"))?;
         Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "workspaceId" => <String as Check>::describe(rest),
+                "port" => <RelayPort as Check>::describe(rest),
+                "startedAt" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "kind" => <PortForwardKind as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 

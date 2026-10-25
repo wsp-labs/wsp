@@ -133,6 +133,7 @@ impl ForwardCloseEvent {
 impl Check for ForwardCloseEvent {
     /// Nested checks: port.
     fn check(&self) -> Result<(), SchemaError> {
+        self.port.check().map_err(|e| e.under("port"))?;
         Ok(())
     }
 
@@ -141,7 +142,7 @@ impl Check for ForwardCloseEvent {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
                 "workspaceId" => <String as Check>::describe(rest),
-                "port" => None,
+                "port" => <RelayPort as Check>::describe(rest),
                 _ => None,
             },
         }
