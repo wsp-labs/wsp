@@ -1,0 +1,15 @@
+<slate title="App sweep: 5 checks failed">
+  <value name="failed" start={[
+    {check: "#2140 fork banner", went: "Floats above the composer instead of sitting on it"},
+    {check: "#2341 gone machine", went: "Still offers Push and create PR"},
+    {check: "#1681 pair code", went: "A pasted code loses its last character"},
+    {check: "#2232 Boat image", went: "Computers says No image yet after the build"},
+    {check: "#2338 thread header", went: "Spins forever and offers Push"}
+  ]} />
+  <column>
+    <table items={$failed} key={item.check}>
+      <col title="Check" value={item.check} />
+      <col title="What went wrong" value={item.went} />
+    </table>
+  </column>
+</slate>

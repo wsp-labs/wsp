@@ -1,0 +1,16 @@
+<slate title="Add Boat, step by step">
+  <value name="steps" start={[
+    {step: "Key", sees: "Boat's API keys page, the actions a key needs, the cost"},
+    {step: "Key check", sees: "Works. Account Zingzy, $20 plan, 20 of 100 at once"},
+    {step: "CLIs", sees: "13 tools ticked, most used first, sizes beside each"},
+    {step: "Summary", sees: "13 of 62 CLIs, and gh auth login to run first"},
+    {step: "Building", sees: "1 of 5 done, the second step at 1m 36s"},
+    {step: "Ready", sees: "Image v1 sealed in 6m 1s, Start a thread"}
+  ]} />
+  <column>
+    <table items={$steps} key={item.step}>
+      <col title="Step" value={item.step} />
+      <col title="What the person sees" value={item.sees} />
+    </table>
+  </column>
+</slate>

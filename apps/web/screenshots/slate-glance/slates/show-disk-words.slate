@@ -1,0 +1,26 @@
+<slate title="Where ~/wsp-work's 261 GB went">
+  <value name="folders" start={[
+    {name: "gpui-fix-target", size: "53.0 GB", share: "20%"},
+    {name: "coord", size: "44.1 GB", share: "17%"},
+    {name: "gpui-check-target", size: "28.2 GB", share: "11%"},
+    {name: "scratch", size: "22.1 GB", share: "8%"},
+    {name: "ui-home", size: "17.2 GB", share: "7%"},
+    {name: "land-wt", size: "7.2 GB", share: "3%"},
+    {name: "main", size: "3.8 GB", share: "1%"},
+    {name: "gpui-2366-mac", size: "3.8 GB", share: "1%"},
+    {name: "protos", size: "3.6 GB", share: "1%"},
+    {name: "ui", size: "3.1 GB", share: "1%"},
+    {name: "gpui-check", size: "2.6 GB", share: "1%"},
+    {name: "gpui-benchfix-target", size: "2.2 GB", share: "1%"},
+    {name: "gpui-gate-target", size: "2.2 GB", share: "1%"},
+    {name: "229 more folders", size: "68.0 GB", share: "26%"}
+  ]} />
+  <column>
+    <text value="19 GB free of 926 GB. gpui-fix-target and gpui-check-target, two Rust build targets, hold 81 GB." />
+    <table items={$folders} key={item.name}>
+      <col title="Folder" value={item.name} />
+      <col title="Size" value={item.size} mono={true} />
+      <col title="Share" value={item.share} mono={true} />
+    </table>
+  </column>
+</slate>
