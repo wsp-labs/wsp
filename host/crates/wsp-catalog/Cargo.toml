@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[package]
+name = "wsp-catalog"
+version = "0.0.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+description = "The agents and tools wsp knows: install roads, sign-ins, MCP config formats, skills, plugins and marks"
+
+[features]
+# A public build carries no Solari mark (packages/catalog/src/marks/index.ts:39).
+public-build = []
+
+[dependencies]
+base64 = "0.22"
+fancy-regex = "0.14"
+indexmap = { version = "2", features = ["serde"] }
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "2"
+toml = { version = "0.8", features = ["preserve_order"] }
+
+[dev-dependencies]
+futures = { version = "0.3", default-features = false, features = ["executor", "std"] }
+tempfile = "3"
