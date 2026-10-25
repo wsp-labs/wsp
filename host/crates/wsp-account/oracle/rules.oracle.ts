@@ -157,7 +157,7 @@ it("writes the rules fixture", async () => {
   for (const [c, caller] of Object.entries(callers)) {
     for (const id of ids) {
       refuseRelayed.push({ record: id, caller: c, act: "work", answer: caught(() => area.refuseRelayed(records[id], caller)) });
-      refuseRelayed.push({ record: id, caller: c, act: "send", thread: "t2", answer: caught(() => area.refuseRelayed(records[id], caller, "send", "t2")) });
+      refuseRelayed.push({ record: id, caller: c, act: "exec", thread: "t2", answer: caught(() => area.refuseRelayed(records[id], caller, "exec", "t2")) });
     }
     refuseRelayed.push({ record: "none", caller: c, act: "work", answer: caught(() => area.refuseRelayed(undefined, caller)) });
   }
@@ -172,7 +172,7 @@ it("writes the rules fixture", async () => {
   const actsOn = perCaller(caller => Object.fromEntries(ids.map(id => [id, caught(() => area.actsOn(records[id], caller))])));
   const opensIn = perCaller(caller => Object.fromEntries(ids.map(id => [id, caught(() => area.opensIn(records[id], caller))])));
   const leadActsOn = perCaller(caller => Object.fromEntries(ids.map(id => [id, caught(() => area.leadActsOn(records[id], caller) ?? null)])));
-  const awayFor = perCaller(caller => Object.fromEntries(ids.map(id => [id, caught(() => errOf(area.awayFor(records[id], caller, "stop", `"${id}"`)))])));
+  const awayFor = perCaller(caller => Object.fromEntries(ids.map(id => [id, caught(() => errOf(area.awayFor(records[id], caller, "wake", `"${id}"`)))])));
   const drives = perCaller(caller => Object.fromEntries([...ids.map(id => [id, area.drives(records[id], caller)]), ["unheld", area.drives(unheld as never, caller)], ["noMachine", area.drives({ kind: "cloud" } as never, caller)]]));
   const refuseRecording = perCaller(caller => caught(() => area.refuseRecording("box9", caller)));
   const threadIds = [...world.threadRecords.map(t => t.threadId), "t9", "tOld", "tNone"];
