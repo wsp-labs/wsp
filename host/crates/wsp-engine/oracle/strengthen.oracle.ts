@@ -198,3 +198,57 @@ it("the plugins step: blank output, a rejected run, stdout when stderr is blank,
   const rows = await provisionStep(machine, planOf([], { plugins: ["blank", "gone", "quiet", "long", "fine"].map(plugin) }), "plugins", newSetupRun(), (detail, _at, row) => void staged.push([detail, row === undefined ? null : bare(row)]), { home: "/root" });
   step.plugins = { rows: rows.map(bare), staged };
 });
+
+// ---- solari_machine: which read settles a pause or a resume, and the warn lines (strengthen_solari.json)
+import { SolariBackend } from "../../../../packages/engine/src/solari-backend.js";
+
+it("solari: the state read after a call that did not answer, and every warn line", async () => {
+  const solari: Record<string, unknown> = {};
+  type Play = "hang" | "netfail" | { status: number; body: unknown };
+  const reads = (state: string): Play => ({ status: 200, body: { sandboxId: "x", kind: "sandbox", state } });
+  const notFound: Play = { status: 404, body: { error: "sandbox not found" } };
+  async function scenario(move: "pause" | "resume", routes: Record<string, Play[]>) {
+    const sent: Record<string, number> = {};
+    const fetch = (async (url: string, init: { method?: string; signal?: AbortSignal }) => {
+      const key = `${init.method ?? "GET"} ${new URL(url).pathname}`;
+      sent[key] = (sent[key] ?? 0) + 1;
+      if (key === "POST /sandboxes") return new Response(JSON.stringify({ sandboxId: "x", kind: "sandbox" }), { status: 201 });
+      const plays = routes[key] ?? [];
+      const play = plays[Math.min(sent[key]! - 1, plays.length - 1)];
+      if (play === "hang") return new Promise((_, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason)));
+      if (play === "netfail" || play === undefined) throw new TypeError("fetch failed");
+      return new Response(JSON.stringify(play.body), { status: play.status });
+    }) as never;
+    const warned: string[] = [];
+    const warn = console.warn;
+    console.warn = (line: string) => void warned.push(line);
+    try {
+      const b = new SolariBackend({ apiKey: "k", fetch, budgets: { pauseMs: 40, resumeCapMs: 20, stateReadMs: 20 } });
+      const m = await b.create({ kind: "sandbox" } as never);
+      let error: string | null = null;
+      let name: string | null = null;
+      try {
+        await m[move]();
+      } catch (e) {
+        error = (e as Error).message.replace(/in \d+ms/, "in <n>ms");
+        name = (e as Error).name;
+      }
+      return { error, name, sent: { move: sent[`POST /sandboxes/x/${move}`] ?? 0, state: sent["GET /sandboxes/x"] ?? 0 }, warned: warned.map(l => l.replace(/in \d+ms/, "in <n>ms")) };
+    } finally {
+      console.warn = warn;
+    }
+  }
+  solari.pauseStarting = await scenario("pause", { "POST /sandboxes/x/pause": ["hang"], "GET /sandboxes/x": [reads("starting")] });
+  solari.pauseArchived = await scenario("pause", { "POST /sandboxes/x/pause": ["hang"], "GET /sandboxes/x": [reads("archived")] });
+  solari.pauseNotFound = await scenario("pause", { "POST /sandboxes/x/pause": ["hang"], "GET /sandboxes/x": [notFound] });
+  solari.pauseUnknownWord = await scenario("pause", { "POST /sandboxes/x/pause": ["hang", "hang"], "GET /sandboxes/x": [reads("hibernating"), reads("paused")] });
+  solari.pauseLands = await scenario("pause", { "POST /sandboxes/x/pause": [{ status: 200, body: {} }] });
+  solari.pauseRefused = await scenario("pause", { "POST /sandboxes/x/pause": [{ status: 409, body: { error: "Not pausable" } }] });
+  solari.resumePaused = await scenario("resume", { "POST /sandboxes/x/resume": ["hang"], "GET /sandboxes/x": [reads("paused")] });
+  solari.resumeNotFound = await scenario("resume", { "POST /sandboxes/x/resume": ["hang"], "GET /sandboxes/x": [notFound] });
+  solari.resumeUnread = await scenario("resume", { "POST /sandboxes/x/resume": ["hang"], "GET /sandboxes/x": ["netfail"] });
+  solari.resumeRunning = await scenario("resume", { "POST /sandboxes/x/resume": ["hang"], "GET /sandboxes/x": [reads("running")] });
+  solari.resumeStarting = await scenario("resume", { "POST /sandboxes/x/resume": ["hang"], "GET /sandboxes/x": [reads("starting")] });
+  mkdirSync(OUT, { recursive: true });
+  writeFileSync(join(OUT, "strengthen_solari.json"), `${JSON.stringify(solari, null, 2)}\n`);
+}, 60_000);
