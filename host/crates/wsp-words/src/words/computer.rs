@@ -5,6 +5,11 @@
 //! statement stands as a comment above its stub. See spec/computer.md.
 
 use crate::exit::HostError;
+use crate::js::{is_js_whitespace, js_trim, number_string, utf16};
+use crate::words::base::{marked, plural};
+use crate::words::places::spend_meter_word;
+use crate::words::units::fmt_duration;
+use wsp_wire::types::shell_quote::shell_line;
 use wsp_wire::wire::capabilities::Capabilities;
 
 /// The platform a sentence names this computer for.
@@ -24,7 +29,7 @@ pub const THIS_COMPUTER: &str = "this computer";
 // computer.ts:13
 // export const thisComputerLine = (name: string, folder: string): string => `Threads on ${name} run in ${folder} on ${THIS_COMPUTER}, under your own sign-ins.`;
 pub fn this_computer_line(name: &str, folder: &str) -> String {
-    todo!()
+    format!("Threads on {name} run in {folder} on {THIS_COMPUTER}, under your own sign-ins.")
 }
 
 /// What a place's machine is, in every sentence and every row that names it: a computer of the person's own that
@@ -44,7 +49,10 @@ pub const MACHINE_WSP_FORKS: &str = "a machine wsp forks";
 // computer.ts:27
 // export const thisComputer = (platform: "darwin" | "linux"): string => (platform === "darwin" ? "this Mac" : THIS_COMPUTER);
 pub fn this_computer(platform: Platform) -> String {
-    todo!()
+    match platform {
+        Platform::Darwin => "this Mac".to_string(),
+        Platform::Linux => THIS_COMPUTER.to_string(),
+    }
 }
 
 /// Whether the machine that reported this system name is a Mac: the name its maker gives it, and the kernel's own
@@ -56,7 +64,10 @@ pub fn this_computer(platform: Platform) -> String {
 //   return /^(?:macOS|Darwin)\b/.test(osName ?? "");
 // }
 pub fn is_mac_machine(os_name: Option<&str>) -> bool {
-    todo!()
+    let text = os_name.unwrap_or("");
+    ["macOS", "Darwin"]
+        .iter()
+        .any(|word| text.strip_prefix(word).is_some_and(|rest| !rest.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_')))
 }
 
 /// The computer the host runs on as a row names it, off what that machine itself reported: the same word every
@@ -64,7 +75,7 @@ pub fn is_mac_machine(os_name: Option<&str>) -> bool {
 // computer.ts:39
 // export const computerWord = (os: string | null | undefined): string => thisComputer(isMacMachine(os) ? "darwin" : "linux");
 pub fn computer_word(os: Option<&str>) -> String {
-    todo!()
+    this_computer(if is_mac_machine(os) { Platform::Darwin } else { Platform::Linux })
 }
 
 /// What a workspace's copy of its project is, in the words a person uses for it: a copy of the folder. The one home
@@ -79,8 +90,8 @@ pub const COPY_WORD: &str = "a copy";
 // computer.ts:49
 // export const madeOfWord = (_road: CopyRoad): string => COPY_WORD;
 /// `road` is a CopyRoad's wire word; every road reads the same.
-pub fn made_of_word(road: &str) -> String {
-    todo!()
+pub fn made_of_word(_road: &str) -> String {
+    COPY_WORD.to_string()
 }
 
 /// What a computer's threads have for a network: their own where the computer gives them one, else the computer's own
@@ -93,7 +104,13 @@ pub fn made_of_word(road: &str) -> String {
 //   return `shares ${computer}'s ports`;
 // }
 pub fn ports_word(c: &Capabilities, computer: &str) -> String {
-    todo!()
+    if c.own_network {
+        "own network".to_string()
+    } else if !c.copies {
+        String::new()
+    } else {
+        format!("shares {computer}'s ports")
+    }
 }
 
 /// What the browser pane says for a port it cannot open: the computer it runs on gives this pane no address, and
@@ -105,7 +122,8 @@ pub fn ports_word(c: &Capabilities, computer: &str) -> String {
 //   return `${computer} opens no address this pane can reach for port ${port}; it answers as localhost:${port} on that computer.`;
 // }
 pub fn no_preview_route_line(port: f64, computer: &str) -> String {
-    todo!()
+    let port = number_string(port);
+    format!("{computer} opens no address this pane can reach for port {port}; it answers as localhost:{port} on that computer.")
 }
 
 /// The heading over the tools a package manager here has that no catalog row carries: the wizard's own screen and
@@ -113,7 +131,7 @@ pub fn no_preview_route_line(port: f64, computer: &str) -> String {
 // computer.ts:70
 // export const alsoTitle = (platform: "darwin" | "linux"): string => `Also on ${thisComputer(platform)}`;
 pub fn also_title(platform: Platform) -> String {
-    todo!()
+    format!("Also on {}", this_computer(platform))
 }
 
 /// The one sentence a local workspace refuses a request relayed from a machine with. A local workspace is this
@@ -124,7 +142,7 @@ pub fn also_title(platform: Platform) -> String {
 //   return `${name} is ${THIS_COMPUTER}; it answers only requests from ${THIS_COMPUTER}, never one relayed from a machine`;
 // }
 pub fn relayed_refusal(name: &str) -> String {
-    todo!()
+    format!("{name} is {THIS_COMPUTER}; it answers only requests from {THIS_COMPUTER}, never one relayed from a machine")
 }
 
 /// The one sentence a computer the person paired with this host is refused an op with, at the socket and on the
@@ -136,7 +154,7 @@ pub fn relayed_refusal(name: &str) -> String {
 //   return `${op} is not a paired computer's to ask for until the owner gives this device a role; run it on the computer the host runs on`;
 // }
 pub fn device_held_refusal(op: &str) -> String {
-    todo!()
+    format!("{op} is not a paired computer's to ask for until the owner gives this device a role; run it on the computer the host runs on")
 }
 
 /// The one sentence a request relayed from a machine is refused with when it would record a machine that already
@@ -147,7 +165,7 @@ pub fn device_held_refusal(op: &str) -> String {
 //   return `recording ${named} is this computer's own act; a request relayed from a machine cannot record a machine here`;
 // }
 pub fn relayed_record_refusal(named: &str) -> String {
-    todo!()
+    format!("recording {named} is this computer's own act; a request relayed from a machine cannot record a machine here")
 }
 
 /// The short form of a thread id every sentence about a thread uses, so a refusal, a table and a tree all name a
@@ -155,7 +173,7 @@ pub fn relayed_record_refusal(named: &str) -> String {
 // computer.ts:96
 // export const threadWord = (threadId: string): string => threadId.slice(0, 8);
 pub fn thread_word(thread_id: &str) -> String {
-    todo!()
+    utf16::cut(thread_id, 8)
 }
 
 /// The one sentence a forget is refused with once a turn of the thread did work: the runtime raises it, the command
@@ -165,7 +183,7 @@ pub fn thread_word(thread_id: &str) -> String {
 //   return `thread ${threadWord(threadId)} has a turn that ran; only a thread no turn ever ran on can be forgotten`;
 // }
 pub fn thread_forget_refusal(thread_id: &str) -> String {
-    todo!()
+    format!("thread {} has a turn that ran; only a thread no turn ever ran on can be forgotten", thread_word(thread_id))
 }
 
 /// Why a settle left a thread it was named: something in its tree works or asks, or the fold holds it already.
@@ -179,7 +197,7 @@ pub const SETTLE_ALREADY: &str = "already settled";
 // computer.ts:109
 // export const subagentSettleLine = (id: string): string => `${id} is a subagent, and a subagent settles with its lead's turn`;
 pub fn subagent_settle_line(id: &str) -> String {
-    todo!()
+    format!("{id} is a subagent, and a subagent settles with its lead's turn")
 }
 
 // computer.ts:110
@@ -189,7 +207,10 @@ pub const SUBAGENT_SETTLE_FIX: &str = "settle the thread it runs in.";
 // computer.ts:113
 // export const notUnderLine = (threadId: string): string => `thread ${threadWord(threadId)} is not under this thread, and a thread settles and restores only itself and the threads it started`;
 pub fn not_under_line(thread_id: &str) -> String {
-    todo!()
+    format!(
+        "thread {} is not under this thread, and a thread settles and restores only itself and the threads it started",
+        thread_word(thread_id)
+    )
 }
 
 // computer.ts:114
@@ -199,26 +220,26 @@ pub const NOT_UNDER_FIX: &str = "leave its lead and the threads beside it to the
 // computer.ts:117
 // export const replacesWorkingLine = (threadId: string): string => `thread ${threadWord(threadId)} is still working, and a restart replaces only a thread that stopped`;
 pub fn replaces_working_line(thread_id: &str) -> String {
-    todo!()
+    format!("thread {} is still working, and a restart replaces only a thread that stopped", thread_word(thread_id))
 }
 
 // computer.ts:118
 // export const replacesWorkingFix = (threadId: string): string => `stop it first: wsp stop ${threadWord(threadId)}.`;
 pub fn replaces_working_fix(thread_id: &str) -> String {
-    todo!()
+    format!("stop it first: wsp stop {}.", thread_word(thread_id))
 }
 
 /// A restart naming a thread that already has one, which would split one job across two restarts.
 // computer.ts:120
 // export const replacedAlreadyLine = (threadId: string, restart: string): string => `thread ${threadWord(threadId)} was restarted as ${threadWord(restart)}, and a thread has one restart`;
 pub fn replaced_already_line(thread_id: &str, restart: &str) -> String {
-    todo!()
+    format!("thread {} was restarted as {}, and a thread has one restart", thread_word(thread_id), thread_word(restart))
 }
 
 // computer.ts:121
 // export const replacedAlreadyFix = (restart: string): string => `name its restart instead: --replaces ${threadWord(restart)}.`;
 pub fn replaced_already_fix(restart: &str) -> String {
-    todo!()
+    format!("name its restart instead: --replaces {}.", thread_word(restart))
 }
 
 /// A restart named on a send into a thread that has run.
@@ -235,7 +256,7 @@ pub const RESTART_OPENS_FIX: &str = "leave out --replaces, or run the restart as
 //   return `${rowId} is a turn from before threads and carries no thread id of its own; no forget can name it`;
 // }
 pub fn thread_without_id_refusal(row_id: &str) -> String {
-    todo!()
+    format!("{row_id} is a turn from before threads and carries no thread id of its own; no forget can name it")
 }
 
 /// Every act a thread scoped token can be refused for, and the word each is refused by name with. The table is
@@ -316,12 +337,54 @@ impl SpawnAct {
 
     /// `SPAWN_ACTS[act]`, word for word ("open a thread", "fork a machine", ...).
     pub fn words(self) -> &'static str {
-        todo!()
+        match self {
+            SpawnAct::ThreadNew => "open a thread",
+            SpawnAct::Fork => "fork a machine",
+            SpawnAct::Send => "send into a thread",
+            SpawnAct::BringBack => "bring its work back",
+            SpawnAct::Commit => "commit its work",
+            SpawnAct::Fix => "ask its agent to fix",
+            SpawnAct::Update => "update its branch from the base",
+            SpawnAct::Merge => "merge its pull request",
+            SpawnAct::MergeIn => "merge a child's branch into its own",
+            SpawnAct::Start => "start work from a link",
+            SpawnAct::Review => "start a review",
+            SpawnAct::ReviewPost => "post a review",
+            SpawnAct::Delete => "delete anything",
+            SpawnAct::DeleteSub => "delete a sub-thread it started",
+            SpawnAct::Pause => "pause a machine",
+            SpawnAct::Resize => "move a machine to another size",
+            SpawnAct::Import => "import a folder",
+            SpawnAct::Export => "export a folder",
+            SpawnAct::Agents => "change what agents may do",
+            SpawnAct::Size => "pick a machine's size",
+        }
     }
 
     /// The table's key: "thread_new", "bring_back", "merge_in", ...
     pub fn key(self) -> &'static str {
-        todo!()
+        match self {
+            SpawnAct::ThreadNew => "thread_new",
+            SpawnAct::Fork => "fork",
+            SpawnAct::Send => "send",
+            SpawnAct::BringBack => "bring_back",
+            SpawnAct::Commit => "commit",
+            SpawnAct::Fix => "fix",
+            SpawnAct::Update => "update",
+            SpawnAct::Merge => "merge",
+            SpawnAct::MergeIn => "merge_in",
+            SpawnAct::Start => "start",
+            SpawnAct::Review => "review",
+            SpawnAct::ReviewPost => "review_post",
+            SpawnAct::Delete => "delete",
+            SpawnAct::DeleteSub => "delete_sub",
+            SpawnAct::Pause => "pause",
+            SpawnAct::Resize => "resize",
+            SpawnAct::Import => "import",
+            SpawnAct::Export => "export",
+            SpawnAct::Agents => "agents",
+            SpawnAct::Size => "size",
+        }
     }
 }
 
@@ -350,7 +413,7 @@ pub const SPAWN_ACTS_ALLOWED: [SpawnAct; 9] = [
 //   return `agents on ${workspace} may not ${SPAWN_ACTS[act]}, since it was made with them off; ask the person`;
 // }
 pub fn agents_off_refusal(workspace: &str, act: SpawnAct) -> String {
-    todo!()
+    format!("agents on {workspace} may not {}, since it was made with them off; ask the person", act.words())
 }
 
 /// The refusal where the switch that is off is a computer's, over a folder there that holds none of its own: the
@@ -360,7 +423,12 @@ pub fn agents_off_refusal(workspace: &str, act: SpawnAct) -> String {
 //   return `thread ${threadWord(threadId)} may not ${SPAWN_ACTS[act]}, since agents on ${computer} are off; turn them on with ${shellLine(["wsp", "computers", "set", computer, "--spawn", "on"])}`;
 // }
 pub fn agents_off_computer_refusal(thread_id: &str, computer: &str, act: SpawnAct) -> String {
-    todo!()
+    format!(
+        "thread {} may not {}, since agents on {computer} are off; turn them on with {}",
+        thread_word(thread_id),
+        act.words(),
+        shell_line(&["wsp", "computers", "set", computer, "--spawn", "on"])
+    )
 }
 
 /// Why a thread may not act where this host no longer holds the folder it works in.
@@ -369,7 +437,11 @@ pub fn agents_off_computer_refusal(thread_id: &str, computer: &str, act: SpawnAc
 //   return `thread ${threadWord(threadId)} may not ${SPAWN_ACTS[act]}, since this host no longer holds the folder it works in; ask the person`;
 // }
 pub fn folder_gone_refusal(thread_id: &str, act: SpawnAct) -> String {
-    todo!()
+    format!(
+        "thread {} may not {}, since this host no longer holds the folder it works in; ask the person",
+        thread_word(thread_id),
+        act.words()
+    )
 }
 
 /// The refusal where no switch is off but the thread a tree started from was deleted, so nothing governs it.
@@ -378,7 +450,11 @@ pub fn folder_gone_refusal(thread_id: &str, act: SpawnAct) -> String {
 //   return `thread ${threadWord(threadId)} may not ${SPAWN_ACTS[act]}, since the thread that started its tree was deleted; finish the work in this thread, or ask the person to start the one you need`;
 // }
 pub fn root_gone_refusal(thread_id: &str, act: SpawnAct) -> String {
-    todo!()
+    format!(
+        "thread {} may not {}, since the thread that started its tree was deleted; finish the work in this thread, or ask the person to start the one you need",
+        thread_word(thread_id),
+        act.words()
+    )
 }
 
 /// The one sentence the guest door refuses a line that carries neither a thread's token nor a turn's with: a
@@ -389,7 +465,7 @@ pub fn root_gone_refusal(thread_id: &str, act: SpawnAct) -> String {
 //   return `this line came from no thread's turn on ${workspace}, so it carries no thread's token; wsp hands one to each turn it starts`;
 // }
 pub fn guest_no_token_refusal(workspace: &str) -> String {
-    todo!()
+    format!("this line came from no thread's turn on {workspace}, so it carries no thread's token; wsp hands one to each turn it starts")
 }
 
 /// The sentence the guest door refuses a turn's line that carries no thread's token with: every turn is launched
@@ -400,7 +476,7 @@ pub fn guest_no_token_refusal(workspace: &str) -> String {
 //   return `this line came from a turn on ${workspace} that was launched without a thread's token; a turn started now carries one`;
 // }
 pub fn guest_turn_no_token_refusal(workspace: &str) -> String {
-    todo!()
+    format!("this line came from a turn on {workspace} that was launched without a thread's token; a turn started now carries one")
 }
 
 /// The one word the socket door closes a socket whose token names nobody with, and the one the guest door refuses a
@@ -416,7 +492,7 @@ pub const UNAUTHORIZED: &str = "unauthorized";
 //   return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed);
 // }
 pub fn is_object_frame(parsed: &serde_json::Value) -> bool {
-    todo!()
+    parsed.is_object()
 }
 
 /// The one sentence such a frame is refused with, on the socket and on the JSON routes alike, under a null id
@@ -446,7 +522,7 @@ pub const REQUEST_BODY_NOT_JSON: &str = "a request body is JSON; this one did no
 //   return `this host serves no ${kind} guest session`;
 // }
 pub fn guest_no_kind_line(kind: &str) -> String {
-    todo!()
+    format!("this host serves no {kind} guest session")
 }
 
 /// What the guest's next frame is answered with once the host no longer holds its session: a host that restarted, or
@@ -484,7 +560,7 @@ pub const GUEST_NAMES_FIX: &str = "Name the project on the line.";
 //   return `wsp ${word} runs on the person's computer, not from a thread on another computer`;
 // }
 pub fn guest_persons_computer_line(word: &str) -> String {
-    todo!()
+    format!("wsp {word} runs on the person's computer, not from a thread on another computer")
 }
 
 /// What a line typed inside a workspace is told when it tries to aim itself somewhere else. The host a turn's
@@ -499,7 +575,10 @@ pub const GUEST_HOST_FLAG_LINE: &str = "a line from a thread goes to the host th
 //   return `thread ${threadWord(threadId)}${on === undefined ? "" : ` on ${on}`}`;
 // }
 pub fn thread_at(thread_id: &str, on: Option<&str>) -> String {
-    todo!()
+    match on {
+        None => format!("thread {}", thread_word(thread_id)),
+        Some(on) => format!("thread {} on {on}", thread_word(thread_id)),
+    }
 }
 
 /// The one sentence a thread's own token is refused with for an act no thread may ask for, whatever the caps.
@@ -508,7 +587,8 @@ pub fn thread_at(thread_id: &str, on: Option<&str>) -> String {
 //   return `this request came out of ${threadAt(threadId, on)}, and a thread may only ${SPAWN_ACTS_ALLOWED.map(a => SPAWN_ACTS[a]).join(", ")}, never ${SPAWN_ACTS[act]}`;
 // }
 pub fn spawn_act_refusal(thread_id: &str, act: SpawnAct, on: Option<&str>) -> String {
-    todo!()
+    let allowed: Vec<&str> = SPAWN_ACTS_ALLOWED.iter().map(|a| a.words()).collect();
+    format!("this request came out of {}, and a thread may only {}, never {}", thread_at(thread_id, on), allowed.join(", "), act.words())
 }
 
 /// The one sentence a fork of a project whose threads run in its folder is refused with, the person's and a thread's
@@ -518,7 +598,7 @@ pub fn spawn_act_refusal(thread_id: &str, act: SpawnAct, on: Option<&str>) -> St
 //   return `${project} is a project folder, not a machine to fork`;
 // }
 pub fn folder_fork_refusal(project: &str) -> String {
-    todo!()
+    format!("{project} is a project folder, not a machine to fork")
 }
 
 /// The roads that carry a copy's commits to its remote, each refused alike on the project's default branch.
@@ -537,7 +617,11 @@ pub enum DefaultBranchRoad {
 impl DefaultBranchRoad {
     /// The TS string literal.
     pub fn as_str(self) -> &'static str {
-        todo!()
+        match self {
+            DefaultBranchRoad::Fork => "fork",
+            DefaultBranchRoad::Run => "run",
+            DefaultBranchRoad::BringBack => "bring back",
+        }
     }
 }
 
@@ -549,7 +633,7 @@ impl DefaultBranchRoad {
 //   return `${workspace} is on ${branch}, the project's default branch, with commits the remote lacks, and wsp never pushes ${branch}`;
 // }
 pub fn default_branch_refusal(workspace: &str, branch: &str) -> String {
-    todo!()
+    format!("{workspace} is on {branch}, the project's default branch, with commits the remote lacks, and wsp never pushes {branch}")
 }
 
 // computer.ts:285
@@ -562,7 +646,12 @@ pub fn default_branch_refusal(workspace: &str, branch: &str) -> String {
 //   return `Move the commits in ${workspace} onto a branch of their own, then ${DEFAULT_BRANCH_AGAIN[road]}.`;
 // }
 pub fn default_branch_fix(road: DefaultBranchRoad, workspace: &str) -> String {
-    todo!()
+    let again = match road {
+        DefaultBranchRoad::Fork => "fork it again",
+        DefaultBranchRoad::Run => "start the thread again",
+        DefaultBranchRoad::BringBack => "bring it back again",
+    };
+    format!("Move the commits in {workspace} onto a branch of their own, then {again}.")
 }
 
 /// What to do about that refusal: open a thread in the folder instead.
@@ -571,7 +660,7 @@ pub fn default_branch_fix(road: DefaultBranchRoad, workspace: &str) -> String {
 //   return `Open a thread in it with ${shellLine(["wsp", "run", project])} "<task>".`;
 // }
 pub fn folder_fork_fix(project: &str) -> String {
-    todo!()
+    format!("Open a thread in it with {} \"<task>\".", shell_line(&["wsp", "run", project]))
 }
 
 /// The one sentence a token scoped to a thread is refused with for arriving on a road this host does not serve its
@@ -587,7 +676,10 @@ pub const SCOPED_TOKEN_ROAD_REFUSAL: &str = "a thread's token opens this host ov
 //   return `this request came out of ${threadAt(threadId, on)}, and a thread forks the image its own workspace runs; naming an image to fork from is not a thread's to ask for`;
 // }
 pub fn spawn_golden_refusal(thread_id: &str, on: Option<&str>) -> String {
-    todo!()
+    format!(
+        "this request came out of {}, and a thread forks the image its own workspace runs; naming an image to fork from is not a thread's to ask for",
+        thread_at(thread_id, on)
+    )
 }
 
 /// The one sentence a fork past the machine cap is refused with, naming the root the machines were counted under.
@@ -596,7 +688,12 @@ pub fn spawn_golden_refusal(thread_id: &str, on: Option<&str>) -> String {
 //   return `thread ${threadWord(rootThreadId)} already holds ${standing} of its ${cap} machines; delete one before forking another`;
 // }
 pub fn spawn_cap_refusal(root_thread_id: &str, standing: f64, cap: f64) -> String {
-    todo!()
+    format!(
+        "thread {} already holds {} of its {} machines; delete one before forking another",
+        thread_word(root_thread_id),
+        number_string(standing),
+        number_string(cap)
+    )
 }
 
 /// What a cloud at its spend per day says: its row's state sentence and the head of the refusal below.
@@ -610,7 +707,10 @@ pub const SPEND_LIMIT_LINE: &str = "spend limit reached today";
 //   return `${SPEND_LIMIT_LINE} on ${name} (${spendMeterWord(todayUsd, capUsd)}); raise its spend per day or start the machine after midnight`;
 // }
 pub fn spend_cap_refusal(name: &str, today_usd: f64, cap_usd: f64) -> String {
-    todo!()
+    format!(
+        "{SPEND_LIMIT_LINE} on {name} ({}); raise its spend per day or start the machine after midnight",
+        spend_meter_word(today_usd, cap_usd)
+    )
 }
 
 /// The one sentence a spawn deeper than the tree allows is refused with, and how to raise it where the cap is held:
@@ -632,7 +732,23 @@ pub enum DepthHeld {
 }
 
 pub fn spawn_depth_refusal(thread_id: &str, depth: f64, cap: f64, held: &DepthHeld) -> String {
-    todo!()
+    let deeper = number_string(depth + 1.0);
+    let (who, raise) = match held {
+        DepthHeld::Computer(computer) => (
+            THIS_COMPUTER.to_string(),
+            format!(
+                "raise Levels deep in Settings > Computers or run {}",
+                shell_line(&["wsp", "computers", "set", computer.as_str(), "--max-depth", deeper.as_str()])
+            ),
+        ),
+        DepthHeld::Workspace(workspace) => (workspace.clone(), format!("{workspace} was made with that cap; ask the person")),
+    };
+    format!(
+        "thread {} is {} deep under its root and {who} allows {}, so a thread this deep may not spawn; {raise}",
+        thread_word(thread_id),
+        number_string(depth),
+        number_string(cap)
+    )
 }
 
 /// The one sentence a thread is refused with for naming a project of another repository than the one its own
@@ -643,7 +759,7 @@ pub fn spawn_depth_refusal(thread_id: &str, depth: f64, cap: f64, held: &DepthHe
 //   return `thread ${threadWord(threadId)} works on ${project}, and ${other} is a project of another repository; a thread starts children on its own repository's projects alone`;
 // }
 pub fn spawn_repository_refusal(thread_id: &str, project: &str, other: &str) -> String {
-    todo!()
+    format!("thread {} works on {project}, and {other} is a project of another repository; a thread starts children on its own repository's projects alone", thread_word(thread_id))
 }
 
 /// What a thread does about that refusal.
@@ -657,7 +773,7 @@ pub const SPAWN_REPOSITORY_FIX: &str = "Name a project of the same repository, o
 //   return `thread ${threadWord(threadId)} works on ${project}, and the workspace ${word} holds another repository; a thread reaches its own repository's workspaces alone`;
 // }
 pub fn spawn_repository_workspace_refusal(thread_id: &str, project: &str, word: &str) -> String {
-    todo!()
+    format!("thread {} works on {project}, and the workspace {word} holds another repository; a thread reaches its own repository's workspaces alone", thread_word(thread_id))
 }
 
 /// What a thread does about that refusal, whichever verb named the workspace.
@@ -672,7 +788,7 @@ pub const SPAWN_REPOSITORY_WORKSPACE_FIX: &str = "Name a workspace of your own t
 //   return `thread ${threadWord(threadId)} may not start children in ${word}: it is a folder the person keeps of this repository, and a thread started there would stand outside your tree`;
 // }
 pub fn spawn_folder_refusal(thread_id: &str, word: &str) -> String {
-    todo!()
+    format!("thread {} may not start children in {word}: it is a folder the person keeps of this repository, and a thread started there would stand outside your tree", thread_word(thread_id))
 }
 
 /// What a thread does about that refusal.
@@ -685,7 +801,7 @@ pub const SPAWN_FOLDER_FIX: &str = "Name a project wsp projects lists, or ask th
 //   return `thread ${threadWord(threadId)} may drive the workspace it runs on and the ones it forked, and ${name} is neither`;
 // }
 pub fn spawn_reach_refusal(thread_id: &str, name: &str) -> String {
-    todo!()
+    format!("thread {} may drive the workspace it runs on and the ones it forked, and {name} is neither", thread_word(thread_id))
 }
 
 /// The one sentence a thread on a computer the person joined is refused with for naming a project on another computer
@@ -696,7 +812,11 @@ pub fn spawn_reach_refusal(thread_id: &str, name: &str) -> String {
 //   return `a thread on ${from} cannot start one on ${to} yet; ask thread ${threadWord(lead)}, your lead, with ${shellLine(["wsp", "send", threadWord(lead)])} "<message>", or name a project on ${from}`;
 // }
 pub fn child_to_leads_computer_line(from: &str, to: &str, lead: &str) -> String {
-    todo!()
+    let lead = thread_word(lead);
+    format!(
+        "a thread on {from} cannot start one on {to} yet; ask thread {lead}, your lead, with {} \"<message>\", or name a project on {from}",
+        shell_line(&["wsp", "send", lead.as_str()])
+    )
 }
 
 /// What a thread on a computer the person joined asked to do on a workspace of another computer, as its refusal names
@@ -718,7 +838,15 @@ pub enum AcrossAct {
 impl AcrossAct {
     /// `ACROSS_ACTS[act]`, word for word ("start a thread", "run commands", ...).
     pub fn words(self) -> &'static str {
-        todo!()
+        match self {
+            AcrossAct::Start => "start a thread",
+            AcrossAct::Exec => "run commands",
+            AcrossAct::Commit => "commit",
+            AcrossAct::Update => "update a copy",
+            AcrossAct::Fix => "ask for a fix",
+            AcrossAct::Wake => "wake it",
+            AcrossAct::Work => "work",
+        }
     }
 }
 
@@ -732,7 +860,12 @@ impl AcrossAct {
 //   return `thread ${threadWord(thread)} works in a folder thread ${threadWord(caller)} cannot act on; ask it with ${shellLine(["wsp", "send", threadWord(thread)])} "<message>"`;
 // }
 pub fn tree_thread_out_of_reach_line(thread: &str, caller: &str) -> String {
-    todo!()
+    let short = thread_word(thread);
+    format!(
+        "thread {short} works in a folder thread {} cannot act on; ask it with {} \"<message>\"",
+        thread_word(caller),
+        shell_line(&["wsp", "send", short.as_str()])
+    )
 }
 
 /// The sentence a thread on a computer the person joined is refused with for acting on a workspace of another
@@ -743,7 +876,14 @@ pub fn tree_thread_out_of_reach_line(thread: &str, caller: &str) -> String {
 //   return `${name} is on ${on}, and a thread on ${from} cannot ${ACROSS_ACTS[act]} there yet; ${road}`;
 // }
 pub fn elsewhere_workspace_line(name: &str, on: &str, from: &str, act: AcrossAct, lead: Option<&str>) -> String {
-    todo!()
+    let road = match lead {
+        None => "ask the person".to_string(),
+        Some(lead) => {
+            let lead = thread_word(lead);
+            format!("ask thread {lead}, your lead, with {} \"<message>\"", shell_line(&["wsp", "send", lead.as_str()]))
+        }
+    };
+    format!("{name} is on {on}, and a thread on {from} cannot {} there yet; {road}", act.words())
 }
 
 /// A thread on a computer the person joined reaches a thread of its tree on another computer by its words alone: no
@@ -753,7 +893,7 @@ pub fn elsewhere_workspace_line(name: &str, on: &str, from: &str, act: AcrossAct
 //   return `a thread on ${from} cannot send files to thread ${threadWord(thread)} on ${to}`;
 // }
 pub fn send_files_across_line(from: &str, to: &str, thread: &str) -> String {
-    todo!()
+    format!("a thread on {from} cannot send files to thread {} on {to}", thread_word(thread))
 }
 
 // computer.ts:398
@@ -764,7 +904,7 @@ pub const SEND_FILES_ACROSS_FIX: &str = "Send the message without them, with wha
 //   return `a thread on ${from} cannot wait on thread ${threadWord(thread)} on ${to} for its reply`;
 // }
 pub fn wait_across_line(from: &str, to: &str, thread: &str) -> String {
-    todo!()
+    format!("a thread on {from} cannot wait on thread {} on {to} for its reply", thread_word(thread))
 }
 
 // computer.ts:402
@@ -780,7 +920,12 @@ pub const WAIT_ACROSS_FIX: &str = "Send it again with --detach and end your turn
 //     : `Start a child in ${project}'s folder instead with ${line}, which opens a thread there in your own tree.`;
 // }
 pub fn spawn_reach_fix(project: &str, forks: bool) -> String {
-    todo!()
+    let line = format!("{} \"<message>\"", shell_line(&["wsp", "run", project]));
+    if forks {
+        format!("Start a child on {project} instead with {line}, which forks a machine in your own tree.")
+    } else {
+        format!("Start a child in {project}'s folder instead with {line}, which opens a thread there in your own tree.")
+    }
 }
 
 /// The one sentence a fork is refused with when the workspace it would be a child of did not say which branch it
@@ -791,7 +936,7 @@ pub fn spawn_reach_fix(project: &str, forks: bool) -> String {
 //   return `${workspace} did not say which branch it is on (${said}); wake it and try again, since a child of it starts on that branch and its work lands back in it`;
 // }
 pub fn branch_unread_refusal(workspace: &str, said: &str) -> String {
-    todo!()
+    format!("{workspace} did not say which branch it is on ({said}); wake it and try again, since a child of it starts on that branch and its work lands back in it")
 }
 
 /// The one sentence a create naming a parent this host does not hold is refused with: a child is made out of a
@@ -801,7 +946,7 @@ pub fn branch_unread_refusal(workspace: &str, said: &str) -> String {
 //   return `no workspace ${ref} to fork from; a child workspace is made out of one this computer holds`;
 // }
 pub fn no_parent_workspace_line(r#ref: &str) -> String {
-    todo!()
+    format!("no workspace {} to fork from; a child workspace is made out of one this computer holds", r#ref)
 }
 
 /// The one sentence a create naming a parent of another project is refused with: a child is a second checkout of
@@ -812,7 +957,7 @@ pub fn no_parent_workspace_line(r#ref: &str) -> String {
 //   return `${parent} is a workspace of ${holds} and this one is made for ${made}; a child starts on its parent's branch, so both hold one project`;
 // }
 pub fn parent_project_refusal(parent: &str, holds: &str, made: &str) -> String {
-    todo!()
+    format!("{parent} is a workspace of {holds} and this one is made for {made}; a child starts on its parent's branch, so both hold one project")
 }
 
 /// The one sentence a name no workspace this caller may drive carries is refused with. Absence is the only thing it
@@ -825,7 +970,10 @@ pub fn parent_project_refusal(parent: &str, holds: &str, made: &str) -> String {
 //   return ref === undefined ? "no such workspace" : `no workspace ${ref}`;
 // }
 pub fn no_workspace_refusal(r#ref: Option<&str>) -> String {
-    todo!()
+    match r#ref {
+        None => "no such workspace".to_string(),
+        Some(r) => format!("no workspace {r}"),
+    }
 }
 
 /// How much of an id a word has to carry before it names a workspace by its start: enough that a name with spaces
@@ -840,7 +988,8 @@ pub const ID_PREFIX_MIN: usize = 4;
 //   return `${ids.length} workspaces start with ${ref} (${ids.join(", ")}); give more of the id`;
 // }
 pub fn id_prefix_refusal(r#ref: &str, ids: &[impl AsRef<str>]) -> String {
-    todo!()
+    let ids: Vec<&str> = ids.iter().map(|id| id.as_ref()).collect();
+    format!("{} workspaces start with {} ({}); give more of the id", ids.len(), r#ref, ids.join(", "))
 }
 
 /// The workspace table's cell for the switch: the machines a root thread there may hold, and empty where a person
@@ -858,7 +1007,12 @@ pub struct AgentsSwitch {
 }
 
 pub fn agents_word(agents: Option<&AgentsSwitch>) -> String {
-    todo!()
+    match agents {
+        Some(a) if a.spawn => {
+            format!("{} {}", number_string(a.max_machines), if a.max_machines == 1.0 { "machine" } else { "machines" })
+        }
+        _ => String::new(),
+    }
 }
 
 /// What a listing and a computer's row say about a switch, one line either way.
@@ -867,7 +1021,14 @@ pub fn agents_word(agents: Option<&AgentsSwitch>) -> String {
 //   return agents?.spawn !== true ? "agents may not spawn" : `agents may spawn: up to ${agents.maxMachines} ${agents.maxMachines === 1 ? "machine" : "machines"}`;
 // }
 pub fn agents_line(agents: Option<&AgentsSwitch>) -> String {
-    todo!()
+    match agents {
+        Some(a) if a.spawn => format!(
+            "agents may spawn: up to {} {}",
+            number_string(a.max_machines),
+            if a.max_machines == 1.0 { "machine" } else { "machines" }
+        ),
+        _ => "agents may not spawn".to_string(),
+    }
 }
 
 /// Where the ssh client on this computer writes the key a machine first answered with under its own default
@@ -886,7 +1047,10 @@ pub const KNOWN_HOSTS: &str = "~/.ssh/known_hosts";
 //   return file === undefined || file.endsWith(KNOWN_HOSTS.slice(1)) ? hostKey : `${hostKey} in ${file}`;
 // }
 pub fn host_key_kept_note(host_key: &str, file: Option<&str>) -> String {
-    todo!()
+    match file {
+        Some(file) if !file.ends_with(&KNOWN_HOSTS[1..]) => format!("{host_key} in {file}"),
+        _ => host_key.to_string(),
+    }
 }
 
 /// The login shells a computer's root may run for wsp to work it. sshd hands every command the host sends to
@@ -925,7 +1089,16 @@ pub const PLACE_ROOT_SHELLS: [&str; 2] = ["bash", "sh"];
 //   return `${address} runs ${shell} as its root's login shell, and sshd hands every command wsp sends to that shell: ${why}; run chsh -s /bin/bash root on it and add it again`;
 // }
 pub fn place_root_shell_refusal(address: &str, shell: &str) -> String {
-    todo!()
+    let startup = match shell {
+        "zsh" => Some("~/.zshenv"),
+        "fish" => Some("config.fish"),
+        _ => None,
+    };
+    let why = match startup {
+        None => format!("{shell} is not a shell wsp has read as opening no file of that computer's, and root's home there is the one every workspace on it writes, so a file read under it would run as root"),
+        Some(file) => format!("{shell} reads {file} before running anything, and root's home there is the one every workspace on it writes, so a dial would run a workspace's file as root"),
+    };
+    format!("{address} runs {shell} as its root's login shell, and sshd hands every command wsp sends to that shell: {why}; run chsh -s /bin/bash root on it and add it again")
 }
 
 /// Whether the key a dial read is the one the person pinned. A person passes either the whole known_hosts word
@@ -937,7 +1110,12 @@ pub fn place_root_shell_refusal(address: &str, shell: &str) -> String {
 //   return mark(pinned) !== "" && mark(pinned) === mark(read);
 // }
 pub fn host_key_matches(pinned: &str, read: &str) -> bool {
-    todo!()
+    let mark = |word: &str| -> String {
+        let trimmed = js_trim(word);
+        trimmed.split(is_js_whitespace).find(|w| w.starts_with("SHA256:")).unwrap_or(trimmed).to_string()
+    };
+    let pinned_mark = mark(pinned);
+    !pinned_mark.is_empty() && pinned_mark == mark(read)
 }
 
 /// What a computer this computer's ssh client has never met is asked before the first dial: the key it answered a
@@ -948,7 +1126,7 @@ pub fn host_key_matches(pinned: &str, read: &str) -> bool {
 //   return `${address} answers with the key ${hostKey}; trust it and continue?`;
 // }
 pub fn host_key_ask(address: &str, host_key: &str) -> String {
-    todo!()
+    format!("{address} answers with the key {host_key}; trust it and continue?")
 }
 
 /// What the add is refused with for such a computer where nobody confirmed that key: the key whole, so it can be
@@ -958,7 +1136,7 @@ pub fn host_key_ask(address: &str, host_key: &str) -> String {
 //   return `${address} has never been reached from this computer and answers with the key ${hostKey}; check it against the computer itself, then run wsp add ${address} --host-key '${hostKey}'`;
 // }
 pub fn host_key_unconfirmed_refusal(address: &str, host_key: &str) -> String {
-    todo!()
+    format!("{address} has never been reached from this computer and answers with the key {host_key}; check it against the computer itself, then run wsp add {address} --host-key '{host_key}'")
 }
 
 /// The same refusal where the key could not be asked for at all: a jump host or a proxy command in the person's own
@@ -970,7 +1148,11 @@ pub fn host_key_unconfirmed_refusal(address: &str, host_key: &str) -> String {
 //   return `${address} has never been reached from this computer and ${why}; read its host key on the computer itself and run wsp add ${address} --host-key '<type> <fingerprint>'`;
 // }
 pub fn host_key_unscannable_refusal(address: &str, stopped_by: Option<&str>) -> String {
-    todo!()
+    let why = match stopped_by {
+        None => "answered no key to a scan".to_string(),
+        Some(by) => format!("is reached through {by} in your ssh config, which a key scan cannot follow"),
+    };
+    format!("{address} has never been reached from this computer and {why}; read its host key on the computer itself and run wsp add {address} --host-key '<type> <fingerprint>'")
 }
 
 /// What an install is refused with when the computer that answered the first dial holds a key other than the one
@@ -990,7 +1172,11 @@ pub struct HostKeyMismatch {
 }
 
 pub fn host_key_mismatch_refusal(o: &HostKeyMismatch) -> String {
-    todo!()
+    let wrote = o.wrote.as_deref().unwrap_or("a key this computer could not read");
+    format!(
+        "{} answered with {wrote}, not the {} you pinned; ssh wrote it into {}, and ssh-keygen -R {} -f {} takes it out",
+        o.address, o.pinned, o.file, o.target, o.file
+    )
 }
 
 /// What a first dial says about the machine it reached: the host key it answered with, for the person to compare
@@ -1000,7 +1186,7 @@ pub fn host_key_mismatch_refusal(o: &HostKeyMismatch) -> String {
 //   return `its host key is ${hostKey}; compare it with the machine's own before a thread runs there`;
 // }
 pub fn ssh_host_key_notice(host_key: &str) -> String {
-    todo!()
+    format!("its host key is {host_key}; compare it with the machine's own before a thread runs there")
 }
 
 /// What a verb is refused with when this host wired no module for the kind it names.
@@ -1009,7 +1195,7 @@ pub fn ssh_host_key_notice(host_key: &str) -> String {
 //   return `this host has no ${kind} backend wired, so it serves nothing of that kind`;
 // }
 pub fn no_kind_line(kind: &str) -> String {
-    todo!()
+    format!("this host has no {kind} backend wired, so it serves nothing of that kind")
 }
 
 /// What import is refused with on a kind no road lands a folder on, said before the folder is read. Every kind
@@ -1020,7 +1206,7 @@ pub fn no_kind_line(kind: &str) -> String {
 //   return `${name} is ${machine}, which lands no folder yet; import to a fork, or register the folder on this computer`;
 // }
 pub fn no_import_road_line(name: &str, machine: &str) -> String {
-    todo!()
+    format!("{name} is {machine}, which lands no folder yet; import to a fork, or register the folder on this computer")
 }
 
 /// What a machine without a node the wsp command runs on is refused with. The daemon itself is one static binary
@@ -1069,7 +1255,9 @@ const MACHINE_UNANSWERED: &str = "wspMachineUnanswered";
 // }
 /// A HostError with the message as given and the mark `wspMachineLacks`, nothing else set.
 pub fn machine_lacking(said: &str) -> HostError {
-    todo!()
+    let mut error = HostError::new(said);
+    error.marks.push(MACHINE_LACKS.to_string());
+    error
 }
 
 // computer.ts:601
@@ -1078,7 +1266,9 @@ pub fn machine_lacking(said: &str) -> HostError {
 // }
 /// A HostError with the message as given and the mark `wspMachineUnanswered`, nothing else set.
 pub fn machine_unanswered(said: &str) -> HostError {
-    todo!()
+    let mut error = HostError::new(said);
+    error.marks.push(MACHINE_UNANSWERED.to_string());
+    error
 }
 
 /// The sentence a machine refused with, or undefined for every other failure.
@@ -1087,7 +1277,7 @@ pub fn machine_unanswered(said: &str) -> HostError {
 //   return marked(e, MACHINE_LACKS) ? e.message : undefined;
 // }
 pub fn machine_lacks_line(e: &HostError) -> Option<String> {
-    todo!()
+    marked(e, MACHINE_LACKS).then(|| e.message.clone())
 }
 
 /// Whether the check never reached the machine, so nothing about what that machine has was learned.
@@ -1096,7 +1286,7 @@ pub fn machine_lacks_line(e: &HostError) -> Option<String> {
 //   return marked(e, MACHINE_UNANSWERED);
 // }
 pub fn machine_never_answered(e: &HostError) -> bool {
-    todo!()
+    marked(e, MACHINE_UNANSWERED)
 }
 
 /// A refusal cut to its first clause, which is what the machine has not got. Every sentence above is written in
@@ -1109,7 +1299,7 @@ pub fn machine_never_answered(e: &HostError) -> bool {
 //   return said.split(",")[0]!.trim();
 // }
 pub fn machine_lacks_short(said: &str) -> String {
-    todo!()
+    js_trim(said.split(',').next().unwrap_or("")).to_string()
 }
 
 /// The one sentence a socket a machine's requests arrive on is refused a ticket with. A ticket authenticates the
@@ -1127,7 +1317,7 @@ pub const RELAY_TICKET_REFUSAL: &str = "a request relayed from a machine cannot 
 //   return `${name} is ${machine}, which wsp does not run; it cannot ${action}`;
 // }
 pub fn undriven_refusal(name: &str, machine: &str, action: &str) -> String {
-    todo!()
+    format!("{name} is {machine}, which wsp does not run; it cannot {action}")
 }
 
 /// The one sentence a forget on a workspace wsp does not run the machine of is refused with. Such a machine is
@@ -1139,7 +1329,7 @@ pub fn undriven_refusal(name: &str, machine: &str, action: &str) -> String {
 //   return `${name} runs on ${machine}, which is not at a provider; run wsp delete ${name}`;
 // }
 pub fn forget_undriven_refusal(name: &str, machine: &str) -> String {
-    todo!()
+    format!("{name} runs on {machine}, which is not at a provider; run wsp delete {name}")
 }
 
 /// The one sentence a workspace on a machine wsp does run refuses a verb with when the provider under it has no
@@ -1152,7 +1342,7 @@ pub fn forget_undriven_refusal(name: &str, machine: &str) -> String {
 //   return `${name} is ${machine}, and it cannot ${action} on the provider it runs on`;
 // }
 pub fn provider_cannot_refusal(name: &str, machine: &str, action: &str) -> String {
-    todo!()
+    format!("{name} is {machine}, and it cannot {action} on the provider it runs on")
 }
 
 /// The row's line when a pause or a wake ran its deadline out, once and once more after the retry: which move, how
@@ -1171,7 +1361,15 @@ pub enum Move {
 
 /// `reads` is a MachineState's wire word.
 pub fn move_timed_out_line(r#move: Move, elapsed_ms: f64, reads: Option<&str>) -> String {
-    todo!()
+    let word = match r#move {
+        Move::Pause => "pause",
+        Move::Wake => "wake",
+    };
+    let provider = match reads {
+        None => "could not be read about the machine".to_string(),
+        Some(state) => format!("reads the machine {state}"),
+    };
+    format!("{word} did not complete in {}; the provider did not answer and {provider}; try again", fmt_duration(elapsed_ms, None))
 }
 
 /// How many asks a window of asking holds at a cadence, which is the count the row counts against and the last ask
@@ -1180,7 +1378,7 @@ pub fn move_timed_out_line(r#move: Move, elapsed_ms: f64, reads: Option<&str>) -
 // computer.ts:665
 // export const wakeAsksIn = (forMs: number, everyMs: number): number => Math.ceil(forMs / everyMs);
 pub fn wake_asks_in(for_ms: f64, every_ms: f64) -> f64 {
-    todo!()
+    (for_ms / every_ms).ceil()
 }
 
 /// The row's line the moment a resume runs its cap out with nothing back. Not a refusal and not a failed resume: the
@@ -1207,7 +1405,10 @@ pub enum LineStyle {
 
 /// `style` defaults to Long.
 pub fn wake_asking_again_line(ask: f64, of: f64, style: Option<LineStyle>) -> String {
-    todo!()
+    match style.unwrap_or(LineStyle::Long) {
+        LineStyle::Short => format!("asking {}/{}", number_string(ask), number_string(of)),
+        LineStyle::Long => format!("waking, asking again ({} of {})", number_string(ask), number_string(of)),
+    }
 }
 
 /// The row's line, and what the wake ends with, when the person stopped the host asking from the row.
@@ -1227,7 +1428,7 @@ pub const WAKE_STOPPED_UP: &str = "waking stopped; the machine is up and has not
 //   return `${name} is up and takes no commands yet (${said}); wake it again in a minute or two`;
 // }
 pub fn no_commands_yet_line(name: &str, said: &str) -> String {
-    todo!()
+    format!("{name} is up and takes no commands yet ({said}); wake it again in a minute or two")
 }
 
 /// The row's line once the host's asking ran out and the machine is still paused there, which is the fault probed on
@@ -1240,7 +1441,11 @@ pub fn no_commands_yet_line(name: &str, said: &str) -> String {
 //   return `the provider answered none of ${plural(asks, "resume request")} over ${fmtDuration(overMs)}; the work on this machine's disk stays with the provider, and a rebuild starts a new machine from the image`;
 // }
 pub fn wake_gave_up_line(asks: f64, over_ms: f64) -> String {
-    todo!()
+    format!(
+        "the provider answered none of {} over {}; the work on this machine's disk stays with the provider, and a rebuild starts a new machine from the image",
+        plural(asks, "resume request"),
+        fmt_duration(over_ms, None)
+    )
 }
 
 /// What a wake ends with when the machine came back and failed every check its backend allows: the faults in order,
@@ -1251,14 +1456,14 @@ pub fn wake_gave_up_line(asks: f64, over_ms: f64) -> String {
 //   return `the wake of ${machineId} did not finish: ${faults}; the workspace keeps this machine and its disk`;
 // }
 pub fn wake_failed_line(machine_id: &str, faults: &str) -> String {
-    todo!()
+    format!("the wake of {machine_id} did not finish: {faults}; the workspace keeps this machine and its disk")
 }
 
 /// What the needs-you road says outside the app when a machine came up while the person was looking elsewhere.
 // computer.ts:713
 // export const workspaceAwakeLine = (name: string): string => `${name} is awake`;
 pub fn workspace_awake_line(name: &str) -> String {
-    todo!()
+    format!("{name} is awake")
 }
 
 /// What a stop of a thread on a computer the person joined says when what the thread started there did not all end:
@@ -1270,7 +1475,16 @@ pub fn workspace_awake_line(name: &str) -> String {
 //   return `${one ? "a process" : `${pids.length} processes`} this thread started on ${name} still ${one ? "runs" : "run"} after Stop (${pids.join(", ")}); end ${one ? "it" : "them"} in Processes, or restart ${name}`;
 // }
 pub fn thread_left_line(name: &str, pids: &[i64]) -> String {
-    todo!()
+    if pids.is_empty() {
+        return format!(
+            "{name} did not say that what this thread started there has ended; look in Processes and end what still runs there"
+        );
+    }
+    let one = pids.len() == 1;
+    let list = pids.iter().map(|pid| pid.to_string()).collect::<Vec<_>>().join(", ");
+    let count = if one { "a process".to_string() } else { format!("{} processes", pids.len()) };
+    let (verb, object) = if one { ("runs", "it") } else { ("run", "them") };
+    format!("{count} this thread started on {name} still {verb} after Stop ({list}); end {object} in Processes, or restart {name}")
 }
 
 /// What a stop of a running turn on a computer the person joined says when that computer is away or has not answered:
@@ -1278,7 +1492,7 @@ pub fn thread_left_line(name: &str, pids: &[i64]) -> String {
 // computer.ts:725
 // export const threadEndAwayLine = (name: string): string => `${name} is not answering, so the turn ends there, with what this thread started, once ${name} connects again`;
 pub fn thread_end_away_line(name: &str) -> String {
-    todo!()
+    format!("{name} is not answering, so the turn ends there, with what this thread started, once {name} connects again")
 }
 
 /// The same where that computer's link still stands but it did not answer a ping in time: it may only be slow, and the
@@ -1286,21 +1500,24 @@ pub fn thread_end_away_line(name: &str) -> String {
 // computer.ts:729
 // export const threadEndLateLine = (name: string, seconds: number): string => `${name} did not answer within ${seconds} s, so the turn ends there, with what this thread started, once ${name} answers`;
 pub fn thread_end_late_line(name: &str, seconds: f64) -> String {
-    todo!()
+    format!(
+        "{name} did not answer within {} s, so the turn ends there, with what this thread started, once {name} answers",
+        number_string(seconds)
+    )
 }
 
 /// What a send says while it waits on the end a stop owed a computer that was away, in the app and on the command line.
 // computer.ts:732
 // export const sendWaitsForLine = (name: string): string => `waiting for ${name} to connect; this message runs once the stopped turn has ended there`;
 pub fn send_waits_for_line(name: &str) -> String {
-    todo!()
+    format!("waiting for {name} to connect; this message runs once the stopped turn has ended there")
 }
 
 /// What a send that waited on such an end says once its turn started.
 // computer.ts:735
 // export const sendWaitedForLine = (name: string): string => `${name} connected and the stopped turn ended there; this turn started`;
 pub fn send_waited_for_line(name: &str) -> String {
-    todo!()
+    format!("{name} connected and the stopped turn ended there; this turn started")
 }
 
 /// What a Stop or a delete of a thread says of a message it gave up while that message waited on such an end, and what
@@ -1308,7 +1525,7 @@ pub fn send_waited_for_line(name: &str) -> String {
 // computer.ts:739
 // export const sendGivenUpLine = (name: string): string => `the message waiting for ${name} to connect was given up and never ran`;
 pub fn send_given_up_line(name: &str) -> String {
-    todo!()
+    format!("the message waiting for {name} to connect was given up and never ran")
 }
 
 /// What a delete of a thread on a computer the person joined says when what the thread started there did not all end:
@@ -1316,6 +1533,6 @@ pub fn send_given_up_line(name: &str) -> String {
 // computer.ts:743
 // export const threadEndOwedLine = (name: string): string => `what this thread started on ${name} did not all end; wsp ends it when ${name} next connects`;
 pub fn thread_end_owed_line(name: &str) -> String {
-    todo!()
+    format!("what this thread started on {name} did not all end; wsp ends it when {name} next connects")
 }
 
