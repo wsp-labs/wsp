@@ -16,9 +16,9 @@ fn a_legacy_language_code_resolves_as_node_resolves_it() {
 }
 
 #[test]
-fn han_characters_sort_by_code_point_within_a_block_and_by_block_where_node_sorts_by_radical_and_stroke() {
+fn han_characters_sort_block_by_block_where_node_sorts_by_radical_and_stroke() {
     let root = collator("en-US");
     assert_eq!(root.compare("中", "\u{4e3d}"), Ordering::Less);
-    assert_eq!(root.compare("\u{3400}", "\u{4e00}"), Ordering::Less);
+    assert_eq!(root.compare("\u{3400}", "\u{4e28}"), Ordering::Greater);
     assert_eq!(root.compare("\u{4e00}", "\u{4e8c}"), Ordering::Less);
 }
