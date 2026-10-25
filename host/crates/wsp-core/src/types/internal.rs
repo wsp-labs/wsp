@@ -9,8 +9,10 @@ use std::sync::Arc;
 
 use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
+use wsp_wire::types::js_number::JsNumber;
 
 use wsp_adapters::port::{ExecStreamFactory, KeptAgent, SessionFile};
+use wsp_engine::errors::EngineError;
 use wsp_engine::machine::{Machine, MachineBackend};
 use wsp_wire::types::attachments::{Attachment, AttachmentRecord};
 use wsp_wire::types::thread_defaults::AccessChoice;
@@ -293,21 +295,22 @@ pub const WORDS_HELD: usize = 2 * 1024 * 1024;
 // --- the transcript index ------------------------------------------------------------------------------------------
 
 /// One thread's words as search reads them. Every length here (`size`, `room`, a line's) counts UTF-16 code units,
-/// as JavaScript's `length` does. Keys serialize in this order; `open` is never written, as `JSON.stringify` drops
-/// `undefined`. internal.ts:236-251.
+/// as JavaScript's `length` does. Keys serialize in this order; `open` is written while it names a message, and left
+/// out where it is none, as `JSON.stringify` drops `undefined`. internal.ts:236-251.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ThreadWords {
     pub lines: Vec<String>,
-    #[serde(skip)]
+    /// `<turnId or sessionId>:<messageId or "">` of the reply still being written.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub open: Option<String>,
-    pub last: f64,
+    pub last: JsNumber,
     /// Absent on an index written before WORDS_HELD; `index_read` fills it.
     #[serde(default)]
     pub size: usize,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub first: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub opened: Option<f64>,
+    pub opened: Option<JsNumber>,
     /// `true` where present.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cold: Option<bool>,
@@ -333,7 +336,7 @@ pub struct Child {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub turn_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub start_row: Option<f64>,
+    pub start_row: Option<JsNumber>,
 }
 
 /// `"started" | "steered"`. internal.ts:289.
@@ -513,12 +516,18 @@ pub struct SearchHit {
 #[derive(Clone, Debug, PartialEq)]
 pub struct SearchedHit {
     pub hit: SearchHit,
-    pub last: f64,
+    pub last: JsNumber,
 }
 
 /// One folder's hits of `words` (lowercased) into `found`; answers how many threads the caller drives it could not
 /// search. internal.ts:532-542.
-pub fn search_index(workspace_id: &str, index: &TranscriptIndex, words: &str, drives: &dyn Fn(&str) -> bool, found: &mut Vec<SearchedHit>) -> usize {
+pub fn search_index(
+    workspace_id: &str,
+    index: &TranscriptIndex,
+    words: &str,
+    drives: &dyn Fn(&str) -> bool,
+    found: &mut Vec<SearchedHit>,
+) -> usize {
     todo!()
 }
 
@@ -586,8 +595,8 @@ pub struct TurnLive {
     pub told: Option<u64>,
     pub told_as: Option<ToldAs>,
     pub steered: Option<IndexMap<String, Steered>>,
-    pub waited: Option<f64>,
-    pub waiting_since: Option<f64>,
+    pub waited: Option<JsNumber>,
+    pub waiting_since: Option<JsNumber>,
     /// What failed the turn's stream, as its transport threw it. In memory alone.
     pub failure: Option<HostError>,
 }
@@ -655,7 +664,7 @@ pub struct KeptProcess {
     pub waiting: Rc<std::cell::Cell<bool>>,
     pub file: Option<SessionFileStamp>,
     pub box_file: Option<futures::future::Shared<futures::future::LocalBoxFuture<'static, Option<u64>>>>,
-    pub used_at: f64,
+    pub used_at: JsNumber,
     pub cancel: Box<dyn FnOnce()>,
 }
 
@@ -728,7 +737,7 @@ pub enum TreeTalk {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LimitResume {
-    pub at: f64,
+    pub at: JsNumber,
     pub turn_id: String,
 }
 
@@ -736,7 +745,7 @@ pub struct LimitResume {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Rewound {
     pub before: String,
-    pub at: f64,
+    pub at: JsNumber,
 }
 
 /// A thread's own record. internal.ts:772-818.
@@ -751,21 +760,21 @@ pub struct ThreadRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub root_thread_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub read_at: Option<f64>,
+    pub read_at: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub settled_at: Option<f64>,
+    pub settled_at: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub settle_named_at: Option<f64>,
+    pub settle_named_at: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub pinned_at: Option<f64>,
+    pub pinned_at: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub order: Option<f64>,
+    pub order: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub folded_at: Option<f64>,
+    pub folded_at: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub replaces: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub snoozed_until: Option<f64>,
+    pub snoozed_until: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub section: Option<ThreadPlacement>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -814,9 +823,9 @@ pub struct IndexedSession {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub steered: Option<IndexMap<String, Steered>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub waited: Option<f64>,
+    pub waited: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub waiting_since: Option<f64>,
+    pub waiting_since: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -883,8 +892,8 @@ pub const HELD_TTL_MS: u64 = 15 * 60_000;
 /// internal.ts:877.
 pub const HEARTBEAT_MS: u64 = 5 * 60_000;
 
-/// Whether an error is the provider's concurrency refusal. internal.ts:879.
-pub fn is_cap_refusal(e: &HostError) -> bool {
+/// Whether an error is the provider's concurrency refusal: an answered refusal of kind concurrency. internal.ts:879.
+pub fn is_cap_refusal(e: &EngineError) -> bool {
     todo!()
 }
 
@@ -988,8 +997,9 @@ impl PrepareStoppedError {
     }
 }
 
-/// Stand-in for a machine that vanished while we were away: every call but kill and state fails with `machine <id>
-/// is gone`, kind missing; kill succeeds; state answers gone; kind sandbox, no stream url. internal.ts:968-998.
+/// Stand-in for a machine that vanished while we were away: every call but kill and state fails with
+/// `EngineError::Provider` of kind missing, status 404, message `machine <id> is gone`; kill succeeds; state answers
+/// gone; kind sandbox, no stream url. internal.ts:968-998.
 pub fn dead_machine(id: &str) -> Arc<dyn Machine> {
     todo!()
 }
@@ -1009,7 +1019,7 @@ pub fn is_absent_machine(m: &dyn Machine) -> bool {
 
 /// The machine a record nothing can be asked about is held by: every call, kill and state included, fails with
 /// `away()`. internal.ts:1015-1031.
-pub fn absent_machine(id: &str, kind: MachineKind, away: Rc<dyn Fn() -> HostError>) -> Arc<dyn Machine> {
+pub fn absent_machine(id: &str, kind: MachineKind, away: Arc<dyn Fn() -> EngineError + Send + Sync>) -> Arc<dyn Machine> {
     todo!()
 }
 
@@ -1020,8 +1030,18 @@ pub async fn read_body_up_to(body: &mut (dyn futures::Stream<Item = Result<Vec<u
 }
 
 /// internal.ts:1055.
-pub const OPTIONAL_BACKEND_CALLS: [&str; 10] =
-    ["checkKey", "limits", "listSnapshots", "promoteSnapshot", "getTemplate", "listTemplates", "deleteTemplate", "createRequest", "replayCreate", "namedAfter"];
+pub const OPTIONAL_BACKEND_CALLS: [&str; 10] = [
+    "checkKey",
+    "limits",
+    "listSnapshots",
+    "promoteSnapshot",
+    "getTemplate",
+    "listTemplates",
+    "deleteTemplate",
+    "createRequest",
+    "replayCreate",
+    "namedAfter",
+];
 
 /// What a daemon refused a frame with, the code beside the sentence. internal.ts:1070-1078.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -1076,13 +1096,18 @@ pub struct EndThread {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PortRoute {
     pub url: String,
-    pub expires_at: f64,
+    pub expires_at: JsNumber,
 }
 
 /// The one place a workspace's kind means anything. Optional members of the TS answer None here. internal.ts:1097-1214.
 pub trait KindModule {
     fn backend(&self, record: &WorkspaceRecord) -> Arc<dyn MachineBackend>;
-    fn exec_stream(&self, entry: &LiveWorkspace, opts: Option<MachineExecOptions>, waiting: Option<TurnWaiting>) -> Arc<dyn ExecStreamFactory>;
+    fn exec_stream(
+        &self,
+        entry: &LiveWorkspace,
+        opts: Option<MachineExecOptions>,
+        waiting: Option<TurnWaiting>,
+    ) -> Arc<dyn ExecStreamFactory>;
     fn admit_folder(&self, record: FolderAdmit) -> Option<Local<'static, ()>>;
     fn folder(&self, record: &WorkspaceRecord) -> Option<String>;
     fn home(&self, entry: &LiveWorkspace, agent_id: &str) -> String;
@@ -1175,7 +1200,7 @@ pub struct ChildStart {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MachineMoment {
     pub machine_id: String,
-    pub at: f64,
+    pub at: JsNumber,
 }
 
 /// `Omit<BuilderRecord, "size" | "firstLife"> & { size?, firstLife? }`: a stored builder from before both were kept.
