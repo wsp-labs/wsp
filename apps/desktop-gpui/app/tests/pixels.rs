@@ -3,10 +3,14 @@
 //! Metal on macOS, and read back as pixels. It runs without libtest's harness because AppKit panics unless it starts
 //! on the main thread, and libtest runs each test on another.
 
+#[path = "../../host-client/tests/common/mod.rs"]
+mod common;
+
 use std::sync::Arc;
 
 use desktop_gpui::screens::app_shell::assets::AppAssets;
 use desktop_gpui::screens::app_shell::frame::{clamp_panel, SIDEBAR_DEFAULT, TOPBAR};
+use desktop_gpui::screens::composer::screen::ComposerScreen;
 use desktop_gpui::screens::Route;
 use desktop_gpui::shell::{Launch, Shell};
 use desktop_gpui::sidebar::ThreadItem;
@@ -154,6 +158,8 @@ fn main() {
     println!("test each_columns_top_row_stands_on_the_columns_own_fill ... ok");
     the_browsers_address_bar_stands_on_the_panels_own_fill();
     println!("test the_browsers_address_bar_stands_on_the_panels_own_fill ... ok");
+    the_new_thread_pages_field_paints_nothing_past_the_divider();
+    println!("test the_new_thread_pages_field_paints_nothing_past_the_divider ... ok");
 }
 
 /// The address bar under it.
@@ -410,4 +416,90 @@ fn the_window_draws_the_sidebar_beside_the_transcript() {
         })
         .count();
     assert!(ink > 2_000, "only {ink} glyph pixels in the reply");
+}
+
+/// Moves the headless clock on by the wall time since the last call, runs what that woke, and draws.
+fn park(cx: &mut HeadlessAppContext, handle: AnyWindowHandle, clock: &mut std::time::Instant) {
+    let now = std::time::Instant::now();
+    cx.advance_clock(now - *clock);
+    *clock = now;
+    cx.run_until_parked();
+    cx.update_window(handle, |_, window, cx| window.render_frame(cx)).unwrap();
+}
+
+/// Catches: the New thread page's field drawing its last column of glyphs past its right edge, over the divider and
+/// into the right panel, where today's canvas clips the field to its box; at every remainder of its width over a cell,
+/// with the panel dragged a pixel at a time, and after the field's own frames, which draw in place.
+fn the_new_thread_pages_field_paints_nothing_past_the_divider() {
+    let host = common::Throwaway::start();
+    let folder = host.repo("repo");
+    host.wsp(&["add", &folder.to_string_lossy()]);
+    host.wsp(&["run", "repo", "first", "--agent", "claude"]);
+    let mut cx = HeadlessAppContext::with_platform(
+        gpui_kit::platform::current_platform(true).text_system(),
+        Arc::new(AppAssets),
+        gpui_kit::platform::current_headless_renderer,
+    );
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        desktop_gpui::ui::init(desktop_gpui::ui::Side::Light, cx);
+        desktop_gpui::screens::composer::init(cx);
+    });
+    let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().unwrap());
+    let (state, env) = (host.state(), host.env());
+    let (handle, shell) = cx.update(|cx| {
+        let options = WindowOptions {
+            window_bounds: Some(WindowBounds::Windowed(Bounds { origin: Default::default(), size: size(px(W), px(H)) })),
+            focus: false,
+            show: false,
+            ..Default::default()
+        };
+        let mut shell = None;
+        let handle = cx
+            .open_window(options, |window, cx| {
+                let view = cx.new(|cx| Shell::new(state, env, runtime, Launch::default(), window, cx));
+                shell = Some(view.clone());
+                cx.new(|cx| Root::new(view, window, cx))
+            })
+            .unwrap();
+        let handle: AnyWindowHandle = handle.into();
+        (handle, shell.unwrap())
+    });
+    let mut clock = std::time::Instant::now();
+    let until = clock + std::time::Duration::from_secs(60);
+    loop {
+        park(&mut cx, handle, &mut clock);
+        let home = cx.update(|cx| matches!(shell.read(cx).route(), Route::Screen(r) if r.starts_with("composer:")));
+        let fresh = cx.update(|cx| {
+            let screen = shell.read(cx).screen_view().and_then(|v| v.downcast::<ComposerScreen>().ok());
+            screen.is_some_and(|s| s.read(cx).composer().read(cx).fresh())
+        });
+        if home && fresh {
+            break;
+        }
+        assert!(std::time::Instant::now() < until, "the project's New thread page never stood");
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    cx.update_window(handle, |_, window, cx| shell.update(cx, |s, cx| s.panel().update(cx, |p, cx| p.toggle(window, cx)))).unwrap();
+    for width in 361..=370 {
+        cx.update(|cx| shell.update(cx, |s, cx| s.panel().update(cx, |p, cx| p.set_width(px(width as f32), cx))));
+        for _ in 0..4 {
+            park(&mut cx, handle, &mut clock);
+            std::thread::sleep(std::time::Duration::from_millis(130));
+        }
+        let scale = cx.update_window(handle, |_, window, _| window.scale_factor()).unwrap();
+        let image = cx.capture_screenshot(handle).expect("offscreen rendering must be available");
+        let (w, h) = image.dimensions();
+        let shot = Capture { width: w, height: h, scale, raw: image.into_raw() };
+        let differs = |x: f32, ground: [u8; 3]| {
+            (shot.device(f32::from(TOPBAR) + 60.)..shot.device(H - 8.))
+                .filter(|&y| shot.device_at(shot.device(x), y).iter().zip(ground).map(|(a, b)| a.abs_diff(b) as u32).sum::<u32>() > 24)
+                .count()
+        };
+        let edge = W - width as f32;
+        let inside: usize = (1..=10).map(|d| differs(edge - d as f32, shot.at(f32::from(SIDEBAR_DEFAULT) + 2., H - 2.))).sum();
+        let past: usize = (2..=10).map(|d| differs(edge + d as f32, shot.at(W - 4., H - 4.))).sum();
+        assert!(inside > 0, "the field drew nothing by the divider at a panel {width} px wide");
+        assert_eq!(past, 0, "at a panel {width} px wide the field's glyphs reach past the divider at {edge}");
+    }
 }
