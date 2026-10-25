@@ -14,7 +14,7 @@ How the host reads what a daemon says about its computer's load and processes: t
 7. `pipe_open_of(text)` (daemon.ts:99-108): JSON-parse the text; read it as PipeOpen (`op` the literal `pipe.open`, `door` http|gh, `heldMs` a non-negative integer, unknown keys dropped); anything else, invalid JSON and a daemon.hello included, is None.
 8. `DaemonResponse` (machine-link.ts:531-544) through `parse_daemon_response`: `ok: true` keeps every key in order (passthrough); `ok: false` needs a string `error`, reads `code` (DaemonErrorCode), `kind` (MachineErrorKind) and an integer `status` when present; `id` is a RequestId or null.
 9. `SysSample` (:551-558) is a member of DaemonEvent and holds no `type`; where it stands alone inside `workspace.sys` and `place.sys` it is a `SysSampleFrame`, which writes and needs `"type": "sys.sample"` (an absent type refuses at ["sample","type"]).
-10. The shapes held to wsp-frames' types (`SysPoint`, `SysHistoryReply`, `UsageLogsReply`, `TranscriptsListReply`, `TranscriptsReadReply`, `ProcCost`, `CgroupMemory`, `ProcListReply`, `PipeOpen`) are wsp-frames' and read every bound while deserializing; their Check is `Ok(())`.
+10. The shapes that wsp-frames also holds (`SysPoint`, `SysHistoryReply`, `UsageLogsReply`, `TranscriptsListReply`, `TranscriptsReadReply`, `ProcCost`, `CgroupMemory`, `ProcListReply`, `PipeOpen`) are local types of `machine_replies.rs` and `daemon_replies.rs` with zod's checks; `ProcListReply` holds the same lenient rows as `ProcSnapshot` (rules 1-3).
 
 ## Edge cases
 - A pid both in `gone` and in `procs` of one frame stands, with the new row (gone first, then set).

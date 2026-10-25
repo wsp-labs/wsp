@@ -48,7 +48,10 @@ pub enum AppProcKind {
 
 impl Check for AppProcKind {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["main", "gpu", "network", "renderer", "tab", "frame", "helper"]))
+        crate::types::check::leaf(
+            path,
+            crate::types::check::Zod::Options(&["main", "gpu", "network", "renderer", "tab", "frame", "helper"]),
+        )
     }
 }
 
@@ -68,7 +71,7 @@ impl Check for AppProc {
     /// Rules: pid: > 0; origins[]: at most 256 UTF-16 units; origins: at most 20 items; contents[]: >= 0; contents: at most 20 items.
     /// Nested checks: kind.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_above(self.pid.0.0, 0.0).map_err(|e| e.under("pid"))?;
+        crate::types::check::num_above(self.pid.0 .0, 0.0).map_err(|e| e.under("pid"))?;
         self.kind.check().map_err(|e| e.under("kind"))?;
         if let Some(list) = &self.origins {
             for (i, item) in list.iter().enumerate() {
@@ -80,7 +83,7 @@ impl Check for AppProc {
         }
         if let Some(list) = &self.contents {
             for (i, &item) in list.iter().enumerate() {
-                crate::types::check::num_at_least(item.0.0, 0.0).map_err(|e| e.under(i).under("contents"))?;
+                crate::types::check::num_at_least(item.0 .0, 0.0).map_err(|e| e.under(i).under("contents"))?;
             }
         }
         if let Some(list) = &self.contents {
@@ -94,10 +97,22 @@ impl Check for AppProc {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("pid") { None => out.push(crate::types::check::missing::<Self>("pid")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_pid(&x) { out.push(e.under("pid")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("pid"))), } } }
-        match obj.get("kind") { None => out.push(crate::types::check::missing::<Self>("kind")), Some(v) => { match crate::types::check::read::<AppProcKind>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("kind"))), } } }
-        if let Some(v) = obj.get("origins") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(x) => { if let Err(e) = Self::rule_origins(&x) { out.push(e.under("origins")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("origins"))), } }
-        if let Some(v) = obj.get("contents") { match crate::types::check::read_present::<Vec<JsInt>>(v) { Ok(x) => { if let Err(e) = Self::rule_contents(&x) { out.push(e.under("contents")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("contents"))), } }
+        crate::types::keys::req_key_with::<JsInt>(obj, "pid", &mut out, Self::rule_pid);
+        crate::types::keys::req_key::<AppProcKind>(obj, "kind", &mut out);
+        crate::types::keys::opt_arr_with::<String>(
+            obj,
+            "origins",
+            &mut out,
+            |n| crate::types::check::items_at_most(n, 20),
+            Self::rule_origins,
+        );
+        crate::types::keys::opt_arr_with::<JsInt>(
+            obj,
+            "contents",
+            &mut out,
+            |n| crate::types::check::items_at_most(n, 20),
+            Self::rule_contents,
+        );
         Some(out)
     }
 
@@ -116,7 +131,7 @@ impl Check for AppProc {
 }
 impl AppProc {
     fn rule_pid(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_above((*x).0.0, 0.0)?;
+        crate::types::check::num_above(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_origins(x: &Option<Vec<String>>) -> Result<(), crate::types::check::SchemaError> {
@@ -133,7 +148,7 @@ impl AppProc {
     fn rule_contents(x: &Option<Vec<JsInt>>) -> Result<(), crate::types::check::SchemaError> {
         if let Some(list) = x {
             for (i, &item) in list.iter().enumerate() {
-                crate::types::check::num_at_least(item.0.0, 0.0).map_err(|e| e.under(i))?;
+                crate::types::check::num_at_least(item.0 .0, 0.0).map_err(|e| e.under(i))?;
             }
         }
         if let Some(list) = x {
@@ -153,6 +168,13 @@ impl Check for AppProcList {
     fn check(&self) -> Result<(), SchemaError> {
         crate::types::check::items_at_most(self.0.len(), 200)?;
         self.0.check()
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<SchemaError>> {
+        let serde_json::Value::Array(items) = value else { return None };
+        let mut out: Vec<SchemaError> = crate::types::check::items_at_most(items.len(), 200).err().into_iter().collect();
+        out.extend(<Vec<AppProc> as Check>::pass(value)?);
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -184,7 +206,7 @@ impl Check for AppProcsEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("procs") { None => out.push(crate::types::check::missing::<Self>("procs")), Some(v) => { match crate::types::check::read::<AppProcList>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("procs"))), } } }
+        crate::types::keys::req_key::<AppProcList>(obj, "procs", &mut out);
         Some(out)
     }
 
@@ -221,7 +243,7 @@ impl Check for AppProcsWantedEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("wanted") { None => out.push(crate::types::check::missing::<Self>("wanted")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wanted"))), } } }
+        crate::types::keys::req_key::<bool>(obj, "wanted", &mut out);
         Some(out)
     }
 

@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::types::thread_defaults::Fields;
 use crate::views::harness::{HarnessCatalog, HarnessModel, HarnessOption};
 use crate::views::session::SessionView;
 
@@ -19,6 +20,15 @@ impl PickOption for HarnessOption {
     }
     fn is_default(&self) -> Option<bool> {
         self.is_default
+    }
+}
+
+impl<T: PickOption> PickOption for Fields<T> {
+    fn value(&self) -> &str {
+        (**self).value()
+    }
+    fn is_default(&self) -> Option<bool> {
+        (**self).is_default()
     }
 }
 
@@ -59,13 +69,19 @@ pub fn marked_default<T: PickOption>(options: &[T]) -> Option<&T> {
 // }
 /// The model's own efforts in the catalog's order (an effort the catalog lacks is dropped), else all of them. Where
 /// the model names `default_effort`, every option's `is_default` is cleared and the one whose value is that effort
-/// gets `Some(true)`.
-pub fn efforts_for(catalog: &HarnessCatalog, model: Option<&HarnessModel>) -> Vec<HarnessOption> {
+/// gets `Some(true)`, written last as `{ ...rest, isDefault: true }` writes it.
+pub fn efforts_for(catalog: &HarnessCatalog, model: Option<&HarnessModel>) -> Vec<Fields<HarnessOption>> {
     let options = narrowed(&catalog.efforts, model.and_then(|m| m.efforts.as_deref()));
     let Some(own) = model.and_then(|m| m.default_effort.as_deref()) else {
-        return options;
+        return options.into_iter().map(Fields::new).collect();
     };
-    options.into_iter().map(|o| HarnessOption { is_default: (o.value == own).then_some(true), ..o }).collect()
+    options
+        .into_iter()
+        .map(|o| match o.value == own {
+            true => Fields::last(HarnessOption { is_default: Some(true), ..o }, "isDefault"),
+            false => Fields::new(HarnessOption { is_default: None, ..o }),
+        })
+        .collect()
 }
 
 // harness-picks.ts:30 at a3b870a6e

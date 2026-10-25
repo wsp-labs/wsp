@@ -38,7 +38,7 @@ impl Check for WorkspaceCreatedEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspace") { None => out.push(crate::types::check::missing::<Self>("workspace")), Some(v) => { match crate::types::check::read::<WorkspaceView>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspace"))), } } }
+        crate::types::keys::req_key::<WorkspaceView>(obj, "workspace", &mut out);
         Some(out)
     }
 
@@ -74,7 +74,18 @@ pub enum WorkspaceCreateStage {
 
 impl Check for WorkspaceCreateStage {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["fork-requested", "hostname-set", "preview-route", "daemon-answering", "project-cloned", "ready", "failed"]))
+        crate::types::check::leaf(
+            path,
+            crate::types::check::Zod::Options(&[
+                "fork-requested",
+                "hostname-set",
+                "preview-route",
+                "daemon-answering",
+                "project-cloned",
+                "ready",
+                "failed",
+            ]),
+        )
     }
 }
 
@@ -115,15 +126,15 @@ impl Check for WorkspaceCreatingEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
-        match obj.get("stage") { None => out.push(crate::types::check::missing::<Self>("stage")), Some(v) => { match crate::types::check::read::<WorkspaceCreateStage>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("stage"))), } } }
-        match obj.get("message") { None => out.push(crate::types::check::missing::<Self>("message")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("message"))), } } }
-        match obj.get("elapsedMs") { None => out.push(crate::types::check::missing::<Self>("elapsedMs")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("elapsedMs"))), } } }
-        if let Some(v) = obj.get("notice") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("notice"))), } }
-        if let Some(v) = obj.get("detail") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("detail"))), } }
-        if let Some(v) = obj.get("waiting") { match crate::types::check::read_present::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("waiting"))), } }
-        if let Some(v) = obj.get("askedBy") { match crate::types::check::read_present::<EventAsker>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("askedBy"))), } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "name", &mut out);
+        crate::types::keys::req_key::<WorkspaceCreateStage>(obj, "stage", &mut out);
+        crate::types::keys::req_key::<String>(obj, "message", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "elapsedMs", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "notice", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "detail", &mut out);
+        crate::types::keys::opt_key::<True>(obj, "waiting", &mut out);
+        crate::types::keys::opt_key::<EventAsker>(obj, "askedBy", &mut out);
         Some(out)
     }
 
@@ -170,8 +181,8 @@ impl Check for WorkspaceNappedEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        if let Some(v) = obj.get("found") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("found"))), } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "found", &mut out);
         Some(out)
     }
 
@@ -210,8 +221,8 @@ impl Check for WorkspaceWokenEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("machineId") { None => out.push(crate::types::check::missing::<Self>("machineId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("machineId"))), } } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "machineId", &mut out);
         Some(out)
     }
 
@@ -250,8 +261,8 @@ impl Check for WorkspaceUpgradedEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("machineId") { None => out.push(crate::types::check::missing::<Self>("machineId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("machineId"))), } } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "machineId", &mut out);
         Some(out)
     }
 
@@ -290,8 +301,8 @@ impl Check for WorkspaceRenamedEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "name", &mut out);
         Some(out)
     }
 
@@ -336,9 +347,9 @@ impl Check for WorkspaceLookEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("theme") { None => out.push(crate::types::check::missing::<Self>("theme")), Some(v) => { match crate::types::check::read::<Option<WorkspaceTheme>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("theme"))), } } }
-        match obj.get("glyph") { None => out.push(crate::types::check::missing::<Self>("glyph")), Some(v) => { match crate::types::check::read::<Option<WorkspaceGlyph>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("glyph"))), } } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<Option<WorkspaceTheme>>(obj, "theme", &mut out);
+        crate::types::keys::req_key::<Option<WorkspaceGlyph>>(obj, "glyph", &mut out);
         Some(out)
     }
 
@@ -377,7 +388,7 @@ impl Check for WorkspaceDeletedEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
         Some(out)
     }
 
@@ -416,9 +427,9 @@ impl Check for WorkspaceGoneEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("machineId") { None => out.push(crate::types::check::missing::<Self>("machineId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("machineId"))), } } }
-        match obj.get("reason") { None => out.push(crate::types::check::missing::<Self>("reason")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("reason"))), } } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "machineId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "reason", &mut out);
         Some(out)
     }
 
@@ -457,7 +468,7 @@ impl Check for WorkspaceReleasedEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
         Some(out)
     }
 
@@ -496,7 +507,7 @@ impl Check for WorkspaceStatusEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("status") { None => out.push(crate::types::check::missing::<Self>("status")), Some(v) => { match crate::types::check::read::<WorkspaceStatus>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("status"))), } } }
+        crate::types::keys::req_key::<WorkspaceStatus>(obj, "status", &mut out);
         Some(out)
     }
 
@@ -533,7 +544,7 @@ impl Check for WorkspaceReviewEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
         Some(out)
     }
 
@@ -553,7 +564,7 @@ impl Check for WorkspaceReviewEvent {
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceViewedEvent {
     pub workspace_id: String,
-    #[serde(serialize_with = "crate::types::check::js_record")]
+    #[serde(serialize_with = "crate::types::check::js_record", deserialize_with = "crate::types::kept::record")]
     pub viewed: IndexMap<String, String>,
 }
 
@@ -572,8 +583,8 @@ impl Check for WorkspaceViewedEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("viewed") { None => out.push(crate::types::check::missing::<Self>("viewed")), Some(v) => { match crate::types::check::read::<IndexMap<String, String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("viewed"))), } } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<IndexMap<String, String>>(obj, "viewed", &mut out);
         Some(out)
     }
 
@@ -618,12 +629,12 @@ impl Check for WorkspaceCostEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("phase") { None => out.push(crate::types::check::missing::<Self>("phase")), Some(v) => { match crate::types::check::read::<WorkspacePhase>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("phase"))), } } }
-        match obj.get("rateUsdPerHour") { None => out.push(crate::types::check::missing::<Self>("rateUsdPerHour")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rateUsdPerHour"))), } } }
-        match obj.get("awakeMs") { None => out.push(crate::types::check::missing::<Self>("awakeMs")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("awakeMs"))), } } }
-        match obj.get("accruedUsd") { None => out.push(crate::types::check::missing::<Self>("accruedUsd")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("accruedUsd"))), } } }
-        match obj.get("at") { None => out.push(crate::types::check::missing::<Self>("at")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<WorkspacePhase>(obj, "phase", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "rateUsdPerHour", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "awakeMs", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "accruedUsd", &mut out);
+        crate::types::keys::req_key::<String>(obj, "at", &mut out);
         Some(out)
     }
 
@@ -670,10 +681,10 @@ impl Check for PortOpenEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("port") { None => out.push(crate::types::check::missing::<Self>("port")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("port"))), } } }
-        if let Some(v) = obj.get("pid") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pid"))), } }
-        if let Some(v) = obj.get("process") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("process"))), } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "port", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "pid", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "process", &mut out);
         Some(out)
     }
 
@@ -728,15 +739,15 @@ impl Check for PortCloseEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("port") { None => out.push(crate::types::check::missing::<Self>("port")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("port"))), } } }
-        if let Some(v) = obj.get("pid") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pid"))), } }
-        if let Some(v) = obj.get("process") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("process"))), } }
-        if let Some(v) = obj.get("command") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("command"))), } }
-        if let Some(v) = obj.get("exited") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("exited"))), } }
-        if let Some(v) = obj.get("left") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("left"))), } }
-        if let Some(v) = obj.get("at") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } }
-        if let Some(v) = obj.get("watch") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("watch"))), } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "port", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "pid", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "process", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "command", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "exited", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "left", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "at", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "watch", &mut out);
         Some(out)
     }
 
@@ -783,9 +794,9 @@ impl Check for InboxFileEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("path") { None => out.push(crate::types::check::missing::<Self>("path")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("path"))), } } }
-        match obj.get("bytes") { None => out.push(crate::types::check::missing::<Self>("bytes")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("bytes"))), } } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "path", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "bytes", &mut out);
         Some(out)
     }
 

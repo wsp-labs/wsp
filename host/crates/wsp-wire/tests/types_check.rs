@@ -38,7 +38,7 @@ fn zod_case<T: DeserializeOwned + Check + std::fmt::Debug>(ty: &str) {
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
         assert_eq!(err.detail.keys().collect::<Vec<_>>(), detail.keys().collect::<Vec<_>>(), "{ty}, {what}: detail keys in zod's order");
-        assert_eq!(err.detail, detail, "{ty}, {what}: detail values");
+        assert_eq!(*err.detail, detail, "{ty}, {what}: detail values");
         assert_eq!(err.issue_text(), c["text"].as_str().unwrap(), "{ty}, {what}: the issue as ZodError.message writes it");
     }
 }
@@ -86,7 +86,7 @@ mod the_first_issue {
 
     #[test]
     fn under_puts_a_segment_in_front_of_the_path_and_keeps_the_rest() {
-        let e = SchemaError { code: "too_small".into(), path: vec![json!("pid")], message: "m".into(), detail: IndexMap::new() };
+        let e = SchemaError { code: "too_small".into(), path: vec![json!("pid")], message: "m".into(), detail: Box::default() };
         let moved = e.clone().under(3).under("procs");
         assert_eq!(moved.path, vec![json!("procs"), json!(3), json!("pid")]);
         assert_eq!((moved.code, moved.message, moved.detail), (e.code, e.message, e.detail));

@@ -35,9 +35,9 @@ pub struct SubResult {
 impl Check for SubResult {
     /// Rules: commits: >= 0; unpushed: >= 0; changed: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.commits.0.0, 0.0).map_err(|e| e.under("commits"))?;
-        crate::types::check::num_at_least(self.unpushed.0.0, 0.0).map_err(|e| e.under("unpushed"))?;
-        crate::types::check::num_at_least(self.changed.0.0, 0.0).map_err(|e| e.under("changed"))?;
+        crate::types::check::num_at_least(self.commits.0 .0, 0.0).map_err(|e| e.under("commits"))?;
+        crate::types::check::num_at_least(self.unpushed.0 .0, 0.0).map_err(|e| e.under("unpushed"))?;
+        crate::types::check::num_at_least(self.changed.0 .0, 0.0).map_err(|e| e.under("changed"))?;
         Ok(())
     }
 
@@ -46,16 +46,16 @@ impl Check for SubResult {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("branch") { None => out.push(crate::types::check::missing::<Self>("branch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } } }
-        match obj.get("pushedSha") { None => out.push(crate::types::check::missing::<Self>("pushedSha")), Some(v) => { match crate::types::check::read::<Option<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pushedSha"))), } } }
-        match obj.get("commits") { None => out.push(crate::types::check::missing::<Self>("commits")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_commits(&x) { out.push(e.under("commits")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("commits"))), } } }
-        match obj.get("unpushed") { None => out.push(crate::types::check::missing::<Self>("unpushed")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_unpushed(&x) { out.push(e.under("unpushed")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("unpushed"))), } } }
-        match obj.get("changed") { None => out.push(crate::types::check::missing::<Self>("changed")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_changed(&x) { out.push(e.under("changed")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("changed"))), } } }
-        if let Some(v) = obj.get("onBranch") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("onBranch"))), } }
-        if let Some(v) = obj.get("norepo") { match crate::types::check::read_present::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("norepo"))), } }
-        if let Some(v) = obj.get("readFailed") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("readFailed"))), } }
-        match obj.get("readAt") { None => out.push(crate::types::check::missing::<Self>("readAt")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("readAt"))), } } }
-        if let Some(v) = obj.get("pushRefused") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pushRefused"))), } }
+        crate::types::keys::req_key::<String>(obj, "branch", &mut out);
+        crate::types::keys::req_key::<Option<String>>(obj, "pushedSha", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "commits", &mut out, Self::rule_commits);
+        crate::types::keys::req_key_with::<JsInt>(obj, "unpushed", &mut out, Self::rule_unpushed);
+        crate::types::keys::req_key_with::<JsInt>(obj, "changed", &mut out, Self::rule_changed);
+        crate::types::keys::opt_key::<String>(obj, "onBranch", &mut out);
+        crate::types::keys::opt_key::<True>(obj, "norepo", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "readFailed", &mut out);
+        crate::types::keys::req_key::<String>(obj, "readAt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "pushRefused", &mut out);
         Some(out)
     }
 
@@ -80,15 +80,15 @@ impl Check for SubResult {
 }
 impl SubResult {
     fn rule_commits(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_unpushed(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_changed(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -104,7 +104,7 @@ pub struct SubSpawnBranch {
 impl Check for SubSpawnBranch {
     /// Rules: ms: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.ms.0.0, 0.0).map_err(|e| e.under("ms"))?;
+        crate::types::check::num_at_least(self.ms.0 .0, 0.0).map_err(|e| e.under("ms"))?;
         Ok(())
     }
 
@@ -113,9 +113,9 @@ impl Check for SubSpawnBranch {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("branch") { None => out.push(crate::types::check::missing::<Self>("branch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } } }
-        match obj.get("sha") { None => out.push(crate::types::check::missing::<Self>("sha")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sha"))), } } }
-        match obj.get("ms") { None => out.push(crate::types::check::missing::<Self>("ms")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_ms(&x) { out.push(e.under("ms")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("ms"))), } } }
+        crate::types::keys::req_key::<String>(obj, "branch", &mut out);
+        crate::types::keys::req_key::<String>(obj, "sha", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "ms", &mut out, Self::rule_ms);
         Some(out)
     }
 
@@ -133,7 +133,7 @@ impl Check for SubSpawnBranch {
 }
 impl SubSpawnBranch {
     fn rule_ms(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -153,7 +153,7 @@ impl Check for SubSpawnMachine {
     /// Rules: ms: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
         if let Some(v) = self.ms {
-            crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("ms"))?;
+            crate::types::check::num_at_least(v.0 .0, 0.0).map_err(|e| e.under("ms"))?;
         }
         Ok(())
     }
@@ -163,10 +163,10 @@ impl Check for SubSpawnMachine {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("since") { None => out.push(crate::types::check::missing::<Self>("since")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("since"))), } } }
-        if let Some(v) = obj.get("id") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } }
-        match obj.get("states") { None => out.push(crate::types::check::missing::<Self>("states")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("states"))), } } }
-        if let Some(v) = obj.get("ms") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_ms(&x) { out.push(e.under("ms")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("ms"))), } }
+        crate::types::keys::req_key::<JsNumber>(obj, "since", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "id", &mut out);
+        crate::types::keys::req_key::<Vec<String>>(obj, "states", &mut out);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "ms", &mut out, Self::rule_ms);
         Some(out)
     }
 
@@ -185,8 +185,8 @@ impl Check for SubSpawnMachine {
 }
 impl SubSpawnMachine {
     fn rule_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
-            crate::types::check::num_at_least(v.0.0, 0.0)?;
+        if let Some(v) = *x {
+            crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
     }
@@ -205,9 +205,9 @@ pub struct SubSpawnFiles {
 impl Check for SubSpawnFiles {
     /// Rules: bytes: >= 0; ms: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.bytes.0.0, 0.0).map_err(|e| e.under("bytes"))?;
+        crate::types::check::num_at_least(self.bytes.0 .0, 0.0).map_err(|e| e.under("bytes"))?;
         if let Some(v) = self.ms {
-            crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("ms"))?;
+            crate::types::check::num_at_least(v.0 .0, 0.0).map_err(|e| e.under("ms"))?;
         }
         Ok(())
     }
@@ -217,10 +217,10 @@ impl Check for SubSpawnFiles {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("since") { None => out.push(crate::types::check::missing::<Self>("since")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("since"))), } } }
-        match obj.get("paths") { None => out.push(crate::types::check::missing::<Self>("paths")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("paths"))), } } }
-        match obj.get("bytes") { None => out.push(crate::types::check::missing::<Self>("bytes")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_bytes(&x) { out.push(e.under("bytes")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("bytes"))), } } }
-        if let Some(v) = obj.get("ms") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_ms(&x) { out.push(e.under("ms")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("ms"))), } }
+        crate::types::keys::req_key::<JsNumber>(obj, "since", &mut out);
+        crate::types::keys::req_key::<Vec<String>>(obj, "paths", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "bytes", &mut out, Self::rule_bytes);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "ms", &mut out, Self::rule_ms);
         Some(out)
     }
 
@@ -239,12 +239,12 @@ impl Check for SubSpawnFiles {
 }
 impl SubSpawnFiles {
     fn rule_bytes(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
-            crate::types::check::num_at_least(v.0.0, 0.0)?;
+        if let Some(v) = *x {
+            crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
     }
@@ -284,9 +284,9 @@ impl Check for SubSpawnFailed {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("step") { None => out.push(crate::types::check::missing::<Self>("step")), Some(v) => { match crate::types::check::read::<SubSpawnFailedStep>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("step"))), } } }
-        match obj.get("said") { None => out.push(crate::types::check::missing::<Self>("said")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("said"))), } } }
-        if let Some(v) = obj.get("fix") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("fix"))), } }
+        crate::types::keys::req_key::<SubSpawnFailedStep>(obj, "step", &mut out);
+        crate::types::keys::req_key::<String>(obj, "said", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "fix", &mut out);
         Some(out)
     }
 
@@ -338,7 +338,7 @@ impl Check for SubSpawn {
         self.files.check().map_err(|e| e.under("files"))?;
         self.failed.check().map_err(|e| e.under("failed"))?;
         if let Some(v) = self.uncommitted {
-            crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("uncommitted"))?;
+            crate::types::check::num_at_least(v.0 .0, 0.0).map_err(|e| e.under("uncommitted"))?;
         }
         Ok(())
     }
@@ -348,17 +348,17 @@ impl Check for SubSpawn {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("startedAt") { None => out.push(crate::types::check::missing::<Self>("startedAt")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("startedAt"))), } } }
-        if let Some(v) = obj.get("branch") { match crate::types::check::read_present::<SubSpawnBranch>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } }
-        if let Some(v) = obj.get("machine") { match crate::types::check::read_present::<SubSpawnMachine>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("machine"))), } }
-        if let Some(v) = obj.get("files") { match crate::types::check::read_present::<SubSpawnFiles>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("files"))), } }
-        if let Some(v) = obj.get("readyAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("readyAt"))), } }
-        if let Some(v) = obj.get("failed") { match crate::types::check::read_present::<SubSpawnFailed>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("failed"))), } }
-        if let Some(v) = obj.get("uncommitted") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_uncommitted(&x) { out.push(e.under("uncommitted")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("uncommitted"))), } }
-        if let Some(v) = obj.get("asked") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("asked"))), } }
-        if let Some(v) = obj.get("notSent") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("notSent"))), } }
-        if let Some(v) = obj.get("replaced") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("replaced"))), } }
-        match obj.get("log") { None => out.push(crate::types::check::missing::<Self>("log")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("log"))), } } }
+        crate::types::keys::req_key::<JsNumber>(obj, "startedAt", &mut out);
+        crate::types::keys::opt_key::<SubSpawnBranch>(obj, "branch", &mut out);
+        crate::types::keys::opt_key::<SubSpawnMachine>(obj, "machine", &mut out);
+        crate::types::keys::opt_key::<SubSpawnFiles>(obj, "files", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "readyAt", &mut out);
+        crate::types::keys::opt_key::<SubSpawnFailed>(obj, "failed", &mut out);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "uncommitted", &mut out, Self::rule_uncommitted);
+        crate::types::keys::opt_key::<String>(obj, "asked", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "notSent", &mut out);
+        crate::types::keys::opt_key::<Vec<String>>(obj, "replaced", &mut out);
+        crate::types::keys::req_key::<Vec<String>>(obj, "log", &mut out);
         Some(out)
     }
 
@@ -384,8 +384,8 @@ impl Check for SubSpawn {
 }
 impl SubSpawn {
     fn rule_uncommitted(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
-            crate::types::check::num_at_least(v.0.0, 0.0)?;
+        if let Some(v) = *x {
+            crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
     }
@@ -423,8 +423,8 @@ pub struct SubHeld {
 impl Check for SubHeld {
     /// Rules: files: >= 0; commits: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.files.0.0, 0.0).map_err(|e| e.under("files"))?;
-        crate::types::check::num_at_least(self.commits.0.0, 0.0).map_err(|e| e.under("commits"))?;
+        crate::types::check::num_at_least(self.files.0 .0, 0.0).map_err(|e| e.under("files"))?;
+        crate::types::check::num_at_least(self.commits.0 .0, 0.0).map_err(|e| e.under("commits"))?;
         Ok(())
     }
 
@@ -433,8 +433,8 @@ impl Check for SubHeld {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("files") { None => out.push(crate::types::check::missing::<Self>("files")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_files(&x) { out.push(e.under("files")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("files"))), } } }
-        match obj.get("commits") { None => out.push(crate::types::check::missing::<Self>("commits")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_commits(&x) { out.push(e.under("commits")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("commits"))), } } }
+        crate::types::keys::req_key_with::<JsInt>(obj, "files", &mut out, Self::rule_files);
+        crate::types::keys::req_key_with::<JsInt>(obj, "commits", &mut out, Self::rule_commits);
         Some(out)
     }
 
@@ -451,11 +451,11 @@ impl Check for SubHeld {
 }
 impl SubHeld {
     fn rule_files(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_commits(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -479,9 +479,9 @@ impl Check for SubRowSize {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("cpu") { None => out.push(crate::types::check::missing::<Self>("cpu")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cpu"))), } } }
-        match obj.get("memMb") { None => out.push(crate::types::check::missing::<Self>("memMb")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memMb"))), } } }
-        if let Some(v) = obj.get("name") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } }
+        crate::types::keys::req_key::<JsInt>(obj, "cpu", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "memMb", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "name", &mut out);
         Some(out)
     }
 
@@ -541,19 +541,19 @@ impl Check for SubRow {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("state") { None => out.push(crate::types::check::missing::<Self>("state")), Some(v) => { match crate::types::check::read::<SubState>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("state"))), } } }
-        match obj.get("on") { None => out.push(crate::types::check::missing::<Self>("on")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("on"))), } } }
-        match obj.get("machine") { None => out.push(crate::types::check::missing::<Self>("machine")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("machine"))), } } }
-        match obj.get("size") { None => out.push(crate::types::check::missing::<Self>("size")), Some(v) => { match crate::types::check::read::<SubRowSize>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("size"))), } } }
-        if let Some(v) = obj.get("rateUsdPerHour") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rateUsdPerHour"))), } }
-        match obj.get("branch") { None => out.push(crate::types::check::missing::<Self>("branch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } } }
-        if let Some(v) = obj.get("result") { match crate::types::check::read_present::<SubResult>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("result"))), } }
-        if let Some(v) = obj.get("held") { match crate::types::check::read_present::<SubHeld>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("held"))), } }
-        if let Some(v) = obj.get("deleteAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("deleteAt"))), } }
-        if let Some(v) = obj.get("releasedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("releasedAt"))), } }
-        if let Some(v) = obj.get("cloudGone") { match crate::types::check::read_present::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cloudGone"))), } }
-        if let Some(v) = obj.get("sessionNotKept") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sessionNotKept"))), } }
-        if let Some(v) = obj.get("spawn") { match crate::types::check::read_present::<SubSpawn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("spawn"))), } }
+        crate::types::keys::req_key::<SubState>(obj, "state", &mut out);
+        crate::types::keys::req_key::<String>(obj, "on", &mut out);
+        crate::types::keys::req_key::<String>(obj, "machine", &mut out);
+        crate::types::keys::req_key::<SubRowSize>(obj, "size", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "rateUsdPerHour", &mut out);
+        crate::types::keys::req_key::<String>(obj, "branch", &mut out);
+        crate::types::keys::opt_key::<SubResult>(obj, "result", &mut out);
+        crate::types::keys::opt_key::<SubHeld>(obj, "held", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "deleteAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "releasedAt", &mut out);
+        crate::types::keys::opt_key::<True>(obj, "cloudGone", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "sessionNotKept", &mut out);
+        crate::types::keys::opt_key::<SubSpawn>(obj, "spawn", &mut out);
         Some(out)
     }
 
@@ -599,5 +599,5 @@ pub fn sub_all_pushed(r: &SubResult) -> bool {
 //   sub?.releasedAt !== undefined && (startedAt === undefined || startedAt < sub.releasedAt);
 /// `released_at` is the sub-thread's, where there is one; `started_at` the turn's start.
 pub fn sub_turn_gone(released_at: Option<f64>, started_at: Option<f64>) -> bool {
-    released_at.is_some_and(|released| started_at.map_or(true, |started| started < released))
+    released_at.is_some_and(|released| started_at.is_none_or(|started| started < released))
 }

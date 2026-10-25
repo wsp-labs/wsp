@@ -105,18 +105,18 @@ impl Check for OutsideConversation {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("agent") { None => out.push(crate::types::check::missing::<Self>("agent")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agent"))), } } }
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("title") { None => out.push(crate::types::check::missing::<Self>("title")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("title"))), } } }
-        if let Some(v) = obj.get("firstPrompt") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("firstPrompt"))), } }
-        if let Some(v) = obj.get("branch") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } }
-        match obj.get("cwd") { None => out.push(crate::types::check::missing::<Self>("cwd")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cwd"))), } } }
-        match obj.get("lastAt") { None => out.push(crate::types::check::missing::<Self>("lastAt")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("lastAt"))), } } }
-        if let Some(v) = obj.get("bytes") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("bytes"))), } }
-        match obj.get("origin") { None => out.push(crate::types::check::missing::<Self>("origin")), Some(v) => { match crate::types::check::read::<ConversationOrigin>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("origin"))), } } }
-        match obj.get("live") { None => out.push(crate::types::check::missing::<Self>("live")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("live"))), } } }
-        if let Some(v) = obj.get("thread") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("thread"))), } }
-        if let Some(v) = obj.get("letsGo") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("letsGo"))), } }
+        crate::types::keys::req_key::<String>(obj, "agent", &mut out);
+        crate::types::keys::req_key::<String>(obj, "id", &mut out);
+        crate::types::keys::req_key::<String>(obj, "title", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "firstPrompt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "branch", &mut out);
+        crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "lastAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "bytes", &mut out);
+        crate::types::keys::req_key::<ConversationOrigin>(obj, "origin", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "live", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "thread", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "letsGo", &mut out);
         Some(out)
     }
 
@@ -163,10 +163,10 @@ impl Check for ConversationsHeld {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("agent") { None => out.push(crate::types::check::missing::<Self>("agent")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agent"))), } } }
-        match obj.get("said") { None => out.push(crate::types::check::missing::<Self>("said")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("said"))), } } }
-        match obj.get("fix") { None => out.push(crate::types::check::missing::<Self>("fix")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("fix"))), } } }
-        if let Some(v) = obj.get("why") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("why"))), } }
+        crate::types::keys::req_key::<String>(obj, "agent", &mut out);
+        crate::types::keys::req_key::<String>(obj, "said", &mut out);
+        crate::types::keys::req_key::<String>(obj, "fix", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "why", &mut out);
         Some(out)
     }
 
@@ -205,8 +205,8 @@ impl Check for ConversationsAnswer {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("rows") { None => out.push(crate::types::check::missing::<Self>("rows")), Some(v) => { match crate::types::check::read::<Vec<OutsideConversation>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rows"))), } } }
-        match obj.get("held") { None => out.push(crate::types::check::missing::<Self>("held")), Some(v) => { match crate::types::check::read::<Vec<ConversationsHeld>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("held"))), } } }
+        crate::types::keys::req_key::<Vec<OutsideConversation>>(obj, "rows", &mut out);
+        crate::types::keys::req_key::<Vec<ConversationsHeld>>(obj, "held", &mut out);
         Some(out)
     }
 
@@ -244,8 +244,8 @@ impl Check for ResumeAsk {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_id(&x) { out.push(e.under("id")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        if let Some(v) = obj.get("copy") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("copy"))), } }
+        crate::types::keys::req_key_with::<String>(obj, "id", &mut out, Self::rule_id);
+        crate::types::keys::opt_key::<bool>(obj, "copy", &mut out);
         Some(out)
     }
 
@@ -306,9 +306,9 @@ impl Check for ConversationReadRowsItem {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("who") { None => out.push(crate::types::check::missing::<Self>("who")), Some(v) => { match crate::types::check::read::<ConversationReadRowsItemWho>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("who"))), } } }
-        match obj.get("text") { None => out.push(crate::types::check::missing::<Self>("text")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("text"))), } } }
-        if let Some(v) = obj.get("at") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } }
+        crate::types::keys::req_key::<ConversationReadRowsItemWho>(obj, "who", &mut out);
+        crate::types::keys::req_key::<String>(obj, "text", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "at", &mut out);
         Some(out)
     }
 
@@ -347,9 +347,9 @@ impl Check for ConversationRead {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("cwd") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cwd"))), } }
-        match obj.get("title") { None => out.push(crate::types::check::missing::<Self>("title")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("title"))), } } }
-        match obj.get("rows") { None => out.push(crate::types::check::missing::<Self>("rows")), Some(v) => { match crate::types::check::read::<Vec<ConversationReadRowsItem>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rows"))), } } }
+        crate::types::keys::opt_key::<String>(obj, "cwd", &mut out);
+        crate::types::keys::req_key::<String>(obj, "title", &mut out);
+        crate::types::keys::req_key::<Vec<ConversationReadRowsItem>>(obj, "rows", &mut out);
         Some(out)
     }
 

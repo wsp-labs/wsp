@@ -23,7 +23,7 @@ impl JsNumber {
         }
         let sci = format!("{:e}", n.abs());
         let (mantissa, exp) = sci.split_once('e').expect("{:e} writes an exponent");
-        let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
+        let digits = even_on_a_tie(n.abs(), mantissa.chars().filter(|c| *c != '.').collect(), exp);
         let k = digits.len() as i32;
         let point = exp.parse::<i32>().expect("an exponent") + 1;
         let body = if k <= point && point <= 21 {
@@ -48,6 +48,41 @@ impl JsNumber {
     }
 }
 
+/// Where two digit strings of the shortest length sit exactly as far from the double, JavaScript takes the one whose last
+/// digit is even and Rust's `{:e}` the upper one.
+fn even_on_a_tie(n: f64, shortest: String, exp: &str) -> String {
+    let k = shortest.len();
+    let exact = format!("{:.*e}", k + 40, n);
+    let exact_digits: String = exact.split_once('e').map_or("", |(m, _)| m).chars().filter(|c| *c != '.').collect();
+    let is_tie = exact_digits.as_bytes().get(k) == Some(&b'5') && exact_digits[k + 1..].bytes().all(|b| b == b'0');
+    let last_even = |d: &str| d.bytes().last().is_some_and(|b| (b - b'0').is_multiple_of(2));
+    if !is_tie {
+        return shortest;
+    }
+    let lower = exact_digits[..k].to_string();
+    let candidate = if last_even(&lower) {
+        lower
+    } else {
+        let mut up: Vec<u8> = lower.into_bytes();
+        let mut i = up.len();
+        while i > 0 && up[i - 1] == b'9' {
+            up[i - 1] = b'0';
+            i -= 1;
+        }
+        if i == 0 {
+            return shortest;
+        }
+        up[i - 1] += 1;
+        String::from_utf8(up).unwrap_or(shortest.clone())
+    };
+    let back = format!("{}e{}", candidate, exp.parse::<i32>().unwrap_or(0) - (k as i32 - 1));
+    if back.parse::<f64>().is_ok_and(|v| v == n) {
+        candidate
+    } else {
+        shortest
+    }
+}
+
 impl From<f64> for JsNumber {
     fn from(n: f64) -> Self {
         JsNumber(n)
@@ -61,17 +96,18 @@ impl From<i64> for JsNumber {
 }
 
 impl Serialize for JsNumber {
+    /// A whole number below 2^53 is an integer; any other is the text `String(n)` gives, held as a raw value so that
+    /// serde_json writes it as it is and `to_value` reads it back as the number it names.
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        if !self.0.is_finite() {
+            return s.serialize_unit();
+        }
         if self.0.fract() == 0.0 && self.0.abs() < 9007199254740992.0 {
-            s.serialize_i64(self.0 as i64)
-        } else if self.0.fract() == 0.0 && self.0.abs() < 3.0e38 {
-            if self.0 < 0.0 {
-                s.serialize_i128(self.0 as i128)
-            } else {
-                s.serialize_u128(self.0 as u128)
-            }
-        } else {
-            s.serialize_f64(self.0)
+            return s.serialize_i64(self.0 as i64);
+        }
+        match serde_json::value::RawValue::from_string(self.js_string()) {
+            Ok(text) => text.serialize(s),
+            Err(_) => s.serialize_f64(self.0),
         }
     }
 }
@@ -126,6 +162,11 @@ impl From<i64> for JsInt {
 impl Check for JsInt {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         crate::types::check::leaf(path, crate::types::check::Zod::Int)
+    }
+
+    fn dirty(value: &Value) -> Option<Self> {
+        let n = value.as_f64().filter(|n| n.is_finite() && n.fract() != 0.0)?;
+        Some(JsInt(JsNumber(n)))
     }
 }
 

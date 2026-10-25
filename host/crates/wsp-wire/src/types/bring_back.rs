@@ -30,12 +30,12 @@ impl Check for GitPushReply {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("branch") { None => out.push(crate::types::check::missing::<Self>("branch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } } }
-        match obj.get("base") { None => out.push(crate::types::check::missing::<Self>("base")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("base"))), } } }
-        match obj.get("remote") { None => out.push(crate::types::check::missing::<Self>("remote")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("remote"))), } } }
-        match obj.get("ahead") { None => out.push(crate::types::check::missing::<Self>("ahead")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ahead"))), } } }
-        match obj.get("uncommitted") { None => out.push(crate::types::check::missing::<Self>("uncommitted")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("uncommitted"))), } } }
-        match obj.get("stat") { None => out.push(crate::types::check::missing::<Self>("stat")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("stat"))), } } }
+        crate::types::keys::req_key::<String>(obj, "branch", &mut out);
+        crate::types::keys::req_key::<String>(obj, "base", &mut out);
+        crate::types::keys::req_key::<String>(obj, "remote", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "ahead", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "uncommitted", &mut out);
+        crate::types::keys::req_key::<Vec<String>>(obj, "stat", &mut out);
         Some(out)
     }
 
@@ -75,8 +75,8 @@ impl Check for GitPrReply {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("pr") { None => out.push(crate::types::check::missing::<Self>("pr")), Some(v) => { match crate::types::check::read::<PullRequest>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pr"))), } } }
-        match obj.get("created") { None => out.push(crate::types::check::missing::<Self>("created")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("created"))), } } }
+        crate::types::keys::req_key::<PullRequest>(obj, "pr", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "created", &mut out);
         Some(out)
     }
 
@@ -121,14 +121,14 @@ impl Check for BringBackResult {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("branch") { None => out.push(crate::types::check::missing::<Self>("branch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } } }
-        match obj.get("base") { None => out.push(crate::types::check::missing::<Self>("base")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("base"))), } } }
-        match obj.get("ahead") { None => out.push(crate::types::check::missing::<Self>("ahead")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ahead"))), } } }
-        match obj.get("uncommitted") { None => out.push(crate::types::check::missing::<Self>("uncommitted")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("uncommitted"))), } } }
-        match obj.get("stat") { None => out.push(crate::types::check::missing::<Self>("stat")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("stat"))), } } }
-        if let Some(v) = obj.get("pr") { match crate::types::check::read_present::<PullRequest>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pr"))), } }
-        if let Some(v) = obj.get("note") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("note"))), } }
-        if let Some(v) = obj.get("refused") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("refused"))), } }
+        crate::types::keys::req_key::<String>(obj, "branch", &mut out);
+        crate::types::keys::req_key::<String>(obj, "base", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "ahead", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "uncommitted", &mut out);
+        crate::types::keys::req_key::<Vec<String>>(obj, "stat", &mut out);
+        crate::types::keys::opt_key::<PullRequest>(obj, "pr", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "note", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "refused", &mut out);
         Some(out)
     }
 

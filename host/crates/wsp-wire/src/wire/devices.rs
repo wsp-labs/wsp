@@ -119,13 +119,28 @@ pub struct AccountDevice {
 pub struct AccountDevices {
     pub devices: Vec<AccountDevice>,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DaemonFrame {
     pub op: String,
     /// zod passthrough: unknown keys kept, in the order read.
-    #[serde(flatten, serialize_with = "crate::types::check::js_record")]
+    #[serde(flatten, deserialize_with = "crate::types::kept::record")]
     pub rest: IndexMap<String, Value>,
+}
+
+/// A passthrough object as JavaScript writes it: the known key, then the rest, with every integer-like key first, and
+/// no `__proto__` key, which zod's parse never keeps.
+fn write_passthrough<S: serde::Serializer>(known: (&str, &str), rest: &IndexMap<String, Value>, s: S) -> Result<S::Ok, S::Error> {
+    let mut all = IndexMap::with_capacity(rest.len() + 1);
+    all.insert(known.0.to_string(), Value::from(known.1));
+    all.extend(rest.iter().filter(|(k, _)| *k != "__proto__").map(|(k, v)| (k.clone(), v.clone())));
+    crate::types::kept::serialize_object(&all.into_iter().collect::<Vec<_>>(), s)
+}
+
+impl Serialize for DaemonFrame {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        write_passthrough(("op", &self.op), &self.rest, s)
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -137,13 +152,19 @@ pub struct DaemonOpenReply {
 pub struct DaemonSendReply {
     pub reply: DaemonResponse,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DaemonEventEvent {
     pub r#type: String,
     /// zod passthrough: unknown keys kept, in the order read.
-    #[serde(flatten, serialize_with = "crate::types::check::js_record")]
+    #[serde(flatten, deserialize_with = "crate::types::kept::record")]
     pub rest: IndexMap<String, Value>,
+}
+
+impl Serialize for DaemonEventEvent {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        write_passthrough(("type", &self.r#type), &self.rest, s)
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -163,7 +184,12 @@ impl Check for DeviceVia {
             detail.insert("received".to_string(), serde_json::Value::from(self.kind.as_str()));
             detail.insert("expected".to_string(), serde_json::Value::from("account"));
             let message = "Invalid literal value, expected \"account\"".to_string();
-            return Err(SchemaError { code: "invalid_literal".into(), path: vec![serde_json::Value::from("kind")], message, detail });
+            return Err(SchemaError {
+                code: "invalid_literal".into(),
+                path: vec![serde_json::Value::from("kind")],
+                message,
+                detail: Box::new(detail),
+            });
         }
         Ok(())
     }
@@ -173,11 +199,11 @@ impl Check for DeviceVia {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("kind") { None => out.push(crate::types::check::missing::<Self>("kind")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_kind(&x) { out.push(e.under("kind")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("kind"))), } } }
-        match obj.get("relayDeviceId") { None => out.push(crate::types::check::missing::<Self>("relayDeviceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("relayDeviceId"))), } } }
-        match obj.get("fingerprint") { None => out.push(crate::types::check::missing::<Self>("fingerprint")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("fingerprint"))), } } }
-        match obj.get("publicKey") { None => out.push(crate::types::check::missing::<Self>("publicKey")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("publicKey"))), } } }
-        match obj.get("admittedBy") { None => out.push(crate::types::check::missing::<Self>("admittedBy")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("admittedBy"))), } } }
+        crate::types::keys::lit_key(obj, "kind", &mut out, "account");
+        crate::types::keys::req_key::<String>(obj, "relayDeviceId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "fingerprint", &mut out);
+        crate::types::keys::req_key::<String>(obj, "publicKey", &mut out);
+        crate::types::keys::req_key::<String>(obj, "admittedBy", &mut out);
         Some(out)
     }
 
@@ -195,18 +221,7 @@ impl Check for DeviceVia {
         }
     }
 }
-impl DeviceVia {
-    fn rule_kind(x: &String) -> Result<(), crate::types::check::SchemaError> {
-        if (*x) != "account" {
-            let mut detail = indexmap::IndexMap::new();
-            detail.insert("received".to_string(), serde_json::Value::from((*x).as_str()));
-            detail.insert("expected".to_string(), serde_json::Value::from("account"));
-            let message = "Invalid literal value, expected \"account\"".to_string();
-            return Err(SchemaError { code: "invalid_literal".into(), path: Vec::new(), message, detail });
-        }
-        Ok(())
-    }
-}
+impl DeviceVia {}
 
 /// No refinement of its own; checks every nested field that has one.
 impl Check for DeviceView {
@@ -221,13 +236,13 @@ impl Check for DeviceView {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
-        match obj.get("createdAt") { None => out.push(crate::types::check::missing::<Self>("createdAt")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("createdAt"))), } } }
-        match obj.get("lastSeenAt") { None => out.push(crate::types::check::missing::<Self>("lastSeenAt")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("lastSeenAt"))), } } }
-        if let Some(v) = obj.get("scope") { match crate::types::check::read_present::<ThreadScope>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("scope"))), } }
-        if let Some(v) = obj.get("here") { match crate::types::check::read_present::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("here"))), } }
-        if let Some(v) = obj.get("via") { match crate::types::check::read_present::<DeviceVia>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("via"))), } }
+        crate::types::keys::req_key::<String>(obj, "id", &mut out);
+        crate::types::keys::req_key::<String>(obj, "name", &mut out);
+        crate::types::keys::req_key::<String>(obj, "createdAt", &mut out);
+        crate::types::keys::req_key::<String>(obj, "lastSeenAt", &mut out);
+        crate::types::keys::opt_key::<ThreadScope>(obj, "scope", &mut out);
+        crate::types::keys::opt_key::<True>(obj, "here", &mut out);
+        crate::types::keys::opt_key::<DeviceVia>(obj, "via", &mut out);
         Some(out)
     }
 
@@ -255,8 +270,8 @@ impl Check for AccountView {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("signedIn") { None => out.push(crate::types::check::missing::<Self>("signedIn")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signedIn"))), } } }
-        if let Some(v) = obj.get("login") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("login"))), } }
+        crate::types::keys::req_key::<bool>(obj, "signedIn", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "login", &mut out);
         Some(out)
     }
 
@@ -279,10 +294,10 @@ impl Check for Admission {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("device") { None => out.push(crate::types::check::missing::<Self>("device")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("device"))), } } }
-        match obj.get("by") { None => out.push(crate::types::check::missing::<Self>("by")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("by"))), } } }
-        match obj.get("issuedAt") { None => out.push(crate::types::check::missing::<Self>("issuedAt")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("issuedAt"))), } } }
-        match obj.get("signature") { None => out.push(crate::types::check::missing::<Self>("signature")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signature"))), } } }
+        crate::types::keys::req_key::<String>(obj, "device", &mut out);
+        crate::types::keys::req_key::<String>(obj, "by", &mut out);
+        crate::types::keys::req_key::<String>(obj, "issuedAt", &mut out);
+        crate::types::keys::req_key::<String>(obj, "signature", &mut out);
         Some(out)
     }
 
@@ -312,10 +327,10 @@ impl Check for AccountDevice {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
-        match obj.get("fingerprint") { None => out.push(crate::types::check::missing::<Self>("fingerprint")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("fingerprint"))), } } }
-        match obj.get("admissions") { None => out.push(crate::types::check::missing::<Self>("admissions")), Some(v) => { match crate::types::check::read::<Vec<AccountDeviceAdmission>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("admissions"))), } } }
+        crate::types::keys::req_key::<String>(obj, "id", &mut out);
+        crate::types::keys::req_key::<String>(obj, "name", &mut out);
+        crate::types::keys::req_key::<String>(obj, "fingerprint", &mut out);
+        crate::types::keys::req_key::<Vec<AccountDeviceAdmission>>(obj, "admissions", &mut out);
         Some(out)
     }
 
@@ -340,9 +355,9 @@ impl Check for AccountDeviceAdmission {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("by") { None => out.push(crate::types::check::missing::<Self>("by")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("by"))), } } }
-        match obj.get("issuedAt") { None => out.push(crate::types::check::missing::<Self>("issuedAt")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("issuedAt"))), } } }
-        match obj.get("signature") { None => out.push(crate::types::check::missing::<Self>("signature")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signature"))), } } }
+        crate::types::keys::req_key::<String>(obj, "by", &mut out);
+        crate::types::keys::req_key::<String>(obj, "issuedAt", &mut out);
+        crate::types::keys::req_key::<String>(obj, "signature", &mut out);
         Some(out)
     }
 
@@ -371,7 +386,7 @@ impl Check for AccountDevices {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("devices") { None => out.push(crate::types::check::missing::<Self>("devices")), Some(v) => { match crate::types::check::read::<Vec<AccountDevice>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("devices"))), } } }
+        crate::types::keys::req_key::<Vec<AccountDevice>>(obj, "devices", &mut out);
         Some(out)
     }
 
@@ -398,7 +413,7 @@ impl Check for DaemonFrame {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("op") { None => out.push(crate::types::check::missing::<Self>("op")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_op(&x) { out.push(e.under("op")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("op"))), } } }
+        crate::types::keys::req_key_with::<String>(obj, "op", &mut out, Self::rule_op);
         Some(out)
     }
 
@@ -426,7 +441,7 @@ impl Check for DaemonOpenReply {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("channel") { None => out.push(crate::types::check::missing::<Self>("channel")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("channel"))), } } }
+        crate::types::keys::req_key::<String>(obj, "channel", &mut out);
         Some(out)
     }
 
@@ -453,7 +468,7 @@ impl Check for DaemonSendReply {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("reply") { None => out.push(crate::types::check::missing::<Self>("reply")), Some(v) => { match crate::types::check::read::<DaemonResponse>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("reply"))), } } }
+        crate::types::keys::req_key::<DaemonResponse>(obj, "reply", &mut out);
         Some(out)
     }
 
@@ -485,12 +500,14 @@ impl Check for DaemonChannelEvent {
         let serde_json::Value::Object(obj) = value else {
             return Some(vec![crate::types::check::not_object(value)]);
         };
-        let Some(tag) = obj.get("type") else { return Some(vec![crate::types::check::missing::<Self>("type")]); };
+        let Some(tag) = obj.get("type") else {
+            return Some(vec![crate::types::check::missing::<Self>("type")]);
+        };
         match tag.as_str() {
             Some("daemon.event") => {
                 let mut out = Vec::new();
-                match obj.get("channel") { None => out.push(crate::types::check::required::<String>("channel")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("channel"))), } } }
-                match obj.get("event") { None => out.push(crate::types::check::required::<DaemonEventEvent>("event")), Some(v) => { match crate::types::check::read::<DaemonEventEvent>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("event"))), } } }
+                crate::types::keys::req_key::<String>(obj, "channel", &mut out);
+                crate::types::keys::req_key::<DaemonEventEvent>(obj, "event", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -498,9 +515,9 @@ impl Check for DaemonChannelEvent {
             }
             Some("daemon.closed") => {
                 let mut out = Vec::new();
-                match obj.get("channel") { None => out.push(crate::types::check::required::<String>("channel")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("channel"))), } } }
-                match obj.get("code") { None => out.push(crate::types::check::required::<JsInt>("code")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("code"))), } } }
-                match obj.get("reason") { None => out.push(crate::types::check::required::<String>("reason")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("reason"))), } } }
+                crate::types::keys::req_key::<String>(obj, "channel", &mut out);
+                crate::types::keys::req_key::<JsInt>(obj, "code", &mut out);
+                crate::types::keys::req_key::<String>(obj, "reason", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -509,7 +526,6 @@ impl Check for DaemonChannelEvent {
             _ => Some(vec![crate::types::check::unknown_tag::<Self>("type", tag)]),
         }
     }
-
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -519,7 +535,7 @@ impl Check for DaemonEventEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("type") { None => out.push(crate::types::check::missing::<Self>("type")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("type"))), } } }
+        crate::types::keys::req_key::<String>(obj, "type", &mut out);
         Some(out)
     }
 

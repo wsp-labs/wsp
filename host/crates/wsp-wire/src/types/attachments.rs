@@ -50,9 +50,9 @@ impl Check for Attachment {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("mediaType") { None => out.push(crate::types::check::missing::<Self>("mediaType")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("mediaType"))), } } }
-        match obj.get("bytes") { None => out.push(crate::types::check::missing::<Self>("bytes")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("bytes"))), } } }
-        if let Some(v) = obj.get("name") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } }
+        crate::types::keys::req_key::<String>(obj, "mediaType", &mut out);
+        crate::types::keys::req_key::<String>(obj, "bytes", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "name", &mut out);
         Some(out)
     }
 
@@ -82,7 +82,7 @@ pub struct AttachmentRecord {
 impl Check for AttachmentRecord {
     /// Rules: bytes: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.bytes.0.0, 0.0).map_err(|e| e.under("bytes"))?;
+        crate::types::check::num_at_least(self.bytes.0 .0, 0.0).map_err(|e| e.under("bytes"))?;
         Ok(())
     }
 
@@ -91,9 +91,9 @@ impl Check for AttachmentRecord {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("mediaType") { None => out.push(crate::types::check::missing::<Self>("mediaType")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("mediaType"))), } } }
-        match obj.get("bytes") { None => out.push(crate::types::check::missing::<Self>("bytes")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_bytes(&x) { out.push(e.under("bytes")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("bytes"))), } } }
-        if let Some(v) = obj.get("name") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } }
+        crate::types::keys::req_key::<String>(obj, "mediaType", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "bytes", &mut out, Self::rule_bytes);
+        crate::types::keys::opt_key::<String>(obj, "name", &mut out);
         Some(out)
     }
 
@@ -111,7 +111,7 @@ impl Check for AttachmentRecord {
 }
 impl AttachmentRecord {
     fn rule_bytes(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -134,8 +134,8 @@ impl Check for KeptAttachment {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("mediaType") { None => out.push(crate::types::check::missing::<Self>("mediaType")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("mediaType"))), } } }
-        match obj.get("bytes") { None => out.push(crate::types::check::missing::<Self>("bytes")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("bytes"))), } } }
+        crate::types::keys::req_key::<String>(obj, "mediaType", &mut out);
+        crate::types::keys::req_key::<String>(obj, "bytes", &mut out);
         Some(out)
     }
 
