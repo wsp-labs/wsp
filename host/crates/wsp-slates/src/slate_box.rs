@@ -21,7 +21,7 @@ pub use wsp_engine::place_machine::PlaceFolderMachine;
 use wsp_core::clock::{Cancel, Clock};
 use wsp_core::ids::Ids;
 
-use crate::slate_runs::{Reshape, ReshapeStart, RoadEvents, RoadHandle, RoadStart};
+use crate::slate_runs::{Reshape, ReshapeStart, RoadEvents, RoadStart, RoadStarted, RunRoad};
 
 /// How long a removal a box did not answer waits before it is tried again (slate-box.ts:16).
 pub const OWED_RETRY_MS: i64 = 60_000;
@@ -99,8 +99,7 @@ pub type SlateFilesNow = Rc<dyn Fn() -> IndexMap<String, String>>;
 /// Wakes the machine where it naps, before anything goes up.
 pub type Ready = Rc<dyn Fn() -> LocalBoxFuture<'static, ()>>;
 
-/// slate-box.ts:98 boxRoad: the thread's machine as the road its slate's commands run on. It is a `RunRoad` once the
-/// slates join implements slates-a's trait on it.
+/// slate-box.ts:98 boxRoad: the thread's machine as the road its slate's commands run on.
 pub struct BoxRoad {
     machine: Arc<dyn Machine>,
     thread_id: String,
@@ -117,19 +116,20 @@ pub fn box_road(machine: Arc<dyn Machine>, thread_id: &str, files: SlateFilesNow
     todo!()
 }
 
-impl BoxRoad {
+/// slate-box.ts:107-172; `start` needs a `LocalSet`.
+impl RunRoad for BoxRoad {
     /// SLATE_DIR there.
-    pub fn slate_dir(&self) -> &str {
+    fn slate_dir(&self) -> String {
         todo!()
     }
 
-    /// spec rule 12; needs a `LocalSet`.
-    pub fn start(self: &Rc<Self>, o: RoadStart, on: RoadEvents) -> RoadHandle {
+    /// spec rule 12.
+    fn start(&self, o: RoadStart, on: Rc<dyn RoadEvents>) -> RoadStarted {
         todo!()
     }
 
     /// spec rule 13.
-    pub fn reshape(self: &Rc<Self>, o: ReshapeStart) -> Reshape {
+    fn reshape(&self, o: ReshapeStart) -> Reshape {
         todo!()
     }
 }

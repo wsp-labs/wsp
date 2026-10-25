@@ -18,7 +18,7 @@ pub use wsp_wire::wire::daemon::{HttpBearer, EXEC_OUTPUT_MAX};
 
 use wsp_core::clock::Clock;
 
-use crate::pending::{SlateDoc, SlateProblem};
+use crate::pending::slate::{SlateDoc, SlateProblem};
 use crate::slate_files::WithFiles;
 
 /// The thread's computer where it is not this one, and this one's name (slate-mcp.ts:18).

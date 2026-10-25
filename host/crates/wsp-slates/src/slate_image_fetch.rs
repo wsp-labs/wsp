@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 use futures::future::LocalBoxFuture;
 
-use crate::pending::SlatesImageAnswer;
+use crate::pending::wire::SlatesImageAnswer;
 
 pub const REDIRECTS_MAX: u32 = 5;
 pub const FETCH_MS: u64 = 15_000;
