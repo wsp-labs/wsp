@@ -5,12 +5,12 @@
 use indexmap::IndexSet;
 use serde_json::Value;
 
+use wsp_frames::{ProcKind, ProcOwnedBy};
 use wsp_wire::views::activity::{
     end_gone_line, end_reused_line, not_started_line, not_threads_line, processes_left_fix, with_read_placement, wsp_own_line,
     ActivityProc, ActivityRead, ActivityScope, EndPlan, LeftThread, LeftVerb as WireLeftVerb, Placement, Whose, END_AGAIN_FIX,
     NOT_STARTED_FIX, NOT_THREADS_FIX, SAME_START_MS, WSP_OWN_FIX,
 };
-use wsp_frames::{ProcKind, ProcOwnedBy};
 
 use crate::exit::{refusal, HostError, Kind};
 use crate::js::number_string;
