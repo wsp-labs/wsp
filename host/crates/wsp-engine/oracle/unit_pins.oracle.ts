@@ -54,6 +54,21 @@ it("unit pins", async () => {
     ].map(c => ({ in: c, thrown: errors.isNetworkError(Object.assign(new Error(c.error ?? "x"), errors.classify(c.status, { ...(c.error !== undefined ? { error: c.error } : {}), ...(c.code !== undefined ? { code: c.code } : {}) }))), network: errors.isNetworkError(errors.classify(c.status, { ...(c.error !== undefined ? { error: c.error } : {}), ...(c.code !== undefined ? { code: c.code } : {}) })), neverSent: errors.neverSent(errors.classify(c.status, { ...(c.code !== undefined ? { code: c.code } : {}) })) })),
   };
 
+  Object.assign(errorsPins, {
+    names: {
+      MoveUnanswered: new errors.MoveUnansweredError("x").name,
+      ResumeUnanswered: new errors.ResumeUnansweredError("x").name,
+      NotFirstLife: new errors.NotFirstLifeError("m", "snapshot").name,
+      EnvNotLanded: new errors.EnvNotLandedError("m", 1, "d").name,
+      DiskGone: new errors.DiskGoneError("m", "l", "s").name,
+      CreateCancelled: new errors.CreateCancelledError("m", "w", "l").name,
+      StopRefused: new errors.StopRefusedError("m", "s").name,
+      NapRefused: new errors.NapRefusedError("m", "s").name,
+      Unreached: new errors.MachineUnreached(7, 1, new Error("c")).name,
+      NoProvider: new none.NoProviderError().name,
+      Provider: Object.assign(new Error("m"), errors.classify(500, { error: "m" })).name,
+    },
+  });
   const factsPins = {
     uptime: [
       { uptime: "-0.0025" }, { uptime: "-0.0005" }, { uptime: "0.0005" }, { uptime: "1e3" }, { uptime: "0x10" }, { uptime: "Infinity" }, { uptime: " 12.3456 " },

@@ -80,3 +80,7 @@ Values from `oracle/unit_pins.oracle.ts` (`tests/fixtures/scenes/units.json`, se
 - E-2 A `Provider` refusal with the words `fetch failed`, or the code `ECONNRESET` or `ECONNREFUSED`, is a network
   error; `bad gateway` is not; `ECONNREFUSED` is also never sent and `ECONNRESET` is not
   (`a_thrown_refusal_with_network_words_or_codes_reads_as_the_network`).
+- E-3 `name()`: the class's own name where it sets one (NotFirstLifeError, EnvNotLandedError, DiskGoneError,
+  CreateCancelledError, StopRefusedError, NapRefusedError, NoProviderError, besides the five the table above pins),
+  and `Error` where it does not: MoveUnanswered, ResumeUnanswered, Unreached and a thrown `Provider` refusal
+  (`every_variant_names_itself_as_its_ts_class_does`).
