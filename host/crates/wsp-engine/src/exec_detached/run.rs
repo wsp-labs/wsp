@@ -67,31 +67,6 @@ pub struct Poll {
     pub up: bool,
 }
 
-/// `Buffer.from(s, "base64")`: the sextets of every letter in the alphabet, url-safe letters too; any other character
-/// is skipped; decoding stops at the first `=`.
-fn node_base64(s: &str) -> Vec<u8> {
-    let mut out = Vec::new();
-    let (mut bits, mut nbits) = (0u32, 0u32);
-    for c in s.chars().take_while(|&c| c != '=') {
-        let v = match c {
-            'A'..='Z' => c as u32 - 'A' as u32,
-            'a'..='z' => c as u32 - 'a' as u32 + 26,
-            '0'..='9' => c as u32 - '0' as u32 + 52,
-            '+' | '-' => 62,
-            '/' | '_' => 63,
-            _ => continue,
-        };
-        bits = (bits << 6) | v;
-        nbits += 6;
-        if nbits >= 8 {
-            nbits -= 8;
-            out.push((bits >> nbits) as u8);
-            bits &= (1 << nbits) - 1;
-        }
-    }
-    out
-}
-
 /// exec-detached.ts:277. The first whole `WSP_POLL` .. `WSP_POLL_END` block, or `None`.
 pub fn parse_poll(stdout: &str) -> Option<Poll> {
     let lines: Vec<&str> = stdout.split('\n').collect();
@@ -101,8 +76,8 @@ pub fn parse_poll(stdout: &str) -> Option<Poll> {
     }
     Some(Poll {
         exit: js_trim(lines[at + 1]).to_string(),
-        out: node_base64(lines[at + 2]),
-        err: node_base64(lines[at + 3]),
+        out: crate::node_base64::node_base64_decode(lines[at + 2]),
+        err: crate::node_base64::node_base64_decode(lines[at + 3]),
         up: lines[at + 4] == "up",
     })
 }

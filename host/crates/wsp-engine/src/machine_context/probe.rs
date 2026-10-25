@@ -51,14 +51,20 @@ pub fn facts_path(roots: &GuestRoots) -> String {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MissingItem {
     pub id: String,
+    /// The TS holds whatever object the guest's file carried, so an item can lack a label or a note: absent reads as
+    /// empty, and an empty one is left out when written (a recorded item never has an empty one).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub label: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub note: String,
 }
 
 /// A file left on the person's computer; serialized `path`, `note`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileNote {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub path: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub note: String,
 }
 
@@ -129,7 +135,8 @@ pub fn merge_facts(prior: Option<&BuildFacts>, result: Option<&ImportResult>) ->
     facts
 }
 
-/// The items a facts list holds, whole ones only: a partial item is dropped (spec/context_probe.md, open point 1).
+/// The items a facts list holds as the TS holds them: an element that is an object is kept with the fields it has, as
+/// `machine-context.ts:93` does not check its elements (spec/context_probe.md, open point 1).
 fn items<T: serde::de::DeserializeOwned>(v: &Value, key: &str) -> Vec<T> {
     v.get(key)
         .and_then(Value::as_array)
@@ -139,7 +146,7 @@ fn items<T: serde::de::DeserializeOwned>(v: &Value, key: &str) -> Vec<T> {
 
 /// machine-context.ts:93. Base64 of UTF-8 JSON; `None` where it does not decode or parse.
 pub fn parse_facts(b64: &str) -> Option<BuildFacts> {
-    let text = String::from_utf8_lossy(&crate::vault::node_base64(b64)).into_owned();
+    let text = String::from_utf8_lossy(&crate::node_base64::node_base64_decode(b64)).into_owned();
     let v: Value = serde_json::from_str(&text).ok()?;
     if v.is_null() {
         return None;

@@ -157,37 +157,12 @@ pub const PREVIEW_TTL_MS: i64 = 60 * 60_000;
 /// as a number. `now + PREVIEW_TTL_MS` where neither carries one.
 pub fn preview_token_expiry(token: &str, now: i64) -> i64 {
     for cut in [token.rfind('.'), Some(token.len())].into_iter().flatten().filter(|&c| c > 0) {
-        let decoded = String::from_utf8_lossy(&decode_base64url_lenient(&token[..cut])).into_owned();
+        let decoded = String::from_utf8_lossy(&crate::node_base64::node_base64_decode(&token[..cut])).into_owned();
         if let Some(exp) = first_exp(&decoded) {
             return exp;
         }
     }
     now + PREVIEW_TTL_MS
-}
-
-/// Node's `Buffer.from(text, "base64url")`: both alphabets read, junk skipped, decoding stops at `=`, a lone last sextet
-/// is dropped.
-fn decode_base64url_lenient(text: &str) -> Vec<u8> {
-    let (mut out, mut acc, mut bits) = (Vec::new(), 0u32, 0u32);
-    for c in text.bytes() {
-        let sextet = match c {
-            b'=' => break,
-            b'A'..=b'Z' => c - b'A',
-            b'a'..=b'z' => c - b'a' + 26,
-            b'0'..=b'9' => c - b'0' + 52,
-            b'+' | b'-' => 62,
-            b'/' | b'_' => 63,
-            _ => continue,
-        };
-        acc = (acc << 6) | u32::from(sextet);
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.push((acc >> bits) as u8);
-            acc &= (1 << bits) - 1;
-        }
-    }
-    out
 }
 
 /// `/"exp":(\d+)/` on the text, read as a JS number then into i64 (saturating).

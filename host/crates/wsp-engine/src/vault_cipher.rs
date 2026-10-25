@@ -14,7 +14,7 @@ use wsp_wire::views::golden_image::{SealedImage, SealedVaultHeader, SealedVaultH
 use x25519_dalek::{PublicKey, StaticSecret};
 
 use crate::errors::{EngineError, Result};
-use crate::key_fingerprint::node_base64_decode;
+use crate::node_base64::node_base64_decode;
 
 /// vault-cipher.ts:10.
 #[derive(Debug, Clone, PartialEq)]
