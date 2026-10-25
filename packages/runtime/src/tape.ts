@@ -19,8 +19,9 @@ const FREE_TEXT_MIN = 4;
 /** The shortest value of a secret-named variable in this process's environment blanked wherever it appears: a
  * shorter one is a switch or a port, and blanking it would rewrite the same text in every frame. */
 const ENV_SECRET_MIN = 8;
-/** Fields whose value is a secret wherever in a frame they sit, by their name with case, `_` and `-` dropped: a paired
- * device's bearer nests in place.prove's answer as `device.deviceToken`. A bare `key` nested is a row's id ("claude"). */
+/** Fields whose value is a secret wherever in a frame they sit, by their name with case, `_` and `-` dropped, or by its
+ * end where that is six letters or more (AWS's `awsSecretAccessKey`): a paired device's bearer nests in place.prove's
+ * answer as `device.deviceToken`. A bare `key` nested is a row's id ("claude"). */
 const DEEP_SECRET_FIELDS = new Set([
   "token", "turntoken", "ticket", "devicetoken", "accesstoken", "refreshtoken", "idtoken", "passphrase", "password", "passwd", "sudopassword",
   "secret", "clientsecret", "apikey", "privatekey", "secretkey", "accesskey", "authorization", "cookie",
@@ -29,20 +30,23 @@ const DEEP_SECRET_FIELDS = new Set([
 const SECRET_RECORDS = new Set(["env", "envs", "headers"]);
 /** What a terminal is typed, which no shape can read a password at a sudo prompt out of. */
 const TYPED_MARK = "<withheld: typed>";
-/** A variable's name that reads as a secret's, here and in NAME=value text. */
-const SECRET_NAME = "[A-Z][A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|API_KEY|_KEY)";
+/** A variable's name that reads as a secret's, here and in NAME=value text: one that holds PASS, PWD, SECRET, TOKEN or
+ * KEY, less the shell's own PWD and OLDPWD, which hold a folder. */
+const SECRET_NAME = "(?=[A-Z])(?!(?:OLD)?PWD(?![A-Z0-9_]))[A-Z0-9_]*(?:PASS|PWD|SECRET|TOKEN|KEY)[A-Z0-9_]*";
 /** A command line's flags whose next word is a secret, as `wsp join <url> --code <code>` takes one. */
 const SECRET_FLAG = /^--(?:code|token|key|password|passphrase|secret)$/;
 /** Text that carries a secret whatever field holds it: a flag's value in a command written out, a pairing or join code
  * with the fingerprint after it (standing alone, so never two groups of a uuid, and with a letter or the fingerprint,
- * so never a range of years), a secret in a URL's query or fragment, NAME=value for a secret's name and a Bearer
- * header. The second group, where there is one, is the secret. */
+ * so never a range of years), a secret in a URL's query or fragment, NAME=value for a secret's name, a Bearer header
+ * and a header named for a key, a token or a secret (`X-Api-Key: ...`). The second group, where there is one, is the
+ * secret. */
 const SECRET_SHAPES: readonly RegExp[] = [
   /(--(?:code|token|key|password|passphrase|secret)(?:=|\s+))([^\s"'\\]+)/g,
   /()(?<![0-9A-Za-z-])(?![0-9]{4}-[0-9]{4}(?!\.SHA256:))[0-9A-Z]{4}-[0-9A-Z]{4}(?:\.SHA256:[A-Za-z0-9+/=]+)?(?![0-9A-Za-z-])/g,
-  /([?&#](?:[a-z_-]*(?:token|key|secret|password|passwd|signature|credential|auth)|sig|code|ticket)=)([^&#\s"'\\]+)/gi,
+  /([?&#](?:[a-z_-]*(?:token|key|secret|password|passwd|pass|pwd|signature|credential|auth)|sig|code|ticket)=)([^&#\s"'\\]+)/gi,
   new RegExp(String.raw`\b(${SECRET_NAME}=)([^\s"'\\]+)`, "g"),
   /(\bBearer\s+)([^\s"'\\]+)/g,
+  /(\b[A-Za-z-]*(?:Api-?Key|Token|Secret):\s*)([^\s"'\\<][^\s"'\\]*)/gi,
 ];
 /** An address's login: a password after its user name, or the whole of it where it is shaped like a key; `git@` and
  * `dev@` are who signs in, never how. */
@@ -148,12 +152,17 @@ function blanked(frame: unknown, mark: (v: string) => string, depth: number): un
   for (const [k, v] of Object.entries(frame)) {
     const field = depth === 0 && SECRET_REQUEST_FIELDS.includes(k);
     if (typed && k === "data") out[k] = TYPED_MARK;
-    else if (typeof v === "string" && (field || DEEP_SECRET_FIELDS.has(k.replace(/[-_]/g, "").toLowerCase()))) out[k] = mark(v);
+    else if (typeof v === "string" && (field || secretField(k))) out[k] = mark(v);
     else if ((field || SECRET_RECORDS.has(k)) && isRecord(v)) out[k] = secretRecord(v, mark);
     else out[k] = blanked(v, mark, depth + 1);
   }
   return out;
 }
+
+const secretField = (name: string): boolean => {
+  const n = name.replace(/[-_]/g, "").toLowerCase();
+  return DEEP_SECRET_FIELDS.has(n) || [...DEEP_SECRET_FIELDS].some(f => f.length >= 6 && n.endsWith(f));
+};
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 

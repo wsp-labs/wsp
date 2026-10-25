@@ -8,8 +8,8 @@ const PRIVATE_KEY = /-----BEGIN [A-Z ]*PRIVATE KEY-----/;
 export const KEYLIKE_SEGMENT = /^(?=.*\d)[A-Za-z0-9_=-]{24,}$/;
 
 /** What a key or a token looks like, anywhere in a name or a value: OpenAI's and Anthropic's keys, Google's, GitHub's
- * and GitLab's tokens, Slack's, an AWS access key id, a JWT and a private key from its header through its END line,
- * or to the end of the text where the END line is not in it. */
+ * and GitLab's tokens, Slack's, Stripe's, npm's and Hugging Face's, an AWS access key id, a JWT and a private key from
+ * its header through its END line, or to the end of the text where the END line is not in it. */
 const TOKEN_SHAPES: readonly RegExp[] = [
   /(?<![A-Za-z0-9])sk-(?:proj-|ant-)?(?=[A-Za-z_-]*[0-9])[A-Za-z0-9_-]{20,}/,
   /(?<![A-Za-z0-9])AIza[A-Za-z0-9_-]{30,}/,
@@ -17,6 +17,9 @@ const TOKEN_SHAPES: readonly RegExp[] = [
   /(?<![A-Za-z0-9])gh[opsur]_[A-Za-z0-9]{20,}/,
   /(?<![A-Za-z0-9])glpat-[A-Za-z0-9_-]{20,}/,
   /(?<![A-Za-z0-9])xox[abpr]-[A-Za-z0-9-]{10,}/,
+  /(?<![A-Za-z0-9])[rs]k_(?:live|test)_[A-Za-z0-9]{16,}/,
+  /(?<![A-Za-z0-9])npm_[A-Za-z0-9]{20,}/,
+  /(?<![A-Za-z0-9])hf_[A-Za-z0-9]{20,}/,
   /(?<![A-Za-z0-9])AKIA[0-9A-Z]{16}(?![A-Za-z0-9])/,
   /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/,
   /-----BEGIN ([A-Z ]*)PRIVATE KEY-----(?:[\s\S]*?-----END \1PRIVATE KEY-----|[\s\S]*)/,
