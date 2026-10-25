@@ -89,6 +89,10 @@ fn session_end(events: &Events) -> (Option<i32>, bool, Option<String>) {
 
 #[tokio::test]
 async fn the_stderr_tail_keeps_the_last_five_non_blank_trimmed_lines_unreadable_json_among_them() {
+    tokio::task::LocalSet::new().run_until(the_stderr_tail_keeps_the_last_five_non_blank_trimmed_lines_unreadable_json_among_them_body()).await
+}
+
+async fn the_stderr_tail_keeps_the_last_five_non_blank_trimmed_lines_unreadable_json_among_them_body() {
     // CT1; adapter.ts:1080-1085, 1117-1118. A line read_message refuses is stderr, a JSON array or an object with
     // neither method nor id included; blank lines are dropped before the count.
     let rest = ["  first  ", "", "   ", "two", r#"{"neither":true}"#, "three", "[1,2]", "four", "five"].map(String::from).to_vec();
@@ -105,6 +109,10 @@ async fn the_stderr_tail_keeps_the_last_five_non_blank_trimmed_lines_unreadable_
 
 #[tokio::test]
 async fn an_error_with_no_message_leaves_an_empty_reason_and_a_signal_reads_code_null() {
+    tokio::task::LocalSet::new().run_until(an_error_with_no_message_leaves_an_empty_reason_and_a_signal_reads_code_null_body()).await
+}
+
+async fn an_error_with_no_message_leaves_an_empty_reason_and_a_signal_reads_code_null_body() {
     // CT2; adapter.ts:1047-1048, 1117-1118. `lastError` is "" (not absent), so the stderr tail is not read and the
     // words end in ": ". A process ended by a signal has no code: JS writes `null`.
     let launch = scripted(vec![format!(r#"{{"method":"error","params":{{"error":{{}},"willRetry":false,"threadId":"{THREAD}"}}}}"#), "a stderr line".into()], true);
@@ -124,6 +132,10 @@ async fn an_error_with_no_message_leaves_an_empty_reason_and_a_signal_reads_code
 
 #[tokio::test]
 async fn failure_words_said_before_the_stream_throws_beat_the_stream_s_message_which_rides_session_end() {
+    tokio::task::LocalSet::new().run_until(failure_words_said_before_the_stream_throws_beat_the_stream_s_message_which_rides_session_end_body()).await
+}
+
+async fn failure_words_said_before_the_stream_throws_beat_the_stream_s_message_which_rides_session_end_body() {
     // CT3; adapter.ts:1102-1105, 1119-1121, 1124. The exit road's failed result carries no durationMs.
     let launch = scripted(vec![error_note("unexpected status 401 Unauthorized: Missing bearer")], true);
     let events = Events::default();
@@ -141,6 +153,10 @@ async fn failure_words_said_before_the_stream_throws_beat_the_stream_s_message_w
 
 #[tokio::test]
 async fn a_process_that_goes_mid_turn_cancels_its_asks_then_fails_its_children_then_ends_the_turn() {
+    tokio::task::LocalSet::new().run_until(a_process_that_goes_mid_turn_cancels_its_asks_then_fails_its_children_then_ends_the_turn_body()).await
+}
+
+async fn a_process_that_goes_mid_turn_cancels_its_asks_then_fails_its_children_then_ends_the_turn_body() {
     // CT4; adapter.ts:1108-1125. Order: each open ask closes cancelled, every awaited request settles gone (a steer
     // waiting on its answer reads not-running), each running child ends failed with the count after it, turn.done,
     // session.end. Afterwards every method answers as over and nothing more is written.
@@ -174,6 +190,10 @@ async fn a_process_that_goes_mid_turn_cancels_its_asks_then_fails_its_children_t
 
 #[tokio::test]
 async fn a_turn_that_completes_under_an_open_ask_says_turn_done_first_then_cancels_the_ask() {
+    tokio::task::LocalSet::new().run_until(a_turn_that_completes_under_an_open_ask_says_turn_done_first_then_cancels_the_ask_body()).await
+}
+
+async fn a_turn_that_completes_under_an_open_ask_says_turn_done_first_then_cancels_the_ask_body() {
     // CT5; adapter.ts:763-767. The finish road is the other way round from the exit road: turn.done, then each open
     // ask closed cancelled, then stdin closed. A finished turn stays in the registry under its local id (never removed),
     // and its methods write nothing.
@@ -198,6 +218,10 @@ async fn a_turn_that_completes_under_an_open_ask_says_turn_done_first_then_cance
 
 #[tokio::test]
 async fn a_lead_end_with_no_status_or_an_unknown_one_fails_in_the_default_words_and_another_turn_s_end_is_ignored() {
+    tokio::task::LocalSet::new().run_until(a_lead_end_with_no_status_or_an_unknown_one_fails_in_the_default_words_and_another_turn_s_end_is_ignored_body()).await
+}
+
+async fn a_lead_end_with_no_status_or_an_unknown_one_fails_in_the_default_words_and_another_turn_s_end_is_ignored_body() {
     // CT6; adapter.ts:1053-1056, 778. The lead's failed result carries durationMs; one ended only by the exit does not.
     for line in [format!(r#"{{"method":"turn/completed","params":{{"threadId":"{THREAD}","turn":{{"id":"{TURN}","items":[]}}}}}}"#), completed("weird")] {
         let launch = scripted(vec![line], true);
@@ -216,6 +240,10 @@ async fn a_lead_end_with_no_status_or_an_unknown_one_fails_in_the_default_words_
 
 #[tokio::test]
 async fn a_thread_or_handshake_the_server_refuses_ends_the_turn_under_its_local_id_with_no_session_start() {
+    tokio::task::LocalSet::new().run_until(a_thread_or_handshake_the_server_refuses_ends_the_turn_under_its_local_id_with_no_session_start_body()).await
+}
+
+async fn a_thread_or_handshake_the_server_refuses_ends_the_turn_under_its_local_id_with_no_session_start_body() {
     // CT7; adapter.ts:938-948. The refusal comes before any announce, so the turn says turn.done and session.end alone,
     // under the local id; a refused turn/start comes after it, so session.start (unprompted) is said once.
     let cases = [
@@ -251,6 +279,10 @@ async fn a_thread_or_handshake_the_server_refuses_ends_the_turn_under_its_local_
 
 #[tokio::test]
 async fn a_lead_that_ended_while_its_child_ran_is_completed_when_the_process_goes_and_its_stdin_never_closed() {
+    tokio::task::LocalSet::new().run_until(a_lead_that_ended_while_its_child_ran_is_completed_when_the_process_goes_and_its_stdin_never_closed_body()).await
+}
+
+async fn a_lead_that_ended_while_its_child_ran_is_completed_when_the_process_goes_and_its_stdin_never_closed_body() {
     // CT8; adapter.ts:785-788, 1110-1114. The lead's end is held while the child runs; the exit fails the child, then
     // the held end is the result, said with turn.done, and session.end reads sawResult. Nothing closed stdin first.
     let launch = scripted(vec![child_started(), agent_message("lead said"), completed("completed")], true);
@@ -271,6 +303,10 @@ async fn a_lead_that_ended_while_its_child_ran_is_completed_when_the_process_goe
 
 #[tokio::test]
 async fn a_launched_start_s_model_rides_the_thread_line_but_the_turn_names_the_model_the_server_answered() {
+    tokio::task::LocalSet::new().run_until(a_launched_start_s_model_rides_the_thread_line_but_the_turn_names_the_model_the_server_answered_body()).await
+}
+
+async fn a_launched_start_s_model_rides_the_thread_line_but_the_turn_names_the_model_the_server_answered_body() {
     // CT10; adapter.ts:1283 hands `follow` the cwd alone, so `announce` (:642) takes the server's model.
     let launch = scripted(vec![agent_message("ok"), completed("completed")], false);
     let events = Events::default();
@@ -294,6 +330,10 @@ async fn a_launched_start_s_model_rides_the_thread_line_but_the_turn_names_the_m
 
 #[tokio::test]
 async fn failure_words_said_earlier_beat_the_completed_turn_s_own_error() {
+    tokio::task::LocalSet::new().run_until(failure_words_said_earlier_beat_the_completed_turn_s_own_error_body()).await
+}
+
+async fn failure_words_said_earlier_beat_the_completed_turn_s_own_error_body() {
     // CT11; adapter.ts:770-771 (`failureWords(message) ?? words`).
     let failed_with = format!(r#"{{"method":"turn/completed","params":{{"threadId":"{THREAD}","turn":{{"id":"{TURN}","items":[],"status":"failed","error":{{"message":"other boom"}}}}}}}}"#);
     let launch = scripted(vec![error_note("Missing environment variable: `FOO_KEY`"), failed_with], false);
@@ -304,6 +344,10 @@ async fn failure_words_said_earlier_beat_the_completed_turn_s_own_error() {
 
 #[tokio::test]
 async fn a_later_turn_started_takes_the_turn_id_with_no_new_anchor_and_the_old_turn_s_end_is_ignored() {
+    tokio::task::LocalSet::new().run_until(a_later_turn_started_takes_the_turn_id_with_no_new_anchor_and_the_old_turn_s_end_is_ignored_body()).await
+}
+
+async fn a_later_turn_started_takes_the_turn_id_with_no_new_anchor_and_the_old_turn_s_end_is_ignored_body() {
     // CT12; adapter.ts:966-973, 1053-1054.
     let started = |id: &str| format!(r#"{{"method":"turn/started","params":{{"threadId":"{THREAD}","turn":{{"id":"{id}"}}}}}}"#);
     let done = |id: &str| format!(r#"{{"method":"turn/completed","params":{{"threadId":"{THREAD}","turn":{{"id":"{id}","status":"completed"}}}}}}"#);
@@ -336,6 +380,10 @@ async fn a_later_turn_started_takes_the_turn_id_with_no_new_anchor_and_the_old_t
 
 #[tokio::test]
 async fn an_answer_s_close_carries_the_caller_s_outcome_and_option_and_a_deny_s_reason_is_steered_after_the_decision() {
+    tokio::task::LocalSet::new().run_until(an_answer_s_close_carries_the_caller_s_outcome_and_option_and_a_deny_s_reason_is_steered_after_the_decision_body()).await
+}
+
+async fn an_answer_s_close_carries_the_caller_s_outcome_and_option_and_a_deny_s_reason_is_steered_after_the_decision_body() {
     // CT13; adapter.ts:1169-1183. Only PERMISSION_ALLOW writes accept; anything else declines, whatever outcome is named.
     let launch = scripted(vec![approval("13"), approval("14")], true);
     let events = Events::default();

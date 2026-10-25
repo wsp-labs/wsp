@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use serde_json::{Map, Value};
 
 use super::command::CodexBroker;
@@ -147,13 +147,13 @@ pub struct CodexConversations {
 }
 
 impl ConversationStore for CodexConversations {
-    fn list(&self, cwds: Vec<String>, road: ConversationRoad) -> BoxFuture<'static, Result<Vec<StoredConversation>, StoreError>> {
+    fn list(&self, cwds: Vec<String>, road: ConversationRoad) -> LocalBoxFuture<'static, Result<Vec<StoredConversation>, StoreError>> {
         todo!()
     }
-    fn stamp(&self, cwds: Vec<String>, road: ConversationRoad) -> Option<BoxFuture<'static, Result<String, StoreError>>> {
+    fn stamp(&self, cwds: Vec<String>, road: ConversationRoad) -> Option<LocalBoxFuture<'static, Result<String, StoreError>>> {
         todo!()
     }
-    fn earlier(&self, id: String, ask: EarlierAsk, road: ConversationRoad) -> BoxFuture<'static, Result<EarlierRead, StoreError>> {
+    fn earlier(&self, id: String, ask: EarlierAsk, road: ConversationRoad) -> LocalBoxFuture<'static, Result<EarlierRead, StoreError>> {
         todo!()
     }
     fn lets_go(&self) -> Option<String> {

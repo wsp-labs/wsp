@@ -12,8 +12,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use futures::future::{BoxFuture, FutureExt};
-use futures::stream::{self, BoxStream, StreamExt};
+use futures::future::{LocalBoxFuture, FutureExt};
+use futures::stream::{self, LocalBoxStream, StreamExt};
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -157,15 +157,15 @@ struct Inner {
 }
 
 impl ExecStream for Inner {
-    fn lines(&self) -> BoxStream<'static, Result<String, ExecFailure>> {
+    fn lines(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>> {
         match self.rx.lock().unwrap().take() {
-            Some(mut rx) => stream::poll_fn(move |cx| rx.poll_recv(cx)).boxed(),
-            None => stream::empty().boxed(),
+            Some(mut rx) => stream::poll_fn(move |cx| rx.poll_recv(cx)).boxed_local(),
+            None => stream::empty().boxed_local(),
         }
     }
     fn teardown(&self) {}
     fn kill(&self) {}
-    fn write(&self, line: String) -> BoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
+    fn write(&self, line: String) -> LocalBoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
         let outcome = if let Some(e) = self.failing.lock().unwrap().take() {
             Err(e)
         } else if !self.writable.load(Ordering::SeqCst) {
@@ -174,7 +174,7 @@ impl ExecStream for Inner {
             self.stdin.lock().unwrap().push(line);
             Ok(WriteOutcome::Written)
         };
-        async move { outcome }.boxed()
+        async move { outcome }.boxed_local()
     }
     fn close_input(&self) {}
     fn exited(&self) -> wsp_adapters::port::SharedFuture<Option<i32>> {
@@ -271,12 +271,12 @@ async fn finish(session: &ClaudeSession, io: &Io) {
 
 fn set_access(session: &ClaudeSession, mode: &'static str) -> JoinHandle<Result<AccessOutcome, ExecFailure>> {
     let session = session.clone();
-    tokio::spawn(async move { session.set_access(mode).await })
+    tokio::task::spawn_local(async move { session.set_access(mode).await })
 }
 
 fn stop_task(session: &ClaudeSession, task: &'static str) -> JoinHandle<Result<TaskStop, ExecFailure>> {
     let session = session.clone();
-    tokio::spawn(async move { session.stop_task(task).await })
+    tokio::task::spawn_local(async move { session.stop_task(task).await })
 }
 
 /// The CLI's control_response to the request on `line`, an error where `error` is given.
@@ -292,6 +292,10 @@ fn answered(line: &Value, error: Option<&str>) -> String {
 // TS: adapter-permissions.test.ts:152
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn relays_the_prompt_writes_the_answer_down_the_cli_channel_and_closes_the_row_once() {
+    tokio::task::LocalSet::new().run_until(relays_the_prompt_writes_the_answer_down_the_cli_channel_and_closes_the_row_once_body()).await
+}
+
+async fn relays_the_prompt_writes_the_answer_down_the_cli_channel_and_closes_the_row_once_body() {
     let (events, session, io) = start();
     io.push(init_line());
     io.push(ask_line());
@@ -324,6 +328,10 @@ async fn relays_the_prompt_writes_the_answer_down_the_cli_channel_and_closes_the
 // TS: adapter-permissions.test.ts:179
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_answer_whose_write_failed_leaves_the_prompt_open_so_answering_again_lands_it() {
+    tokio::task::LocalSet::new().run_until(an_answer_whose_write_failed_leaves_the_prompt_open_so_answering_again_lands_it_body()).await
+}
+
+async fn an_answer_whose_write_failed_leaves_the_prompt_open_so_answering_again_lands_it_body() {
     let (events, session, io) = start();
     io.push(init_line());
     io.push(ask_line());
@@ -345,6 +353,10 @@ async fn an_answer_whose_write_failed_leaves_the_prompt_open_so_answering_again_
 // TS: adapter-permissions.test.ts:200
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn puts_a_questions_own_choices_on_the_prompt_and_sends_the_pick_as_the_calls_answer_with_no_allow_in_front() {
+    tokio::task::LocalSet::new().run_until(puts_a_questions_own_choices_on_the_prompt_and_sends_the_pick_as_the_calls_answer_with_no_allow_in_front_body()).await
+}
+
+async fn puts_a_questions_own_choices_on_the_prompt_and_sends_the_pick_as_the_calls_answer_with_no_allow_in_front_body() {
     let (events, session, io) = start();
     io.push(init_line());
     io.push(question_ask_line());
@@ -371,6 +383,10 @@ async fn puts_a_questions_own_choices_on_the_prompt_and_sends_the_pick_as_the_ca
 // TS: adapter-permissions.test.ts:226
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn names_the_subagent_a_prompt_came_from_by_the_call_that_launched_it() {
+    tokio::task::LocalSet::new().run_until(names_the_subagent_a_prompt_came_from_by_the_call_that_launched_it_body()).await
+}
+
+async fn names_the_subagent_a_prompt_came_from_by_the_call_that_launched_it_body() {
     let (call, agent) = agent_a();
     // Both frames come off the recorded fixture: the CLI binds its own handle for a subagent to the launching call
     // once, in task_started, and a prompt its run raises names only that handle.
@@ -394,6 +410,10 @@ async fn names_the_subagent_a_prompt_came_from_by_the_call_that_launched_it() {
 // TS: adapter-permissions.test.ts:246
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_deny_carries_the_words_the_agent_reads_as_the_calls_result() {
+    tokio::task::LocalSet::new().run_until(a_deny_carries_the_words_the_agent_reads_as_the_calls_result_body()).await
+}
+
+async fn a_deny_carries_the_words_the_agent_reads_as_the_calls_result_body() {
     let (events, session, io) = start();
     io.push(init_line());
     io.push(ask_line());
@@ -408,6 +428,10 @@ async fn a_deny_carries_the_words_the_agent_reads_as_the_calls_result() {
 // TS: adapter-permissions.test.ts:259
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_runtimes_own_answer_for_a_prompt_nobody_came_to_closes_the_row_as_unanswered() {
+    tokio::task::LocalSet::new().run_until(the_runtimes_own_answer_for_a_prompt_nobody_came_to_closes_the_row_as_unanswered_body()).await
+}
+
+async fn the_runtimes_own_answer_for_a_prompt_nobody_came_to_closes_the_row_as_unanswered_body() {
     let (events, session, io) = start();
     io.push(init_line());
     io.push(ask_line());
@@ -421,6 +445,10 @@ async fn the_runtimes_own_answer_for_a_prompt_nobody_came_to_closes_the_row_as_u
 // TS: adapter-permissions.test.ts:271
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_prompt_the_cli_withdraws_closes_as_cancelled_and_answering_it_afterwards_answers_nothing() {
+    tokio::task::LocalSet::new().run_until(a_prompt_the_cli_withdraws_closes_as_cancelled_and_answering_it_afterwards_answers_nothing_body()).await
+}
+
+async fn a_prompt_the_cli_withdraws_closes_as_cancelled_and_answering_it_afterwards_answers_nothing_body() {
     let (events, session, io) = start();
     io.push(init_line());
     io.push(ask_line());
@@ -434,6 +462,10 @@ async fn a_prompt_the_cli_withdraws_closes_as_cancelled_and_answering_it_afterwa
 // TS: adapter-permissions.test.ts:284
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_prompt_whose_process_ends_under_it_closes_as_cancelled_rather_than_waiting_for_an_answer() {
+    tokio::task::LocalSet::new().run_until(a_prompt_whose_process_ends_under_it_closes_as_cancelled_rather_than_waiting_for_an_answer_body()).await
+}
+
+async fn a_prompt_whose_process_ends_under_it_closes_as_cancelled_rather_than_waiting_for_an_answer_body() {
     let (events, session, io) = start();
     io.push(init_line());
     io.push(ask_line());
@@ -449,6 +481,10 @@ async fn a_prompt_whose_process_ends_under_it_closes_as_cancelled_rather_than_wa
 // TS: adapter-permissions.test.ts:297
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn refuses_an_option_the_prompt_never_offered_without_writing_anything_to_the_cli() {
+    tokio::task::LocalSet::new().run_until(refuses_an_option_the_prompt_never_offered_without_writing_anything_to_the_cli_body()).await
+}
+
+async fn refuses_an_option_the_prompt_never_offered_without_writing_anything_to_the_cli_body() {
     let (_events, session, io) = start();
     io.push(init_line());
     io.push(ask_line());
@@ -462,6 +498,10 @@ async fn refuses_an_option_the_prompt_never_offered_without_writing_anything_to_
 // TS: adapter-permissions.test.ts:309
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_control_request_of_another_subtype_is_refused_down_the_channel_so_the_cli_stops_waiting_on_it() {
+    tokio::task::LocalSet::new().run_until(a_control_request_of_another_subtype_is_refused_down_the_channel_so_the_cli_stops_waiting_on_it_body()).await
+}
+
+async fn a_control_request_of_another_subtype_is_refused_down_the_channel_so_the_cli_stops_waiting_on_it_body() {
     let (events, session, io) = start();
     io.push(init_line());
     io.push(json!({ "type": "control_request", "request_id": "req_h", "request": { "subtype": "hook_callback" } }).to_string());
@@ -474,6 +514,10 @@ async fn a_control_request_of_another_subtype_is_refused_down_the_channel_so_the
 // TS: adapter-permissions.test.ts:329
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn writes_the_clis_own_set_permission_mode_down_the_channel_and_settles_once_the_cli_answers_it() {
+    tokio::task::LocalSet::new().run_until(writes_the_clis_own_set_permission_mode_down_the_channel_and_settles_once_the_cli_answers_it_body()).await
+}
+
+async fn writes_the_clis_own_set_permission_mode_down_the_channel_and_settles_once_the_cli_answers_it_body() {
     let (_events, session, io) = start();
     io.push(init_line());
     settle().await;
@@ -488,6 +532,10 @@ async fn writes_the_clis_own_set_permission_mode_down_the_channel_and_settles_on
 // TS: adapter-permissions.test.ts:343
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_mode_the_cli_will_not_take_comes_back_refused_rather_than_reading_as_applied() {
+    tokio::task::LocalSet::new().run_until(a_mode_the_cli_will_not_take_comes_back_refused_rather_than_reading_as_applied_body()).await
+}
+
+async fn a_mode_the_cli_will_not_take_comes_back_refused_rather_than_reading_as_applied_body() {
     let (_events, session, io) = start();
     io.push(init_line());
     settle().await;
@@ -501,6 +549,10 @@ async fn a_mode_the_cli_will_not_take_comes_back_refused_rather_than_reading_as_
 // TS: adapter-permissions.test.ts:356
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_mode_that_asks_nobody_answers_the_prompt_the_turn_is_stopped_on_and_every_one_it_raises_after() {
+    tokio::task::LocalSet::new().run_until(the_mode_that_asks_nobody_answers_the_prompt_the_turn_is_stopped_on_and_every_one_it_raises_after_body()).await
+}
+
+async fn the_mode_that_asks_nobody_answers_the_prompt_the_turn_is_stopped_on_and_every_one_it_raises_after_body() {
     let (events, session, io) = start();
     io.push(init_line());
     io.push(ask_line());
@@ -529,6 +581,10 @@ async fn the_mode_that_asks_nobody_answers_the_prompt_the_turn_is_stopped_on_and
 // TS: adapter-permissions.test.ts:384
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_mode_that_asks_nobody_never_answers_a_question_one_open_stays_with_the_person_and_one_raised_after_reaches_them() {
+    tokio::task::LocalSet::new().run_until(the_mode_that_asks_nobody_never_answers_a_question_one_open_stays_with_the_person_and_one_raised_after_reaches_them_body()).await
+}
+
+async fn the_mode_that_asks_nobody_never_answers_a_question_one_open_stays_with_the_person_and_one_raised_after_reaches_them_body() {
     let (events, session, io) = start();
     io.push(init_line());
     io.push(question_ask_line());
@@ -553,6 +609,10 @@ async fn the_mode_that_asks_nobody_never_answers_a_question_one_open_stays_with_
 // TS: adapter-permissions.test.ts:406
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_turn_launched_at_bypass_allows_a_tools_prompt_itself_and_leaves_a_question_with_the_person() {
+    tokio::task::LocalSet::new().run_until(a_turn_launched_at_bypass_allows_a_tools_prompt_itself_and_leaves_a_question_with_the_person_body()).await
+}
+
+async fn a_turn_launched_at_bypass_allows_a_tools_prompt_itself_and_leaves_a_question_with_the_person_body() {
     let (events, session, io) = start();
     let mut init = json::<Value>(&init_line());
     init["permissionMode"] = json!("bypassPermissions");
@@ -575,6 +635,10 @@ async fn a_turn_launched_at_bypass_allows_a_tools_prompt_itself_and_leaves_a_que
 // TS: adapter-permissions.test.ts:423
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_mode_the_cli_offered_on_the_open_prompt_answers_it_as_that_option_and_one_it_did_not_leaves_it_for_the_person() {
+    tokio::task::LocalSet::new().run_until(a_mode_the_cli_offered_on_the_open_prompt_answers_it_as_that_option_and_one_it_did_not_leaves_it_for_the_person_body()).await
+}
+
+async fn a_mode_the_cli_offered_on_the_open_prompt_answers_it_as_that_option_and_one_it_did_not_leaves_it_for_the_person_body() {
     let (events, session, io) = start();
     io.push(init_line());
     io.push(ask_line());
@@ -595,6 +659,10 @@ async fn a_mode_the_cli_offered_on_the_open_prompt_answers_it_as_that_option_and
 // TS: adapter-permissions.test.ts:443
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_mode_the_open_prompt_carries_no_option_for_moves_the_turn_and_leaves_that_prompt_standing() {
+    tokio::task::LocalSet::new().run_until(a_mode_the_open_prompt_carries_no_option_for_moves_the_turn_and_leaves_that_prompt_standing_body()).await
+}
+
+async fn a_mode_the_open_prompt_carries_no_option_for_moves_the_turn_and_leaves_that_prompt_standing_body() {
     let (events, session, io) = start();
     io.push(init_line());
     io.push(ask_line());
@@ -614,6 +682,10 @@ async fn a_mode_the_open_prompt_carries_no_option_for_moves_the_turn_and_leaves_
 // TS: adapter-permissions.test.ts:462
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_turn_that_has_not_announced_itself_and_one_whose_channel_is_shut_take_nothing_and_write_nothing() {
+    tokio::task::LocalSet::new().run_until(a_turn_that_has_not_announced_itself_and_one_whose_channel_is_shut_take_nothing_and_write_nothing_body()).await
+}
+
+async fn a_turn_that_has_not_announced_itself_and_one_whose_channel_is_shut_take_nothing_and_write_nothing_body() {
     let (_events, session, io) = start();
     assert_eq!(session.set_access("manual").await.unwrap(), AccessOutcome::Gone);
     assert_eq!(io.stdin().len(), 1);
@@ -629,6 +701,10 @@ async fn a_turn_that_has_not_announced_itself_and_one_whose_channel_is_shut_take
 // TS: adapter-permissions.test.ts:475
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_turn_that_replies_with_the_request_open_settles_it_at_the_result_not_minutes_later_when_the_process_goes() {
+    tokio::task::LocalSet::new().run_until(a_turn_that_replies_with_the_request_open_settles_it_at_the_result_not_minutes_later_when_the_process_goes_body()).await
+}
+
+async fn a_turn_that_replies_with_the_request_open_settles_it_at_the_result_not_minutes_later_when_the_process_goes_body() {
     let (_events, session, io) = start();
     io.push(init_line());
     settle().await;
@@ -646,6 +722,10 @@ async fn a_turn_that_replies_with_the_request_open_settles_it_at_the_result_not_
 // TS: adapter-permissions.test.ts:490
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_process_that_dies_with_the_request_open_settles_it_as_gone_rather_than_leaving_the_caller_waiting() {
+    tokio::task::LocalSet::new().run_until(a_process_that_dies_with_the_request_open_settles_it_as_gone_rather_than_leaving_the_caller_waiting_body()).await
+}
+
+async fn a_process_that_dies_with_the_request_open_settles_it_as_gone_rather_than_leaving_the_caller_waiting_body() {
     let (_events, session, io) = start();
     io.push(init_line());
     settle().await;
@@ -678,6 +758,10 @@ fn begin(stop_task_wait_ms: Option<u64>) -> (Events, ClaudeSession, Io) {
 // TS: adapter-permissions.test.ts:527
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn writes_the_clis_own_stop_task_for_that_subagent_alone_and_settles_accepted_on_the_clis_answer() {
+    tokio::task::LocalSet::new().run_until(writes_the_clis_own_stop_task_for_that_subagent_alone_and_settles_accepted_on_the_clis_answer_body()).await
+}
+
+async fn writes_the_clis_own_stop_task_for_that_subagent_alone_and_settles_accepted_on_the_clis_answer_body() {
     let (_events, session, io) = begin(None);
     settle().await;
     let stopped = stop_task(&session, "a1");
@@ -692,6 +776,10 @@ async fn writes_the_clis_own_stop_task_for_that_subagent_alone_and_settles_accep
 // TS: adapter-permissions.test.ts:539
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_task_the_cli_does_not_hold_comes_back_refused_in_the_clis_own_words() {
+    tokio::task::LocalSet::new().run_until(a_task_the_cli_does_not_hold_comes_back_refused_in_the_clis_own_words_body()).await
+}
+
+async fn a_task_the_cli_does_not_hold_comes_back_refused_in_the_clis_own_words_body() {
     let (_events, session, io) = begin(None);
     settle().await;
     let stopped = stop_task(&session, "zz9");
@@ -704,6 +792,10 @@ async fn a_task_the_cli_does_not_hold_comes_back_refused_in_the_clis_own_words()
 // TS: adapter-permissions.test.ts:549
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_cli_with_no_stop_for_this_sessions_tasks_reads_as_unsupported_the_answer_an_agent_with_no_such_request_gives() {
+    tokio::task::LocalSet::new().run_until(a_cli_with_no_stop_for_this_sessions_tasks_reads_as_unsupported_the_answer_an_agent_with_no_such_request_gives_body()).await
+}
+
+async fn a_cli_with_no_stop_for_this_sessions_tasks_reads_as_unsupported_the_answer_an_agent_with_no_such_request_gives_body() {
     let (_events, session, io) = begin(None);
     settle().await;
     let stopped = stop_task(&session, "a1");
@@ -716,6 +808,10 @@ async fn a_cli_with_no_stop_for_this_sessions_tasks_reads_as_unsupported_the_ans
 // TS: adapter-permissions.test.ts:559
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_cli_that_answers_nothing_inside_the_wait_comes_back_refused_rather_than_holding_the_caller() {
+    tokio::task::LocalSet::new().run_until(a_cli_that_answers_nothing_inside_the_wait_comes_back_refused_rather_than_holding_the_caller_body()).await
+}
+
+async fn a_cli_that_answers_nothing_inside_the_wait_comes_back_refused_rather_than_holding_the_caller_body() {
     let (_events, session, io) = begin(Some(20));
     settle().await;
     let stopped = bounded(session.stop_task("a1")).await.unwrap();
@@ -726,6 +822,10 @@ async fn a_cli_that_answers_nothing_inside_the_wait_comes_back_refused_rather_th
 // TS: adapter-permissions.test.ts:567
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_subagent_already_over_and_a_turn_not_running_write_nothing_and_read_not_running() {
+    tokio::task::LocalSet::new().run_until(a_subagent_already_over_and_a_turn_not_running_write_nothing_and_read_not_running_body()).await
+}
+
+async fn a_subagent_already_over_and_a_turn_not_running_write_nothing_and_read_not_running_body() {
     let (_events, session, io) = begin(None);
     io.push(json!({ "type": "system", "subtype": "task_notification", "task_id": "b2", "tool_use_id": "toolu_b", "status": "completed", "summary": "30", "session_id": SESSION }).to_string());
     settle().await;
@@ -739,6 +839,10 @@ async fn a_subagent_already_over_and_a_turn_not_running_write_nothing_and_read_n
 // TS: adapter-permissions.test.ts:578
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_stop_still_waiting_when_the_turn_replies_settles_not_running_since_nothing_can_answer_it_now() {
+    tokio::task::LocalSet::new().run_until(a_stop_still_waiting_when_the_turn_replies_settles_not_running_since_nothing_can_answer_it_now_body()).await
+}
+
+async fn a_stop_still_waiting_when_the_turn_replies_settles_not_running_since_nothing_can_answer_it_now_body() {
     let (_events, session, io) = begin(None);
     settle().await;
     let stopped = stop_task(&session, "a1");
@@ -867,7 +971,7 @@ async fn steer(session: &ClaudeSession, text: &str) -> SteerOutcome {
 
 fn interrupt(session: &ClaudeSession) -> JoinHandle<()> {
     let session = session.clone();
-    tokio::spawn(async move { session.interrupt().await })
+    tokio::task::spawn_local(async move { session.interrupt().await })
 }
 
 fn interrupt_written(exec: &FakeExec) -> bool {
@@ -885,6 +989,10 @@ fn status_and_text(result: &TurnResult) -> (TurnStatus, Option<&str>) {
 // TS: steer-hold.test.ts:112
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_steered_message_is_answered_in_the_same_turn_which_ends_the_moment_the_cli_completes_it() {
+    tokio::task::LocalSet::new().run_until(a_steered_message_is_answered_in_the_same_turn_which_ends_the_moment_the_cli_completes_it_body()).await
+}
+
+async fn a_steered_message_is_answered_in_the_same_turn_which_ends_the_moment_the_cli_completes_it_body() {
     let exec = manual_exec(None);
     // The silence window is far past the test, so only the CLI's own word on the message can end the turn.
     let adapter = adapter_on(&exec, Some(60_000), None);
@@ -915,6 +1023,10 @@ async fn a_steered_message_is_answered_in_the_same_turn_which_ends_the_moment_th
 // TS: steer-hold.test.ts:141
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn two_messages_at_once_which_the_cli_takes_as_one_turn_are_both_answered_before_the_turn_ends() {
+    tokio::task::LocalSet::new().run_until(two_messages_at_once_which_the_cli_takes_as_one_turn_are_both_answered_before_the_turn_ends_body()).await
+}
+
+async fn two_messages_at_once_which_the_cli_takes_as_one_turn_are_both_answered_before_the_turn_ends_body() {
     let exec = manual_exec(None);
     let adapter = adapter_on(&exec, Some(60_000), None);
     let (events, session) = start_turn(&adapter, "Write a 250-word story about a lighthouse.", false);
@@ -953,6 +1065,10 @@ async fn two_messages_at_once_which_the_cli_takes_as_one_turn_are_both_answered_
 // TS: steer-hold.test.ts:172
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_slash_command_steered_then_ends_the_turn_on_the_agents_reply_and_not_on_its_own_words() {
+    tokio::task::LocalSet::new().run_until(a_slash_command_steered_then_ends_the_turn_on_the_agents_reply_and_not_on_its_own_words_body()).await
+}
+
+async fn a_slash_command_steered_then_ends_the_turn_on_the_agents_reply_and_not_on_its_own_words_body() {
     let exec = manual_exec(None);
     let adapter = adapter_on(&exec, Some(60_000), None);
     let (events, session) = start_turn(&adapter, "Write a 250-word story about a lighthouse.", false);
@@ -986,6 +1102,10 @@ async fn a_slash_command_steered_then_ends_the_turn_on_the_agents_reply_and_not_
 // TS: steer-hold.test.ts:200
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_message_the_agent_took_at_a_tools_end_is_answered_by_the_turns_own_result_which_ends_it() {
+    tokio::task::LocalSet::new().run_until(a_message_the_agent_took_at_a_tools_end_is_answered_by_the_turns_own_result_which_ends_it_body()).await
+}
+
+async fn a_message_the_agent_took_at_a_tools_end_is_answered_by_the_turns_own_result_which_ends_it_body() {
     let exec = manual_exec(None);
     let adapter = adapter_on(&exec, Some(60_000), None);
     let (events, session) = start_turn(&adapter, "Run sleep 4 && echo done, then say what it printed.", false);
@@ -1014,6 +1134,10 @@ async fn a_message_the_agent_took_at_a_tools_end_is_answered_by_the_turns_own_re
 // TS: steer-hold.test.ts:223
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn on_a_cli_that_declares_no_reports_on_its_messages_the_turn_ends_at_its_reply_as_it_always_has() {
+    tokio::task::LocalSet::new().run_until(on_a_cli_that_declares_no_reports_on_its_messages_the_turn_ends_at_its_reply_as_it_always_has_body()).await
+}
+
+async fn on_a_cli_that_declares_no_reports_on_its_messages_the_turn_ends_at_its_reply_as_it_always_has_body() {
     let exec = manual_exec(None);
     let adapter = adapter_on(&exec, Some(60_000), None);
     let (events, session) = start_turn(&adapter, "go", false);
@@ -1033,6 +1157,10 @@ async fn on_a_cli_that_declares_no_reports_on_its_messages_the_turn_ends_at_its_
 // TS: steer-hold.test.ts:244
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_steered_message_is_told_unread_before_the_turns_end_when_the_process_dies_with_it_queued() {
+    tokio::task::LocalSet::new().run_until(a_steered_message_is_told_unread_before_the_turns_end_when_the_process_dies_with_it_queued_body()).await
+}
+
+async fn a_steered_message_is_told_unread_before_the_turns_end_when_the_process_dies_with_it_queued_body() {
     let exec = manual_exec(None);
     let adapter = adapter_on(&exec, Some(40), None);
     let (events, session) = start_turn(&adapter, "go", false);
@@ -1051,6 +1179,10 @@ async fn a_steered_message_is_told_unread_before_the_turns_end_when_the_process_
 // TS: steer-hold.test.ts:260
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_stop_with_one_still_queued_asks_the_cli_to_cancel_it_answers_at_once_tells_it_unread_and_keeps_the_process() {
+    tokio::task::LocalSet::new().run_until(a_stop_with_one_still_queued_asks_the_cli_to_cancel_it_answers_at_once_tells_it_unread_and_keeps_the_process_body()).await
+}
+
+async fn a_stop_with_one_still_queued_asks_the_cli_to_cancel_it_answers_at_once_tells_it_unread_and_keeps_the_process_body() {
     let exec = manual_exec(None);
     let adapter = adapter_on(&exec, Some(60_000), Some(60_000));
     let (events, session) = start_turn(&adapter, "go", true);
@@ -1074,6 +1206,10 @@ async fn a_stop_with_one_still_queued_asks_the_cli_to_cancel_it_answers_at_once_
 // TS: steer-hold.test.ts:281
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_stop_with_one_still_queued_on_a_cli_that_cannot_cancel_it_answers_at_once_tells_it_unread_and_the_process_goes() {
+    tokio::task::LocalSet::new().run_until(a_stop_with_one_still_queued_on_a_cli_that_cannot_cancel_it_answers_at_once_tells_it_unread_and_the_process_goes_body()).await
+}
+
+async fn a_stop_with_one_still_queued_on_a_cli_that_cannot_cancel_it_answers_at_once_tells_it_unread_and_the_process_goes_body() {
     let exec = manual_exec(None);
     let adapter = adapter_on(&exec, Some(60_000), Some(60_000));
     let (events, session) = start_turn(&adapter, "go", true);
@@ -1095,6 +1231,10 @@ async fn a_stop_with_one_still_queued_on_a_cli_that_cannot_cancel_it_answers_at_
 // TS: steer-hold.test.ts:301
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_stop_of_a_reply_held_for_a_message_the_cli_has_not_taken_up_answers_at_once_with_the_held_words() {
+    tokio::task::LocalSet::new().run_until(a_stop_of_a_reply_held_for_a_message_the_cli_has_not_taken_up_answers_at_once_with_the_held_words_body()).await
+}
+
+async fn a_stop_of_a_reply_held_for_a_message_the_cli_has_not_taken_up_answers_at_once_with_the_held_words_body() {
     let exec = manual_exec(None);
     let adapter = adapter_on(&exec, Some(60_000), Some(60_000));
     let (events, session) = start_turn(&adapter, "go", true);
@@ -1118,6 +1258,10 @@ async fn a_stop_of_a_reply_held_for_a_message_the_cli_has_not_taken_up_answers_a
 // TS: steer-hold.test.ts:322
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_same_stop_on_a_cli_that_cannot_cancel_answers_at_once_with_the_held_words_and_the_process_goes() {
+    tokio::task::LocalSet::new().run_until(the_same_stop_on_a_cli_that_cannot_cancel_answers_at_once_with_the_held_words_and_the_process_goes_body()).await
+}
+
+async fn the_same_stop_on_a_cli_that_cannot_cancel_answers_at_once_with_the_held_words_and_the_process_goes_body() {
     let exec = manual_exec(None);
     let adapter = adapter_on(&exec, Some(60_000), Some(60_000));
     let (events, session) = start_turn(&adapter, "go", true);
@@ -1137,6 +1281,10 @@ async fn the_same_stop_on_a_cli_that_cannot_cancel_answers_at_once_with_the_held
 // TS: steer-hold.test.ts:339
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_stop_while_the_cli_answers_a_steered_message_answers_at_once_and_keeps_the_process_since_nothing_is_left_queued() {
+    tokio::task::LocalSet::new().run_until(a_stop_while_the_cli_answers_a_steered_message_answers_at_once_and_keeps_the_process_since_nothing_is_left_queued_body()).await
+}
+
+async fn a_stop_while_the_cli_answers_a_steered_message_answers_at_once_and_keeps_the_process_since_nothing_is_left_queued_body() {
     let exec = manual_exec(None);
     let adapter = adapter_on(&exec, Some(60_000), Some(60_000));
     let (events, session) = start_turn(&adapter, "go", true);
@@ -1172,6 +1320,10 @@ async fn attach(adapter: &wsp_adapters::claude::ClaudeAdapter, on_event: wsp_ada
 // TS: steer-hold.test.ts:363
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_reopened_turn_waits_on_the_messages_its_runs_channel_took_after_the_turns_opening_and_is_answered_in_the_same_turn() {
+    tokio::task::LocalSet::new().run_until(a_reopened_turn_waits_on_the_messages_its_runs_channel_took_after_the_turns_opening_and_is_answered_in_the_same_turn_body()).await
+}
+
+async fn a_reopened_turn_waits_on_the_messages_its_runs_channel_took_after_the_turns_opening_and_is_answered_in_the_same_turn_body() {
     let earlier = user_message_line("an earlier turn's steer", SID, &[], Some("11111111-1111-4111-8111-111111111111"));
     let uuid = "33333333-3333-4333-8333-333333333333";
     let exec = manual_exec(Some(vec![user_message_line("first", SID, &[], None), earlier, user_message_line("Write a story.", SID, &[], None), user_message_line(LINE, SID, &[], Some(uuid))]));
@@ -1194,6 +1346,10 @@ async fn a_reopened_turn_waits_on_the_messages_its_runs_channel_took_after_the_t
 // TS: steer-hold.test.ts:383
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_reopened_turn_tells_unread_a_message_its_runs_channel_took_that_the_cli_never_queued_when_the_process_is_gone() {
+    tokio::task::LocalSet::new().run_until(a_reopened_turn_tells_unread_a_message_its_runs_channel_took_that_the_cli_never_queued_when_the_process_is_gone_body()).await
+}
+
+async fn a_reopened_turn_tells_unread_a_message_its_runs_channel_took_that_the_cli_never_queued_when_the_process_is_gone_body() {
     let lost = "33333333-3333-4333-8333-333333333333";
     let exec = manual_exec(Some(vec![user_message_line("Write a story.", SID, &[], None), user_message_line(LINE, SID, &[], Some(lost))]));
     let adapter = adapter_on(&exec, Some(40), None);
@@ -1209,6 +1365,10 @@ async fn a_reopened_turn_tells_unread_a_message_its_runs_channel_took_that_the_c
 // TS: steer-hold.test.ts:398
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn every_steer_goes_out_under_a_uuid_of_its_own_which_the_turns_opening_line_does_not_carry() {
+    tokio::task::LocalSet::new().run_until(every_steer_goes_out_under_a_uuid_of_its_own_which_the_turns_opening_line_does_not_carry_body()).await
+}
+
+async fn every_steer_goes_out_under_a_uuid_of_its_own_which_the_turns_opening_line_does_not_carry_body() {
     let exec = manual_exec(None);
     let adapter = adapter_on(&exec, None, None);
     let (events, session) = start_turn(&adapter, "go", false);

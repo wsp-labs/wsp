@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 
 use super::command::CodexBroker;
@@ -99,7 +99,7 @@ impl CodexAdapter {
         todo!()
     }
     /// TS adapter.ts:1397. `None` where the exec factory has no attach.
-    pub fn attach(&self, options: AdapterAttachOptions) -> Option<BoxFuture<'static, Result<AttachedSession, ExecFailure>>> {
+    pub fn attach(&self, options: AdapterAttachOptions) -> Option<LocalBoxFuture<'static, Result<AttachedSession, ExecFailure>>> {
         todo!()
     }
     /// A snapshot of the sessions map, in registration order.
@@ -135,7 +135,7 @@ impl CodexAdapter {
         todo!()
     }
     /// `None` at the outer level where the host holds no ChatGPT sign-in for the machine. TS adapter.ts:1428.
-    pub fn account_models(&self, version: Option<String>) -> Option<BoxFuture<'static, Option<Vec<HarnessCatalogModelProbe>>>> {
+    pub fn account_models(&self, version: Option<String>) -> Option<LocalBoxFuture<'static, Option<Vec<HarnessCatalogModelProbe>>>> {
         todo!()
     }
     /// TS adapter.ts:1430.

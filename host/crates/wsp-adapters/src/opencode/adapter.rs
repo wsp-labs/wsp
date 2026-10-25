@@ -4,7 +4,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 
 use crate::port::{AdapterAttachOptions, AdapterError, AgentLaunch, Env, ExecFailure, ExecStreamFactory, HarnessCatalogAnswer, HarnessExec, HarnessStartOptions, Now, SharedFuture, TurnResult};
@@ -35,14 +35,14 @@ impl OpenCodeAdapterDeps {
 }
 
 /// What a session does. Not part of the port.
-pub trait OpenCodeCore: Send + Sync {
+pub trait OpenCodeCore {
     fn local_id(&self) -> String;
     fn session_id(&self) -> String;
     fn command(&self) -> Option<String>;
     fn run(&self) -> Option<String>;
     fn pid(&self) -> Option<u32>;
     fn finished(&self) -> SharedFuture<TurnResult>;
-    fn interrupt(&self) -> BoxFuture<'static, ()>;
+    fn interrupt(&self) -> LocalBoxFuture<'static, ()>;
 }
 
 /// TS adapter.ts:30.
@@ -73,7 +73,7 @@ impl OpenCodeSession {
         todo!()
     }
     /// TS adapter.ts:238.
-    pub fn interrupt(&self) -> BoxFuture<'static, ()> {
+    pub fn interrupt(&self) -> LocalBoxFuture<'static, ()> {
         todo!()
     }
 }
@@ -115,7 +115,7 @@ impl OpenCodeAdapter {
         todo!()
     }
     /// TS adapter.ts:282. `None` where the exec factory has no attach.
-    pub fn attach(&self, options: AdapterAttachOptions) -> Option<BoxFuture<'static, Result<AttachedSession, ExecFailure>>> {
+    pub fn attach(&self, options: AdapterAttachOptions) -> Option<LocalBoxFuture<'static, Result<AttachedSession, ExecFailure>>> {
         todo!()
     }
     pub fn sessions(&self) -> IndexMap<String, OpenCodeSession> {

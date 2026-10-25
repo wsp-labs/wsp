@@ -85,18 +85,18 @@ fn agent_message(id: &str, text: &str) -> String {
 }
 
 /// A server that opens the thread and starts the turn, then prints what the case hands it.
-fn scripted_turn(rest: Vec<String>, opts: WireOpts) -> impl Fn(&[String]) -> Wire + Send + Sync + 'static {
+fn scripted_turn(rest: Vec<String>, opts: WireOpts) -> impl Fn(&[String]) -> Wire + 'static {
     let mut lines = opened();
     lines.push(turn_started());
     lines.extend(rest);
     server(lines, opts)
 }
 
-fn on_write(f: impl Fn(&Value, &Wire) + Send + Sync + 'static) -> WireOpts {
+fn on_write(f: impl Fn(&Value, &Wire) + 'static) -> WireOpts {
     WireOpts { on_write: Some(Arc::new(f)), ..Default::default() }
 }
 
-fn hanging(f: impl Fn(&Value, &Wire) + Send + Sync + 'static) -> WireOpts {
+fn hanging(f: impl Fn(&Value, &Wire) + 'static) -> WireOpts {
     WireOpts { hang: true, on_write: Some(Arc::new(f)), ..Default::default() }
 }
 
@@ -233,7 +233,7 @@ mod what_ends_a_codex_turn {
         json!({ "method": "thread/status/changed", "params": { "threadId": THREAD_ID, "status": { "type": kind } } }).to_string()
     }
 
-    fn running(on_interrupt: Option<Arc<dyn Fn(&Wire, &Value) + Send + Sync>>) -> Launch {
+    fn running(on_interrupt: Option<Arc<dyn Fn(&Wire, &Value)>>) -> Launch {
         launcher(scripted_server(on_write(move |m, w| match method(m) {
             "thread/start" => w.push(&opened()),
             "turn/start" => w.push1(turn_started()),
@@ -249,6 +249,10 @@ mod what_ends_a_codex_turn {
 
     #[tokio::test]
     async fn only_turn_completed_the_thread_going_idle_and_its_last_message_leave_the_turn_op() {
+        tokio::task::LocalSet::new().run_until(only_turn_completed_the_thread_going_idle_and_its_last_message_leave_the_turn_op_body()).await
+    }
+
+    async fn only_turn_completed_the_thread_going_idle_and_its_last_message_leave_the_turn_op_body() {
         let live = running(None);
         let events = Events::default();
         let session = go(&adapter_over(&live, Extra::default()), "x", &events);
@@ -265,6 +269,10 @@ mod what_ends_a_codex_turn {
 
     #[tokio::test]
     async fn a_steer_sent_before_the_server_named_the_turn_waits_for_turn_started_and_names_t() {
+        tokio::task::LocalSet::new().run_until(a_steer_sent_before_the_server_named_the_turn_waits_for_turn_started_and_names_t_body()).await
+    }
+
+    async fn a_steer_sent_before_the_server_named_the_turn_waits_for_turn_started_and_names_t_body() {
         let live = launcher(scripted_server(on_write(|m, w| match method(m) {
             "thread/start" => w.push(&opened()),
             "turn/steer" => w.push1(steer_result(m)),
@@ -296,6 +304,10 @@ mod what_ends_a_codex_turn {
 
     #[tokio::test]
     async fn a_steer_waiting_for_turn_started_answers_not_running_at_a_stop_whose_server_does() {
+        tokio::task::LocalSet::new().run_until(a_steer_waiting_for_turn_started_answers_not_running_at_a_stop_whose_server_does_body()).await
+    }
+
+    async fn a_steer_waiting_for_turn_started_answers_not_running_at_a_stop_whose_server_does_body() {
         let live = launcher(scripted_server(hanging(|m, w| {
             if method(m) == "thread/start" {
                 w.push(&opened());
@@ -304,7 +316,7 @@ mod what_ends_a_codex_turn {
         let session = go(&adapter_over(&live, Extra { grace_ms: Some(60_000), ..Default::default() }), "x", &Events::default());
         until(|| wrote(&live, "turn/start")).await;
         let mut steered = session.steer("too soon".into());
-        let _stopping = tokio::spawn(session.interrupt());
+        let _stopping = tokio::task::spawn_local(session.interrupt());
         assert!(!pending_after(&mut steered, 50).await);
         assert_eq!(steered.await, SteerOutcome::NotRunning);
         assert!(!live.wire(0).wrote("turn/steer"));
@@ -314,6 +326,10 @@ mod what_ends_a_codex_turn {
 
     #[tokio::test]
     async fn a_steer_waiting_for_a_turn_started_that_never_comes_answers_not_running_once_the() {
+        tokio::task::LocalSet::new().run_until(a_steer_waiting_for_a_turn_started_that_never_comes_answers_not_running_once_the_body()).await
+    }
+
+    async fn a_steer_waiting_for_a_turn_started_that_never_comes_answers_not_running_once_the_body() {
         let live = launcher(scripted_server(hanging(|m, w| {
             if method(m) == "thread/start" {
                 w.push(&opened());
@@ -331,11 +347,15 @@ mod what_ends_a_codex_turn {
 
     #[tokio::test]
     async fn an_interrupt_s_answer_is_not_the_turn_s_end_it_stays_open_until_turn_completed_s() {
+        tokio::task::LocalSet::new().run_until(an_interrupt_s_answer_is_not_the_turn_s_end_it_stays_open_until_turn_completed_s_body()).await
+    }
+
+    async fn an_interrupt_s_answer_is_not_the_turn_s_end_it_stays_open_until_turn_completed_s_body() {
         let live = running(Some(Arc::new(|w: &Wire, m: &Value| w.push1(result_to(m, json!({}))))));
         let events = Events::default();
         let session = go(&adapter_over(&live, Extra { grace_ms: Some(5_000), ..Default::default() }), "x", &events);
         until(|| events.any("turn.anchor")).await;
-        let stopping = tokio::spawn(session.interrupt());
+        let stopping = tokio::task::spawn_local(session.interrupt());
         until(|| wrote(&live, "turn/interrupt")).await;
         assert!(pending_after(session.finished(), 50).await);
         live.wire(0).push1(completed("interrupted"));
@@ -458,6 +478,10 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn never_lets_a_child_s_turn_set_end_or_rename_the_lead_s_the_steer_names_the_lead() {
+        tokio::task::LocalSet::new().run_until(never_lets_a_child_s_turn_set_end_or_rename_the_lead_s_the_steer_names_the_lead_body()).await
+    }
+
+    async fn never_lets_a_child_s_turn_set_end_or_rename_the_lead_s_the_steer_names_the_lead_body() {
         let live = leading();
         let events = Events::default();
         let session = go(&adapter_over(&live, Extra::default()), "spawn one agent", &events);
@@ -487,6 +511,10 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn an_interrupt_names_the_lead_s_turn_after_a_child_s_turn_started() {
+        tokio::task::LocalSet::new().run_until(an_interrupt_names_the_lead_s_turn_after_a_child_s_turn_started_body()).await
+    }
+
+    async fn an_interrupt_names_the_lead_s_turn_after_a_child_s_turn_started_body() {
         let live = leading();
         let events = Events::default();
         let session = go(&adapter_over(&live, Extra { grace_ms: Some(15), ..Default::default() }), "spawn one agent", &events);
@@ -499,6 +527,10 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn holds_the_lead_s_reply_while_its_child_runs_no_turn_done_stdin_open_one_task_and() {
+        tokio::task::LocalSet::new().run_until(holds_the_lead_s_reply_while_its_child_runs_no_turn_done_stdin_open_one_task_and_body()).await
+    }
+
+    async fn holds_the_lead_s_reply_while_its_child_runs_no_turn_done_stdin_open_one_task_and_body() {
         let live = spawning(false, false);
         let events = Events::default();
         let session = go(&adapter_over(&live, Extra { result_exit_ms: Some(15), grace_ms: Some(15), ..Default::default() }), "spawn one agent", &events);
@@ -560,6 +592,10 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn a_child_whose_turn_failed_reads_failed_and_one_a_server_s_activity_says_complete() {
+        tokio::task::LocalSet::new().run_until(a_child_whose_turn_failed_reads_failed_and_one_a_server_s_activity_says_complete_body()).await
+    }
+
+    async fn a_child_whose_turn_failed_reads_failed_and_one_a_server_s_activity_says_complete_body() {
         let live = spawning(false, false);
         let events = Events::default();
         let session = go(&adapter_over(&live, Extra::default()), "spawn one agent", &events);
@@ -579,6 +615,10 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn a_child_known_only_from_its_spawn_holds_the_reply_but_not_the_idle_clock_until_i() {
+        tokio::task::LocalSet::new().run_until(a_child_known_only_from_its_spawn_holds_the_reply_but_not_the_idle_clock_until_i_body()).await
+    }
+
+    async fn a_child_known_only_from_its_spawn_holds_the_reply_but_not_the_idle_clock_until_i_body() {
         let live = launcher(scripted_server(on_write(|m, w| match method(m) {
             "thread/start" => w.push(&opened()),
             "turn/start" => w.push(&[turn_started(), spawn_item("completed"), completed("completed")]),
@@ -599,6 +639,10 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn a_spawn_the_server_failed_names_no_child_so_nothing_holds_the_lead() {
+        tokio::task::LocalSet::new().run_until(a_spawn_the_server_failed_names_no_child_so_nothing_holds_the_lead_body()).await
+    }
+
+    async fn a_spawn_the_server_failed_names_no_child_so_nothing_holds_the_lead_body() {
         let failed_spawn = spawn_item("completed").replace(r#""status":"completed""#, r#""status":"failed""#);
         let live = launcher(scripted_server(on_write(move |m, w| match method(m) {
             "thread/start" => w.push(&opened()),
@@ -615,6 +659,10 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn knows_a_child_whose_only_sign_is_its_own_turn_starting_and_holds_the_lead_for_it() {
+        tokio::task::LocalSet::new().run_until(knows_a_child_whose_only_sign_is_its_own_turn_starting_and_holds_the_lead_for_it_body()).await
+    }
+
+    async fn knows_a_child_whose_only_sign_is_its_own_turn_starting_and_holds_the_lead_for_it_body() {
         let live = launcher(scripted_server(on_write(|m, w| match method(m) {
             "thread/start" => w.push(&opened()),
             "turn/start" => w.push(&[turn_started(), child_started(), completed("completed")]),
@@ -632,6 +680,10 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn a_stop_with_a_child_running_interrupts_the_child_first_then_the_lead_and_the_chi() {
+        tokio::task::LocalSet::new().run_until(a_stop_with_a_child_running_interrupts_the_child_first_then_the_lead_and_the_chi_body()).await
+    }
+
+    async fn a_stop_with_a_child_running_interrupts_the_child_first_then_the_lead_and_the_chi_body() {
         let live = spawning(true, false);
         let events = Events::default();
         let session = go(&adapter_over(&live, Extra { grace_ms: Some(5_000), ..Default::default() }), "spawn one agent", &events);
@@ -645,6 +697,10 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn a_stop_after_the_lead_s_reply_interrupts_the_child_alone_and_the_held_reply_stan() {
+        tokio::task::LocalSet::new().run_until(a_stop_after_the_lead_s_reply_interrupts_the_child_alone_and_the_held_reply_stan_body()).await
+    }
+
+    async fn a_stop_after_the_lead_s_reply_interrupts_the_child_alone_and_the_held_reply_stan_body() {
         let live = spawning(true, false);
         let events = Events::default();
         let session = go(&adapter_over(&live, Extra { grace_ms: Some(5_000), ..Default::default() }), "spawn one agent", &events);
@@ -661,6 +717,10 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn a_child_s_approval_reaches_the_person_as_an_ask_named_by_the_child_s_spawn() {
+        tokio::task::LocalSet::new().run_until(a_child_s_approval_reaches_the_person_as_an_ask_named_by_the_child_s_spawn_body()).await
+    }
+
+    async fn a_child_s_approval_reaches_the_person_as_an_ask_named_by_the_child_s_spawn_body() {
         let live = leading();
         let events = Events::default();
         let session = go(&adapter_over(&live, Extra::default()), "spawn one agent", &events);
@@ -679,6 +739,10 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn stops_one_child_alone_by_its_thread_id_the_lead_running_on_and_its_interrupted_e() {
+        tokio::task::LocalSet::new().run_until(stops_one_child_alone_by_its_thread_id_the_lead_running_on_and_its_interrupted_e_body()).await
+    }
+
+    async fn stops_one_child_alone_by_its_thread_id_the_lead_running_on_and_its_interrupted_e_body() {
         let live = spawning(true, false);
         let events = Events::default();
         let session = go(&adapter_over(&live, Extra::default()), "spawn one agent", &events);
@@ -695,6 +759,10 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn a_process_that_goes_with_a_child_still_running_ends_the_child_too_stopped_under() {
+        tokio::task::LocalSet::new().run_until(a_process_that_goes_with_a_child_still_running_ends_the_child_too_stopped_under_body()).await
+    }
+
+    async fn a_process_that_goes_with_a_child_still_running_ends_the_child_too_stopped_under_body() {
         let live = spawning(false, false);
         let events = Events::default();
         let session = go(&adapter_over(&live, Extra::default()), "spawn one agent", &events);
@@ -733,6 +801,10 @@ mod a_recorded_codex_turn_whose_lead_spawned_an_agent_and_ended_first {
 
     #[tokio::test]
     async fn holds_the_lead_s_reply_until_the_child_s_own_turn_completes_and_says_the_child_s() {
+        tokio::task::LocalSet::new().run_until(holds_the_lead_s_reply_until_the_child_s_own_turn_completes_and_says_the_child_s_body()).await
+    }
+
+    async fn holds_the_lead_s_reply_until_the_child_s_own_turn_completes_and_says_the_child_s_body() {
         let launch = launcher(server(fixture_lines("codex", "app-server-subagent.jsonl"), WireOpts::default()));
         let events = Events::default();
         let result = go(&adapter_over(&launch, Extra::default()), "spawn one agent and end your turn", &events).finished().await;
@@ -772,6 +844,10 @@ mod a_turn_a_later_host_attaches_to {
 
     #[tokio::test]
     async fn re_opens_the_run_with_its_channel_replays_the_log_and_writes_nothing_in_answer_t() {
+        tokio::task::LocalSet::new().run_until(re_opens_the_run_with_its_channel_replays_the_log_and_writes_nothing_in_answer_t_body()).await
+    }
+
+    async fn re_opens_the_run_with_its_channel_replays_the_log_and_writes_nothing_in_answer_t_body() {
         let launch = launcher(server(fixture_lines("codex", "app-server-turn.jsonl"), WireOpts::default()));
         let attached: Arc<Mutex<Vec<(String, bool)>>> = Arc::new(Mutex::new(Vec::new()));
         let replay = wire(WireOpts::default());
@@ -781,7 +857,7 @@ mod a_turn_a_later_host_attaches_to {
         launch.set_attach(move |run, options| {
             seen.lock().unwrap().push((run.to_string(), options.input));
             let stream = stream.stream();
-            async move { Ok(Attached::Stream(stream)) }.boxed()
+            async move { Ok(Attached::Stream(stream)) }.boxed_local()
         });
         let adapter = adapter_over(&launch, Extra::default());
         assert_eq!(go_quiet(&adapter, "go").run().as_deref(), Some(RUN_HANDLE));
@@ -824,6 +900,10 @@ mod the_process_a_finished_turn_leaves {
 
     #[tokio::test]
     async fn a_server_that_does_not_go_after_its_turn_completed_is_ended_with_its_tree_and_th() {
+        tokio::task::LocalSet::new().run_until(a_server_that_does_not_go_after_its_turn_completed_is_ended_with_its_tree_and_th_body()).await
+    }
+
+    async fn a_server_that_does_not_go_after_its_turn_completed_is_ended_with_its_tree_and_th_body() {
         let launch = launcher(scripted_turn(vec![agent_message("msg_1", "done"), completed("completed")], WireOpts { hang: true, ..Default::default() }));
         let events = Events::default();
         let result = go(&adapter_over(&launch, Extra { grace_ms: Some(15), result_exit_ms: Some(15), ..Default::default() }), "x", &events).finished().await;
@@ -835,6 +915,10 @@ mod the_process_a_finished_turn_leaves {
 
     #[tokio::test]
     async fn a_server_that_exits_on_eof_is_left_alone() {
+        tokio::task::LocalSet::new().run_until(a_server_that_exits_on_eof_is_left_alone_body()).await
+    }
+
+    async fn a_server_that_exits_on_eof_is_left_alone_body() {
         let launch = launcher(server(fixture_lines("codex", "app-server-turn.jsonl"), WireOpts::default()));
         let result = go_quiet(&adapter_over(&launch, Extra { grace_ms: Some(15), result_exit_ms: Some(15), ..Default::default() }), "x").finished().await;
         assert_eq!(result.status, TurnStatus::Completed);
@@ -848,6 +932,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
     #[tokio::test]
     async fn names_the_turn_by_the_id_the_server_gave_it_at_turn_started_once() {
+        tokio::task::LocalSet::new().run_until(names_the_turn_by_the_id_the_server_gave_it_at_turn_started_once_body()).await
+    }
+
+    async fn names_the_turn_by_the_id_the_server_gave_it_at_turn_started_once_body() {
         let launch = launcher(scripted_turn(vec![agent_message("msg_1", "done"), completed("completed")], WireOpts::default()));
         let events = Events::default();
         go(&adapter_over(&launch, Extra::default()), "x", &events).finished().await;
@@ -856,6 +944,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
     #[tokio::test]
     async fn on_a_thread_an_older_codex_made_names_each_turn_s_anchor_with_why_its_history_ca() {
+        tokio::task::LocalSet::new().run_until(on_a_thread_an_older_codex_made_names_each_turn_s_anchor_with_why_its_history_ca_body()).await
+    }
+
+    async fn on_a_thread_an_older_codex_made_names_each_turn_s_anchor_with_why_its_history_ca_body() {
         let head = opened_with(THREAD_ID, true);
         let legacy = server(vec![head[0].clone(), head[1].clone(), turn_started(), agent_message("msg_1", "done"), completed("completed")], WireOpts::default());
         let events = Events::default();
@@ -865,6 +957,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
     #[tokio::test]
     async fn reads_the_history_mode_off_this_thread_s_own_announcement_alone_never_a_later_th() {
+        tokio::task::LocalSet::new().run_until(reads_the_history_mode_off_this_thread_s_own_announcement_alone_never_a_later_th_body()).await
+    }
+
+    async fn reads_the_history_mode_off_this_thread_s_own_announcement_alone_never_a_later_th_body() {
         let other = json!({ "method": "thread/started", "params": { "thread": { "id": "01a0e2c1-0000-7000-8000-00000000c41d", "historyMode": "legacy" } } }).to_string();
         let mut lines = opened();
         lines.extend([other, turn_started(), agent_message("msg_1", "done"), completed("completed")]);
@@ -967,6 +1063,10 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
 
     #[tokio::test]
     async fn asks_the_account_and_its_limits_once_as_the_turn_opens_and_reads_the_windows_by() {
+        tokio::task::LocalSet::new().run_until(asks_the_account_and_its_limits_once_as_the_turn_opens_and_reads_the_windows_by_body()).await
+    }
+
+    async fn asks_the_account_and_its_limits_once_as_the_turn_opens_and_reads_the_windows_by_body() {
         let (launch, limits) = limits_after(vec![
             plus_account(),
             rate_limits(snapshot(Snapshot { primary: Some(window(34.5, 300, 1_790_700_000)), secondary: Some(window(12.0, 10_080, 1_791_200_000)), plan_type: Some("plus"), ..Default::default() }), Some("acct_7f3a")),
@@ -991,6 +1091,10 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
 
     #[tokio::test]
     async fn merges_a_rolling_update_into_the_last_reading_a_window_it_leaves_out_kept_and_a() {
+        tokio::task::LocalSet::new().run_until(merges_a_rolling_update_into_the_last_reading_a_window_it_leaves_out_kept_and_a_body()).await
+    }
+
+    async fn merges_a_rolling_update_into_the_last_reading_a_window_it_leaves_out_kept_and_a_body() {
         let (_, limits) = limits_after(vec![
             plus_account(),
             rate_limits(snapshot(Snapshot { primary: Some(window(34.5, 300, 1_790_700_000)), secondary: Some(window(12.0, 10_080, 1_791_200_000)), plan_type: Some("plus"), ..Default::default() }), Some("acct_7f3a")),
@@ -1013,12 +1117,20 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
 
     #[tokio::test]
     async fn reads_a_window_longer_than_a_week_as_the_month() {
+        tokio::task::LocalSet::new().run_until(reads_a_window_longer_than_a_week_as_the_month_body()).await
+    }
+
+    async fn reads_a_window_longer_than_a_week_as_the_month_body() {
         let (_, limits) = limits_after(vec![rate_limits(primary_only(window(5.0, 43_200, 1_792_000_000)), None), completed("completed")]).await;
         assert_eq!(limits, vec![HarnessLimit { status: Some(LimitStatus::Ok), ..limit(vec![win(LimitKind::Month, 5.0, 1_792_000_000_000.0)]) }]);
     }
 
     #[tokio::test]
     async fn says_a_sign_in_by_api_key_has_no_plan_window() {
+        tokio::task::LocalSet::new().run_until(says_a_sign_in_by_api_key_has_no_plan_window_body()).await
+    }
+
+    async fn says_a_sign_in_by_api_key_has_no_plan_window_body() {
         let (_, limits) = limits_after(vec![account(json!({ "type": "apiKey" })), completed("completed")]).await;
         assert_eq!(limits, vec![HarnessLimit { keyed: Some(true), ..limit(vec![]) }]);
     }
@@ -1029,6 +1141,10 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
 
     #[tokio::test]
     async fn asks_for_each_banked_reset_in_full_on_a_turn_the_runtime_says_is_due_for_it_and() {
+        tokio::task::LocalSet::new().run_until(asks_for_each_banked_reset_in_full_on_a_turn_the_runtime_says_is_due_for_it_and_body()).await
+    }
+
+    async fn asks_for_each_banked_reset_in_full_on_a_turn_the_runtime_says_is_due_for_it_and_body() {
         async fn params_of(limit_details: bool) -> Option<Value> {
             let launch = launcher(scripted_turn(vec![completed("completed")], WireOpts::default()));
             let adapter = adapter_over(&launch, Extra::default());
@@ -1048,6 +1164,10 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
 
     #[tokio::test]
     async fn reads_how_many_resets_the_plan_has_banked_off_the_turn_s_read_where_the_details() {
+        tokio::task::LocalSet::new().run_until(reads_how_many_resets_the_plan_has_banked_off_the_turn_s_read_where_the_details_body()).await
+    }
+
+    async fn reads_how_many_resets_the_plan_has_banked_off_the_turn_s_read_where_the_details_body() {
         let (_, limits) = limits_after(vec![read(primary_only(window(34.5, 300, 1_790_700_000)), json!({ "rateLimitResetCredits": banked(json!(null)) })), completed("completed")]).await;
         let credits: Vec<Option<BankedResets>> = limits.into_iter().map(|l| l.credits).collect();
         assert_eq!(credits, vec![Some(BankedResets { count: 2.into(), credits: None })]);
@@ -1055,6 +1175,10 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
 
     #[tokio::test]
     async fn keeps_the_banked_resets_off_a_rolling_update_which_never_carries_them_so_the_las() {
+        tokio::task::LocalSet::new().run_until(keeps_the_banked_resets_off_a_rolling_update_which_never_carries_them_so_the_las_body()).await
+    }
+
+    async fn keeps_the_banked_resets_off_a_rolling_update_which_never_carries_them_so_the_las_body() {
         let (_, limits) = limits_after(vec![
             read(primary_only(window(34.5, 300, 1_790_700_000)), json!({ "rateLimitResetCredits": banked(json!(null)) })),
             updated(primary_only(window(40.0, 300, 1_790_700_000))),
@@ -1067,6 +1191,10 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
 
     #[tokio::test]
     async fn reads_the_windows_off_the_codex_bucket_where_the_answer_names_buckets_and_merges() {
+        tokio::task::LocalSet::new().run_until(reads_the_windows_off_the_codex_bucket_where_the_answer_names_buckets_and_merges_body()).await
+    }
+
+    async fn reads_the_windows_off_the_codex_bucket_where_the_answer_names_buckets_and_merges_body() {
         let mut other = primary_only(window(90.0, 300, 1_790_700_000));
         other["limitId"] = json!("codex_other");
         let (_, limits) = limits_after(vec![
@@ -1109,6 +1237,10 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
 
         #[tokio::test]
         async fn carries_the_limit_with_the_reset_of_the_window_the_latest_reading_has_at_its_cap() {
+            tokio::task::LocalSet::new().run_until(carries_the_limit_with_the_reset_of_the_window_the_latest_reading_has_at_its_cap_body()).await
+        }
+
+        async fn carries_the_limit_with_the_reset_of_the_window_the_latest_reading_has_at_its_cap_body() {
             let hour = in_an_hour();
             let result = run(vec![
                 read(snapshot(Snapshot { primary: Some(window(97.0, 300, hour)), secondary: Some(window(40.0, 10_080, hour + 86_400)), ..Default::default() }), json!({})),
@@ -1123,6 +1255,10 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
 
         #[tokio::test]
         async fn carries_the_reset_of_the_fullest_window_ahead_where_the_server_stopped_the_turn() {
+            tokio::task::LocalSet::new().run_until(carries_the_reset_of_the_fullest_window_ahead_where_the_server_stopped_the_turn_body()).await
+        }
+
+        async fn carries_the_reset_of_the_fullest_window_ahead_where_the_server_stopped_the_turn_body() {
             let hour = in_an_hour();
             let result = run(vec![
                 read(snapshot(Snapshot { primary: Some(window(97.0, 300, hour)), secondary: Some(window(40.0, 10_080, hour + 86_400)), ..Default::default() }), json!({})),
@@ -1137,6 +1273,10 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
 
         #[tokio::test]
         async fn carries_the_limit_with_no_reset_where_no_window_names_one_ahead() {
+            tokio::task::LocalSet::new().run_until(carries_the_limit_with_no_reset_where_no_window_names_one_ahead_body()).await
+        }
+
+        async fn carries_the_limit_with_no_reset_where_no_window_names_one_ahead_body() {
             let result = run(vec![read(primary_only(window(99.0, 300, now_secs() - 60)), json!({})), failed("usageLimitExceeded")]).await;
             assert_eq!(result.status, TurnStatus::Failed);
             assert_eq!(result.limit, Some(TurnLimit { resets_at: None }));
@@ -1144,6 +1284,10 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
 
         #[tokio::test]
         async fn carries_none_on_a_turn_that_failed_another_way_whatever_the_reading_says() {
+            tokio::task::LocalSet::new().run_until(carries_none_on_a_turn_that_failed_another_way_whatever_the_reading_says_body()).await
+        }
+
+        async fn carries_none_on_a_turn_that_failed_another_way_whatever_the_reading_says_body() {
             let result = run(vec![
                 updated(snapshot(Snapshot { primary: Some(window(100.0, 300, in_an_hour())), reached: Some("rate_limit_reached"), ..Default::default() })),
                 error("serverOverloaded"),
@@ -1186,7 +1330,7 @@ mod a_codex_thread_s_own_compaction {
         ]
     }
 
-    fn compacting_server() -> impl Fn(&[String]) -> Wire + Send + Sync + 'static {
+    fn compacting_server() -> impl Fn(&[String]) -> Wire + 'static {
         scripted_server(on_write(|m, w| match method(m) {
             "thread/resume" => w.push(&opened()),
             "thread/compact/start" => w.push(&compaction()),
@@ -1196,6 +1340,10 @@ mod a_codex_thread_s_own_compaction {
 
     #[tokio::test]
     async fn runs_compact_as_the_server_s_own_compaction_of_the_thread_not_as_a_message_to_th() {
+        tokio::task::LocalSet::new().run_until(runs_compact_as_the_server_s_own_compaction_of_the_thread_not_as_a_message_to_th_body()).await
+    }
+
+    async fn runs_compact_as_the_server_s_own_compaction_of_the_thread_not_as_a_message_to_th_body() {
         let launch = launcher(compacting_server());
         let adapter = adapter_over(&launch, Extra::default());
         assert_eq!(adapter.compacts(), "/compact");
@@ -1208,6 +1356,10 @@ mod a_codex_thread_s_own_compaction {
 
     #[tokio::test]
     async fn reads_what_the_thread_holds_after_the_compaction_off_the_usage_line_s_total_wher() {
+        tokio::task::LocalSet::new().run_until(reads_what_the_thread_holds_after_the_compaction_off_the_usage_line_s_total_wher_body()).await
+    }
+
+    async fn reads_what_the_thread_holds_after_the_compaction_off_the_usage_line_s_total_wher_body() {
         let launch = launcher(compacting_server());
         let result = go_resume(&adapter_over(&launch, Extra::default()), "/compact", &Events::default()).finished().await;
         let tokens = tokens_of(&result);
@@ -1217,6 +1369,10 @@ mod a_codex_thread_s_own_compaction {
 
     #[tokio::test]
     async fn says_the_compact_turn_s_compaction_once_with_what_the_thread_holds_after_it() {
+        tokio::task::LocalSet::new().run_until(says_the_compact_turn_s_compaction_once_with_what_the_thread_holds_after_it_body()).await
+    }
+
+    async fn says_the_compact_turn_s_compaction_once_with_what_the_thread_holds_after_it_body() {
         let launch = launcher(compacting_server());
         let events = Events::default();
         go_resume(&adapter_over(&launch, Extra::default()), "/compact", &events).finished().await;
@@ -1225,6 +1381,10 @@ mod a_codex_thread_s_own_compaction {
 
     #[tokio::test]
     async fn says_a_compaction_the_server_ran_by_itself_at_a_turn_s_start_with_what_the_threa() {
+        tokio::task::LocalSet::new().run_until(says_a_compaction_the_server_ran_by_itself_at_a_turn_s_start_with_what_the_threa_body()).await
+    }
+
+    async fn says_a_compaction_the_server_ran_by_itself_at_a_turn_s_start_with_what_the_threa_body() {
         // The recording's first line names its own thread and turn, swapped here for the test's.
         let recorded = fixture_lines("codex", "auto-compaction.jsonl");
         let ids: Value = codex_wire::parse(&recorded[0]);
@@ -1252,6 +1412,10 @@ mod a_codex_thread_s_own_compaction {
 
     #[tokio::test]
     async fn sends_any_other_message_as_a_turn_compact_with_words_after_it_included() {
+        tokio::task::LocalSet::new().run_until(sends_any_other_message_as_a_turn_compact_with_words_after_it_included_body()).await
+    }
+
+    async fn sends_any_other_message_as_a_turn_compact_with_words_after_it_included_body() {
         let launch = launcher(scripted_turn(vec![agent_message("m1", "done"), completed("completed")], WireOpts::default()));
         go_resume(&adapter_over(&launch, Extra::default()), "/compact the notes please", &Events::default()).finished().await;
         assert!(launch.wire(0).wrote("turn/start"));

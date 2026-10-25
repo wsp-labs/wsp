@@ -6,8 +6,8 @@
 
 use std::sync::{Arc, Mutex};
 
-use futures::future::{BoxFuture, FutureExt};
-use futures::stream::{self, BoxStream, StreamExt};
+use futures::future::{LocalBoxFuture, FutureExt};
+use futures::stream::{self, LocalBoxStream, StreamExt};
 use tokio::sync::{mpsc, watch};
 use wsp_adapters::port::{AdapterEvent, Env, ExecFailure, ExecOptions, ExecSecret, ExecStream, ExecStreamFactory, OnEvent, Settle, SharedFuture, WriteOutcome};
 
@@ -65,7 +65,7 @@ impl Exit {
                 }
             }
         }
-        .boxed()
+        .boxed_local()
         .shared()
     }
 }
@@ -90,7 +90,7 @@ pub struct StreamOpts {
     pub hang: bool,
     pub signalled: Option<String>,
     /// Runs inside write() before the line lands.
-    pub before_write: Option<Arc<dyn Fn() -> BoxFuture<'static, ()> + Send + Sync>>,
+    pub before_write: Option<Arc<dyn Fn() -> LocalBoxFuture<'static, ()>>>,
     /// The guest reports the process over: write answers Gone and no line lands.
     pub gone: bool,
     /// Teardown leaves the process up, as a CLI held by background tasks is.
@@ -103,7 +103,7 @@ pub struct StreamOpts {
 /// A fake ExecStream. `order` notes "teardown", "kill", "write" and "closeInput" in the order they came; `writes`
 /// holds every line that landed.
 pub struct FakeStream {
-    lines: Mutex<Option<BoxStream<'static, Result<String, ExecFailure>>>>,
+    lines: Mutex<Option<LocalBoxStream<'static, Result<String, ExecFailure>>>>,
     pub exit: Exit,
     exited: SharedFuture<Option<i32>>,
     pub opts: StreamOpts,
@@ -128,7 +128,7 @@ impl FakeStream {
             None
         })
         .filter_map(|x: Option<Result<String, ExecFailure>>| async move { x });
-        let body = stream::iter(lines.into_iter().map(Ok)).chain(tail).boxed();
+        let body = stream::iter(lines.into_iter().map(Ok)).chain(tail).boxed_local();
         let exited = exit.future();
         Arc::new(FakeStream { lines: Mutex::new(Some(body)), exit, exited, opts, order, writes, feed: Mutex::new(None), manual: false })
     }
@@ -137,7 +137,7 @@ impl FakeStream {
     pub fn manual(opts: StreamOpts, order: Arc<Mutex<Vec<String>>>, writes: Arc<Mutex<Vec<String>>>) -> Arc<Self> {
         let exit = Exit::new();
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let body = stream::poll_fn(move |cx| rx.poll_recv(cx)).boxed();
+        let body = stream::poll_fn(move |cx| rx.poll_recv(cx)).boxed_local();
         let exited = exit.future();
         Arc::new(FakeStream { lines: Mutex::new(Some(body)), exit, exited, opts, order, writes, feed: Mutex::new(Some(tx)), manual: true })
     }
@@ -168,8 +168,8 @@ impl FakeStream {
 }
 
 impl ExecStream for FakeStream {
-    fn lines(&self) -> BoxStream<'static, Result<String, ExecFailure>> {
-        self.lines.lock().unwrap().take().unwrap_or_else(|| stream::empty().boxed())
+    fn lines(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>> {
+        self.lines.lock().unwrap().take().unwrap_or_else(|| stream::empty().boxed_local())
     }
     fn run(&self) -> Option<String> {
         self.opts.run.clone()
@@ -190,7 +190,7 @@ impl ExecStream for FakeStream {
         self.feed.lock().unwrap().take();
         self.exit.resolve(None);
     }
-    fn write(&self, line: String) -> BoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
+    fn write(&self, line: String) -> LocalBoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
         self.note("write");
         let before = self.opts.before_write.clone();
         let gone = self.opts.gone;
@@ -205,7 +205,7 @@ impl ExecStream for FakeStream {
             writes.lock().unwrap().push(line);
             Ok(WriteOutcome::Written)
         }
-        .boxed()
+        .boxed_local()
     }
     fn close_input(&self) {
         self.note("closeInput");
@@ -306,7 +306,7 @@ impl ExecStreamFactory for FakeExec {
         }
         self.make()
     }
-    fn attach(&self, run: &str, options: wsp_adapters::port::AttachRunOptions) -> Option<BoxFuture<'static, Result<wsp_adapters::port::Attached, ExecFailure>>> {
+    fn attach(&self, run: &str, options: wsp_adapters::port::AttachRunOptions) -> Option<LocalBoxFuture<'static, Result<wsp_adapters::port::Attached, ExecFailure>>> {
         let gone = self.attach?;
         self.attached.lock().unwrap().push((run.to_string(), options));
         let stream = if gone { None } else { Some(self.make()) };
@@ -317,7 +317,7 @@ impl ExecStreamFactory for FakeExec {
                     None => wsp_adapters::port::Attached::Gone,
                 })
             }
-            .boxed(),
+            .boxed_local(),
         )
     }
 }

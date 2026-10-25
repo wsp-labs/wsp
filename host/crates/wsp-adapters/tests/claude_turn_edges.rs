@@ -47,27 +47,31 @@ fn usage(input: u64, output: u64, cached: u64, cache_write: u64) -> UsageTokens 
 // up, a stop is the control line alone and nothing is signalled when the run ends within the grace.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn one_counter_numbers_every_request_and_a_kept_stop_signals_nothing() {
+    tokio::task::LocalSet::new().run_until(one_counter_numbers_every_request_and_a_kept_stop_signals_nothing_body()).await
+}
+
+async fn one_counter_numbers_every_request_and_a_kept_stop_signals_nothing_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = create_claude_adapter(AdapterDeps { interrupt_grace_ms: Some(2_000), ..deps(&exec) }).unwrap();
     let (events, on_event) = collect();
     let session = adapter.start(HarnessStartOptions { prompt: "one".into(), keep: true, on_event: Some(on_event), ..Default::default() }).unwrap();
     exec.push(init());
     until(|| !events.lock().unwrap().is_empty()).await;
-    let set = tokio::spawn({
+    let set = tokio::task::spawn_local({
         let session = session.clone();
         async move { session.set_access("plan").await }
     });
     until(|| exec.writes().len() == 1).await;
     exec.push(json!({"type": "control_response", "response": {"subtype": "success", "request_id": "wsp-set-mode-1", "response": {}}}).to_string());
     assert_eq!(set.await.unwrap(), Ok(AccessOutcome::Set));
-    let stop = tokio::spawn({
+    let stop = tokio::task::spawn_local({
         let session = session.clone();
         async move { session.stop_task("bg-1").await }
     });
     until(|| exec.writes().len() == 2).await;
     exec.push(json!({"type": "control_response", "response": {"subtype": "error", "request_id": "wsp-stop-task-2", "error": "no such task"}}).to_string());
     assert_eq!(stop.await.unwrap(), Ok(TaskStop::Refused { error: "no such task".into() }));
-    let interrupt = tokio::spawn({
+    let interrupt = tokio::task::spawn_local({
         let session = session.clone();
         async move { session.interrupt().await }
     });
@@ -90,6 +94,10 @@ async fn one_counter_numbers_every_request_and_a_kept_stop_signals_nothing() {
 // end, then session.end last; a request still waiting answers Gone; nothing can be answered or steered after.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_process_going_under_open_prompts_cancels_each_in_order_before_the_end() {
+    tokio::task::LocalSet::new().run_until(the_process_going_under_open_prompts_cancels_each_in_order_before_the_end_body()).await
+}
+
+async fn the_process_going_under_open_prompts_cancels_each_in_order_before_the_end_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
     let (events, on_event) = collect();
@@ -98,7 +106,7 @@ async fn the_process_going_under_open_prompts_cancels_each_in_order_before_the_e
     exec.push(ask("r1", "Bash"));
     exec.push(ask("r2", "Write"));
     until(|| events.lock().unwrap().iter().filter(|e| matches!(e, AdapterEvent::PermissionAsk { .. })).count() == 2).await;
-    let set = tokio::spawn({
+    let set = tokio::task::spawn_local({
         let session = session.clone();
         async move { session.set_access("acceptEdits").await }
     });
@@ -129,6 +137,10 @@ async fn the_process_going_under_open_prompts_cancels_each_in_order_before_the_e
 // model, the model that spent most named; the anchor is the lead's last line, never a subagent's.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_call_is_drawn_once_per_message_and_a_run_with_no_result_carries_every_call() {
+    tokio::task::LocalSet::new().run_until(a_call_is_drawn_once_per_message_and_a_run_with_no_result_carries_every_call_body()).await
+}
+
+async fn a_call_is_drawn_once_per_message_and_a_run_with_no_result_carries_every_call_body() {
     let lines = vec![
         init(),
         json!({"type": "assistant", "uuid": "u1", "session_id": SID, "timestamp": "2026-10-25T10:00:00.000Z", "message": {"id": "m1", "model": "claude-x", "content": [{"type": "thinking", "thinking": ""}], "usage": {"input_tokens": 10, "output_tokens": 5, "cache_read_input_tokens": 100, "cache_creation_input_tokens": 7}}}).to_string(),
@@ -169,6 +181,10 @@ async fn a_call_is_drawn_once_per_message_and_a_run_with_no_result_carries_every
 // and one that goes on the SIGTERM is never killed.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_stop_before_any_result_reads_interrupted_with_the_calls_so_far() {
+    tokio::task::LocalSet::new().run_until(a_stop_before_any_result_reads_interrupted_with_the_calls_so_far_body()).await
+}
+
+async fn a_stop_before_any_result_reads_interrupted_with_the_calls_so_far_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
     let (events, on_event) = collect();
@@ -197,6 +213,10 @@ async fn a_stop_before_any_result_reads_interrupted_with_the_calls_so_far() {
 // new session; only a resume's launch reads the saved spend first.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn each_start_is_registered_under_its_own_local_id() {
+    tokio::task::LocalSet::new().run_until(each_start_is_registered_under_its_own_local_id_body()).await
+}
+
+async fn each_start_is_registered_under_its_own_local_id_body() {
     let exec = FakeExec::scripted(vec![init()], StreamOpts::default());
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
     let start = |resume: Option<&str>, copy: bool| adapter.start(HarnessStartOptions { prompt: "x".into(), resume: resume.map(String::from), copy, on_event: Some(Arc::new(|_| {})), ..Default::default() }).unwrap();
@@ -221,6 +241,10 @@ async fn each_start_is_registered_under_its_own_local_id() {
 // failure rides session.end as it came, so the runtime can tell a silent computer from the rest.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn every_transport_failure_kind_rides_session_end_as_it_came() {
+    tokio::task::LocalSet::new().run_until(every_transport_failure_kind_rides_session_end_as_it_came_body()).await
+}
+
+async fn every_transport_failure_kind_rides_session_end_as_it_came_body() {
     for kind in [ExecFailureKind::Unreached, ExecFailureKind::Unreachable, ExecFailureKind::PlaceAbsent, ExecFailureKind::LaunchUnanswered, ExecFailureKind::Deadline, ExecFailureKind::NoAnswer, ExecFailureKind::Other] {
         let exec = FakeExec::manual(StreamOpts::default());
         let adapter = create_claude_adapter(deps(&exec)).unwrap();

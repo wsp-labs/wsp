@@ -11,7 +11,7 @@ mod codex_shell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use futures::future::{BoxFuture, FutureExt};
+use futures::future::{LocalBoxFuture, FutureExt};
 use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 use wsp_adapters::codex::command::{build_env, codex_launch, codex_word, BrokerMode, CodexBroker, CodexEnvOptions};
@@ -36,7 +36,7 @@ fn recorded() -> Map<String, Value> {
 }
 
 /// Each exec runs under bash with PATH=/usr/bin:/bin and a HOME, the variables on its input as a machine's exec runs them.
-fn shell_exec(command: &str, env: Option<&Env>) -> BoxFuture<'static, Result<String, ExecFailure>> {
+fn shell_exec(command: &str, env: Option<&Env>) -> LocalBoxFuture<'static, Result<String, ExecFailure>> {
     let command = command.to_string();
     let input = env.map(|e| nul_env(e.iter())).unwrap_or_default();
     async move {
@@ -48,13 +48,13 @@ fn shell_exec(command: &str, env: Option<&Env>) -> BoxFuture<'static, Result<Str
         .unwrap();
         Ok(ran.stdout)
     }
-    .boxed()
+    .boxed_local()
 }
 
 fn plain_road() -> ConversationRoad {
     ConversationRoad {
         exec: Arc::new(shell_exec),
-        ask: Arc::new(|_frame| async { Err(ExecFailure { kind: ExecFailureKind::Other, message: "codex asks no daemon".into() }) }.boxed()),
+        ask: Arc::new(|_frame| async { Err(ExecFailure { kind: ExecFailureKind::Other, message: "codex asks no daemon".into() }) }.boxed_local()),
     }
 }
 
@@ -111,6 +111,10 @@ mod the_threads_codex_kept_in_a_folder {
 
     #[tokio::test]
     async fn come_off_thread_list_on_the_computers_own_app_server_newest_first_with_a_name_a() {
+        tokio::task::LocalSet::new().run_until(come_off_thread_list_on_the_computers_own_app_server_newest_first_with_a_name_a_body()).await
+    }
+
+    async fn come_off_thread_list_on_the_computers_own_app_server_newest_first_with_a_name_a_body() {
         let (_dir, answer, sizes) = listed_with_files();
         let o = store_over(json!({ "thread/list": answer }));
         let rows = o.store.list(vec![LAB.to_string(), format!("{LAB}-wt")], o.road.clone()).await.unwrap();
@@ -127,6 +131,10 @@ mod the_threads_codex_kept_in_a_folder {
 
     #[tokio::test]
     async fn pages_thread_list_by_its_cursor_and_leaves_out_the_size_of_a_rollout_that_is_not() {
+        tokio::task::LocalSet::new().run_until(pages_thread_list_by_its_cursor_and_leaves_out_the_size_of_a_rollout_that_is_not_body()).await
+    }
+
+    async fn pages_thread_list_by_its_cursor_and_leaves_out_the_size_of_a_rollout_that_is_not_body() {
         let rec = recorded();
         let data = rec["thread-list"]["result"]["data"].as_array().unwrap().clone();
         let first = json!({ "result": { "data": [data[0]], "nextCursor": "page-2", "backwardsCursor": null } });
@@ -141,6 +149,10 @@ mod the_threads_codex_kept_in_a_folder {
 
     #[tokio::test]
     async fn asks_nothing_for_no_folder_at_all() {
+        tokio::task::LocalSet::new().run_until(asks_nothing_for_no_folder_at_all_body()).await
+    }
+
+    async fn asks_nothing_for_no_folder_at_all_body() {
         let o = store_over(json!({}));
         assert_eq!(o.store.list(vec![], o.road.clone()).await.unwrap(), vec![]);
         assert!(o.requests().is_empty());
@@ -168,6 +180,10 @@ mod a_codex_threads_earlier_messages {
 
     #[tokio::test]
     async fn come_off_thread_turns_list_and_thread_items_list_each_at_the_time_codex_stamped() {
+        tokio::task::LocalSet::new().run_until(come_off_thread_turns_list_and_thread_items_list_each_at_the_time_codex_stamped_body()).await
+    }
+
+    async fn come_off_thread_turns_list_and_thread_items_list_each_at_the_time_codex_stamped_body() {
         let o = store_over(Value::Object(answered()));
         let read = o.store.earlier(TUI.into(), earlier_ask(200, true, true), o.road.clone()).await.unwrap();
         assert_eq!(
@@ -190,6 +206,10 @@ mod a_codex_threads_earlier_messages {
 
     #[tokio::test]
     async fn for_a_preview_read_one_page_of_turns_and_count_nothing_the_thread_never_taken() {
+        tokio::task::LocalSet::new().run_until(for_a_preview_read_one_page_of_turns_and_count_nothing_the_thread_never_taken_body()).await
+    }
+
+    async fn for_a_preview_read_one_page_of_turns_and_count_nothing_the_thread_never_taken_body() {
         let rec = recorded();
         let turns = rec["turns-list"]["result"].as_object().unwrap().clone();
         let mut first = turns.clone();
@@ -208,6 +228,10 @@ mod a_codex_threads_earlier_messages {
 
     #[tokio::test]
     async fn keep_the_newest_messages_and_count_the_rest_and_read_the_thread_without_taking_i() {
+        tokio::task::LocalSet::new().run_until(keep_the_newest_messages_and_count_the_rest_and_read_the_thread_without_taking_i_body()).await
+    }
+
+    async fn keep_the_newest_messages_and_count_the_rest_and_read_the_thread_without_taking_i_body() {
         let o = store_over(Value::Object(answered()));
         let read = o.store.earlier(TUI.into(), earlier_ask(1, false, true), o.road.clone()).await.unwrap();
         assert_eq!(
@@ -219,6 +243,10 @@ mod a_codex_threads_earlier_messages {
 
     #[tokio::test]
     async fn are_open_where_codex_refuses_the_resume_a_second_writer_and_gone_where_it_holds() {
+        tokio::task::LocalSet::new().run_until(are_open_where_codex_refuses_the_resume_a_second_writer_and_gone_where_it_holds_body()).await
+    }
+
+    async fn are_open_where_codex_refuses_the_resume_a_second_writer_and_gone_where_it_holds_body() {
         let rec = recorded();
         let held = store_over(with("thread/resume", rec["resume-held"].clone()));
         assert_eq!(held.store.earlier(TUI.into(), earlier_ask(200, true, true), held.road.clone()).await.unwrap(), EarlierRead::Open);
@@ -230,6 +258,10 @@ mod a_codex_threads_earlier_messages {
 
     #[tokio::test]
     async fn refuse_an_id_that_is_not_a_plain_slug_before_anything_runs() {
+        tokio::task::LocalSet::new().run_until(refuse_an_id_that_is_not_a_plain_slug_before_anything_runs_body()).await
+    }
+
+    async fn refuse_an_id_that_is_not_a_plain_slug_before_anything_runs_body() {
         let o = store_over(Value::Object(answered()));
         let err = o.store.earlier("x' or '1'='1".into(), earlier_ask(1, false, true), o.road.clone()).await.unwrap_err();
         assert!(err.message.contains("plain slug"), "{}", err.message);
