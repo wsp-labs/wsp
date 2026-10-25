@@ -19,7 +19,11 @@ use wsp_wire::views::place_more::{CloudLimits, PlaceSettings, PlaceView};
 use wsp_wire::wire::capabilities::MachineSizeOffer;
 use wsp_wire::wire::place_link::PlaceAuthRefusal;
 
+use async_trait::async_trait;
+
 use super::context::PlaceDoorContext;
+use super::link::LinkRecords;
+use super::setup::SetupRecords;
 use super::types::{PlaceChallenge, PlaceLogin, PlaceRecord, PlaceResult, RowId, SudoVerb};
 
 /// A boxed local future: what a chain runs.
@@ -32,7 +36,7 @@ pub struct AwaitingInstall {
     pub place_id: Option<String>,
     pub login: Option<PlaceLogin>,
     pub back: Option<PlaceBack>,
-    pub woken: Option<Box<dyn FnOnce(String)>>,
+    pub woken: Option<Rc<dyn Fn(&str)>>,
 }
 
 /// What `reached_over` read (records.ts:223, R22).
@@ -95,8 +99,10 @@ impl Default for KeyedChain {
 /// The records area (records.ts:39-373).
 pub struct PlaceRecordsArea {
     pub ctx: Rc<PlaceDoorContext>,
+    /// This area, for the work it starts behind a call (R12's read, R23's `moved`); set by `new` (`Rc::new_cyclic`).
+    pub me: std::rc::Weak<PlaceRecordsArea>,
     /// R3: what `settingsAt` answers; `load`, `set` and `forget` write it.
-    pub settings_held: RefCell<IndexMap<String, PlaceSettings>>,
+    pub settings_held: Rc<RefCell<IndexMap<String, PlaceSettings>>>,
     /// R12: the last limits read per cloud, and the clouds with a read out.
     pub limits_kept: RefCell<IndexMap<String, CloudLimits>>,
     pub limits_asking: RefCell<IndexSet<String>>,
@@ -171,7 +177,7 @@ impl PlaceRecordsArea {
     }
 
     /// R12 (:122-138). Synchronous; the read it starts is a spawned local task.
-    pub fn with_limits(self: &Rc<Self>, row: PlaceView) -> PlaceView {
+    pub fn with_limits(&self, row: PlaceView) -> PlaceView {
         todo!()
     }
 
@@ -221,7 +227,7 @@ impl PlaceRecordsArea {
     }
 
     /// R23 (:251-265).
-    pub fn hold_back(self: &Rc<Self>, record: &PlaceRecord) {
+    pub fn hold_back(&self, record: &PlaceRecord) {
         todo!()
     }
 
@@ -261,7 +267,7 @@ impl PlaceRecordsArea {
     }
 
     /// R27 (:330-332).
-    pub async fn write_seen(&self, place_id: &str, at: i64) -> PlaceResult<()> {
+    pub async fn write_seen(&self, place_id: &str, at: u64) -> PlaceResult<()> {
         todo!()
     }
 
@@ -277,6 +283,77 @@ impl PlaceRecordsArea {
 
     /// R28 (:359-365).
     pub async fn login_listed(&self, place_id: &str, agent: &str) -> PlaceResult<Option<PlaceRecord>> {
+        todo!()
+    }
+}
+
+/// places-a's setup reads off this area (setup.rs `SetupRecords`): forwards to the methods above.
+#[async_trait(?Send)]
+impl SetupRecords for PlaceRecordsArea {
+    async fn record_of(&self, place_id: &str) -> PlaceResult<Option<PlaceRecord>> {
+        todo!()
+    }
+    async fn change(&self, place_id: &str, mv: Box<dyn FnOnce(&PlaceRecord) -> Option<PlaceRecord>>) -> PlaceResult<Option<PlaceRecord>> {
+        todo!()
+    }
+    async fn login_listed(&self, place_id: &str, agent: &str) -> PlaceResult<Option<PlaceRecord>> {
+        todo!()
+    }
+}
+
+/// places-a's link reads off this area (link.rs `LinkRecords`): forwards to the methods above. `awaiting_for` answers
+/// the `woken` of every install awaiting a join that became `place_id`, in order, none taken off.
+#[async_trait(?Send)]
+impl LinkRecords for PlaceRecordsArea {
+    async fn records(&self) -> PlaceResult<Vec<PlaceRecord>> {
+        todo!()
+    }
+    fn wired_provider(&self) -> Option<String> {
+        todo!()
+    }
+    fn provider_ids(&self) -> Vec<String> {
+        todo!()
+    }
+    fn provider_backend(&self, place_id: &str) -> Option<Arc<dyn MachineBackend>> {
+        todo!()
+    }
+    async fn settings_of(&self, place_id: &str) -> PlaceResult<PlaceSettings> {
+        todo!()
+    }
+    fn settings_held(&self) -> Rc<RefCell<IndexMap<String, PlaceSettings>>> {
+        todo!()
+    }
+    fn awaiting_for(&self, place_id: &str) -> Vec<Rc<dyn Fn(&str)>> {
+        todo!()
+    }
+    fn hold_back(&self, record: &PlaceRecord) {
+        todo!()
+    }
+    async fn default_id(&self) -> PlaceResult<Option<String>> {
+        todo!()
+    }
+    async fn in_turn(&self, write: Box<dyn FnOnce() -> futures::future::LocalBoxFuture<'static, PlaceResult<()>>>) -> PlaceResult<()> {
+        todo!()
+    }
+    async fn mark_default(&self, place_id: &str) -> PlaceResult<()> {
+        todo!()
+    }
+    async fn mark_held(&self) -> PlaceResult<Option<String>> {
+        todo!()
+    }
+    fn challenge(&self, subject: &str, their_nonce: &str, their_ephemeral: Option<&str>) -> Option<PlaceChallenge> {
+        todo!()
+    }
+    fn signed_refusal(&self, place_id: &str, place_nonce: &str, sentence: &str) -> PlaceAuthRefusal {
+        todo!()
+    }
+    async fn write_seen(&self, place_id: &str, at: u64) -> PlaceResult<()> {
+        todo!()
+    }
+    async fn with_cap(&self, row: PlaceView, ids: &[RowId]) -> PlaceResult<PlaceView> {
+        todo!()
+    }
+    async fn row_ids(&self) -> PlaceResult<Vec<RowId>> {
         todo!()
     }
 }

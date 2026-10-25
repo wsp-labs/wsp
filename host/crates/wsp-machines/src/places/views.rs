@@ -21,6 +21,7 @@ use wsp_wire::wire::place_link::PlaceProveRequest;
 
 use super::context::PlaceDoorContext;
 use super::helpers::PendingRecord;
+use super::link::{Joining, LinkViews};
 use super::records::PlaceRecordsArea;
 use super::types::{FolderComputer, PlaceLogin, PlaceRecord, PlaceResult, Proved};
 
@@ -57,13 +58,6 @@ pub struct PluginsOff {
     pub kept: Vec<String>,
 }
 
-/// What a join told this host before its prove (views.ts:319).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Joining {
-    pub public_key: String,
-    pub at: i64,
-}
-
 /// The views area (views.ts:38-430).
 pub struct PlaceViewsArea {
     pub ctx: Rc<PlaceDoorContext>,
@@ -71,9 +65,9 @@ pub struct PlaceViewsArea {
     pub setup: Rc<dyn ViewsSetup>,
     pub links: Rc<dyn LinkReads>,
     /// V5: the pending adds whose floor runs now.
-    pub flooring: RefCell<IndexSet<String>>,
+    pub flooring: Rc<RefCell<IndexSet<String>>>,
     /// V17: what each join told this host before its prove.
-    pub joining: RefCell<IndexMap<String, Joining>>,
+    pub joining: Rc<RefCell<IndexMap<String, Joining>>>,
 }
 
 impl PlaceViewsArea {
@@ -162,7 +156,7 @@ impl PlaceViewsArea {
     }
 
     /// V17 (:323-357).
-    pub async fn joined(&self, place_id: &str, public_key: &str, req: PlaceProveRequest, expect: &[u8], from: &str, at: i64) -> PlaceResult<Proved> {
+    pub async fn joined(&self, place_id: &str, pending: Joining, req: PlaceProveRequest, expect: &[u8], from: &str, at: u64) -> PlaceResult<Proved> {
         todo!()
     }
 
@@ -188,6 +182,44 @@ impl PlaceViewsArea {
 
     /// V22 (:411-424).
     pub fn provider_row(&self, id: &str, marked: &str) -> PlaceView {
+        todo!()
+    }
+}
+
+/// places-a's link reads off this area (link.rs `LinkViews`): each a forward to the method above of the same name.
+#[async_trait(?Send)]
+impl LinkViews for PlaceViewsArea {
+    async fn pending_records(&self) -> PlaceResult<Vec<PendingRecord>> {
+        todo!()
+    }
+    async fn put_pending(&self, p: PendingRecord) -> PlaceResult<()> {
+        todo!()
+    }
+    fn flooring(&self) -> Rc<RefCell<IndexSet<String>>> {
+        todo!()
+    }
+    async fn floor_once(&self, pending: PendingRecord, place_id: &str) {
+        todo!()
+    }
+    async fn taken_back(&self, pending: PendingRecord) {
+        todo!()
+    }
+    fn backend_from(&self, place_id: &str, facts: BackendFacts) -> Arc<dyn MachineBackend> {
+        todo!()
+    }
+    fn tunnelled(&self, place_id: &str, e: &DaemonEvent) -> bool {
+        todo!()
+    }
+    fn cut(&self, place_id: &str, reason: &str) {
+        todo!()
+    }
+    fn joining(&self) -> Rc<RefCell<IndexMap<String, Joining>>> {
+        todo!()
+    }
+    async fn joined(&self, place_id: &str, pending: Joining, req: PlaceProveRequest, expect: &[u8], from: &str, at: u64) -> PlaceResult<Proved> {
+        todo!()
+    }
+    async fn joined_row(&self, record: &PlaceRecord, marked: &str) -> PlaceResult<PlaceView> {
         todo!()
     }
 }

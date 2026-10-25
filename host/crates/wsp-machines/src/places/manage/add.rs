@@ -14,12 +14,12 @@ use crate::places::types::{AddAsk, PlaceAdded, PlaceExecOpts, PlaceResult};
 
 impl ManageDoor {
     /// A1-A15 (:198-342).
-    pub async fn add(self: &Rc<Self>, req: AddAsk, at: i64) -> PlaceResult<PlaceAdded> {
+    pub async fn add(self: &Rc<Self>, req: AddAsk, at: u64) -> PlaceResult<PlaceAdded> {
         todo!()
     }
 
     /// D1-D4 (:344-382).
-    pub async fn dial(&self, place_id: &str, at: i64) -> PlaceResult<PlaceDial> {
+    pub async fn dial(&self, place_id: &str, at: u64) -> PlaceResult<PlaceDial> {
         todo!()
     }
 
