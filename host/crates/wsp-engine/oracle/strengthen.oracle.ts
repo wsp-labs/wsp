@@ -14,16 +14,24 @@ import type { PackedFiles } from "../../../../packages/engine/src/golden.js";
 import { closeAgentFiles, oncePathsOf, provisionFiles, type ProvisionLanding } from "../../../../packages/engine/src/provision-files.js";
 import { provisionMcp } from "../../../../packages/engine/src/provision-mcp.js";
 import { tarOf } from "../../../../packages/engine/src/vault.js";
+import { BASE_FLOOR } from "../../../../packages/catalog/src/index.js";
+import { baseVersionsCmd } from "../../../../packages/engine/src/golden-base.js";
+import type { ToolInstall } from "../../../../packages/engine/src/golden-import.js";
+import { FREE_KB_CMD } from "../../../../packages/engine/src/golden-tools.js";
+import type { ExecResult, Machine } from "../../../../packages/engine/src/machine.js";
+import { newSetupRun, provisionStep, type ProvisionPlan } from "../../../../packages/engine/src/provision.js";
 import { boxGuest, cleanGuests, type BoxGuest } from "../../../../packages/engine/test/box-guest.js";
 
 const OUT = fileURLToPath(new URL("../tests/fixtures/oracle/", import.meta.url));
 const HOME = "/Users/dev";
 const guests: BoxGuest[] = [];
 const out: Record<string, unknown> = {};
+const step: Record<string, unknown> = {};
 afterAll(() => {
   cleanGuests(guests.splice(0));
   mkdirSync(OUT, { recursive: true });
   writeFileSync(join(OUT, "strengthen_mcp.json"), `${JSON.stringify(out, null, 2)}\n`);
+  writeFileSync(join(OUT, "strengthen_step.json"), `${JSON.stringify(step, null, 2)}\n`);
 });
 
 const box = (present: string[] = ["npx"]): BoxGuest => {
@@ -130,4 +138,63 @@ it("a read that exits non-zero: every kept server skipped, no into, nothing appe
   const into: [string, string[]][] = [];
   const r = await round(g, planOn(g.root), { into });
   out.readFailed = norm(g.root, { ...r, into, runs: g.runs.length });
+});
+
+// ---- provision_step: the tools loop and the plugins step (strengthen_step.json)
+
+const FLOOR_READ = [...BASE_FLOOR.flatMap(e => [`VERSION ${e.bin}: ${e.bin} ${e.major === undefined ? "9.9.9" : `${e.major.version}.0`}`, ...(e.brings ?? []).map(b => `VERSION ${b.bin}: 9.9.9`)]), "VERSION sshd: OpenSSH_9.6p1"].join("\n");
+function boxMachine(answer: (cmd: string) => ExecResult | undefined): Machine {
+  return {
+    id: "spoo",
+    kind: "sandbox",
+    exec: async (cmd: string) => {
+      const said = answer(cmd);
+      if (said !== undefined) return said;
+      if (cmd === FREE_KB_CMD) return { exitCode: 0, stdout: "9000000\n", stderr: "" };
+      if (cmd === baseVersionsCmd(TOOLS_PATH)) return { exitCode: 0, stdout: `${FLOOR_READ}\n`, stderr: "" };
+      return { exitCode: 0, stdout: "", stderr: "" };
+    },
+    run: async (script: string) => answer(script) ?? { exitCode: 0, stdout: "", stderr: "" },
+    putBytes: async () => undefined,
+  } as unknown as Machine;
+}
+const tool = (over: Partial<ToolInstall> & Pick<ToolInstall, "id" | "label">): ToolInstall => ({ manager: "script", cmd: `install ${over.id}`, ...over });
+const planOf = (steps: ToolInstall[], over: Partial<ProvisionPlan> = {}): ProvisionPlan => ({ recipeAt: "x", path: TOOLS_PATH, steps, skipped: [], agents: 0, compiler: false, ...over });
+const bare = (r: { id: string; label: string; outcome: string; note?: string; step?: string }) => ({ id: r.id, label: r.label, outcome: r.outcome, note: r.note ?? null, step: r.step ?? null });
+
+it("the tools loop: a check that fails after install, a hook that fails, every stage call in order", async () => {
+  const machine = boxMachine(cmd => {
+    if (cmd.includes("wsp-check")) return { exitCode: 0, stdout: "wsp-check 0 Error: brew cannot read the folder.\n", stderr: "" };
+    if (cmd.includes("git lfs install")) return { exitCode: 2, stdout: "", stderr: "warming up\ngit: 'lfs' is not a git command\n" };
+    return undefined;
+  });
+  const steps = [
+    tool({ id: "tools/brew/bat", label: "bat", manager: "brew", check: "brew list --versions bat" }),
+    tool({ id: "tools/brew/git-lfs", label: "Git LFS", bin: "git-lfs" }),
+    tool({ id: "tools/brew/jq", label: "jq", bin: "jq" }),
+  ];
+  const run = newSetupRun();
+  const staged: unknown[] = [];
+  const rows = await provisionStep(machine, planOf(steps), "clis", run, (detail, at, row) => void staged.push([detail, at === undefined ? null : `${at.index}/${at.of}: ${at.label}`, row === undefined ? null : bare(row)]), { home: "/root" });
+  step.toolsLoop = { staged, rows: rows.map(bare), runTools: run.tools.map(t => [t.id, t.outcome, t.note ?? null]) };
+});
+
+it("the plugins step: blank output, a rejected run, stdout when stderr is blank, a 400-character last line", async () => {
+  const long = "y".repeat(400);
+  const machine = {
+    id: "spoo",
+    kind: "sandbox",
+    exec: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
+    run: async (script: string) => {
+      if (script.endsWith("\nadd blank")) return { exitCode: 3, stdout: "", stderr: "" };
+      if (script.endsWith("\nadd gone")) throw new Error("the machine went away\nconnection reset");
+      if (script.endsWith("\nadd quiet")) return { exitCode: 1, stdout: "  first\nlast of stdout  \n", stderr: "" };
+      if (script.endsWith("\nadd long")) return { exitCode: 1, stdout: "", stderr: `${long}\n\n` };
+      return { exitCode: 0, stdout: "", stderr: "" };
+    },
+  } as unknown as Machine;
+  const plugin = (name: string) => ({ id: `plugins/${name}`, label: name, cmd: `add ${name}`, asked: (out: string) => (out.includes("never") ? "asked" : undefined) });
+  const staged: unknown[] = [];
+  const rows = await provisionStep(machine, planOf([], { plugins: ["blank", "gone", "quiet", "long", "fine"].map(plugin) }), "plugins", newSetupRun(), (detail, _at, row) => void staged.push([detail, row === undefined ? null : bare(row)]), { home: "/root" });
+  step.plugins = { rows: rows.map(bare), staged };
 });

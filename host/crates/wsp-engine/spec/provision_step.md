@@ -58,6 +58,28 @@ once_paths_of(lands), stores)`.
    id once. Rows are the final results through `row_of`; a row whose hook failed stays failed though the loop's check
    read installed. A row whose final line differs from what was staged is staged again (line only).
 
+### The loop's order, pinned (T-rules, held to the TS's run in oracle/strengthen.oracle.ts)
+
+- **T1.** `at()` is `steps[done]`, the step by *count* of rows landed, not the row's own step. A detail line from
+  `install_tools` is staged with the step under way (`1/3: bat` while bat installs). A row is staged after `done`
+  has counted it, so it carries the *next* step (`bat: installed` is staged with `2/3: Git LFS`), and the last row
+  carries `None`. Staging a row with its own step is the wrong choice both pilot ports made.
+- **T2.** The loop's own check lines (`bat: the check did not pass: <check>`) and its tally line come after the last
+  row, with `None`; then each row whose final line differs from what was staged for it is staged again, line only
+  (`None`, no row), in final row order.
+- **T3.** A failed hook (`<on>: <last_words>`, here `git lfs install --system: git: 'lfs' is not a git command`, the
+  last line of stderr) fails the row as it lands; the final row is that failed row (the loop's result read
+  `installed`), so its line matches what was staged and it is not said again.
+- **T4.** `run.tools` holds the loop's `ToolResult`s, never the hooked rows: a row whose hook failed still reads
+  `installed` there with no note, and the context step reads it so. A row the check corrected reads its final
+  result (`failed` with the check's note). Every row returned and staged carries `step`.
+- **T5.** `last_words`: trim the whole text, take its last line, cut to 300 UTF-16 units; inner lines are not
+  trimmed, so `"  first\nlast of stdout  \n"` gives `last of stdout`. stderr is used unless it is empty (`""`, not
+  blank), then stdout; an empty result is `exit <n>`.
+- **T6.** A plugin run that rejects reads as exit -1 with the error's message as stderr, so its note is the last line
+  of that message (`connection reset`). `asked` is read only on a non-zero exit. Each plugin is staged
+  `<label>: <outcome>[ (<note>)]` with its row as it lands, in plan order.
+
 `hooked` (:540): only an `installed` row whose catalog tool entry has a hook (`hook_of`): exec `path_line + "\n" +
 on` (timeout `HOOK_MS` 60,000; rejection is exit -1). Non-zero: `failed` with note `<on>: <last_words(stderr or
 stdout) or exit <n>>`. A row the box already had (present) runs no hook.
@@ -78,6 +100,8 @@ stdout) or exit <n>>`. A row the box already had (present) runs no hook.
 | hook after install only, failed hook fails its row, row said after its hook | provision_step.rs: the two hook cases |
 | run.tools: on the run as each lands, once at the end | provision_step.rs: "are on the run the moment each lands ..." |
 | plugin asked is skipped with the sha, installed reads installed | provision_step.rs: the plugin case |
+| T1 to T4: next step on a row, check lines and re-said rows last, run.tools keeps the loop's result | provision_step_hard.rs: `the_tools_loop_says_each_row_with_the_next_step_and_keeps_the_loops_result_on_the_run` |
+| T5, T6: plugin notes, the rejected run, the 300 cut | provision_step_hard.rs: `a_plugins_note_is_the_last_trimmed_line_of_what_it_said_cut_at_300_else_its_exit` |
 | compiler only when needed | provision_step.rs: the floor case |
 | bracket and walked folders | files_outside.rs: the three bracket cases; provision_pins.rs: `the_folders_a_step_walks_are_each_roads_roots_clipped_to_usr_local_and_opt_without_wsps_own` |
 | last words and within | provision_pins.rs: `the_last_words_are_the_trimmed_last_line_cut_at_300_and_nothing_for_blank`, `within_is_the_folder_itself_or_under_it_never_a_lookalike` |
