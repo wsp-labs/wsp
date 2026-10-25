@@ -11,6 +11,31 @@ use std::sync::Arc;
 use crate::fetch::Fetch;
 
 mod export;
+
+/// `Buffer.from(s, "base64")`: the sextets of every letter in the alphabet, url-safe letters too; any other character
+/// is skipped; decoding stops at the first `=`.
+pub(crate) fn node_base64(s: &str) -> Vec<u8> {
+    let mut out = Vec::new();
+    let (mut bits, mut nbits) = (0u32, 0u32);
+    for c in s.chars().take_while(|&c| c != '=') {
+        let v = match c {
+            'A'..='Z' => c as u32 - 'A' as u32,
+            'a'..='z' => c as u32 - 'a' as u32 + 26,
+            '0'..='9' => c as u32 - '0' as u32 + 52,
+            '+' | '-' => 62,
+            '/' | '_' => 63,
+            _ => continue,
+        };
+        bits = (bits << 6) | v;
+        nbits += 6;
+        if nbits >= 8 {
+            nbits -= 8;
+            out.push((bits >> nbits) as u8);
+            bits &= (1 << nbits) - 1;
+        }
+    }
+    out
+}
 mod import;
 
 pub use export::*;
