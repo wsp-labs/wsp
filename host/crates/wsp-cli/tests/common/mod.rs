@@ -208,7 +208,7 @@ impl HostClient for ScriptedClient {
 
     fn close_words(&self) -> String {
         match *self.gone.borrow() {
-            Some(Some(STOPPING_CLOSE)) => wsp_words::words::thread::lines::HOST_STOPPING_LINE.to_owned(),
+            Some(Some(STOPPING_CLOSE)) => wsp_words::words::thread::HOST_STOPPING_LINE.to_owned(),
             _ => wsp_wire::types::daemon_contract::HOST_CLOSED_LINE.to_owned(),
         }
     }
