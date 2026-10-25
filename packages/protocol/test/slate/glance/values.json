@@ -1,0 +1,271 @@
+{
+ "now": 1792882592704,
+ "values": {
+  "progress": {
+   "json": {
+    "goal": "Rebuild wsp's desktop app on a faster native toolkit so it looks exactly like today's app, aiming for about a week to a version you can switch on.",
+    "inapp": 9,
+    "screenTotal": 14,
+    "done": 8,
+    "total": 10,
+    "running": 2,
+    "timeline": "Day 6. Shipping GPUI as the default: the release, the move-over and the landing on main are building in parallel. Power and memory round 2 are merged. The install checks are running on your Mac now, on a throwaway home.",
+    "asks": [
+     {
+      "done": true,
+      "title": "Give the Mac 30 minutes",
+      "note": "Done 24 Oct 18:59 to 21:11: tables on #2414 and #2411. One more short run waits: #2414's scroll, once its replay is fixed."
+     },
+     {
+      "done": false,
+      "title": "Inset shadows: fix once?",
+      "note": "Our GPUI paints inset shadows under a border, where CSS paints them inside it. Item 33 used the app's workaround (a child that holds the highlight). Fixing it once in the engine would also fix the chips and retire five workaround pieces. Separate change: yes or no?"
+     },
+     {
+      "done": false,
+      "title": "Try the newest build",
+      "note": "~/wsp-work/gpui-handson7/desktop-gpui: the corner fix (item 33), the Working section matching today's, the standalone host and self-update groundwork (#2435). Not yet in it: the power work (#2414, waiting on one scroll number) and memory round 3."
+     },
+     {
+      "done": false,
+      "title": "Look at the folded message and the composer with transparency on",
+      "note": "Items 21 and 22 need your eye with transparency on; the Mac's off-screen test cannot judge the glass. Use the newest build: ~/wsp-work/gpui-handson5/desktop-gpui."
+     },
+     {
+      "title": "Rotate two tokens",
+      "note": "The GitHub token the cloud machines use (GH_TOKEN) and the wsp host token. See 'About the leaked tokens' below. Also: on 2026-10-19 the Settings builder's machine printed its environment into its own log, so treat the tokens that machine's shell held (GH_TOKEN, the host token) as exposed too.",
+      "done": false
+     },
+     {
+      "title": "Six choices",
+      "note": "In 'Your choices' below. New: what the browser pane does under Wayland on Linux.",
+      "done": false
+     },
+     {
+      "title": "One more look choice: the run band in dark theme",
+      "note": "In 'Your choices' below.",
+      "done": false
+     },
+     {
+      "title": "Where the pictures of today's app live",
+      "note": "Taken on your Mac: 470 pictures, 89 MB for both batches. Missing: 54 states a test host can't show (planned), and 8 states the picture script can't reach on a Mac yet; those get fixed in the script. Choose in 'Your choices' below.",
+      "done": false
+     },
+     {
+      "title": "About 20 minutes at your Mac, awake and unlocked",
+      "note": "The new app's half of the side-by-side and its thread-switch test; the keyboard and focus checks the reviewers listed; and the browser pane's first test: does a menu draw over a web page the right way up, does a click on it reach the app, do Cmd+K and Escape work while the page has focus. Memory with a page open is already measured: about 130 MB. Also: run the new app's build script once; macOS asks to let the terminal control Finder, which lays out the disk image. Also by hand: in the browser pane press a page's download links (nothing should land in Downloads), and check a page's background script is gone after a restart.",
+      "done": false
+     },
+     {
+      "done": false,
+      "title": "Signing the new app (when you want a signed build)",
+      "note": "1. Join the Apple Developer Program and note the Team ID (developer.apple.com, Membership). 2. On your Mac, make a Developer ID Application certificate (Xcode, Settings, Accounts, Manage Certificates, +). 3. Export it from Keychain Access as a .p12 with a password. 4. Make an app-specific password at appleid.apple.com. 5. Add CSC_LINK (the .p12 in base64), CSC_KEY_PASSWORD, APPLE_ID, APPLE_TEAM_ID and APPLE_APP_SPECIFIC_PASSWORD as repository secrets on wsp-labs/wsp; today's release already reads these names. 6. Keep the bundle id wsp.desktop.experimental or name another. 7. Run the build script with them set. Until then the build is unsigned, which is fine for your own Mac."
+     },
+     {
+      "done": false,
+      "title": "A host bug for the main lane",
+      "note": "After a commit or discard, the host can briefly report the old checkout state: a fresh read can be answered by one already in flight (packages/runtime/src/machines/reach.ts:389). Today's app has it too. It is runtime code, so it was left alone here."
+     }
+    ],
+    "screens": [
+     {
+      "name": "The app's frame: window, sidebar column, side panel, shortcuts, menus",
+      "batch": "First",
+      "state": "In the app",
+      "tone": "good"
+     },
+     {
+      "name": "Composer: writing, pickers, menus, attachments, stash, queue, steering",
+      "batch": "First",
+      "state": "In the app",
+      "tone": "good"
+     },
+     {
+      "name": "Usage page",
+      "batch": "First",
+      "state": "In the app",
+      "tone": "good"
+     },
+     {
+      "name": "Sidebar: your threads, switchers, rename, delete, right-click menus",
+      "batch": "First",
+      "state": "In the app",
+      "tone": "good"
+     },
+     {
+      "name": "Text and frosted glass, matching today's app",
+      "batch": "First",
+      "state": "In the app",
+      "tone": "good"
+     },
+     {
+      "name": "Thread view: cards, find, rewind, fork, minimap, composer docked",
+      "batch": "First",
+      "state": "In the app (182 of 220 rows done; round 5 merged)",
+      "tone": "good"
+     },
+     {
+      "name": "Settings: all 14 pages",
+      "batch": "First",
+      "state": "In the app (556 items ticked)",
+      "tone": "good"
+     },
+     {
+      "name": "Terminal",
+      "batch": "Second",
+      "state": "In the app",
+      "tone": "good"
+     },
+     {
+      "name": "Slates",
+      "batch": "Second",
+      "state": "In the app",
+      "tone": "good"
+     },
+     {
+      "name": "Pull request pane, changes and files",
+      "batch": "Second",
+      "state": "In the app at today's look (round 3 merged)",
+      "tone": "good"
+     },
+     {
+      "name": "Command palette, thread switcher, activity",
+      "batch": "Second",
+      "state": "In the app",
+      "tone": "good"
+     },
+     {
+      "name": "Setup dialogs, onboarding, pairing",
+      "batch": "Second",
+      "state": "In the app",
+      "tone": "good"
+     },
+     {
+      "name": "Browser pane",
+      "batch": "Third",
+      "state": "In the app (all 20 Mac checks pass)",
+      "tone": "good"
+     },
+     {
+      "name": "The switch that turns the new app on, sharing today's host",
+      "batch": "Third",
+      "state": "In the app: the switch, the build script and the new app's startup",
+      "tone": "good"
+     }
+    ],
+    "helpers": [
+     {
+      "name": "The release (#2435 part 3): the GPUI app as the main Mac and Linux download, Electron as the classic app",
+      "state": "Finished",
+      "tone": "good"
+     },
+     {
+      "name": "Moving over (#2435 part 4): today's app updates itself into the GPUI app with every thread kept",
+      "state": "Working",
+      "tone": "info"
+     },
+     {
+      "name": "Landing gpui/main on main, with main's checks and CI green",
+      "state": "Working",
+      "tone": "info"
+     }
+    ],
+    "steps": [
+     {
+      "title": "Guides for the builders",
+      "state": "done",
+      "note": "Done. The builders' guides are in place and load on cloud machines (from a thread's second turn; first turns read them as files)."
+     },
+     {
+      "title": "Pick the foundation to build on",
+      "state": "done",
+      "note": "Changed tonight on your word: gpui-kit on its own toolkit, no Zeron code. Panels are solid at first; we add our own frosted glass later."
+     },
+     {
+      "title": "Connect the new app to wsp",
+      "state": "done",
+      "note": "In the codebase: the new app can list your threads and follow one live. You'll see it on screen once the app has a window."
+     },
+     {
+      "title": "Open an empty app window",
+      "state": "done",
+      "note": "Done: the empty window opens on your Mac from the shared branch. Try it from the panel."
+     },
+     {
+      "title": "The big test against today's app",
+      "state": "working",
+      "note": "Passed on your Mac at rest (90 MB against 331) and on scrolling (120 frames a second). The memory leak while scrolling is fixed and merged: on the cloud machine it now levels off at about 240 MB instead of climbing past 400. Next: the full side-by-side again on your Mac, including memory after a full scroll."
+     },
+     {
+      "title": "wsp's look and the shared pieces",
+      "state": "done",
+      "note": "Done and reviewed: the themes and shared pieces, with the review's fixes, are in the starting branch every screen builds on."
+     },
+     {
+      "title": "Frosted glass and rounded corners",
+      "state": "done",
+      "note": "Done and merged. Glass now costs nothing on screens that don't use it and a little less on screens that do; rounded boxes inside rounded boxes clip correctly; shadows draw the way today's app draws them. All checks passed on your Mac's graphics chip. Left for later with you: a timing run with glass on, on your Mac."
+     },
+     {
+      "title": "Text that reads exactly like today's",
+      "state": "done",
+      "note": "Done and merged. Every text size and weight lands where today's app draws it, on the cloud machines and on your Mac (medium-weight titles and buttons included); code uses Menlo in both apps. Left for you: a look at both apps side by side."
+     },
+     {
+      "title": "A checklist of everything today's app does, per screen",
+      "state": "done",
+      "note": "Done for both batches and in the new app's main line: 1,268 items for the first six screens and 1,086 for the next five, each traced to today's app, with a tool that takes today's app to every listed state for pictures (all 156 first-batch states reached on a cloud machine). Your Mac's pictures are next, when you have about 25 minutes."
+     },
+     {
+      "title": "Every screen, in parallel",
+      "state": "working",
+      "note": "Your second hands-on: 'the app is good now, much better'. Parts A and B of the fix round are merged. Three items are left (the Threads card's band, the fade and the composer's blur with transparency on), in one small round, then the memory work (item 19)."
+     }
+    ],
+    "leak": "During one of Settings' test runs, a helper agent's tool printed its whole environment. That put two token values into that helper's conversation on its cloud machine: GH_TOKEN, the GitHub token the cloud machines push with, and WSP_HOST_TOKEN, the token that lets that thread talk to your wsp host. A Claude Code messaging token went with them. They did not reach a file, a log or the thread history this host keeps (I checked: the names don't appear there). They did go to the model with that conversation, and they sit in its session files on that cloud machine until it is deleted. Low risk, but the clean fix is to rotate GH_TOKEN in GitHub and to restart or re-key the host token. Builders now have a rule and a hand-in check against printing the environment."
+   },
+   "endedAt": 1792882412696,
+   "exit": 0,
+   "state": "done",
+   "ms": 100
+  },
+  "lookDiagrams": "",
+  "lookSwitcher": "",
+  "lookActivity": "",
+  "pictures": "",
+  "runBand": "",
+  "wayland": "",
+  "mac": {
+   "json": {
+    "last": "[exited with code 0]",
+    "lines": [
+     "desktop_feed_rows exit 0: test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.01s",
+     "overlays_dialogs exit 0: test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.81s",
+     "sidebar_open_row exit 0:",
+     "thread_step exit 0: test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.28s",
+     "settings exit 0: test result: ok. 38 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 68.11s",
+     "sidebar exit 0: test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.95s",
+     "lib exit 0: test result: ok. 1167 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 49.15s",
+     "clippy exit 0",
+     "   1 warning: the following packages contain code that will be rejected by a future version of Rust: block v0.1.6",
+     "end 10:22:25 load { 13.87 16.24 18.73 }",
+     "release app: /Users/ada/wsp-work/gpui-check-target/release/desktop-gpui (copy it before the next round's check overwrites it)",
+     "[exited with code 0]"
+    ]
+   },
+   "state": "done",
+   "exit": 0,
+   "endedAt": 1792882412704,
+   "ms": 100
+  },
+  "gate": {
+   "json": {
+    "table": "app       MB at rest  MB long open  MB after scrolling long  scroll fps median  scroll fps slowest 1%  switch ms median  rows shown\n--------  ----------  ------------  -----------------------  -----------------  ---------------------  ----------------  ----------\nelectron         444           508                      520              120.5                   80.8              70.5        1981\ngpui              53             -                        -                  -                      -                 -           -"
+   },
+   "state": "done",
+   "exit": 0,
+   "endedAt": 1792882412704,
+   "ms": 100
+  }
+ }
+}

@@ -275,7 +275,7 @@ export function UsageChart({ steps, lines: given, stepWord, ticks, height: HEIGH
       <span aria-hidden />
       <div className={cn("relative h-4 font-mono leading-4 text-muted-foreground tabular-nums", small ? "text-[11px]" : "text-xs")}>
         {ticks.map(tick => (
-          <span key={tick.at} data-k="tick" className={cn("absolute top-0", tick.at === 0 ? "" : tick.at === 1 ? "-translate-x-full" : "-translate-x-1/2")} style={{ left: `${tick.at * 100}%` }}>
+          <span key={tick.at} data-k="tick" className={cn("absolute top-0 whitespace-nowrap", tick.at === 0 ? "" : tick.at === 1 ? "-translate-x-full" : "-translate-x-1/2")} style={{ left: `${tick.at * 100}%` }}>
             {tick.word}
           </span>
         ))}
