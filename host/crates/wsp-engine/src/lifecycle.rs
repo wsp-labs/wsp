@@ -83,6 +83,21 @@ pub struct WorkspaceInitial {
     pub first_life: Option<bool>,
 }
 
+/// Settles a wake's phase to napping if the wake's future is dropped before it answers, as the TS's `catch` does for a
+/// wake that throws: a TS wake cannot be cancelled, a Rust one can.
+struct SettleOnDrop {
+    phase: Arc<std::sync::Mutex<WorkspacePhase>>,
+    armed: bool,
+}
+
+impl Drop for SettleOnDrop {
+    fn drop(&mut self) {
+        if self.armed {
+            *self.phase.lock().unwrap_or_else(|e| e.into_inner()) = WorkspacePhase::Napping;
+        }
+    }
+}
+
 /// lifecycle.ts:42. One object shared by everything that holds the workspace (wsp-core keeps it as `Rc<Workspace>`),
 /// as the TS shares one. Every method takes `&self` and the state sits in cells borrowed only between awaits (rule
 /// 3.3), so a hook can read the workspace while a wake runs.
@@ -195,7 +210,9 @@ impl Workspace {
             return Ok(WakeResult { reason: None });
         }
         self.set_phase(WorkspacePhase::Waking);
+        let mut settle = SettleOnDrop { phase: self.phase.clone(), armed: true };
         let answer = self.wake_attempts(landed).await;
+        settle.armed = false;
         if answer.is_err() {
             self.set_phase(WorkspacePhase::Napping);
         }

@@ -14,6 +14,7 @@ use wsp_wire::views::golden_image::{SealedImage, SealedVaultHeader, SealedVaultH
 use x25519_dalek::{PublicKey, StaticSecret};
 
 use crate::errors::{EngineError, Result};
+use crate::key_fingerprint::node_base64_decode;
 
 /// vault-cipher.ts:10.
 #[derive(Debug, Clone, PartialEq)]
@@ -56,9 +57,48 @@ fn spki_der(public: &[u8; 32]) -> Vec<u8> {
     [X25519_SPKI_PREFIX.as_slice(), public].concat()
 }
 
-/// The public key inside an SPKI DER of an X25519 key: the last 32 bytes, once the prefix checks out.
-fn public_of_spki(der: &[u8]) -> Option<[u8; 32]> {
-    (der.len() == X25519_SPKI_PREFIX.len() + 32 && der.starts_with(&X25519_SPKI_PREFIX)).then(|| der[12..].try_into().ok()).flatten()
+/// The SPKI DER prefix of an Ed25519 public key.
+const ED25519_SPKI_PREFIX: [u8; 12] = [0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00];
+
+/// `createPublicKey({ key, type: "spki", format: "der" })` for the keys a vault could name: the 32 bytes after an X25519
+/// prefix (bytes past them are ignored, as node's reader ignores them), refused in node's words where the DER is no key
+/// at all, or a key of a kind the exchange cannot use.
+fn public_of_spki(der: &[u8]) -> Result<[u8; 32]> {
+    let key_at = |prefix: &[u8; 12]| der.starts_with(prefix).then(|| der.get(12..44)).flatten();
+    if let Some(key) = key_at(&X25519_SPKI_PREFIX) {
+        return key.try_into().map_err(|_| refuse("Failed to read asymmetric key"));
+    }
+    if key_at(&ED25519_SPKI_PREFIX).is_some() {
+        return Err(refuse("Incompatible key types for Diffie-Hellman: x25519 and ed25519"));
+    }
+    Err(refuse("Failed to read asymmetric key"))
+}
+
+/// The error node's `diffieHellman` throws for a shared secret that is all zeros (a low-order public key).
+fn derivation_failed() -> EngineError {
+    refuse("error:1C8000A4:Provider routines::failed during derivation")
+}
+
+/// AES-256-GCM open with a nonce of any length from 1 to 32 bytes, which is what `createDecipheriv` takes (its length
+/// is part of the hash that starts the counter). `None` where it does not open.
+fn open_gcm(key: &[u8; KEY_BYTES], nonce: &[u8], body: &[u8], aad: &[u8]) -> Option<Vec<u8>> {
+    use aes_gcm::aead::consts::*;
+    use aes_gcm::aead::generic_array::GenericArray;
+    macro_rules! by_length {
+        ($($n:ident),*) => {
+            match nonce.len() {
+                $(l if l == <$n as aes_gcm::aead::generic_array::typenum::Unsigned>::USIZE => aes_gcm::AesGcm::<aes_gcm::aes::Aes256, $n>::new_from_slice(key)
+                    .ok()?
+                    .decrypt(GenericArray::from_slice(nonce), Payload { msg: body, aad })
+                    .ok(),)*
+                _ => None,
+            }
+        };
+    }
+    by_length!(
+        U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, U17, U18, U19, U20, U21, U22, U23, U24, U25, U26, U27, U28,
+        U29, U30, U31, U32
+    )
 }
 
 /// vault-cipher.ts:85. `Private` is refused with `sealing to a place needs its public key`. The output is the header's
@@ -73,6 +113,9 @@ pub fn seal(plain: &[u8], image: &SealedImage, to: &VaultKey) -> Result<Vec<u8>>
     let salt: [u8; SALT_BYTES] = rand::random();
     let nonce: [u8; NONCE_BYTES] = rand::random();
     let shared = secret.diffie_hellman(&PublicKey::from(*their_public));
+    if !shared.was_contributory() {
+        return Err(derivation_failed());
+    }
     let key = derive(shared.as_bytes(), &salt, &ephemeral);
     let header = serde_json::json!({
         "format": "wsp-vault-1",
@@ -92,14 +135,46 @@ pub fn seal(plain: &[u8], image: &SealedImage, to: &VaultKey) -> Result<Vec<u8>>
     Ok([line, body].concat())
 }
 
+/// The deepest nesting `read_json` follows: far past anything wsp writes, short of what would overflow the stack.
+const JSON_DEPTH: usize = 2_000;
+
+/// `JSON.parse` of the header's text, `None` where it is not JSON. node's parser has no depth limit of its own below
+/// the stack's, where serde_json stops at 128 levels, so the limit is lifted here and a bound of ours put in its place.
+fn read_json(text: &str) -> Option<serde_json::Value> {
+    use serde::Deserialize;
+    let (mut depth, mut deepest, mut in_string, mut escaped) = (0usize, 0usize, false, false);
+    for b in text.bytes() {
+        match (in_string, b) {
+            (true, _) if escaped => escaped = false,
+            (true, b'\\') => escaped = true,
+            (true, b'"') => in_string = false,
+            (true, _) => {}
+            (false, b'"') => in_string = true,
+            (false, b'[' | b'{') => {
+                depth += 1;
+                deepest = deepest.max(depth);
+            }
+            (false, b']' | b'}') => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    if deepest > JSON_DEPTH {
+        return None;
+    }
+    let mut de = serde_json::Deserializer::from_str(text);
+    de.disable_recursion_limit();
+    let value = serde_json::Value::deserialize(&mut de).ok()?;
+    de.end().ok()?;
+    Some(value)
+}
+
 /// The header line and the ciphertext behind it, the header parsed as `SealedVaultHeader`. Refusals, in the TS's order:
 /// no newline; a line that is not JSON, or not a header wsp wrote.
 fn unpacked(sealed: &[u8]) -> Result<(SealedVaultHeader, &[u8], &[u8])> {
     let Some(at) = sealed.iter().position(|&b| b == b'\n') else {
         return Err(refuse("this file is not a sealed wsp image: it has no header line"));
     };
-    let header = serde_json::from_slice::<serde_json::Value>(&sealed[..at])
-        .ok()
+    let header = read_json(&String::from_utf8_lossy(&sealed[..at]))
         .and_then(|value| parse::<SealedVaultHeader>(&value).ok())
         .ok_or_else(|| refuse("this file is not a sealed wsp image: its header is not one wsp wrote"))?;
     Ok((header, &sealed[..=at], &sealed[at + 1..]))
@@ -119,23 +194,23 @@ pub fn open(sealed: &[u8], with: &VaultKey) -> Result<OpenedVault> {
     let Some(ephemeral_b64) = header.ephemeral.as_deref() else {
         return Err(refuse("this vault names no ephemeral key and cannot be opened"));
     };
-    let ephemeral = STANDARD.decode(ephemeral_b64).map_err(|_| refuse("this vault names no ephemeral key and cannot be opened"))?;
-    let peer = public_of_spki(&ephemeral).ok_or_else(|| refuse("this vault names no ephemeral key and cannot be opened"))?;
-    let salt = STANDARD.decode(&header.salt).unwrap_or_default();
-    let nonce = STANDARD.decode(&header.nonce).unwrap_or_default();
+    let ephemeral = node_base64_decode(ephemeral_b64);
+    let peer = public_of_spki(&ephemeral)?;
     let shared = StaticSecret::from(*my_secret).diffie_hellman(&PublicKey::from(peer));
-    let key = derive(shared.as_bytes(), &salt, &ephemeral);
+    if !shared.was_contributory() {
+        return Err(derivation_failed());
+    }
+    let key = derive(shared.as_bytes(), &node_base64_decode(&header.salt), &ephemeral);
+    let nonce = node_base64_decode(&header.nonce);
     if body.len() < TAG_BYTES {
         return Err(refuse("the sealed vault is shorter than its own tag"));
     }
-    let would_not_open = || refuse("the sealed vault would not open: the passphrase or the key is not the one it was sealed to, or the file was changed");
-    if nonce.len() != NONCE_BYTES {
-        return Err(would_not_open());
+    if nonce.is_empty() {
+        return Err(refuse("Invalid initialization vector"));
     }
-    let plain = Aes256Gcm::new_from_slice(&key)
-        .expect("a 32-byte key")
-        .decrypt(Nonce::from_slice(&nonce), Payload { msg: body, aad })
-        .map_err(|_| would_not_open())?;
+    let plain = open_gcm(&key, &nonce, body, aad).ok_or_else(|| {
+        refuse("the sealed vault would not open: the passphrase or the key is not the one it was sealed to, or the file was changed")
+    })?;
     Ok(OpenedVault { image: header.image, plain })
 }
 
