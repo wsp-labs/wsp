@@ -834,6 +834,178 @@
     "in": "debug1: y\nkept",
     "out": "kept"
    }
+  ],
+  "keyscan": [
+   {
+    "port": "2222.5",
+    "scanned": [
+     "ssh-keyscan",
+     "-T",
+     "5",
+     "-p",
+     "2222.5",
+     "h"
+    ],
+    "got": {}
+   },
+   {
+    "port": "-5",
+    "scanned": [
+     "ssh-keyscan",
+     "-T",
+     "5",
+     "-p",
+     "-5",
+     "h"
+    ],
+    "got": {}
+   },
+   {
+    "port": "99999",
+    "scanned": [
+     "ssh-keyscan",
+     "-T",
+     "5",
+     "-p",
+     "99999",
+     "h"
+    ],
+    "got": {}
+   },
+   {
+    "port": "1e3",
+    "scanned": [
+     "ssh-keyscan",
+     "-T",
+     "5",
+     "-p",
+     "1000",
+     "h"
+    ],
+    "got": {}
+   },
+   {
+    "port": "0x50",
+    "scanned": [
+     "ssh-keyscan",
+     "-T",
+     "5",
+     "-p",
+     "80",
+     "h"
+    ],
+    "got": {}
+   },
+   {
+    "port": "0",
+    "scanned": [
+     "ssh-keyscan",
+     "-T",
+     "5",
+     "-p",
+     "22",
+     "h"
+    ],
+    "got": {}
+   },
+   {
+    "port": "",
+    "scanned": [
+     "ssh-keyscan",
+     "-T",
+     "5",
+     "-p",
+     "22",
+     "h"
+    ],
+    "got": {}
+   },
+   {
+    "port": "abc",
+    "scanned": [
+     "ssh-keyscan",
+     "-T",
+     "5",
+     "-p",
+     "22",
+     "h"
+    ],
+    "got": {}
+   }
+  ],
+  "wordReach": [
+   {
+    "typed": 0,
+    "configPort": "2222",
+    "out": {
+     "err": "dev@alias names no port ssh can dial"
+    }
+   },
+   {
+    "typed": null,
+    "configPort": "70000",
+    "out": {
+     "err": "dev@alias names no port ssh can dial"
+    }
+   },
+   {
+    "typed": null,
+    "configPort": "2222.5",
+    "out": {
+     "err": "dev@alias names no port ssh can dial"
+    }
+   },
+   {
+    "typed": null,
+    "configPort": "-1",
+    "out": {
+     "err": "dev@alias names no port ssh can dial"
+    }
+   },
+   {
+    "typed": null,
+    "configPort": "0",
+    "out": {
+     "ok": {
+      "user": "dev",
+      "host": "alias",
+      "port": 22
+     }
+    }
+   },
+   {
+    "typed": null,
+    "configPort": "abc",
+    "out": {
+     "ok": {
+      "user": "dev",
+      "host": "alias",
+      "port": 22
+     }
+    }
+   },
+   {
+    "typed": null,
+    "configPort": "1e3",
+    "out": {
+     "ok": {
+      "user": "dev",
+      "host": "alias",
+      "port": 1000
+     }
+    }
+   },
+   {
+    "typed": 2200,
+    "configPort": "abc",
+    "out": {
+     "ok": {
+      "user": "dev",
+      "host": "alias",
+      "port": 2200
+     }
+    }
+   }
   ]
  },
  "ssh_machine": {
@@ -1040,7 +1212,7 @@
     "cpu": 0,
     "memMb": 0,
     "diskGb": 0,
-    "createdAt": "2026-10-25T15:33:59.992Z"
+    "createdAt": "2026-10-25T15:35:31.579Z"
    },
    "listed": [
     {

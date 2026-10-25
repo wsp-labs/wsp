@@ -112,3 +112,10 @@ Values from `oracle/unit_pins.oracle.ts` (`tests/fixtures/scenes/units.json`, se
 - K-4 `client_words` matches with JavaScript's rules: `.` does not match `\r` (nor U+2028, U+2029), `$` is the end
   of the line's text, `\d` is ASCII. A bind line ending in `\r` is kept, the known-hosts note with a `\r` inside it is
   kept, and `debug١:` is kept (`client_words_matches_with_javascript_regex_rules`).
+- K-5 `offered_host_key`'s scan port is `String(Number(port) || 22)` with no other check: `2222.5`, `-5` and `99999`
+  go as written, `1e3` is `1000`, `0x50` is `80`, and `0`, `""` and `abc` are `22`; the argv is `ssh-keyscan -T 5 -p
+  {port} {host}` (`the_scan_port_is_js_number_or_22_with_no_check`).
+- K-6 `ssh_word_reach`'s port is `typed ?? (Number(config port) || 22)` then `parse_ssh_address`'s 1..=65535 check: a
+  typed 0 is refused; a config port of 70000, 2222.5 or -1 is refused as `dev@alias names no port ssh can dial`, so the
+  config's port needs a type wider than `u16` until that check; 0 and `abc` read 22, `1e3` reads 1000
+  (`the_word_reach_takes_a_typed_port_with_nullish_and_the_configs_with_or`).
