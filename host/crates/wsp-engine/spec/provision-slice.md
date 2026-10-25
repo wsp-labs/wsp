@@ -37,8 +37,9 @@ lines). Line numbers in every spec of this slice are `packages/engine/src/<file>
   `exec` for a short command, `run` for a long one, exactly where the TS uses each: tests record which.
 - **Nothing here holds state in memory across calls.** What survives a host restart is on the far computer:
   `place_provision_paths(home).landed` (the list beside the job: one line per path or key wsp owns in the agents'
-  homes) and `/opt/wsp/landed` (the list outside the home). Every read of them takes a path's first line
-  (`landed`) or last line (`/opt/wsp/landed`); the tests that pin a second run reading the first run's list are named
+  homes) and `/opt/wsp/landed` (the list outside the home). The standing read, the landing and the close
+  take a path's first line in `landed` (the servers and ownership reads take every line, files_ledger.md F3); every
+  read of `/opt/wsp/landed` takes the last line; the tests that pin a second run reading the first run's list are named
   in files_land.md, files_ledger.md and files_outside.md.
 
 ## The golden seam
