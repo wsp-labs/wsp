@@ -65,6 +65,25 @@ default to it. Five terminals are known, in this order: Ghostty, iTerm2, WezTerm
 ## After the port
 - `usable` strips a leading and a trailing quote independently, so `"Fira Code'` reads as `Fira Code`.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/terminal.json` (`oracle/w2-terminal.oracle.ts`), replayed by `tests/detect_terminal.rs`
+`w2_oracle::*`.
+
+- W1. kitty: rule 5's first match across lines, `family=` anywhere in the value wins, no comment stripping, CRLF
+  (`kitty_font`).
+- W2. WezTerm: comment stripping is the two regexes only (`--[=[` long brackets are not comments; `--` inside a
+  quoted name cuts the line), the regex sees a family only right after the call; lookalikes give the built-in
+  (`wezterm_font`).
+- W3. Alacritty: rule 6's forms, unanchored headers, `[^[]*?` stopping at the next table, YAML's next-line value, a
+  matched unusable TOML form stopping the search (`alacritty_font`).
+- W4. iTerm2: rule 3 with the default bookmark that has no font (`None`), a literal guid, no default key (the whole
+  text), sizes and names (`iterm_font`).
+- W5. Ghostty's text parse (`ghostty_font`).
+- W6. `detect_terminal_font`: rule 9's own-terminal walk, an own terminal with nothing to say passed over, an empty
+  file readable, a readable WezTerm file never `None`, Alacritty stopping at its first readable file, Ghostty's reset
+  list giving the built-in, iTerm2's empty `defaults`, the per-terminal read order (`detect_terminal_font`).
+
 ## Tests
 | Rule | Test |
 |---|---|

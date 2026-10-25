@@ -18,6 +18,18 @@ The Host seam every detector reads the computer through, its two path helpers, t
 
 `fake_host` keeps the TS fake's rules: a key ending `/` is a dir with that size; a dir with no own key is the sum of the files under it; mtimes default to 1000; `read_text` logs `read <path>` and answers only text values; `lines` logs `lines <path>`, splits on LF (a trailing LF gives a last empty line) and ignores `holding`; `run` logs `run <NAME=v ...> <cmd> <args>` plus ` (<ms> ms)` when a timeout is set, and answers the canned stdout for that key.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/small.json` (`oracle/w2-small.oracle.ts`), replayed by `tests/ssh_config.rs`
+`w2_oracle::*`.
+
+- W1. `expand` and `tilde` over `~`, `~/`, `~x`, a home with a trailing slash, an empty home, double slashes and
+  paths that only start like home (`expand`, `tilde`).
+- W2. `with_ignore_unknown`: the prelude once at the top, never doubled, over empty text, CRLF and text that already
+  holds the prelude (`with_ignore_unknown`).
+- W3. `SSH_CONFIG_PATH`, `SSH_IGNORE_UNKNOWN_DETAIL`, `PRELUDE`, `FINDER_METADATA` and `CACHE_DIRS` (22 names, in
+  order) are the TS text (`the_constants_are_the_ts_text`).
+
 ## Rules pinned
 
 | Rule | Test |

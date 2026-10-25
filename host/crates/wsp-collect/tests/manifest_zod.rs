@@ -99,3 +99,61 @@ fn an_empty_list_of_entries_is_a_manifest_and_writes_back_as_one() {
     assert!(m.entries.is_empty());
     assert_eq!(serde_json::to_string(&m).unwrap(), r#"{"entries":[]}"#);
 }
+
+/// Every case of tests/fixtures/oracle/w2/manifest.json's parse keys (oracle/w2-manifest.oracle.ts): spec manifest's
+/// wave-2 rules. `bytes` past 2^53 is an accepted difference (spec manifest Decisions), so its two cases are skipped.
+mod w2_oracle {
+    use super::*;
+
+    fn fixture() -> Value {
+        let path = format!("{}/tests/fixtures/oracle/w2/manifest.json", env!("CARGO_MANIFEST_DIR"));
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+    }
+
+    fn issues(v: &[ManifestIssue]) -> Value {
+        Value::Array(v.iter().map(|i| json!({ "path": i.path, "message": i.message })).collect())
+    }
+
+    #[test]
+    fn every_row_parses_or_is_refused_with_zod_s_issues_in_zod_s_order() {
+        for case in fixture()["parse_entry"].as_array().unwrap() {
+            let what = case["name"].as_str().unwrap();
+            if what.contains("1e20") || what.contains("above 2^53") {
+                continue;
+            }
+            let data: Value = match case.get("args_json") {
+                Some(text) => serde_json::from_str(text.as_str().unwrap()).unwrap(),
+                None => case["args"][0].clone(),
+            };
+            match parse_entry(&data) {
+                Ok(row) => {
+                    assert!(case.get("issues").is_none(), "{what}: the TS refused it");
+                    if let Some(text) = case.get("text") {
+                        assert_eq!(serde_json::to_string(&row).unwrap(), text.as_str().unwrap(), "{what}");
+                    }
+                }
+                Err(got) => assert_eq!(issues(&got), case["issues"], "{what}"),
+            }
+        }
+    }
+
+    #[test]
+    fn every_envelope_parses_or_is_refused_as_the_ts_did() {
+        let f = fixture();
+        for case in f["safe_parse_manifest"].as_array().unwrap() {
+            match safe_parse_manifest(&case["args"][0]) {
+                Ok(m) => assert_eq!(serde_json::to_string(&m).unwrap(), case["text"].as_str().unwrap(), "{}", case["name"]),
+                Err(got) => assert_eq!(issues(&got), case["issues"], "{}", case["name"]),
+            }
+        }
+        for case in f["parse_manifest"].as_array().unwrap() {
+            match parse_manifest(&case["args"][0]) {
+                Ok(m) => {
+                    assert_eq!(serde_json::to_value(&m).unwrap(), case["out"]["ok"], "{}", case["name"]);
+                    assert_eq!(serde_json::to_string(&m).unwrap(), case["out"]["text"].as_str().unwrap(), "{}", case["name"]);
+                }
+                Err(e) => assert_eq!(json!(e.message), case["out"]["error"], "{}", case["name"]),
+            }
+        }
+    }
+}

@@ -40,6 +40,29 @@ One reader per session store format the catalog names. A reader lists its store'
 
 - Codex only takes the folder from a `session_meta` line seen before a call; calls before it have no folder. Kept.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/history_readers.json` (`oracle/w2-history_readers.oracle.ts`), replayed by
+`tests/history_hard.rs` `w2_oracle::readers_pure_functions_answer_what_the_ts_answered` and
+`w2_oracle::readers_list_stamp_and_read_files_as_the_ts_did`.
+
+- W1. `time_of`: rule 4's grammar, 65 values (`time_of`); the cases named `[local time, ...]` are checked only at UTC.
+- W2. `stamp_of` writes the mtime as `String(n)` for odd values (`1500.25`, `0.1`, `1e21`, negative); a folder or a
+  missing path is `None` (`stamp_of`). Node's `mtimeMs` carries sub-millisecond digits; a Rust stamp computed another
+  way may differ in the last digit, so a cache the TS wrote may be read again once by the Rust host (never wrongly
+  trusted).
+- W3. Claude files: every `.jsonl` at any depth under a project folder, keyed by `claude_session`; a `.jsonl` at the
+  root itself has no session and is not listed (`claude_reader_files`). `claude_session` rows (`claude_session`).
+- W4. Claude read: the eighteen-line file of every shape; a path with no session opens nothing (`claude_reader_read`).
+  `claude_call` keeps `""` folder and `0` time (`claude_call`).
+- W5. Codex: `cmd ?? command`, an array joined with one space, an object `cmd` is Other (`codex_call`); every
+  `.jsonl` (lower case only) is a rollout, `archived/` included (`codex_reader_files`); the folder is set by the
+  first `session_meta` line whose `payload.cwd` is a string, `""` included, a later one never changes it
+  (`codex_reader_read`).
+- W6. Hermes: the fallback runs only when the first answer is `None`; `[]` and non-array JSON do not fall back;
+  rows keep `""` session ids and cwds (`hermes_calls`, `hermes_reader_read`, `hermes_reader_files`).
+- W7. `holder` per reader (`holder`).
+
 ## Rules pinned
 
 | Rule | Test |

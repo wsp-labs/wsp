@@ -481,3 +481,64 @@ mod pins {
         assert_eq!(serde_json::to_value(block_on(billed_here(&empty_host()))).unwrap(), json!({}));
     }
 }
+
+/// Every case of tests/fixtures/oracle/w2/logins.json (oracle/w2-logins.oracle.ts): spec logins's wave-2 rules.
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, host, w2};
+    use serde_json::{json, Value};
+    use wsp_collect::detect::logins::{api_key_helper_of, billed_here, claude_bills, claude_keychain_service, detect_logins, holds_claude_login, login_default, Bills};
+
+    fn bills(b: Option<Bills>) -> Value {
+        match b {
+            Some(Bills::Key) => json!("key"),
+            Some(Bills::Login) => json!("login"),
+            None => Value::Null,
+        }
+    }
+
+    #[test]
+    fn the_pure_rules_answer_what_the_ts_answered() {
+        let f = w2("logins");
+        for case in cases(&f, "login_default") {
+            assert_eq!(serde_json::to_value(login_default(case["args"][0].as_str().unwrap())).unwrap(), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "api_key_helper_of") {
+            assert_eq!(json!(api_key_helper_of(case["args"][0].as_str())), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "holds_claude_login") {
+            assert_eq!(json!(holds_claude_login(case["args"][0].as_str())), case["out"], "{}", case["name"]);
+        }
+        for case in cases(&f, "claude_keychain_service") {
+            assert_eq!(json!(claude_keychain_service(case["args"][0].as_str())), case["out"], "{}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn claude_bills_reads_and_runs_in_the_ts_order_and_stops_where_it_did() {
+        let f = w2("logins");
+        for case in cases(&f, "claude_bills") {
+            let h = host(&case["laptop"]);
+            assert_eq!(bills(block_on(claude_bills(&h))), case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+        for case in cases(&f, "billed_here") {
+            let h = host(&case["laptop"]);
+            let got: serde_json::Map<String, Value> = block_on(billed_here(&h)).into_iter().map(|(k, b)| (k, bills(Some(b)))).collect();
+            assert_eq!(Value::Object(got), case["out"], "{}", case["name"]);
+            assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+        }
+    }
+
+    #[test]
+    fn detect_logins_writes_the_rows_the_ts_wrote() {
+        for case in cases(&w2("logins"), "detect_logins") {
+            let h = host(&case["laptop"]);
+            let got: Vec<Value> = block_on(detect_logins(&h)).iter().map(|r| serde_json::to_value(r).unwrap()).collect();
+            assert_eq!(Value::Array(got), case["out"], "{}", case["name"]);
+            if !case["calls"].is_null() {
+                assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
+            }
+        }
+    }
+}

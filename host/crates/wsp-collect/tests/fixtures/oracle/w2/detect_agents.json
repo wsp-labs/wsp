@@ -1,0 +1,3077 @@
+{
+ "agents": [
+  {
+   "name": "the agents in order, Aider last",
+   "args": [],
+   "out": [
+    {
+     "id": "claude",
+     "label": "Claude Code",
+     "bin": "claude",
+     "config": [
+      "~/.claude/settings.json",
+      "~/.claude/CLAUDE.md",
+      "~/.claude/skills",
+      "~/.claude/agents",
+      "~/.claude/commands",
+      "~/.claude.json"
+     ],
+     "volatile": [
+      "~/.claude.json"
+     ],
+     "hooks_file": "~/.claude/settings.json"
+    },
+    {
+     "id": "codex",
+     "label": "Codex",
+     "bin": "codex",
+     "config": [
+      "~/.codex/config.toml",
+      "~/.codex/AGENTS.md",
+      "~/.codex/prompts",
+      "~/.codex/skills"
+     ],
+     "hooks_file": "~/.codex/config.toml"
+    },
+    {
+     "id": "gemini",
+     "label": "Gemini CLI",
+     "bin": "gemini",
+     "config": [
+      "~/.gemini/settings.json",
+      "~/.gemini/GEMINI.md",
+      "~/.gemini/commands"
+     ],
+     "hooks_file": null
+    },
+    {
+     "id": "opencode",
+     "label": "OpenCode",
+     "bin": "opencode",
+     "config": [
+      "~/.config/opencode/opencode.json",
+      "~/.config/opencode/opencode.jsonc",
+      "~/.config/opencode/AGENTS.md",
+      "~/.config/opencode/package.json",
+      "~/.config/opencode/agents",
+      "~/.config/opencode/commands",
+      "~/.config/opencode/plugins",
+      "~/.config/opencode/skills",
+      "~/.config/opencode/themes"
+     ],
+     "hooks_file": null
+    },
+    {
+     "id": "pi",
+     "label": "Pi",
+     "bin": "pi",
+     "config": [
+      "~/.pi/agent/settings.json",
+      "~/.pi/agent/keybindings.json",
+      "~/.pi/agent/AGENTS.md",
+      "~/.pi/agent/SYSTEM.md",
+      "~/.pi/agent/APPEND_SYSTEM.md",
+      "~/.pi/agent/prompts",
+      "~/.pi/agent/skills",
+      "~/.pi/agent/extensions",
+      "~/.pi/agent/themes"
+     ],
+     "hooks_file": null
+    },
+    {
+     "id": "hermes",
+     "label": "Hermes Agent",
+     "bin": "hermes",
+     "config": [
+      "~/.hermes/config.yaml",
+      "~/.hermes/SOUL.md",
+      "~/.hermes/memories",
+      "~/.hermes/skills",
+      "~/.hermes/cron",
+      "~/.hermes/hooks"
+     ],
+     "hooks_file": null
+    },
+    {
+     "id": "crush",
+     "label": "Crush",
+     "bin": "crush",
+     "config": [],
+     "hooks_file": null
+    },
+    {
+     "id": "qwen",
+     "label": "Qwen Code",
+     "bin": "qwen",
+     "config": [],
+     "hooks_file": null
+    },
+    {
+     "id": "goose",
+     "label": "Goose",
+     "bin": "goose",
+     "config": [],
+     "hooks_file": null
+    },
+    {
+     "id": "amp",
+     "label": "Amp",
+     "bin": "amp",
+     "config": [],
+     "hooks_file": null
+    },
+    {
+     "id": "cursor",
+     "label": "Cursor",
+     "bin": "cursor-agent",
+     "config": [],
+     "hooks_file": null
+    },
+    {
+     "id": "aider",
+     "label": "Aider",
+     "bin": "aider",
+     "config": [
+      "~/.aider.conf.yml",
+      "~/.aider.model.settings.yml",
+      "~/.aider.model.metadata.json"
+     ],
+     "hooks_file": null
+    }
+   ]
+  }
+ ],
+ "agent_row_id": [
+  {
+   "name": "claude",
+   "args": [
+    "claude"
+   ],
+   "out": "agents/claude"
+  },
+  {
+   "name": "aider",
+   "args": [
+    "aider"
+   ],
+   "out": "agents/aider"
+  },
+  {
+   "name": "hermes",
+   "args": [
+    "hermes"
+   ],
+   "out": "agents/hermes"
+  },
+  {
+   "name": "x y",
+   "args": [
+    "x y"
+   ],
+   "out": "agents/x y"
+  }
+ ],
+ "detect_agents": [
+  {
+   "name": "input A: a repeated hooks key fails the rung",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\"}]}]},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/b\"}]}]}}",
+     "~/.claude/hooks/a": 1,
+     "~/.claude/hooks/b": 2
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "error": "the file could not be changed in place, which keeps its comments; change it by hand",
+   "calls": [
+    "read /Users/dev/.claude/settings.json"
+   ]
+  },
+  {
+   "name": "a repeated event key fails the rung",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\"}]}],\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/b\"}]}]}}",
+     "~/.claude/hooks/a": 1,
+     "~/.claude/hooks/b": 2
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "error": "the file could not be changed in place, which keeps its comments; change it by hand",
+   "calls": [
+    "read /Users/dev/.claude/settings.json"
+   ]
+  },
+  {
+   "name": "a repeated command key fails the rung",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\",\"command\":\"~/.claude/hooks/b\"}]}]}}",
+     "~/.claude/hooks/a": 1,
+     "~/.claude/hooks/b": 2
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "error": "the file could not be changed in place, which keeps its comments; change it by hand",
+   "calls": [
+    "read /Users/dev/.claude/settings.json"
+   ]
+  },
+  {
+   "name": "first hooks block holds no path, the last does: fails",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"/bin/ls\"}]}]},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\"}]}]}}",
+     "~/.claude/hooks/a": 1
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "error": "the file could not be changed in place, which keeps its comments; change it by hand",
+   "calls": [
+    "read /Users/dev/.claude/settings.json"
+   ]
+  },
+  {
+   "name": "counter-case: the last hooks block holds only /bin/ls, no throw",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\"}]}]},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"/bin/ls\"}]}]}}",
+     "~/.claude/hooks/a": 1
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json"
+     ],
+     "bytes": 151,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "counter-case: a repeated model key before the hooks block",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"model\":\"a\",\"model\":\"b\",\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\"}]}]}}",
+     "~/.claude/hooks/a": 1
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json",
+      "~/.claude/hooks/a"
+     ],
+     "bytes": 106,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "counter-case: a repeated model key after the hooks block",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\"}]}]},\"model\":\"a\",\"model\":\"b\"}",
+     "~/.claude/hooks/a": 1
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json",
+      "~/.claude/hooks/a"
+     ],
+     "bytes": 106,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "counter-case: not JSON",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "not json {",
+     "~/.claude/hooks/a": 1
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json"
+     ],
+     "bytes": 10,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "counter-case: hooks is an array",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":[1]}"
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json"
+     ],
+     "bytes": 13,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "counter-case: an array root",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "[{\"hooks\":{}}]"
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json"
+     ],
+     "bytes": 14,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "counter-case: a UTF-8 BOM before the object",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "﻿{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\"}]}]}}",
+     "~/.claude/hooks/a": 1
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json"
+     ],
+     "bytes": 84,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "counter-case: settings.json is a folder",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json/x": 5
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json"
+     ],
+     "bytes": 5,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "counter-case: JSONC with comments and trailing commas",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "// c\n{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\",},],},],}, /* x */ }",
+     "~/.claude/hooks/a": 1
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json",
+      "~/.claude/hooks/a"
+     ],
+     "bytes": 102,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "counter-case: CRLF pretty settings",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\r\n  \"hooks\": {\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\"}]}]}\r\n}\r\n",
+     "~/.claude/hooks/a": 1
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json",
+      "~/.claude/hooks/a"
+     ],
+     "bytes": 91,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "a quote that is valid JSON: found",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a \\\"x\"}]}]}}",
+     "~/.claude/hooks/a": 1
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json",
+      "~/.claude/hooks/a"
+     ],
+     "bytes": 86,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "a single quote after the path: found",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a 'x\"}]}]}}",
+     "~/.claude/hooks/a": 1
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json",
+      "~/.claude/hooks/a"
+     ],
+     "bytes": 85,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "a quoted path then an argument: found",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"\\\"~/.claude/hooks/a\\\" x\"}]}]}}",
+     "~/.claude/hooks/a": 1
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json",
+      "~/.claude/hooks/a"
+     ],
+     "bytes": 88,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "a single-quoted path: found",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"'~/.claude/hooks/a'\"}]}]}}",
+     "~/.claude/hooks/a": 1
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json",
+      "~/.claude/hooks/a"
+     ],
+     "bytes": 84,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "bash with a quoted path: found",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"bash \\\"~/.claude/hooks/a\\\"\"}]}]}}",
+     "~/.claude/hooks/a": 1
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json",
+      "~/.claude/hooks/a"
+     ],
+     "bytes": 91,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "a quote opened before the path: not found",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"\\\"~/.claude/hooks/a\"}]}]}}",
+     "~/.claude/hooks/a": 1
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json"
+     ],
+     "bytes": 83,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "a quote glued after the path: not found",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\\\"\"}]}]}}",
+     "~/.claude/hooks/a": 1
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json"
+     ],
+     "bytes": 83,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "home word forms and interpreters",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"$HOME/.claude/hooks/a && ${HOME}/.claude/hooks/b; bash ~/.claude/hooks/c.sh -x | node --check ~/.claude/hooks/d.js && FOO=1 ~/.claude/hooks/e\"}]}]}}",
+     "~/.claude/hooks/a": 1,
+     "~/.claude/hooks/b": 2,
+     "~/.claude/hooks/c.sh": 4,
+     "~/.claude/hooks/d.js": 8,
+     "~/.claude/hooks/e": 16
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json",
+      "~/.claude/hooks/a",
+      "~/.claude/hooks/b",
+      "~/.claude/hooks/c.sh",
+      "~/.claude/hooks/d.js",
+      "~/.claude/hooks/e"
+     ],
+     "bytes": 236,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "which words count as a script file",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/dir\"},{\"type\":\"command\",\"command\":\"~/.claude/hooks/missing\"},{\"type\":\"command\",\"command\":\"~/.claude/hooks/ok.sh arg ~/.claude/hooks/arg2\"},{\"type\":\"command\",\"command\":\"python3 -u ~/.claude/hooks/p.py\"},{\"type\":\"command\",\"command\":\"env FOO=1 ~/.claude/hooks/e.sh\"},{\"type\":\"command\",\"command\":\"bash\"},{\"type\":\"command\",\"command\":\"\"},{\"type\":\"command\",\"command\":\"   \"},{\"type\":\"command\",\"command\":\"~/\"},{\"type\":\"command\",\"command\":\"~/.claude/hooks/q;~/.claude/hooks/r\"},{\"type\":\"command\",\"command\":\"~/.claude/hooks/s ; ~/.claude/hooks/t\"}]}]}}",
+     "~/.claude/hooks/dir/x": 1,
+     "~/.claude/hooks/ok.sh": 2,
+     "~/.claude/hooks/arg2": 9,
+     "~/.claude/hooks/p.py": 4,
+     "~/.claude/hooks/e.sh": 5,
+     "~/.claude/hooks/q": 6,
+     "~/.claude/hooks/r": 7,
+     "~/.claude/hooks/s": 8,
+     "~/.claude/hooks/t": 10
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json",
+      "~/.claude/hooks/ok.sh",
+      "~/.claude/hooks/p.py",
+      "~/.claude/hooks/e.sh",
+      "~/.claude/hooks/s",
+      "~/.claude/hooks/t"
+     ],
+     "bytes": 643,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "one script named many ways is listed once",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\"},{\"type\":\"command\",\"command\":\"$HOME/.claude/hooks/a\"},{\"type\":\"command\",\"command\":\"bash ~/.claude/hooks/a\"},{\"type\":\"command\",\"command\":\"/Users/dev/.claude/hooks/a\"}]}],\"PreToolUse\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\"}]}]}}",
+     "~/.claude/hooks/a": 3
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json",
+      "~/.claude/hooks/a"
+     ],
+     "bytes": 325,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "scripts under a config path, folders, outside home",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/skills/x/run.sh\"},{\"type\":\"command\",\"command\":\"~/.claude/hooks\"},{\"type\":\"command\",\"command\":\"~/.claude/skillsX/run.sh\"},{\"type\":\"command\",\"command\":\"/Users/dev/.claude/agents/a.sh\"},{\"type\":\"command\",\"command\":\"/Users/devx/.claude/h\"},{\"type\":\"command\",\"command\":\"/Users/dev/other/script.sh\"},{\"type\":\"command\",\"command\":\"~/.claude.json\"}]}]}}",
+     "~/.claude/skills/x/run.sh": 5,
+     "~/.claude/hooks/q": 6,
+     "~/.claude/skillsX/run.sh": 7,
+     "~/.claude/agents/a.sh": 8,
+     "/Users/devx/.claude/h": 9,
+     "~/other/script.sh": 10,
+     "~/.claude.json": 11
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json",
+      "~/.claude/skills",
+      "~/.claude/agents",
+      "~/.claude.json",
+      "~/.claude/skillsX/run.sh",
+      "~/other/script.sh"
+     ],
+     "bytes": 452,
+     "default": "bring",
+     "volatile": [
+      "~/.claude.json"
+     ]
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "hook shapes that carry nothing",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"prompt\",\"prompt\":\"x\"},{\"command\":5},null,\"~/.claude/hooks/a\",{\"type\":\"command\",\"command\":\"~/.claude/hooks/ok\"}]},{\"hooks\":\"x\"},\"y\"],\"Other\":{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/ok2\"}]}}}",
+     "~/.claude/hooks/ok": 1,
+     "~/.claude/hooks/ok2": 2,
+     "~/.claude/hooks/a": 3
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json",
+      "~/.claude/hooks/ok"
+     ],
+     "bytes": 242,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "the hooks files are read on an empty laptop",
+   "laptop": {},
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "settings with empty hooks and no agent on PATH",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{}}"
+    },
+    "which": []
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json"
+     ],
+     "bytes": 12,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "a hook script and no PATH entry",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\"}]}]}}",
+     "~/.claude/hooks/a": 3
+    },
+    "which": []
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json",
+      "~/.claude/hooks/a"
+     ],
+     "bytes": 84,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "settings exist, an unreferenced hook file",
+   "laptop": {
+    "files": {
+     "~/.claude/hooks/x": 1,
+     "~/.claude/settings.json": "{}"
+    },
+    "which": []
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json"
+     ],
+     "bytes": 2,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "Claude on PATH only: no volatile",
+   "laptop": {
+    "files": {},
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "only ~/.claude.json",
+   "laptop": {
+    "files": {
+     "~/.claude.json": 5
+    },
+    "which": []
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude.json"
+     ],
+     "bytes": 5,
+     "default": "bring",
+     "volatile": [
+      "~/.claude.json"
+     ]
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "cursor on PATH is not the cursor bin",
+   "laptop": {
+    "which": [
+     "cursor"
+    ]
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "Codex notify names a script",
+   "laptop": {
+    "files": {
+     "~/.codex/config.toml": "notify = [\"bash\", \"~/.codex/notify.sh\"]\n",
+     "~/.codex/notify.sh": 33
+    },
+    "which": [
+     "codex"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/codex",
+     "label": "Codex",
+     "paths": [
+      "~/.codex/config.toml",
+      "~/.codex/notify.sh"
+     ],
+     "bytes": 73,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "Codex notify under a table",
+   "laptop": {
+    "files": {
+     "~/.codex/config.toml": "[x]\nnotify = [\"bash\", \"~/.codex/notify.sh\"]\n",
+     "~/.codex/notify.sh": 33
+    },
+    "which": [
+     "codex"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/codex",
+     "label": "Codex",
+     "paths": [
+      "~/.codex/config.toml"
+     ],
+     "bytes": 44,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "Codex notify over several lines",
+   "laptop": {
+    "files": {
+     "~/.codex/config.toml": "notify = [\n \"node\", \"--x\",\n \"~/.codex/n.js\",\n]\n",
+     "~/.codex/n.js": 33
+    },
+    "which": [
+     "codex"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/codex",
+     "label": "Codex",
+     "paths": [
+      "~/.codex/config.toml",
+      "~/.codex/n.js"
+     ],
+     "bytes": 80,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "Codex notify never closed",
+   "laptop": {
+    "files": {
+     "~/.codex/config.toml": "notify = [\"bash\",\n",
+     "~/.codex/notify.sh": 33
+    },
+    "which": [
+     "codex"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/codex",
+     "label": "Codex",
+     "paths": [
+      "~/.codex/config.toml"
+     ],
+     "bytes": 18,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "Claude Code brings settings, memory, skills, commands, MCP config",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": 400,
+     "~/.claude/CLAUDE.md": 900,
+     "~/.claude/skills/x/SKILL.md": 3000,
+     "~/.claude/agents/a.md": 100,
+     "~/.claude/commands/c.md": 50,
+     "~/.claude/.credentials.json": 800,
+     "~/.claude.json": 2000
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json",
+      "~/.claude/CLAUDE.md",
+      "~/.claude/skills",
+      "~/.claude/agents",
+      "~/.claude/commands",
+      "~/.claude.json"
+     ],
+     "bytes": 6450,
+     "default": "bring",
+     "volatile": [
+      "~/.claude.json"
+     ]
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "Pi brings AGENTS.md and SYSTEM.md",
+   "laptop": {
+    "files": {
+     "~/.pi/agent/AGENTS.md": 5,
+     "~/.pi/agent/SYSTEM.md": 6,
+     "~/.pi/agent/APPEND_SYSTEM.md": 7
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/pi",
+     "label": "Pi",
+     "paths": [
+      "~/.pi/agent/AGENTS.md",
+      "~/.pi/agent/SYSTEM.md",
+      "~/.pi/agent/APPEND_SYSTEM.md"
+     ],
+     "bytes": 18,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "Aider config",
+   "laptop": {
+    "files": {
+     "~/.aider.conf.yml": 40,
+     "~/.aider.model.settings.yml": 2,
+     "~/.aider.model.metadata.json": 3
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/aider",
+     "label": "Aider",
+     "paths": [
+      "~/.aider.conf.yml",
+      "~/.aider.model.settings.yml",
+      "~/.aider.model.metadata.json"
+     ],
+     "bytes": 45,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "claude on PATH alone (bin claude)",
+   "laptop": {
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "codex on PATH alone (bin codex)",
+   "laptop": {
+    "which": [
+     "codex"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/codex",
+     "label": "Codex",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "gemini on PATH alone (bin gemini)",
+   "laptop": {
+    "which": [
+     "gemini"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/gemini",
+     "label": "Gemini CLI",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "opencode on PATH alone (bin opencode)",
+   "laptop": {
+    "which": [
+     "opencode"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/opencode",
+     "label": "OpenCode",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "pi on PATH alone (bin pi)",
+   "laptop": {
+    "which": [
+     "pi"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/pi",
+     "label": "Pi",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "hermes on PATH alone (bin hermes)",
+   "laptop": {
+    "which": [
+     "hermes"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/hermes",
+     "label": "Hermes Agent",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "crush on PATH alone (bin crush)",
+   "laptop": {
+    "which": [
+     "crush"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/crush",
+     "label": "Crush",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "qwen on PATH alone (bin qwen)",
+   "laptop": {
+    "which": [
+     "qwen"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/qwen",
+     "label": "Qwen Code",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "goose on PATH alone (bin goose)",
+   "laptop": {
+    "which": [
+     "goose"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/goose",
+     "label": "Goose",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "amp on PATH alone (bin amp)",
+   "laptop": {
+    "which": [
+     "amp"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/amp",
+     "label": "Amp",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "cursor on PATH alone (bin cursor-agent)",
+   "laptop": {
+    "which": [
+     "cursor-agent"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/cursor",
+     "label": "Cursor",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  },
+  {
+   "name": "aider on PATH alone (bin aider)",
+   "laptop": {
+    "which": [
+     "aider"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/aider",
+     "label": "Aider",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml"
+   ]
+  }
+ ],
+ "run_detector": [
+  {
+   "name": "agents rung with a repeated hooks key",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\"}]}]},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/b\"}]}]}}",
+     "~/.claude/hooks/a": 1,
+     "~/.claude/hooks/b": 2,
+     "~/.zshrc": 5
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [
+    "agents",
+    []
+   ],
+   "error": "the file could not be changed in place, which keeps its comments; change it by hand",
+   "calls": [
+    "read /Users/dev/.claude/settings.json"
+   ]
+  },
+  {
+   "name": "agents rung, the last hooks block holds only /bin/ls",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\"}]}]},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"/bin/ls\"}]}]}}",
+     "~/.claude/hooks/a": 1,
+     "~/.zshrc": 5
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [
+    "agents",
+    []
+   ],
+   "out": [
+    {
+     "rung": "agents",
+     "id": "agents/claude",
+     "label": "Claude Code",
+     "paths": [
+      "~/.claude/settings.json"
+     ],
+     "bytes": 151,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc"
+   ]
+  }
+ ],
+ "collect": [
+  {
+   "name": "a repeated hooks key stops collect at the agents rung",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\"}]}]},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/b\"}]}]}}",
+     "~/.claude/hooks/a": 1,
+     "~/.claude/hooks/b": 2,
+     "~/.zshrc": 5
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "error": "the file could not be changed in place, which keeps its comments; change it by hand",
+   "on_rung": [
+    [
+     "identity",
+     0
+    ],
+    [
+     "shell",
+     1
+    ],
+    [
+     "toolchains",
+     0
+    ],
+    [
+     "tools",
+     0
+    ]
+   ],
+   "calls": [
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml",
+    "read /Users/dev/.config/alacritty/alacritty.yml",
+    "read /Users/dev/.alacritty.yml",
+    "read /Users/dev/.claude/settings.json"
+   ]
+  },
+  {
+   "name": "counter-case: the last hooks block holds only /bin/ls",
+   "laptop": {
+    "files": {
+     "~/.claude/settings.json": "{\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"~/.claude/hooks/a\"}]}]},\"hooks\":{\"Stop\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"/bin/ls\"}]}]}}",
+     "~/.claude/hooks/a": 1,
+     "~/.zshrc": 5
+    },
+    "which": [
+     "claude"
+    ]
+   },
+   "args": [],
+   "out": {
+    "entries": [
+     {
+      "rung": "shell",
+      "id": "shell/zshrc",
+      "label": "~/.zshrc",
+      "paths": [
+       "~/.zshrc"
+      ],
+      "bytes": 5,
+      "default": "bring"
+     },
+     {
+      "rung": "agents",
+      "id": "agents/claude",
+      "label": "Claude Code",
+      "paths": [
+       "~/.claude/settings.json"
+      ],
+      "bytes": 151,
+      "default": "bring"
+     }
+    ]
+   },
+   "on_rung": [
+    [
+     "identity",
+     0
+    ],
+    [
+     "shell",
+     1
+    ],
+    [
+     "toolchains",
+     0
+    ],
+    [
+     "tools",
+     0
+    ],
+    [
+     "agents",
+     1
+    ],
+    [
+     "logins",
+     0
+    ]
+   ],
+   "calls": [
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml",
+    "read /Users/dev/.config/alacritty/alacritty.yml",
+    "read /Users/dev/.alacritty.yml",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.claude.json",
+    "read /Users/dev/.codex/config.toml",
+    "read /Users/dev/.gemini/settings.json",
+    "read /Users/dev/.config/opencode/opencode.json",
+    "read /Users/dev/.config/opencode/opencode.jsonc",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  }
+ ],
+ "bare_sources": [
+  {
+   "name": "\"source ~/.a   \"",
+   "args": [
+    "source ~/.a   ",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"source ~/.a\\t\"",
+   "args": [
+    "source ~/.a\t",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"source ~/.a\\t# c\"",
+   "args": [
+    "source ~/.a\t# c",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"source ~/.a # c  \"",
+   "args": [
+    "source ~/.a # c  ",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"source ~/.a #\"",
+   "args": [
+    "source ~/.a #",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"source ~/.a#x\"",
+   "args": [
+    "source ~/.a#x",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a#x"
+   ]
+  },
+  {
+   "name": "\"source ~/.a ;\"",
+   "args": [
+    "source ~/.a ;",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source  ~/.a\"",
+   "args": [
+    "source  ~/.a",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"\\tsource ~/.a\"",
+   "args": [
+    "\tsource ~/.a",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\". ~/.a\"",
+   "args": [
+    ". ~/.a",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"\\\\. ~/.a\"",
+   "args": [
+    "\\. ~/.a",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"source \\\"~/.a\\\"\"",
+   "args": [
+    "source \"~/.a\"",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"source '${HOME}/.a'\"",
+   "args": [
+    "source '${HOME}/.a'",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"source \\\"$HOME/.a\\\"\"",
+   "args": [
+    "source \"$HOME/.a\"",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"source '$HOME/.a'\"",
+   "args": [
+    "source '$HOME/.a'",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"source ~/.a\\rsource ~/.b\"",
+   "args": [
+    "source ~/.a\rsource ~/.b",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/.a x\"",
+   "args": [
+    "source ~/.a x",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/.a \"",
+   "args": [
+    "source ~/.a ",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/.a # c d\"",
+   "args": [
+    "source ~/.a # c d",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/.a #c\\r\"",
+   "args": [
+    "source ~/.a #c\r",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source /Users/dev/.a # c\"",
+   "args": [
+    "source /Users/dev/.a # c",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"source \\\"/Users/dev/.a\\\"#c\"",
+   "args": [
+    "source \"/Users/dev/.a\"#c",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source /Users/dev\"",
+   "args": [
+    "source /Users/dev",
+    "/Users/dev"
+   ],
+   "out": [
+    "~"
+   ]
+  },
+  {
+   "name": "\"source /Users/dev/\"",
+   "args": [
+    "source /Users/dev/",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source /Users/dev//a\"",
+   "args": [
+    "source /Users/dev//a",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source \\\"/Users/dev/.a b\\\"\"",
+   "args": [
+    "source \"/Users/dev/.a b\"",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a b"
+   ]
+  },
+  {
+   "name": "\"source ~/.a b\"",
+   "args": [
+    "source ~/.a b",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/.a)\"",
+   "args": [
+    "source ~/.a)",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/.a\\\"\"",
+   "args": [
+    "source ~/.a\"",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/.a ~/.b\"",
+   "args": [
+    "source ~/.a ~/.b",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"SOURCE ~/.a\"",
+   "args": [
+    "SOURCE ~/.a",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source\\t~/.a\"",
+   "args": [
+    "source\t~/.a",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"sourcе ~/.a\"",
+   "args": [
+    "sourcе ~/.a",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source ~/.é\"",
+   "args": [
+    "source ~/.é",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.é"
+   ]
+  },
+  {
+   "name": "\"source ~/a\\\\ b\"",
+   "args": [
+    "source ~/a\\ b",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"source $HOME/.a\"",
+   "args": [
+    "source $HOME/.a",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"source ${HOME}/.a\"",
+   "args": [
+    "source ${HOME}/.a",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"source \\\"${HOME}/.a\\\"\"",
+   "args": [
+    "source \"${HOME}/.a\"",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"source ~/.a\\n\"",
+   "args": [
+    "source ~/.a\n",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a"
+   ]
+  },
+  {
+   "name": "\"a\\r\\nsource ~/.x\\nb\\n\"",
+   "args": [
+    "a\r\nsource ~/.x\nb\n",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.x"
+   ]
+  },
+  {
+   "name": "\"a\\nsource ~/.x\\r\\nb\"",
+   "args": [
+    "a\nsource ~/.x\r\nb",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.x"
+   ]
+  },
+  {
+   "name": "\"source ~/.a\\nsource ~/.a\\nsource /opt/x\\nsource ~/.b\\nsourc",
+   "args": [
+    "source ~/.a\nsource ~/.a\nsource /opt/x\nsource ~/.b\nsource /Users/dev/.c\nsource ~/.a",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.a",
+    "/opt/x",
+    "~/.b",
+    "~/.c"
+   ]
+  },
+  {
+   "name": "\"\"",
+   "args": [
+    "",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"alias g=git\"",
+   "args": [
+    "alias g=git",
+    "/Users/dev"
+   ],
+   "out": []
+  },
+  {
+   "name": "\"export PATH=\\\"$HOME/bin:$PATH\\\"\\n. \\\"$HOME/.cargo/env\\\"\\nso",
+   "args": [
+    "export PATH=\"$HOME/bin:$PATH\"\n. \"$HOME/.cargo/env\"\nsource ~/.deno/env  # deno\n  source \"${HOME}/.zsh/functions.zsh\"\n. /Users/dev/.local/share/x/env\nsource '/Users/dev/.aliases'\n\\. \"$HOME/.bun/_bun\"\n[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh\nif [ -s \"$HOME/.sdkman/bin/sdkman-init.sh\" ]; then\n  source \"$HOME/.sdkman/bin/sdkman-init.sh\"\nfi\nsource $ZSH/oh-my-zsh.sh\n. \"$NVM_DIR/nvm.sh\"\nsource /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh\nsource ~/.secrets 2>/dev/null\nsource ~/.extra || true\n# source ~/.disabled\nsource ~/.deno/env\nsource ~/.zsh/*.zsh\nsource\n.\nsourced=1\nsource ~/.x; source ~/.y\n. \"/Users/dev/.zsh/functions.zsh\"",
+    "/Users/dev"
+   ],
+   "out": [
+    "~/.cargo/env",
+    "~/.deno/env",
+    "~/.zsh/functions.zsh",
+    "~/.local/share/x/env",
+    "~/.aliases",
+    "~/.bun/_bun",
+    "~/.sdkman/bin/sdkman-init.sh",
+    "/opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
+   ]
+  }
+ ],
+ "guard_sources": [
+  {
+   "name": "\"source ~/.a   \" nothing present",
+   "args": [
+    "source ~/.a   ",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r ~/.a ] && source ~/.a",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"source ~/.a\\t\" nothing present",
+   "args": [
+    "source ~/.a\t",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r ~/.a ] && source ~/.a",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"source ~/.a\\t# c\" nothing present",
+   "args": [
+    "source ~/.a\t# c",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r ~/.a ] && source ~/.a # c",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"source ~/.a # c  \" nothing present",
+   "args": [
+    "source ~/.a # c  ",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r ~/.a ] && source ~/.a # c  ",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"source ~/.a #\" nothing present",
+   "args": [
+    "source ~/.a #",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r ~/.a ] && source ~/.a #",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"source ~/.a#x\" nothing present",
+   "args": [
+    "source ~/.a#x",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r ~/.a#x ] && source ~/.a#x",
+    "asked": [
+     ".a#x"
+    ]
+   }
+  },
+  {
+   "name": "\"source ~/.a ;\" nothing present",
+   "args": [
+    "source ~/.a ;",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "source ~/.a ;",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source  ~/.a\" nothing present",
+   "args": [
+    "source  ~/.a",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r ~/.a ] && source ~/.a",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"\\tsource ~/.a\" nothing present",
+   "args": [
+    "\tsource ~/.a",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "\t[ -r ~/.a ] && source ~/.a",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\". ~/.a\" nothing present",
+   "args": [
+    ". ~/.a",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r ~/.a ] && . ~/.a",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"\\\\. ~/.a\" nothing present",
+   "args": [
+    "\\. ~/.a",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r ~/.a ] && \\. ~/.a",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"source \\\"~/.a\\\"\" nothing present",
+   "args": [
+    "source \"~/.a\"",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r \"~/.a\" ] && source \"~/.a\"",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"source '${HOME}/.a'\" nothing present",
+   "args": [
+    "source '${HOME}/.a'",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r '${HOME}/.a' ] && source '${HOME}/.a'",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"source \\\"$HOME/.a\\\"\" nothing present",
+   "args": [
+    "source \"$HOME/.a\"",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r \"$HOME/.a\" ] && source \"$HOME/.a\"",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"source '$HOME/.a'\" nothing present",
+   "args": [
+    "source '$HOME/.a'",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r '$HOME/.a' ] && source '$HOME/.a'",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"source ~/.a\\rsource ~/.b\" nothing present",
+   "args": [
+    "source ~/.a\rsource ~/.b",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "source ~/.a\rsource ~/.b",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source ~/.a x\" nothing present",
+   "args": [
+    "source ~/.a x",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "source ~/.a x",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source ~/.a \" nothing present",
+   "args": [
+    "source ~/.a ",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "source ~/.a ",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source ~/.a # c d\" nothing present",
+   "args": [
+    "source ~/.a # c d",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "source ~/.a # c d",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source ~/.a #c\\r\" nothing present",
+   "args": [
+    "source ~/.a #c\r",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "source ~/.a #c\r",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source /Users/dev/.a # c\" nothing present",
+   "args": [
+    "source /Users/dev/.a # c",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r \"$HOME\"/.a ] && source \"$HOME\"/.a # c",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source \\\"/Users/dev/.a\\\"#c\" nothing present",
+   "args": [
+    "source \"/Users/dev/.a\"#c",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "source \"/Users/dev/.a\"#c",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source /Users/dev\" nothing present",
+   "args": [
+    "source /Users/dev",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r /Users/dev ] && source /Users/dev",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source /Users/dev/\" nothing present",
+   "args": [
+    "source /Users/dev/",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "source /Users/dev/",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source /Users/dev//a\" nothing present",
+   "args": [
+    "source /Users/dev//a",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "source /Users/dev//a",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source \\\"/Users/dev/.a b\\\"\" nothing present",
+   "args": [
+    "source \"/Users/dev/.a b\"",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r \"$HOME/.a b\" ] && source \"$HOME/.a b\"",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source ~/.a b\" nothing present",
+   "args": [
+    "source ~/.a b",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "source ~/.a b",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source ~/.a)\" nothing present",
+   "args": [
+    "source ~/.a)",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "source ~/.a)",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source ~/.a\\\"\" nothing present",
+   "args": [
+    "source ~/.a\"",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "source ~/.a\"",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source ~/.a ~/.b\" nothing present",
+   "args": [
+    "source ~/.a ~/.b",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "source ~/.a ~/.b",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"SOURCE ~/.a\" nothing present",
+   "args": [
+    "SOURCE ~/.a",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "SOURCE ~/.a",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source\\t~/.a\" nothing present",
+   "args": [
+    "source\t~/.a",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r ~/.a ] && source ~/.a",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"sourcе ~/.a\" nothing present",
+   "args": [
+    "sourcе ~/.a",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "sourcе ~/.a",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source ~/.é\" nothing present",
+   "args": [
+    "source ~/.é",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r ~/.é ] && source ~/.é",
+    "asked": [
+     ".é"
+    ]
+   }
+  },
+  {
+   "name": "\"source ~/a\\\\ b\" nothing present",
+   "args": [
+    "source ~/a\\ b",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "source ~/a\\ b",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"source $HOME/.a\" nothing present",
+   "args": [
+    "source $HOME/.a",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r $HOME/.a ] && source $HOME/.a",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"source ${HOME}/.a\" nothing present",
+   "args": [
+    "source ${HOME}/.a",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r ${HOME}/.a ] && source ${HOME}/.a",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"source \\\"${HOME}/.a\\\"\" nothing present",
+   "args": [
+    "source \"${HOME}/.a\"",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r \"${HOME}/.a\" ] && source \"${HOME}/.a\"",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"source ~/.a\\n\" nothing present",
+   "args": [
+    "source ~/.a\n",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r ~/.a ] && source ~/.a\n",
+    "asked": [
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"a\\r\\nsource ~/.x\\nb\\n\" nothing present",
+   "args": [
+    "a\r\nsource ~/.x\nb\n",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "a\r\n[ -r ~/.x ] && source ~/.x\r\nb\r\n",
+    "asked": [
+     ".x"
+    ]
+   }
+  },
+  {
+   "name": "\"a\\nsource ~/.x\\r\\nb\" nothing present",
+   "args": [
+    "a\nsource ~/.x\r\nb",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "a\r\n[ -r ~/.x ] && source ~/.x\r\nb",
+    "asked": [
+     ".x"
+    ]
+   }
+  },
+  {
+   "name": "\"source ~/.a\\nsource ~/.a\\nsource /opt/x\\nsource ~/.b\\nsourc nothing present",
+   "args": [
+    "source ~/.a\nsource ~/.a\nsource /opt/x\nsource ~/.b\nsource /Users/dev/.c\nsource ~/.a",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "[ -r ~/.a ] && source ~/.a\n[ -r ~/.a ] && source ~/.a\n[ -r /opt/x ] && source /opt/x\n[ -r ~/.b ] && source ~/.b\n[ -r \"$HOME\"/.c ] && source \"$HOME\"/.c\n[ -r ~/.a ] && source ~/.a",
+    "asked": [
+     ".a",
+     ".a",
+     ".b",
+     ".a"
+    ]
+   }
+  },
+  {
+   "name": "\"\" nothing present",
+   "args": [
+    "",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "",
+    "asked": []
+   }
+  },
+  {
+   "name": "\"alias g=git\" nothing present",
+   "args": [
+    "alias g=git",
+    "/Users/dev",
+    []
+   ],
+   "out": {
+    "text": "alias g=git",
+    "asked": []
+   }
+  },
+  {
+   "name": "present only .b",
+   "args": [
+    "source ~/.a\nsource ~/.a\nsource /opt/x\nsource ~/.b\nsource /Users/dev/.c\nsource ~/.d",
+    "/Users/dev",
+    [
+     ".b"
+    ]
+   ],
+   "out": {
+    "text": "[ -r ~/.a ] && source ~/.a\n[ -r ~/.a ] && source ~/.a\n[ -r /opt/x ] && source /opt/x\nsource ~/.b\n[ -r \"$HOME\"/.c ] && source \"$HOME\"/.c\n[ -r ~/.d ] && source ~/.d",
+    "asked": [
+     ".a",
+     ".a",
+     ".b",
+     ".d"
+    ]
+   }
+  },
+  {
+   "name": "everything present, mixed line endings",
+   "args": [
+    "a\r\nsource ~/.x\nsource /opt/y\nb\n",
+    "/Users/dev",
+    [
+     ".x"
+    ]
+   ],
+   "out": {
+    "text": "a\r\nsource ~/.x\r\n[ -r /opt/y ] && source /opt/y\r\nb\r\n",
+    "asked": [
+     ".x"
+    ]
+   }
+  },
+  {
+   "name": "the rc file of the TS test, two files present",
+   "args": [
+    "export PATH=\"$HOME/bin:$PATH\"\n. \"$HOME/.cargo/env\"\nsource ~/.deno/env  # deno\n  source \"${HOME}/.zsh/functions.zsh\"\n. /Users/dev/.local/share/x/env\nsource '/Users/dev/.aliases'\n\\. \"$HOME/.bun/_bun\"\n[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh\nif [ -s \"$HOME/.sdkman/bin/sdkman-init.sh\" ]; then\n  source \"$HOME/.sdkman/bin/sdkman-init.sh\"\nfi\nsource $ZSH/oh-my-zsh.sh\n. \"$NVM_DIR/nvm.sh\"\nsource /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh\nsource ~/.secrets 2>/dev/null\nsource ~/.extra || true\n# source ~/.disabled\nsource ~/.deno/env\nsource ~/.zsh/*.zsh\nsource\n.\nsourced=1\nsource ~/.x; source ~/.y\n. \"/Users/dev/.zsh/functions.zsh\"",
+    "/Users/dev",
+    [
+     ".zsh/functions.zsh",
+     ".aliases"
+    ]
+   ],
+   "out": {
+    "text": "export PATH=\"$HOME/bin:$PATH\"\n[ -r \"$HOME/.cargo/env\" ] && . \"$HOME/.cargo/env\"\n[ -r ~/.deno/env ] && source ~/.deno/env # deno\n  source \"${HOME}/.zsh/functions.zsh\"\n[ -r \"$HOME\"/.local/share/x/env ] && . \"$HOME\"/.local/share/x/env\n[ -r \"$HOME\"'/.aliases' ] && source \"$HOME\"'/.aliases'\n[ -r \"$HOME/.bun/_bun\" ] && \\. \"$HOME/.bun/_bun\"\n[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh\nif [ -s \"$HOME/.sdkman/bin/sdkman-init.sh\" ]; then\n  [ -r \"$HOME/.sdkman/bin/sdkman-init.sh\" ] && source \"$HOME/.sdkman/bin/sdkman-init.sh\"\nfi\nsource $ZSH/oh-my-zsh.sh\n. \"$NVM_DIR/nvm.sh\"\n[ -r /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh ] && source /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh\nsource ~/.secrets 2>/dev/null\nsource ~/.extra || true\n# source ~/.disabled\n[ -r ~/.deno/env ] && source ~/.deno/env\nsource ~/.zsh/*.zsh\nsource\n.\nsourced=1\nsource ~/.x; source ~/.y\n[ -r \"$HOME/.zsh/functions.zsh\" ] && . \"$HOME/.zsh/functions.zsh\"",
+    "asked": [
+     ".cargo/env",
+     ".deno/env",
+     ".zsh/functions.zsh",
+     ".bun/_bun",
+     ".sdkman/bin/sdkman-init.sh",
+     ".deno/env"
+    ]
+   }
+  },
+  {
+   "name": "the literal-home lines, everything present",
+   "args": [
+    ". \"/Users/dev/.zsh/functions.zsh\"\nsource /Users/dev/.zsh/functions.zsh\nsource '/Users/dev/.zsh/functions.zsh'  # fns\nsource /Users/developer/.x\n",
+    "/Users/dev",
+    [
+     ".zsh/functions.zsh"
+    ]
+   ],
+   "out": {
+    "text": "[ -r \"$HOME/.zsh/functions.zsh\" ] && . \"$HOME/.zsh/functions.zsh\"\n[ -r \"$HOME\"/.zsh/functions.zsh ] && source \"$HOME\"/.zsh/functions.zsh\n[ -r \"$HOME\"'/.zsh/functions.zsh' ] && source \"$HOME\"'/.zsh/functions.zsh' # fns\n[ -r /Users/developer/.x ] && source /Users/developer/.x\n",
+    "asked": []
+   }
+  },
+  {
+   "name": "CRLF text, everything present",
+   "args": [
+    "# x\r\n. \"$HOME/.cargo/env\"\r\nalias g=git\r\n",
+    "/Users/dev",
+    [
+     ".cargo/env"
+    ]
+   ],
+   "out": {
+    "text": "# x\r\n. \"$HOME/.cargo/env\"\r\nalias g=git\r\n",
+    "asked": [
+     ".cargo/env"
+    ]
+   }
+  }
+ ],
+ "shell_sources": [
+  {
+   "name": "rows in order, first path only, rc ids only",
+   "laptop": {
+    "files": {
+     "~/.bashrc": "source ~/.b1\n",
+     "~/.other": "source ~/.o\n",
+     "~/.inputrc": "source ~/.i\n",
+     "~/.zsh_aliases": ". ~/.aa\nsource ~/.aa\n",
+     "/abs/profile": "source ~/.p\n",
+     "~/.zshenv": "echo hi\n",
+     "~/.config/fish": 4
+    }
+   },
+   "args": [
+    [
+     {
+      "rung": "shell",
+      "id": "shell/zshrc",
+      "label": "shell/zshrc",
+      "paths": [],
+      "bytes": 0,
+      "default": "bring"
+     },
+     {
+      "rung": "shell",
+      "id": "shell/bashrc",
+      "label": "shell/bashrc",
+      "paths": [
+       "~/.bashrc",
+       "~/.other"
+      ],
+      "bytes": 0,
+      "default": "bring"
+     },
+     {
+      "rung": "shell",
+      "id": "shell/inputrc",
+      "label": "shell/inputrc",
+      "paths": [
+       "~/.inputrc"
+      ],
+      "bytes": 0,
+      "default": "bring"
+     },
+     {
+      "rung": "shell",
+      "id": "shell/zinit",
+      "label": "shell/zinit",
+      "paths": [],
+      "bytes": 0,
+      "default": "bring"
+     },
+     {
+      "rung": "shell",
+      "id": "shell/fish",
+      "label": "shell/fish",
+      "paths": [
+       "~/.config/fish"
+      ],
+      "bytes": 0,
+      "default": "bring"
+     },
+     {
+      "rung": "shell",
+      "id": "shell/zsh_aliases",
+      "label": "shell/zsh_aliases",
+      "paths": [
+       "~/.zsh_aliases"
+      ],
+      "bytes": 0,
+      "default": "bring"
+     },
+     {
+      "rung": "shell",
+      "id": "shell/profile",
+      "label": "shell/profile",
+      "paths": [
+       "/abs/profile"
+      ],
+      "bytes": 0,
+      "default": "bring"
+     },
+     {
+      "rung": "shell",
+      "id": "shell/zshenv",
+      "label": "shell/zshenv",
+      "paths": [
+       "~/.zshenv"
+      ],
+      "bytes": 0,
+      "default": "bring"
+     }
+    ]
+   ],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/zshrc",
+     "label": "shell/zshrc",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/bashrc",
+     "label": "shell/bashrc",
+     "paths": [
+      "~/.bashrc",
+      "~/.other"
+     ],
+     "bytes": 0,
+     "default": "bring",
+     "sources": [
+      "~/.b1"
+     ]
+    },
+    {
+     "rung": "shell",
+     "id": "shell/inputrc",
+     "label": "shell/inputrc",
+     "paths": [
+      "~/.inputrc"
+     ],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/zinit",
+     "label": "shell/zinit",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/fish",
+     "label": "shell/fish",
+     "paths": [
+      "~/.config/fish"
+     ],
+     "bytes": 0,
+     "default": "bring"
+    },
+    {
+     "rung": "shell",
+     "id": "shell/zsh_aliases",
+     "label": "shell/zsh_aliases",
+     "paths": [
+      "~/.zsh_aliases"
+     ],
+     "bytes": 0,
+     "default": "bring",
+     "sources": [
+      "~/.aa"
+     ]
+    },
+    {
+     "rung": "shell",
+     "id": "shell/profile",
+     "label": "shell/profile",
+     "paths": [
+      "/abs/profile"
+     ],
+     "bytes": 0,
+     "default": "bring",
+     "sources": [
+      "~/.p"
+     ]
+    },
+    {
+     "rung": "shell",
+     "id": "shell/zshenv",
+     "label": "shell/zshenv",
+     "paths": [
+      "~/.zshenv"
+     ],
+     "bytes": 0,
+     "default": "bring"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.zsh_aliases",
+    "read /abs/profile",
+    "read /Users/dev/.zshenv"
+   ]
+  }
+ ]
+}

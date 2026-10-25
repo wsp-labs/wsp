@@ -111,3 +111,33 @@ mod collect {
         assert_eq!(manifest, Manifest { entries: vec![] });
     }
 }
+
+/// collect's cases of tests/fixtures/oracle/w2/manifest.json: the manifest text, each rung's count and every call
+/// (spec manifest wave-2 rule W6). The calls compare as a multiset: the tools rung asks its managers at once, and the
+/// TS interleaves them where the Rust may not.
+mod w2_oracle {
+    use super::*;
+    use common::oracle::{cases, host, w2};
+
+    #[test]
+    fn collect_writes_the_ts_manifest_counts_each_rung_and_makes_the_same_calls() {
+        for case in cases(&w2("manifest"), "collect") {
+            let what = case["name"].as_str().unwrap();
+            let h = host(&case["laptop"]);
+            let seen = RefCell::new(Vec::new());
+            let on_rung = |rung: Rung, count: usize| seen.borrow_mut().push(json!([rung.as_str(), count]));
+            match block_on(collect(&h, CollectOptions { on_rung: Some(&on_rung) })) {
+                Ok(m) => {
+                    assert_eq!(serde_json::to_string(&m).unwrap(), case["out"]["text"].as_str().unwrap(), "{what}");
+                }
+                Err(e) => assert_eq!(json!(e.message), case["out"]["error"], "{what}"),
+            }
+            assert_eq!(Value::Array(seen.into_inner()), case["on_rung"], "on_rung of {what}");
+            let mut got = h.calls();
+            let mut want: Vec<String> = case["calls"].as_array().unwrap().iter().map(|c| c.as_str().unwrap().to_string()).collect();
+            got.sort();
+            want.sort();
+            assert_eq!(got, want, "calls of {what}");
+        }
+    }
+}

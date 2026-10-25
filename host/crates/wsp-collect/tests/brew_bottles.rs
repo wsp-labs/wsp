@@ -138,3 +138,44 @@ mod embedded_table {
         );
     }
 }
+
+/// Every case of tests/fixtures/oracle/w2/brew_bottles.json (oracle/w2-brew_bottles.oracle.ts): spec brew_bottles's
+/// wave-2 rules.
+mod w2_oracle {
+    use super::*;
+
+    fn fixture() -> Value {
+        let path = format!("{}/tests/fixtures/oracle/w2/brew_bottles.json", env!("CARGO_MANIFEST_DIR"));
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+    }
+
+    fn word(l: Linux) -> Value {
+        serde_json::to_value(l).unwrap()
+    }
+
+    #[test]
+    fn classify_support_and_render_answer_what_the_ts_answered() {
+        let f = fixture();
+        for case in f["classify_formulae"].as_array().unwrap() {
+            let c = classify_formulae(&case["args"][0]);
+            assert_eq!(json!({ "linux": c.linux, "noLinux": c.no_linux }), case["out"], "{}", case["name"]);
+        }
+        for case in f["linux_support"].as_array().unwrap() {
+            let snapshot: BottleSnapshot = serde_json::from_value(case["args"][1].clone()).unwrap();
+            assert_eq!(word(linux_support(case["args"][0].as_str().unwrap(), &snapshot)), case["out"], "{}", case["name"]);
+        }
+        for case in f["linux_support_embedded"].as_array().unwrap() {
+            assert_eq!(word(linux_support(case["args"][0].as_str().unwrap(), &LINUX_BOTTLES)), case["out"], "{}", case["name"]);
+        }
+        for case in f["render_snapshot"].as_array().unwrap() {
+            let snapshot: BottleSnapshot = serde_json::from_value(case["args"][0].clone()).unwrap();
+            assert_eq!(json!(render_snapshot(&snapshot)), case["out"], "{}", case["name"]);
+        }
+        let ends = &f["embedded_table"][0]["out"];
+        assert_eq!(json!(LINUX_BOTTLES.linux.len()), ends["linux"]);
+        assert_eq!(json!(LINUX_BOTTLES.no_linux.len()), ends["noLinux"]);
+        assert_eq!(json!(LINUX_BOTTLES.fetched), ends["fetched"]);
+        assert_eq!(json!(LINUX_BOTTLES.linux.first()), ends["firstLinux"]);
+        assert_eq!(json!(LINUX_BOTTLES.no_linux.last()), ends["lastNoLinux"]);
+    }
+}

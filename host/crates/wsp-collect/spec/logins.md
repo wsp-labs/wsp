@@ -60,6 +60,32 @@ Code's `.credentials.json` (for whether it holds a login), the rc files and Clau
 - `exported_in` reads every rc file in full through `strip_exports` to learn one name, which costs the slowest
   reader on the rung for a yes or no.
 
+## Wave 2 rules
+
+Cases: `tests/fixtures/oracle/w2/logins.json` (`oracle/w2-logins.oracle.ts`), replayed by `tests/detect_logins.rs`
+`w2_oracle::*`.
+
+- W1. A row with a platform path and an `all` path lists the platform's first, then `all`; the other platform's path
+  is never stat'ed (`detect_logins`: vercel cases).
+- W2. gh: the Keychain is asked only when hosts.yml was found; an answer of `""` counts; a hosts.yml that is a folder
+  counts (`detect_logins`: gh cases).
+- W3. Claude presence is by platform only: darwin asks the Keychain and never reads the credentials file; linux reads
+  the file and never runs `security`; a Keychain answer of `""` is a login (`detect_logins`, `claude_bills`).
+- W4. `claude_bills` reads and runs in order and stops at the first answer: settings (always `~/.claude/settings.json`),
+  then each RC_PATHS file until one exports the key, then the Keychain or the credentials file. With a helper, nothing
+  after the settings read happens (`claude_bills` calls).
+- W5. `claude_config_dir`: `~/` expanded for the read, hashed raw for the service; `Some("")` is not unset; settings
+  under the dir are never read (`claude_bills`, `claude_keychain_service`). `codex_home`: `~/` expanded, `Some("")` reads
+  `/auth.json`, the default path is not read when it is set (`detect_logins`: codex cases).
+- W6. `holds_claude_login` and `api_key_helper_of` over every JSON shape: a blank token counts, a blank helper (after
+  `js_trim`, U+FEFF and U+00A0 included) does not, the helper is returned untrimmed, a duplicate key keeps the last,
+  text with a BOM or trailing junk is no JSON, `None` input is `false`/`None` (`holds_claude_login`, `api_key_helper_of`).
+- W7. What counts as exported is `strip_exports`'s `names` (shell_rc_strip): `export K=`, `export A=1 K=x B=2` and
+  `K=x claude` count; a comment, a bare `export K`, `K_2` do not; fish `set -gx` counts only in `config.fish`
+  (`detect_logins`: export cases).
+- W8. The full table on each platform with every candidate present, `op` on PATH: rows, labels, groups, defaults and
+  details in order (`detect_logins`: "every candidate file on ..."). `op` is listed on linux too and runs nothing.
+
 ## Tests
 | Rule | Test |
 |---|---|
