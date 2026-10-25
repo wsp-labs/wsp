@@ -159,7 +159,7 @@ mod daemon_files_and_diff_ops {
     fn parses_the_typed_replies() {
         let list = json!({"entries": [{"name": "a.ts", "type": "file", "size": 12, "mtime": 1_700_000_000_000_i64}], "truncated": false, "total": 1});
         let got: FsListReply = reads(list.clone());
-        assert_eq!((got.entries.len(), got.total, got.truncated), (1, 1, false));
+        assert_eq!((got.entries.len(), got.total.0, got.truncated), (1, 1.0, false));
         let e = refused::<FsListReply>(
             json!({"entries": [with(&list["entries"][0], "type", json!("socket"))], "truncated": false, "total": 1}),
         );
