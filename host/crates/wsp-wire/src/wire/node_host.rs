@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! A URL as node's `new URL(text)` reads it. The `url` crate follows the same standard, but its IDNA tables are older than
-//! node's in places and newer in others, so a host is checked against the code points the two answer differently first.
-//! The tables are what node 22.23.4 answered for every code point at the start, middle and end of a host label.
+//! A URL as node's `new URL(text)` reads it: the `url` crate's answer, corrected where its IDNA tables or its rules differ from node's.
 
+use std::collections::HashMap;
 use url::Url;
+
+mod classes;
 
 /// A URL that node would parse, with the host as node answers it.
 pub struct NodeUrl {
@@ -33,27 +34,60 @@ impl NodeUrl {
     }
 }
 
-const SPECIAL: &[&str] = &["http", "https", "ws", "wss", "ftp"];
+const SPECIAL: &[&str] = &["http", "https", "ws", "wss", "ftp", "file"];
 
 pub fn parse(text: &str) -> Option<NodeUrl> {
     let cleaned: String = text.chars().filter(|c| !matches!(c, '\t' | '\n' | '\r')).collect();
     let text = cleaned.trim_matches(|c: char| c <= ' ');
-    match host_span(text) {
-        Some((start, end)) if !text[start..end].is_ascii() || text[start..end].contains('%') => parse_host(text, start, end),
-        _ => plain(text),
+    let span = host_span(text);
+    match span {
+        Some((start, end)) if needs_tables(&text[start..end]) => parse_host(text, start, end),
+        _ => plain(text, span),
     }
 }
 
-fn plain(text: &str) -> Option<NodeUrl> {
+fn plain(text: &str, span: Option<(usize, usize)>) -> Option<NodeUrl> {
+    if opaque_refused(text) {
+        return None;
+    }
     let url = Url::parse(text).ok()?;
-    let host = url.host_str().unwrap_or_default().to_string();
+    let host = span.map_or_else(|| url_host(&url, ""), |(_, end)| url_host(&url, &text[..end]));
     Some(NodeUrl { url, host })
+}
+
+/// The `url` crate blanks the host of a `file:` URL whose path starts with a drive letter and node does not; `head` is the URL up to its host.
+fn url_host(url: &Url, head: &str) -> String {
+    let host = url.host_str().unwrap_or_default();
+    if host.is_empty() && url.scheme() == "file" && !head.is_empty() {
+        if let Ok(bare) = Url::parse(&format!("{head}/")) {
+            return bare.host_str().unwrap_or_default().to_string();
+        }
+    }
+    host.to_string()
+}
+
+/// A scheme that is not special ends its authority only at `/ ? #` and refuses credentials with no host; the `url` crate does neither.
+fn opaque_refused(text: &str) -> bool {
+    let Some((scheme, rest)) = text.split_once(':') else { return false };
+    if SPECIAL.contains(&scheme.to_ascii_lowercase().as_str()) {
+        return false;
+    }
+    let Some(after) = rest.strip_prefix("//") else { return false };
+    let authority = &after[..after.find(['/', '?', '#']).unwrap_or(after.len())];
+    let host_port = authority.rsplit('@').next().unwrap_or_default();
+    host_port.contains('\\') || (host_port.is_empty() && authority.contains('@'))
 }
 
 fn host_span(text: &str) -> Option<(usize, usize)> {
     let (scheme, rest) = text.split_once(':')?;
-    if !SPECIAL.contains(&scheme.to_ascii_lowercase().as_str()) {
+    let scheme = scheme.to_ascii_lowercase();
+    if !SPECIAL.contains(&scheme.as_str()) {
         return None;
+    }
+    if scheme == "file" {
+        let after = rest.strip_prefix(['/', '\\'])?.strip_prefix(['/', '\\'])?;
+        let start = text.len() - after.len();
+        return Some((start, start + after.find(['/', '\\', '?', '#']).unwrap_or(after.len())));
     }
     let after = rest.trim_start_matches(['/', '\\']);
     let authority = &after[..after.find(['/', '\\', '?', '#']).unwrap_or(after.len())];
@@ -66,28 +100,72 @@ fn host_span(text: &str) -> Option<(usize, usize)> {
     Some((start, start + host.find(':').unwrap_or(host.len())))
 }
 
+fn needs_tables(host: &str) -> bool {
+    !host.is_ascii() || host.contains('%') || host.split('.').any(is_punycode_label)
+}
+
+fn is_punycode_label(label: &str) -> bool {
+    label.get(..4).is_some_and(|head| head.eq_ignore_ascii_case("xn--"))
+}
+
 fn parse_host(text: &str, start: usize, end: usize) -> Option<NodeUrl> {
     let decoded: String = percent_decode(&text[start..end])
         .chars()
         .map(|c| if matches!(c, '\u{3002}' | '\u{ff0e}' | '\u{ff61}') { '.' } else { c })
         .collect();
-    if decoded.chars().any(|c| forbidden(c) || in_table(REFUSED, c)) {
-        return None;
-    }
     let mapped = decoded.replace('\u{1e9e}', "ss");
-    let mixed =
-        |label: &str| label.chars().any(|c| in_table(LTR_ONLY, c)) && label.chars().any(|c| !c.is_ascii() && !in_table(LTR_ONLY, c));
-    if mapped.split('.').any(mixed) {
+    let labels: Vec<Label> = mapped.split('.').map(Label::read).collect::<Option<_>>()?;
+    if decoded.chars().any(|c| forbidden(c) || in_table(REFUSED, c)) || labels.iter().flat_map(|l| &l.chars).any(|c| in_table(REFUSED, *c))
+    {
         return None;
     }
-    let spliced = format!("{}{mapped}{}", &text[..start], &text[end..]);
+    let mut probes = Probes::default();
+    if labels.iter().any(|label| label.punycode.is_some() && !stable(&label.chars, &mut probes)) {
+        return None;
+    }
+    let head = format!("{}{mapped}", &text[..start]);
+    let spliced = format!("{head}{}", &text[end..]);
     if let Ok(url) = Url::parse(&spliced) {
-        let host = url.host_str().unwrap_or_default().to_string();
+        if labels.iter().any(|label| label.chars.iter().any(|c| class_of(*c) == Class::Unknown) && !bidi_ok(&label.chars)) {
+            return None;
+        }
+        let host = url_host(&url, &head);
         return Some(NodeUrl { url, host });
     }
-    let host = if mapped.is_ascii() { None } else { fallback_host(&mapped) }?;
+    let host = fallback_host(&mapped)?;
     let url = Url::parse(&format!("{}x.test{}", &text[..start], &text[end..])).ok()?;
     Some(NodeUrl { url, host })
+}
+
+/// A label's characters, a punycode label's decoded, with the punycode label in lower case where it decodes past ASCII.
+struct Label {
+    chars: Vec<char>,
+    punycode: Option<String>,
+}
+
+impl Label {
+    /// None for a punycode label node refuses: not punycode, or decoding to nothing.
+    fn read(label: &str) -> Option<Label> {
+        let lower = label.to_ascii_lowercase();
+        let Some(code) = lower.strip_prefix("xn--") else { return Some(Label { chars: label.chars().collect(), punycode: None }) };
+        match punycode_decode(code) {
+            Some(chars) if chars.is_empty() => None,
+            Some(chars) if chars.iter().all(char::is_ascii) => Some(Label { chars: label.chars().collect(), punycode: None }),
+            Some(chars) => Some(Label { chars, punycode: Some(lower) }),
+            None => None,
+        }
+    }
+}
+
+/// Node refuses a punycode label that mapping or normalizing would change; the `url` crate does not, so its answer for the decoded label is compared.
+fn stable(chars: &[char], probes: &mut Probes) -> bool {
+    let text: String = chars.iter().collect();
+    let Ok(url) = Url::parse(&format!("http://{text}.com/")) else {
+        return chars.iter().all(|c| c.is_ascii() || (*c != '\u{1e9e}' && probes.mapped(*c) == [*c]))
+            && probes.normalized(chars.to_vec()) == chars;
+    };
+    let label = url.host_str().and_then(|host| host.strip_suffix(".com"));
+    label.and_then(|label| label.strip_prefix("xn--")).and_then(punycode_decode).as_deref() == Some(chars)
 }
 
 fn percent_decode(text: &str) -> String {
@@ -130,65 +208,219 @@ fn in_table(table: &[(u32, u32)], c: char) -> bool {
         .is_ok()
 }
 
-/// A host the `url` crate refuses and node takes, for the labels whose odd characters the tables name: every other
-/// label must be plain ASCII, so a host with a character the tables do not know stays refused. Node refuses a label that
-/// does not start with a letter where another label of the host is of this kind, so every label here must.
-fn fallback_host(host: &str) -> Option<String> {
-    let labels: Vec<String> = host.split('.').map(fallback_label).collect::<Option<_>>()?;
-    let letters = labels.iter().all(|label| label.starts_with(|c: char| c.is_ascii_alphabetic()));
-    letters.then(|| labels.join("."))
+/// What node's bidi check sees a character as. `Unknown` is valid and has no class in node's tables.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Class {
+    Invalid,
+    Left,
+    Neutral,
+    Unknown,
+    Right,
+    Mark,
+    Digit,
+    LeftMark,
+    Arabic,
 }
 
-fn fallback_label(label: &str) -> Option<String> {
-    let lower = label.to_ascii_lowercase();
-    if lower.is_ascii() {
-        return (!lower.starts_with("xn--")).then_some(lower);
+fn class_of(c: char) -> Class {
+    if c.is_ascii() {
+        return match c {
+            'a'..='z' | 'A'..='Z' => Class::Left,
+            '0'..='9' => Class::Digit,
+            _ => Class::Neutral,
+        };
     }
-    let chars: Vec<char> = lower.chars().collect();
-    let plain = |c: &char| c.is_ascii() || in_table(LTR_ONLY, *c);
-    let (last, head) = chars.split_last()?;
-    let takes = if chars.iter().all(plain) {
-        true
-    } else if head.is_empty() {
-        in_table(ALONE, *last)
-    } else {
-        head.iter().all(plain) && head[0].is_ascii_alphabetic() && in_table(LAST, *last)
-    };
-    takes.then(|| format!("xn--{}", punycode(&chars)))
+    let at = classes::RUNS.partition_point(|run| run >> 4 <= c as u32);
+    match classes::RUNS[at - 1] & 0xf {
+        1 => Class::Left,
+        2 => Class::Neutral,
+        3 => Class::Unknown,
+        4 => Class::Right,
+        5 => Class::Mark,
+        6 => Class::Digit,
+        7 => Class::LeftMark,
+        8 => Class::Arabic,
+        _ => Class::Invalid,
+    }
 }
 
-/// RFC 3492's encoder.
-fn punycode(input: &[char]) -> String {
-    const BASE: u32 = 36;
-    const T_MIN: u32 = 1;
-    const T_MAX: u32 = 26;
-    let digit = |d: u32| char::from(if d < 26 { b'a' + d as u8 } else { b'0' + (d - 26) as u8 });
-    let adapt = |mut delta: u32, points: u32, first: bool| {
-        delta = if first { delta / 700 } else { delta / 2 };
-        delta += delta / points;
-        let mut k = 0;
-        while delta > (BASE - T_MIN) * T_MAX / 2 {
-            delta /= BASE - T_MIN;
-            k += BASE;
+/// Node's bidi check of one label, which is not RFC 5893's: a label that starts with a letter may end in a right-to-left one, and any other is held to the right-to-left rules only when it holds one.
+fn bidi_ok(label: &[char]) -> bool {
+    let classes: Vec<Class> = label.iter().map(|c| class_of(*c)).collect();
+    let Some(first) = classes.first() else { return true };
+    if matches!(first, Class::Mark | Class::LeftMark) {
+        return false;
+    }
+    let right = |c: &Class| matches!(c, Class::Right | Class::Arabic);
+    let end = classes.iter().rposition(|c| *c != Class::Mark).unwrap_or(0);
+    if matches!(first, Class::Left) {
+        let body = &classes[..end];
+        return !body.iter().any(right) && !(right(&classes[end]) && body.contains(&Class::Unknown));
+    }
+    if !classes.iter().any(right) {
+        return true;
+    }
+    let digits = classes.contains(&Class::Digit) && classes.contains(&Class::Arabic);
+    !digits
+        && !classes.iter().any(|c| matches!(c, Class::Left | Class::LeftMark | Class::Unknown))
+        && matches!(classes[end], Class::Right | Class::Arabic | Class::Digit)
+}
+
+/// A host the `url` crate refuses and node takes, each label rebuilt in punycode; a host of plain ASCII labels stays refused.
+fn fallback_host(host: &str) -> Option<String> {
+    if !host.split('.').any(|label| !label.is_ascii() || is_punycode_label(label)) {
+        return None;
+    }
+    let mut probes = Probes::default();
+    let labels: Vec<String> = host.split('.').map(|label| fallback_label(label, &mut probes)).collect::<Option<_>>()?;
+    (!ends_in_number(&labels)).then(|| labels.join("."))
+}
+
+fn fallback_label(label: &str, probes: &mut Probes) -> Option<String> {
+    let mut mapped: Vec<char> = Vec::with_capacity(label.len());
+    for c in label.chars() {
+        if c.is_ascii() {
+            mapped.push(c.to_ascii_lowercase());
+        } else {
+            mapped.extend_from_slice(probes.mapped(c));
         }
-        k + (BASE - T_MIN + 1) * delta / (delta + 38)
-    };
+    }
+    let mapped = probes.normalized(mapped);
+    if mapped.iter().all(char::is_ascii) {
+        let ascii: String = mapped.iter().collect();
+        let Some(code) = ascii.strip_prefix("xn--") else { return Some(ascii) };
+        let chars = punycode_decode(code).filter(|chars| !chars.is_empty())?;
+        let refused = chars.iter().any(|c| in_table(REFUSED, *c));
+        return (chars.iter().all(char::is_ascii) || (!refused && usable(&chars) && stable(&chars, probes))).then_some(ascii);
+    }
+    if label.get(..4).is_some_and(|head| head.eq_ignore_ascii_case("xn--")) || !usable(&mapped) {
+        return None;
+    }
+    punycode(&mapped).map(|code| format!("xn--{code}"))
+}
+
+fn usable(label: &[char]) -> bool {
+    label.iter().all(|c| class_of(*c) != Class::Invalid) && bidi_ok(label)
+}
+
+/// What the `url` crate answers for single characters and runs of marks, kept for one host.
+#[derive(Default)]
+struct Probes {
+    mapped: HashMap<char, Vec<char>>,
+    marks: HashMap<char, bool>,
+}
+
+impl Probes {
+    /// What the `url` crate maps a character to; one it cannot place stays as it is.
+    fn mapped(&mut self, c: char) -> &[char] {
+        self.mapped.entry(c).or_insert_with(|| match class_of(c) {
+            Class::Invalid | Class::Unknown => vec![c],
+            class => through_url(&[c], class).unwrap_or_else(|| vec![c]),
+        })
+    }
+
+    /// Node's tables lack the newer marks, which the `url` crate refuses at the start of a label.
+    fn is_mark(&mut self, c: char) -> bool {
+        match class_of(c) {
+            Class::Mark | Class::LeftMark => true,
+            Class::Unknown => *self.marks.entry(c).or_insert_with(|| Url::parse(&format!("http://{c}/")).is_err()),
+            _ => false,
+        }
+    }
+
+    /// Each run of marks put in order and composed with the character before it, as the `url` crate does.
+    fn normalized(&mut self, label: Vec<char>) -> Vec<char> {
+        let mut out: Vec<char> = Vec::with_capacity(label.len());
+        let mut at = 0;
+        while at < label.len() {
+            if !self.is_mark(label[at]) {
+                out.push(label[at]);
+                at += 1;
+                continue;
+            }
+            let mut end = at;
+            while end < label.len() && self.is_mark(label[end]) {
+                end += 1;
+            }
+            if out.is_empty() && end - at == 1 {
+                out.push(label[at]);
+            } else {
+                let unit: Vec<char> = out.pop().into_iter().chain(label[at..end].iter().copied()).collect();
+                let class =
+                    if unit.iter().any(|c| matches!(class_of(*c), Class::Right | Class::Arabic)) { Class::Right } else { Class::Left };
+                out.extend(through_url(&unit, class).unwrap_or(unit));
+            }
+            at = end;
+        }
+        out
+    }
+}
+
+/// What the `url` crate turns `body` into, read off a label it takes with `body` between two letters of a script that keep its bidi rules quiet.
+fn through_url(body: &[char], class: Class) -> Option<Vec<char>> {
+    let (right, left) = (('\u{5d0}', '\u{5d1}'), ('1', 'a'));
+    let wraps = if matches!(class, Class::Right | Class::Arabic) { [right, left] } else { [left, right] };
+    let text: String = body.iter().collect();
+    wraps.iter().find_map(|(first, last)| {
+        let url = Url::parse(&format!("http://{first}{text}{last}/")).ok()?;
+        let host = url.host_str()?;
+        let chars = match host.strip_prefix("xn--") {
+            Some(code) => punycode_decode(code)?,
+            None => host.chars().collect(),
+        };
+        (chars.len() >= 2 && !chars.contains(&'.')).then(|| chars[1..chars.len() - 1].to_vec())
+    })
+}
+
+/// WHATWG's "ends in a number": such a host is read as IPv4 and fails where another label is not a number.
+fn ends_in_number(labels: &[String]) -> bool {
+    let mut labels = labels;
+    if labels.len() > 1 && labels[labels.len() - 1].is_empty() {
+        labels = &labels[..labels.len() - 1];
+    }
+    let Some(last) = labels.last() else { return false };
+    let hex = last.strip_prefix("0x").or_else(|| last.strip_prefix("0X")).is_some_and(|rest| rest.bytes().all(|b| b.is_ascii_hexdigit()));
+    !last.is_empty() && (last.bytes().all(|b| b.is_ascii_digit()) || hex)
+}
+
+const BASE: u32 = 36;
+const T_MIN: u32 = 1;
+const T_MAX: u32 = 26;
+
+fn adapt(delta: u32, points: u32, first: bool) -> u32 {
+    let mut delta = if first { delta / 700 } else { delta / 2 };
+    delta += delta / points;
+    let mut k = 0;
+    while delta > (BASE - T_MIN) * T_MAX / 2 {
+        delta /= BASE - T_MIN;
+        k += BASE;
+    }
+    k + (BASE - T_MIN + 1) * delta / (delta + 38)
+}
+
+/// RFC 3492's encoder; node refuses a label whose running delta passes an `i32`.
+fn punycode(input: &[char]) -> Option<String> {
+    const LIMIT: u64 = i32::MAX as u64;
+    let digit = |d: u32| char::from(if d < 26 { b'a' + d as u8 } else { b'0' + (d - 26) as u8 });
     let mut out: String = input.iter().filter(|c| c.is_ascii()).collect();
     let basic = out.len() as u32;
     if basic > 0 {
         out.push('-');
     }
-    let (mut n, mut delta, mut bias, mut handled) = (128u32, 0u32, 72u32, basic);
+    let (mut n, mut delta, mut bias, mut handled) = (128u32, 0u64, 72u32, basic);
     while (handled as usize) < input.len() {
-        let next = input.iter().map(|c| *c as u32).filter(|c| *c >= n).min().expect("an unhandled code point remains");
-        delta += (next - n) * (handled + 1);
+        let next = input.iter().map(|c| *c as u32).filter(|c| *c >= n).min()?;
+        delta += u64::from(next - n) * (u64::from(handled) + 1);
         n = next;
         for c in input.iter().map(|c| *c as u32) {
             if c < n {
                 delta += 1;
             }
+            if delta > LIMIT {
+                return None;
+            }
             if c == n {
-                let (mut q, mut k) = (delta, BASE);
+                let (mut q, mut k) = (delta as u32, BASE);
                 loop {
                     let t = if k <= bias { T_MIN } else { (k - bias).min(T_MAX) };
                     if q < t {
@@ -199,7 +431,7 @@ fn punycode(input: &[char]) -> String {
                     k += BASE;
                 }
                 out.push(digit(q));
-                bias = adapt(delta, handled + 1, handled == basic);
+                bias = adapt(delta as u32, handled + 1, handled == basic);
                 delta = 0;
                 handled += 1;
             }
@@ -207,7 +439,43 @@ fn punycode(input: &[char]) -> String {
         delta += 1;
         n += 1;
     }
-    out
+    Some(out)
+}
+
+/// RFC 3492's decoder; None where the text is not punycode.
+fn punycode_decode(code: &str) -> Option<Vec<char>> {
+    let (basic, rest) = code.rfind('-').map_or(("", code), |at| (&code[..at], &code[at + 1..]));
+    if !basic.is_ascii() {
+        return None;
+    }
+    let mut out: Vec<u32> = basic.bytes().map(u32::from).collect();
+    let (mut n, mut i, mut bias) = (128u32, 0u32, 72u32);
+    let mut digits = rest.bytes().peekable();
+    while digits.peek().is_some() {
+        let (old, mut w, mut k) = (i, 1u32, BASE);
+        loop {
+            let d = match digits.next()? {
+                b @ b'a'..=b'z' => u32::from(b - b'a'),
+                b @ b'A'..=b'Z' => u32::from(b - b'A'),
+                b @ b'0'..=b'9' => u32::from(b - b'0') + 26,
+                _ => return None,
+            };
+            i = i.checked_add(d.checked_mul(w)?)?;
+            let t = if k <= bias { T_MIN } else { (k - bias).min(T_MAX) };
+            if d < t {
+                break;
+            }
+            w = w.checked_mul(BASE - t)?;
+            k = k.checked_add(BASE)?;
+        }
+        let points = out.len() as u32 + 1;
+        bias = adapt(i - old, points, old == 0);
+        n = n.checked_add(i / points)?;
+        char::from_u32(n)?;
+        out.insert((i % points) as usize, n);
+        i = i % points + 1;
+    }
+    out.into_iter().map(char::from_u32).collect()
 }
 
 /// Code points node's IDNA refuses in every host, which the url crate maps away or keeps.
@@ -352,132 +620,4 @@ const REFUSED: &[(u32, u32)] = &[
     (0x2f9bf, 0x2f9bf),
     (0x323b0, 0x33479),
     (0x3d000, 0x3fc3f),
-];
-
-/// Code points node takes as plain letters and the url crate refuses (assigned after its tables).
-const LTR_ONLY: &[(u32, u32)] = &[
-    (0x61d, 0x61d),
-    (0x870, 0x88e),
-    (0x898, 0x89f),
-    (0x8b5, 0x8b5),
-    (0x8c8, 0x8d2),
-    (0xc3c, 0xc3c),
-    (0xcf3, 0xcf3),
-    (0xece, 0xece),
-    (0x1715, 0x1715),
-    (0x1ac1, 0x1ace),
-    (0x1dfa, 0x1dfa),
-    (0xfbc2, 0xfbc2),
-    (0x10efd, 0x10eff),
-    (0x10f70, 0x10f89),
-    (0x11070, 0x11070),
-    (0x11073, 0x11074),
-    (0x110c2, 0x110c2),
-    (0x11241, 0x11241),
-    (0x11f00, 0x11f01),
-    (0x11f03, 0x11f03),
-    (0x11f34, 0x11f3a),
-    (0x11f3e, 0x11f42),
-    (0x13440, 0x13440),
-    (0x13447, 0x13455),
-    (0x1cf00, 0x1cf2d),
-    (0x1cf30, 0x1cf46),
-    (0x1e08f, 0x1e08f),
-    (0x1e2ae, 0x1e2ae),
-    (0x1e4ec, 0x1e4ef),
-];
-
-/// Code points node takes as a whole label and the url crate refuses.
-const ALONE: &[(u32, u32)] = &[(0x660, 0x669), (0x66b, 0x66c), (0x10d30, 0x10d39), (0x10e60, 0x10e7e)];
-
-/// Code points node takes as the last character of a label that starts with a letter, which the url crate refuses.
-const LAST: &[(u32, u32)] = &[
-    (0x5be, 0x5be),
-    (0x5c0, 0x5c0),
-    (0x5c3, 0x5c3),
-    (0x5c6, 0x5c6),
-    (0x5d0, 0x5ea),
-    (0x5ef, 0x5f4),
-    (0x608, 0x608),
-    (0x60b, 0x60b),
-    (0x60d, 0x60d),
-    (0x61b, 0x61b),
-    (0x61e, 0x64a),
-    (0x660, 0x669),
-    (0x66b, 0x66f),
-    (0x671, 0x674),
-    (0x679, 0x6d5),
-    (0x6e5, 0x6e6),
-    (0x6ee, 0x6ef),
-    (0x6fa, 0x70d),
-    (0x710, 0x710),
-    (0x712, 0x72f),
-    (0x74d, 0x7a5),
-    (0x7b1, 0x7b1),
-    (0x7c0, 0x7ea),
-    (0x7f4, 0x7f5),
-    (0x7fa, 0x7fa),
-    (0x7fe, 0x815),
-    (0x81a, 0x81a),
-    (0x824, 0x824),
-    (0x828, 0x828),
-    (0x830, 0x83e),
-    (0x840, 0x858),
-    (0x85e, 0x85e),
-    (0x860, 0x86a),
-    (0x8a0, 0x8b4),
-    (0x8b6, 0x8c7),
-    (0xfbb2, 0xfbc1),
-    (0xfe73, 0xfe73),
-    (0x10800, 0x10805),
-    (0x10808, 0x10808),
-    (0x1080a, 0x10835),
-    (0x10837, 0x10838),
-    (0x1083c, 0x1083c),
-    (0x1083f, 0x10855),
-    (0x10857, 0x1089e),
-    (0x108a7, 0x108af),
-    (0x108e0, 0x108f2),
-    (0x108f4, 0x108f5),
-    (0x108fb, 0x1091b),
-    (0x10920, 0x10939),
-    (0x1093f, 0x1093f),
-    (0x10980, 0x109b7),
-    (0x109bc, 0x109cf),
-    (0x109d2, 0x10a00),
-    (0x10a10, 0x10a13),
-    (0x10a15, 0x10a17),
-    (0x10a19, 0x10a35),
-    (0x10a40, 0x10a48),
-    (0x10a50, 0x10a58),
-    (0x10a60, 0x10a9f),
-    (0x10ac0, 0x10ae4),
-    (0x10aeb, 0x10af6),
-    (0x10b00, 0x10b35),
-    (0x10b40, 0x10b55),
-    (0x10b58, 0x10b72),
-    (0x10b78, 0x10b91),
-    (0x10b99, 0x10b9c),
-    (0x10ba9, 0x10baf),
-    (0x10c00, 0x10c48),
-    (0x10cc0, 0x10cf2),
-    (0x10cfa, 0x10d23),
-    (0x10d30, 0x10d39),
-    (0x10e60, 0x10e7e),
-    (0x10e80, 0x10ea9),
-    (0x10ead, 0x10ead),
-    (0x10eb0, 0x10eb1),
-    (0x10f00, 0x10f27),
-    (0x10f30, 0x10f45),
-    (0x10f51, 0x10f59),
-    (0x10fb0, 0x10fcb),
-    (0x10fe0, 0x10ff6),
-    (0x1e800, 0x1e8c4),
-    (0x1e8c7, 0x1e8cf),
-    (0x1e922, 0x1e943),
-    (0x1e94b, 0x1e94b),
-    (0x1e950, 0x1e959),
-    (0x1e95e, 0x1e95f),
-    (0x1ec71, 0x1ecb4),
-    (0x1ed01, 0x1ed3d),
 ];

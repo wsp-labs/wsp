@@ -30,7 +30,7 @@ struct PlaceFileKnown {
     key_path: String,
     #[serde(default, deserialize_with = "kept")]
     joined_at: Option<Value>,
-    #[serde(flatten, deserialize_with = "crate::types::kept::record")]
+    #[serde(flatten)]
     rest: IndexMap<String, Value>,
 }
 
@@ -106,9 +106,9 @@ pub const AGENTS_REPORTED_MAX: usize = 32;
 //   fix: `Type it as the other screen shows it, like 192.168.1.20:${DEFAULT_PLACE_PORT}.`,
 // };
 /// What the sheet says for a join address that is none, with the place door's default port in it.
-/// zod's `.url()`: the WHATWG parser takes the string.
+/// zod's `.url()`: `new URL(text)` takes the string.
 fn url_string(s: &str) -> Result<(), SchemaError> {
-    if url::Url::parse(s).is_ok() {
+    if crate::wire::node_host::parse(s).is_some() {
         return Ok(());
     }
     let mut detail = indexmap::IndexMap::new();
