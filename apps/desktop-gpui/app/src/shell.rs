@@ -588,7 +588,11 @@ impl Shell {
             return;
         }
         let sidebar = self.sidebar.read(cx);
-        let home = self.home_project.as_deref().and_then(|p| sidebar.home_of(p)).or_else(|| sidebar.home_workspace());
+        let project_home = |p: &str| {
+            sidebar.around().projects.iter().any(|(id, _)| id == p).then(|| format!("{}{p}", screens::composer::screen::PROJECT_ARG))
+        };
+        let home =
+            self.home_project.as_deref().and_then(|p| sidebar.home_of(p).or_else(|| project_home(p))).or_else(|| sidebar.home_workspace());
         if let Some(workspace) = home {
             self.open_home(&workspace, window, cx);
         }

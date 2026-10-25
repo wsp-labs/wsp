@@ -142,7 +142,7 @@ impl Host {
         let client = runtime.block_on(server.client());
         let threads = runtime.block_on(client.threads()).unwrap_or_else(|f| panic!("{}", f.message));
         let row = threads.iter().find(|t| t.prompt.as_deref() == Some("first")).expect("the thread wsp run opened");
-        let target = Target { workspace_id: row.workspace_id.clone(), thread_id: row.thread_id.clone() };
+        let target = Target { workspace_id: row.workspace_id.clone(), thread_id: row.thread_id.clone(), project: None };
         Host { client: Arc::new(client), runtime, target, folder, server }
     }
 
@@ -389,7 +389,7 @@ fn a_message_queued_during_a_turn_starts_the_next_one(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 fn a_send_on_a_new_thread_opens_it_and_follows_it(cx: &mut TestAppContext) {
     let host = Host::start();
-    let target = Target { workspace_id: host.target.workspace_id.clone(), thread_id: None };
+    let target = Target { workspace_id: host.target.workspace_id.clone(), thread_id: None, project: None };
     let (composer, _link, cx) = tie_to(&host, target, cx);
     send(&composer, "a fresh start", cx);
     let mut opened = None;
@@ -565,7 +565,7 @@ fn a_send_under_the_resume_banner_continues_the_conversation(cx: &mut TestAppCon
         return;
     }
     let id = host.seed_conversation("pick this up later");
-    let target = Target { workspace_id: host.target.workspace_id.clone(), thread_id: None };
+    let target = Target { workspace_id: host.target.workspace_id.clone(), thread_id: None, project: None };
     let (composer, _link, cx) = tie_to(&host, target, cx);
     composer.update(cx, |c, cx| c.set_banner(Some(Banner::resume(id.clone(), "pick this up later", false, "Claude Code")), cx));
     send(&composer, "carry on", cx);
@@ -680,7 +680,7 @@ fn the_steer_preference_is_followed_again_after_the_host_restarts(cx: &mut TestA
 fn a_message_sent_while_a_new_threads_first_turn_runs_waits_for_it(cx: &mut TestAppContext) {
     let host = Host::start();
     let workspace = host.target.workspace_id.clone();
-    let target = Target { workspace_id: workspace.clone(), thread_id: None };
+    let target = Target { workspace_id: workspace.clone(), thread_id: None, project: None };
     let (composer, _link, cx) = tie_to(&host, target, cx);
     send(&composer, "SLOW a fresh start", cx);
     // The host's answer lands before the composer has read the new thread's transcript.
