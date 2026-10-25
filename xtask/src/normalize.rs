@@ -96,6 +96,15 @@ pub fn minted(s: &str) -> bool {
     whole(&p.uuid) || whole(&p.prefixed) || p.hex.is_match(s) || (p.opaque.is_match(s) && keyish(s))
 }
 
+/// A string that is one JSON object or array, whole.
+fn whole_json(s: &str) -> Option<Value> {
+    let t = s.trim_start();
+    if !(t.starts_with('{') || t.starts_with('[')) {
+        return None;
+    }
+    serde_json::from_str::<Value>(s).ok().filter(|v| v.is_object() || v.is_array())
+}
+
 /// What a command printed, when every line of it is JSON, as `--json` prints: the lines as values, so the rules for
 /// keys reach inside them.
 fn json_lines(text: &str) -> Option<Vec<Value>> {
@@ -121,7 +130,15 @@ impl Normalizer {
 
     pub fn value(&mut self, v: &Value) -> Value {
         match v {
-            Value::String(s) => Value::String(self.string(s)),
+            Value::String(s) => match whole_json(s) {
+                // JSON carried as text, as a tool's answer is: the rules for keys reach inside it.
+                Some(inner) => {
+                    let mut out = Map::new();
+                    out.insert("json".into(), self.value(&inner));
+                    Value::Object(out)
+                }
+                None => Value::String(self.string(s)),
+            },
             Value::Number(n) if n.as_f64().is_some_and(|f| f.fract() == 0.0 && EPOCH_MS.contains(&f)) => Value::String("<time>".into()),
             Value::Array(items) => Value::Array(items.iter().map(|i| self.value(i)).collect()),
             Value::Object(obj) => {
@@ -155,7 +172,13 @@ impl Normalizer {
     fn string(&mut self, s: &str) -> String {
         let mut out = s.to_string();
         for (value, placeholder) in &self.facts.literals {
-            if out.contains(value.as_str()) {
+            if !out.contains(value.as_str()) {
+                continue;
+            }
+            if value.bytes().all(|b| b.is_ascii_digit()) {
+                // A port or a pid is a run of digits, which a hex id can hold by chance: only the number standing alone.
+                out = Regex::new(&format!(r"\b{value}\b")).expect("digits").replace_all(&out, placeholder.as_str()).into_owned();
+            } else {
                 out = out.replace(value.as_str(), placeholder);
             }
         }
