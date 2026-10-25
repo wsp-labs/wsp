@@ -2,21 +2,21 @@
 //! kinds.ts:26-316, 506-563: the roads every kind shares. Spec: spec/kinds_roads.md.
 use std::sync::Arc;
 
+use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
-use serde_json::Value;
 
+use wsp_adapters::port::ExecStreamFactory;
 use wsp_core::types::internal::{ImportLanded, ImportReport};
-use wsp_core::types::wiring::ProjectImportOptions;
+use wsp_core::types::pending::{MachineExecOptions, TurnWaiting};
+use wsp_core::types::wiring::{LiveWorkspace, ProjectImportOptions, StageReport, WorkspaceRecord};
 use wsp_engine::machine::{ExecResult, MachineBackend};
-use wsp_wire::views::workspace::{DaemonReachView, ProjectView, WorkspaceProject};
+use wsp_wire::views::workspace::{DaemonReachView, ProjectSource, ProjectView, WorkspaceProject};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_words::exit::HostError;
 
-use super::{BrokeredLaunch, FolderComputer, KindsArea};
+use super::{BrokeredLaunch, KindsArea};
 use crate::machines::area_error::AreaResult;
-use crate::machines::machines::Entry;
-use wsp_core::types::wiring::StageReport;
-use wsp_core::types::wiring::WorkspaceRecord;
+use crate::places::types::FolderComputer;
 
 /// kinds.ts:27. How long a launch waits on the broker's answer.
 pub const BROKER_READ_MS: f64 = 5_000.0;
@@ -31,8 +31,8 @@ impl KindsArea {
     pub(crate) fn clone_on_machine(&self, project: &ProjectView, computer: &str) -> String {
         todo!()
     }
-    /// kinds.ts:46 (rule 3).
-    pub(crate) async fn clone_project(&self, entry: &Entry, project: &ProjectView, report: StageReport) -> AreaResult<()> {
+    /// kinds.ts:46 (rule 3). The answer owns what it read of the entry, so a kind module can hand it back as `'static`.
+    pub(crate) fn clone_project(&self, entry: &LiveWorkspace, project: ProjectView, report: StageReport) -> LocalBoxFuture<'static, AreaResult<()>> {
         todo!()
     }
     /// kinds.ts:80 (rule 4). `(remote, defaultBranch)`.
@@ -55,8 +55,8 @@ impl KindsArea {
     pub fn state_folder(&self) -> Result<String, HostError> {
         todo!()
     }
-    /// kinds.ts:124 (rule 7). `source` as the TS `ProjectSource` object; answers the folder as it resolved.
-    pub async fn clone_here(&self, word: &str, source: &Value, into: &str) -> Result<String, HostError> {
+    /// kinds.ts:124 (rule 7). Answers the folder as it resolved.
+    pub async fn clone_here(&self, word: &str, source: &ProjectSource, into: &str) -> Result<String, HostError> {
         todo!()
     }
     /// kinds.ts:171 (rule 8).
@@ -64,7 +64,7 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:181 (rule 9).
-    pub(crate) async fn write_roots(&self, entry: &Entry, dests: &[String], roots_path: Option<&str>) -> AreaResult<()> {
+    pub(crate) fn write_roots(&self, entry: &LiveWorkspace, dests: &[String], roots_path: Option<&str>) -> LocalBoxFuture<'static, AreaResult<()>> {
         todo!()
     }
     /// kinds.ts:185 (rule 10).
@@ -72,11 +72,11 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:192 (rule 10).
-    pub(crate) fn cloud_env(&self, record: &WorkspaceRecord, id: Option<&str>) -> IndexMap<String, String> {
+    pub fn cloud_env(&self, record: &WorkspaceRecord, id: Option<&str>) -> IndexMap<String, String> {
         todo!()
     }
     /// kinds.ts:197 (rule 11).
-    pub(crate) async fn cloud_road(&self, entry: &Entry) -> AreaResult<DaemonReachView> {
+    pub(crate) fn cloud_road(&self, entry: &LiveWorkspace) -> LocalBoxFuture<'static, AreaResult<DaemonReachView>> {
         todo!()
     }
     /// kinds.ts:202 (rule 11).
@@ -84,7 +84,7 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:209 (rule 12).
-    pub(crate) async fn cloud_deploy(&self, entry: &Entry) -> AreaResult<()> {
+    pub(crate) fn cloud_deploy(&self, entry: &LiveWorkspace) -> LocalBoxFuture<'static, AreaResult<()>> {
         todo!()
     }
     /// kinds.ts:217 (rule 13).
@@ -100,7 +100,7 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:242 (rule 15).
-    pub fn vault_on(&self, entry: &Entry) -> IndexMap<String, String> {
+    pub fn vault_on(&self, entry: &LiveWorkspace) -> IndexMap<String, String> {
         todo!()
     }
     /// kinds.ts:248 (rule 16).
@@ -112,19 +112,19 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:278 (rule 18).
-    pub fn brokered_launch(&self, entry: &Entry, harness: &str, token: Option<&str>) -> Result<Option<BrokeredLaunch>, HostError> {
+    pub fn brokered_launch(&self, entry: &LiveWorkspace, harness: &str, token: Option<&str>) -> Result<Option<BrokeredLaunch>, HostError> {
         todo!()
     }
     /// kinds.ts:291 (rule 19).
-    pub async fn know_broker(&self, entry: &Entry, harness: &str) -> Result<(), HostError> {
+    pub async fn know_broker(&self, entry: &LiveWorkspace, harness: &str) -> Result<(), HostError> {
         todo!()
     }
     /// kinds.ts:297.
-    pub(crate) fn place_login_stands(&self, entry: &Entry, id: &str) -> bool {
+    pub(crate) fn place_login_stands(&self, entry: &LiveWorkspace, id: &str) -> bool {
         todo!()
     }
     /// kinds.ts:304 (rule 20).
-    pub(crate) fn place_env(&self, entry: &Entry, home_of: &dyn Fn(&str) -> String) -> Result<IndexMap<String, String>, HostError> {
+    pub fn place_env(&self, entry: &LiveWorkspace, home_of: &dyn Fn(&str) -> String) -> Result<IndexMap<String, String>, HostError> {
         todo!()
     }
     /// kinds.ts:508 (rule 21).
@@ -150,11 +150,15 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:534 (rule 22): the lifecycle's budgets' daemon answer time is what readers take.
-    pub fn lifecycle_of(&self, entry: &Entry) -> Result<Arc<dyn wsp_engine::machine::Lifecycle>, HostError> {
+    pub fn lifecycle_of(&self, entry: &LiveWorkspace) -> Result<Arc<dyn wsp_engine::machine::Lifecycle>, HostError> {
         todo!()
     }
     /// kinds.ts:539 (rule 23): the options the kind's exec stream is made with.
-    pub fn exec_options_for(&self, o: Option<serde_json::Map<String, Value>>) -> Option<serde_json::Map<String, Value>> {
+    pub fn exec_options_for(&self, o: Option<MachineExecOptions>) -> Option<MachineExecOptions> {
+        todo!()
+    }
+    /// kinds.ts:539 (rule 23): the module's exec stream for the entry's kind, with `exec_options_for`'s options.
+    pub fn exec_factory_for(&self, entry: &LiveWorkspace, o: Option<MachineExecOptions>, waiting: Option<TurnWaiting>) -> Result<Arc<dyn ExecStreamFactory>, HostError> {
         todo!()
     }
     /// kinds.ts:546 (rule 24).
@@ -162,7 +166,7 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:556 (rule 25).
-    pub async fn thread_folder(&self, entry: &Entry, cwd: Option<&str>) -> Result<String, HostError> {
+    pub async fn thread_folder(&self, entry: &LiveWorkspace, cwd: Option<&str>) -> Result<String, HostError> {
         todo!()
     }
 }
