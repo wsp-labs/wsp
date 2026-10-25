@@ -488,3 +488,29 @@ async fn a_stop_before_the_prompt_is_due_sends_no_turn_and_ends_interrupted() {
     assert_eq!(methods, ["initialize", "initialized", "account/read", "account/rateLimits/read", "thread/start"]);
     assert_eq!(w.order(), ["teardown", "kill"]);
 }
+
+#[tokio::test]
+async fn a_stop_on_a_server_that_never_exits_tears_it_down_once_per_end_wait_then_kills_it_once() {
+    // CT17; adapter.ts:767 and 1206: the finish road and the interrupt each run end_after_result; with equal waits both
+    // tear down, the first past the grace kills, the second finds it gone.
+    let launch = launcher(scripted_server(WireOpts {
+        hang: true,
+        on_write: Some(Arc::new(|m: &Value, w: &Wire| match method_of(m).as_str() {
+            "thread/start" => w.push(&[thread_answer()]),
+            "turn/start" => w.push(&[turn_started()]),
+            "turn/interrupt" => w.push(&[format!(r#"{{"id":{},"result":{{}}}}"#, m["id"]), completed("interrupted")]),
+            _ => {}
+        })),
+        ..Default::default()
+    }));
+    let events = Events::default();
+    let session = start(&adapter(&launch), &events);
+    until(|| events.any("turn.anchor")).await;
+    session.interrupt().await;
+    assert_eq!(session.finished().await.status, TurnStatus::Interrupted);
+    let w = launch.wire(0);
+    assert_eq!(w.order(), ["teardown", "teardown", "kill"]);
+    assert!(w.closed());
+    assert_eq!(w.written_method("turn/interrupt"), vec![serde_json::json!({"id": "wsp-interrupt-1", "method": "turn/interrupt", "params": {"threadId": THREAD, "turnId": TURN}})]);
+    assert_eq!(session_end(&events), (None, true, None));
+}
