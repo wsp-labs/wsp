@@ -11,8 +11,8 @@ use wsp_words::agents_report::{no_home_refusal, no_runuser_refusal};
 use wsp_words::js::js_trim;
 use wsp_words::project_path::under_project;
 
-pub use crate::daemon_targets::Platform;
 use crate::daemon_targets::platform_of_system;
+pub use crate::daemon_targets::Platform;
 use crate::errors::{EngineError, Result};
 use crate::land_bytes::{land_bytes, LandBytesOptions};
 use crate::machine::{ExecOptions, ExecResult, Machine};
@@ -26,7 +26,11 @@ fn bound(timeout_ms: Option<u64>) -> ExecOptions {
 fn first_line(res: &ExecResult) -> String {
     let text = if res.stderr.is_empty() { &res.stdout } else { &res.stderr };
     let line = js_trim(text).split('\n').next().unwrap_or("");
-    if line.is_empty() { format!("exit {}", res.exit_code.get()) } else { line.to_string() }
+    if line.is_empty() {
+        format!("exit {}", res.exit_code.get())
+    } else {
+        line.to_string()
+    }
 }
 
 /// node's `path.posix.dirname` for the folders a land names: the text before the last separator, a lone root kept as
@@ -95,7 +99,8 @@ pub async fn target_login(machine: &dyn Machine, given: &GivenLogin) -> Result<T
     }
     let lines: Vec<String> = res.stdout.split('\n').map(|l| js_trim(l).to_string()).collect();
     let field = |i: usize| lines.get(i).cloned().unwrap_or_default();
-    let (os, uid, self_user, owner, runuser, shell_home, shell_path) = (field(0), field(1), field(2), field(3), field(4), field(5), field(6));
+    let (os, uid, self_user, owner, runuser, shell_home, shell_path) =
+        (field(0), field(1), field(2), field(3), field(4), field(5), field(6));
     let platform = platform_of_system(&os).unwrap_or(Platform::Linux);
     let user = if owner.is_empty() { self_user } else { owner.clone() };
     let path = given.path.clone().unwrap_or(shell_path);
@@ -193,6 +198,7 @@ where
     if made.exit_code.get() != 0 {
         return Err(EngineError::Other { message: format!("no private folder to stage {what} in: {}", first_line(&made)), code: None });
     }
+    let mut cleanup = Cleanup { machine, cmd: Some(format!("rm -rf -- {folder}")), timeout_ms };
     let staged = async {
         land_bytes(land, &file, bytes, LandBytesOptions { fetch: None, timeout_ms }).await?;
         let chown = t.run_as.as_ref().map_or(String::new(), |user| format!(" && chown -R -- {} {folder}", shell_quote(user)));
@@ -206,8 +212,27 @@ where
         use_(file.clone(), dir.clone()).await
     }
     .await;
-    let _ = machine.exec(&format!("rm -rf -- {folder}"), bound(timeout_ms)).await;
+    if let Some(cmd) = cleanup.cmd.take() {
+        let _ = machine.exec(&cmd, bound(timeout_ms)).await;
+    }
     staged
+}
+
+/// The `finally` of target-line.ts:107: removes the staging folder when the caller stops waiting for the stage, which a
+/// TS caller cannot do. A dropped future cannot await, so the command is started with one poll of the machine's exec
+/// and its answer is not waited for (`rm -rf` ignores its own failure here as it does at the end of a finished stage).
+struct Cleanup<'a> {
+    machine: &'a dyn Machine,
+    cmd: Option<String>,
+    timeout_ms: Option<u64>,
+}
+
+impl Drop for Cleanup<'_> {
+    fn drop(&mut self) {
+        if let Some(cmd) = self.cmd.take() {
+            let _ = futures::FutureExt::now_or_never(self.machine.exec(&cmd, bound(self.timeout_ms)));
+        }
+    }
 }
 
 /// target-line.ts:120. Stages as above (`what` is `dest`), then as the login either
@@ -221,22 +246,30 @@ pub async fn land_as_login(
     unpack: bool,
     timeout_ms: Option<u64>,
 ) -> Result<()> {
-    stage_as_login(machine, machine, t, dest, bytes, |file, _folder| async move {
-        let at = shell_quote(&file);
-        let to = shell_quote(dest);
-        let put = if unpack {
-            format!("mkdir -p {to} && tar -xzf {at} -C {to}")
-        } else {
-            format!("mkdir -p {} && cat {at} > {to}", shell_quote(&dirname(dest)))
-        };
-        let res = machine.exec(&as_login(t, &put), bound(timeout_ms)).await?;
-        if res.exit_code.get() != 0 {
-            return Err(EngineError::Other {
-                message: format!("{dest} was not written as {}: {}", t.user, first_line(&res)),
-                code: None,
-            });
-        }
-        Ok(())
-    }, timeout_ms)
+    stage_as_login(
+        machine,
+        machine,
+        t,
+        dest,
+        bytes,
+        |file, _folder| async move {
+            let at = shell_quote(&file);
+            let to = shell_quote(dest);
+            let put = if unpack {
+                format!("mkdir -p {to} && tar -xzf {at} -C {to}")
+            } else {
+                format!("mkdir -p {} && cat {at} > {to}", shell_quote(&dirname(dest)))
+            };
+            let res = machine.exec(&as_login(t, &put), bound(timeout_ms)).await?;
+            if res.exit_code.get() != 0 {
+                return Err(EngineError::Other {
+                    message: format!("{dest} was not written as {}: {}", t.user, first_line(&res)),
+                    code: None,
+                });
+            }
+            Ok(())
+        },
+        timeout_ms,
+    )
     .await
 }

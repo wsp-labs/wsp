@@ -26,10 +26,7 @@ pub async fn refresh_preview_token(machine: &dyn Machine, port: u16, current: Op
         return Ok(reach.clone());
     }
     if !machine.offers().preview_url {
-        return Err(EngineError::Other {
-            message: format!("machine {} is on a backend without preview URLs", machine.id()),
-            code: None,
-        });
+        return Err(EngineError::Other { message: format!("machine {} is on a backend without preview URLs", machine.id()), code: None });
     }
     machine.preview_url(port).await
 }

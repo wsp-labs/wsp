@@ -63,13 +63,7 @@ pub fn install_script(install: &ProjectInstall, dir: &str, log: &str) -> String 
         Some(at) if at + 1 < log.len() => &log[..at],
         _ => log,
     };
-    format!(
-        "mkdir -p {} && cd {} && {} >> {} 2>&1",
-        shell_quote(folder),
-        shell_quote(dir),
-        install.command,
-        shell_quote(log)
-    )
+    format!("mkdir -p {} && cd {} && {} >> {} 2>&1", shell_quote(folder), shell_quote(dir), install.command, shell_quote(log))
 }
 
 /// project-install.ts:54. Two scripts: `export K=<q v>` per variable in order, then `cd <q dir> && <check>`, joined by

@@ -40,8 +40,11 @@ pub async fn sync_disk(machine: &dyn Machine) -> Result<Option<DiskReading>, Syn
         return Err(SyncDiskError::Sync { line: disk_sync_failed_line(&answer), answer });
     }
     let counter = |name: &str| -> Option<f64> {
-        let digits = js_lines(&res.stdout).find_map(|line| line.strip_prefix(name)?.strip_prefix(": "))?;
-        let value = (!digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())).then(|| digits.parse::<f64>().ok())??;
+        let digits = js_lines(&res.stdout).find_map(|line| {
+            let digits = line.strip_prefix(name)?.strip_prefix(": ")?;
+            (!digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())).then_some(digits)
+        })?;
+        let value = digits.parse::<f64>().ok()?;
         value.is_finite().then_some(value)
     };
     Ok(match (counter("Dirty"), counter("Writeback")) {
@@ -88,5 +91,5 @@ pub fn disk_unsettled(r: Option<&DiskReading>) -> bool {
 
 /// The lines of `s` as JavaScript's `^`/`$` with the m flag reads them: a line ends at `\n`, `\r`, U+2028 or U+2029.
 fn js_lines(s: &str) -> impl Iterator<Item = &str> {
-    s.split(|c| matches!(c, '\n' | '\r' | '\u{2028}' | '\u{2029}'))
+    s.split(['\n', '\r', '\u{2028}', '\u{2029}'])
 }
