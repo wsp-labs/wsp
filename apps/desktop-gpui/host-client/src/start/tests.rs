@@ -616,7 +616,13 @@ fn a_missing_unit_is_written_by_the_wsp_command_this_app_owns() {
         let fake = Fake::new(|_| ok("systemd unit wsp-host-x.service is loaded; it serves again at every login"));
         block(ensure(&f.start, &fake)).unwrap();
         assert_eq!(fake.ran(), [format!("{} up --service --state {} --port {}", wsp.display(), f.start.state.display(), f.start.port)]);
-        assert_eq!(f.said(), [format!("{} wrote the {} {}", wsp.display(), manager.words(), manager.name(&f.start.state))]);
+        let said = f.said();
+        assert!(
+            said[0]
+                .starts_with(&format!("port {} reads free on this computer (a bind on 127.0.0.1 took it, a dial was not (", f.start.port)),
+            "{said:?}"
+        );
+        assert_eq!(said[1..], [format!("{} wrote the {} {}", wsp.display(), manager.words(), manager.name(&f.start.state))]);
     }
 }
 
@@ -1197,15 +1203,91 @@ fn a_unit_on_a_held_port_stays_while_a_computer_has_joined() {
 fn joined_reads_the_places_the_store_holds() {
     let dir = tempfile::tempdir().unwrap();
     let state = dir.path().join("state.json");
-    assert!(!joined(&state), "a home with no store has none");
+    assert_eq!(joined(&state), None, "a home with no store has none");
     std::fs::write(&state, r#"{"places":{}}"#).unwrap();
-    assert!(!joined(&state));
+    assert_eq!(joined(&state), None);
     std::fs::write(&state, "not json").unwrap();
-    assert!(joined(&state), "a state file that does not read");
+    assert!(joined(&state).is_some(), "a state file that does not read");
     let db = rusqlite::Connection::open(dir.path().join("state.db")).unwrap();
     db.execute_batch("pragma journal_mode = wal; create table collections (collection text, id text, json text); insert into collections values ('workspaces', 'w1', '{}');").unwrap();
     drop(db);
-    assert!(!joined(&state), "the database has no places, and the old state file is passed over");
+    assert_eq!(joined(&state), None, "the database has no places, and the old state file is passed over");
     std::fs::write(dir.path().join("state.db"), "not a database").unwrap();
-    assert!(joined(&state), "a database that does not read");
+    assert!(joined(&state).is_some(), "a database that does not read");
+}
+
+/// The plist the host's own `wsp up --service` writes (`launchd.text` in `host:service.ts`).
+fn host_plist(label: &str, argv: &[String], home: &Path) -> String {
+    let words: String = argv.iter().map(|word| format!("    <string>{word}</string>\n")).collect();
+    let log = home.join(".wsp/host.log");
+    format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n  <key>Label</key><string>{label}</string>\n  <key>ProgramArguments</key>\n  <array>\n{words}  </array>\n  <key>EnvironmentVariables</key>\n  <dict>\n    <key>WSP_STARTED_BY</key><string>service</string>\n  </dict>\n  <key>WorkingDirectory</key><string>{}</string>\n  <key>RunAtLoad</key><true/>\n  <key>KeepAlive</key><true/>\n  <key>StandardOutPath</key><string>{}</string>\n  <key>StandardErrorPath</key><string>{}</string>\n</dict>\n</plist>\n",
+        home.join(".wsp").display(),
+        log.display(),
+        log.display()
+    )
+}
+
+/// Catches: the Mac's first launch on 2026-10-25, fed the lines its `wsp up --service` printed there, with the start
+/// the app builds (`Start::here`, the wsp command it owns) on a fresh home: the plist stood on 4400 and the launch
+/// stopped on the dialog. The plist moves to the port the host's refusal named.
+/// Also: the same first launch kept on 4400 because the wsp home holds a store with no table yet, read as a computer
+/// joined to this host; a fresh install has no door anyone dials, so nothing joined holds it back. One after the
+/// other, since each probes this computer's own 4400.
+#[test]
+fn the_macs_first_launch_lines_move_the_plist_to_the_port_the_refusal_names() {
+    macs_first_launch(false);
+    macs_first_launch(true);
+}
+
+fn macs_first_launch(store: bool) {
+    let dir = tempfile::tempdir().unwrap();
+    let home = dir.path().to_owned();
+    let state = home.join(".wsp/state.json");
+    std::fs::create_dir_all(state.parent().unwrap()).unwrap();
+    if store {
+        std::fs::write(state.with_file_name("state.db"), "").unwrap();
+    }
+    let vars: Env = [("HOME".to_owned(), home.to_string_lossy().into_owned())].into_iter().collect();
+    let mut start = Start::here(&state, &vars);
+    start.manager = Some(Manager::Launchd);
+    start.wsp = Some(home.join(".wsp/bin/wsp"));
+    let said = Arc::new(Mutex::new(Vec::new()));
+    let kept = said.clone();
+    start.say = Arc::new(move |line| kept.lock().unwrap().push(line.to_owned()));
+    let (label, plist) = (Manager::Launchd.name(&state), Manager::Launchd.unit(&home, &state));
+    std::fs::create_dir_all(plist.parent().unwrap()).unwrap();
+    let held = start.port;
+    let (state_shown, home_shown) = (state.display().to_string(), home.display().to_string());
+    let (written, label_shown) = (plist.clone(), label.clone());
+    let fake = Fake::new(move |argv| {
+        if argv.get(1).map(String::as_str) != Some("up") {
+            return if argv.get(1).map(String::as_str) == Some("print") { ABSENT } else { ok("") };
+        }
+        let at = argv.iter().position(|word| word == "--port").map_or(held, |at| argv[at + 1].parse().unwrap());
+        let mut words = vec![argv[0].clone(), "up".to_owned()];
+        words.extend(argv[3..].iter().cloned());
+        if !words.contains(&"--port".to_owned()) {
+            words.extend(["--port".to_owned(), held.to_string()]);
+        }
+        words.extend(["--listen".to_owned(), "127.0.0.1".to_owned()]);
+        std::fs::write(&written, host_plist(&label_shown, &words, Path::new(&home_shown))).unwrap();
+        if at != held {
+            return ok(&format!("launchd agent {label_shown} is loaded; it serves again at every login"));
+        }
+        let refusal = format!(
+            "Port {held} is in use on this computer by Electron (pid 24790).\nNothing was booted. The next free port is {}: wsp up --port {}. Or stop what holds the one you named.",
+            held + 1,
+            held + 1
+        );
+        Ran {
+            code: 1,
+            output: format!(
+                "the launchd agent {label_shown} loaded, but nothing answered on port {held} for {state_shown} within 20s. Its log is {home_shown}/.wsp/host.log, and wsp down takes the service away.\n{refusal}\n{refusal}"
+            ),
+        }
+    });
+    block(ensure(&start, &fake)).unwrap();
+    let plist_port = named_port(&Manager::Launchd.argv(&std::fs::read_to_string(&plist).unwrap()).unwrap());
+    assert_eq!(plist_port, Some(held + 1), "ran: {:?}\nsaid: {:?}", fake.ran(), said.lock().unwrap());
 }
