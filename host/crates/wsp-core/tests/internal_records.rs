@@ -905,6 +905,19 @@ fn record_session_index_record_with_only_its_required_keys_writes_no_other_key()
     assert_eq!(keys(&out["sessions"][0]), vec!["id", "workspaceId", "harness", "status", "turnId"]);
 }
 
+// transcripts.ts persistSessions: `{ workspaceId, sessions, threads, viewed? }`
+#[test]
+fn record_session_index_record_writes_its_keys_in_the_order_persist_sessions_does() {
+    let doc = json!({
+        "workspaceId": "w1",
+        "sessions": [{"id": "s1", "workspaceId": "w1", "harness": "claude", "status": "completed", "turnId": "u1"}],
+        "threads": {"t1": {"harness": "claude"}},
+        "viewed": {"a.ts": "b1"},
+    });
+    let out = round_trip::<SessionIndexRecord>(&doc);
+    assert_eq!(keys(&out), vec!["workspaceId", "sessions", "threads", "viewed"]);
+}
+
 // internal.ts:106-117
 #[test]
 fn record_held_start_record_with_every_optional_key_writes_back_equal() {
