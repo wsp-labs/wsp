@@ -1101,7 +1101,8 @@ pub struct PortRoute {
 
 /// The one place a workspace's kind means anything. Optional members of the TS answer None here. internal.ts:1097-1214.
 pub trait KindModule {
-    fn backend(&self, record: &WorkspaceRecord) -> Arc<dyn MachineBackend>;
+    /// Refuses where the record's place forks nowhere (kinds.ts:327): the TS throws there.
+    fn backend(&self, record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError>;
     fn exec_stream(
         &self,
         entry: &LiveWorkspace,

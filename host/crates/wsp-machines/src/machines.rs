@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! `packages/runtime/src/machines/`.
 
+pub mod area_error;
 pub mod boot;
-pub mod core_types;
 pub mod brokered;
 pub mod create;
 pub mod daemon;

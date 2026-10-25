@@ -18,7 +18,10 @@ use wsp_wire::views::workspace::{BranchOfRecord, Caller, ProjectView, SeedChoice
 use wsp_wire::views::workspace_more::ThreadScope;
 use wsp_words::exit::HostError;
 
-use crate::machines::core_types::{AreaResult, Joined, Live, StageReport, WorkspaceRecord};
+use crate::machines::area_error::AreaResult;
+use crate::machines::machines::Entry;
+use wsp_core::types::wiring::StageReport;
+use wsp_core::types::wiring::WorkspaceRecord;
 use crate::machines::sub_life::SessionFile;
 
 pub mod checks;
@@ -66,10 +69,10 @@ pub struct Packed {
 /// What a sub-thread's start reads off the runtime's context (sub-spawn.ts:44 and every `ctx.` call below it).
 #[async_trait(?Send)]
 pub trait SubSpawnCtx {
-    fn live(&self, id: &str) -> Option<Live>;
+    fn live(&self, id: &str) -> Option<Entry>;
     fn remove_live(&self, id: &str);
     /// types/internal.ts `isAbsentMachine(entry.machine)`: the entry stands on the queue's stand-in, no machine yet.
-    fn is_absent_machine(&self, entry: &Live) -> bool;
+    fn is_absent_machine(&self, entry: &Entry) -> bool;
     fn thread_records(&self) -> Vec<(String, String)>;
     fn push_head(&self, thread_id: &str);
     /// The local backend's machine (`moduleOf("local").backend(...).get(LOCAL_MACHINE_ID)`).
@@ -90,9 +93,9 @@ pub trait SubSpawnCtx {
     /// `spawnGuard("fork", origin)`: the release on success.
     fn spawn_guard(&self, origin: Option<&Caller>) -> Result<Box<dyn FnOnce()>, HostError>;
     fn project_held(&self, id: &str) -> ProjectView;
-    async fn copy_blocked(&self, lead: &Live) -> AreaResult<()>;
+    async fn copy_blocked(&self, lead: &Entry) -> AreaResult<()>;
     /// One frame through the workspace's own daemon (`withDaemon`).
-    async fn daemon_frame(&self, entry: &Live, frame: Value) -> AreaResult<Value>;
+    async fn daemon_frame(&self, entry: &Entry, frame: Value) -> AreaResult<Value>;
     fn checkout_of(&self, record: &WorkspaceRecord) -> String;
     /// `ctx.brokered({kind, place})`.
     fn brokered(&self, kind: &str, place: Option<&str>) -> bool;
@@ -105,7 +108,7 @@ pub trait SubSpawnCtx {
     async fn copy_of(&self, place: &str, image: &str) -> AreaResult<Option<GoldenManifest>>;
     async fn record_of(&self, image: &str) -> AreaResult<Option<ImageRecord>>;
     async fn place_guard(&self, place: &str) -> AreaResult<()>;
-    async fn default_agent_of(&self, lead: &Live) -> AreaResult<String>;
+    async fn default_agent_of(&self, lead: &Entry) -> AreaResult<String>;
     /// brokered.ts `unbrokeredRefusal(harness)`.
     fn unbrokered_refusal(&self, harness: &str) -> Option<HostError>;
     fn name_refusal(&self, name: &str) -> Option<String>;
@@ -122,17 +125,17 @@ pub trait SubSpawnCtx {
     /// `ctx.fork(record, onMachine, undefined, report, false)`.
     async fn fork(&self, record: &Rc<RefCell<WorkspaceRecord>>, on_machine: Box<dyn Fn(Arc<dyn Machine>)>, report: StageReport) -> AreaResult<()>;
     /// `attach(record, machine)`.
-    fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Live;
+    fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry;
     /// `attach(record, deadMachine(""))`.
-    fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Live;
-    async fn ping_daemon(&self, entry: &Live) -> Option<String>;
-    fn sync_daemon(&self, entry: &Live);
+    fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Entry;
+    async fn ping_daemon(&self, entry: &Entry) -> Option<String>;
+    fn sync_daemon(&self, entry: &Entry);
     async fn persist(&self, record: &WorkspaceRecord) -> AreaResult<()>;
-    async fn emit_status_reachable(&self, entry: &Live) -> AreaResult<()>;
-    async fn unfork(&self, entry: &Live) -> AreaResult<()>;
+    async fn emit_status_reachable(&self, entry: &Entry) -> AreaResult<()>;
+    async fn unfork(&self, entry: &Entry) -> AreaResult<()>;
     fn broker_lift(&self, workspace_id: &str);
     async fn rows_sent(&self);
-    fn session_file(&self, entry: &Live, agent: &str, session_id: &str) -> Option<SessionFile>;
+    fn session_file(&self, entry: &Entry, agent: &str, session_id: &str) -> Option<SessionFile>;
     async fn get_seed_choice(&self, folder: &str) -> AreaResult<Option<SeedChoice>>;
     async fn get_blob(&self, collection: &str, key: &str) -> AreaResult<Option<Vec<u8>>>;
     async fn delete_create(&self, key: &str) -> AreaResult<()>;
@@ -156,7 +159,7 @@ pub struct SubSpawnArea {
     pub(crate) ctx: Rc<dyn SubSpawnCtx>,
     pub(crate) me: Weak<SubSpawnArea>,
     /// sub-spawn.ts:496. The resume in flight per record (rule 9 of sub_spawn_machine).
-    pub(crate) resuming: RefCell<IndexMap<String, Joined<Result<(), HostError>>>>,
+    pub(crate) resuming: RefCell<IndexMap<String, wsp_core::types::wiring::Joined<()>>>,
 }
 
 impl SubSpawnArea {

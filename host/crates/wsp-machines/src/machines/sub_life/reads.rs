@@ -4,7 +4,7 @@
 use wsp_wire::views::sub_row::{SubResult, SubRow};
 
 use super::{BackendFor, SessionFile};
-use crate::machines::core_types::WorkspaceRecord;
+use wsp_core::types::wiring::WorkspaceRecord;
 
 /// sub-life.ts:16. The host blobs a sub-thread's kept session goes under, by thread id, gzipped.
 pub const SUB_SESSIONS: &str = "sub-sessions";

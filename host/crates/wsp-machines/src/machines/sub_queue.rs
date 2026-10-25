@@ -14,7 +14,12 @@ use wsp_wire::views::session::{SessionView, ThreadCapWait};
 use wsp_wire::views::workspace::Caller;
 use wsp_words::exit::HostError;
 
-use crate::machines::core_types::{AreaResult, Cancel, Joined, Live, SessionEntry, SubStartRecord, WorkspaceRecord};
+use crate::machines::area_error::AreaResult;
+use wsp_core::clock::Cancel;
+use crate::machines::machines::Entry;
+use wsp_core::types::internal::SessionEntry;
+use wsp_core::types::internal::SubStartRecord;
+use wsp_core::types::wiring::WorkspaceRecord;
 
 /// sub-queue.ts:21. How often a held spawn reads its cloud's limits again for a slot.
 pub const QUEUE_SLOT_READ_MS: f64 = 30_000.0;
@@ -55,8 +60,8 @@ pub struct HoldAsk {
 /// What the queue reads off the runtime's context (sub-queue.ts:50 and the `ctx.` calls below it).
 #[async_trait(?Send)]
 pub trait SubQueueCtx {
-    fn live(&self, id: &str) -> Option<Live>;
-    fn live_all(&self) -> Vec<Live>;
+    fn live(&self, id: &str) -> Option<Entry>;
+    fn live_all(&self) -> Vec<Entry>;
     fn session(&self, turn_id: &str) -> Option<SessionEntry>;
     fn set_session(&self, turn_id: &str, entry: SessionEntry);
     /// Changes the row in place, keeping its map position.
@@ -78,9 +83,9 @@ pub trait SubQueueCtx {
     /// `ctx.record(event)`: a transcript event, stamped and emitted.
     fn record(&self, event: Value);
     /// `attach(record, absentMachine("", "sandbox", () => throw said))`.
-    fn attach_absent(&self, record: &Rc<RefCell<WorkspaceRecord>>, said: &str) -> Live;
+    fn attach_absent(&self, record: &Rc<RefCell<WorkspaceRecord>>, said: &str) -> Entry;
     /// `attach(record, deadMachine(""))`.
-    fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Live;
+    fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Entry;
     /// The record's shared cell, for a record live or just read.
     fn record_cell(&self, workspace_id: &str) -> Option<Rc<RefCell<WorkspaceRecord>>>;
     /// `ctx.drop(id)`: the record goes.
@@ -96,8 +101,8 @@ pub trait SubQueueCtx {
     async fn stand_up_queued(&self, record: &Rc<RefCell<WorkspaceRecord>>, posted: Rc<dyn Fn()>, waited: bool) -> AreaResult<()>;
     /// `sessionsApi.start(workspaceId, o, origin)`.
     async fn start_turn(&self, workspace_id: &str, o: serde_json::Map<String, Value>, origin: Option<Caller>) -> AreaResult<StartedTurn>;
-    async fn cut_off(&self, entry: &Live);
-    async fn unfork(&self, entry: &Live) -> AreaResult<()>;
+    async fn cut_off(&self, entry: &Entry);
+    async fn unfork(&self, entry: &Entry) -> AreaResult<()>;
     fn now(&self) -> f64;
     /// A new UUID (the `Ids` trait).
     fn uuid(&self) -> String;
@@ -116,7 +121,7 @@ pub(crate) struct Held {
     pub tell: RefCell<Option<Box<dyn FnOnce(ThreadCapWait)>>>,
     pub written: Cell<bool>,
     pub left: RefCell<Option<Box<dyn FnOnce()>>>,
-    pub gone: Joined<()>,
+    pub gone: wsp_core::context::Joined,
     pub stopped: RefCell<Option<String>>,
 }
 
@@ -135,7 +140,7 @@ pub struct SubQueueArea {
     pub(crate) starting: RefCell<IndexMap<String, (String, bool)>>,
     pub(crate) refused_until: RefCell<IndexMap<String, f64>>,
     pub(crate) queued_at: RefCell<IndexMap<String, f64>>,
-    pub(crate) pumping: RefCell<Option<Joined<()>>>,
+    pub(crate) pumping: RefCell<Option<wsp_core::context::Joined>>,
     pub(crate) again: Cell<bool>,
     pub(crate) timer: RefCell<Option<Cancel>>,
 }
@@ -147,7 +152,7 @@ impl SubQueueArea {
     }
 
     /// sub-queue.ts:66 (rule 2).
-    pub(crate) fn queued(&self) -> Vec<Live> {
+    pub(crate) fn queued(&self) -> Vec<Entry> {
         todo!()
     }
 
@@ -212,7 +217,7 @@ impl SubQueueArea {
     }
 
     /// sub-queue.ts:250 (rule 15).
-    pub(crate) async fn fail_first(&self, h: &Rc<Held>, record: &Rc<RefCell<WorkspaceRecord>>, e: crate::machines::core_types::AreaError) -> AreaResult<()> {
+    pub(crate) async fn fail_first(&self, h: &Rc<Held>, record: &Rc<RefCell<WorkspaceRecord>>, e: crate::machines::area_error::AreaError) -> AreaResult<()> {
         todo!()
     }
 
@@ -227,7 +232,7 @@ impl SubQueueArea {
     }
 
     /// sub-queue.ts:305 (rule 18).
-    pub fn pump_queue(&self) -> Joined<()> {
+    pub fn pump_queue(&self) -> wsp_core::context::Joined {
         todo!()
     }
 
@@ -237,7 +242,7 @@ impl SubQueueArea {
     }
 
     /// sub-queue.ts:388 (rule 21).
-    pub(crate) async fn let_through(&self, entry: Live, h: Rc<Held>) {
+    pub(crate) async fn let_through(&self, entry: Entry, h: Rc<Held>) {
         todo!()
     }
 

@@ -5,19 +5,22 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 use serde_json::Value;
 
+use wsp_core::types::internal::{ImportLanded, ImportReport};
+use wsp_core::types::wiring::ProjectImportOptions;
 use wsp_engine::machine::{ExecResult, MachineBackend};
 use wsp_wire::views::workspace::{DaemonReachView, ProjectView};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_words::exit::HostError;
 
 use super::{BrokeredLaunch, FolderComputer, KindsArea};
-use crate::machines::core_types::{AreaResult, Live, StageReport, WorkspaceRecord};
+use crate::machines::area_error::AreaResult;
+use crate::machines::machines::Entry;
+use wsp_core::types::wiring::StageReport;
+use wsp_core::types::wiring::WorkspaceRecord;
 
 /// kinds.ts:27. How long a launch waits on the broker's answer.
 pub const BROKER_READ_MS: f64 = 5_000.0;
 
-/// The import's report and answer (types/internal.ts `ImportLanded`) as the TS objects.
-pub type ImportLanded = Value;
 
 impl KindsArea {
     /// kinds.ts:32 (rule 1).
@@ -29,7 +32,7 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:46 (rule 3).
-    pub(crate) async fn clone_project(&self, entry: &Live, project: &ProjectView, report: StageReport) -> AreaResult<()> {
+    pub(crate) async fn clone_project(&self, entry: &Entry, project: &ProjectView, report: StageReport) -> AreaResult<()> {
         todo!()
     }
     /// kinds.ts:80 (rule 4). `(remote, defaultBranch)`.
@@ -57,11 +60,11 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:171 (rule 8).
-    pub(crate) async fn register_import(&self, o: &Value, report: &dyn Fn(&str, &str)) -> AreaResult<ImportLanded> {
+    pub(crate) async fn register_import(&self, o: &ProjectImportOptions, report: &ImportReport) -> AreaResult<ImportLanded> {
         todo!()
     }
     /// kinds.ts:181 (rule 9).
-    pub(crate) async fn write_roots(&self, entry: &Live, dests: &[String], roots_path: Option<&str>) -> AreaResult<()> {
+    pub(crate) async fn write_roots(&self, entry: &Entry, dests: &[String], roots_path: Option<&str>) -> AreaResult<()> {
         todo!()
     }
     /// kinds.ts:185 (rule 10).
@@ -73,7 +76,7 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:197 (rule 11).
-    pub(crate) async fn cloud_road(&self, entry: &Live) -> AreaResult<DaemonReachView> {
+    pub(crate) async fn cloud_road(&self, entry: &Entry) -> AreaResult<DaemonReachView> {
         todo!()
     }
     /// kinds.ts:202 (rule 11).
@@ -81,7 +84,7 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:209 (rule 12).
-    pub(crate) async fn cloud_deploy(&self, entry: &Live) -> AreaResult<()> {
+    pub(crate) async fn cloud_deploy(&self, entry: &Entry) -> AreaResult<()> {
         todo!()
     }
     /// kinds.ts:217 (rule 13).
@@ -97,7 +100,7 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:242 (rule 15).
-    pub fn vault_on(&self, entry: &Live) -> IndexMap<String, String> {
+    pub fn vault_on(&self, entry: &Entry) -> IndexMap<String, String> {
         todo!()
     }
     /// kinds.ts:248 (rule 16).
@@ -109,19 +112,19 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:278 (rule 18).
-    pub fn brokered_launch(&self, entry: &Live, harness: &str, token: Option<&str>) -> Result<Option<BrokeredLaunch>, HostError> {
+    pub fn brokered_launch(&self, entry: &Entry, harness: &str, token: Option<&str>) -> Result<Option<BrokeredLaunch>, HostError> {
         todo!()
     }
     /// kinds.ts:291 (rule 19).
-    pub async fn know_broker(&self, entry: &Live, harness: &str) -> Result<(), HostError> {
+    pub async fn know_broker(&self, entry: &Entry, harness: &str) -> Result<(), HostError> {
         todo!()
     }
     /// kinds.ts:297.
-    pub(crate) fn place_login_stands(&self, entry: &Live, id: &str) -> bool {
+    pub(crate) fn place_login_stands(&self, entry: &Entry, id: &str) -> bool {
         todo!()
     }
     /// kinds.ts:304 (rule 20).
-    pub(crate) fn place_env(&self, entry: &Live, home_of: &dyn Fn(&str) -> String) -> Result<IndexMap<String, String>, HostError> {
+    pub(crate) fn place_env(&self, entry: &Entry, home_of: &dyn Fn(&str) -> String) -> Result<IndexMap<String, String>, HostError> {
         todo!()
     }
     /// kinds.ts:508 (rule 21).
@@ -147,7 +150,7 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:534 (rule 22): the lifecycle's budgets' daemon answer time is what readers take.
-    pub fn lifecycle_of(&self, entry: &Live) -> Result<Arc<dyn wsp_engine::machine::Lifecycle>, HostError> {
+    pub fn lifecycle_of(&self, entry: &Entry) -> Result<Arc<dyn wsp_engine::machine::Lifecycle>, HostError> {
         todo!()
     }
     /// kinds.ts:539 (rule 23): the options the kind's exec stream is made with.
@@ -159,7 +162,7 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:556 (rule 25).
-    pub async fn thread_folder(&self, entry: &Live, cwd: Option<&str>) -> Result<String, HostError> {
+    pub async fn thread_folder(&self, entry: &Entry, cwd: Option<&str>) -> Result<String, HostError> {
         todo!()
     }
 }

@@ -13,7 +13,8 @@ use wsp_words::exit::HostError;
 use wsp_words::sub_thread::SubSize;
 
 use super::{ImageRecord, Seed, SubSpawnArea};
-use crate::machines::core_types::{AreaResult, Live};
+use crate::machines::area_error::AreaResult;
+use crate::machines::machines::Entry;
 use wsp_wire::views::golden_image::GoldenVersion;
 
 /// sub-spawn.ts:26. The image every sub-machine forks.
@@ -104,22 +105,22 @@ impl SubSpawnArea {
     }
 
     /// sub-spawn.ts:347 (rule 11).
-    pub(crate) async fn free_branch(&self, wanted: &str, lead: &Live) -> String {
+    pub(crate) async fn free_branch(&self, wanted: &str, lead: &Entry) -> String {
         todo!()
     }
 
     /// sub-spawn.ts:354 (rule 12).
-    pub(crate) async fn git_at_lead(&self, lead: &Live, args: &[&str]) -> AreaResult<wsp_engine::machine::ExecResult> {
+    pub(crate) async fn git_at_lead(&self, lead: &Entry, args: &[&str]) -> AreaResult<wsp_engine::machine::ExecResult> {
         todo!()
     }
 
     /// sub-spawn.ts:360 (rule 13).
-    pub(crate) async fn remote_read(&self, lead: &Live, from: &str, args: &[&str]) -> Result<String, HostError> {
+    pub(crate) async fn remote_read(&self, lead: &Entry, from: &str, args: &[&str]) -> Result<String, HostError> {
         todo!()
     }
 
     /// sub-spawn.ts:369 (rule 14). Answers `(branch, sha)`.
-    pub(crate) async fn from_ref(&self, from: &str, lead: &Live, preferred: Option<&str>) -> Result<(String, String), HostError> {
+    pub(crate) async fn from_ref(&self, from: &str, lead: &Entry, preferred: Option<&str>) -> Result<(String, String), HostError> {
         todo!()
     }
 
