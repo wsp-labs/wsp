@@ -547,7 +547,7 @@ async fn run_target(
     cwd: Option<String>,
 ) -> Result<Target, Failure> {
     let words = turns();
-    let here = super::workspace::words().here_place_id;
+    let here = super::workspace::words().here_place_id.clone();
     if let Some(named) = named {
         #[derive(Deserialize)]
         struct Owned {
@@ -873,7 +873,7 @@ async fn redial_unanswered(host: &Host, socket: &Client, failure: Failure) -> Re
     if !socket.stopped_under() {
         return Err(failure);
     }
-    host.back_within(start_wait()).await.map_err(|_| Failure::new(record::words().not_delivered))
+    host.back_within(start_wait()).await.map_err(|_| Failure::new(record::words().not_delivered.clone()))
 }
 
 /// A start whose caller does not stay for the reply, sent again to the host that comes back when one stops before it
@@ -892,7 +892,7 @@ pub(super) async fn begin_through(host: &Host, client: Arc<Client>, start: &Map<
 /// A send's reads before its start, which send nothing: a host that stops under them took no message, so the failure
 /// says it was not delivered rather than that a turn goes on.
 pub(super) fn before_sending<T>(client: &Client, read: Result<T, Failure>) -> Result<T, Failure> {
-    read.map_err(|failure| if client.stopped_under() { Failure::new(record::words().not_delivered) } else { failure })
+    read.map_err(|failure| if client.stopped_under() { Failure::new(record::words().not_delivered.clone()) } else { failure })
 }
 
 /// Starts the turn and follows it to its end, which is the turn's done, or its end where the runtime ended it. A host

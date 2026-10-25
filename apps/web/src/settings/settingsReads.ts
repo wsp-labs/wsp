@@ -66,6 +66,17 @@ export function useSettingsReads(): void {
         loginStart => setReads({ loginStart }),
         notRead("Start at login"),
       );
+    // The switch is this computer's shell's, so a window on a host elsewhere skips the read, as Get's download does.
+    const shell = desktopBridge();
+    const readExperimental = shell?.experimental;
+    if (readExperimental !== undefined) {
+      void (shell?.hosts?.() ?? Promise.resolve({ current: null }))
+        .then(view => (view.current === null ? readExperimental() : null))
+        .then(
+          experimental => setReads({ experimental }),
+          notRead("Experimental app"),
+        );
+    }
     const readSsh = api?.sshInclude;
     void held("sshInclude", readSsh === undefined ? undefined : () => readSsh())?.then(
       sshInclude => setReads({ sshInclude }),

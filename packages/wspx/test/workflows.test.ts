@@ -26,6 +26,8 @@ const RELEASE_GRANTS: Record<string, Record<string, string>> = {
   draft: { contents: "write" },
   mac: { contents: "write" },
   linux: { contents: "write" },
+  "mac-classic": { contents: "write" },
+  "linux-classic": { contents: "write" },
   npm: { contents: "read", "id-token": "write" },
   publish: { contents: "write" },
 };

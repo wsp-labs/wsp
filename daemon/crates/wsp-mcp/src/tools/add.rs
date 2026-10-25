@@ -112,7 +112,7 @@ fn empty() -> Box<RawValue> {
 
 async fn call(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     let In { address, recipe, later, resume, name, ssh_port, ssh_key, host_key } = input(NAME, arguments)?;
-    let words = record::words().add;
+    let words = &record::words().add;
     let resume = resume == Some(true);
     if !resume && !is_computer_word(&address, &words.providers) {
         return Err(Failure::usage(fill(&words.refused, &[("word", &address)])).into());
@@ -185,14 +185,14 @@ mod tests {
 
     #[test]
     fn a_computer_is_user_at_host_or_an_alias_and_never_a_path_a_repo_or_a_provider() {
-        let providers = record::words().add.providers;
+        let providers = &record::words().add.providers;
         for word in ["root@203.0.113.7", "spoo", "dev.box", "constructor"] {
-            assert!(is_computer_word(word, &providers), "{word}");
+            assert!(is_computer_word(word, providers), "{word}");
         }
         for word in
             ["/Users/dev/app", "~/app", "./app", "owner/repo", "https://github.com/a/b", "git@github.com:a/b", "app.git", "solari", "box"]
         {
-            assert!(!is_computer_word(word, &providers), "{word}");
+            assert!(!is_computer_word(word, providers), "{word}");
         }
     }
 }

@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn a_project_is_asked_by_flag_with_a_workspace_and_by_name_with_a_computer() {
         let words = words();
-        let asked = |value: ProjectIn, on: Option<&str>| project_asked(&words, Some(&value), on, "u").map(|a| (a.project, a.name));
+        let asked = |value: ProjectIn, on: Option<&str>| project_asked(words, Some(&value), on, "u").map(|a| (a.project, a.name));
         assert_eq!(asked(ProjectIn::Own(true), None).unwrap(), (true, None));
         assert_eq!(asked(ProjectIn::Named(String::new()), None).unwrap(), (true, None));
         assert_eq!(asked(ProjectIn::Named("api".into()), Some("attic")).unwrap(), (true, Some("api".into())));
