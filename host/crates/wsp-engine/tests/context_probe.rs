@@ -5,17 +5,23 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use base64::Engine as _;
-use wsp_engine::golden_seam::{df_kb_cmd, DfColumn, GoldenBaseTool, ImportAgentRow, ImportFiles, ImportResult, ImportRow, RetiredRow, SkippedPath, TOOLS_PATH};
+use wsp_engine::golden_seam::{
+    df_kb_cmd, DfColumn, GoldenBaseTool, ImportAgentRow, ImportFiles, ImportResult, ImportRow, RetiredRow, SkippedPath, TOOLS_PATH,
+};
 use wsp_engine::machine::ExecResult;
 use wsp_engine::machine_context::{
-    bounded_command, context_agents, merge_facts, overlay_probe, parse_probe, probe_command, render_machine_context, Alias,
-    AliasesUnread, BuildFacts, ContextInput, Disk, FileNote, GuestRoots, MissingItem, ProbeShells, WorkspaceName,
-    ALIAS_PROBE_BASH, ALIAS_PROBE_FISH, ALIAS_PROBE_ZSH, BROWSER_SHIM_PATH, CONTEXT_MARKER,
+    bounded_command, context_agents, merge_facts, overlay_probe, parse_probe, probe_command, render_machine_context, Alias, AliasesUnread,
+    BuildFacts, ContextInput, Disk, FileNote, GuestRoots, MissingItem, ProbeShells, WorkspaceName, ALIAS_PROBE_BASH, ALIAS_PROBE_FISH,
+    ALIAS_PROBE_ZSH, BROWSER_SHIM_PATH, CONTEXT_MARKER,
 };
 
 fn facts() -> BuildFacts {
     BuildFacts {
-        tools: vec![MissingItem { id: "tools/brew-cask/raycast".into(), label: "raycast".into(), note: "macOS app, no Linux build".into() }],
+        tools: vec![MissingItem {
+            id: "tools/brew-cask/raycast".into(),
+            label: "raycast".into(),
+            note: "macOS app, no Linux build".into(),
+        }],
         agents: vec![MissingItem { id: "agents/zed".into(), label: "Zed".into(), note: "no installer known".into() }],
         files: vec![FileNote { path: "~/.ssh/id_ed25519".into(), note: "private key, never copied".into() }],
     }
@@ -24,10 +30,33 @@ fn facts() -> BuildFacts {
 fn probe_out() -> String {
     let b64 = base64::engine::general_purpose::STANDARD.encode(serde_json::to_string(&facts()).unwrap());
     [
-        "some rc noise", "WSP_CTX", "KERNEL 6.6.30", "DISK 20466256 11720704", "OVERLAY no", "HAS tmux", "HAS fish", "HAS brew",
-        "HAS golden-path", "HAS wsp-open", "VERSION python3: Python 3.12.13", "VERSION uv: uv 0.12.9", "VERSION cc: ",
-        "AGENT claude", "AGENT codex", "AGENT gemini", "AGENT opencode", "AGENT pi", "AGENT hermes", "SECRET OPENAI_API_KEY",
-        "SECRET GH_TOKEN", "SHELL zsh", "ALIAS o open", "ALIAS rc code", &format!("FACTS {b64}"), "WSP_CTX_END", "",
+        "some rc noise",
+        "WSP_CTX",
+        "KERNEL 6.6.30",
+        "DISK 20466256 11720704",
+        "OVERLAY no",
+        "HAS tmux",
+        "HAS fish",
+        "HAS brew",
+        "HAS golden-path",
+        "HAS wsp-open",
+        "VERSION python3: Python 3.12.13",
+        "VERSION uv: uv 0.12.9",
+        "VERSION cc: ",
+        "AGENT claude",
+        "AGENT codex",
+        "AGENT gemini",
+        "AGENT opencode",
+        "AGENT pi",
+        "AGENT hermes",
+        "SECRET OPENAI_API_KEY",
+        "SECRET GH_TOKEN",
+        "SHELL zsh",
+        "ALIAS o open",
+        "ALIAS rc code",
+        &format!("FACTS {b64}"),
+        "WSP_CTX_END",
+        "",
     ]
     .join("\n")
 }
@@ -58,7 +87,10 @@ fn parses_every_line_kind_between_the_markers_and_ignores_the_rest() {
     assert_eq!(probe.has.iter().map(String::as_str).collect::<Vec<_>>(), ["tmux", "fish", "brew", "golden-path", "wsp-open"]);
     assert_eq!(
         probe.versions,
-        vec![GoldenBaseTool { name: "python3".into(), version: "3.12.13".into() }, GoldenBaseTool { name: "uv".into(), version: "0.12.9".into() }]
+        vec![
+            GoldenBaseTool { name: "python3".into(), version: "3.12.13".into() },
+            GoldenBaseTool { name: "uv".into(), version: "0.12.9".into() }
+        ]
     );
     assert_eq!(probe.agents, context_agents().iter().map(|a| a.id.clone()).collect::<Vec<_>>());
     assert_eq!(probe.secrets, ids(&["OPENAI_API_KEY", "GH_TOKEN"]));
@@ -73,7 +105,9 @@ fn parses_every_line_kind_between_the_markers_and_ignores_the_rest() {
 fn is_nothing_without_both_markers_and_tolerates_empty_reads() {
     assert_eq!(parse_probe(""), None);
     assert_eq!(parse_probe("WSP_CTX\nKERNEL 1\n"), None);
-    let probe = parse_probe("WSP_CTX\nKERNEL \nDISK \nOVERLAY yes\nSHELL \nCONFLICT gemini\nCONFLICT nobody\nSECRET not a name\nWSP_CTX_END\n").expect("a probe");
+    let probe =
+        parse_probe("WSP_CTX\nKERNEL \nDISK \nOVERLAY yes\nSHELL \nCONFLICT gemini\nCONFLICT nobody\nSECRET not a name\nWSP_CTX_END\n")
+            .expect("a probe");
     assert_eq!(probe.kernel, None);
     assert_eq!(probe.disk, None);
     assert!(probe.overlay);
@@ -117,7 +151,14 @@ fn adds_what_did_not_install_drops_what_did_and_keeps_the_rest() {
                 row("tools/brew-cask/raycast", "Raycast", "skipped", Some("macOS app, no Linux build")),
             ];
             r.agents = vec![ImportAgentRow { id: "agents/zed".into(), name: "Zed".into(), outcome: "installed".into(), note: None }];
-            r.files = Some(ImportFiles { bytes: 1, skipped: vec![SkippedPath { path: "~/.netrc".into(), note: ".netrc is never copied; sign in on the machine".into() }] });
+            r.files = Some(ImportFiles {
+                bytes: 1,
+                skipped: vec![SkippedPath {
+                    id: String::new(),
+                    path: "~/.netrc".into(),
+                    note: ".netrc is never copied; sign in on the machine".into(),
+                }],
+            });
         })),
     );
     assert_eq!(
@@ -144,7 +185,10 @@ fn a_base_floor_row_that_did_not_land_is_a_tool_that_did_not_install_beside_the_
             r.tools = vec![row("tools/brew/x", "x", "failed", Some("Error: no bottle"))];
         })),
     );
-    assert_eq!(next.tools, vec![item("base/fd", "fd", "E: Unable to locate package fd-find"), item("tools/brew/x", "x", "Error: no bottle")]);
+    assert_eq!(
+        next.tools,
+        vec![item("base/fd", "fd", "E: Unable to locate package fd-find"), item("tools/brew/x", "x", "Error: no bottle")]
+    );
 }
 
 /// machine-context.test.ts:191
@@ -169,7 +213,10 @@ struct Guest {
 impl Guest {
     fn new() -> Guest {
         let dir = tempfile::Builder::new().prefix("wsp-ctx-").tempdir().unwrap();
-        let roots = GuestRoots { etc: dir.path().join("etc").to_string_lossy().into_owned(), home: dir.path().join("home").to_string_lossy().into_owned() };
+        let roots = GuestRoots {
+            etc: dir.path().join("etc").to_string_lossy().into_owned(),
+            home: dir.path().join("home").to_string_lossy().into_owned(),
+        };
         std::fs::create_dir_all(&roots.etc).unwrap();
         std::fs::create_dir_all(&roots.home).unwrap();
         Guest { _dir: dir, roots, pid_files: vec![] }
@@ -268,7 +315,10 @@ async fn the_probe_prints_its_markers_the_kernel_and_the_disk_and_names_each_hoo
     assert_eq!(probe.conflicts.len(), 0);
     assert_eq!(probe.facts, None);
 
-    write(g.home().join(".codex/config.toml"), "model = \"x\"\n# developer_instructions = \"commented\"\n[mcp_servers.a]\ndeveloper_instructions = \"in a table\"\n");
+    write(
+        g.home().join(".codex/config.toml"),
+        "model = \"x\"\n# developer_instructions = \"commented\"\n[mcp_servers.a]\ndeveloper_instructions = \"in a table\"\n",
+    );
     write(g.home().join(".gemini/settings.json"), "{\n  // a comment\n  \"context\": { \"fileName\": \"CUSTOM.md\" }\n}\n");
     write(g.home().join(".pi/agent/APPEND_SYSTEM.md"), &format!("{CONTEXT_MARKER}\nours\n"));
     write(g.home().join(".hermes/config.yaml"), "model:\n  environment_hint: \"not the agent block\"\nagent:\n  environment_hint: \"\"\n");
@@ -312,7 +362,8 @@ async fn asks_modprobe_for_an_overlay_the_kernel_does_not_list_yet_and_says_no_w
     assert_eq!(overlay_on(format!("printf 'nodev\\toverlay\\n' >> {}", filesystems.display()), "nodev\tsysfs\n").await, "OVERLAY yes\n");
     assert_eq!(asked(), "overlay\n");
     assert_eq!(
-        overlay_on("echo \"modprobe: ERROR: could not insert 'overlay': Operation not permitted\" >&2; exit 1".into(), "nodev\tsysfs\n").await,
+        overlay_on("echo \"modprobe: ERROR: could not insert 'overlay': Operation not permitted\" >&2; exit 1".into(), "nodev\tsysfs\n")
+            .await,
         "OVERLAY no\n"
     );
     assert_eq!(asked(), "overlay\n");
