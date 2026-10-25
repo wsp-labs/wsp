@@ -126,8 +126,8 @@ pub enum DaemonEvent {
     #[serde(rename = "guest.message", rename_all = "camelCase")]
     GuestMessage {
         session: String,
-        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::wire::daemon_checks::unknown_value")]
-        message: Option<Value>,
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::kept::present")]
+        message: Option<crate::types::kept::Kept>,
         #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         machine_id: Option<String>,
     },

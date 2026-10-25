@@ -112,12 +112,14 @@ impl CloudCap {
 
 /// TS: packages/protocol/src/views/place.ts:437 at a3b870a6e.
 /// A zod union: the first variant that parses wins, in this order.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum PlaceCap {
     ComputerCap(ComputerCap),
     CloudCap(CloudCap),
 }
+
+crate::zod_union!(PlaceCap { ComputerCap(ComputerCap), CloudCap(CloudCap) });
 
 impl Check for PlaceCap {
     fn check(&self) -> Result<(), SchemaError> {
@@ -1023,14 +1025,14 @@ pub struct PlaceView {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub agent_versions: Option<IndexMap<String, String>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub sign_ins: Option<IndexMap<String, AgentSignInState>>,

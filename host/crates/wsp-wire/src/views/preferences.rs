@@ -84,14 +84,14 @@ pub struct PreferencesStored {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub terminal_zoom: Option<IndexMap<String, JsInt>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub access: Option<IndexMap<String, String>>,
@@ -100,35 +100,35 @@ pub struct PreferencesStored {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub project_look: Option<IndexMap<String, ProjectLook>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub project_icon: Option<IndexMap<String, ProjectIconHash>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub computer_look: Option<IndexMap<String, ComputerLook>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub recipe_look: Option<IndexMap<String, RecipeLook>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub threads_shut: Option<IndexMap<String, True>>,
@@ -155,7 +155,7 @@ pub struct PreferencesStored {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub keybindings: Option<IndexMap<String, String>>,
@@ -172,14 +172,14 @@ pub struct PreferencesStored {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub agent_defaults: Option<IndexMap<String, Fields<AgentDefaults>>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub project_defaults: Option<IndexMap<String, Fields<ProjectOverrides>>>,
@@ -790,15 +790,23 @@ pub struct Preferences {
     pub dark_theme: ThemeId,
     pub sidebar_mode: SidebarMode,
     pub terminal_size: TerminalSizeSource,
-    #[serde(serialize_with = "crate::types::check::js_record")]
+    #[serde(serialize_with = "crate::types::check::js_record", deserialize_with = "crate::types::kept::record")]
     pub terminal_zoom: IndexMap<String, JsInt>,
-    #[serde(serialize_with = "crate::types::check::js_record")]
+    #[serde(serialize_with = "crate::types::check::js_record", deserialize_with = "crate::types::kept::record")]
     pub access: IndexMap<String, String>,
-    #[serde(serialize_with = "crate::types::check::js_record")]
+    #[serde(serialize_with = "crate::types::check::js_record", deserialize_with = "crate::types::kept::record")]
     pub project_look: IndexMap<String, ProjectLook>,
-    #[serde(default = "default_preferences_project_icon", serialize_with = "crate::types::check::js_record")]
+    #[serde(
+        default = "default_preferences_project_icon",
+        serialize_with = "crate::types::check::js_record",
+        deserialize_with = "crate::types::kept::record"
+    )]
     pub project_icon: IndexMap<String, ProjectIconHash>,
-    #[serde(default = "default_preferences_computer_look", serialize_with = "crate::types::check::js_record")]
+    #[serde(
+        default = "default_preferences_computer_look",
+        serialize_with = "crate::types::check::js_record",
+        deserialize_with = "crate::types::kept::record"
+    )]
     pub computer_look: IndexMap<String, ComputerLook>,
     #[serde(default = "default_preferences_server_icons")]
     pub server_icons: bool,
@@ -813,15 +821,27 @@ pub struct Preferences {
     #[serde(default = "default_preferences_transparency")]
     pub transparency: bool,
     pub project_order: Vec<String>,
-    #[serde(default = "default_preferences_keybindings", serialize_with = "crate::types::check::js_record")]
+    #[serde(
+        default = "default_preferences_keybindings",
+        serialize_with = "crate::types::check::js_record",
+        deserialize_with = "crate::types::kept::record"
+    )]
     pub keybindings: IndexMap<String, String>,
     #[serde(default = "default_preferences_app_font")]
     pub app_font: String,
     #[serde(default = "default_preferences_code_font")]
     pub code_font: String,
-    #[serde(default = "default_preferences_agent_defaults", serialize_with = "crate::types::check::js_record")]
+    #[serde(
+        default = "default_preferences_agent_defaults",
+        serialize_with = "crate::types::check::js_record",
+        deserialize_with = "crate::types::kept::record"
+    )]
     pub agent_defaults: IndexMap<String, Fields<AgentDefaults>>,
-    #[serde(default = "default_preferences_project_defaults", serialize_with = "crate::types::check::js_record")]
+    #[serde(
+        default = "default_preferences_project_defaults",
+        serialize_with = "crate::types::check::js_record",
+        deserialize_with = "crate::types::kept::record"
+    )]
     pub project_defaults: IndexMap<String, Fields<ProjectOverrides>>,
     #[serde(default = "default_preferences_send_with")]
     pub send_with: SendKey,
@@ -861,14 +881,14 @@ pub struct Preferences {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub recipe_look: Option<IndexMap<String, RecipeLook>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub threads_shut: Option<IndexMap<String, True>>,
@@ -1177,14 +1197,14 @@ pub struct PreferencesPatch {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub terminal_zoom: Option<IndexMap<String, Option<JsInt>>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub access: Option<IndexMap<String, Option<String>>>,
@@ -1193,28 +1213,28 @@ pub struct PreferencesPatch {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub project_look: Option<IndexMap<String, Option<ProjectLook>>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub computer_look: Option<IndexMap<String, Option<ComputerLook>>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub recipe_look: Option<IndexMap<String, Option<RecipeLook>>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub threads_shut: Option<IndexMap<String, Option<True>>>,
@@ -1241,7 +1261,7 @@ pub struct PreferencesPatch {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub keybindings: Option<IndexMap<String, Option<String>>>,
@@ -1258,14 +1278,14 @@ pub struct PreferencesPatch {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub agent_defaults: Option<IndexMap<String, Option<AgentDefaultsPatch>>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub project_defaults: Option<IndexMap<String, Option<ProjectOverridesPatch>>>,

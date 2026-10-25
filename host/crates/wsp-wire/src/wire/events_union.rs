@@ -233,13 +233,7 @@ impl<E: Check> Check for Sequenced<E> {
         let mut body = obj.clone();
         body.shift_remove("seq");
         let mut out = crate::types::check::issues_of::<E>(&Value::Object(body));
-        if let Some(seq) = obj.get("seq") {
-            match crate::types::check::read_present::<JsInt>(seq) {
-                Ok(Some(n)) => out.extend(num_above(n.as_f64(), 0.0).err().map(|e| e.under("seq"))),
-                Ok(None) => {}
-                Err(es) => out.extend(es.into_iter().map(|e| e.under("seq"))),
-            }
-        }
+        crate::types::keys::opt_key_with::<JsInt>(obj, "seq", &mut out, |seq| seq.map_or(Ok(()), |n| num_above(n.as_f64(), 0.0)));
         Some(out)
     }
 }

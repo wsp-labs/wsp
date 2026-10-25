@@ -167,7 +167,7 @@ impl Check for CommitDraft {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ViewedMarks {
-    #[serde(serialize_with = "crate::types::check::js_record")]
+    #[serde(serialize_with = "crate::types::check::js_record", deserialize_with = "crate::types::kept::record")]
     pub viewed: IndexMap<String, String>,
 }
 

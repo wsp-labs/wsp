@@ -1335,7 +1335,7 @@ pub struct PlaceApplied {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub items: Option<IndexMap<String, String>>,
@@ -1604,12 +1604,14 @@ impl Check for RecipesChangedEvent {
 }
 
 /// A zod union: the first variant that parses wins, in this order.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum AddLineStep {
     PlaceAddStep(PlaceAddStep),
     PlaceSetupStep(PlaceSetupStep),
 }
+
+crate::zod_union!(AddLineStep { PlaceAddStep(PlaceAddStep), PlaceSetupStep(PlaceSetupStep) });
 
 impl Check for AddLineStep {
     fn check(&self) -> Result<(), SchemaError> {

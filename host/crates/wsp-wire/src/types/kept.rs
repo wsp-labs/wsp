@@ -92,16 +92,22 @@ pub fn present<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Kept>, D::Error
     Kept::deserialize(d).map(Some)
 }
 
+fn is_proto<K: Serialize>(key: &K) -> bool {
+    matches!(serde_json::to_value(key), Ok(Value::String(word)) if word == "__proto__")
+}
+
 /// A record zod reads: the key `__proto__` is read and not kept.
-pub fn record<'de, D: Deserializer<'de>, V: Deserialize<'de>>(d: D) -> Result<IndexMap<String, V>, D::Error> {
-    let mut map = IndexMap::<String, V>::deserialize(d)?;
-    map.shift_remove("__proto__");
+pub fn record<'de, D: Deserializer<'de>, K: Deserialize<'de> + Serialize + std::hash::Hash + Eq, V: Deserialize<'de>>(
+    d: D,
+) -> Result<IndexMap<K, V>, D::Error> {
+    let mut map = IndexMap::<K, V>::deserialize(d)?;
+    map.retain(|k, _| !is_proto(k));
     Ok(map)
 }
 
 /// An optional record zod reads: the key `__proto__` is read and not kept.
-pub fn record_opt<'de, D: Deserializer<'de>, V: Deserialize<'de>>(d: D) -> Result<Option<IndexMap<String, V>>, D::Error> {
-    let mut map = IndexMap::<String, V>::deserialize(d)?;
-    map.shift_remove("__proto__");
-    Ok(Some(map))
+pub fn record_opt<'de, D: Deserializer<'de>, K: Deserialize<'de> + Serialize + std::hash::Hash + Eq, V: Deserialize<'de>>(
+    d: D,
+) -> Result<Option<IndexMap<K, V>>, D::Error> {
+    record(d).map(Some)
 }

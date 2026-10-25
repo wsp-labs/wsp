@@ -524,19 +524,43 @@ impl Check for RecipeName {
 pub struct RecipeFile {
     #[serde(deserialize_with = "crate::types::check::trimmed")]
     pub name: String,
-    #[serde(default = "default_recipe_file_agents", serialize_with = "crate::types::check::js_record")]
+    #[serde(
+        default = "default_recipe_file_agents",
+        serialize_with = "crate::types::check::js_record",
+        deserialize_with = "crate::types::kept::record"
+    )]
     pub agents: IndexMap<RecipeName, RecipeFileAgentsValue>,
-    #[serde(default = "default_recipe_file_mcp", serialize_with = "crate::types::check::js_record")]
+    #[serde(
+        default = "default_recipe_file_mcp",
+        serialize_with = "crate::types::check::js_record",
+        deserialize_with = "crate::types::kept::record"
+    )]
     pub mcp: IndexMap<RecipeName, RecipeFileMcpValue>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub copy_keys: Option<True>,
-    #[serde(default = "default_recipe_file_clis", serialize_with = "crate::types::check::js_record")]
+    #[serde(
+        default = "default_recipe_file_clis",
+        serialize_with = "crate::types::check::js_record",
+        deserialize_with = "crate::types::kept::record"
+    )]
     pub clis: IndexMap<RecipeName, RecipeFileClisValue>,
-    #[serde(default = "default_recipe_file_skills", serialize_with = "crate::types::check::js_record")]
+    #[serde(
+        default = "default_recipe_file_skills",
+        serialize_with = "crate::types::check::js_record",
+        deserialize_with = "crate::types::kept::record"
+    )]
     pub skills: IndexMap<RecipeName, RecipeFileSkillsValue>,
-    #[serde(default = "default_recipe_file_plugins", serialize_with = "crate::types::check::js_record")]
+    #[serde(
+        default = "default_recipe_file_plugins",
+        serialize_with = "crate::types::check::js_record",
+        deserialize_with = "crate::types::kept::record"
+    )]
     pub plugins: IndexMap<RecipeName, RecipeFilePluginsValue>,
-    #[serde(default = "default_recipe_file_folders", serialize_with = "crate::types::check::js_record")]
+    #[serde(
+        default = "default_recipe_file_folders",
+        serialize_with = "crate::types::check::js_record",
+        deserialize_with = "crate::types::kept::record"
+    )]
     pub folders: IndexMap<RecipeName, RecipeFileFoldersValue>,
     #[serde(default = "default_recipe_file_configs")]
     pub configs: RecipeFileConfigs,

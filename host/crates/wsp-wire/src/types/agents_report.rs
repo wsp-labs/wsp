@@ -169,12 +169,14 @@ impl Check for AgentsTargetV1 {
 
 /// TS: packages/protocol/src/agents-report.ts:32 at a3b870a6e.
 /// A zod union: the first variant that parses wins, in this order.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum AgentsTarget {
     V0(AgentsTargetV0),
     V1(AgentsTargetV1),
 }
+
+crate::zod_union!(AgentsTarget { V0(AgentsTargetV0), V1(AgentsTargetV1) });
 
 impl Check for AgentsTarget {
     fn check(&self) -> Result<(), SchemaError> {
@@ -280,12 +282,14 @@ impl Check for SignInRoad {
 }
 
 /// A zod union: the first variant that parses wins, in this order.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum AgentRowSignIn {
     AgentSignInState(AgentSignInState),
     V1(UnknownLit),
 }
+
+crate::zod_union!(AgentRowSignIn { AgentSignInState(AgentSignInState), V1(UnknownLit) });
 
 impl Check for AgentRowSignIn {
     fn check(&self) -> Result<(), SchemaError> {
@@ -1272,7 +1276,7 @@ pub struct ServerAdd {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub env: Option<IndexMap<String, String>>,
@@ -1281,7 +1285,7 @@ pub struct ServerAdd {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub headers: Option<IndexMap<String, String>>,
@@ -1767,7 +1771,7 @@ pub struct SignInLine {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub env: Option<IndexMap<String, String>>,

@@ -493,7 +493,7 @@ pub enum SlatesEventEvent {
 #[serde(rename_all = "camelCase")]
 pub struct SlatesEventScope {
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
-    pub item: Option<Option<Value>>,
+    pub item: Option<Option<crate::types::kept::Kept>>,
     pub index: JsInt,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -518,15 +518,26 @@ pub enum ExecEvent {
         error: Option<String>,
     },
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeOkResponse {
     #[serde(deserialize_with = "crate::types::check::nullable")]
     pub id: Option<ReqId>,
     pub ok: True,
     /// zod passthrough: unknown keys kept, in the order read.
-    #[serde(flatten, serialize_with = "crate::types::check::js_record")]
+    #[serde(flatten, deserialize_with = "crate::types::kept::record")]
     pub rest: IndexMap<String, Value>,
+}
+
+impl Serialize for RuntimeOkResponse {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut entries = vec![
+            ("id".to_string(), serde_json::to_value(&self.id).map_err(serde::ser::Error::custom)?),
+            ("ok".to_string(), Value::Bool(true)),
+        ];
+        entries.extend(self.rest.iter().map(|(k, v)| (k.clone(), v.clone())));
+        crate::types::kept::serialize_object(&entries, s)
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -540,12 +551,14 @@ pub struct RuntimeErrorResponse {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub fix: Option<String>,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum RuntimeResponse {
     V0(RuntimeOkResponse),
     V1(RuntimeErrorResponse),
 }
+
+crate::zod_union!(RuntimeResponse { V0(RuntimeOkResponse), V1(RuntimeErrorResponse) });
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SessionInterruptOutcome {
     #[serde(rename = "accepted")]
@@ -3770,7 +3783,10 @@ pub fn request_secrets(frame: &Value) -> Vec<String> {
         .iter()
         .flat_map(|field| match map.get(*field) {
             Some(Value::String(s)) => vec![s.clone()],
-            Some(Value::Object(inner)) => inner.values().filter_map(|v| v.as_str().map(str::to_string)).collect(),
+            Some(Value::Object(inner)) => crate::types::kept::js_order(inner.iter().map(|(k, v)| (k.as_str(), v)))
+                .into_iter()
+                .filter_map(|(_, v)| v.as_str().map(str::to_string))
+                .collect(),
             Some(Value::Array(items)) => items.iter().filter_map(|v| v.as_str().map(str::to_string)).collect(),
             _ => Vec::new(),
         })

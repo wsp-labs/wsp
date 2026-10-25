@@ -564,7 +564,7 @@ impl Check for WorkspaceReviewEvent {
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceViewedEvent {
     pub workspace_id: String,
-    #[serde(serialize_with = "crate::types::check::js_record")]
+    #[serde(serialize_with = "crate::types::check::js_record", deserialize_with = "crate::types::kept::record")]
     pub viewed: IndexMap<String, String>,
 }
 

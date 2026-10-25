@@ -314,12 +314,14 @@ impl Check for ThreadPlacement {
 }
 
 /// A zod union: the first variant that parses wins, in this order.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum ThreadMarksPinned {
     V0(bool),
     V1(JsNumber),
 }
+
+crate::zod_union!(ThreadMarksPinned { V0(bool), V1(JsNumber) });
 
 impl Check for ThreadMarksPinned {
     fn check(&self) -> Result<(), SchemaError> {

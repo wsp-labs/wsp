@@ -148,7 +148,7 @@ pub enum RuntimeOp {
         id: ReqId,
         name: String,
         #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
-        file: Option<Option<Value>>,
+        file: Option<Option<crate::types::kept::Kept>>,
         from: Option<String>,
     },
     #[serde(rename = "recipes.remove", rename_all = "camelCase")]
@@ -169,7 +169,9 @@ pub enum RuntimeOp {
         name: String,
         cpu: Option<JsNumber>,
         mem_mb: Option<JsNumber>,
+        #[serde(default, serialize_with = "crate::types::check::js_record_opt", deserialize_with = "crate::types::kept::record_opt")]
         envs: Option<IndexMap<String, String>>,
+        #[serde(default, serialize_with = "crate::types::check::js_record_opt", deserialize_with = "crate::types::kept::record_opt")]
         labels: Option<IndexMap<String, String>>,
         agents: Option<WorkspacesCreateAgents>,
         #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
@@ -524,6 +526,7 @@ pub enum RuntimeOp {
         config_dir: Option<Option<String>>,
         #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
         args: Option<Option<Vec<String>>>,
+        #[serde(default, serialize_with = "crate::types::check::js_record_opt", deserialize_with = "crate::types::kept::record_opt")]
         env: Option<IndexMap<String, Option<String>>>,
     },
     #[serde(rename = "skills.search", rename_all = "camelCase")]
@@ -547,8 +550,10 @@ pub enum RuntimeOp {
         project: Option<bool>,
         command: Option<String>,
         args: Option<Vec<String>>,
+        #[serde(default, serialize_with = "crate::types::check::js_record_opt", deserialize_with = "crate::types::kept::record_opt")]
         env: Option<IndexMap<String, String>>,
         url: Option<String>,
+        #[serde(default, serialize_with = "crate::types::check::js_record_opt", deserialize_with = "crate::types::kept::record_opt")]
         headers: Option<IndexMap<String, String>>,
     },
     #[serde(rename = "servers.remove", rename_all = "camelCase")]
@@ -560,15 +565,33 @@ pub enum RuntimeOp {
     #[serde(rename = "init.get", rename_all = "camelCase")]
     InitGet { id: ReqId, on: Option<String> },
     #[serde(rename = "init.keys", rename_all = "camelCase")]
-    InitKeys { id: ReqId, provider: Option<String>, key: Option<String>, rows: Option<IndexMap<String, String>> },
+    InitKeys {
+        id: ReqId,
+        provider: Option<String>,
+        key: Option<String>,
+        #[serde(default, serialize_with = "crate::types::check::js_record_opt", deserialize_with = "crate::types::kept::record_opt")]
+        rows: Option<IndexMap<String, String>>,
+    },
     #[serde(rename = "init.start", rename_all = "camelCase")]
     InitStart { id: ReqId, road: InitRoad, harness: Option<String>, on: Option<String> },
     #[serde(rename = "init.answer", rename_all = "camelCase")]
-    InitAnswer { id: ReqId, screen: InitScreenId, ticks: Option<Vec<String>>, answers: Option<IndexMap<String, String>> },
+    InitAnswer {
+        id: ReqId,
+        screen: InitScreenId,
+        ticks: Option<Vec<String>>,
+        #[serde(default, serialize_with = "crate::types::check::js_record_opt", deserialize_with = "crate::types::kept::record_opt")]
+        answers: Option<IndexMap<String, String>>,
+    },
     #[serde(rename = "init.step", rename_all = "camelCase")]
     InitStep { id: ReqId, at: JsInt },
     #[serde(rename = "init.draft", rename_all = "camelCase")]
-    InitDraft { id: ReqId, at: String, ticks: Option<Vec<String>>, answers: Option<IndexMap<String, String>> },
+    InitDraft {
+        id: ReqId,
+        at: String,
+        ticks: Option<Vec<String>>,
+        #[serde(default, serialize_with = "crate::types::check::js_record_opt", deserialize_with = "crate::types::kept::record_opt")]
+        answers: Option<IndexMap<String, String>>,
+    },
     #[serde(rename = "init.retry", rename_all = "camelCase")]
     InitRetry { id: ReqId, tool: String },
     #[serde(rename = "init.build", rename_all = "camelCase")]
@@ -660,6 +683,7 @@ pub enum RuntimeOp {
         thread_id: Option<String>,
         turn_token: Option<String>,
         text: Option<String>,
+        #[serde(default, serialize_with = "crate::types::check::js_record_opt", deserialize_with = "crate::types::kept::record_opt")]
         document: Option<IndexMap<String, Value>>,
         check: Option<bool>,
         if_version: Option<JsInt>,

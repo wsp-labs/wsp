@@ -779,12 +779,14 @@ impl Check for ReviewDraftV1 {
 
 /// TS: packages/protocol/src/start.ts:266 at a3b870a6e.
 /// A zod union: the first variant that parses wins, in this order.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum ReviewDraft {
     V0(ReviewDraftV0),
     V1(ReviewDraftV1),
 }
+
+crate::zod_union!(ReviewDraft { V0(ReviewDraftV0), V1(ReviewDraftV1) });
 
 impl Check for ReviewDraft {
     fn check(&self) -> Result<(), SchemaError> {
