@@ -131,6 +131,10 @@ fn main() {
         body.save(out.join("body.png")).unwrap();
         file.save(out.join("file.png")).unwrap();
     }
+    if cfg!(target_os = "macos") {
+        println!("test markdown_stands_where_chromium_draws_it ... skipped: its Chromium references were taken on Linux");
+        return;
+    }
     let mut wrong = Vec::new();
 
     // Rows 1 and 2 drift a device pixel each from GPUI's whole-pixel line height (22 against 21.7): text placement.

@@ -262,7 +262,7 @@ mod tests {
         let lock = state.with_file_name("desktop").join("SingletonLock");
         std::os::unix::fs::symlink(format!("some-host-{}", std::process::id()), &lock).unwrap();
         assert!(todays_app_runs(&state));
-        let mut gone = std::process::Command::new("/bin/true").spawn().unwrap();
+        let mut gone = std::process::Command::new("true").spawn().unwrap();
         gone.wait().unwrap();
         fs::remove_file(&lock).unwrap();
         std::os::unix::fs::symlink(format!("some-host-{}", gone.id()), &lock).unwrap();
