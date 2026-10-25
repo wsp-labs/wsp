@@ -157,9 +157,8 @@ pub fn is_http_url(url: &str) -> bool {
         (None, Some(_)) => &url[7..],
         (None, None) => return false,
     };
-    // The url crate's IDNA table drops U+180E from a host where node refuses it, so it is refused here too.
-    let plain = !rest.is_empty() && rest.chars().all(|c| !is_js_space(c) && (c as u32) > 0x1f && c != '\x7f' && c != '\u{180e}');
-    plain && url::Url::parse(url).is_ok()
+    let plain = !rest.is_empty() && rest.chars().all(|c| !is_js_space(c) && (c as u32) > 0x1f && c != '\x7f');
+    plain && super::node_host::parse(url).is_some()
 }
 
 /// JavaScript's `\s`: the white space and line terminators its trim strips, which the regex above reads.
@@ -201,22 +200,17 @@ pub fn is_under_path(path: &str) -> bool {
 //   }
 // }
 pub fn host_of(url: &str) -> Option<String> {
-    let parsed = url::Url::parse(url).ok()?;
-    let host = parsed.host_str().unwrap_or_default();
-    Some(match parsed.port() {
-        Some(port) => format!("{host}:{port}"),
-        None => host.to_string(),
-    })
+    super::node_host::parse(url).map(|parsed| parsed.host())
 }
 
 /// The URL a sign-in's redirect_uri names, when the URL carries one and both parse.
-fn redirect_of(url: &str) -> Option<url::Url> {
-    let redirect = url::Url::parse(url).ok()?.query_pairs().find(|(key, _)| key == "redirect_uri")?.1.into_owned();
-    url::Url::parse(&redirect).ok()
+fn redirect_of(url: &str) -> Option<super::node_host::NodeUrl> {
+    let redirect = super::node_host::parse(url)?.query_param("redirect_uri")?;
+    super::node_host::parse(&redirect)
 }
 
-fn is_loopback(target: &url::Url) -> bool {
-    matches!(target.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"))
+fn is_loopback(target: &super::node_host::NodeUrl) -> bool {
+    matches!(target.hostname(), "localhost" | "127.0.0.1" | "[::1]")
 }
 // limits.ts:172
 // /** Whether a sign-in's page comes back to the machine that asked for it: its redirect_uri names a loopback host,
