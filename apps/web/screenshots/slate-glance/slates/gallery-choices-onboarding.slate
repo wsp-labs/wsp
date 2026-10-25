@@ -1,0 +1,24 @@
+<slate title="Your first week">
+  <value name="steps" start={[
+    {name: "Laptop and accounts", done: true, note: ""},
+    {name: "GitHub org invite", done: true, note: ""},
+    {name: "1Password vault", done: true, note: ""},
+    {name: "Editor set up", done: false, note: "Pick one below"},
+    {name: "Dev database running", done: false, note: "Pick where below"},
+    {name: "VPN profile", done: false, note: "IT ticket #8841, due today"}
+  ]} />
+  <value name="editor" start="" />
+  <value name="database" start="docker" />
+  <column>
+    <progress label="setup steps done" items={$steps} key={item.name} name={item.name} done={item.done} note={item.note} />
+    <choices id="editor" label="Editor" value={$editor} onChange={send("Editor", $editor)}>
+      <option value="vscode" label="VS Code" note="Team profile: extensions, formatter, debugger" />
+      <option value="webstorm" label="WebStorm" note="License takes about a day" />
+      <option value="neovim" label="Neovim" note="Bring your own config, lint runs in CI" />
+    </choices>
+    <choices id="database" label="Dev database" value={$database} onChange={send("Dev database", $database)}>
+      <option value="docker" label="Docker on your laptop" note="Seeded with 5,000 fake customers" />
+      <option value="shared" label="Shared staging copy" note="Real shapes, read-only, needs the VPN" />
+    </choices>
+  </column>
+</slate>

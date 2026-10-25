@@ -1,0 +1,22 @@
+<slate title="Vector search for help articles">
+  <value name="depth" start="" />
+  <value name="hosting" start="any" />
+  <column>
+    <facts>
+      <fact label="Question" value="Which vector store for 2.1M help articles?" />
+      <fact label="Budget" value="Under $600 a month" />
+    </facts>
+    <choices id="depth" label="How deep to dig" value={$depth}>
+      <option value="scan" label="Quick scan" note="Docs and pricing for 5 stores, about 15 min" />
+      <option value="bench" label="Benchmark the top 3" note="200k articles loaded locally, about 1 hour" />
+      <option value="proto" label="Prototype the winner" note="Search on staging behind a flag, half a day" />
+    </choices>
+    <choices id="hosting" label="Hosting" value={$hosting}>
+      <option value="any" label="Managed or self-hosted" />
+      <option value="self" label="Self-hosted only" note="Rules out Pinecone and Turbopuffer" />
+      <option value="postgres" label="Inside Postgres only" note="pgvector, no new service" />
+    </choices>
+    <button label="Start" variant="primary" held={$depth == "" ? "Pick how deep to dig" : ""}
+        onPress={send("Start the vector store research", $depth, $hosting)} />
+  </column>
+</slate>

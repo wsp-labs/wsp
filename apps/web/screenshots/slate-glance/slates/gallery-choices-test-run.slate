@@ -1,0 +1,19 @@
+<slate title="Tests for the date-fns 4 upgrade">
+  <value name="lastRun" start={1792875392704} />
+  <value name="scope" start="changed" />
+  <value name="onFail" start="all" />
+  <column>
+    <status value={concat("Last full run passed ", ago($lastRun))} tone="good" />
+    <choices id="scope" label="Which tests" value={$scope}>
+      <option value="changed" label="Changed packages" note="212 tests in 3 packages, about 1 min" />
+      <option value="full" label="Full suite" note="1,284 tests, about 6 min" />
+      <option value="e2e" label="Full suite and e2e" note="About 19 min, needs the staging database" />
+    </choices>
+    <choices id="on-fail" label="On a failure" value={$onFail}>
+      <option value="stop" label="Stop at the first" />
+      <option value="all" label="Run them all, then report" />
+      <option value="retry" label="Retry twice, then report" note="Hides flaky tests, flags them after" />
+    </choices>
+    <button label="Run tests" variant="primary" onPress={send("Run tests", $scope, $onFail)} />
+  </column>
+</slate>

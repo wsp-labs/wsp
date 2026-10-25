@@ -1,0 +1,20 @@
+<slate title="Can Graphile Worker take our peak?">
+  <value name="questions" start={[
+    {q: "2,000 jobs/s on our Postgres", done: true, note: ""},
+    {q: "Retries with backoff", done: true, note: ""},
+    {q: "Cron schedules", done: true, note: ""},
+    {q: "Job priority", done: true, note: ""},
+    {q: "Works behind PgBouncer", done: false, note: "Docs unclear, testing transaction mode now"},
+    {q: "Exactly once delivery", done: false, note: "Reading issue #312"},
+    {q: "A view of failed jobs", done: false, note: "Not started"}
+  ]} />
+  <value name="bench" start={[
+    {workers: "1 worker", jobs: 2400},
+    {workers: "4 workers", jobs: 9400},
+    {workers: "8 workers", jobs: 11100}
+  ]} />
+  <column>
+    <progress label="questions answered" items={$questions} key={item.q} name={item.q} done={item.done} note={item.note} />
+    <bars label="Jobs per second, staging Postgres 16" items={$bench} key={item.workers} name={item.workers} value={item.jobs} format="value" />
+  </column>
+</slate>

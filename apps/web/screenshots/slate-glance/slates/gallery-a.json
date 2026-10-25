@@ -1,0 +1,32 @@
+{
+  "decision": [
+    {"slate": "gallery-decision-pr-review", "scenario": "PR review", "caption": "The verdict on #482 as three answers, with the agent's pick and the bug behind it"},
+    {"slate": "gallery-decision-deploy", "scenario": "Deploy", "caption": "Canary errors and latency against baseline, then whether to promote, hold or roll back"},
+    {"slate": "gallery-decision-test-run", "scenario": "Test run", "caption": "1,278 of 1,284 passed, and the two calls the 6 failures need"},
+    {"slate": "gallery-decision-incident", "scenario": "Incident", "caption": "The 5xx spike on a chart and one press to roll back the deploy that caused it"},
+    {"slate": "gallery-decision-research", "scenario": "Research", "caption": "Measured throughput per queue library, then which one to adopt"},
+    {"slate": "gallery-decision-onboarding", "scenario": "Onboarding", "caption": "Setup steps still open, then which first ticket the new hire takes"},
+    {"slate": "gallery-decision-cost-watch", "scenario": "Cost watch", "caption": "Spend heading past budget, and whether to move a job to a cheaper model"},
+    {"slate": "gallery-decision-refactor", "scenario": "Refactor", "caption": "Modules left to move, one question answered, one still open"}
+  ],
+  "choices": [
+    {"slate": "gallery-choices-pr-review", "scenario": "PR review", "caption": "The merge method for #482, each with what lands on main"},
+    {"slate": "gallery-choices-deploy", "scenario": "Deploy", "caption": "Where v5.3.0 goes and how it rolls out; Deploy waits on the first pick"},
+    {"slate": "gallery-choices-test-run", "scenario": "Test run", "caption": "Which tests to run and what to do on a failure, with time costs"},
+    {"slate": "gallery-choices-incident", "scenario": "Incident", "caption": "What the status page says, and who gets emailed by each level"},
+    {"slate": "gallery-choices-research", "scenario": "Research", "caption": "How deep to dig and which hosting counts, before the research starts"},
+    {"slate": "gallery-choices-onboarding", "scenario": "Onboarding", "caption": "The new hire's editor and dev database, beside the setup steps they finish"},
+    {"slate": "gallery-choices-cost-watch", "scenario": "Cost watch", "caption": "When a spend alert fires and where it goes"},
+    {"slate": "gallery-choices-refactor", "scenario": "Refactor", "caption": "How the billing.ts split lands: stacked PRs, one PR or a facade"}
+  ],
+  "progress": [
+    {"slate": "gallery-progress-pr-review", "scenario": "PR review", "caption": "9 of 12 review threads resolved, the 3 open ones by file and line"},
+    {"slate": "gallery-progress-deploy", "scenario": "Deploy", "caption": "4 of 7 regions on v2.14.0, the rolling and queued ones named"},
+    {"slate": "gallery-progress-test-run", "scenario": "Test run", "caption": "12 of 16 packages passed, with what failed, what runs and what waits"},
+    {"slate": "gallery-progress-incident", "scenario": "Incident", "caption": "The 5xx rate easing as the runbook reaches its roll back step"},
+    {"slate": "gallery-progress-research", "scenario": "Research", "caption": "4 of 7 questions answered, the open ones with where the answer stands"},
+    {"slate": "gallery-progress-onboarding", "scenario": "Onboarding", "caption": "6 of 10 first-week steps done, one waiting on the person's approval"},
+    {"slate": "gallery-progress-cost-watch", "scenario": "Cost watch", "caption": "9 of 12 projects within budget, the 3 over with their overspend and cause"},
+    {"slate": "gallery-progress-refactor", "scenario": "Refactor", "caption": "31 of 38 files on the new logger, the hard ones first"}
+  ]
+}

@@ -1,0 +1,20 @@
+<slate title="PR #482 review">
+  <value name="threads" start={[
+    {file: "limiter.ts:18", done: true, note: ""},
+    {file: "limiter.ts:44", done: true, note: ""},
+    {file: "limiter.ts:97", done: false, note: "Retry on timeout can charge twice, fix pushed"},
+    {file: "redis.ts:12", done: false, note: "Key has no TTL, author asked why"},
+    {file: "routes.ts:31", done: true, note: ""},
+    {file: "routes.ts:58", done: true, note: ""},
+    {file: "routes.ts:102", done: true, note: ""},
+    {file: "config.ts:9", done: true, note: ""},
+    {file: "limiter.test.ts", done: false, note: "No test for the burst limit yet"},
+    {file: "README.md", done: true, note: ""},
+    {file: "openapi.yaml", done: true, note: ""},
+    {file: "CHANGELOG.md", done: true, note: ""}
+  ]} />
+  <column>
+    <status tone="good">Checks passed</status>
+    <progress label="review threads resolved" items={$threads} key={item.file} name={item.file} done={item.done} note={item.note} />
+  </column>
+</slate>

@@ -1,0 +1,26 @@
+<slate title="AWS spend, October">
+  <value name="spent" start={18240} />
+  <value name="budget" start={22000} />
+  <value name="forecast" start={22900} />
+  <value name="projects" start={[
+    {name: "api", done: true, note: ""},
+    {name: "web", done: true, note: ""},
+    {name: "worker", done: true, note: ""},
+    {name: "search-indexer", done: false, note: "$1,240 of $900, reindex ran twice"},
+    {name: "data-warehouse", done: true, note: ""},
+    {name: "ml-training", done: false, note: "$4,810 of $4,000, 3 GPUs idle since Oct 18"},
+    {name: "analytics", done: true, note: ""},
+    {name: "staging", done: false, note: "$612 of $500, 9 preview envs left up"},
+    {name: "email", done: true, note: ""},
+    {name: "auth", done: true, note: ""},
+    {name: "logs", done: true, note: ""},
+    {name: "backups", done: true, note: ""}
+  ]} />
+  <column>
+    <stats>
+      <stat label="Spent" value={$spent} max={$budget} format="usd" window="Oct 1 to 25, of $22,000" />
+      <stat label="Forecast" value={$forecast} format="usd" window="by Oct 31 at this pace" tone="warning" />
+    </stats>
+    <progress label="projects within budget" items={$projects} key={item.name} name={item.name} done={item.done} note={item.note} />
+  </column>
+</slate>
