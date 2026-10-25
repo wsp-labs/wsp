@@ -22,6 +22,13 @@ packages/protocol/src/wire at a3b870a6e, 5,356 TS lines, cut into ten units. Eac
 
 The TS module's own tests: 188 `it` blocks across 23 protocol test files touch a wire export (some of them only a constant list or another module's export, which are skipped and named in each porter's report); the TS has no test file of its own for the wire folder.
 
+## Layout
+
+A file that would pass 1,500 lines is a folder: its head (docs, imports) is `mod.rs`, its sections are child modules, and
+`mod.rs` re-exports them, so `wsp_wire::wire::runtime::X` and the like are unchanged. `RuntimeOp`'s check and pass are free
+functions in `src/wire/runtime/` (`runtime_op_check`, `runtime_op_pass_a`, `runtime_op_pass_b`). Every schema pass is one
+call per key from `src/types/keys.rs`. The spec's `src/wire/runtime.rs`-style paths name the folder now.
+
 ## Rules pinned, and the test that pins each
 
 Null, absent and empty:
