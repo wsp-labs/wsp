@@ -37,7 +37,7 @@ fn test_path(module: &str, name: &str) -> String {
     }
 }
 
-/// In the child (the variable names this test), runs `body` on a multi-thread runtime. In the parent, starts the child
+/// In the child (the variable names this test), runs `body` on a current-thread runtime inside a `LocalSet`. In the parent, starts the child
 /// as the leader of a new process group with `env` added, waits up to `timeout_ms`, kills the child's group, and fails
 /// when the child failed or ran out of time.
 pub fn run<F, Fut>(module: &str, name: &str, timeout_ms: u64, env: &[(&str, &str)], body: F)
@@ -47,8 +47,8 @@ where
 {
     let path = test_path(module, name);
     if std::env::var(ENV).ok().as_deref() == Some(path.as_str()) {
-        let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().expect("a runtime");
-        rt.block_on(body());
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime");
+        tokio::task::LocalSet::new().block_on(&rt, body());
         return;
     }
     let _one = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());

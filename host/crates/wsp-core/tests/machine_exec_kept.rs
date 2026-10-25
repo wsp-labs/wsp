@@ -7,8 +7,8 @@ mod support;
 
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
-use futures::stream::BoxStream;
+use futures::future::LocalBoxFuture;
+use futures::stream::LocalBoxStream;
 use futures::{FutureExt, StreamExt};
 use wsp_adapters::port::{keep_run, AttachRunOptions, Attached, ExecFailure, ExecOptions as Launch, ExecStream, ExecStreamFactory, WriteOutcome};
 use wsp_core::machine_exec::{machine_exec_stream, MachineExecOptions, SleepFn};
@@ -17,7 +17,7 @@ use wsp_engine::Machine;
 use support::guest::LocalGuest;
 use support::strays;
 
-type Lines = BoxStream<'static, Result<String, ExecFailure>>;
+type Lines = LocalBoxStream<'static, Result<String, ExecFailure>>;
 
 /// Ends every run a case started, closed or not, with its whole group: a case that failed or timed out before its
 /// close leaves its agent and input pump waiting on a message that never comes.
@@ -41,7 +41,7 @@ fn options(poll_ms: u64, run_dir: &str) -> MachineExecOptions {
     MachineExecOptions { poll_ms: Some(poll_ms), run_dir: Some(run_dir.to_string()), ..Default::default() }
 }
 
-fn sleep_fn(f: impl Fn(u64) -> BoxFuture<'static, ()> + Send + Sync + 'static) -> SleepFn {
+fn sleep_fn(f: impl Fn(u64) -> LocalBoxFuture<'static, ()> + 'static) -> SleepFn {
     Arc::new(f)
 }
 
