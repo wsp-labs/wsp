@@ -19,6 +19,8 @@ const E = "../../../../packages/engine/src";
 const ssh = await import(`${E}/ssh-backend.ts`);
 const ex = await import(`${E}/exec-detached.ts`);
 const link = await import(`${E}/link-backend.ts`);
+const place = await import(`${E}/place-machine.ts`);
+const P = await import("../../../../packages/protocol/src/index.ts");
 
 const out = fileURLToPath(new URL("../tests/fixtures/scenes/", import.meta.url));
 const tick = (): Promise<void> => new Promise(r => setTimeout(r, 5));
@@ -171,8 +173,37 @@ it("roads scenes", async () => {
     await linkScene("a_route_on_an_ipv6_loopback_reads_its_port", "http://[::1]:8080/x", async (_b, m) => m.previewUrl(3000)),
     await linkScene("a_route_the_url_reader_refuses_is_invalid_url", "http://h:99999", async (_b, m) => m.previewUrl(3000)),
   ];
+  // The place's frames: the daemon's exec op recorded as sent, a part that answers exit 1 where the scene asks.
+  const placeScene = async (name: string, act: (m: { plain: any; folder: any }) => Promise<unknown>, o: { partFails?: boolean } = {}): Promise<Record<string, unknown>> => {
+    const frames: unknown[] = [];
+    const road = {
+      request: async (op: string, params: Record<string, unknown> = {}, opts: Record<string, unknown> = {}) => {
+        frames.push({ op, params, opts });
+        const cmd = String(params["cmd"] ?? "");
+        if (cmd.startsWith("uname -s")) return { exitCode: 0, stdout: "Linux\n1000\nmaya\nmaya\n1000\n/home/maya\n/usr/bin:/bin\n", stderr: "", truncated: false };
+        if (cmd.includes("-ilc ")) return { exitCode: 0, stdout: "WSP_PATH_BEGIN/home/maya/.local/bin:/usr/bin:/binWSP_PATH_END\n", stderr: "", truncated: false };
+        if (o.partFails === true && cmd.includes(".part0")) return { exitCode: 1, stdout: "", stderr: "disk full", truncated: false };
+        return { exitCode: 0, stdout: "", stderr: "", truncated: false };
+      },
+    };
+    const plain = new place.PlaceMachine(road as never, { id: "spoo", home: "/root" });
+    const folder = new place.PlaceFolderMachine(road as never, { id: "spoo", home: "/home/maya", path: "/usr/bin:/bin" });
+    let answer: unknown = null;
+    let err: string | null = null;
+    try {
+      answer = (await act({ plain, folder })) ?? null;
+    } catch (e) {
+      err = (e as Error).message;
+    }
+    return { name, partFails: o.partFails === true, frames, answer, err };
+  };
+  const places = [
+    await placeScene("no_bytes_are_one_part_with_an_empty_stdin", m => m.plain.putBytes("/root/empty", new Uint8Array())),
+    await placeScene("a_folder_machines_parts_join_and_cleanup_ride_as_the_login", m => m.folder.putBytes("/home/maya/f", new Uint8Array([1, 2])), { partFails: true }),
+    await placeScene("an_empty_path_first_is_a_path_first", m => m.folder.inCgroup(P.threadCgroup("thread-1"), "").exec("echo hi")),
+  ];
   mkdirSync(out, { recursive: true });
-  // A string past 1,000 units is written as its length and its two ends, which tests/roads_scenes.rs reads the same way.
-  const short = (_k: string, v: unknown): unknown => (typeof v === "string" && v.length > 1000 ? { len: v.length, head: v.slice(0, 20), tail: v.slice(-20) } : v);
-  writeFileSync(join(out, "roads.json"), `${JSON.stringify({ forwards, runs, links }, short, 1)}\n`);
+  // A string past 10,000 units is written as its length and its two ends, which tests/roads_scenes.rs reads the same way.
+  const short = (_k: string, v: unknown): unknown => (typeof v === "string" && v.length > 10000 ? { len: v.length, head: v.slice(0, 20), tail: v.slice(-20) } : v);
+  writeFileSync(join(out, "roads.json"), `${JSON.stringify({ forwards, runs, links, places }, short, 1)}\n`);
 });
