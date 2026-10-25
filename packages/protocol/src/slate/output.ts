@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// A command's output read summary first (#2468): the tally a test runner prints at its end, then the lines that say
+// A command's output read summary first: the tally a test runner prints at its end, then the lines that say
 // what failed, so the output piece and the sketch lead with those and fold the raw lines. One reading the web app, the
 // GPUI app and the sketch share; a runner it does not know still folds, and leads with its last line.
 
@@ -25,8 +25,27 @@ const WORD: Readonly<Record<string, Count>> = {
 const TALLY = /(\d[\d,]*) (passed|passing|failed|failing|failures|errors?|skipped|pending|ignored|todo)\b/gi;
 /** cargo prints one per test binary, so a run of several crates sums them. */
 const CARGO = /^\s*test result: \w+\. /;
-/** Lines that name a failure in vitest, jest, mocha, pytest, cargo, go, tsc, eslint and plain shells. */
-const MATTERS = /^\s*(?:FAIL\b|FAILED\b|ERROR\b|--- FAIL|[×✗✖❌]|\d+\) )|\.\.\. FAILED$|\berror(?:\[\w+\])?:|\bpanicked at\b|\bAssertionError\b|^Traceback \(most recent call last\)|\bnpm ERR!/;
+/** Lines that name a failure in vitest, jest, mocha, pytest, cargo, go, tsc, eslint and plain shells, an exception's
+ * class line among them (AssertionError:, TypeError:, Error:). */
+const FAILURE = [
+  "^\\s*(?:FAIL\\b|FAILED\\b|ERROR\\b|--- FAIL|[×✗✖❌]|\\d+\\) )", "\\.\\.\\. FAILED$", "\\berror(?:\\[\\w+\\])?:",
+  "^\\s*[\\w.]*(?:Error|Exception)(?:\\[\\w+\\])?:", "\\bpanicked at\\b", "\\bAssertionError\\b", "^Traceback \\(most recent call last\\)", "\\bnpm ERR!",
+];
+const MATTERS = new RegExp(FAILURE.join("|"), "m");
+/** Any line a process prints rather than a person writes: a failure line, an exit code, a runner's tally, file verdict
+ * or test mark with its time, a stack frame, a warning head, a terminal colour. The glance checks warn where one is
+ * drawn outside an <output>. */
+export const SLATE_LOG_LINE = new RegExp([
+  ...FAILURE, "\\b[Ee]xit(?:ed)?(?: with)? code \\d", "\\btest result:", "\\b\\d+ passed; \\d+ failed", "^\\s*[Ww]arning(?:\\[|:)",
+  "^\\s*Test Files {2}", "^\\s*Tests:? {2,}\\d", "^=+ .*\\bin \\d+(?:\\.\\d+)?s =+$", "^\\s*PASS {1,2}\\S+\\.\\w+",
+  "^\\s*--- PASS:", "^ok {2,}\\S+\\s+\\d", "^\\s*[✓✔] .+ \\d+ ?ms$", "^\\s+at .+:\\d+:\\d+\\)?$", "\u001b\\[[0-9;]*m",
+].join("|"), "m");
+/** vitest names a failed test twice, by its mark in the tree and on its FAIL line after: the FAIL line, with the file,
+ * is the one kept. */
+const FAIL_NAMES = /^\s*FAIL\s+(?:\|[^|]+\|\s+)?\S+ > (.+)$/;
+const MARK_NAMES = /^\s*[×✗✖]\s+(.+?)(?:\s+\d+(?:\.\d+)?m?s)?$/;
+const LINE_CHARS = 160;
+const cut = (line: string): string => (line.length > LINE_CHARS ? `${line.slice(0, LINE_CHARS - 1)}…` : line);
 const ANSI = new RegExp("\u001b\\[[0-9;]*m", "g");
 
 function tally(line: string): Partial<Record<Count, number>> {
@@ -53,14 +72,18 @@ export function slateRunSummary(lines: readonly string[]): SlateRunSummary {
     while (start > 0 && Object.keys(tally(clean[start - 1]!)).length > 0) start--;
     for (let i = start; i <= end && end >= 0; i++) Object.assign(counts, tally(clean[i]!));
   }
+  const failNamed = new Set(clean.map(l => FAIL_NAMES.exec(l)?.[1]).filter(n => n !== undefined));
   const matters: string[] = [];
   for (const line of clean) {
-    const said = line.trim();
+    const said = cut(line.trim());
     if (said === "" || !MATTERS.test(line) || matters.includes(said) || Object.keys(tally(line)).length > 0) continue;
-    matters.push(said.length > 160 ? `${said.slice(0, 159)}…` : said);
+    const mark = MARK_NAMES.exec(line)?.[1];
+    if (mark !== undefined && failNamed.has(mark)) continue;
+    matters.push(said);
     if (matters.length === SLATE_SUMMARY_LINES) break;
   }
-  const last = [...clean].reverse().find(l => l.trim() !== "")?.trim();
+  const end = [...clean].reverse().find(l => l.trim() !== "")?.trim();
+  const last = end === undefined ? undefined : cut(end);
   return { ...counts, matters, ...(last !== undefined ? { last } : {}) };
 }
 

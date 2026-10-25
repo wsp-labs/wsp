@@ -1,0 +1,112 @@
+<slate title="Monorepo tests">
+  <file name="suite.py">{`import glob, json, os, time
+
+d = os.environ.get("RESULTS", "/tmp/monorepo-tests")
+meta = json.load(open(os.path.join(d, "run.json")))
+now = int(time.time() * 1000)
+
+def alive(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+def mtime_ms(p):
+    return int(os.path.getmtime(p) * 1000)
+
+packages, failures = [], []
+passed = failed = skipped = 0
+for name in meta["packages"]:
+    started = os.path.join(d, name + ".started")
+    result = os.path.join(d, name + ".json")
+    row = {"name": name, "state": "waiting", "start": None, "end": None, "tests": 0, "failed": 0}
+    if os.path.exists(started):
+        row["state"] = "running"
+        row["start"] = mtime_ms(started)
+    if os.path.exists(result):
+        r = json.load(open(result))
+        row["end"] = mtime_ms(result)
+        row["tests"] = r["numTotalTests"]
+        row["failed"] = r["numFailedTests"]
+        row["state"] = "failed" if r["numFailedTests"] else "done"
+        passed += r["numPassedTests"]
+        failed += r["numFailedTests"]
+        skipped += r["numPendingTests"] + r.get("numTodoTests", 0)
+        for f in r["testResults"]:
+            for a in f["assertionResults"]:
+                if a["status"] != "failed":
+                    continue
+                msg = (a.get("failureMessages") or [""])[0].strip().splitlines()
+                failures.append({
+                    "id": name + "::" + a["fullName"],
+                    "package": name,
+                    "test": a["title"],
+                    "file": os.path.relpath(f["name"], meta["root"]),
+                    "error": (msg[0] if msg else "")[:120],
+                })
+    packages.append(row)
+
+finished = all(p["state"] in ("done", "failed") for p in packages)
+running = alive(meta["pid"])
+state = "finished" if finished else "running" if running else "stopped"
+ended = max((p["end"] for p in packages if p["end"]), default=now) if finished else now
+
+print(json.dumps({
+    "state": state,
+    "startedAt": meta["startedAt"],
+    "elapsedMs": ended - meta["startedAt"],
+    "passed": passed,
+    "failed": failed,
+    "skipped": skipped,
+    "packages": packages,
+    "failures": failures,
+}))
+`}</file>
+  <run name="suite" cmd='python3 "$SLATE_DIR/suite.py"' env={{ RESULTS: "/tmp/monorepo-tests" }} every={15} timeout={20} />
+  <value name="causes" start={[
+    { title: "Billing dates assume UTC but this machine runs in IST", state: "done", note: "Explains all 6 billing failures" },
+    { title: "Button snapshots predate the padding change", state: "done", note: "3 ui failures; update snapshots, not a bug" },
+    { title: "Auth expiry tests use real timers", state: "working", note: "Trying fake timers on both" }
+  ]} />
+  <value name="cause" start={{
+    "billing::issues an invoice dated the last day of the month": "Assumes UTC; local day differs",
+    "billing::rolls a monthly plan over at midnight": "Assumes UTC; local day differs",
+    "billing::prorates an upgrade on the renewal day": "Assumes UTC; local day differs",
+    "billing::groups usage by calendar day": "Assumes UTC; local day differs",
+    "billing::shows the due date on the receipt": "Assumes UTC; local day differs",
+    "billing::skips a trial that ends today": "Assumes UTC; local day differs",
+    "ui::Button renders the primary variant": "Stale snapshot after padding change",
+    "ui::Button renders the quiet variant": "Stale snapshot after padding change",
+    "ui::Toolbar lays out three buttons": "Stale snapshot after padding change"
+  }} />
+  <column>
+    <empty when={$suite.exit != 0} title="Waiting for the suite">The test run has not written its results folder yet.</empty>
+    <row when={$suite.exit == 0}>
+      <status tone={$suite.json.state == 'running' ? 'info' : $suite.json.state == 'finished' ? ($suite.json.failed > 0 ? 'bad' : 'good') : 'warning'}>{$suite.json.state == 'running' ? 'Running' : $suite.json.state == 'finished' ? 'Finished' : 'Stopped early'}</status>
+      <text tone="muted">started {ago($suite.json.startedAt)}</text>
+    </row>
+    <stats when={$suite.exit == 0}>
+      <stat label="Passed" value={$suite.json.passed} format="integer" window="this run" tone="good" />
+      <stat label="Failed" value={$suite.json.failed} format="integer" window="this run" tone={$suite.json.failed > 0 ? 'bad' : 'good'} />
+      <stat label="Skipped" value={$suite.json.skipped} format="integer" window="this run" />
+      <stat label="Run time" value={$suite.json.elapsedMs} format="duration" window="so far" />
+    </stats>
+    <progress when={$suite.exit == 0} label="packages finished" items={$suite.json.packages} key={item.name} name={item.name} done={item.state == 'done' or item.state == 'failed'} note={item.state == 'running' ? concat('running for ', duration(time.now - item.start)) : 'waiting'} />
+    <section title="Failing tests" when={$suite.exit == 0}>
+      <table id="failures" items={$suite.json.failures} key={item.id} empty="Nothing has failed yet">
+        <col title="Test" value={item.test} width="fill" />
+        <col title="Package" value={item.package} mono width="fit" />
+        <col title="Error" value={short(item.error, 60)} mono tone="bad" />
+        <col title="Cause" value={orElse($cause[item.id], 'Not looked at yet')} tone={exists($cause[item.id]) ? 'default' : 'muted'} />
+        <action label="Look at this one next" when={!exists($cause[item.id])} onPress={send("Look at this failing test next.", item.id, item.file, item.error)} />
+      </table>
+    </section>
+    <section title="Why they fail">
+      <checklist id="why" items={$causes} key={item.title} title={item.title} done={item.state == 'done'} state={item.state} note={item.note} empty="No causes found yet" />
+    </section>
+    <section title="Package timings" collapsible open={false} when={$suite.exit == 0}>
+      <timeline label="Packages" items={$suite.json.packages} name={item.name} start={item.start} end={item.end} state={item.state} />
+    </section>
+  </column>
+</slate>
