@@ -163,7 +163,7 @@ still runs, and answers steer, approval, stop-one-subagent, interrupt and kept.
   and `session.end` reads `sawResult: true`. This road neither releases the keeper nor writes `thread/unsubscribe`.
 - **CT10.** A launched start's `model` rides the thread line only; `session.start` and the result name the server's model
   (`gpt-5.6-sol` where the start asked `my-model`). The cwd is the start's.
-- **CT11.** Failure words said earlier beat a completed turn's own error: a `Missing environment variable: \`FOO_KEY\`` error, then
+- **CT11.** Failure words said earlier beat a completed turn's own error: an error `Missing environment variable: <FOO_KEY in backticks>`, then
   `turn/completed` failed with `other boom`, ends `{failed, durationMs, error: <missing env line for FOO_KEY>}`.
 - **CT12.** A second `turn/started` with another id replaces the turn id with no new anchor: a steer then names `expectedTurnId: tt2`,
   the first turn's `turn/completed` is ignored, and the anchors said are `[tt1]`.
@@ -193,9 +193,29 @@ still runs, and answers steer, approval, stop-one-subagent, interrupt and kept.
 - **CT16.** A stop while `prompt_after` is pending: no turn id, so the run ends at once; no `turn/start` is ever written; events
   `session.start` (unprompted), `turn.done {interrupted}`, `session.end`.
 
+## Recorded sessions
+The record is the fixtures, codex-cli's own output: `app-server-turn.jsonl` (0.155.1, a signed-in turn that asked for a command, was
+allowed and took a steer), `app-server-subagent.jsonl` (0.155.1, a lead that spawned an agent and ended first), `auto-compaction.jsonl`
+(0.155.1, a compaction the server ran at a turn's start), `no-login-app-server.jsonl` (0.155.1, an empty CODEX_HOME). Replayed by:
+- app-server-turn: `codex_turn.rs` `reads_a_recorded_turn_session_start_unprompted_as_the_thread_opens_and_again_onc`,
+  `launches_the_app_server_in_the_folder_under_codex_home_seeding_initialize_and_th`, `resumes_a_thread_by_the_id_the_row_holds_the_registry_key_is_that_id_and_the_see`,
+  `takes_its_prompt_late_the_server_starts_and_opens_the_thread_at_once_and_the_tur`, `reads_the_plan_the_server_updates_as_the_turn_s_steps_the_step_under_way_as_work`,
+  `images_ride_the_turn_as_local_paths_and_one_with_no_path_on_the_machine_is_refus`, `a_turn_s_launch_turns_off_each_server_it_is_told_to_leave_out_and_says_it_leaves`,
+  `a_turn_on_a_machine_whose_credentials_the_host_keeps_writes_its_placeholder_logi`; `codex_turn_more.rs` `re_opens_the_run_with_its_channel_replays_the_log_and_writes_nothing_in_answer_t`,
+  `a_server_that_exits_on_eof_is_left_alone`, `an_interrupt_after_the_process_is_gone_sends_nothing_and_ends_nothing`,
+  `a_stop_before_the_prompt_was_handed_over_sends_no_turn_then_or_once_the_prompt_i`.
+- app-server-subagent: `holds_the_lead_s_reply_until_the_child_s_own_turn_completes_and_says_the_child_s`.
+- auto-compaction: `says_a_compaction_the_server_ran_by_itself_at_a_turn_s_start_with_what_the_threa`.
+- no-login-app-server: `a_turn_with_no_sign_in_as_codex_cli_0_155_1_printed_it_is_the_sign_in_line_with`.
+- `app-server-threads-0.162.1.json` (0.162.1's thread list) is replayed by codex_conversations, not a turn.
+No recording yet of: a turn on 0.162.1 or later (turns are 0.155.1), a lost session (`no rollout found`), a reconnect run and its
+stall, an interrupt mid-command, a file-change approval, a rate-limit update or a usage-limited turn (rate-limit lines were stripped
+from the recordings), MCP and web-search items, a 401 under a key, `thread/turns/list` pages, `thread/revert` and `thread/fork`, a
+side question, a kept server's second turn, and an attach replay with `from` above 0. Every case for these is hand-written.
+
 ## Tests (tests/codex_turn.rs 42, codex_turn_more.rs 41, codex_turn_rules.rs 7 written for this port; TS 84 of adapter.test.ts)
 - Rules 1, 21: `codex_turn_rules.rs` `a_turn_joins_the_registry_under_its_local_id_and_a_side_question_never_does`,
-  `a_kept_servers_next_turn_resumes_the_thread_with_the_first_turns_options_then_sta`; `codex_turn.rs` `resumes_a_thread_by_the_id_the_row_holds_the_registry_key_is_that_id_and_the_see`.
+  `a_kept_servers_next_turn_resumes_the_thread_with_the_first_turns_options_then_st`; `codex_turn.rs` `resumes_a_thread_by_the_id_the_row_holds_the_registry_key_is_that_id_and_the_see`.
 - Rules 2, 8 (announce, notes): `reads_a_recorded_turn_session_start_unprompted_as_the_thread_opens_and_again_onc`;
   `codex_turn_rules.rs` `notes_said_before_the_thread_is_announced_follow_its_session_start_in_order`.
 - Rule 3: `a_process_that_dies_mid_turn_fails_under_the_thread_s_id_with_its_last_stderr_li`. Rule 4 and 12: `codex_turn_more.rs`

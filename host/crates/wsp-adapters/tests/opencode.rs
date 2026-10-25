@@ -602,3 +602,172 @@ mod rules_this_port_pins {
         assert_eq!(texts, vec!["the reply".to_string()]);
     }
 }
+
+/// Rules O1 to O10 of spec/opencode.md, "Rules added for the port", each value printed by the TS at 65f6b89c7.
+mod rules_added {
+    use super::*;
+    use wsp_adapters::opencode::catalog::parse_catalog_probe;
+
+    const ROAD_WORDS: &str = SIGN_IN_ROAD;
+
+    fn stop(tokens: Option<Value>, reason: &str) -> String {
+        let mut part = json!({"type": "step-finish", "reason": reason, "cost": 0});
+        if let Some(t) = tokens {
+            part["tokens"] = t;
+        }
+        line("step_finish", json!({ "part": part }))
+    }
+
+    async fn run(lines: Vec<String>, opts: ScriptOpts, resume: Option<&str>) -> (TurnResult, Events, OpenCodeSession, OpenCodeAdapter) {
+        let events = Events::default();
+        let exec = scripted_exec(lines, opts, RUN_HANDLE);
+        let adapter = adapter_over(&exec, Extra { result_exit_ms: Some(5), interrupt_grace_ms: Some(5) });
+        let session = start(&adapter, HarnessStartOptions { resume: resume.map(String::from), ..turn_start("go", &events) });
+        (session.finished().await, events, session, adapter)
+    }
+
+    fn deltas(events: &Events) -> Vec<TurnDelta> {
+        events.all().into_iter().filter_map(|e| match e { AdapterEvent::TurnDelta(d) => Some(d), _ => None }).collect()
+    }
+
+    fn zero_tokens(context: Option<f64>) -> TurnTokens {
+        TurnTokens { input: JsNumber(0.0), output: JsNumber(0.0), cached: n(0.0), cache_write: n(0.0), reasoning: n(0.0), context: context.map(JsNumber), window: None }
+    }
+
+    #[tokio::test]
+    async fn a_tool_part_reads_its_id_name_input_and_error_as_the_ts_does_on_odd_fields() {
+        // O1; adapter.ts:186-198. callID "" shadows id; no state draws `{}` and an empty result; a string input is JSON-
+        // quoted; only the exact status `error` is an error, and a non-string error reads "".
+        let tool = |part: Value| {
+            let mut p = json!({"type": "tool"});
+            for (k, v) in part.as_object().unwrap() {
+                p[k] = v.clone();
+            }
+            line("tool_use", json!({ "part": p }))
+        };
+        let lines = vec![
+            tool(json!({"callID": "", "id": "pid", "tool": "", "state": {"status": "completed", "input": "raw", "output": "out"}})),
+            tool(json!({"id": "pid2", "tool": 5})),
+            tool(json!({"callID": "c3", "tool": "bash", "state": {"status": "Error", "error": "e", "output": "o"}})),
+            tool(json!({"callID": "c4", "tool": "bash", "state": {"status": "error", "error": 5, "output": "o"}})),
+            stop(None, "stop"),
+        ];
+        let (_, events, _, _) = run(lines, ScriptOpts::default(), None).await;
+        let used = |text: &str, name: &str, id: &str| TurnDelta { tool_name: Some(name.into()), tool_use_id: Some(id.into()), ..delta(DeltaKind::ToolUse, text) };
+        let came = |text: &str, id: &str, err: bool| TurnDelta { tool_use_id: Some(id.into()), is_error: Some(err), ..delta(DeltaKind::ToolResult, text) };
+        assert_eq!(
+            deltas(&events),
+            vec![used("\"raw\"", "", ""), came("out", "", false), used("{}", "tool", "pid2"), came("", "pid2", false), used("{}", "bash", "c3"), came("o", "c3", false), used("{}", "bash", "c4"), came("", "c4", true)]
+        );
+    }
+
+    #[tokio::test]
+    async fn an_empty_reason_ends_the_turn_and_context_rides_only_where_tokens_is_an_object() {
+        // O2; adapter.ts:200-215.
+        let text = line("text", json!({"part": {"type": "text", "text": "a"}}));
+        let (r, _, _, _) = run(vec![text, stop(Some(json!({})), "")], ScriptOpts { hang: true, ..Default::default() }, None).await;
+        assert!(r.duration_ms.is_some());
+        assert_eq!(TurnResult { duration_ms: None, ..r }, TurnResult { cost_usd: n(0.0), tokens: Some(zero_tokens(Some(0.0))), text: Some("a".into()), ..bare(TurnStatus::Completed) });
+        let (r, _, _, _) = run(vec![stop(None, "stop")], ScriptOpts { hang: true, ..Default::default() }, None).await;
+        assert_eq!(TurnResult { duration_ms: None, ..r }, TurnResult { cost_usd: n(0.0), tokens: Some(zero_tokens(None)), ..bare(TurnStatus::Completed) });
+    }
+
+    #[tokio::test]
+    async fn lines_after_the_result_are_still_said_and_a_later_error_changes_nothing() {
+        // O3; adapter.ts:166-215.
+        let lines = vec![stop(None, "stop"), line("text", json!({"part": {"type": "text", "text": "late"}})), line("error", json!({"error": {"name": "APIError", "data": {"message": "late failure"}}}))];
+        let (r, events, _, _) = run(lines, ScriptOpts::default(), None).await;
+        assert_eq!(r.status, TurnStatus::Completed);
+        assert_eq!(events.all().iter().map(kind_of).collect::<Vec<_>>(), ["session.start", "turn.done", "delta:text", "session.end"]);
+    }
+
+    #[tokio::test]
+    async fn an_empty_sign_in_message_reads_as_the_road_alone_and_a_string_401_is_no_sign_in() {
+        // O4; adapter.ts:84-95, 230-240.
+        let refused = TurnResult { error: Some(ROAD_WORDS.into()), refusal: Some(TurnRefusal::SignIn), ..bare(TurnStatus::Failed) };
+        let fail = |e: Value| vec![line("error", json!({ "error": e }))];
+        let one = ScriptOpts { exit_code: Some(1), ..Default::default() };
+        assert_eq!(run(fail(json!({"name": "APIError", "data": {"message": "", "statusCode": 401}})), one.clone(), None).await.0, refused);
+        assert_eq!(run(fail(json!({"name": "APIError", "data": {"message": "Unauthorized", "statusCode": "401"}})), one.clone(), None).await.0, failed("Unauthorized"));
+        assert_eq!(run(fail(json!({"name": "ProviderAuthError", "data": {"message": ""}})), one, None).await.0, refused);
+    }
+
+    #[tokio::test]
+    async fn the_logged_error_is_the_first_line_naming_the_ref_with_an_error_field_each_escape_dropped() {
+        // O5; adapter.ts:96-110. `ref=r10` is not `ref=r1 `; `xerror=` is not the field; `\n` reads `n`.
+        let lines = vec![
+            "INFO ref=r1 hello".to_string(),
+            r#"ERROR ref=r10 error="ten""#.to_string(),
+            r#"ERROR ref=r1 xerror="no" error="first \"q\" \n""#.to_string(),
+            r#"ERROR ref=r1 error="second""#.to_string(),
+            line("error", json!({"error": {"name": "UnknownError", "data": {"message": "placeholder", "ref": "r1"}}})),
+        ];
+        assert_eq!(run(lines, ScriptOpts { exit_code: Some(1), ..Default::default() }, None).await.0, failed("first \"q\" n"));
+    }
+
+    #[tokio::test]
+    async fn the_stderr_tail_is_the_last_ten_non_blank_trimmed_lines_unreadable_json_among_them() {
+        // O6; adapter.ts:166-172, 70.
+        let mut lines: Vec<String> = [r#"{"a":1}"#, "[1]", "", "  "].map(String::from).to_vec();
+        lines.extend((1..=9).map(|i| format!("  l{i}  ")));
+        let (r, _, _, _) = run(lines, ScriptOpts { exit_code: Some(2), ..Default::default() }, None).await;
+        assert_eq!(r, failed("opencode exited with code 2 before its turn ended: [1]\nl1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9"));
+    }
+
+    #[tokio::test]
+    async fn the_first_string_session_id_announces_once_an_empty_one_included_and_the_registry_keeps_the_local_id() {
+        // O7; adapter.ts:174-180, 252-270.
+        let raw = |sid: Option<&str>, text: &str| {
+            let mut v = json!({"type": "text", "timestamp": 1, "part": {"type": "text", "text": text}});
+            if let Some(s) = sid {
+                v["sessionID"] = json!(s);
+            }
+            v.to_string()
+        };
+        let (r, events, session, adapter) = run(vec![raw(None, "one"), raw(Some("newer"), "two"), raw(Some("third"), "three")], ScriptOpts::default(), Some("older")).await;
+        assert_eq!(r.status, TurnStatus::Completed);
+        let said: Vec<(String, String)> = events.all().iter().map(|e| (kind_of(e), e.session_id().to_string())).collect();
+        let s = |k: &str, id: &str| (k.to_string(), id.to_string());
+        assert_eq!(said, [s("delta:text", "older"), s("session.start", "newer"), s("delta:text", "newer"), s("delta:text", "newer"), s("turn.done", "newer"), s("session.end", "newer")]);
+        assert_eq!((session.local_id(), session.session_id()), ("older".to_string(), "newer".to_string()));
+        assert_eq!(adapter.sessions().keys().cloned().collect::<Vec<_>>(), ["older".to_string()]);
+        let (r, events, _, _) = run(vec![raw(Some(""), "x")], ScriptOpts::default(), None).await;
+        assert_eq!(r.status, TurnStatus::Completed);
+        assert!(events.all().iter().all(|e| e.session_id().is_empty()));
+    }
+
+    #[test]
+    fn a_model_s_efforts_are_its_variants_in_js_key_order_integer_names_first() {
+        // O8; catalog.ts:46-69 (`Object.keys(variants)`).
+        let probe = format!("1.18.18\n__WSP_CATALOG_SEP__\nopencode/m1\n{}\n", json!({"name": "M", "variants": {"b": {}, "2": {}, "a": {}, "1": {}}}));
+        let Some(HarnessCatalogAnswer::Probe(p)) = parse_catalog_probe(&probe) else { panic!("no probe") };
+        let order = ["1", "2", "b", "a"].map(String::from).to_vec();
+        assert_eq!(p.models[0].efforts, Some(order.clone()));
+        assert_eq!(p.efforts, order);
+    }
+
+    #[test]
+    fn no_folder_is_home_with_no_dir_and_an_empty_folder_is_a_folder() {
+        // O9; command.ts:63-83.
+        let agent = r#"sh -c '[ -z "${WSP_AGENT_PID_FILE:-}" ] || echo $$ > "$WSP_AGENT_PID_FILE"; unset WSP_AGENT_PID_FILE; exec "$0" "$@"' opencode"#;
+        let o = BuildCommandOptions { prompt: "p".into(), permission_mode: Some(AUTO_MODE.into()), ..Default::default() };
+        assert_eq!(build_command(&o).unwrap(), format!("cd ~ && {agent} run --format json --print-logs --log-level ERROR --auto <<'WSP_PROMPT_END'\np\nWSP_PROMPT_END"));
+        assert_eq!(
+            build_command(&BuildCommandOptions { cwd: Some(String::new()), ..o }).unwrap(),
+            format!("cd '' && {agent} run --format json --print-logs --log-level ERROR --dir '' --auto <<'WSP_PROMPT_END'\np\nWSP_PROMPT_END")
+        );
+    }
+
+    #[tokio::test]
+    async fn a_stop_after_the_result_keeps_it_and_the_end_reads_the_process_s_own_code() {
+        // O10; adapter.ts:271-280.
+        let events = Events::default();
+        let exec = scripted_exec(vec![stop(None, "stop")], ScriptOpts { hang: true, ..Default::default() }, RUN_HANDLE);
+        let session = start(&adapter_over(&exec, Extra { result_exit_ms: Some(1000), interrupt_grace_ms: Some(5) }), turn_start("go", &events));
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        session.interrupt().await;
+        assert_eq!(session.finished().await.status, TurnStatus::Completed);
+        assert_eq!(session_end_fields(events.all().last().unwrap()), (SESSION, Some(143), true));
+        assert_eq!(exec.order(), ["teardown"]);
+    }
+}
