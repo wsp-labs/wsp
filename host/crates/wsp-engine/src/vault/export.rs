@@ -11,7 +11,7 @@ use wsp_words::js::{is_js_whitespace, js_trim, to_number, utf16};
 use wsp_words::words::base::plural;
 use wsp_words::words::thread::vault_over_cap_line;
 
-use super::{node_base64, ArchiveGroup, CacheRule, DownloadProgress, ReadRoad, VaultOptions};
+use super::{ArchiveGroup, CacheRule, DownloadProgress, ReadRoad, VaultOptions};
 use crate::errors::{EngineError, Result};
 use crate::exec_detached::put::{GUEST_TMP, INLINE_EXEC_MS};
 use crate::fetch::{platform_fetch, FetchRequest};
@@ -108,7 +108,7 @@ pub async fn exec_read(
         return Err(plain(format!("vault export read failed (exit {}): {}", read.exit_code.get(), last_units(&read.stderr, 500))));
     }
     let squeezed: String = read.stdout.chars().filter(|c| !is_js_whitespace(*c)).collect();
-    let body = node_base64(&squeezed);
+    let body = crate::node_base64::node_base64_decode(&squeezed);
     if body.len() as u64 != bytes {
         return Err(plain(format!("vault export read failed: the machine held {bytes} bytes and {} came back", body.len())));
     }

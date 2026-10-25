@@ -24,7 +24,7 @@ use crate::machine::{Machine, MachineBackend, MachineListRow, MachineState, Name
 /// no offset reads as UTC where node reads local time (spec/sweeps.md accepts it: every stamp is a `toISOString()`).
 /// More than three fraction digits are cut, not rounded. A day past the month's end rolls into the next month. NaN for
 /// anything else and for a time outside +-8.64e15 ms, as node answers.
-pub(crate) fn date_parse(s: &str) -> f64 {
+pub fn date_parse(s: &str) -> f64 {
     iso_millis(s).map_or(f64::NAN, |ms| ms as f64)
 }
 

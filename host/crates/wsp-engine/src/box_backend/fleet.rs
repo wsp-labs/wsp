@@ -211,7 +211,7 @@ impl BoxBackend {
     /// box-backend.ts:880. `made_at` is an ISO date as `Date.parse` reads it.
     pub async fn box_replay_create(&self, key: &str, bytes: &str, made_at: &str) -> Result<Option<BoxMachine>> {
         let window = BOX_KEY_KEPT_MS as i64 - LOST_ANSWER_MS as i64 - LOST_ANSWER_EVERY_MS as i64;
-        if date_parse(made_at).is_some_and(|made| self.shared.clock.now() - made >= window) {
+        if self.shared.clock.now() as f64 - crate::orphans::date_parse(made_at) >= window as f64 {
             return Ok(None);
         }
         let posted = self.post_create(key, bytes).await?;
@@ -545,15 +545,6 @@ fn size_ask(spec: &MachineSpec) -> SizeAsk {
 fn name_of(bytes: &str) -> Result<Option<String>> {
     let raw: Value = serde_json::from_str(bytes).map_err(|e| other(e.to_string()))?;
     Ok(raw.get("name").and_then(Value::as_str).map(str::to_string))
-}
-
-/// `Date.parse` for the ISO forms a stamp takes; `None` where node answers NaN.
-fn date_parse(s: &str) -> Option<i64> {
-    if let Ok(at) = s.parse::<jiff::Timestamp>() {
-        return Some(at.as_millisecond());
-    }
-    let civil = s.parse::<jiff::civil::DateTime>().ok()?;
-    Some(civil.to_zoned(jiff::tz::TimeZone::UTC).ok()?.timestamp().as_millisecond())
 }
 
 /// A fresh UUID v4, lowercase, as `crypto.randomUUID()` writes one.

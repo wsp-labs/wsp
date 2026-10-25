@@ -81,26 +81,6 @@ pub struct OwnerRead {
     pub now: i64,
 }
 
-/// `Date.parse` for the ISO forms a stamp takes, as node answers: NaN for anything else. The same reading orphans.rs
-/// makes of a machine's stamp.
-fn stamp_ms(s: &str) -> f64 {
-    if let Ok(t) = s.parse::<jiff::Timestamp>() {
-        return t.as_millisecond() as f64;
-    }
-    if let Ok(dt) = s.parse::<jiff::civil::DateTime>() {
-        return dt.to_zoned(jiff::tz::TimeZone::UTC).map_or(f64::NAN, |z| z.timestamp().as_millisecond() as f64);
-    }
-    let mut parts = s.split('-');
-    let year = parts.next().filter(|y| y.len() == 4 && y.bytes().all(|b| b.is_ascii_digit()));
-    let month =
-        parts.next().map_or(Some(1), |m| (m.len() == 2 && m.bytes().all(|b| b.is_ascii_digit())).then(|| m.parse::<i8>().ok()).flatten());
-    let day =
-        parts.next().map_or(Some(1), |d| (d.len() == 2 && d.bytes().all(|b| b.is_ascii_digit())).then(|| d.parse::<i8>().ok()).flatten());
-    let (Some(year), Some(month), Some(day), None) = (year, month, day, parts.next()) else { return f64::NAN };
-    let Ok(date) = jiff::civil::Date::new(year.parse().unwrap_or(0), month, day) else { return f64::NAN };
-    date.at(0, 0, 0, 0).to_zoned(jiff::tz::TimeZone::UTC).map_or(f64::NAN, |z| z.timestamp().as_millisecond() as f64)
-}
-
 /// snapshot-storage.ts:55. Recorded is kept; a name whose mark is not this host's is foreign; else kept while younger
 /// than `OWN_GRACE_MS` or of no readable age, orphan past it.
 pub fn ownership_of(row: &dyn OwnedRow, read: &OwnerRead) -> Ownership {
@@ -110,7 +90,7 @@ pub fn ownership_of(row: &dyn OwnedRow, read: &OwnerRead) -> Ownership {
     if name_owner(row.name()).as_deref() != Some(read.host_id.as_str()) {
         return Ownership::Foreign;
     }
-    let at = stamp_ms(row.created_at().unwrap_or(""));
+    let at = crate::orphans::date_parse(row.created_at().unwrap_or(""));
     if at.is_nan() || (read.now as f64 - at) < OWN_GRACE_MS as f64 {
         Ownership::Kept
     } else {

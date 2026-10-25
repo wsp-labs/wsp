@@ -379,7 +379,7 @@ pub fn parse_configs(stdout: &str, scopes: &[ReadAsk]) -> Option<Vec<Option<Scop
             "-plain" => ScopeRead::Unread { path, unread: CONFIG_NOT_PLAIN.to_string() },
             "-cap" => ScopeRead::Unread { path, unread: CONFIG_PAST_CAP.to_string() },
             _ => {
-                let bytes = base64_lenient(word);
+                let bytes = crate::node_base64::node_base64_decode(word);
                 ScopeRead::File(ScopeFile { path, text: String::from_utf8_lossy(&bytes).into_owned(), sum: config_sum(&bytes) })
             }
         });
@@ -661,33 +661,6 @@ fn flag_head(s: &str) -> &str {
 fn js_index(word: &str, len: usize) -> Option<usize> {
     let n = to_number(word);
     (n.fract() == 0.0 && n >= 0.0 && (n as usize) < len).then_some(n as usize)
-}
-
-fn base64_lenient(text: &str) -> Vec<u8> {
-    let mut out = Vec::new();
-    let mut acc: u32 = 0;
-    let mut bits = 0;
-    for c in text.bytes() {
-        if c == b'=' {
-            break;
-        }
-        let v = match c {
-            b'A'..=b'Z' => c - b'A',
-            b'a'..=b'z' => c - b'a' + 26,
-            b'0'..=b'9' => c - b'0' + 52,
-            b'+' | b'-' => 62,
-            b'/' | b'_' => 63,
-            _ => continue,
-        };
-        acc = (acc << 6) | u32::from(v);
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.push((acc >> bits) as u8);
-            acc &= (1 << bits) - 1;
-        }
-    }
-    out
 }
 
 fn hex(bytes: &[u8]) -> String {
