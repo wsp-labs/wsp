@@ -14,11 +14,14 @@ use tokio::sync::{oneshot, watch, Semaphore};
 
 use wsp_engine::machine::{ExecOptions, Machine, MachineBackend};
 use wsp_core::clock::Cancel;
-use wsp_core::reach::{DaemonReach, ReachError, ReachStats};
+use wsp_core::reach::{DaemonReach, Frame, ReachError, ReachStats};
+use wsp_wire::types::js_number::JsInt;
+use wsp_wire::wire::daemon::DaemonLinkStatus;
 use wsp_wire::wire::daemon_events::DaemonEvent;
-use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
-use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_core::types::internal::SessionEntry;
+use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use super::engine_error;
 use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::reach::{ReachArea, ReachCtx};
 use wsp_wire::views::session::SessionView;
@@ -26,7 +29,8 @@ use wsp_wire::views::workspace::{ProjectView, WorkspacePhase};
 use wsp_wire::wire::capabilities::PauseMode;
 use wsp_words::exit::HostError;
 
-use super::{engine_error, FakeHost};
+use super::queue_ctx::{session_entry, snapshot_of};
+use super::{entry_id, FakeHost};
 
 /// The commands the fake `sweep_leftovers` runs on the machine, so a test can gate or count them.
 pub const SWEEP_STAGED: &str = "wsp-sweep-staged";
@@ -135,7 +139,7 @@ impl LinkPlan {
 /// A link to a daemon that answers `ready` and `ping` once the plan is up.
 pub struct FakeLink {
     plan: Rc<LinkPlan>,
-    on_event: Rc<dyn Fn(&Value)>,
+    on_event: Rc<dyn Fn(DaemonEvent)>,
     pub closed: Cell<u32>,
     pub requests: RefCell<Vec<String>>,
 }
@@ -143,28 +147,46 @@ pub struct FakeLink {
 impl FakeLink {
     /// Delivers a `daemon.hello` frame through the callback the area gave.
     pub fn hello(&self, version: f64) {
-        (self.on_event)(&json!({ "type": "daemon.hello", "version": version }));
+        (self.on_event)(hello_event(version));
     }
+}
+
+/// A `daemon.hello` frame of a version.
+fn hello_event(version: f64) -> DaemonEvent {
+    DaemonEvent::DaemonHello { root: "/root".to_string(), version: JsInt::from(version as i64) }
+}
+
+/// The link's own failure: words only, as the real link's readiness and ping failures carry.
+fn link_error(message: &str) -> ReachError {
+    ReachError { message: message.to_string(), kind: None, status: None, code: None }
 }
 
 #[async_trait(?Send)]
 impl DaemonReach for FakeLink {
-    async fn ready(&self) -> AreaResult<()> {
+    async fn ready(&self) -> Result<(), ReachError> {
         let err = self.plan.ready_error.borrow().clone();
         if let Some(m) = err {
-            return Err(AreaError::Engine(engine_error(&m)));
+            return Err(link_error(&m));
         }
         self.plan.wait_up().await;
         Ok(())
     }
-    async fn request(&self, op: &str) -> AreaResult<Value> {
+    async fn request(&self, op: &str, _params: Frame) -> Result<Frame, ReachError> {
         self.requests.borrow_mut().push(op.to_string());
         let err = self.plan.ping_error.borrow().clone();
         if let Some(m) = err {
-            return Err(AreaError::Engine(engine_error(&m)));
+            return Err(link_error(&m));
         }
         self.plan.wait_up().await;
-        Ok(json!({ "ok": true }))
+        let mut reply = Frame::new();
+        reply.insert("ok".to_string(), Value::Bool(true));
+        Ok(reply)
+    }
+    fn status(&self) -> Option<DaemonLinkStatus> {
+        None
+    }
+    fn stats(&self) -> ReachStats {
+        ReachStats::default()
     }
     fn close(&self) {
         self.closed.set(self.closed.get() + 1);
@@ -223,10 +245,7 @@ pub fn put_session(host: &FakeHost, turn_id: &str, workspace_id: &str, thread_id
         o.insert("claudeSessionId".to_string(), json!(c));
     }
     let view: SessionView = serde_json::from_value(v).unwrap();
-    host.sessions.borrow_mut().insert(
-        turn_id.to_string(),
-        SessionEntry { view, turn_id: turn_id.to_string(), launch: None, queued: false, notify: None, notify_by: None, notify_road: None },
-    );
+    host.sessions.borrow_mut().insert(turn_id.to_string(), session_entry(view, turn_id.to_string()));
 }
 
 /// A project view as JSON.
@@ -296,7 +315,7 @@ impl ReachCtx for FakeHost {
         self.live.borrow().values().cloned().collect()
     }
     fn session_entries(&self) -> Vec<SessionEntry> {
-        self.sessions.borrow().values().cloned().collect()
+        self.sessions.borrow().values().map(snapshot_of).collect()
     }
     fn backend_for(&self, _record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError> {
         Ok(self.backend.clone())
@@ -321,11 +340,11 @@ impl ReachCtx for FakeHost {
     }
     fn row_reason(&self, entry: &Entry) -> Option<String> {
         let area = knobs().area.borrow().upgrade()?;
-        let said = entry.wake_said.borrow().clone();
+        let said = entry.borrow().wake_said.clone();
         said.or_else(|| area.nap_refused_reason(entry)).or_else(|| area.stop_refused_reason(entry)).or_else(|| area.disk_reason(entry))
     }
     fn unreached_of(&self, entry: &Entry) -> Option<String> {
-        knobs().unreached.borrow().get(&entry.id()).cloned()
+        knobs().unreached.borrow().get(&entry_id(entry)).cloned()
     }
     fn kind_has_daemon(&self, _entry: &Entry) -> bool {
         knobs().has_daemon.get()
@@ -362,7 +381,7 @@ impl ReachCtx for FakeHost {
     fn connect_daemon(&self, preview_url: &str, token: &str, on_event: Rc<dyn Fn(DaemonEvent)>, heartbeat_ms: Option<i64>) -> Rc<dyn DaemonReach> {
         self.call("connect_daemon", &[preview_url, token]);
         let plan = plan();
-        plan.dials.borrow_mut().push(Dial { preview_url: preview_url.to_string(), token: token.to_string(), heartbeat_ms });
+        plan.dials.borrow_mut().push(Dial { preview_url: preview_url.to_string(), token: token.to_string(), heartbeat_ms: heartbeat_ms.map(|h| h as f64) });
         let link = Rc::new(FakeLink { plan: plan.clone(), on_event: on_event.clone(), closed: Cell::new(0), requests: RefCell::new(Vec::new()) });
         plan.links.borrow_mut().push(link.clone());
         let hellos = plan.hellos.borrow().clone();
@@ -372,7 +391,7 @@ impl ReachCtx for FakeHost {
                 async move {
                     tokio::task::yield_now().await;
                     for v in hellos {
-                        deliver(&json!({ "type": "daemon.hello", "version": v }));
+                        deliver(hello_event(v));
                     }
                 }
                 .boxed_local(),
@@ -385,7 +404,7 @@ impl ReachCtx for FakeHost {
         serde_json::from_value(v).expect("a project view")
     }
     async fn with_daemon(&self, entry: &Entry, frame: Value) -> AreaResult<Value> {
-        let id = entry.id();
+        let id = entry_id(entry);
         self.call("with_daemon", &[&id, &js_text(&frame)]);
         let gate = knobs().status_gate.borrow().clone();
         if let Some(g) = gate {

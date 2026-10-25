@@ -8,7 +8,7 @@ use serde_json::Value;
 use wsp_core::types::internal::{ImportLanded, ImportReport};
 use wsp_core::types::wiring::ProjectImportOptions;
 use wsp_engine::machine::{ExecResult, MachineBackend};
-use wsp_wire::views::workspace::{DaemonReachView, ProjectView};
+use wsp_wire::views::workspace::{DaemonReachView, ProjectView, WorkspaceProject};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_words::exit::HostError;
 
@@ -24,7 +24,7 @@ pub const BROKER_READ_MS: f64 = 5_000.0;
 
 impl KindsArea {
     /// kinds.ts:32 (rule 1).
-    pub fn project_of(&self, dest: &str, size: f64) -> Value {
+    pub fn project_of(&self, dest: &str, size: f64) -> WorkspaceProject {
         todo!()
     }
     /// kinds.ts:36 (rule 2).
@@ -68,7 +68,7 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:185 (rule 10).
-    pub(crate) fn cloud_home(&self, id: &str) -> Result<String, HostError> {
+    pub fn cloud_home(&self, id: &str) -> Result<String, HostError> {
         todo!()
     }
     /// kinds.ts:192 (rule 10).
@@ -92,7 +92,7 @@ impl KindsArea {
         todo!()
     }
     /// kinds.ts:227 (rule 13).
-    pub(crate) fn place_of(&self, record: &WorkspaceRecord) -> Result<FolderComputer, HostError> {
+    pub fn place_of(&self, record: &WorkspaceRecord) -> Result<FolderComputer, HostError> {
         todo!()
     }
     /// kinds.ts:235 (rule 14).

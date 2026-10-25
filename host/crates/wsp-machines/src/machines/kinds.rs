@@ -12,6 +12,7 @@ use serde_json::Value;
 use wsp_core::types::internal::{ImportLanded, ImportReport};
 use wsp_core::types::wiring::ProjectImportOptions;
 use wsp_engine::machine::{ExecResult, Machine, MachineBackend};
+use wsp_wire::views::harness::McpServerSpec;
 use wsp_wire::views::workspace::{DaemonReachView, ProjectView};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_words::exit::HostError;
@@ -112,7 +113,6 @@ pub trait KindsCtx {
     fn machine_exec_opts(&self) -> Option<serde_json::Map<String, Value>>;
     async fn copy_import(&self, entry: &Entry, o: ProjectImportOptions, report: ImportReport) -> AreaResult<ImportLanded>;
     async fn hello_version(&self, entry: &Entry) -> Option<f64>;
-    async fn bundler_plan(&self, o: &Value) -> AreaResult<Value>;
     /// Whether the host wired the local road (`local !== undefined`), which the local kind needs.
     fn has_local(&self) -> bool;
     /// The local wiring's backend.
@@ -133,8 +133,8 @@ pub trait KindsCtx {
     async fn here_daemon_version(&self) -> Option<AreaResult<Option<f64>>>;
     /// `local.backend.folder`.
     fn local_scratch(&self) -> String;
-    /// `opts.agents?.wspMcp` as the TS object `{command, args}`.
-    fn agents_wsp_mcp(&self) -> Option<Value>;
+    /// `opts.agents?.wspMcp`.
+    fn agents_wsp_mcp(&self) -> Option<McpServerSpec>;
     /// `opts.agents?.here?.url`.
     fn agents_here_url(&self) -> Option<String>;
     /// The folder computer's machine's `loginOf().user` (`PlaceFolderMachine.loginOf`).

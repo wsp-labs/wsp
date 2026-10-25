@@ -9,8 +9,7 @@ use serde_json::{json, Value};
 
 use wsp_engine::machine::MachineBackend;
 use wsp_core::clock::Cancel;
-use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
-use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_machines::machines::area_error::{AreaError, AreaResult};
 use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::sub_life::{BackendFor, SessionFile, SubLifeCtx};
@@ -97,10 +96,12 @@ impl SubLifeCtx for FakeHost {
         if let Some(Err(e)) = self.next("nap_with") {
             return Err(e);
         }
-        if let Some(entry) = self.live.borrow().get(workspace_id).cloned() {
-            let mut r = entry.record.borrow_mut();
+        let entry = self.live.borrow().get(workspace_id).cloned();
+        if let Some(entry) = entry {
+            let record = entry.borrow().record.clone();
+            let mut r = record.borrow_mut();
             r.phase = serde_json::from_value(json!("napping")).unwrap();
-            r.napped_at = Some(self.clock.now());
+            r.napped_at = Some(self.clock.now().into());
         }
         Ok(())
     }
@@ -108,7 +109,7 @@ impl SubLifeCtx for FakeHost {
         self.call("end_sessions", &[workspace_id, reason]);
     }
     fn attach_dead(&self, entry: &Entry, machine_id: &str) -> Entry {
-        self.call("attach_dead", &[&entry.id(), machine_id]);
+        self.call("attach_dead", &[&entry_id(entry), machine_id]);
         self.reattach(entry, FakeMachine::new(machine_id))
     }
     fn forget_marks(&self, workspace_id: &str) {
@@ -118,21 +119,22 @@ impl SubLifeCtx for FakeHost {
         self.call("idle_forget", &[workspace_id]);
     }
     async fn emit_status(&self, entry: &Entry, reach: ReachState) -> AreaResult<()> {
-        self.call("emit_status", &[&entry.id(), &serde_json::to_value(reach).unwrap().as_str().unwrap_or("").to_string()]);
+        self.call("emit_status", &[&entry_id(entry), &serde_json::to_value(reach).unwrap().as_str().unwrap_or("").to_string()]);
         Ok(())
     }
     fn emit(&self, event: Value) {
         self.emit_now(event);
     }
     async fn unfork(&self, entry: &Entry) -> AreaResult<()> {
-        self.call("unfork", &[&entry.id(), entry.machine.id()]);
+        let machine = entry.borrow().machine.clone();
+        self.call("unfork", &[&entry_id(entry), machine.id()]);
         if let Some(Err(e)) = self.next("unfork") {
             return Err(e);
         }
-        entry.machine.kill().await.map_err(AreaError::Engine)
+        machine.kill().await.map_err(AreaError::Engine)
     }
     async fn cut_off(&self, entry: &Entry) {
-        self.call("cut_off", &[&entry.id()]);
+        self.call("cut_off", &[&entry_id(entry)]);
     }
     fn broker_lift(&self, workspace_id: &str) {
         self.call("broker_lift", &[workspace_id]);

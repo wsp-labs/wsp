@@ -20,22 +20,31 @@ use wsp_engine::machine::{
 };
 use wsp_core::clock::Cancel;
 use wsp_core::types::internal::{ImportLanded, ImportReport};
-use wsp_core::types::wiring::ProjectImportOptions;
-use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
-use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_core::types::internal::{KindModule, PortRoute};
+use wsp_core::types::wiring::{
+    LiveWorkspace, Local, PackedProject, PackedState, ProjectBundler, ProjectImportOptions, StageReport, StateRequest, WorkspaceRecord,
+};
 use wsp_machines::machines::area_error::{AreaError, AreaResult};
 use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::kinds::{BrokerSaid, FolderComputer, KindsArea, KindsCtx};
 use wsp_wire::types::shell_quote::shell_line;
 use wsp_wire::views::golden_image::MachineKind;
-use wsp_wire::views::workspace::{DaemonReachView, ProjectView};
+use wsp_wire::types::js_number::{JsInt, JsNumber};
+use wsp_wire::views::harness::McpServerSpec;
+use wsp_wire::views::project_bundle::{ProjectImportResult, ProjectImportStage, ProjectPlan};
+use wsp_wire::views::workspace::{DaemonReachView, ProjectView, WorkspaceProject};
+use wsp_wire::views::workspace_more::WorktreeFolder;
+use wsp_wire::wire::machine_link::PreviewReach;
 use wsp_words::exit::{HostError, Kind};
 
 use super::*;
 
-/// A host error with these words and this kind, built whole so no fake leans on a constructor under test.
+/// A host error with these words and this kind.
 pub fn host_error(message: &str, kind: Option<Kind>) -> HostError {
-    HostError { message: message.to_string(), fix: None, kind, errors: None, warnings: None, left: None, marks: Vec::new() }
+    match kind {
+        Some(kind) => HostError::with_kind(message, kind),
+        None => HostError::new(message),
+    }
 }
 
 /// What the fake broker says of an agent it adds no key for.
@@ -208,7 +217,7 @@ pub struct World {
     pub hello: Option<f64>,
     /// The local wiring; `None` is a host that wired no local road.
     pub local_wiring: Option<LocalWiring>,
-    pub agents_wsp_mcp: Option<Value>,
+    pub agents_wsp_mcp: Option<McpServerSpec>,
     pub agents_here_url: Option<String>,
     pub login_user: String,
 }
@@ -328,7 +337,7 @@ pub fn record_of(id: &str, extra: Value, without: &[&str]) -> Value {
 pub fn reports() -> (Rc<RefCell<Vec<(String, String)>>>, StageReport) {
     let seen = Rc::new(RefCell::new(Vec::new()));
     let keep = seen.clone();
-    let report: StageReport = Rc::new(move |stage, line, _| keep.borrow_mut().push((stage.to_string(), line.to_string())));
+    let report: StageReport = Rc::new(move |stage, line, _| keep.borrow_mut().push((word_of(&stage), line.to_string())));
     (seen, report)
 }
 
@@ -467,17 +476,17 @@ impl KindsCtx for FakeHost {
         world(|w| w.projects.get(id).cloned()).unwrap_or_else(|| panic!("the test held no project {id}"))
     }
     fn checkout_of(&self, record: &WorkspaceRecord) -> String {
-        match record.worktree.as_ref().and_then(|t| t["path"].as_str()) {
-            Some(path) => path.to_string(),
+        match record.worktree.as_ref().map(|t| t.path.clone()) {
+            Some(path) => path,
             None => self.project_held(&record.project).path,
         }
     }
     fn computer_of(&self, entry: &Entry) -> String {
-        let place = entry.record.borrow().place.clone();
+        let place = entry.borrow().record.borrow().place.clone();
         self.place_name(&place.unwrap_or_else(|| self.wired_place()))
     }
     fn served_by_its_computer(&self, entry: &Entry) -> bool {
-        world(|w| w.served.contains(&entry.id()))
+        world(|w| w.served.contains(&entry_id(entry)))
     }
     fn has_place_door(&self) -> bool {
         world(|w| w.place_door)
@@ -589,7 +598,7 @@ impl KindsCtx for FakeHost {
         env
     }
     async fn land_on_record(&self, entry: &Entry, project: &ProjectView, lines: Option<Vec<String>>) -> AreaResult<()> {
-        self.call("land_on_record", &[&entry.id(), &project.id, &serde_json::to_string(&lines).unwrap()]);
+        self.call("land_on_record", &[&entry_id(entry), &project.id, &serde_json::to_string(&lines).unwrap()]);
         if let Some(Err(e)) = self.next("land_on_record") {
             return Err(e);
         }
@@ -640,18 +649,24 @@ impl KindsCtx for FakeHost {
         world(|w| w.machine_exec.clone())
     }
     async fn copy_import(&self, entry: &Entry, o: ProjectImportOptions, _report: ImportReport) -> AreaResult<ImportLanded> {
-        todo!()
+        let id = entry_id(entry);
+        self.call("copy_import", &[&id, &import_words(&o)]);
+        let project = WorkspaceProject { name: "copied".to_string(), dest: o.dest.clone(), imported_at: "2025-10-09T08:53:20.000Z".to_string(), size: None };
+        let result = ProjectImportResult {
+            dest: o.dest,
+            files: 1.0.into(),
+            bytes: 1.0.into(),
+            parts: 1.0.into(),
+            cut: Vec::new(),
+            rewritten: Vec::new(),
+            agents: Vec::new(),
+            project,
+        };
+        Ok(ImportLanded { result, done: format!("copied {id}") })
     }
     async fn hello_version(&self, entry: &Entry) -> Option<f64> {
-        self.call("hello_version", &[&entry.id()]);
+        self.call("hello_version", &[&entry_id(entry)]);
         world(|w| w.hello)
-    }
-    async fn bundler_plan(&self, o: &Value) -> AreaResult<Value> {
-        self.call("bundler_plan", &[&serde_json::to_string(o).unwrap()]);
-        match self.next("bundler_plan") {
-            Some(answer) => answer,
-            None => Ok(json!({ "files": 12, "bytes": 3456 })),
-        }
     }
     fn has_local(&self) -> bool {
         world(|w| w.local_wiring.is_some())
@@ -683,7 +698,7 @@ impl KindsCtx for FakeHost {
     fn local_scratch(&self) -> String {
         world(|w| w.local_wiring.as_ref().map(|l| l.scratch.clone()).unwrap_or_default())
     }
-    fn agents_wsp_mcp(&self) -> Option<Value> {
+    fn agents_wsp_mcp(&self) -> Option<McpServerSpec> {
         world(|w| w.agents_wsp_mcp.clone())
     }
     fn agents_here_url(&self) -> Option<String> {
