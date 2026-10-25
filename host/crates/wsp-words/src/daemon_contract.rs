@@ -2,6 +2,8 @@
 //! The words and numbers the daemon and the host agree on: the lines a computer's checks print and the scripts they run. Port of the functions of packages/protocol/src/daemon-contract.ts at
 //! a3b870a6e; its shapes and flat constants are wsp_wire::types::daemon_contract. See spec/daemon_contract.md.
 
+use wsp_wire::types::daemon_contract::{DAEMON_AUTH_DEADLINE_PASSED, PLACE_LOGIN_LINKED};
+
 // daemon-contract.ts:12
 // in wsp_wire::types::daemon_contract: DAEMON_DEFAULT_HOST
 
@@ -99,7 +101,7 @@
 // daemon-contract.ts:86
 // export const guestWspShim = (binary: string): string => `#!/bin/sh\nexec ${binary} wsp "$@"\n`;
 pub fn guest_wsp_shim(binary: &str) -> String {
-    todo!()
+    format!("#!/bin/sh\nexec {binary} wsp \"$@\"\n")
 }
 
 // The computer's own system directories a workspace on a computer somebody owns reads through an overlay of its
@@ -281,7 +283,7 @@ pub fn guest_wsp_shim(binary: &str) -> String {
 // daemon-contract.ts:213
 // export const daemonRefusedToken = (code: number, reason: string): boolean => code === 4401 && reason !== DAEMON_AUTH_DEADLINE_PASSED;
 pub fn daemon_refused_token(code: f64, reason: &str) -> bool {
-    todo!()
+    code == 4401.0 && reason != DAEMON_AUTH_DEADLINE_PASSED
 }
 
 // daemon-contract.ts:215
@@ -293,7 +295,7 @@ pub fn daemon_refused_token(code: f64, reason: &str) -> bool {
 // daemon-contract.ts:218
 // export const unknownOpLine = (op: string): string => `unknown op: ${op}`;
 pub fn unknown_op_line(op: &str) -> String {
-    todo!()
+    format!("unknown op: {op}")
 }
 
 /// What a create is refused with on a computer with no room for another workspace, the daemon's room check and the
@@ -314,7 +316,15 @@ pub struct Quietest {
 
 /// `need_mb` and `free_mb` are the TS `number | string`: written as given, a number already through `number_string`.
 pub fn box_full_line(need_mb: &str, free_mb: &str, quietest: Option<&Quietest>) -> String {
-    todo!()
+    match quietest {
+        None => format!(
+            "this computer has {free_mb} MB free and a workspace needs {need_mb} MB, and no workspace of yours is awake to stop: what is holding it is the computer's own work"
+        ),
+        Some(quietest) => format!(
+            "this computer has {free_mb} MB free and a workspace needs {need_mb} MB; stop {}, quiet for {} min, to make room",
+            quietest.name, quietest.quiet_min
+        ),
+    }
 }
 
 /// What one workspace may take of a computer's memory, the rule of daemon/crates/wsp-runtime/src/size.rs: a third,
@@ -322,14 +332,17 @@ pub fn box_full_line(need_mb: &str, free_mb: &str, quietest: Option<&Quietest>) 
 // daemon-contract.ts:228
 // export const workspaceMemMb = (totalMb: number): number => Math.max(1024, Math.min(Math.floor(totalMb / 3), totalMb - 1024));
 pub fn workspace_mem_mb(total_mb: f64) -> f64 {
-    todo!()
+    if total_mb.is_nan() {
+        return f64::NAN;
+    }
+    (total_mb / 3.0).floor().min(total_mb - 1024.0).max(1024.0)
 }
 
 /// The refusal every op but tunnel ops on the scoped port and ping gets on a socket whose auth frame named a port.
 // daemon-contract.ts:230
 // export const portScopeRefusal = (port: number | string): string => `this socket is scoped to port ${port}: only tunnel ops on it and ping are allowed`;
 pub fn port_scope_refusal(port: &str) -> String {
-    todo!()
+    format!("this socket is scoped to port {port}: only tunnel ops on it and ping are allowed")
 }
 
 // Directories a machine recreates, by exact name: installs, build output and tool caches. A directory is a cache only
@@ -349,14 +362,17 @@ pub fn port_scope_refusal(port: &str) -> String {
 // daemon-contract.ts:264
 // export const foldersOutsideLine = (dir: string, roots: string, on = "that computer"): string => `${dir} is outside the folders wsp browses on ${on}: ${roots}`;
 pub fn folders_outside_line(dir: &str, roots: &str, on: Option<&str>) -> String {
-    todo!()
+    format!(
+        "{dir} is outside the folders wsp browses on {}: {roots}",
+        on.unwrap_or("that computer")
+    )
 }
 
 /// The one line the daemon prints on stdout once it is bound; whoever started it reads the port off this.
 // daemon-contract.ts:266
 // export const daemonListeningLine = (host: string, port: number | string): string => `wsp-daemon listening on ${host}:${port}`;
 pub fn daemon_listening_line(host: &str, port: &str) -> String {
-    todo!()
+    format!("wsp-daemon listening on {host}:{port}")
 }
 
 // daemon-contract.ts:273
@@ -383,49 +399,49 @@ pub fn daemon_listening_line(host: &str, port: &str) -> String {
 // daemon-contract.ts:288
 // export const linkedLine = (url: string): string => `linked to the host at ${url}`;
 pub fn linked_line(url: &str) -> String {
-    todo!()
+    format!("linked to the host at {url}")
 }
 
 // daemon-contract.ts:289
 // export const hostQuietLine = (url: string, seconds: number | string): string => `the host at ${url} sent nothing for ${seconds}s; cutting the link and dialling again`;
 pub fn host_quiet_line(url: &str, seconds: &str) -> String {
-    todo!()
+    format!("the host at {url} sent nothing for {seconds}s; cutting the link and dialling again")
 }
 
 // daemon-contract.ts:290
 // export const dialUnansweredLine = (url: string): string => `${url} did not answer the dial`;
 pub fn dial_unanswered_line(url: &str) -> String {
-    todo!()
+    format!("{url} did not answer the dial")
 }
 
 // daemon-contract.ts:291
 // export const dialTimedOutLine = (url: string, seconds: number | string): string => `${url} did not answer in ${seconds}s`;
 pub fn dial_timed_out_line(url: &str, seconds: &str) -> String {
-    todo!()
+    format!("{url} did not answer in {seconds}s")
 }
 
 // daemon-contract.ts:292
 // export const dialFailedLine = (url: string, error: string): string => `${url} could not be dialled: ${error}`;
 pub fn dial_failed_line(url: &str, error: &str) -> String {
-    todo!()
+    format!("{url} could not be dialled: {error}")
 }
 
 // daemon-contract.ts:293
 // export const notAFrameLine = (url: string): string => `${url} sent something that is not a frame`;
 pub fn not_a_frame_line(url: &str) -> String {
-    todo!()
+    format!("{url} sent something that is not a frame")
 }
 
 // daemon-contract.ts:294
 // export const authUnreadableLine = (url: string, error: string): string => `${url} answered place.auth with something this computer cannot read: ${error}`;
 pub fn auth_unreadable_line(url: &str, error: &str) -> String {
-    todo!()
+    format!("{url} answered place.auth with something this computer cannot read: {error}")
 }
 
 // daemon-contract.ts:295
 // export const hostRefusedLine = (url: string, refusal: string): string => `${url}: ${refusal}`;
 pub fn host_refused_line(url: &str, refusal: &str) -> String {
-    todo!()
+    format!("{url}: {refusal}")
 }
 
 /// What a host that answered the handshake with no key agreement of its own is passed over with: it runs a wsp
@@ -433,7 +449,7 @@ pub fn host_refused_line(url: &str, refusal: &str) -> String {
 // daemon-contract.ts:298
 // export const linkHostUnsealedLine = (url: string): string => `the host at ${url} agreed no key for this link; it runs an older wsp`;
 pub fn link_host_unsealed_line(url: &str) -> String {
-    todo!()
+    format!("the host at {url} agreed no key for this link; it runs an older wsp")
 }
 
 /// What an address that answered something the handshake's order does not allow is passed over with: the id a frame
@@ -441,7 +457,7 @@ pub fn link_host_unsealed_line(url: &str) -> String {
 // daemon-contract.ts:301
 // export const linkOutOfOrderLine = (url: string): string => `${url} answered out of order; nothing was sent to it and the next address is tried`;
 pub fn link_out_of_order_line(url: &str) -> String {
-    todo!()
+    format!("{url} answered out of order; nothing was sent to it and the next address is tried")
 }
 
 // daemon-contract.ts:304
@@ -465,7 +481,7 @@ pub fn link_out_of_order_line(url: &str) -> String {
 // daemon-contract.ts:320
 // export const placeKeptForLinkLine = (path: string): string => `nothing was removed at ${path}: a folder on the way to it is a link`;
 pub fn place_kept_for_link_line(path: &str) -> String {
-    todo!()
+    format!("nothing was removed at {path}: a folder on the way to it is a link")
 }
 
 /// What a leave says it took out of a person's own login file: wsp's lines there, and the file. Said on both roads a
@@ -473,7 +489,7 @@ pub fn place_kept_for_link_line(path: &str) -> String {
 // daemon-contract.ts:323
 // export const placeLineOutLine = (lines: string, file: string): string => `${lines} (out of ${file})`;
 pub fn place_line_out_line(lines: &str, file: &str) -> String {
-    todo!()
+    format!("{lines} (out of {file})")
 }
 
 /// What a leave says of wsp's lines it left in a person's own login file, and why. Said on both roads a leave runs
@@ -481,7 +497,7 @@ pub fn place_line_out_line(lines: &str, file: &str) -> String {
 // daemon-contract.ts:326
 // export const placeLineStaysLine = (lines: string, file: string, why: string): string => `${lines} stays in ${file}: ${why}`;
 pub fn place_line_stays_line(lines: &str, file: &str, why: &str) -> String {
-    todo!()
+    format!("{lines} stays in {file}: {why}")
 }
 
 // The most of a person's own login file a leave reads, far past any real one: the file sits in a home a workspace
@@ -505,7 +521,7 @@ pub fn place_line_stays_line(lines: &str, file: &str, why: &str) -> String {
 // daemon-contract.ts:340
 // export const placeLoginUnreadLine = (file: string): string => `wsp's line was not looked for in ${file}: ${PLACE_LOGIN_LINKED}`;
 pub fn place_login_unread_line(file: &str) -> String {
-    todo!()
+    format!("wsp's line was not looked for in {file}: {PLACE_LOGIN_LINKED}")
 }
 
 /// Why wsp's install folder is still there after a leave: the list in it of what the setup wrote outside the home
@@ -514,7 +530,9 @@ pub fn place_login_unread_line(file: &str) -> String {
 // daemon-contract.ts:344
 // export const placeOutsideLeftLine = (prefix: string): string => `nothing was removed at ${prefix}: the leave did not finish taking what the setup wrote outside the home, which ${prefix}/landed still lists`;
 pub fn place_outside_left_line(prefix: &str) -> String {
-    todo!()
+    format!(
+        "nothing was removed at {prefix}: the leave did not finish taking what the setup wrote outside the home, which {prefix}/landed still lists"
+    )
 }
 
 /// Why the runtime's folder is still there after a leave: something is mounted under it, which only a workspace still
@@ -523,7 +541,7 @@ pub fn place_outside_left_line(prefix: &str) -> String {
 // daemon-contract.ts:348
 // export const placeKeptMountedLine = (path: string, mount: string): string => `nothing was removed at ${path}: ${mount} is mounted under it; stop what runs there and leave again`;
 pub fn place_kept_mounted_line(path: &str, mount: &str) -> String {
-    todo!()
+    format!("nothing was removed at {path}: {mount} is mounted under it; stop what runs there and leave again")
 }
 
 /// Why the runtime's folder is still there after a leave: the mount table could not be read, so whether a workspace
@@ -532,7 +550,7 @@ pub fn place_kept_mounted_line(path: &str, mount: &str) -> String {
 // daemon-contract.ts:352
 // export const placeKeptMountsUnreadLine = (path: string, why: string): string => `nothing was removed at ${path}: the mount table could not be read (${why}), so what is mounted under it is not known`;
 pub fn place_kept_mounts_unread_line(path: &str, why: &str) -> String {
-    todo!()
+    format!("nothing was removed at {path}: the mount table could not be read ({why}), so what is mounted under it is not known")
 }
 
 /// Why the runtime's folder is still there after a leave that tried to take it: something in it would not go. Said on
@@ -540,7 +558,7 @@ pub fn place_kept_mounts_unread_line(path: &str, why: &str) -> String {
 // daemon-contract.ts:355
 // export const placeRuntimeStandsLine = (path: string): string => `${path} still stands: the leave could not remove all of it; remove what is left there by hand`;
 pub fn place_runtime_stands_line(path: &str) -> String {
-    todo!()
+    format!("{path} still stands: the leave could not remove all of it; remove what is left there by hand")
 }
 
 /// Why a cgroup wsp made is still there after a leave: a process still stands in it or under it, and the leave ends
@@ -548,7 +566,7 @@ pub fn place_runtime_stands_line(path: &str) -> String {
 // daemon-contract.ts:358
 // export const placeCgroupStandsLine = (path: string): string => `${path} still stands: a process is still in it; end it and remove the cgroup by hand`;
 pub fn place_cgroup_stands_line(path: &str) -> String {
-    todo!()
+    format!("{path} still stands: a process is still in it; end it and remove the cgroup by hand")
 }
 
 /// Why a leave stopped before it removed anything: checkouts under the runtime's folder hold work no remote has, one
@@ -557,7 +575,11 @@ pub fn place_cgroup_stands_line(path: &str) -> String {
 // daemon-contract.ts:362
 // export const placeLeaveUnsavedLine = (lines: readonly string[]): string => `nothing was removed: ${lines.join("; ")}; that work is on this computer alone`;
 pub fn place_leave_unsaved_line(lines: &[impl AsRef<str>]) -> String {
-    todo!()
+    let lines: Vec<&str> = lines.iter().map(|line| line.as_ref()).collect();
+    format!(
+        "nothing was removed: {}; that work is on this computer alone",
+        lines.join("; ")
+    )
 }
 
 /// A checkout or a workspace under the runtime's folder a leave could not read at all. Said on both roads a leave runs
@@ -565,7 +587,7 @@ pub fn place_leave_unsaved_line(lines: &[impl AsRef<str>]) -> String {
 // daemon-contract.ts:365
 // export const placeUnreadLine = (path: string): string => `${path}: could not read what is not pushed`;
 pub fn place_unread_line(path: &str) -> String {
-    todo!()
+    format!("{path}: could not read what is not pushed")
 }
 
 /// What a discard or a commit naming a file git sees no change in is refused with, by the daemon and by the host's own
@@ -573,7 +595,7 @@ pub fn place_unread_line(path: &str) -> String {
 // daemon-contract.ts:368
 // export const noChangeLine = (path: string): string => `${path} has no change`;
 pub fn no_change_line(path: &str) -> String {
-    todo!()
+    format!("{path} has no change")
 }
 
 /// Why a path outside the home a leave would have taken is still there: it stood before wsp was added, as the add
@@ -582,7 +604,7 @@ pub fn no_change_line(path: &str) -> String {
 // daemon-contract.ts:372
 // export const placeStoodBeforeLine = (path: string): string => `${path} stays: it was there before wsp was added`;
 pub fn place_stood_before_line(path: &str) -> String {
-    todo!()
+    format!("{path} stays: it was there before wsp was added")
 }
 
 /// Why a leave took nothing at the paths outside the home it would have: no whole record says what stood there before
@@ -592,7 +614,11 @@ pub fn place_stood_before_line(path: &str) -> String {
 // export const placeOwnersUnknownLine = (paths: readonly string[]): string =>
 //   `nothing was removed at ${paths.join(" or ")}: no whole record says what stood there before wsp was added, so it may be this computer's own; remove what wsp put there by hand`;
 pub fn place_owners_unknown_line(paths: &[impl AsRef<str>]) -> String {
-    todo!()
+    let paths: Vec<&str> = paths.iter().map(|path| path.as_ref()).collect();
+    format!(
+        "nothing was removed at {}: no whole record says what stood there before wsp was added, so it may be this computer's own; remove what wsp put there by hand",
+        paths.join(" or ")
+    )
 }
 
 // daemon-contract.ts:380
@@ -602,7 +628,7 @@ pub fn place_owners_unknown_line(paths: &[impl AsRef<str>]) -> String {
 // daemon-contract.ts:382
 // export const guestNoDaemonLine = (port: number | string): string => `this machine's wsp daemon is not answering on 127.0.0.1:${port}`;
 pub fn guest_no_daemon_line(port: &str) -> String {
-    todo!()
+    format!("this machine's wsp daemon is not answering on 127.0.0.1:{port}")
 }
 
 /// What a bring back on the branch the work started from is refused with: wsp makes no branch and pushes no base,
@@ -611,7 +637,9 @@ pub fn guest_no_daemon_line(port: &str) -> String {
 // export const onBaseRefusal = (base: string): string =>
 //   `this workspace is on ${base}, the branch it started from; move the commits onto a branch of their own and bring back again`;
 pub fn on_base_refusal(base: &str) -> String {
-    todo!()
+    format!(
+        "this workspace is on {base}, the branch it started from; move the commits onto a branch of their own and bring back again"
+    )
 }
 
 // daemon-contract.ts:389
@@ -621,7 +649,7 @@ pub fn on_base_refusal(base: &str) -> String {
 // daemon-contract.ts:391
 // export const nothingAheadLine = (branch: string, base: string): string => `${branch} has no commits that ${base} lacks, so there is nothing to bring back`;
 pub fn nothing_ahead_line(branch: &str, base: &str) -> String {
-    todo!()
+    format!("{branch} has no commits that {base} lacks, so there is nothing to bring back")
 }
 
 // daemon-contract.ts:393
@@ -632,7 +660,7 @@ pub fn nothing_ahead_line(branch: &str, base: &str) -> String {
 // daemon-contract.ts:396
 // export const noHostCliLine = (host: string): string => `no signed-in command line for ${host} is on this computer; the branch is pushed and the pull request waits for one`;
 pub fn no_host_cli_line(host: &str) -> String {
-    todo!()
+    format!("no signed-in command line for {host} is on this computer; the branch is pushed and the pull request waits for one")
 }
 
 /// What a push git refused for want of an https credential is refused with: nothing reached the remote, so this is
@@ -643,6 +671,8 @@ pub fn no_host_cli_line(host: &str) -> String {
 // export const noGitCredentialLine = (host: string, fix?: string): string =>
 //   `this computer has no git credential for ${host}, so nothing was pushed${fix === undefined ? "" : `; ${fix}, then bring back again`}`;
 pub fn no_git_credential_line(host: &str, fix: Option<&str>) -> String {
-    todo!()
+    let fix = fix
+        .map(|fix| format!("; {fix}, then bring back again"))
+        .unwrap_or_default();
+    format!("this computer has no git credential for {host}, so nothing was pushed{fix}")
 }
-
