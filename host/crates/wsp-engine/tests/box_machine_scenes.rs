@@ -300,3 +300,21 @@ async fn describe_reads_half_a_gigabyte_and_leaves_out_what_is_missing() {
     s.same_road();
     s.same_out(serde_json::to_value(got).unwrap());
 }
+
+// B-M25, B-M26: a refusal whose error is a string, and settle on an error with empty words.
+
+#[tokio::test]
+async fn a_refusal_whose_error_is_a_string_says_the_whole_body() {
+    let s = scene("a_refusal_whose_error_is_a_string_says_the_whole_body");
+    let e = s.machine.state().await.unwrap_err();
+    s.same_road();
+    s.same_err(e);
+}
+
+#[tokio::test]
+async fn a_box_left_in_error_with_empty_words_has_no_colon() {
+    let s = scene("a_box_left_in_error_with_empty_words_has_no_colon");
+    let e = s.machine.resume(None).await.unwrap_err();
+    s.same_road();
+    s.same_err(e);
+}

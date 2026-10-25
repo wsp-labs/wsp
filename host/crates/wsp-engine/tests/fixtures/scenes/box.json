@@ -1781,6 +1781,139 @@
   "elapsed": 0
  },
  {
+  "name": "a_refusal_whose_error_is_a_string_says_the_whole_body",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "GET /sandboxes/bx_tumrjngm": [
+    {
+     "status": 400,
+     "body": {
+      "error": "boom",
+      "requestId": null
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": "{\"error\":\"boom\",\"requestId\":null}",
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [
+   "Boat refused GET /sandboxes/bx_tumrjngm: 400 code=none requestId=none: {\"error\":\"boom\",\"requestId\":null}"
+  ],
+  "elapsed": 0
+ },
+ {
+  "name": "a_box_left_in_error_with_empty_words_has_no_colon",
+  "routes": {
+   "GET /limits": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "limits.info",
+      "accessTier": "trial",
+      "maxActiveSandboxes": 2,
+      "startLimits": {
+       "perMinute": 5,
+       "perHour": 25,
+       "perDay": 75
+      }
+     }
+    }
+   ],
+   "POST /sandboxes/bx_tumrjngm/resume": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true
+     }
+    }
+   ],
+   "GET /sandboxes/bx_tumrjngm": [
+    {
+     "status": 200,
+     "body": {
+      "ok": true,
+      "type": "sandbox.info",
+      "sandbox": {
+       "id": "bx_tumrjngm",
+       "name": "Box 2026-09-11 06:28",
+       "state": "error",
+       "error": "",
+       "type": "small",
+       "vcpu": 2,
+       "memoryGB": 4,
+       "createdAt": "2026-09-11T06:28:06.053Z"
+      }
+     }
+    }
+   ]
+  },
+  "budgets": {},
+  "out": null,
+  "err": "box bx_tumrjngm reads error during resume",
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/limits",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   },
+   {
+    "method": "POST",
+    "path": "/sandboxes/bx_tumrjngm/resume",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x",
+     "content-type": "application/json"
+    },
+    "raw": "{\"ttlSeconds\":7200}"
+   },
+   {
+    "method": "GET",
+    "path": "/sandboxes/bx_tumrjngm",
+    "query": [],
+    "headers": {
+     "authorization": "Bearer box_x"
+    },
+    "raw": null
+   }
+  ],
+  "sleeps": [],
+  "warns": [],
+  "elapsed": 0
+ },
+ {
   "name": "pause_of_an_archived_box_sends_nothing_and_sleeps_not",
   "routes": {
    "GET /limits": [

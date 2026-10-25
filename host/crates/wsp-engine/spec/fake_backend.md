@@ -91,3 +91,8 @@ Values from `oracle/unit_pins.oracle.ts` (`tests/fixtures/scenes/units.json`, se
 - F-1 The rate is `Number((cpu x 0.02 + memMb / 1024 x 0.01).toFixed(4))`: `toFixed` rounds the exact binary value
   half up at the fourth decimal, so 0.03125 is 0.0313 and 0.09375 is 0.0938 (`wsp_words::js::to_fixed`; Rust's
   `{:.4}` gives 0.0312) (`rates_round_their_ties_as_to_fixed_does`).
+- F-2 A spec's `cpu`, `memMb`, `diskGb` and `labels` are taken with `??`: 0 stays 0 and `{}` stays empty, so the
+  shape reads `{ cpu: 0, memMb: 0, diskGb: 0 }` (`a_zero_figure_is_kept_not_defaulted`).
+- Not pinned, after-port: `{ ...EMPTY, ...JSON.parse(text) }` spreads a records file holding a non-empty array or
+  string into index keys (`[1,2]` keeps `"0"` and `"1"`, which JavaScript orders before `machines`), and a `null`
+  `machines` or `snapshots` crashes a later read. Only wsp writes the file.

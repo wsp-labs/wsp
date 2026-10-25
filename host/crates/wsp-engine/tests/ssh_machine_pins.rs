@@ -4,6 +4,7 @@
 mod roads_common;
 
 use roads_common::*;
+use wsp_engine::machine::Machine;
 use wsp_engine::ssh_backend::*;
 
 const UNIT: &str = "ssh_machine";
@@ -43,4 +44,24 @@ async fn the_sudo_mark_is_read_with_javascript_line_rules() {
         };
         assert_eq!(got, case["out"], "{:?}", case["stdout"]);
     }
+}
+
+/// M-4: a read as the login wins over any password in either nesting order (ssh-backend.ts:930): the outer wrapper
+/// runs first, and a script it marked as the login passes every inner one untouched.
+#[tokio::test]
+async fn as_the_login_beats_a_password_in_either_nesting() {
+    use std::sync::Arc;
+    let (t, carried) = transport(|_r, _s, _o| res(0, "home /root\n", ""));
+    let base = SshBackend::new(SshBackendOptions {
+        transport: Some(t),
+        host_key: Some(Arc::new(|_r| futures::FutureExt::boxed(async { None }))),
+        ..Default::default()
+    });
+    let reach = SshReach { user: "dev".into(), host: "box".into(), port: 22, key_path: None };
+    let login_outside = base.riding(SshRiding::SudoPassword("p".into())).riding(SshRiding::AsLogin);
+    login_outside.adopt(&reach).await.unwrap().machine.exec("true", Default::default()).await.unwrap();
+    let login_inside = base.riding(SshRiding::AsLogin).riding(SshRiding::SudoPassword("p".into()));
+    login_inside.adopt(&reach).await.unwrap().machine.exec("true", Default::default()).await.unwrap();
+    let rides: Vec<SshRide> = carried.lock().unwrap().iter().map(|c| c.opts.ride.clone()).collect();
+    assert_eq!(rides, vec![SshRide::Login; 4]);
 }

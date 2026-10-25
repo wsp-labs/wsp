@@ -119,3 +119,6 @@ Values from `oracle/unit_pins.oracle.ts` (`tests/fixtures/scenes/units.json`, se
   U+2029: `a\r\nWSP_SUDO root\r\nWSP_SUDO none` is root (the first), `x` U+2028 `WSP_SUDO free` is free, a mark inside a
   line or with a trailing space is no mark and fails `{user}@{host} did not answer over ssh: {stdout trimmed}`
   (`the_sudo_mark_is_read_with_javascript_line_rules`).
+- M-4 A ride as the login beats a password in either nesting order: `riding(password).riding(AsLogin)` and
+  `riding(AsLogin).riding(password)` both carry every script as the login, since the outer wrapper runs first and a
+  script already marked as the login passes every inner one untouched (`as_the_login_beats_a_password_in_either_nesting`).
