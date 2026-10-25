@@ -2,6 +2,7 @@
 //! The reads and the write beside the rows (client.ts:614-680, spec/client-rows.md rules 9, 10, 12): which account
 //! a word names, what one computer settings write asks the host, and the reads sent together.
 
+#[path = "cli_a_common/mod.rs"]
 mod common;
 
 use serde_json::{json, Value};

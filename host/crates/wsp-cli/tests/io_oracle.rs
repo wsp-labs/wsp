@@ -3,6 +3,7 @@
 //! written by "the io helpers" of oracle/cli.oracle.ts). Every test collects all its mismatches, each named by its
 //! case, and panics once.
 
+#[path = "cli_a_common/mod.rs"]
 mod common;
 
 use std::collections::BTreeSet;

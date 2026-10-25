@@ -3,6 +3,7 @@
 //! pages.test.ts and cloud.test.ts as far as they stand on verbs.ts alone: the pages, the commands of the shared
 //! parse and the skill are other crates' and other tests'.
 
+#[path = "cli_a_common/mod.rs"]
 mod common;
 
 use std::collections::BTreeSet;

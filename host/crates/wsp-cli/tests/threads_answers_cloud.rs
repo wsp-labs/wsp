@@ -3,6 +3,7 @@
 //! against the thread verbs' tools. A binary of its own: the cloud is read once per process, and every test here
 //! turns it on before anything else runs.
 
+#[path = "cli_a_common/mod.rs"]
 mod common;
 
 use std::fmt::Display;

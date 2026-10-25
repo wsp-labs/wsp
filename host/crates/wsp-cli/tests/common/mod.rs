@@ -1,465 +1,514 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! What every wsp-cli test file shares: the TS oracle's fixtures, a host scripted the way the tool server's record
-//! scripts one (daemon/crates/wsp-mcp/tests/common), a dialer over it, and a terminal that records what a line said.
+//! Scripted links for the pty and place tests: a daemon link whose ptys are scripted (packages/host/test/
+//! fake-pty-link.ts at 65f6b89c7), a local terminal that records, and a host client whose replies a test plays.
 #![allow(dead_code)]
-
 use std::collections::BTreeMap;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use indexmap::IndexMap;
-use serde::Deserialize;
+use base64::Engine;
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use serde_json::{json, Value};
-use tokio::sync::watch;
-
-use wsp_cli::verbs::client::{
-    Again, BoxFuture, CliIo, Dialer, Frame, FrameOff, FrameSink, HostClient, Out, Paired, VerbContext, VerbDeps,
-};
-use wsp_cli::hosts::HostAim;
+use tokio::sync::{mpsc, watch};
+use wsp_cli::signin_relay::{Detach, EventSink, Frame, PtyLink, RawMode, RelayOutput, RelayTerminal, TOOL_STARTS};
+use wsp_cli::verbs::client::{FrameOff, FrameSink, HostClient};
 use wsp_words::exit::HostError;
 
-/// The close code a host stopping sends (`HOST_STOPPING_CLOSE`).
-pub const STOPPING_CLOSE: u16 = 4001;
-
-/// A fixture the TS oracle wrote (`oracle/cli.oracle.ts`), with the cloud on where `cloud` says and a `_cloud` file
-/// exists, else the one file both runs wrote alike.
-pub fn fixture(name: &str, cloud: bool) -> Value {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures");
-    let cloudy = dir.join(format!("{name}_cloud.json"));
-    let path = if cloud && cloudy.exists() { cloudy } else { dir.join(format!("{name}.json")) };
-    serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))).unwrap()
+pub fn frame(v: Value) -> Frame {
+    match v {
+        Value::Object(m) => m,
+        other => panic!("not an object: {other}"),
+    }
 }
 
-/// A JSON array of strings as a Vec.
-pub fn strings(v: &Value) -> Vec<String> {
-    v.as_array().unwrap_or_else(|| panic!("not an array: {v}")).iter().map(|s| s.as_str().unwrap().to_owned()).collect()
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct FakePty {
+    pub id: String,
+    pub created: Frame,
+    pub writes: Vec<String>,
+    pub attached: bool,
+    pub killed: bool,
+    pub resizes: Vec<(i64, i64)>,
+    pub exited: bool,
+    /// The staged command the typed line ran, once one did.
+    pub ran: Option<String>,
 }
 
-// ---------------------------------------------------------------------------------------------------------------
-// The scripted host.
-// ---------------------------------------------------------------------------------------------------------------
-
-/// What the host answers, as the tool server's record writes it: each op's reply frame recorded under id 1 (or
-/// `<op> #<n>` for its nth ask), the frames pushed ahead of an op's reply, and the op whose reply the host follows
-/// by closing with 4001.
-#[derive(Clone, Debug, Default, Deserialize)]
-pub struct Script {
-    #[serde(default)]
-    pub replies: BTreeMap<String, String>,
-    #[serde(default)]
-    pub pushed: BTreeMap<String, Vec<String>>,
-    #[serde(default)]
-    pub closes: Option<String>,
+#[derive(Clone, Debug, PartialEq)]
+pub struct StagedCmd {
+    pub command: String,
+    pub cleared: bool,
 }
 
-/// The state every socket of one scripted host shares: what it was asked, how often each op was asked, the dials.
+type Script = Arc<dyn Fn(&FakeLink, &str, &str) + Send + Sync>;
+type AnswerExec = Arc<dyn Fn(&str) -> Option<Frame> + Send + Sync>;
+type OpOverride = Arc<dyn Fn(&str, &Frame) -> Option<Frame> + Send + Sync>;
+
 #[derive(Default)]
-pub struct HostState {
-    pub asked: Mutex<Vec<Value>>,
-    pub seen: Mutex<BTreeMap<String, usize>>,
-    pub dials: AtomicUsize,
-    pub closes_called: AtomicUsize,
-    pub subscribes: AtomicUsize,
+struct State {
+    ops: Vec<(String, Frame)>,
+    staged: BTreeMap<String, StagedCmd>,
+    ptys: Vec<FakePty>,
+    partial: BTreeMap<String, String>,
+    seq: u32,
+    folders: u32,
+    sinks: Vec<(u64, EventSink)>,
+    next_sink: u64,
 }
 
-/// One socket to the scripted host, in process: no websocket, the same ordering. A request records its frame (the
-/// params, then `op`; no id; a `requestId` as `<request id>`; never `events.subscribe`), sends every frame pushed
-/// for that op to the sinks, then answers the recorded reply under its own id; where `closes` names the op the
-/// socket is then gone with 4001, and every later request fails with the close words.
-pub struct ScriptedClient {
-    script: Script,
-    state: Arc<HostState>,
-    next: AtomicUsize,
-    sinks: Arc<Mutex<Vec<(usize, FrameSink)>>>,
-    sink_ids: AtomicUsize,
-    gone: watch::Sender<Option<Option<u16>>>,
-    subscribed: Mutex<bool>,
+/// fake-pty-link.ts:53-157. Every op is recorded; a complete typed line (ending in \r) is echoed back as a tty
+/// would, followed by the tool-start byte when the line prints it, then handed to the script with a staged
+/// command standing where the line reads it.
+pub struct FakeLink {
+    state: Mutex<State>,
+    pub banner: Mutex<Option<String>>,
+    pub script: Mutex<Option<Script>>,
+    pub answer_exec: Mutex<Option<AnswerExec>>,
+    /// Answers an op in place of the fake (a refusal, say); the op is still recorded.
+    pub override_op: Mutex<Option<OpOverride>>,
+    pub bare: Option<bool>,
+    closed: Mutex<Option<watch::Sender<bool>>>,
+    views: Mutex<Vec<Arc<View>>>,
 }
 
-impl ScriptedClient {
-    pub fn new(script: Script, state: Arc<HostState>) -> Arc<ScriptedClient> {
-        Arc::new(ScriptedClient {
-            script,
-            state,
-            next: AtomicUsize::new(1),
-            sinks: Arc::new(Mutex::new(Vec::new())),
-            sink_ids: AtomicUsize::new(0),
-            gone: watch::channel(None).0,
-            subscribed: Mutex::new(false),
+impl FakeLink {
+    pub fn new() -> Arc<FakeLink> {
+        FakeLink::with_bare(None)
+    }
+
+    pub fn with_bare(bare: Option<bool>) -> Arc<FakeLink> {
+        Arc::new(FakeLink {
+            state: Mutex::default(),
+            banner: Mutex::new(None),
+            script: Mutex::new(None),
+            answer_exec: Mutex::new(None),
+            override_op: Mutex::new(None),
+            bare,
+            closed: Mutex::new(None),
+            views: Mutex::new(Vec::new()),
         })
     }
 
-    /// Ends the socket as a host does, with the code given (None: no code, as a dropped connection).
-    pub fn end(&self, code: Option<u16>) {
-        self.gone.send_replace(Some(code));
+    pub fn set_script(&self, f: impl Fn(&FakeLink, &str, &str) + Send + Sync + 'static) {
+        *self.script.lock().unwrap() = Some(Arc::new(f));
     }
 
-    /// Sends a frame to every sink, as the host pushing an event.
-    pub fn push(&self, frame: &str) {
-        let frame: Frame = serde_json::from_str(frame).unwrap();
-        let sinks: Vec<FrameSink> = self.sinks.lock().unwrap().iter().map(|(_, s)| s.clone()).collect();
-        for sink in sinks {
-            sink(&frame);
+    /// Gives this link a `closed` the test settles with the returned sender (`link.closed = new Promise(..)`).
+    pub fn closable(&self) -> watch::Sender<bool> {
+        let (tx, _rx) = watch::channel(false);
+        *self.closed.lock().unwrap() = Some(tx.clone());
+        tx
+    }
+
+    pub fn ops(&self) -> Vec<(String, Frame)> {
+        self.state.lock().unwrap().ops.clone()
+    }
+
+    pub fn op_names(&self) -> Vec<String> {
+        self.ops().into_iter().map(|(op, _)| op).collect()
+    }
+
+    pub fn ptys(&self) -> Vec<FakePty> {
+        self.state.lock().unwrap().ptys.clone()
+    }
+
+    pub fn staged(&self) -> Vec<StagedCmd> {
+        self.state.lock().unwrap().staged.values().cloned().collect()
+    }
+
+    /// The execs a caller ran, less the ones that staged a command or removed it (fake-pty-link.ts:160-162).
+    pub fn execs_beside(&self) -> Vec<Frame> {
+        self.ops()
+            .into_iter()
+            .filter(|(op, extra)| {
+                op == "exec"
+                    && !extra.contains_key("stdin")
+                    && !extra.get("cmd").and_then(Value::as_str).unwrap_or("").starts_with("rm -rf -- '/staged/")
+            })
+            .map(|(_, extra)| extra)
+            .collect()
+    }
+
+    pub fn emit(&self, e: Frame) {
+        let sinks: Vec<EventSink> = self.state.lock().unwrap().sinks.iter().map(|(_, s)| s.clone()).collect();
+        for s in sinks {
+            s(&e);
         }
     }
 
-    fn reply_for(&self, op: &str, id: usize) -> Frame {
-        let nth = {
-            let mut seen = self.state.seen.lock().unwrap();
-            let count = seen.entry(op.to_owned()).or_insert(0);
-            *count += 1;
-            *count
-        };
-        let recorded = self.script.replies.get(&format!("{op} #{nth}")).or_else(|| self.script.replies.get(op));
-        let text = match recorded {
-            Some(recorded) => {
-                let rest = recorded.strip_prefix(r#"{"id":1,"#).expect("a frame recorded with its id first");
-                format!(r#"{{"id":{id},{rest}"#)
+    pub fn data(&self, pty: &str, text: &str) {
+        self.emit(frame(json!({"type": "pty.data", "ptyId": pty, "data": text})));
+    }
+
+    pub fn exit(&self, pty: &str, code: i64) {
+        if let Some(p) = self.state.lock().unwrap().ptys.iter_mut().find(|p| p.id == pty) {
+            p.exited = true;
+        }
+        self.emit(frame(json!({"type": "pty.exit", "ptyId": pty, "exitCode": code})));
+    }
+
+    /// A fresh view over the same ptys, the way a redial gives one; its closed settles on `drop_view`.
+    pub fn dial(self: &Arc<FakeLink>) -> Arc<View> {
+        let (tx, _rx) = watch::channel(false);
+        let view = Arc::new(View { link: self.clone(), dropped: Mutex::new(false), closed: tx });
+        self.views.lock().unwrap().push(view.clone());
+        view
+    }
+
+    /// The latest view goes away: closed settles and its ops fail as a dead socket's do.
+    pub fn drop_view(&self) {
+        let view = self.views.lock().unwrap().last().cloned().expect("nothing dialled");
+        *view.dropped.lock().unwrap() = true;
+        let _ = view.closed.send(true);
+    }
+
+    fn run_op(&self, op: &str, extra: Frame) -> Result<Frame, HostError> {
+        self.state.lock().unwrap().ops.push((op.to_string(), extra.clone()));
+        if let Some(f) = self.override_op.lock().unwrap().clone() {
+            if let Some(answer) = f(op, &extra) {
+                return Ok(answer);
             }
-            None if op == "events.subscribe" || op == "auth" => json!({ "id": id, "ok": true }).to_string(),
-            None => json!({ "id": id, "ok": false, "error": format!("{op} is not in this record") }).to_string(),
-        };
-        serde_json::from_str(&text).unwrap()
+        }
+        let pty_id = extra.get("ptyId").and_then(Value::as_str).unwrap_or("").to_string();
+        match op {
+            "pty.create" => {
+                let mut st = self.state.lock().unwrap();
+                st.seq += 1;
+                let id = format!("pty_{}", st.seq);
+                st.ptys.push(FakePty { id: id.clone(), created: extra, ..FakePty::default() });
+                Ok(frame(json!({"ok": true, "ptyId": id, "pid": 100 + st.seq})))
+            }
+            "pty.attach" => {
+                self.with_pty(&pty_id, |p| p.attached = true)?;
+                if let Some(b) = self.banner.lock().unwrap().clone() {
+                    self.data(&pty_id, &b);
+                }
+                Ok(frame(json!({"ok": true, "ptyId": pty_id})))
+            }
+            "pty.write" => {
+                let s = extra.get("data").and_then(Value::as_str).unwrap_or("").to_string();
+                self.with_pty(&pty_id, |p| p.writes.push(s.clone()))?;
+                let lines: Vec<String> = {
+                    let mut st = self.state.lock().unwrap();
+                    let buf = format!("{}{s}", st.partial.get(&pty_id).cloned().unwrap_or_default());
+                    let mut parts: Vec<String> = buf.split('\r').map(String::from).collect();
+                    let rest = parts.pop().unwrap_or_default();
+                    st.partial.insert(pty_id.clone(), rest);
+                    parts
+                };
+                let staged_read = regex::Regex::new(r"^c=\$\((?:< |cat )'([^']+)/line'\); rm -rf -- '[^']+'; ").unwrap();
+                for line in lines {
+                    self.data(&pty_id, &format!("{line}\r\n"));
+                    let read = staged_read.captures(&line).map(|c| (c.get(0).unwrap().end(), c[1].to_string()));
+                    let held = read.as_ref().and_then(|(_, dir)| self.state.lock().unwrap().staged.get(dir).cloned());
+                    if let Some(h) = &held {
+                        self.with_pty(&pty_id, |p| p.ran = Some(h.command.clone()))?;
+                    }
+                    if line.contains("printf '\\036'") {
+                        self.data(&pty_id, TOOL_STARTS);
+                    }
+                    let handed = match (&held, &read) {
+                        (Some(h), Some((end, _))) => line[*end..].replace("eval \"$c\"", &h.command).replace("\"$c\"", &h.command),
+                        _ => line.clone(),
+                    };
+                    if let Some(script) = self.script.lock().unwrap().clone() {
+                        script(self, &pty_id, &handed);
+                    }
+                }
+                Ok(frame(json!({"ok": true})))
+            }
+            "pty.resize" => {
+                let (c, r) =
+                    (extra.get("cols").and_then(Value::as_i64).unwrap_or(-1), extra.get("rows").and_then(Value::as_i64).unwrap_or(-1));
+                self.with_pty(&pty_id, |p| p.resizes.push((c, r)))?;
+                Ok(frame(json!({"ok": true})))
+            }
+            "exec" => {
+                if let Some(stdin) = extra.get("stdin").and_then(Value::as_str) {
+                    let command = String::from_utf8(base64::engine::general_purpose::STANDARD.decode(stdin).unwrap()).unwrap();
+                    let mut st = self.state.lock().unwrap();
+                    st.folders += 1;
+                    let dir = format!("/staged/{}", st.folders);
+                    st.staged.insert(dir.clone(), StagedCmd { command, cleared: false });
+                    return Ok(frame(json!({"exitCode": 0, "stdout": dir, "stderr": "", "truncated": false})));
+                }
+                let cmd = extra.get("cmd").and_then(Value::as_str).unwrap_or("").to_string();
+                let cleared = regex::Regex::new(r"^rm -rf -- '(/staged/\d+)'$").unwrap().captures(&cmd).map(|c| c[1].to_string());
+                if let Some(dir) = &cleared {
+                    if let Some(s) = self.state.lock().unwrap().staged.get_mut(dir) {
+                        s.cleared = true;
+                    }
+                }
+                if cleared.is_none() {
+                    if let Some(f) = self.answer_exec.lock().unwrap().clone() {
+                        if let Some(answer) = f(&cmd) {
+                            return Ok(answer);
+                        }
+                    }
+                }
+                Ok(frame(json!({"ok": true, "exitCode": 0, "stdout": "", "stderr": "", "truncated": false})))
+            }
+            "pty.kill" => {
+                self.with_pty(&pty_id, |p| p.killed = true)?;
+                Ok(frame(json!({"ok": true})))
+            }
+            _ => Ok(frame(json!({"ok": true}))),
+        }
+    }
+
+    fn with_pty(&self, id: &str, f: impl FnOnce(&mut FakePty)) -> Result<(), HostError> {
+        let mut st = self.state.lock().unwrap();
+        match st.ptys.iter_mut().find(|p| p.id == id) {
+            Some(p) => {
+                f(p);
+                Ok(())
+            }
+            None => Err(HostError::new(format!("no pty {id}"))),
+        }
+    }
+
+    fn add_sink(&self, sink: EventSink) -> u64 {
+        let mut st = self.state.lock().unwrap();
+        st.next_sink += 1;
+        let id = st.next_sink;
+        st.sinks.push((id, sink));
+        id
+    }
+
+    fn remove_sink(&self, id: u64) {
+        self.state.lock().unwrap().sinks.retain(|(i, _)| *i != id);
+    }
+
+    fn closed_future(&self) -> Option<BoxFuture<'static, ()>> {
+        let tx = self.closed.lock().unwrap().clone()?;
+        let mut rx = tx.subscribe();
+        Some(
+            async move {
+                let _ = rx.wait_for(|v| *v).await;
+            }
+            .boxed(),
+        )
     }
 }
 
-/// The failure a reply with `ok !== true` is read as (client.ts:266), for the scripted socket.
-fn refused(op: &str, frame: &Frame) -> HostError {
-    let mut e = HostError::new(frame.get("error").and_then(Value::as_str).map(str::to_owned).unwrap_or_else(|| format!("{op} failed")));
-    if let Some(kind) = frame.get("kind").and_then(Value::as_str) {
-        e.kind = Some(serde_json::from_value(json!(kind)).unwrap());
+/// A shared handle to the fake, so a test keeps the link it hands to the code under test.
+#[derive(Clone)]
+pub struct Link(pub Arc<FakeLink>);
+
+#[async_trait]
+impl PtyLink for Link {
+    async fn op(&self, op: &str, extra: Frame) -> Result<Frame, HostError> {
+        self.0.run_op(op, extra)
     }
-    e.errors = frame.get("errors").and_then(Value::as_array).cloned();
-    e.warnings = frame.get("warnings").and_then(Value::as_array).cloned();
-    e
+    fn on_event(&self, sink: EventSink) -> Detach {
+        let id = self.0.add_sink(sink);
+        let link = self.0.clone();
+        Detach(Box::new(move || link.remove_sink(id)))
+    }
+    fn closed(&self) -> Option<BoxFuture<'static, ()>> {
+        self.0.closed_future()
+    }
+    fn bare(&self) -> Option<bool> {
+        self.0.bare
+    }
+}
+
+pub struct View {
+    link: Arc<FakeLink>,
+    dropped: Mutex<bool>,
+    closed: watch::Sender<bool>,
 }
 
 #[async_trait]
-impl HostClient for ScriptedClient {
-    async fn request(&self, op: &str, params: Frame) -> Result<Frame, HostError> {
-        if self.gone.borrow().is_some() {
-            return Err(HostError::new(self.close_words()));
+impl PtyLink for View {
+    async fn op(&self, op: &str, extra: Frame) -> Result<Frame, HostError> {
+        if *self.dropped.lock().unwrap() {
+            return Err(HostError::new("daemon connection closed 1006"));
         }
-        let id = self.next.fetch_add(1, Ordering::SeqCst);
-        if op != "events.subscribe" && op != "auth" {
-            let mut frame = params.clone();
-            frame.shift_remove("id");
-            frame.shift_remove("op");
-            frame.insert("op".to_owned(), json!(op));
-            if frame.contains_key("requestId") {
-                frame.insert("requestId".to_owned(), json!("<request id>"));
+        self.link.run_op(op, extra)
+    }
+    fn on_event(&self, sink: EventSink) -> Detach {
+        let id = self.link.add_sink(sink);
+        let link = self.link.clone();
+        Detach(Box::new(move || link.remove_sink(id)))
+    }
+    fn closed(&self) -> Option<BoxFuture<'static, ()>> {
+        let mut rx = self.closed.subscribe();
+        Some(
+            async move {
+                let _ = rx.wait_for(|v| *v).await;
             }
-            self.state.asked.lock().unwrap().push(Value::Object(frame));
-        }
-        let reply = self.reply_for(op, id);
-        for frame in self.script.pushed.get(op).into_iter().flatten() {
-            self.push(frame);
-        }
-        if self.script.closes.as_deref() == Some(op) {
-            // The reply went out ahead of the close, as the record's host sends it.
-            let answer = if reply.get("ok") == Some(&json!(true)) { Ok(reply) } else { Err(refused(op, &reply)) };
-            self.end(Some(STOPPING_CLOSE));
-            return answer;
-        }
-        tokio::task::yield_now().await;
-        if reply.get("ok") == Some(&json!(true)) {
-            Ok(reply)
-        } else {
-            Err(refused(op, &reply))
-        }
+            .boxed(),
+        )
     }
-
-    async fn events(&self) -> Result<(), HostError> {
-        let first = {
-            let mut subscribed = self.subscribed.lock().unwrap();
-            !std::mem::replace(&mut *subscribed, true)
-        };
-        if first {
-            self.state.subscribes.fetch_add(1, Ordering::SeqCst);
-            self.request("events.subscribe", Frame::new()).await?;
-        }
-        Ok(())
-    }
-
-    fn on_frame(&self, sink: FrameSink) -> FrameOff {
-        let id = self.sink_ids.fetch_add(1, Ordering::SeqCst);
-        self.sinks.lock().unwrap().push((id, sink));
-        let sinks = self.sinks.clone();
-        FrameOff(Box::new(move || sinks.lock().unwrap().retain(|(n, _)| *n != id)))
-    }
-
-    async fn closed(&self) -> Option<u16> {
-        let mut rx = self.gone.subscribe();
-        loop {
-            if let Some(code) = *rx.borrow() {
-                return code;
-            }
-            if rx.changed().await.is_err() {
-                return None;
-            }
-        }
-    }
-
-    fn gone(&self) -> Option<Option<u16>> {
-        *self.gone.borrow()
-    }
-
-    fn close_words(&self) -> String {
-        match *self.gone.borrow() {
-            Some(Some(STOPPING_CLOSE)) => wsp_words::words::thread::HOST_STOPPING_LINE.to_owned(),
-            _ => wsp_wire::types::daemon_contract::HOST_CLOSED_LINE.to_owned(),
-        }
-    }
-
-    fn paired(&self) -> Option<Paired> {
+    fn bare(&self) -> Option<bool> {
         None
     }
+}
 
-    fn close(&self) {
-        self.state.closes_called.fetch_add(1, Ordering::SeqCst);
-        if self.gone.borrow().is_none() {
-            self.end(None);
+/// Waits for the first pty the code under test creates.
+pub async fn first_pty(link: &FakeLink) -> FakePty {
+    for _ in 0..200 {
+        if let Some(p) = link.ptys().first() {
+            return p.clone();
+        }
+        tick().await;
+    }
+    panic!("no pty was created");
+}
+
+pub async fn tick() {
+    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+}
+
+/// A local terminal that records: what went out, every raw mode set, the size, and the ends a test drives.
+pub struct Term {
+    pub keys: mpsc::UnboundedSender<String>,
+    pub resize: mpsc::UnboundedSender<()>,
+    pub out: Arc<Out>,
+    pub raw: Arc<Mutex<Vec<bool>>>,
+}
+
+pub struct Out {
+    pub text: Mutex<String>,
+    pub size: Mutex<(Option<u16>, Option<u16>)>,
+}
+
+impl RelayOutput for Out {
+    fn write(&self, text: &str) {
+        self.text.lock().unwrap().push_str(text);
+    }
+    fn columns(&self) -> Option<u16> {
+        self.size.lock().unwrap().0
+    }
+    fn rows(&self) -> Option<u16> {
+        self.size.lock().unwrap().1
+    }
+}
+
+struct Raw {
+    on: bool,
+    seen: Arc<Mutex<Vec<bool>>>,
+}
+
+impl RawMode for Raw {
+    fn is_raw(&self) -> bool {
+        self.on
+    }
+    fn set_raw_mode(&mut self, on: bool) {
+        self.on = on;
+        self.seen.lock().unwrap().push(on);
+    }
+}
+
+impl Term {
+    pub fn text(&self) -> String {
+        self.out.text.lock().unwrap().clone()
+    }
+    pub fn type_keys(&self, s: &str) {
+        self.keys.send(s.to_string()).unwrap();
+    }
+    pub fn raw_seen(&self) -> Vec<bool> {
+        self.raw.lock().unwrap().clone()
+    }
+    pub fn set_size(&self, cols: u16, rows: u16) {
+        *self.out.size.lock().unwrap() = (Some(cols), Some(rows));
+    }
+}
+
+/// A terminal at 120 by 40 (signin-relay.test.ts:22-56), a tty unless told otherwise.
+pub fn terminal(tty: bool, cols: u16, rows: u16) -> (Term, RelayTerminal) {
+    let (keys, input) = mpsc::unbounded_channel();
+    let (resize, resized) = mpsc::unbounded_channel();
+    let out = Arc::new(Out { text: Mutex::new(String::new()), size: Mutex::new((Some(cols), Some(rows))) });
+    let raw = Arc::new(Mutex::new(Vec::new()));
+    let relay = RelayTerminal {
+        input,
+        raw: if tty { Some(Box::new(Raw { on: false, seen: raw.clone() })) } else { None },
+        output: out.clone(),
+        resized,
+    };
+    (Term { keys, resize, out, raw }, relay)
+}
+
+pub fn strip_vt(s: &str) -> String {
+    let re = regex::Regex::new(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[@-Z\\-_]").unwrap();
+    re.replace_all(s, "").into_owned()
+}
+
+/// A host client whose replies the test plays (place-signin.test.ts:107-131, places-add.test.ts:39-95).
+pub struct FakeClient {
+    pub sent: Mutex<Vec<(String, Frame)>>,
+    pub answer: Mutex<Box<dyn FnMut(&str, &Frame) -> Result<Frame, HostError> + Send>>,
+    sinks: Mutex<Vec<(u64, FrameSink)>>,
+    next: Mutex<u64>,
+    pub events_called: Mutex<u32>,
+}
+
+impl FakeClient {
+    pub fn new(answer: impl FnMut(&str, &Frame) -> Result<Frame, HostError> + Send + 'static) -> Arc<FakeClient> {
+        Arc::new(FakeClient {
+            sent: Mutex::default(),
+            answer: Mutex::new(Box::new(answer)),
+            sinks: Mutex::default(),
+            next: Mutex::new(0),
+            events_called: Mutex::new(0),
+        })
+    }
+    pub fn push(&self, f: Value) {
+        let f = frame(f);
+        let sinks: Vec<FrameSink> = self.sinks.lock().unwrap().iter().map(|(_, s)| s.clone()).collect();
+        for s in sinks {
+            s(&f);
         }
     }
-
-    fn terminate(&self) {
-        self.close();
+    pub fn sent(&self) -> Vec<(String, Frame)> {
+        self.sent.lock().unwrap().clone()
+    }
+    pub fn listeners(&self) -> usize {
+        self.sinks.lock().unwrap().len()
     }
 }
 
-/// The scripted host behind a dialer: every dial a new socket on the same script and the same record of asks.
-pub struct ScriptedHost {
-    pub script: Script,
-    pub state: Arc<HostState>,
-    pub sockets: Mutex<Vec<Arc<ScriptedClient>>>,
-    /// Dials that fail with this error instead of opening a socket, counted down.
-    pub refuse_dials: Mutex<Vec<HostError>>,
-}
-
-impl ScriptedHost {
-    pub fn new(script: Script) -> Arc<ScriptedHost> {
-        Arc::new(ScriptedHost { script, state: Arc::default(), sockets: Mutex::new(Vec::new()), refuse_dials: Mutex::new(Vec::new()) })
-    }
-
-    pub fn replying(replies: &[(&str, Value)]) -> Arc<ScriptedHost> {
-        let mut script = Script::default();
-        for (op, frame) in replies {
-            let mut frame = frame.as_object().unwrap().clone();
-            frame.shift_remove("id");
-            let mut text = String::from(r#"{"id":1,"#);
-            let rest = Value::Object(frame).to_string();
-            text.push_str(&rest[1..]);
-            script.replies.insert((*op).to_owned(), text);
-        }
-        ScriptedHost::new(script)
-    }
-
-    /// What the host was asked across every socket, in order, each frame its params then `op`.
-    pub fn asked(&self) -> Vec<Value> {
-        self.state.asked.lock().unwrap().clone()
-    }
-
-    pub fn ops(&self) -> Vec<String> {
-        self.asked().iter().map(|f| f["op"].as_str().unwrap().to_owned()).collect()
-    }
-
-    pub fn dials(&self) -> usize {
-        self.state.dials.load(Ordering::SeqCst)
-    }
-
-    pub fn socket(&self, n: usize) -> Arc<ScriptedClient> {
-        self.sockets.lock().unwrap()[n].clone()
-    }
-}
+/// The client as the code under test holds it.
+#[derive(Clone)]
+pub struct Client(pub Arc<FakeClient>);
 
 #[async_trait]
-impl Dialer for ScriptedHost {
-    async fn client(&self, _again: Option<Again>) -> Result<Arc<dyn HostClient>, HostError> {
-        self.state.dials.fetch_add(1, Ordering::SeqCst);
-        if let Some(e) = self.refuse_dials.lock().unwrap().pop() {
-            return Err(e);
-        }
-        let socket = ScriptedClient::new(self.script.clone(), self.state.clone());
-        self.sockets.lock().unwrap().push(socket.clone());
-        Ok(socket)
+impl HostClient for Client {
+    async fn request(&self, op: &str, params: Frame) -> Result<Frame, HostError> {
+        self.0.sent.lock().unwrap().push((op.to_string(), params.clone()));
+        let answer = (self.0.answer.lock().unwrap())(op, &params);
+        answer
     }
-}
-
-/// A dialer that hands back the same socket on every plain dial, as a verb's own `client()` does, and a new one on
-/// a dial with `again`.
-pub struct OneSocket(pub Arc<ScriptedHost>, pub Mutex<Option<Arc<dyn HostClient>>>);
-
-#[async_trait]
-impl Dialer for OneSocket {
-    async fn client(&self, again: Option<Again>) -> Result<Arc<dyn HostClient>, HostError> {
-        if again.is_none() {
-            if let Some(c) = self.1.lock().unwrap().clone() {
-                return Ok(c);
-            }
-        }
-        let c = self.0.client(again).await?;
-        *self.1.lock().unwrap() = Some(c.clone());
-        Ok(c)
+    async fn events(&self) -> Result<(), HostError> {
+        *self.0.events_called.lock().unwrap() += 1;
+        Ok(())
     }
-}
-
-/// The deps a tool call is handed: this state, the environment given, the scripted host as its dialer.
-pub fn deps_on(host: Arc<ScriptedHost>, env: &[(&str, &str)]) -> VerbDeps {
-    VerbDeps {
-        state_path: "/nowhere/state.json".to_owned(),
-        cwd: Some("/root".to_owned()),
-        env: env.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect::<IndexMap<_, _>>(),
-        dialer: Arc::new(OneSocket(host, Mutex::new(None))),
-        host_wait_ms: Some(1_000),
-        start: None,
-        signals: None,
-        dial: None,
-        elsewhere: false,
-        terminal: None,
-        open: None,
+    fn on_frame(&self, sink: FrameSink) -> FrameOff {
+        let id = {
+            let mut n = self.0.next.lock().unwrap();
+            *n += 1;
+            *n
+        };
+        self.0.sinks.lock().unwrap().push((id, sink));
+        let me = self.0.clone();
+        FrameOff(Box::new(move || me.sinks.lock().unwrap().retain(|(i, _)| *i != id)))
     }
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// The terminal.
-// ---------------------------------------------------------------------------------------------------------------
-
-/// A terminal that records every line: stdout's, stderr's, the raw stream, and each question asked.
-#[derive(Default)]
-pub struct RecordingIo {
-    pub lines: Mutex<Vec<String>>,
-    pub errors: Mutex<Vec<String>>,
-    pub streamed: Mutex<Vec<String>>,
-    pub asked: Mutex<Vec<String>>,
-    pub tty: bool,
-    pub answer: String,
-}
-
-impl RecordingIo {
-    pub fn new() -> Arc<RecordingIo> {
-        Arc::new(RecordingIo { answer: "no".to_owned(), ..RecordingIo::default() })
+    async fn closed(&self) -> Option<u16> {
+        futures::future::pending::<()>().await;
+        None
     }
-
-    pub fn at_terminal(answer: &str) -> Arc<RecordingIo> {
-        Arc::new(RecordingIo { tty: true, answer: answer.to_owned(), ..RecordingIo::default() })
+    fn gone(&self) -> Option<Option<u16>> {
+        None
     }
-
-    pub fn lines(&self) -> Vec<String> {
-        self.lines.lock().unwrap().clone()
+    fn close_words(&self) -> String {
+        String::new()
     }
-
-    pub fn errors(&self) -> Vec<String> {
-        self.errors.lock().unwrap().clone()
+    fn paired(&self) -> Option<wsp_cli::verbs::client::Paired> {
+        None
     }
-
-    pub fn streamed(&self) -> Vec<String> {
-        self.streamed.lock().unwrap().clone()
-    }
-
-    pub fn asked(&self) -> Vec<String> {
-        self.asked.lock().unwrap().clone()
-    }
-}
-
-#[async_trait]
-impl CliIo for RecordingIo {
-    fn log(&self, line: &str) {
-        self.lines.lock().unwrap().push(line.to_owned());
-    }
-    fn error(&self, line: &str) {
-        self.errors.lock().unwrap().push(line.to_owned());
-    }
-    fn stream(&self, text: &str) {
-        self.streamed.lock().unwrap().push(text.to_owned());
-    }
-    async fn ask(&self, question: &str) -> Result<String, HostError> {
-        self.asked.lock().unwrap().push(question.to_owned());
-        Ok(self.answer.clone())
-    }
-    fn is_tty(&self) -> bool {
-        self.tty
-    }
-    async fn ask_secret(&self, question: &str, _variable: Option<&str>) -> Result<String, HostError> {
-        self.asked.lock().unwrap().push(question.to_owned());
-        Ok(String::new())
-    }
-}
-
-/// A verb's context over the scripted host: the parsed line, the terminal, `--json` where the flags say.
-pub fn context(host: Arc<ScriptedHost>, io: Arc<RecordingIo>, args: &[&str], flags: wsp_cli::verbs::client::Flags, usage: &str) -> VerbContext {
-    let json = matches!(flags.get("json"), Some(wsp_cli::verbs::client::FlagValue::Bool(true)));
-    VerbContext {
-        deps: deps_on(host, &[]),
-        args: args.iter().map(|s| (*s).to_owned()).collect(),
-        flags,
-        io: io.clone(),
-        out: Out::formatter(io, json),
-        aim: HostAim::Here,
-        usage: usage.to_owned(),
-    }
-}
-
-/// A future boxed for a `DialWithin`.
-pub fn boxed<'a, T>(f: impl std::future::Future<Output = T> + Send + 'a) -> BoxFuture<'a, T> {
-    Box::pin(f)
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// The tool server's record (daemon/crates/wsp-mcp/tests/answers), replayed against a verb's tool call.
-// ---------------------------------------------------------------------------------------------------------------
-
-#[derive(Deserialize, Clone)]
-pub struct Answers {
-    pub tool: String,
-    pub cases: Vec<Case>,
-}
-
-#[derive(Deserialize, Clone)]
-pub struct Case {
-    pub case: String,
-    pub arguments: Value,
-    #[serde(default)]
-    pub replies: BTreeMap<String, String>,
-    #[serde(default)]
-    pub env: BTreeMap<String, String>,
-    #[serde(default)]
-    pub pushed: BTreeMap<String, Vec<String>>,
-    #[serde(default)]
-    pub closes: Option<String>,
-    #[serde(default)]
-    pub platform: Option<String>,
-    #[serde(default)]
-    pub cloud: bool,
-    pub line: String,
-    pub asked: Vec<Value>,
-    #[serde(default)]
-    pub guest: Option<Answered>,
-}
-
-#[derive(Deserialize, Clone)]
-pub struct Answered {
-    pub line: String,
-    pub asked: Vec<Value>,
-}
-
-/// The recorded answers of one tool.
-pub fn answers(tool: &str) -> Answers {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../daemon/crates/wsp-mcp/tests/answers").join(format!("{tool}.json"));
-    serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))).unwrap()
-}
-
-/// The line the TS server printed for an answer: `{"result":<answer>,"jsonrpc":"2.0","id":1}` through `jsonLine`.
-pub fn server_line(answer: &wsp_cli::verbs::client::CallToolResult) -> String {
-    let result = serde_json::to_value(answer).unwrap();
-    let line = json!({ "result": result, "jsonrpc": "2.0", "id": 1 });
-    wsp_words::exit::json_line(&line, None)
-}
-
-/// The asks sorted by their text, as the record's own replay compares them (the order two requests sent together
-/// reach the host is not the code's to fix).
-pub fn in_order(mut frames: Vec<Value>) -> Vec<Value> {
-    frames.sort_by_key(Value::to_string);
-    frames
+    fn close(&self) {}
+    fn terminate(&self) {}
 }
