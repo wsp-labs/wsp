@@ -203,7 +203,7 @@ mod config_write_line {
             }
             std::thread::sleep(Duration::from_millis(25));
         }
-        Command::new("/bin/sh").args(["-c", &format!("kill -KILL -- -{}", child.id())]).status().unwrap();
+        Command::new("kill").args(["-KILL", "--", &format!("-{}", child.id())]).status().unwrap();
         child.wait().unwrap();
         drop(stdin);
         assert_eq!(fs::read_to_string(&file).unwrap(), old);
