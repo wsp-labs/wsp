@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! What a workspace's checkout holds and the lines a commit, a discard or a push prints. Port of the functions of packages/protocol/src/changes.ts at
-//! a3b870a6e; its shapes and flat constants are wsp_wire::types::changes. See spec/changes.md.
+//! the cut (383708c78); its shapes and flat constants are wsp_wire::types::changes. See spec/changes.md.
 
 use wsp_wire::types::changes::{Checkout, DRAFT_DIFF_MAX_BYTES};
 
@@ -86,7 +86,14 @@ pub fn cut_diff(text: &str, max: Option<f64>) -> String {
     if (bytes.len() as f64) <= max {
         return text.to_string();
     }
-    let end = if max < 0.0 { (bytes.len() as f64 + max).max(0.0) } else { max.min(bytes.len() as f64) } as usize;
+    // `subarray(0, end)`: a NaN end is 0, and a negative end counts from the end.
+    let end = if max.is_nan() {
+        0.0
+    } else if max < 0.0 {
+        (bytes.len() as f64 + max).max(0.0)
+    } else {
+        max.min(bytes.len() as f64)
+    } as usize;
     let head = &bytes[..end];
     let kept = match head.iter().rposition(|&b| b == b'\n') {
         Some(nl) if nl > 0 => &head[..=nl],

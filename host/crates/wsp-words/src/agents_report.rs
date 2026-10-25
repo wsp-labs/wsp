@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! What stands on one computer or workspace for the agents: each agent with its version and sign-in word, every skill and every server, and the lines a report says. Port of the functions of packages/protocol/src/agents-report.ts at
-//! a3b870a6e; its shapes and flat constants are wsp_wire::types::agents_report. See spec/agents_report.md.
+//! the cut (383708c78); its shapes and flat constants are wsp_wire::types::agents_report. See spec/agents_report.md.
 
 use wsp_wire::types::agents_report::AgentsTarget;
 use wsp_wire::types::agents_report::PluginMissing;

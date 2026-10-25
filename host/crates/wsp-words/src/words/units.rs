@@ -1,16 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Port of packages/protocol/src/words/units.ts at a3b870a6e: bytes, sizes, rates, durations, tokens and costs as a
+//! Port of packages/protocol/src/words/units.ts at the cut (383708c78): bytes, sizes, rates, durations, tokens and costs as a
 //! person reads them, and the size, Boat and disk lines built on them. Each TS statement stands as a comment above
 //! its stub. See spec/units.md.
 
-use wsp_wire::types::init_job::{InitDraft, InitJob, InitScreen, InitScreenId};
 use wsp_wire::wire::capabilities::{MachineSizeOffer, PlaceCapacity, WorkspaceSize};
 
 use crate::js::{js_round, js_trim, locale_number, number_string, to_fixed, utf16, Grouping};
-use crate::words::base::plural;
-use indexmap::IndexSet;
 use regex::Regex;
-use wsp_wire::types::init_job::InitScreenItemLock;
 use wsp_wire::types::js_number::JsNumber;
 
 // units.ts:4
@@ -90,8 +86,10 @@ pub fn fmt_disk_bytes(n: f64) -> String {
 //   if (n < MIB || n >= GIB) return fmtBytes(n);
 //   return `${(Math.ceil((n / MIB) * 10) / 10).toFixed(1)} MB`;
 // }
+// `!(MIB..GIB).contains(&n)` is true for NaN, which the TS comparisons are not.
+#[allow(clippy::manual_range_contains)]
 pub fn fmt_bytes_over(n: f64) -> String {
-    if !(MIB..GIB).contains(&n) {
+    if n < MIB || n >= GIB {
         return fmt_bytes(n);
     }
     format!("{} MB", to_fixed(((n / MIB) * 10.0).ceil() / 10.0, 1))
@@ -108,18 +106,6 @@ pub fn fmt_calls(n: f64) -> String {
     format!("{} {}", locale_number(n, Grouping::EnUs, 0, 3), if n == 1.0 { "call" } else { "calls" })
 }
 
-/// The tally under a screen's card, first half: the count of rows on the image, so a view can colour the estimate after it on its own. The
-/// noun is the screen's plural ("agents", "tools"), or a word that does not count ("more") kept as it is.
-// units.ts:56
-// export const initTallyCount = (count: number, noun: string): string => `${noun.endsWith("s") ? plural(count, noun.replace(/s$/, "")) : `${count} ${noun}`} on the image`;
-pub fn init_tally_count(count: f64, noun: &str) -> String {
-    let body = match noun.strip_suffix('s') {
-        Some(singular) => plural(count, singular),
-        None => format!("{} {noun}", number_string(count)),
-    };
-    format!("{body} on the image")
-}
-
 /// Two byte counts against each other, each under the byte rule ("4.9 GB of 20 GB"): the tally's running estimate
 /// against the disk and the machine tab's memory and disk rows, each read in the tone the share earns; the first count
 /// alone where there is no total.
@@ -130,85 +116,6 @@ pub fn fmt_bytes_of_total(used: f64, total: Option<f64>) -> String {
         None => fmt_bytes(used),
         Some(total) => format!("{} of {}", fmt_bytes(used), fmt_bytes(total)),
     }
-}
-
-/// How many rows of a screen are on the image with these ticks and the bytes they come to: a locked row is on, a row
-/// that takes an answer is not counted, and a row nothing measured adds nothing.
-// units.ts:64
-// export function initTallyOf(screen: Pick<InitScreen, "items">, ticks: ReadonlySet<string>): { count: number; bytes: number } {
-//   let count = 0;
-//   let bytes = 0;
-//   for (const item of screen.items) {
-//     if (item.choices !== undefined) continue;
-//     if (!(item.lock === "on" || ticks.has(item.id))) continue;
-//     count += 1;
-//     if (typeof item.size === "number") bytes += item.size;
-//   }
-//   return { count, bytes };
-// }
-/// The tally `init_tally_of` answers: rows counted and the bytes they come to.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct InitTally {
-    pub count: f64,
-    pub bytes: f64,
-}
-
-pub fn init_tally_of(screen: &InitScreen, ticks: &IndexSet<String>) -> InitTally {
-    let mut count = 0.0;
-    let mut bytes = 0.0;
-    for item in &screen.items {
-        if item.choices.is_some() {
-            continue;
-        }
-        if !(matches!(item.lock, Some(InitScreenItemLock::On)) || ticks.contains(&item.id)) {
-            continue;
-        }
-        count += 1.0;
-        if let Some(Some(size)) = &item.size {
-            bytes += size.0;
-        }
-    }
-    InitTally { count, bytes }
-}
-
-/// The ticks of a screen as they stand: the draft kept on its step where the person left one, else what the host last
-/// answered. The one rule for what a screen opens on and for what the estimate counts.
-// units.ts:78
-// export const initTicksOf = (screen: Pick<InitScreen, "ticks">, kept?: Pick<InitDraft, "ticks">): ReadonlySet<string> => new Set(kept?.ticks ?? screen.ticks);
-pub fn init_ticks_of(screen: &InitScreen, kept: Option<&InitDraft>) -> IndexSet<String> {
-    match kept {
-        Some(draft) => draft.ticks.iter().cloned().collect(),
-        None => screen.ticks.iter().cloned().collect(),
-    }
-}
-
-/// The running estimate of the image in bytes: what the disk holds before any tick plus every screen's ticked rows as
-/// they stand, drafts over answers. The one number every step's tally, the meter and Continue's refusal read. A client
-/// passes the draft it holds and the host has not echoed yet, so a tick moves the number before the round trip.
-// units.ts:83
-// export function initImageBytes(job: Pick<InitJob, "disk" | "screens" | "drafts">, current?: { at: string; ticks: Iterable<string> }): number {
-//   const fixed = job.disk?.fixed ?? 0;
-//   return job.screens.reduce((sum, s) => sum + initTallyOf(s, current !== undefined && current.at === s.id ? new Set(current.ticks) : initTicksOf(s, job.drafts?.find(d => d.at === s.id))).bytes, fixed);
-// }
-/// The step a client is on and the ticks it holds that the host has not echoed yet.
-#[derive(Clone, Debug, PartialEq)]
-pub struct CurrentTicks {
-    pub at: String,
-    pub ticks: Vec<String>,
-}
-
-pub fn init_image_bytes(job: &InitJob, current: Option<&CurrentTicks>) -> f64 {
-    let fixed = job.disk.as_ref().map_or(0.0, |disk| disk.fixed.0);
-    job.screens.iter().fold(fixed, |sum, screen| {
-        let ticks: IndexSet<String> = match current {
-            Some(current) if current.at == screen_word(screen.id) => current.ticks.iter().cloned().collect(),
-            _ => {
-                let draft = job.drafts.as_ref().and_then(|drafts| drafts.iter().find(|d| d.at == screen_word(screen.id)));
-                init_ticks_of(screen, draft)
-            }
-        };
-        sum + init_tally_of(screen, &ticks).bytes
-    })
 }
 
 /// The tone a size is read in, by weight, the one table every size cell reads: a gigabyte and over is the danger
@@ -263,23 +170,6 @@ pub fn size_tone(bytes: f64) -> SizeTone {
     }
 }
 
-// The screens where a person is choosing weight, whose size cells wear the weight tone. The agents screen's sizes
-// are muted: the agents are what the person came for, not a place to be warned off.
-// units.ts:102
-// private in the TS: port it as a private helper
-// const WEIGHED_SCREENS: ReadonlySet<InitScreenId> = new Set<InitScreenId>(["tools", "also"]);
-
-/// The tone a row's size cell wears on a screen: the weight table where the screen weighs, muted elsewhere and where
-/// nothing measured the row.
-// units.ts:105
-// export const initSizeTone = (screen: Pick<InitScreen, "id">, bytes: number | null): SizeTone => (bytes === null || !WEIGHED_SCREENS.has(screen.id) ? "muted" : sizeTone(bytes));
-pub fn init_size_tone(screen_id: InitScreenId, bytes: Option<f64>) -> SizeTone {
-    match bytes {
-        Some(bytes) if matches!(screen_id, InitScreenId::Tools | InitScreenId::Also) => size_tone(bytes),
-        _ => SizeTone::Muted,
-    }
-}
-
 /// The tone of the disk meter and the tally's estimate by the share the estimate takes of the disk: muted under 70
 /// percent, the warning tone from 70, the danger tone from 90 and when over.
 // units.ts:109
@@ -298,22 +188,6 @@ pub fn disk_tone(used: f64, total: f64) -> SizeTone {
     } else {
         SizeTone::Muted
     }
-}
-
-/// The disk meter's tooltip: what the image holds against the machine's disk, and by how much it is over once it is;
-/// the overshoot is said here and in Continue's refusal, nowhere else.
-// units.ts:117
-// export const initDiskLine = (used: number, total: number): string => `about ${fmtBytes(used)} of ${fmtBytes(total)} on the image${used > total ? `, ${initDiskOverLine(used - total)}` : ""}`;
-pub fn init_disk_line(used: f64, total: f64) -> String {
-    let over = if used > total { format!(", {}", init_disk_over_line(used - total)) } else { String::new() };
-    format!("about {} of {} on the image{over}", fmt_bytes(used), fmt_bytes(total))
-}
-
-/// The primary's refusal once the ticks pass the disk, and the tail of the meter's tooltip.
-// units.ts:120
-// export const initDiskOverLine = (over: number): string => `over by ${fmtBytes(over)}`;
-pub fn init_disk_over_line(over: f64) -> String {
-    format!("over by {}", fmt_bytes(over))
 }
 
 // Memory in GB as the size table names it: whole when whole, else one decimal; a size spec, not a byte count.
@@ -1045,7 +919,7 @@ pub fn fmt_cost(usd: f64) -> String {
 // }
 pub fn fmt_inr(inr: f64) -> String {
     let digits = if js_round(inr * 100.0) % 100.0 != 0.0 { 2 } else { 0 };
-    let sign = if inr.is_sign_negative() { "-" } else { "" };
+    let sign = if inr.is_sign_negative() && !inr.is_nan() { "-" } else { "" };
     format!("{sign}\u{20b9}{}", locale_number(inr.abs(), Grouping::EnIn, digits, digits))
 }
 
@@ -1098,17 +972,6 @@ fn mem_gb(mem_mb: f64) -> f64 {
 /// `sizeWord`'s text for a cpu count and a memory figure in MB.
 fn word_of(cpu: f64, mem_mb: f64) -> String {
     format!("{}x{}", number_string(cpu), number_string(mem_gb(mem_mb)))
-}
-
-/// The id a screen's `id` field carries on the wire, which a draft's `at` names.
-fn screen_word(id: InitScreenId) -> &'static str {
-    match id {
-        InitScreenId::Agents => "agents",
-        InitScreenId::Tools => "tools",
-        InitScreenId::Also => "also",
-        InitScreenId::Logins => "logins",
-        InitScreenId::Wsp => "wsp",
-    }
 }
 
 /// The short style under a minute: ms under a second, tenths under ten, whole seconds after; nothing sensible is "0ms".

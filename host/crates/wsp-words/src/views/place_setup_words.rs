@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The words of a computer's setup: its state word, the rows of what goes on it, the sign-in ways, and the lines a provision prints as it packs, ships and lands. Port of the functions of packages/protocol/src/views/place-setup-words.ts that wsp-wire left to this crate, at
-//! a3b870a6e; that file's shapes are wsp-wire's. See spec/views_place_setup_words.md.
+//! the cut (383708c78); that file's shapes are wsp-wire's. See spec/views_place_setup_words.md.
 
 use crate::workspace_state::AbsentComputer;
 use wsp_wire::views::place::PendingComputer;

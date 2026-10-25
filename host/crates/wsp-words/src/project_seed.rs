@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! What goes to a sub-thread's machine from a project folder git ignores: the picks, the menu's lines and the
-//! refusals of a pick off the menu. Port of the functions of packages/protocol/src/project-seed.ts at a3b870a6e; its
+//! refusals of a pick off the menu. Port of the functions of packages/protocol/src/project-seed.ts at the cut (383708c78); its
 //! shapes and flat constants are wsp_wire::types::project_seed. See spec/project_seed.md.
 
 use wsp_wire::types::js_number::{JsInt, JsNumber};
@@ -417,7 +417,8 @@ pub fn seed_row_words(file: &SeedFile, plan: Option<&SeedPlan>) -> String {
 //   return plan.files.filter(f => choice.files.includes(f.path)).reduce((sum, f) => sum + f.bytes, 0);
 // }
 pub fn seed_bytes(plan: &SeedPlan, choice: &SeedChoice) -> f64 {
-    plan.files.iter().filter(|f| choice.files.contains(&f.path)).map(|f| int(&f.bytes)).sum()
+    // `reduce` starts at 0, where `sum()` starts at -0.0 and a choice of no file would answer it.
+    plan.files.iter().filter(|f| choice.files.contains(&f.path)).map(|f| int(&f.bytes)).fold(0.0, |sum, bytes| sum + bytes)
 }
 
 /// What the seeding says as the person's files go to that computer: the same counts the menu showed them, in the

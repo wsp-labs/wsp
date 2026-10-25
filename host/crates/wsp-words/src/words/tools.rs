@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Port of packages/protocol/src/words/tools.ts at a3b870a6e: the one table of the tools a harness reports (the line
+//! Port of packages/protocol/src/words/tools.ts at the cut (383708c78): the one table of the tools a harness reports (the line
 //! a call reads as, what a client shows for it, its kinds), the question tool's questions and picks, and the words a
 //! permission prompt is put to a person in. Each TS statement stands as a comment above its stub. See spec/tools.md.
 
 use crate::js::{js_collapse_whitespace, js_trim, number_string};
 use crate::project_path::{folder_name, parent_folder_name};
-use crate::words::base::{last_line, plural};
+use crate::words::base::plural;
 use crate::words::turn::title_line;
 use crate::words::units::fmt_bytes;
 use serde::Serialize;
 use serde_json::Value;
 use wsp_wire::views::session::PermissionOutcome;
-use wsp_wire::views::session_events::{DeltaKind, SessionEvent, SessionPermissionEvent};
+use wsp_wire::views::session_events::SessionPermissionEvent;
 use wsp_wire::wire::helpers::{PermissionEffect, PermissionOption};
 use wsp_wire::wire::runtime::SessionAnswerOutcome;
 
@@ -425,12 +425,12 @@ pub fn question_answer_input(tool_name: &str, input: &str, picked: &[impl AsRef<
     let mut fields = tool_input(input)?;
     let questions = asked_questions(tool_name, input)?;
     let picked: Vec<&str> = picked.iter().map(|id| id.as_ref()).collect();
-    let typed: Vec<(usize, String)> = picked.iter().filter_map(|id| typed_answer(id)).collect();
+    let typed: Vec<(f64, String)> = picked.iter().filter_map(|id| typed_answer(id)).collect();
     let mut answers = ToolInput::new();
     for question in &questions {
         let mut labels: Vec<String> =
             question.options.iter().filter(|option| picked.contains(&option.id.as_str())).map(|option| option.label.clone()).collect();
-        labels.extend(typed.iter().filter(|(index, _)| *index == question.index).map(|(_, words)| words.clone()));
+        labels.extend(typed.iter().filter(|(index, _)| *index == question.index as f64).map(|(_, words)| words.clone()));
         let Some(first) = labels.first().cloned() else {
             continue;
         };
@@ -441,6 +441,7 @@ pub fn question_answer_input(tool_name: &str, input: &str, picked: &[impl AsRef<
     if answers.is_empty() {
         return None;
     }
+    let answers = crate::js::js_key_order(answers.iter()).into_iter().map(|(key, value)| (key.clone(), value.clone())).collect();
     fields.insert("answers".to_string(), Value::Object(answers));
     Some(fields)
 }
@@ -767,32 +768,6 @@ pub fn subagent_asker_line(task: &str) -> String {
 // export const waitingAskerLine = (title: string): string => `${title} asks; this thread waits on the answer`;
 pub fn waiting_asker_line(title: &str) -> String {
     format!("{title} asks; this thread waits on the answer")
-}
-
-/// What a thread is doing, as the one line a client with no transcript shows: the tool call it is running, the
-/// prompt it is blocked on, else its own latest line of prose. Nothing for an event that says nothing about the
-/// work, so a caller keeps the line it had.
-// tools.ts:431
-// export function threadWorkingLine(e: SessionEvent): string | undefined {
-//   switch (e.type) {
-//     case "session.delta":
-//       return e.kind === "text" || e.kind === "thinking" ? lastLine(e.text) : e.kind === "tool_use" ? toolActivityLine(e.toolName, e.text) : undefined;
-//     case "session.permission":
-//       return permissionAskLine(e.toolName, e.input, e.detail);
-//     default:
-//       return undefined;
-//   }
-// }
-pub fn thread_working_line(e: &SessionEvent) -> Option<String> {
-    match e {
-        SessionEvent::SessionDeltaEvent(delta) => match delta.kind {
-            DeltaKind::Text | DeltaKind::Thinking => last_line(&delta.text),
-            DeltaKind::ToolUse => Some(tool_activity_line(delta.tool_name.as_deref(), &delta.text)),
-            _ => None,
-        },
-        SessionEvent::SessionPermissionEvent(ask) => Some(permission_ask_line(&ask.tool_name, &ask.input, ask.detail.as_deref())),
-        _ => None,
-    }
 }
 
 // A prompt's lead in two parts: the words, and the call's own text where the call has some. They are apart because

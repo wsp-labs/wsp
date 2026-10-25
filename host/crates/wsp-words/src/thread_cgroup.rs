@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! One thread's processes on a joined computer stand in a cgroup of their own. Port of the sentence and script
-//! functions of packages/protocol/src/thread-cgroup.ts at a3b870a6e (cgroupMemory and inCgroup are
+//! functions of packages/protocol/src/thread-cgroup.ts at the cut (383708c78) (cgroupMemory and inCgroup are
 //! wsp_wire::types::thread_cgroup). See spec/shell_and_text.md.
 
 use wsp_wire::types::daemon_contract::{CGROUP_MOUNT, THREAD_CGROUPS};

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! One thread read off the transcript the host holds: the messages a reader sees and the result its latest turn ended with. Port of the functions of packages/protocol/src/thread-read.ts at
-//! a3b870a6e; its shapes and flat constants are wsp_wire::types::thread_read. See spec/thread_read.md.
+//! the cut (383708c78); its shapes and flat constants are wsp_wire::types::thread_read. See spec/thread_read.md.
 
 use indexmap::IndexMap;
 
@@ -281,11 +281,8 @@ pub fn thread_messages(events: &[SessionEvent], thread_id: &str) -> Vec<ThreadMe
 //   return blocks.map(block => block.join("\n")).join("\n\n");
 // }
 pub fn thread_markdown(rows: &[ThreadMessage]) -> String {
-    let zone = jiff::tz::TimeZone::system();
-    let offset = |at: f64| match jiff::Timestamp::from_millisecond(at as i64) {
-        Ok(stamp) => zone.to_offset(stamp).seconds() as i64,
-        Err(_) => 0,
-    };
+    let zone = crate::js_date::DateZone::system();
+    let offset = |at: f64| crate::js_date::time_value(at).map_or(0, |t| zone.offset_seconds(t));
     let mut blocks: Vec<Vec<String>> = Vec::new();
     let mut speaker: Option<ThreadVoice> = None;
     for (index, row) in rows.iter().enumerate() {

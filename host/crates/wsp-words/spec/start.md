@@ -50,6 +50,8 @@ The words of a thread started on a GitHub issue or pull request and of a pull re
 3. `is_review_read` answers a bool for the TS type guard; `ReviewVerdict` is `ReviewBlockVerdict`.
 4. The string unions stay strings: `line_in_diff`'s side is "LEFT" or "RIGHT", `start_name`'s kind "start" or "review". A JS number parameter is `f64` (`with_closes`, `line_in_diff`, `start_name`, the `start_words` sentences); `taken_name_after` takes an `IndexSet<String>` for the ReadonlySet.
 5. START_WORDS is the module `start_words`: fixed words are constants, sentences and `verdicts` functions; `no_read_only` takes `&[&str]`.
+6. V8's `JSON.parse` and its messages are the unit `v8_json` (see js.md), and `start::parse_json` is its public name: `wsp-cli`'s `slate` reads the same texts the same way. `review_from_reply` reads a number past the double range as a fraction, so zod's `.int()` says `Expected integer, received float` for it as the TS does, and a nest of any depth is answered by the shape error (`Expected object, received array`), never by a stack overflow. wsp-wire's check says `received number` for a fraction where a type other than an integer was wanted, and `float` only for the integer check.
+7. `github_link_of` keeps a link whose number is 309 digits or more (`Number` reads it as Infinity); `with_closes` writes the issue number into the regular expression as it is written, as the TS does (`1.5` reads `1` any character `5`).
 
 ## After the port
 - One left-out comment reads "(1 more comments on the issue are not shown)": the plural is fixed.

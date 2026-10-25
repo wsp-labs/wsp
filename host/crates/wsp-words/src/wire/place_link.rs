@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The sentences of a joined computer that still holds what wsp installed, and of one forgotten. Port of the functions of packages/protocol/src/wire/place-link.ts that wsp-wire left to this crate, at
-//! a3b870a6e; that file's shapes are wsp-wire's. See spec/wire_place_link.md.
+//! the cut (383708c78); that file's shapes are wsp-wire's. See spec/wire_place_link.md.
 
 /// What a remove says about a place that was not linked when it ran: the records here are gone and the daemon on
 /// that computer is not, since nothing could reach it to sweep.

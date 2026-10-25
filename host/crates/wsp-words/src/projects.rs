@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! A project as wsp records it: what a source word names, where a checkout lands, the clone and worktree lines, and
 //! the refusals of a project in the wrong place. Port of the functions of packages/protocol/src/projects.ts at
-//! a3b870a6e; its shapes and flat constants are wsp_wire::types::projects. See spec/projects.md.
+//! the cut (383708c78); its shapes and flat constants are wsp_wire::types::projects. See spec/projects.md.
 
 use std::sync::LazyLock;
 
@@ -12,7 +12,7 @@ use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::types::projects::{ADD_FORMS_LINE, OWNER_REPO};
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::views::workspace::{
-    ProjectSource, ProjectSourceFolder, ProjectSourceGit, ProjectSourceGithub, ProjectSourceGitlab, ProjectView, WorkspaceProject,
+    ProjectSource, ProjectSourceFolder, ProjectSourceGit, ProjectSourceGithub, ProjectSourceGitlab, ProjectView,
 };
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::wire::daemon::EXEC_DEADLINE_EXIT;
@@ -814,17 +814,12 @@ pub fn project_left_on_computer_line(name: &str, computer: &str, folder: &str) -
     format!("{name} is no longer a project on {computer}; its folder {folder} stays there as it is")
 }
 
-/// What a remove says for a project a provider keeps in an image: nothing runs on any machine, and the image
-/// stays where it is, since no verb deletes one yet.
-// projects.ts:357
-// export const projectRemovedAtProviderLine = (name: string, computer: string, snapshotId?: string): string =>
-//   `${name} is no longer a project on ${computer}; ${snapshotId === undefined ? "nothing of it was held there" : `its project image ${snapshotId} stays at the provider`}`;
-pub fn project_removed_at_provider_line(name: &str, computer: &str, snapshot_id: Option<&str>) -> String {
-    let held = match snapshot_id {
-        None => "nothing of it was held there".to_string(),
-        Some(id) => format!("its project image {id} stays at the provider"),
-    };
-    format!("{name} is no longer a project on {computer}; {held}")
+/// What a remove says for a project a provider holds nothing of: only the record goes.
+// projects.ts:356
+// export const projectRemovedAtProviderLine = (name: string, computer: string): string =>
+//   `${name} is no longer a project on ${computer}; nothing of it was held there`;
+pub fn project_removed_at_provider_line(name: &str, computer: &str) -> String {
+    format!("{name} is no longer a project on {computer}; nothing of it was held there")
 }
 
 /// What the seeding says where the computer already keeps this project's memory at the path its agent reads:
@@ -904,42 +899,6 @@ pub fn home_shortened(path: &str, home: Option<&str>) -> String {
 // }
 pub fn registered_line(dest: &str) -> String {
     format!("{} registered at {dest}; nothing was copied.", folder_name(dest))
-}
-
-/// Whether a project image already holds this project's checkout, so a fork of it clones and installs nothing: the
-/// image records every project that was on the disk and the path each sat at, and a fork of the whole disk comes up
-/// with all of them where they were. Read off the snapshot a fork names and never off the project's own record,
-/// which says nothing about which image a given workspace was forked from.
-// projects.ts:401
-// export function imageCarriesCheckout(projects: readonly WorkspaceProject[] | undefined, path: string): boolean {
-//   return projects !== undefined && projects.some(p => p.dest === path);
-// }
-pub fn image_carries_checkout(projects: Option<&[WorkspaceProject]>, path: &str) -> bool {
-    projects.is_some_and(|projects| projects.iter().any(|p| p.dest == path))
-}
-
-/// What a fork of a project golden starts with, after the created line; nothing for an image carrying none.
-// projects.ts:406
-// export function projectsInPlace(projects: readonly WorkspaceProject[]): string {
-//   return projects.length === 0 ? "" : ` with ${projects.map(p => p.name).join(", ")} in place`;
-// }
-pub fn projects_in_place(projects: &[WorkspaceProject]) -> String {
-    if projects.is_empty() {
-        return String::new();
-    }
-    let names: Vec<&str> = projects.iter().map(|p| p.name.as_str()).collect();
-    format!(" with {} in place", names.join(", "))
-}
-
-/// The name a fork of a project golden goes by: the newest project it carries, which is also the name `new --from`
-/// takes for it; the snapshot id where a manifest carries none.
-// projects.ts:412
-// export function goldenForkName(g: { projects: readonly WorkspaceProject[]; snapshotId: string }): string {
-//   return g.projects.at(-1)?.name ?? g.snapshotId;
-// }
-/// `projects` and `snapshot_id` are the TS object's fields.
-pub fn golden_fork_name(projects: &[WorkspaceProject], snapshot_id: &str) -> String {
-    projects.last().map_or_else(|| snapshot_id.to_string(), |p| p.name.clone())
 }
 
 /// Why an import onto this computer takes no consent flags: nothing is carried, cut, sent or replaced by a register.

@@ -71,7 +71,6 @@ mod pinned {
 
     #[test]
     fn each_kind_says_its_own_machine_and_what_a_delete_takes() {
-        assert_eq!(agents_kind_refusal(&kind("cloud")), "agents on a machine wsp forks cannot drive this host, so the spawn switch would hand out a token that opens nothing; it is for the machines wsp forks and this computer"); // agentsKindRefusal("cloud")
         assert_eq!(machine_word(&kind("cloud")), "a machine wsp forks"); // machineWord("cloud")
         assert_eq!(thread_place(&kind("cloud"), "spoo"), "a machine wsp forks"); // threadPlace("cloud", "spoo")
         assert_eq!(
@@ -100,7 +99,6 @@ mod pinned {
             "its worktree at /r/wt/a is removed and the project folder is left as it is"
         ); // onDeleteOf("cloud", {path:"/r/wt/a"}).done("m1")
         assert_eq!(on_delete_of(&kind("cloud"), None, Some(""), None).done_for("x"), "its create had made no computer"); // onDeleteOf("cloud", undefined, "").done("x")
-        assert_eq!(agents_kind_refusal(&kind("local")), "agents on this computer cannot drive this host, so the spawn switch would hand out a token that opens nothing; it is for the machines wsp forks and this computer"); // agentsKindRefusal("local")
         assert_eq!(machine_word(&kind("local")), "this computer"); // machineWord("local")
         assert_eq!(thread_place(&kind("local"), "spoo"), "spoo"); // threadPlace("local", "spoo")
         assert_eq!(
@@ -129,7 +127,6 @@ mod pinned {
             "its worktree at /r/wt/a is removed and the project folder is left as it is"
         ); // onDeleteOf("local", {path:"/r/wt/a"}).done("m1")
         assert_eq!(on_delete_of(&kind("local"), None, Some(""), None).done_for("x"), "its create had made no computer"); // onDeleteOf("local", undefined, "").done("x")
-        assert_eq!(agents_kind_refusal(&kind("place")), "agents on a computer you joined cannot drive this host, so the spawn switch would hand out a token that opens nothing; it is for the machines wsp forks and this computer"); // agentsKindRefusal("place")
         assert_eq!(machine_word(&kind("place")), "a computer you joined"); // machineWord("place")
         assert_eq!(thread_place(&kind("place"), "spoo"), "spoo"); // threadPlace("place", "spoo")
         assert_eq!(
