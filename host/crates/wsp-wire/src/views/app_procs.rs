@@ -158,6 +158,13 @@ impl Check for AppProcList {
         self.0.check()
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<SchemaError>> {
+        let serde_json::Value::Array(items) = value else { return None };
+        let mut out: Vec<SchemaError> = crate::types::check::items_at_most(items.len(), 200).err().into_iter().collect();
+        out.extend(<Vec<AppProc> as Check>::pass(value)?);
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         <Vec<AppProc> as Check>::describe(path)
     }

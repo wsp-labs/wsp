@@ -693,32 +693,128 @@ impl Check for ThreadDefaults {
 /// A record with a patch's fields over it, read as JSON objects: a key the patch writes null is taken away, an absent
 /// one kept, any other value set (a key the record lacked goes after the ones it had). None when no key is left.
 /// `T` is the record (AgentDefaults, ProjectOverrides), `P` its patch (AgentDefaultsPatch, ProjectOverridesPatch),
-/// whose fields are double options so null and absent stay apart.
+/// whose fields are double options so null and absent stay apart. A struct writes its own field order, so a record
+/// that must keep the order a patch left is a `Fields<T>` and goes through `Fields::patched`.
 pub fn patched_fields<T, P>(kept: Option<&T>, patch: &P) -> Option<T>
 where
     T: Serialize + serde::de::DeserializeOwned,
     P: Serialize,
 {
-    let mut next = match kept.map(serde_json::to_value) {
-        Some(Ok(serde_json::Value::Object(fields))) => fields,
+    let start = kept.map(|kept| object_of(kept)).unwrap_or_default();
+    serde_json::from_value(serde_json::Value::Object(merged(start, patch)?)).ok()
+}
+
+fn object_of<T: Serialize>(record: &T) -> serde_json::Map<String, serde_json::Value> {
+    match serde_json::to_value(record) {
+        Ok(serde_json::Value::Object(fields)) => fields,
         _ => serde_json::Map::new(),
-    };
-    if let Ok(serde_json::Value::Object(fields)) = serde_json::to_value(patch) {
-        for (key, value) in fields {
-            match value {
-                serde_json::Value::Null => {
-                    next.shift_remove(&key);
-                }
-                value => {
-                    next.insert(key, value);
-                }
+    }
+}
+
+fn merged<P: Serialize>(
+    mut next: serde_json::Map<String, serde_json::Value>,
+    patch: &P,
+) -> Option<serde_json::Map<String, serde_json::Value>> {
+    for (key, value) in object_of(patch) {
+        match value {
+            serde_json::Value::Null => {
+                next.shift_remove(&key);
+            }
+            value => {
+                next.insert(key, value);
             }
         }
     }
-    if next.is_empty() {
-        return None;
+    (!next.is_empty()).then_some(next)
+}
+
+/// A record written with its keys in the order `patchedFields` leaves them: the kept keys where they stood, a new key
+/// after them. Read from JSON it holds the struct's order, which is the order zod's parse gives.
+#[derive(Clone, Debug)]
+pub struct Fields<T> {
+    value: T,
+    keys: Vec<String>,
+}
+
+impl<T: Serialize> Fields<T> {
+    pub fn new(value: T) -> Self {
+        let keys = object_of(&value).into_iter().map(|(key, _)| key).collect();
+        Fields { value, keys }
     }
-    serde_json::from_value(serde_json::Value::Object(next)).ok()
+
+    /// The record with `key` written last, as `{ ...rest, key }` writes it where the key was taken out first.
+    pub fn last(value: T, key: &str) -> Self {
+        let mut fields = Self::new(value);
+        fields.keys.retain(|k| k != key);
+        fields.keys.push(key.to_string());
+        fields
+    }
+
+    pub fn into_inner(self) -> T {
+        self.value
+    }
+}
+
+impl<T: Serialize + serde::de::DeserializeOwned> Fields<T> {
+    /// `patchedFields` on a record: None when no key is left.
+    pub fn patched<P: Serialize>(kept: Option<&Self>, patch: &P) -> Option<Self> {
+        let start = kept.map(|kept| object_of(kept)).unwrap_or_default();
+        let next = merged(start, patch)?;
+        let keys = next.keys().cloned().collect();
+        Some(Fields { value: serde_json::from_value(serde_json::Value::Object(next)).ok()?, keys })
+    }
+}
+
+impl<T> std::ops::Deref for Fields<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.value
+    }
+}
+
+impl<T: PartialEq> PartialEq for Fields<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
+impl<T: PartialEq> PartialEq<T> for Fields<T> {
+    fn eq(&self, other: &T) -> bool {
+        self.value == *other
+    }
+}
+
+impl<T: Serialize> Serialize for Fields<T> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::{Error, SerializeMap};
+        let fields = object_of(&self.value);
+        let mut out = s.serialize_map(Some(fields.len()))?;
+        for key in &self.keys {
+            out.serialize_entry(key, fields.get(key).ok_or_else(|| S::Error::custom("a record key is missing"))?)?;
+        }
+        out.end()
+    }
+}
+
+impl<'de, T: Serialize + Deserialize<'de>> Deserialize<'de> for Fields<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        T::deserialize(d).map(Fields::new)
+    }
+}
+
+impl<T: Check + Serialize> Check for Fields<T> {
+    fn check(&self) -> Result<(), SchemaError> {
+        self.value.check()
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<SchemaError>> {
+        T::pass(value)
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        T::describe(path)
+    }
 }
 
 // thread-defaults.ts:81 at a3b870a6e
