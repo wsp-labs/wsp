@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::types::check::{Check, SchemaError};
 use crate::types::harness_picks::{efforts_for, every_model, marked_default, model_of};
 use crate::types::js_number::JsInt;
-use crate::types::thread_defaults::AccessChoice;
+use crate::types::thread_defaults::{AccessChoice, Fields};
 use crate::views::workspace::WorkspaceOut;
 use crate::wire::helpers::{listed, ListedRefusal};
 use indexmap::IndexMap;
@@ -686,7 +686,8 @@ fn checked_against(catalog: &HarnessCatalog, picks: &StartPicks, model: Option<&
             Some(m) if m.efforts.is_some() => m.label.as_str(),
             _ => catalog.harness.as_str(),
         };
-        listed(subject, "effort", &efforts_for(catalog, chosen.as_ref()), picks.effort.as_deref(), &[], &[])?;
+        let efforts: Vec<HarnessOption> = efforts_for(catalog, chosen.as_ref()).into_iter().map(Fields::into_inner).collect();
+        listed(subject, "effort", &efforts, picks.effort.as_deref(), &[], &[])?;
     }
     if !catalog.permission_modes.is_empty() {
         listed(&catalog.harness, "access mode", &catalog.permission_modes, picks.permission_mode.as_deref(), &[], &[])?;
