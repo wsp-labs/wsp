@@ -1,7 +1,8 @@
 # local_exec_stream
 Source: packages/runtime/src/local-exec.ts:437-794 (358 lines) at 65f6b89c7. Rust: `src/local_exec/stream.rs`.
-Tests: the stream, launch, attach, sweep, input and group cases of packages/runtime/test/local-exec.test.ts (40
-cases) and 3 pinned beyond them. Rust: `tests/local_exec_stream.rs`, every case in a process group of its own.
+Tests: the stream, launch, attach, sweep, input and group cases of packages/runtime/test/local-exec.test.ts (42
+cases) and 4 pinned beyond them. Rust: `tests/local_exec_stream.rs`, `tests/local_exec_pinned.rs`, every case in a
+process group of its own.
 
 ## What it does
 `LocalExecFactory::new(opts, waiting)` is the `ExecStreamFactory` of a turn on this computer: a detached `bash`

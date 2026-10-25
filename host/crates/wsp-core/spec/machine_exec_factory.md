@@ -1,7 +1,7 @@
 # machine_exec_factory
 Source: packages/runtime/src/machine-exec.ts:42-93, 300-345, 738-861 (about 230 lines) at 65f6b89c7. Rust:
 `src/machine_exec/factory.rs`. Tests: the launch, attach and sweep cases of packages/runtime/test/machine-exec.test.ts
-(37 cases, listed below). Rust: `tests/machine_exec_factory.rs`.
+(48 cases, listed below). Rust: `tests/machine_exec_factory.rs`, and 4 pinned in `tests/machine_exec_shell.rs`.
 
 ## What it does
 `MachineExecFactory::new(machine, opts, waiting)` is the `ExecStreamFactory` of a turn on a machine reached by exec
