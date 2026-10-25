@@ -97,14 +97,14 @@ fn the_feed_follows_a_real_host_and_reads_lost_when_it_goes() {
     drop(feed);
 }
 
-/// Stand-in `launchctl` and `systemctl` that hold the unit while `held` stands and then refuse to stop it, and hold
+/// Stand-in `launchctl` and `systemctl` that hold the unit while `held` stands and then refuse to unload it, and hold
 /// nothing otherwise.
 fn managers(dir: &std::path::Path) {
     std::fs::create_dir_all(dir).unwrap();
     let script = r#"#!/bin/sh
 case "$1 $2" in
   "--user show"|print\ *) [ -f "HERE/held" ] || exit 113; echo ActiveState=active; echo UnitFileState=enabled; echo MainPID=1 ;;
-  "--user stop"|bootout\ *) echo "Failed to stop: Access denied" >&2; exit 1 ;;
+  "--user disable"|bootout\ *) echo "Failed to stop: Access denied" >&2; exit 1 ;;
 esac
 "#
     .replace("HERE", &dir.display().to_string());
@@ -117,7 +117,7 @@ esac
     }
 }
 
-/// Quit and stop wsp asks the manager to stop the unit it holds and says its refusal while the host still serves, and
+/// Quit and stop wsp asks the manager to unload the unit it holds and says its refusal while the host still serves, and
 /// ends a host `wsp up` started by the pid its lock records.
 #[test]
 fn quit_and_stop_says_the_managers_refusal_and_ends_a_host_wsp_up_started() {
