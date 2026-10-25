@@ -1,0 +1,6 @@
+[
+  {"slate": "show-stash-race", "words": "show-stash-race-words", "title": "How two builders swapped edits", "why": "The bug is an order of events, and a page steps through it with the stash list's state at every step."},
+  {"slate": "show-backoff", "words": "show-backoff-words", "title": "How turns dial back after a blip", "why": "The person moves the blip and the turns, and every dial moves with them; no piece runs a model as its input changes."},
+  {"slate": "show-box-slots", "words": "show-box-slots-words", "title": "Why the review waits on a 4 GB box", "why": "A real object makes the rule plain: two slots, a rail, and a waiting card that slides in when a running one lifts out."},
+  {"slate": "show-architecture", "words": "show-architecture-words", "title": "Why dev4 went Unreachable", "why": "Each part sits on the computer it runs on with the broken path lit, and says what it did when pressed."}
+]
