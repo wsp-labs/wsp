@@ -14,8 +14,8 @@ export type Post = {
   coverAlt: string;
   /** YYYY-MM-DD of the last real change, when there was one. */
   updated: string | null;
-  /** Who wrote it, front matter `author`, `author_url` and `author_x` (an X handle with its @); wsp labs without one. */
-  author: { name: string; url: string | null; x: string | null } | null;
+  /** Who wrote it, front matter `author`, `author_url`, `author_x` (an X handle with its @) and `author_avatar`; wsp labs without one. */
+  author: { name: string; url: string | null; x: string | null; avatar: string | null } | null;
   draft: boolean;
   html: string;
 };
