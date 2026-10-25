@@ -7,22 +7,23 @@ use std::sync::Arc;
 
 use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
+use wsp_wire::types::shell_quote::shell_quote;
 
 use crate::errors::Result;
-use crate::machine::{ExecResult, Machine};
+use crate::machine::{ExecOptions, ExecResult, Machine};
 
 /// protocol's shell-quote.ts ENV_FROM_INPUT, re-exported as run-env.ts:11 does.
 pub use wsp_wire::types::shell_quote::ENV_FROM_INPUT;
 
 /// run-env.ts:14. `ENV_FROM_INPUT`, a newline, then the script.
 pub fn with_env_from_input(script: &str) -> String {
-    todo!()
+    format!("{ENV_FROM_INPUT}\n{script}")
 }
 
 /// run-env.ts:17. One `NAME=value\0` per entry in the map's order, values unescaped (a newline stays a newline); an
 /// empty map is no bytes.
 pub fn env_input(vars: &IndexMap<String, String>) -> Vec<u8> {
-    todo!()
+    vars.iter().map(|(name, value)| format!("{name}={value}\0")).collect::<String>().into_bytes()
 }
 
 /// run-env.ts:28. Where `machine.takes_stdin()`, `exec(command, { timeout_ms, stdin: env_input(vars) })`. Else the pairs
@@ -35,7 +36,17 @@ pub async fn env_exec(
     vars: &IndexMap<String, String>,
     timeout_ms: Option<u64>,
 ) -> Result<ExecResult> {
-    todo!()
+    if machine.takes_stdin() {
+        let opts = ExecOptions { timeout_ms, idempotency_key: None, stdin: Some(env_input(vars)) };
+        return machine.exec(command, opts).await;
+    }
+    let pairs: Vec<String> = vars.iter().map(|(name, value)| shell_quote(&format!("{name}={value}"))).collect();
+    let line = if pairs.is_empty() {
+        format!("{{\n{command}\n}} </dev/null")
+    } else {
+        format!("printf '%s\\0' {} | {{\n{command}\n}}", pairs.join(" "))
+    };
+    machine.exec(&line, ExecOptions { timeout_ms, idempotency_key: None, stdin: None }).await
 }
 
 /// protocol's `HarnessExec`: a command and its variables in, the command's stdout out.
@@ -44,7 +55,16 @@ pub type HarnessExec = Arc<dyn Fn(String, Option<IndexMap<String, String>>) -> L
 /// run-env.ts:36. With no variables the command runs as it is under `timeout_ms`; with some it goes through `env_exec`.
 /// Either way the answer is the result's stdout alone, whatever the exit code; an exec that fails is the failure.
 pub fn harness_exec(machine: Arc<dyn Machine>, timeout_ms: u64) -> HarnessExec {
-    todo!()
+    Arc::new(move |command: String, vars: Option<IndexMap<String, String>>| {
+        let machine = machine.clone();
+        Box::pin(async move {
+            let res = match vars {
+                None => machine.exec(&command, ExecOptions { timeout_ms: Some(timeout_ms), idempotency_key: None, stdin: None }).await?,
+                Some(vars) => env_exec(machine.as_ref(), &command, &vars, Some(timeout_ms)).await?,
+            };
+            Ok(res.stdout)
+        })
+    })
 }
 
 /// run-env.ts:44. The first line of a script sudo runs as root.

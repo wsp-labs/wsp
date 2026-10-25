@@ -7,5 +7,6 @@ pub const PRELUDE: &str = "set -euo pipefail\nexport HOME=\"${HOME:-$(getent pas
 /// dotfiles-presets.ts:8. `command -v <cmd> >/dev/null 2>&1 || { apt-get update -qq; apt-get install -y -qq <pkg>; }`;
 /// `cmd` is `pkg` when `None`. Neither is quoted.
 pub fn apt(pkg: &str, cmd: Option<&str>) -> String {
-    todo!()
+    let cmd = cmd.unwrap_or(pkg);
+    format!("command -v {cmd} >/dev/null 2>&1 || {{ apt-get update -qq; apt-get install -y -qq {pkg}; }}")
 }
