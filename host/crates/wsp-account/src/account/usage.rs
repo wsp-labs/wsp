@@ -12,13 +12,19 @@ use serde_json::Value;
 
 use wsp_core::types::wiring::{ReadingsTarget, WorkspaceRecord};
 use wsp_frames::{UsageLogsReply, UsageStore};
-use wsp_wire::types::usage::{AccountsAnswer, HarnessLimit, ReadingsRange, ResetAnswer, UsageRange, UsageSplit, UsedAnswer};
+use wsp_wire::types::usage::{AccountsAnswer, HarnessLimit, HarnessLimitAccount, ReadingsRange, ResetAnswer, UsageRange, UsageSplit, UsedAnswer};
 use wsp_wire::views::place_more::PlaceView;
 use wsp_wire::views::workspace::Caller;
 use wsp_wire::wire::machine_link::ReadingsAnswer;
 use wsp_words::exit::HostError;
 
-use crate::account::core_types::{AccountResult, Frame, Live};
+use crate::account::core_types::{AccountResult, Cancel, Frame, Live};
+
+/// A computer's name as a person reads it, by id (`nameOf`). A named alias so `async_trait` leaves its `&str` higher-ranked.
+pub type NameOf = Rc<dyn for<'a> Fn(&'a str) -> String>;
+
+/// A split value as a person reads it (`usageLabel(...)`), likewise an alias.
+pub type LabelOf = Rc<dyn for<'a> Fn(UsageSplit, &'a str) -> String>;
 
 /// usage.ts:25.
 pub const SIGN_INS_HELD_MS: i64 = 60_000;
@@ -49,7 +55,8 @@ pub struct LimitReading {
     pub road: String,
     pub computer: String,
     pub limit: HarnessLimit,
-    pub at: f64,
+    /// `None` for a plan's own read (`filePlanLimit` sets none: the ledger stamps its own clock).
+    pub at: Option<f64>,
 }
 
 /// An account as `accountOnComputer` and `accountOf` answer it.
@@ -82,6 +89,8 @@ pub struct PlanRoad {
 #[async_trait(?Send)]
 pub trait UsageCtx {
     fn now(&self) -> i64;
+    /// `clock.schedule(f, ms)`, for the bound `bounded(work, ms, what)` puts on a read: `what was not answered in <ms/1000>s`.
+    fn schedule(&self, ms: i64, f: Box<dyn FnOnce()>) -> Cancel;
     /// `(await ctx.preferences.get()).usageLogs`.
     async fn usage_logs_on(&self) -> bool;
     /// `placeDoor?.list(now) ?? []`.
@@ -129,27 +138,34 @@ pub trait UsageCtx {
     // The ledger, alerts and burn (wsp-machines' usage.rs, wsp-core's plan alerts).
     async fn limits(&self) -> AccountResult<Vec<Value>>;
     async fn file_logs(&self, entries: Vec<UsageEntry>, read: Vec<String>) -> AccountResult<()>;
-    /// `ledger.limit(reading)`: before and after, as the alerts compare them.
+    /// `ledger.limit(reading)`: before (`Value::Null` where the ledger held none) and after, as the alerts compare them.
     async fn file_limit(&self, reading: LimitReading) -> AccountResult<(Value, Value)>;
     async fn alerts_read(&self, before: Value, after: Value) -> AccountResult<()>;
-    async fn used(&self, range: UsageRange, split: UsageSplit, outside: bool, labels: Rc<dyn Fn(UsageSplit, &str) -> String>) -> AccountResult<UsedAnswer>;
+    async fn used(&self, range: UsageRange, split: UsageSplit, outside: bool, labels: LabelOf) -> AccountResult<UsedAnswer>;
     async fn account_labels(&self) -> AccountResult<IndexMap<String, String>>;
     /// `accountOnComputer(...)` for an agent on a computer.
     fn account_on_computer(&self, agent: &str, place_id: &str, computer_name: &str, limits: &[Value]) -> AccountKey;
     /// `accountOf(...)` for a plan's reading.
-    fn account_of(&self, agent: &str, named: Option<&str>, place_id: &str, computer_name: &str) -> AccountKey;
+    fn account_of(&self, agent: &str, named: Option<&HarnessLimitAccount>, place_id: &str, computer_name: &str) -> AccountKey;
+    /// `harnessCatalog(agent)?.label ?? agent`.
+    fn agent_label(&self, agent: &str) -> String;
+    /// `modelLabel(model)`.
+    fn model_label(&self, model: &str) -> String;
     /// `LOG_LIMITS[agent]?.(snapshot)`.
     fn log_limit(&self, agent: &str, snapshot: &Value) -> Option<HarnessLimit>;
     /// The agents with plan resets, in `PLAN_RESETS`' order, and each one's read command and parse.
     fn plan_agents(&self) -> Vec<String>;
     fn plan_read_command(&self, agent: &str, road: &PlanRoad) -> String;
     fn plan_parse(&self, agent: &str, out: &str) -> Option<HarnessLimit>;
-    /// `accountRows({...})` over the listed computers and this computer's sign-ins.
-    async fn account_rows(&self, places: Vec<(String, String, Option<Value>)>) -> AccountResult<AccountsAnswer>;
-    /// `accountNames({...})`.
-    async fn account_names(&self, places: &[PlaceView]) -> AccountResult<IndexMap<String, String>>;
-    /// `usageComputerName(places, id, kept)`.
-    async fn computer_name(&self, places: &[PlaceView], place_id: &str) -> String;
+    /// `accountRows({ limits, places, nameOf, ... })`: the ledger's limits, the listed computers (id, name, sign-ins)
+    /// and the namer, the plan brands, vaulted, prints-limits and burn being the context's own.
+    async fn account_rows(&self, limits: Vec<Value>, places: Vec<(String, String, Option<Value>)>, name_of: NameOf) -> AccountResult<AccountsAnswer>;
+    /// `accountNames({ limits, nameOf, ... })`: an account a turn read limits for, named as the limits name it.
+    async fn account_names(&self, limits: Vec<Value>, name_of: NameOf) -> AccountResult<IndexMap<String, String>>;
+    /// `keptComputerNames(store, places)`: every name kept, the listed ones written.
+    async fn kept_computer_names(&self, places: &[PlaceView]) -> AccountResult<IndexMap<String, String>>;
+    /// `usageComputerName(places, id, kept)`; `kept` is `None` where the TS passes none.
+    fn computer_name(&self, places: &[PlaceView], place_id: &str, kept: Option<&IndexMap<String, String>>) -> String;
     /// `spendReset({ account, creditId?, on? })` (usage_reset).
     async fn spend_reset(&self, account: &str, credit_id: Option<&str>, on: Option<&str>) -> Result<ResetAnswer, HostError>;
     /// The row parts `rowReason` reads.
@@ -194,7 +210,8 @@ impl UsageArea {
         todo!()
     }
 
-    /// U4, usage.ts:86.
+    /// U4, usage.ts:86. The snapshot handed to `log_limit` is the reading less `agent` and `at`, keys in the reply's order
+    /// (with `preserve_order` a `Map::remove` swaps the last key in: use `shift_remove`). A frame's numbers are integers.
     pub async fn read_logs(self: &Rc<Self>) -> AccountResult<()> {
         todo!()
     }
