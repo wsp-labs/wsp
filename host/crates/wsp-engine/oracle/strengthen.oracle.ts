@@ -30,8 +30,9 @@ const step: Record<string, unknown> = {};
 afterAll(() => {
   cleanGuests(guests.splice(0));
   mkdirSync(OUT, { recursive: true });
-  writeFileSync(join(OUT, "strengthen_mcp.json"), `${JSON.stringify(out, null, 2)}\n`);
-  writeFileSync(join(OUT, "strengthen_step.json"), `${JSON.stringify(step, null, 2)}\n`);
+  // A run filtered with -t leaves some of these empty; an empty one is not written over a full one.
+  if (Object.keys(out).length > 0) writeFileSync(join(OUT, "strengthen_mcp.json"), `${JSON.stringify(out, null, 2)}\n`);
+  if (Object.keys(step).length > 0) writeFileSync(join(OUT, "strengthen_step.json"), `${JSON.stringify(step, null, 2)}\n`);
 });
 
 const box = (present: string[] = ["npx"]): BoxGuest => {
@@ -251,4 +252,21 @@ it("solari: the state read after a call that did not answer, and every warn line
   solari.resumeStarting = await scenario("resume", { "POST /sandboxes/x/resume": ["hang"], "GET /sandboxes/x": [reads("starting")] });
   mkdirSync(OUT, { recursive: true });
   writeFileSync(join(OUT, "strengthen_solari.json"), `${JSON.stringify(solari, null, 2)}\n`);
+}, 60_000);
+
+// ---- child_exec: the drain after the exit (strengthen_child.json)
+import { runChild } from "../../../../packages/engine/src/child-exec.js";
+
+it("child exec: a signal death, the drain's quiet restarted by stderr, an exit with its pipes closed", async () => {
+  const child: Record<string, unknown> = {};
+  const lines: string[] = [];
+  child.signalled = await runChild("/bin/sh", ["-c", "echo hi; kill -9 $$"]);
+  const started = Date.now();
+  const drained = await runChild("/bin/sh", ["-c", "(sleep 0.1; echo a; sleep 0.15; echo b >&2; sleep 0.15; echo c; sleep 3) & exit 4"], { onLine: l => void lines.push(l) });
+  child.drained = { ...drained, lines, tookAtLeast500: Date.now() - started >= 500 };
+  const t0 = Date.now();
+  for (let i = 0; i < 10; i++) await runChild("/bin/sh", ["-c", "exit 5"]);
+  child.tenQuickExitsMs = Date.now() - t0;
+  mkdirSync(OUT, { recursive: true });
+  writeFileSync(join(OUT, "strengthen_child.json"), `${JSON.stringify(child, null, 2)}\n`);
 }, 60_000);

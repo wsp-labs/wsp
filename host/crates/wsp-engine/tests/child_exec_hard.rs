@@ -211,3 +211,47 @@ async fn harness_exec_answers_stdout_whatever_the_exit() {
     assert_eq!(ran[1].cmd, "printf '%s\\0' 'K=v' | {\nls\n}");
     assert_eq!(ran[1].opts.timeout_ms, Some(9_000));
 }
+
+// spec/child_exec.md H14: a child killed by a signal answers -1, never 128 + the signal, with what it wrote kept.
+#[tokio::test]
+async fn a_child_killed_by_a_signal_answers_minus_one_with_its_output() {
+    let want = &oracle("strengthen_child.json")["signalled"];
+    let (file, args) = sh("echo hi; kill -9 $$");
+    let res = run_child(&file, &args, ChildOptions::default()).await;
+    assert_eq!(res.exit_code, want["exitCode"].as_i64().unwrap());
+    assert_eq!(res, ExecResult { exit_code: -1, stdout: "hi\n".into(), stderr: String::new() });
+}
+
+// spec/child_exec.md H15: after the exit, a chunk on either pipe restarts the 200 ms quiet, so what something it left
+// running writes within those windows is in the answer, stdout and stderr alike, and on_line hears it before the flush.
+#[tokio::test]
+async fn a_write_on_either_pipe_after_the_exit_restarts_the_quiet_and_is_in_the_answer() {
+    let want = &oracle("strengthen_child.json")["drained"];
+    let lines = Arc::new(Mutex::new(Vec::<String>::new()));
+    let sink = lines.clone();
+    let (file, args) = sh("(sleep 0.1; echo a; sleep 0.15; echo b >&2; sleep 0.15; echo c; sleep 3) & exit 4");
+    let started = Instant::now();
+    let res = run_child(
+        &file,
+        &args,
+        ChildOptions { on_line: Some(Arc::new(move |l: &str| sink.lock().unwrap().push(l.to_string()))), ..Default::default() },
+    )
+    .await;
+    assert!(started.elapsed() >= Duration::from_millis(500), "{:?}", started.elapsed());
+    assert_eq!(res.exit_code, want["exitCode"].as_i64().unwrap());
+    assert_eq!(res.stdout, want["stdout"].as_str().unwrap());
+    assert_eq!(res.stderr, want["stderr"].as_str().unwrap());
+    assert_eq!(serde_json::json!(*lines.lock().unwrap()), want["lines"]);
+}
+
+// spec/child_exec.md H16: a child whose pipes close with its exit answers then, never after a quiet window of its own:
+// ten such children take well under the 2 s ten waits of DRAIN_MS would (the TS took 26 ms).
+#[tokio::test]
+async fn an_exit_whose_pipes_close_answers_at_once() {
+    let started = Instant::now();
+    for _ in 0..10 {
+        let (file, args) = sh("exit 5");
+        assert_eq!(run_child(&file, &args, ChildOptions::default()).await.exit_code, 5);
+    }
+    assert!(started.elapsed() < Duration::from_millis(1500), "{:?}", started.elapsed());
+}
