@@ -1,0 +1,1526 @@
+{
+ "kitty_font": [
+  {
+   "name": "bare font_family takes the next line",
+   "args": [
+    "font_family\nfont_size 12\n"
+   ],
+   "out": "font_size 12"
+  },
+  {
+   "name": "bare, blank line, then the value",
+   "args": [
+    "font_family\n\n  Hack\n"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "bare at end of file",
+   "args": [
+    "font_family\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "bare with spaces",
+   "args": [
+    "font_family   \n"
+   ],
+   "out": null
+  },
+  {
+   "name": "comment tail kept",
+   "args": [
+    "font_family Fira Code # nice\n"
+   ],
+   "out": "Fira Code # nice"
+  },
+  {
+   "name": "first match only: generic then real",
+   "args": [
+    "font_family monospace\nfont_family Hack\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "first match only: real then generic",
+   "args": [
+    "font_family Hack\nfont_family monospace\n"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "indented",
+   "args": [
+    "   font_family  Hack  \n"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "tab",
+   "args": [
+    "font_family\tHack\n"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "CRLF",
+   "args": [
+    "font_family Hack\r\nfont_size 12\r\n"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "family empty quotes",
+   "args": [
+    "font_family family=\"\" style=\"x\"\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "family unquoted with style",
+   "args": [
+    "font_family family=Hack style=Bold\n"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "family with spaces around =",
+   "args": [
+    "font_family family = \"Iosevka Term\"\n"
+   ],
+   "out": "Iosevka Term"
+  },
+  {
+   "name": "bold_font_family",
+   "args": [
+    "bold_font_family X\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "font_family_extra",
+   "args": [
+    "font_family_extra X\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "capitals",
+   "args": [
+    "Font_Family X\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "no word boundary before family=",
+   "args": [
+    "font_family monofamily=Hack\n"
+   ],
+   "out": "monofamily=Hack"
+  },
+  {
+   "name": "family= later in the value",
+   "args": [
+    "font_family Fira Code family=Hack\n"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "family in single quotes is cut at the space",
+   "args": [
+    "font_family family='Hack Nerd' style=Bold\n"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "leading blank lines",
+   "args": [
+    "\n\n\nfont_family Hack\n"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "quoted value",
+   "args": [
+    "font_family \"Fira Code\"\n"
+   ],
+   "out": "Fira Code"
+  },
+  {
+   "name": "a lone quote",
+   "args": [
+    "font_family \"\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "empty text",
+   "args": [
+    ""
+   ],
+   "out": null
+  },
+  {
+   "name": "existing: mismatched quotes",
+   "args": [
+    "font_family \"Fira Code'\n"
+   ],
+   "out": "Fira Code"
+  },
+  {
+   "name": "existing: MONO",
+   "args": [
+    "font_family 'MONO'\n"
+   ],
+   "out": null
+  }
+ ],
+ "wezterm_font": [
+  {
+   "name": "weight before family",
+   "args": [
+    "config.font = wezterm.font({ weight = \"Bold\", family = \"Fira Code\" })\n"
+   ],
+   "out": "JetBrains Mono"
+  },
+  {
+   "name": "apostrophe inside double quotes",
+   "args": [
+    "config.font = wezterm.font(\"Hack's\")\n"
+   ],
+   "out": "JetBrains Mono"
+  },
+  {
+   "name": "generic first, the later real one is never tried",
+   "args": [
+    "config.font = wezterm.font(\"monospace\")\nconfig.font = wezterm.font(\"Fira Code\")\n"
+   ],
+   "out": "JetBrains Mono"
+  },
+  {
+   "name": "real first",
+   "args": [
+    "config.font = wezterm.font(\"Fira Code\")\nconfig.font = wezterm.font(\"Hack\")\n"
+   ],
+   "out": "Fira Code"
+  },
+  {
+   "name": "long bracket comment is not stripped",
+   "args": [
+    "--[=[\nconfig.font = wezterm.font(\"Old\")\n]=]\nconfig.font = wezterm.font(\"New\")\n"
+   ],
+   "out": "Old"
+  },
+  {
+   "name": "dashes inside a name",
+   "args": [
+    "config.font = wezterm.font(\"Fira--Code\")\n"
+   ],
+   "out": "JetBrains Mono"
+  },
+  {
+   "name": "block comment never closed",
+   "args": [
+    "--[[\nconfig.font = wezterm.font(\"Old\")\n"
+   ],
+   "out": "Old"
+  },
+  {
+   "name": "block comments closed on one line",
+   "args": [
+    "--[[ a ]] config.font = wezterm.font(\"X\") --[[ b ]]\n"
+   ],
+   "out": "X"
+  },
+  {
+   "name": "mixed quotes",
+   "args": [
+    "config.font = wezterm.font('Fira Code\")\n"
+   ],
+   "out": "JetBrains Mono"
+  },
+  {
+   "name": "font_size string",
+   "args": [
+    "config.font_size = \"14\"\n"
+   ],
+   "out": "JetBrains Mono"
+  },
+  {
+   "name": "bare font string",
+   "args": [
+    "config.font = \"Fira\"\n"
+   ],
+   "out": "JetBrains Mono"
+  },
+  {
+   "name": "fontconfig call",
+   "args": [
+    "fontconfig(\"X\")\n"
+   ],
+   "out": "JetBrains Mono"
+  },
+  {
+   "name": "font = { family }",
+   "args": [
+    "font = { family = \"Hack\" }\n"
+   ],
+   "out": "JetBrains Mono"
+  },
+  {
+   "name": "font_with_fallback nested family",
+   "args": [
+    "config.font = wezterm.font_with_fallback({ { family = \"A B\" } })\n"
+   ],
+   "out": "A B"
+  },
+  {
+   "name": "font_with_fallback family not the first key",
+   "args": [
+    "config.font = wezterm.font_with_fallback({ { weight = \"Bold\", family = \"A\" } })\n"
+   ],
+   "out": "JetBrains Mono"
+  },
+  {
+   "name": "CRLF and a line comment",
+   "args": [
+    "config.font = wezterm.font(\"Fira Code\")\r\n-- c\r\n"
+   ],
+   "out": "Fira Code"
+  },
+  {
+   "name": "empty text",
+   "args": [
+    ""
+   ],
+   "out": "JetBrains Mono"
+  },
+  {
+   "name": "name padded with spaces",
+   "args": [
+    "config.font = wezterm.font(\" Fira \")\n"
+   ],
+   "out": "Fira"
+  },
+  {
+   "name": "name of spaces only",
+   "args": [
+    "config.font = wezterm.font(\"  \")\n"
+   ],
+   "out": "JetBrains Mono"
+  },
+  {
+   "name": "Monospace",
+   "args": [
+    "config.font = wezterm.font(\"Monospace\")\n"
+   ],
+   "out": "JetBrains Mono"
+  },
+  {
+   "name": "escaped quotes in the Lua",
+   "args": [
+    "config.font = wezterm.font(\"Fira \\\"x\\\" Code\")\n"
+   ],
+   "out": "Fira \\"
+  },
+  {
+   "name": "myfont",
+   "args": [
+    "myfont(\"Hack\")\n"
+   ],
+   "out": "JetBrains Mono"
+  },
+  {
+   "name": "subfont",
+   "args": [
+    "config.subfont(\"Hack\")\n"
+   ],
+   "out": "JetBrains Mono"
+  },
+  {
+   "name": "call split over lines",
+   "args": [
+    "config.font = wezterm.font(\n  \"Hack\"\n)\n"
+   ],
+   "out": "Hack"
+  }
+ ],
+ "alacritty_font": [
+  {
+   "name": "family under the next table",
+   "args": [
+    "[font.normal]\nstyle = \"Regular\"\n[font.bold]\nfamily = \"Bold\"\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "array before the family",
+   "args": [
+    "[font.normal]\nstyle = [\"a\"]\nfamily = \"Hack\"\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "single quotes",
+   "args": [
+    "[font.normal]\nfamily = 'Fira Code'\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "inline normal with no header",
+   "args": [
+    "normal = { family = \"Hack\" }\n"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "inline normal under another table",
+   "args": [
+    "[colors]\nnormal = { family = \"X\" }\n"
+   ],
+   "out": "X"
+  },
+  {
+   "name": "generic family in toml hides a real yaml one",
+   "args": [
+    "[font.normal]\nfamily = \"mono\"\nfont:\n  normal:\n    family: Real\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "generic family in toml",
+   "args": [
+    "[font.normal]\nfamily = \"mono\"\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "yaml style before family",
+   "args": [
+    "font:\n  normal:\n    style: Regular\n    family: Hack\n"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "yaml: the bold family leaks",
+   "args": [
+    "font:\n  normal:\n    style: R\n  bold:\n    family: Bold\n"
+   ],
+   "out": "Bold"
+  },
+  {
+   "name": "yaml: normal family first",
+   "args": [
+    "font:\n  normal:\n    family: N\n  bold:\n    family: B\n"
+   ],
+   "out": "N"
+  },
+  {
+   "name": "yaml comment tail",
+   "args": [
+    "font:\n  normal:\n    family: Hack # c\n"
+   ],
+   "out": "Hack # c"
+  },
+  {
+   "name": "yaml single quotes",
+   "args": [
+    "font:\n  normal:\n    family: 'Hack Nerd'\n"
+   ],
+   "out": "Hack Nerd"
+  },
+  {
+   "name": "yaml no final newline",
+   "args": [
+    "font:\n  normal:\n    family: Hack"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "yaml normal with trailing spaces",
+   "args": [
+    "font:\n  normal:   \n    family: Hack\n"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "yaml empty family takes the next line",
+   "args": [
+    "font:\n  normal:\n    family:\n    style: x\n"
+   ],
+   "out": "style: x"
+  },
+  {
+   "name": "first toml family wins",
+   "args": [
+    "[font.normal]\nfamily = \"A\"\n[font.bold]\nfamily = \"B\"\n"
+   ],
+   "out": "A"
+  },
+  {
+   "name": "toml spaces",
+   "args": [
+    "[font.normal]\n  family   =   \"A B\"  \n"
+   ],
+   "out": "A B"
+  },
+  {
+   "name": "toml comment line",
+   "args": [
+    "[font.normal]\n# family = \"Old\"\nfamily = \"New\"\n"
+   ],
+   "out": "New"
+  },
+  {
+   "name": "commented header still matches",
+   "args": [
+    "# [font.normal]\nfamily = \"X\"\n"
+   ],
+   "out": "X"
+  },
+  {
+   "name": "CRLF toml",
+   "args": [
+    "[font.normal]\r\nfamily = \"Hack\"\r\n"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "CRLF yaml",
+   "args": [
+    "font:\r\n  normal:\r\n    family: Hack\r\n"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "empty text",
+   "args": [
+    ""
+   ],
+   "out": null
+  },
+  {
+   "name": "normal.family spaced",
+   "args": [
+    "[font]\nnormal.family   =   \"Hack\"\n"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "normal.family under another table",
+   "args": [
+    "[other]\nnormal.family = \"X\"\n"
+   ],
+   "out": "X"
+  },
+  {
+   "name": "header with spaces",
+   "args": [
+    "[ font.normal ]\nfamily = \"X\"\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "existing: [font] size only",
+   "args": [
+    "[font]\nsize = 13\n"
+   ],
+   "out": null
+  }
+ ],
+ "ghostty_font": [
+  {
+   "name": "a generic last family resets the list",
+   "args": [
+    "font-family = Hack\nfont-family = monospace\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "an empty quoted family resets the list",
+   "args": [
+    "font-family = Hack\nfont-family = \"\"\nfont-family = Fira\n"
+   ],
+   "out": "Fira"
+  },
+  {
+   "name": "quoted",
+   "args": [
+    "font-family = \"Fira Code\"\n"
+   ],
+   "out": "Fira Code"
+  },
+  {
+   "name": "single quoted",
+   "args": [
+    "font-family = 'Fira'\n"
+   ],
+   "out": "Fira"
+  },
+  {
+   "name": "empty value then a family",
+   "args": [
+    "font-family =\nfont-family = X\n"
+   ],
+   "out": "X"
+  },
+  {
+   "name": "no value",
+   "args": [
+    "font-family\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "Mono then a real family",
+   "args": [
+    "font-family = Mono\nfont-family = Real\n"
+   ],
+   "out": "Real"
+  },
+  {
+   "name": "a real family then Mono",
+   "args": [
+    "font-family = Hack\nfont-family = Mono\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "indented",
+   "args": [
+    "  font-family = Spaced\n"
+   ],
+   "out": "Spaced"
+  },
+  {
+   "name": "no spaces",
+   "args": [
+    "font-family=Tight\n"
+   ],
+   "out": "Tight"
+  }
+ ],
+ "iterm_font": [
+  {
+   "name": "default bookmark has no font, an earlier bookmark has one",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>B</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Monaco 12</string>\n\t\t</dict>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>B</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": null
+  },
+  {
+   "name": "default bookmark has no font, a later bookmark has one",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>A</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t</dict>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>B</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Menlo 11</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": null
+  },
+  {
+   "name": "default last",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>B</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Monaco 12</string>\n\t\t</dict>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>B</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Menlo 11</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": "Menlo"
+  },
+  {
+   "name": "a space after the size keeps the size",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>A</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Monaco 12 </string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": "Monaco 12"
+  },
+  {
+   "name": "decimal size",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>A</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Fira Code 13.5</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": "Fira Code"
+  },
+  {
+   "name": "no size",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>A</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Menlo-Regular</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": "Menlo-Regular"
+  },
+  {
+   "name": "digits only",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>A</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>12</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": "12"
+  },
+  {
+   "name": "12pt is not a size",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>A</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Hack 12pt</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": "Hack 12pt"
+  },
+  {
+   "name": "no entity decoding",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>A</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Fira &amp; Co 12</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": "Fira &amp; Co"
+  },
+  {
+   "name": "guid with regex characters is literal",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>B(1).*</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Monaco 12</string>\n\t\t</dict>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>B(1).*</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Menlo 11</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": "Menlo"
+  },
+  {
+   "name": "a dot in the guid is not a wildcard",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>B.</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Monaco 12</string>\n\t\t</dict>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>BX</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Menlo 11</string>\n\t\t</dict>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>B.</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Hack 10</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "generic font",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>A</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>monospace 12</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": null
+  },
+  {
+   "name": "no default, first Normal Font is generic: no fallback",
+   "args": [
+    "<plist><dict>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>monospace 12</string>\n\t\t</dict>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>B</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Menlo 11</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": null
+  },
+  {
+   "name": "empty font string",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>A</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string></string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": null
+  },
+  {
+   "name": "two spaces before the size",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>A</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Fira  Code   13</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": "Fira  Code"
+  },
+  {
+   "name": "a tab before the size",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>A</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Hack\t12</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "a name with leading digits",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>A</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>3270 Nerd Font 14</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": "3270 Nerd Font"
+  },
+  {
+   "name": "only the last number goes",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>A</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Source Code Pro 2 12</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": "Source Code Pro 2"
+  },
+  {
+   "name": "non-ASCII name",
+   "args": [
+    "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>A</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Café Mono 12</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": "Café Mono"
+  },
+  {
+   "name": "no default key: the whole text is searched",
+   "args": [
+    "<plist><dict>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t</dict>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>B</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Menlo 11</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+   ],
+   "out": "Menlo"
+  },
+  {
+   "name": "empty default guid",
+   "args": [
+    "<key>Default Bookmark Guid</key><string></string><key>Guid</key><string></string><key>Normal Font</key><string>X 1</string>"
+   ],
+   "out": "X"
+  },
+  {
+   "name": "no whitespace between tags",
+   "args": [
+    "<key>Default Bookmark Guid</key><string>A</string><key>Guid</key><string>A</string><key>Normal Font</key><string>Hack 9</string>"
+   ],
+   "out": "Hack"
+  },
+  {
+   "name": "the first bookmark of a repeated guid is used",
+   "args": [
+    "<key>Default Bookmark Guid</key><string>A</string><key>Guid</key><string>A</string><key>Normal Font</key><string>One 1</string><key>Guid</key><string>B</string><key>Guid</key><string>A</string><key>Normal Font</key><string>Two 2</string>"
+   ],
+   "out": "One"
+  },
+  {
+   "name": "Normal Font before the Guid key",
+   "args": [
+    "<key>Default Bookmark Guid</key><string>A</string><key>Normal Font</key><string>Before 1</string><key>Guid</key><string>A</string><key>Name</key><string>n</string>"
+   ],
+   "out": null
+  },
+  {
+   "name": "no keys at all",
+   "args": [
+    "<plist><dict></dict></plist>"
+   ],
+   "out": null
+  }
+ ],
+ "detect_terminal_font": [
+  {
+   "name": "own kitty with no config: alacritty's config answers after every other read",
+   "laptop": {
+    "terminal": "kitty",
+    "files": {
+     "~/.config/alacritty/alacritty.toml": "[font.normal]\nfamily = \"Hack\"\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: Hack (Alacritty)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "Hack"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/alacritty/alacritty.toml"
+   ]
+  },
+  {
+   "name": "own kitty with no config: an installed Ghostty answers",
+   "laptop": {
+    "terminal": "kitty",
+    "files": {
+     "/Applications/Ghostty.app/": 5
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: JetBrains Mono (Ghostty)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "JetBrains Mono"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml",
+    "read /Users/dev/.config/alacritty/alacritty.yml",
+    "read /Users/dev/.alacritty.yml"
+   ]
+  },
+  {
+   "name": "own kitty with no config: WezTerm.app is no installed check",
+   "laptop": {
+    "terminal": "kitty",
+    "files": {
+     "/Applications/WezTerm.app/": 5
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml",
+    "read /Users/dev/.config/alacritty/alacritty.yml",
+    "read /Users/dev/.alacritty.yml"
+   ]
+  },
+  {
+   "name": "no own terminal: WezTerm.app alone gives nothing",
+   "laptop": {
+    "files": {
+     "/Applications/WezTerm.app/": 5
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml",
+    "read /Users/dev/.config/alacritty/alacritty.yml",
+    "read /Users/dev/.alacritty.yml"
+   ]
+  },
+  {
+   "name": "own alacritty with nothing at all",
+   "laptop": {
+    "terminal": "alacritty"
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml",
+    "read /Users/dev/.config/alacritty/alacritty.yml",
+    "read /Users/dev/.alacritty.yml",
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf"
+   ]
+  },
+  {
+   "name": "an empty ~/.wezterm.lua is readable and wins over the second path",
+   "laptop": {
+    "terminal": "WezTerm",
+    "files": {
+     "~/.wezterm.lua": "",
+     "~/.config/wezterm/wezterm.lua": "config.font = wezterm.font(\"Fira Code\")\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: JetBrains Mono (WezTerm)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "JetBrains Mono"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.wezterm.lua"
+   ]
+  },
+  {
+   "name": "an empty kitty.conf is a config with no font",
+   "laptop": {
+    "files": {
+     "~/.config/kitty/kitty.conf": ""
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml",
+    "read /Users/dev/.config/alacritty/alacritty.yml",
+    "read /Users/dev/.alacritty.yml"
+   ]
+  },
+  {
+   "name": "an empty kitty.conf then alacritty",
+   "laptop": {
+    "files": {
+     "~/.config/kitty/kitty.conf": "",
+     "~/.config/alacritty/alacritty.toml": "[font.normal]\nfamily = \"Hack\"\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: Hack (Alacritty)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "Hack"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/alacritty/alacritty.toml"
+   ]
+  },
+  {
+   "name": "ghostty config whose list resets to nothing is the built-in",
+   "laptop": {
+    "files": {
+     "~/.config/ghostty/config": "font-family = Hack\nfont-family = monospace\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: JetBrains Mono (Ghostty)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "JetBrains Mono"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "own ghostty with a list that resets",
+   "laptop": {
+    "terminal": "ghostty",
+    "files": {
+     "~/.config/ghostty/config": "font-family = Hack\nfont-family = monospace\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: JetBrains Mono (Ghostty)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "JetBrains Mono"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "a terminal name that matches two rows: the first in table order, the other's config is never read",
+   "laptop": {
+    "terminal": "ghostty-kitty",
+    "files": {
+     "~/.config/kitty/kitty.conf": "font_family Fira\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: JetBrains Mono (Ghostty)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "JetBrains Mono"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "an unknown terminal is no terminal",
+   "laptop": {
+    "terminal": "Apple_Terminal",
+    "files": {
+     "~/.config/kitty/kitty.conf": "font_family Fira\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: Fira (kitty)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "Fira"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf"
+   ]
+  },
+  {
+   "name": "an empty terminal is not own",
+   "laptop": {
+    "terminal": "",
+    "files": {
+     "~/.config/kitty/kitty.conf": "font_family Fira\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: Fira (kitty)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "Fira"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf"
+   ]
+  },
+  {
+   "name": "own iTerm2 on linux falls to kitty and runs no defaults",
+   "laptop": {
+    "terminal": "iTerm.app",
+    "platform": "linux",
+    "files": {
+     "~/.config/kitty/kitty.conf": "font_family Fira\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: Fira (kitty)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "Fira"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf"
+   ]
+  },
+  {
+   "name": "iTerm2 plist present, defaults answers empty",
+   "laptop": {
+    "terminal": "iTerm.app",
+    "files": {
+     "~/Library/Preferences/com.googlecode.iterm2.plist": 5
+    },
+    "exec": {
+     "defaults export com.googlecode.iterm2 -": ""
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "run defaults export com.googlecode.iterm2 -",
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml",
+    "read /Users/dev/.config/alacritty/alacritty.yml",
+    "read /Users/dev/.alacritty.yml"
+   ]
+  },
+  {
+   "name": "iTerm2 plist present, defaults fails",
+   "laptop": {
+    "terminal": "iTerm.app",
+    "files": {
+     "~/Library/Preferences/com.googlecode.iterm2.plist": 5
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "run defaults export com.googlecode.iterm2 -",
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml",
+    "read /Users/dev/.config/alacritty/alacritty.yml",
+    "read /Users/dev/.alacritty.yml"
+   ]
+  },
+  {
+   "name": "iTerm2 with no plist",
+   "laptop": {
+    "terminal": "iTerm.app"
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml",
+    "read /Users/dev/.config/alacritty/alacritty.yml",
+    "read /Users/dev/.alacritty.yml"
+   ]
+  },
+  {
+   "name": "linux ghostty with an empty config file",
+   "laptop": {
+    "platform": "linux",
+    "terminal": "ghostty",
+    "files": {
+     "~/.config/ghostty/config": ""
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: JetBrains Mono (Ghostty)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "JetBrains Mono"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config"
+   ]
+  },
+  {
+   "name": "a Mac ignores PATH for Ghostty",
+   "laptop": {
+    "which": [
+     "ghostty"
+    ]
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml",
+    "read /Users/dev/.config/alacritty/alacritty.yml",
+    "read /Users/dev/.alacritty.yml"
+   ]
+  },
+  {
+   "name": "linux ignores the Mac's Ghostty.app folder",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "/Applications/Ghostty.app/": 5
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml",
+    "read /Users/dev/.config/alacritty/alacritty.yml",
+    "read /Users/dev/.alacritty.yml"
+   ]
+  },
+  {
+   "name": "own WezTerm with no config on linux: Ghostty on PATH is not asked",
+   "laptop": {
+    "terminal": "WezTerm",
+    "platform": "linux",
+    "which": [
+     "ghostty"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: JetBrains Mono (WezTerm)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "JetBrains Mono"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua"
+   ]
+  },
+  {
+   "name": "own wezterm whose config says monospace is the built-in",
+   "laptop": {
+    "terminal": "wezterm",
+    "files": {
+     "~/.config/wezterm/wezterm.lua": "config.font = wezterm.font(\"monospace\")\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: JetBrains Mono (WezTerm)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "JetBrains Mono"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua"
+   ]
+  },
+  {
+   "name": "own kitty with a generic font falls to Ghostty's config",
+   "laptop": {
+    "terminal": "kitty",
+    "files": {
+     "~/.config/kitty/kitty.conf": "font_family monospace\n",
+     "~/.config/ghostty/config": "font-family = Hack\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: Hack (Ghostty)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "Hack"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config"
+   ]
+  },
+  {
+   "name": "an uppercase terminal name matches",
+   "laptop": {
+    "terminal": "WEZTERM"
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: JetBrains Mono (WezTerm)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "JetBrains Mono"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua"
+   ]
+  },
+  {
+   "name": "alacritty path order: the first readable file of the four",
+   "laptop": {
+    "files": {
+     "~/.alacritty.yml": "font:\n  normal:\n    family: Y\n",
+     "~/.alacritty.toml": "[font.normal]\nfamily = \"T\"\n",
+     "~/.config/alacritty/alacritty.yml": "font:\n  normal:\n    family: CY\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: T (Alacritty)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "T"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml"
+   ]
+  },
+  {
+   "name": "alacritty: the first readable file names no font and later files are not tried",
+   "laptop": {
+    "files": {
+     "~/.alacritty.toml": "[font]\nsize = 1\n",
+     "~/.config/alacritty/alacritty.yml": "font:\n  normal:\n    family: CY\n"
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua",
+    "read /Users/dev/.config/wezterm/wezterm.lua",
+    "read /Users/dev/.config/kitty/kitty.conf",
+    "read /Users/dev/.config/alacritty/alacritty.toml",
+    "read /Users/dev/.alacritty.toml"
+   ]
+  },
+  {
+   "name": "a WezTerm config with no font beats kitty's config",
+   "laptop": {
+    "files": {
+     "~/.wezterm.lua": "return {}\n",
+     "~/.config/kitty/kitty.conf": "font_family Fira\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: JetBrains Mono (WezTerm)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "JetBrains Mono"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "read /Users/dev/.wezterm.lua"
+   ]
+  },
+  {
+   "name": "a Mac with a kitty config and an iTerm2 plist: iTerm2 comes before kitty in table order",
+   "laptop": {
+    "files": {
+     "~/Library/Preferences/com.googlecode.iterm2.plist": 4000,
+     "~/.config/kitty/kitty.conf": "font_family Fira\n"
+    },
+    "exec": {
+     "defaults export com.googlecode.iterm2 -": "<plist><dict>\n\t<key>Default Bookmark Guid</key>\n\t<string>A</string>\n\t<key>New Bookmarks</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>Guid</key>\n\t\t\t<string>A</string>\n\t\t\t<key>Normal Font</key>\n\t\t\t<string>Menlo 11</string>\n\t\t</dict>\n\t</array>\n</dict></plist>"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "shell",
+     "id": "shell/terminal-font",
+     "label": "terminal font: Menlo (iTerm2)",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "font": "Menlo"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.config/ghostty/config.ghostty",
+    "read /Users/dev/.config/ghostty/config",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config.ghostty",
+    "read /Users/dev/Library/Application Support/com.mitchellh.ghostty/config",
+    "run defaults export com.googlecode.iterm2 -"
+   ]
+  }
+ ]
+}

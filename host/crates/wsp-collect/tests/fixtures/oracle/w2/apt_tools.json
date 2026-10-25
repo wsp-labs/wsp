@@ -1,0 +1,2306 @@
+{
+ "parse_dpkg_fields": [
+  {
+   "name": "JavaScript whitespace: U+0085 is not a separator, U+00A0 U+FEFF U+2028 are",
+   "args": [
+    "ab\nc d\ne﻿ f\ng h\n"
+   ],
+   "out": [
+    [
+     "c",
+     "d"
+    ],
+    [
+     "e",
+     "f"
+    ],
+    [
+     "g",
+     "h"
+    ]
+   ]
+  },
+  {
+   "name": "tab and runs of spaces split, a leading space or a third field drops the line, trailing space and CR are fine",
+   "args": [
+    "a \t b  \nx  y z\n  lead v\nq w \r\n"
+   ],
+   "out": [
+    [
+     "a",
+     "b"
+    ],
+    [
+     "q",
+     "w"
+    ]
+   ]
+  },
+  {
+   "name": "empty text",
+   "args": [
+    ""
+   ],
+   "out": []
+  }
+ ],
+ "parse_apt_manual": [
+  {
+   "name": "JavaScript trim: BOM and NBSP go, blank lines go, repeats stay",
+   "args": [
+    "﻿a \n \t\n b \r\n\nc\nc\n"
+   ],
+   "out": [
+    "a",
+    "b",
+    "c",
+    "c"
+   ]
+  },
+  {
+   "name": "empty text",
+   "args": [
+    ""
+   ],
+   "out": []
+  }
+ ],
+ "apt_packages": [
+  {
+   "name": "command path table and the priority filter",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "apt-mark",
+     "dpkg-query"
+    ],
+    "files": {
+     "/var/lib/dpkg/info/a.list": "/usr/bin/\n/usr/bin/a/b\n/usr/sbin/a\n",
+     "/var/lib/dpkg/info/b.list": "/bin/b c\n",
+     "/var/lib/dpkg/info/c.list": "  /usr/bin/c\r\n",
+     "/var/lib/dpkg/info/d.list": "",
+     "/var/lib/dpkg/info/e.list": "/usr/local/bin/e\n/sbin/e\n/usr/bin\n",
+     "/var/lib/dpkg/info/f.list": "x\n/usr/bin/f",
+     "/var/lib/dpkg/info/g.list": "/usr/bin/g\n",
+     "/var/lib/dpkg/info/h.list": "/usr/bin/h\n",
+     "/var/lib/dpkg/info/i.list": "/usr/bin/i\n"
+    },
+    "exec": {
+     "apt-mark showmanual": "a\nb\nc\nd\ne\nf\ng\nh\ni\n",
+     "dpkg-query -Wf ${Package} ${Priority}\n": "a optional\nb extra\nc optional\nd optional\ne optional\nf optional\ng Optional\nh standard\ni optional extra\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "name": "b"
+    },
+    {
+     "name": "c"
+    },
+    {
+     "name": "f"
+    }
+   ],
+   "calls": [
+    "run apt-mark showmanual",
+    "run dpkg-query -Wf ${Package} ${Priority}\n",
+    "lines /var/lib/dpkg/info/a.list",
+    "lines /var/lib/dpkg/info/b.list",
+    "lines /var/lib/dpkg/info/c.list",
+    "lines /var/lib/dpkg/info/d.list",
+    "lines /var/lib/dpkg/info/e.list",
+    "lines /var/lib/dpkg/info/f.list"
+   ]
+  },
+  {
+   "name": "package name from the list file name",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "apt-mark",
+     "dpkg-query"
+    ],
+    "files": {
+     "/var/lib/dpkg/info/:amd64.list": "/usr/bin/nameless\n",
+     "/var/lib/dpkg/info/x:a:b.list": "/usr/bin/x\n",
+     "/var/lib/dpkg/info/x.list.list": "/usr/bin/xx\n",
+     "/var/lib/dpkg/info/y.md5sums": "/usr/bin/y\n",
+     "/var/lib/dpkg/info/z.LIST": "/usr/bin/z\n"
+    },
+    "exec": {
+     "apt-mark showmanual": "x\ny\nz\nx.list\n\n",
+     "dpkg-query -Wf ${Package} ${Priority}\n": "x optional\ny optional\nz optional\nx.list optional\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "name": "x"
+    },
+    {
+     "name": "x.list"
+    }
+   ],
+   "calls": [
+    "run apt-mark showmanual",
+    "run dpkg-query -Wf ${Package} ${Priority}\n",
+    "lines /var/lib/dpkg/info/x:a:b.list",
+    "lines /var/lib/dpkg/info/x.list.list"
+   ]
+  },
+  {
+   "name": "a later entry of the directory listing replaces the earlier (t.list sorts before t:amd64.list)",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "apt-mark",
+     "dpkg-query"
+    ],
+    "files": {
+     "/var/lib/dpkg/info/t:amd64.list": "/usr/bin/t\n",
+     "/var/lib/dpkg/info/t.list": "/usr/share/doc/t\n"
+    },
+    "exec": {
+     "apt-mark showmanual": "t\n",
+     "dpkg-query -Wf ${Package} ${Priority}\n": "t optional\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "name": "t"
+    }
+   ],
+   "calls": [
+    "run apt-mark showmanual",
+    "run dpkg-query -Wf ${Package} ${Priority}\n",
+    "lines /var/lib/dpkg/info/t:amd64.list"
+   ]
+  },
+  {
+   "name": "NOT_A_CHOICE is exact and case-sensitive, applied after the trim, survivors in manual order",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "apt-mark",
+     "dpkg-query"
+    ],
+    "files": {
+     "/var/lib/dpkg/info/tmux.list": "/usr/bin/tmux\n",
+     "/var/lib/dpkg/info/unminimize.list": "/usr/bin/unminimize\n",
+     "/var/lib/dpkg/info/apt-transport-https.list": "/usr/bin/q\n",
+     "/var/lib/dpkg/info/Sudo.list": "/usr/bin/q\n"
+    },
+    "exec": {
+     "apt-mark showmanual": "unminimize\r\ntmux\r\nSudo\napt-transport-https\n",
+     "dpkg-query -Wf ${Package} ${Priority}\n": "tmux optional\nSudo optional\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "name": "tmux"
+    },
+    {
+     "name": "Sudo"
+    }
+   ],
+   "calls": [
+    "run apt-mark showmanual",
+    "run dpkg-query -Wf ${Package} ${Priority}\n",
+    "lines /var/lib/dpkg/info/tmux.list",
+    "lines /var/lib/dpkg/info/Sudo.list"
+   ]
+  },
+  {
+   "name": "a repeated priority line: the last wins (required then optional keeps it)",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "apt-mark",
+     "dpkg-query"
+    ],
+    "files": {
+     "/var/lib/dpkg/info/t.list": "/usr/bin/t\n"
+    },
+    "exec": {
+     "apt-mark showmanual": "t\n",
+     "dpkg-query -Wf ${Package} ${Priority}\n": "t required\nt optional\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "name": "t"
+    }
+   ],
+   "calls": [
+    "run apt-mark showmanual",
+    "run dpkg-query -Wf ${Package} ${Priority}\n",
+    "lines /var/lib/dpkg/info/t.list"
+   ]
+  },
+  {
+   "name": "a repeated priority line: the last wins (optional then required drops it, no read)",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "apt-mark",
+     "dpkg-query"
+    ],
+    "files": {
+     "/var/lib/dpkg/info/t.list": "/usr/bin/t\n"
+    },
+    "exec": {
+     "apt-mark showmanual": "t\n",
+     "dpkg-query -Wf ${Package} ${Priority}\n": "t optional\nt required\n"
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "run apt-mark showmanual",
+    "run dpkg-query -Wf ${Package} ${Priority}\n"
+   ]
+  },
+  {
+   "name": "dpkg-query answers nothing: no list is read",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "apt-mark",
+     "dpkg-query"
+    ],
+    "files": {
+     "/var/lib/dpkg/info/t.list": "/usr/bin/t\n"
+    },
+    "exec": {
+     "apt-mark showmanual": "t\n",
+     "dpkg-query -Wf ${Package} ${Priority}\n": ""
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "run apt-mark showmanual",
+    "run dpkg-query -Wf ${Package} ${Priority}\n"
+   ]
+  },
+  {
+   "name": "dpkg-query has no answer at all",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "/var/lib/dpkg/info/t.list": "/usr/bin/t\n"
+    },
+    "exec": {
+     "apt-mark showmanual": "t\n"
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "run apt-mark showmanual",
+    "run dpkg-query -Wf ${Package} ${Priority}\n"
+   ]
+  },
+  {
+   "name": "apt-mark answers empty: nothing else runs",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "apt-mark",
+     "dpkg-query"
+    ],
+    "files": {
+     "/var/lib/dpkg/info/t.list": "/usr/bin/t\n"
+    },
+    "exec": {
+     "apt-mark showmanual": "",
+     "dpkg-query -Wf ${Package} ${Priority}\n": "t optional\n"
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "run apt-mark showmanual"
+   ]
+  },
+  {
+   "name": "apt-mark answers blank lines only",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "apt-mark",
+     "dpkg-query"
+    ],
+    "files": {},
+    "exec": {
+     "apt-mark showmanual": "\n \n",
+     "dpkg-query -Wf ${Package} ${Priority}\n": ""
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "run apt-mark showmanual"
+   ]
+  },
+  {
+   "name": "apt-mark has no answer",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "/var/lib/dpkg/info/t.list": "/usr/bin/t\n"
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "run apt-mark showmanual"
+   ]
+  },
+  {
+   "name": "no list directory: two runs, no reads",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "apt-mark",
+     "dpkg-query"
+    ],
+    "files": {},
+    "exec": {
+     "apt-mark showmanual": "t\n",
+     "dpkg-query -Wf ${Package} ${Priority}\n": "t optional\n"
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "run apt-mark showmanual",
+    "run dpkg-query -Wf ${Package} ${Priority}\n"
+   ]
+  },
+  {
+   "name": "a repeated manual name with no command line is read once per entry",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "apt-mark",
+     "dpkg-query"
+    ],
+    "files": {
+     "/var/lib/dpkg/info/t.list": "/usr/share/x\n"
+    },
+    "exec": {
+     "apt-mark showmanual": "t\nt\n",
+     "dpkg-query -Wf ${Package} ${Priority}\n": "t optional\n"
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "run apt-mark showmanual",
+    "run dpkg-query -Wf ${Package} ${Priority}\n",
+    "lines /var/lib/dpkg/info/t.list",
+    "lines /var/lib/dpkg/info/t.list"
+   ]
+  },
+  {
+   "name": "a failing line read before any match is an error, later packages are not read",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "apt-mark",
+     "dpkg-query"
+    ],
+    "files": {
+     "/var/lib/dpkg/info/a.list": "x\n\u0000fail:EIO: boom\n",
+     "/var/lib/dpkg/info/b.list": "/usr/bin/b\n"
+    },
+    "exec": {
+     "apt-mark showmanual": "a\nb\n",
+     "dpkg-query -Wf ${Package} ${Priority}\n": "a optional\nb optional\n"
+    }
+   },
+   "args": [],
+   "error": "EIO: boom",
+   "calls": [
+    "run apt-mark showmanual",
+    "run dpkg-query -Wf ${Package} ${Priority}\n",
+    "lines /var/lib/dpkg/info/a.list"
+   ]
+  },
+  {
+   "name": "a failure after the matching line is never seen",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "apt-mark",
+     "dpkg-query"
+    ],
+    "files": {
+     "/var/lib/dpkg/info/a.list": "/usr/bin/a\n\u0000fail:EIO: late\n",
+     "/var/lib/dpkg/info/b.list": "/usr/bin/b\n"
+    },
+    "exec": {
+     "apt-mark showmanual": "a\nb\n",
+     "dpkg-query -Wf ${Package} ${Priority}\n": "a optional\nb optional\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "name": "a"
+    },
+    {
+     "name": "b"
+    }
+   ],
+   "calls": [
+    "run apt-mark showmanual",
+    "run dpkg-query -Wf ${Package} ${Priority}\n",
+    "lines /var/lib/dpkg/info/a.list",
+    "lines /var/lib/dpkg/info/b.list"
+   ]
+  },
+  {
+   "name": "a failure in the second package's file is an error after the first was read",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "apt-mark",
+     "dpkg-query"
+    ],
+    "files": {
+     "/var/lib/dpkg/info/a.list": "/usr/bin/a\n",
+     "/var/lib/dpkg/info/b.list": "\u0000fail:EIO: second\n"
+    },
+    "exec": {
+     "apt-mark showmanual": "a\nb\n",
+     "dpkg-query -Wf ${Package} ${Priority}\n": "a optional\nb optional\n"
+    }
+   },
+   "args": [],
+   "error": "EIO: second",
+   "calls": [
+    "run apt-mark showmanual",
+    "run dpkg-query -Wf ${Package} ${Priority}\n",
+    "lines /var/lib/dpkg/info/a.list",
+    "lines /var/lib/dpkg/info/b.list"
+   ]
+  }
+ ],
+ "apt_sizes": [
+  {
+   "name": "Number() forms",
+   "laptop": {
+    "exec": {
+     "dpkg-query -Wf ${Package} ${Installed-Size}\n": "p0 +5\np1 .5\np2 5.\np3 0b11\np4 0B11\np5 0o17\np6 0XFF\np7 1e400\np8 1_0\np9 -0\np10 1e-1\np11 0x\np12 1,5\np13 00012\np14 1e3\np15 NaN\np16 -Infinity\np17 0.0001\n"
+    }
+   },
+   "args": [
+    [
+     "p0",
+     "p1",
+     "p2",
+     "p3",
+     "p4",
+     "p5",
+     "p6",
+     "p7",
+     "p8",
+     "p9",
+     "p10",
+     "p11",
+     "p12",
+     "p13",
+     "p14",
+     "p15",
+     "p16",
+     "p17"
+    ]
+   ],
+   "out": [
+    [
+     "p0",
+     5120
+    ],
+    [
+     "p1",
+     512
+    ],
+    [
+     "p2",
+     5120
+    ],
+    [
+     "p3",
+     3072
+    ],
+    [
+     "p4",
+     3072
+    ],
+    [
+     "p5",
+     15360
+    ],
+    [
+     "p6",
+     261120
+    ],
+    [
+     "p10",
+     102.4
+    ],
+    [
+     "p13",
+     12288
+    ],
+    [
+     "p14",
+     1024000
+    ],
+    [
+     "p17",
+     0.1024
+    ]
+   ],
+   "calls": [
+    "run dpkg-query -Wf ${Package} ${Installed-Size}\n"
+   ]
+  },
+  {
+   "name": "names order, a missing name skipped, a repeated name once at its first place",
+   "laptop": {
+    "exec": {
+     "dpkg-query -Wf ${Package} ${Installed-Size}\n": "a 1\nb 2\nc 3\n"
+    }
+   },
+   "args": [
+    [
+     "c",
+     "a",
+     "zz",
+     "b",
+     "a"
+    ]
+   ],
+   "out": [
+    [
+     "c",
+     3072
+    ],
+    [
+     "a",
+     1024
+    ],
+    [
+     "b",
+     2048
+    ]
+   ],
+   "calls": [
+    "run dpkg-query -Wf ${Package} ${Installed-Size}\n"
+   ]
+  },
+  {
+   "name": "a repeated dpkg line: the last wins",
+   "laptop": {
+    "exec": {
+     "dpkg-query -Wf ${Package} ${Installed-Size}\n": "a 1\na 5\n"
+    }
+   },
+   "args": [
+    [
+     "a"
+    ]
+   ],
+   "out": [
+    [
+     "a",
+     5120
+    ]
+   ],
+   "calls": [
+    "run dpkg-query -Wf ${Package} ${Installed-Size}\n"
+   ]
+  },
+  {
+   "name": "dpkg-query has no answer: empty after one run",
+   "laptop": {},
+   "args": [
+    [
+     "a"
+    ]
+   ],
+   "out": [],
+   "calls": [
+    "run dpkg-query -Wf ${Package} ${Installed-Size}\n"
+   ]
+  },
+  {
+   "name": "an empty name",
+   "laptop": {
+    "exec": {
+     "dpkg-query -Wf ${Package} ${Installed-Size}\n": "a 1\n"
+    }
+   },
+   "args": [
+    [
+     ""
+    ]
+   ],
+   "out": [],
+   "calls": [
+    "run dpkg-query -Wf ${Package} ${Installed-Size}\n"
+   ]
+  },
+  {
+   "name": "no names: nothing runs",
+   "laptop": {
+    "exec": {
+     "dpkg-query -Wf ${Package} ${Installed-Size}\n": "a 1\n"
+    }
+   },
+   "args": [
+    []
+   ],
+   "out": [],
+   "calls": []
+  }
+ ],
+ "parse_brewfile": [
+  {
+   "name": "indent, tab, CR, single quotes, empty name, brewx, comment, split line, capital, cask, NBSP name, BOM line, unterminated",
+   "args": [
+    "  brew \"a\"  \n\tbrew\t\"b\"\r\nbrew 'c'\nbrew \"\"\nbrewx \"d\"\ntap \"e/f\", \"https://x\"\n# brew \"g\"\ntap  \"h i\"\nbrew \"a\"\nbrew \"j\" # c\nbrew\n\"k\"\nBrew \"l\"\ncask \"m\"\nbrew \"n \"\n﻿brew \"o\"\nbrew \"p"
+   ],
+   "out": [
+    {
+     "kind": "brew",
+     "name": "a"
+    },
+    {
+     "kind": "brew",
+     "name": "b"
+    },
+    {
+     "kind": "tap",
+     "name": "e/f"
+    },
+    {
+     "kind": "tap",
+     "name": "h i"
+    },
+    {
+     "kind": "brew",
+     "name": "a"
+    },
+    {
+     "kind": "brew",
+     "name": "j"
+    },
+    {
+     "kind": "brew",
+     "name": "n "
+    },
+    {
+     "kind": "brew",
+     "name": "o"
+    }
+   ]
+  },
+  {
+   "name": "empty",
+   "args": [
+    ""
+   ],
+   "out": []
+  }
+ ],
+ "parse_npm_globals": [
+  {
+   "name": "version shapes and the names npm and corepack",
+   "args": [
+    "{\"dependencies\":{\"a\":{\"version\":\"\"},\"b\":{\"version\":1},\"c\":\"x\",\"d\":null,\"e\":[],\"f\":{\"version\":\"1\",\"extra\":1},\"npm\":{},\"corepack\":{},\"npm2\":{}}}"
+   ],
+   "out": [
+    {
+     "name": "a",
+     "version": ""
+    },
+    {
+     "name": "b"
+    },
+    {
+     "name": "c"
+    },
+    {
+     "name": "d"
+    },
+    {
+     "name": "e"
+    },
+    {
+     "name": "f",
+     "version": "1"
+    },
+    {
+     "name": "npm2"
+    }
+   ]
+  },
+  {
+   "name": "duplicate JSON key: last value, first place",
+   "args": [
+    "{\"dependencies\":{\"a\":{\"version\":\"1\"},\"b\":{\"version\":\"2\"},\"a\":{\"version\":\"3\"}}}"
+   ],
+   "out": [
+    {
+     "name": "a",
+     "version": "3"
+    },
+    {
+     "name": "b",
+     "version": "2"
+    }
+   ]
+  },
+  {
+   "name": "wrong shape \"{}\"",
+   "args": [
+    "{}"
+   ],
+   "out": []
+  },
+  {
+   "name": "wrong shape \"\"",
+   "args": [
+    ""
+   ],
+   "out": []
+  },
+  {
+   "name": "wrong shape \"{\\\"dependencies\\\":null}\"",
+   "args": [
+    "{\"dependencies\":null}"
+   ],
+   "out": []
+  },
+  {
+   "name": "wrong shape \"{\\\"dependencies\\\":\\\"x\\\"}\"",
+   "args": [
+    "{\"dependencies\":\"x\"}"
+   ],
+   "out": []
+  },
+  {
+   "name": "wrong shape \"\\\"x\\\"\"",
+   "args": [
+    "\"x\""
+   ],
+   "out": []
+  },
+  {
+   "name": "wrong shape \"5\"",
+   "args": [
+    "5"
+   ],
+   "out": []
+  },
+  {
+   "name": "wrong shape \"[]\"",
+   "args": [
+    "[]"
+   ],
+   "out": []
+  },
+  {
+   "name": "wrong shape \"null\"",
+   "args": [
+    "null"
+   ],
+   "out": []
+  },
+  {
+   "name": "wrong shape \"{\\\"dependencies\\\":[]}\"",
+   "args": [
+    "{\"dependencies\":[]}"
+   ],
+   "out": []
+  },
+  {
+   "name": "wrong shape \"not json\"",
+   "args": [
+    "not json"
+   ],
+   "out": []
+  },
+  {
+   "name": "integer-like key first",
+   "args": [
+    "{\"dependencies\":{\"b\":{\"version\":\"1\"},\"2\":{\"version\":\"2\"},\"a\":{}}}"
+   ],
+   "out": [
+    {
+     "name": "2",
+     "version": "2"
+    },
+    {
+     "name": "b",
+     "version": "1"
+    },
+    {
+     "name": "a"
+    }
+   ]
+  }
+ ],
+ "parse_pnpm_globals": [
+  {
+   "name": "dependencies only, junk elements skipped, empty strings kept, no dedupe",
+   "args": [
+    "[{\"devDependencies\":{\"d\":{\"version\":\"1\"}}},{\"dependencies\":{\"a\":{\"version\":\"\",\"path\":\"\"}}},null,\"x\",[],{\"dependencies\":{\"b\":{\"path\":5,\"version\":\"2\"}}},{\"dependencies\":{\"a\":{\"version\":\"9\",\"path\":\"/p\"}}},{\"dependencies\":null}]"
+   ],
+   "out": [
+    {
+     "name": "a",
+     "version": "",
+     "path": ""
+    },
+    {
+     "name": "b",
+     "version": "2"
+    },
+    {
+     "name": "a",
+     "version": "9",
+     "path": "/p"
+    }
+   ]
+  },
+  {
+   "name": "not an array \"{}\"",
+   "args": [
+    "{}"
+   ],
+   "out": []
+  },
+  {
+   "name": "not an array \"\"",
+   "args": [
+    ""
+   ],
+   "out": []
+  },
+  {
+   "name": "not an array \"[]\"",
+   "args": [
+    "[]"
+   ],
+   "out": []
+  },
+  {
+   "name": "not an array \"null\"",
+   "args": [
+    "null"
+   ],
+   "out": []
+  }
+ ],
+ "parse_pipx_list": [
+  {
+   "name": "version shapes",
+   "args": [
+    "{\"venvs\":{\"a\":{\"metadata\":{\"main_package\":{\"package_version\":\"\"}}},\"b\":{\"metadata\":{\"main_package\":{\"package_version\":3}}},\"c\":null,\"d\":{\"metadata\":null},\"e\":{\"metadata\":{\"main_package\":[]}},\"f\":{\"metadata\":{\"main_package\":{\"package_version\":\"1\",\"x\":1}}}}}"
+   ],
+   "out": [
+    {
+     "name": "a",
+     "version": ""
+    },
+    {
+     "name": "b"
+    },
+    {
+     "name": "c"
+    },
+    {
+     "name": "d"
+    },
+    {
+     "name": "e"
+    },
+    {
+     "name": "f",
+     "version": "1"
+    }
+   ]
+  },
+  {
+   "name": "wrong shape \"[]\"",
+   "args": [
+    "[]"
+   ],
+   "out": []
+  },
+  {
+   "name": "wrong shape \"{\\\"venvs\\\":[]}\"",
+   "args": [
+    "{\"venvs\":[]}"
+   ],
+   "out": []
+  },
+  {
+   "name": "wrong shape \"{\\\"venvs\\\":null}\"",
+   "args": [
+    "{\"venvs\":null}"
+   ],
+   "out": []
+  },
+  {
+   "name": "wrong shape \"{}\"",
+   "args": [
+    "{}"
+   ],
+   "out": []
+  }
+ ],
+ "parse_uv_tool_list": [
+  {
+   "name": "name and version lines",
+   "args": [
+    "ruff v0.6.3\r\n- ruff\n\nhttpx  v0.27.0 extra\n  indented v1\n-dash v1\nbat v0.24.0 (/src/bat):\n    bat\nx v1:2:3\ny v\nz vX\nvfoo vbar\nnov 1.0\n\tt\tv1\nname\tv2\nNo tools installed\nfoo v1.0 \nbar v1\n lead v1\nlast v9"
+   ],
+   "out": [
+    {
+     "name": "ruff",
+     "version": "0.6.3"
+    },
+    {
+     "name": "httpx",
+     "version": "0.27.0"
+    },
+    {
+     "name": "bat",
+     "version": "0.24.0"
+    },
+    {
+     "name": "x",
+     "version": "1"
+    },
+    {
+     "name": "z",
+     "version": "X"
+    },
+    {
+     "name": "vfoo",
+     "version": "bar"
+    },
+    {
+     "name": "name",
+     "version": "2"
+    },
+    {
+     "name": "foo",
+     "version": "1.0"
+    },
+    {
+     "name": "bar",
+     "version": "1"
+    },
+    {
+     "name": "last",
+     "version": "9"
+    }
+   ]
+  }
+ ],
+ "parse_cargo_installs": [
+  {
+   "name": "name and version lines",
+   "args": [
+    "ruff v0.6.3\r\n- ruff\n\nhttpx  v0.27.0 extra\n  indented v1\n-dash v1\nbat v0.24.0 (/src/bat):\n    bat\nx v1:2:3\ny v\nz vX\nvfoo vbar\nnov 1.0\n\tt\tv1\nname\tv2\nNo tools installed\nfoo v1.0 \nbar v1\n lead v1\nlast v9"
+   ],
+   "out": [
+    {
+     "name": "ruff",
+     "version": "0.6.3"
+    },
+    {
+     "name": "httpx",
+     "version": "0.27.0"
+    },
+    {
+     "name": "bat",
+     "version": "0.24.0"
+    },
+    {
+     "name": "x",
+     "version": "1"
+    },
+    {
+     "name": "z",
+     "version": "X"
+    },
+    {
+     "name": "vfoo",
+     "version": "bar"
+    },
+    {
+     "name": "name",
+     "version": "2"
+    },
+    {
+     "name": "foo",
+     "version": "1.0"
+    },
+    {
+     "name": "bar",
+     "version": "1"
+    },
+    {
+     "name": "last",
+     "version": "9"
+    }
+   ]
+  }
+ ],
+ "parse_bun_globals": [
+  {
+   "name": "tree lines must match whole",
+   "args": [
+    "/home/x/.bun/install/global node_modules (4)\r\n├── a@1.0.0\r\n├── b@1.0.0\n│   ├── c@2\n└── @s/d@3\n  e@4\n├── f@1@2\n├── g@\n├── @h\n├── @@i@1\n├── j@1 x\n├── k@1.0.0 \n├──  l@5\nm@6\n├── @n@7\n└── @/o@8\n"
+   ],
+   "out": [
+    {
+     "name": "b",
+     "version": "1.0.0"
+    },
+    {
+     "name": "c",
+     "version": "2"
+    },
+    {
+     "name": "@s/d",
+     "version": "3"
+    },
+    {
+     "name": "e",
+     "version": "4"
+    },
+    {
+     "name": "f",
+     "version": "1@2"
+    },
+    {
+     "name": "l",
+     "version": "5"
+    },
+    {
+     "name": "@n",
+     "version": "7"
+    },
+    {
+     "name": "@/o",
+     "version": "8"
+    }
+   ]
+  }
+ ],
+ "parse_go_version_m": [
+  {
+   "name": "path and mod",
+   "args": [
+    "\tpath\ta\n\tmod\ta\tv1\th1:x\n"
+   ],
+   "out": {
+    "path": "a",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "no leading tab",
+   "args": [
+    "path\ta\nmod\ta\tv1\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "empty columns count as set",
+   "args": [
+    "x\tpath\t\nx\tmod\tm\t\n"
+   ],
+   "out": {
+    "path": "",
+    "version": ""
+   }
+  },
+  {
+   "name": "mod line with three columns",
+   "args": [
+    "x\tpath\ta\nx\tmod\tm\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "last of each wins",
+   "args": [
+    "x\tpath\ta\nx\tmod\tm\tv1\nx\tmod\tm2\tv2\nx\tpath\tb\n"
+   ],
+   "out": {
+    "path": "b",
+    "version": "v2"
+   }
+  },
+  {
+   "name": "dep line",
+   "args": [
+    "x\tpath\ta\nx\tdep\tm\tv1\n"
+   ],
+   "out": null
+  },
+  {
+   "name": "CRLF keeps the CR",
+   "args": [
+    "x\tpath\ta\r\nx\tmod\tm\tv1\r\n"
+   ],
+   "out": {
+    "path": "a\r",
+    "version": "v1\r"
+   }
+  },
+  {
+   "name": "mod first",
+   "args": [
+    "x\tmod\tm\tv1\nx\tpath\ta\n"
+   ],
+   "out": {
+    "path": "a",
+    "version": "v1"
+   }
+  },
+  {
+   "name": "empty",
+   "args": [
+    ""
+   ],
+   "out": null
+  },
+  {
+   "name": "garbage",
+   "args": [
+    "garbage"
+   ],
+   "out": null
+  }
+ ],
+ "js_global_folders": [
+  {
+   "name": "npm root equal to a fixed root: its place first, no repeat",
+   "laptop": {
+    "exec": {
+     "npm root -g": "/opt/homebrew/lib/node_modules\n"
+    }
+   },
+   "args": [
+    "x"
+   ],
+   "out": [
+    "/opt/homebrew/lib/node_modules/x",
+    "/usr/local/lib/node_modules/x",
+    "/Users/dev/.bun/install/global/node_modules/x"
+   ],
+   "calls": [
+    "run npm root -g",
+    "run pnpm ls -g --depth=0 --json"
+   ]
+  },
+  {
+   "name": "pnpm paths are not deduped, not even against the roots",
+   "laptop": {
+    "exec": {
+     "npm root -g": "/r\n",
+     "pnpm ls -g --depth=0 --json": "[{\"dependencies\":{\"x\":{\"path\":\"/r/x\"}}},{\"dependencies\":{\"x\":{\"path\":\"/r/x\"}}}]"
+    }
+   },
+   "args": [
+    "x"
+   ],
+   "out": [
+    "/r/x",
+    "/opt/homebrew/lib/node_modules/x",
+    "/usr/local/lib/node_modules/x",
+    "/Users/dev/.bun/install/global/node_modules/x",
+    "/r/x",
+    "/r/x"
+   ],
+   "calls": [
+    "run npm root -g",
+    "run pnpm ls -g --depth=0 --json"
+   ]
+  },
+  {
+   "name": "no answers: the three fixed roots, both commands still run",
+   "laptop": {},
+   "args": [
+    "x"
+   ],
+   "out": [
+    "/opt/homebrew/lib/node_modules/x",
+    "/usr/local/lib/node_modules/x",
+    "/Users/dev/.bun/install/global/node_modules/x"
+   ],
+   "calls": [
+    "run npm root -g",
+    "run pnpm ls -g --depth=0 --json"
+   ]
+  },
+  {
+   "name": "blank first line of npm root is no root",
+   "laptop": {
+    "exec": {
+     "npm root -g": "\n/zz\n"
+    }
+   },
+   "args": [
+    "x"
+   ],
+   "out": [
+    "/opt/homebrew/lib/node_modules/x",
+    "/usr/local/lib/node_modules/x",
+    "/Users/dev/.bun/install/global/node_modules/x"
+   ],
+   "calls": [
+    "run npm root -g",
+    "run pnpm ls -g --depth=0 --json"
+   ]
+  },
+  {
+   "name": "padded npm root is trimmed",
+   "laptop": {
+    "exec": {
+     "npm root -g": "  /zz  \n/yy\n"
+    }
+   },
+   "args": [
+    "x"
+   ],
+   "out": [
+    "/zz/x",
+    "/opt/homebrew/lib/node_modules/x",
+    "/usr/local/lib/node_modules/x",
+    "/Users/dev/.bun/install/global/node_modules/x"
+   ],
+   "calls": [
+    "run npm root -g",
+    "run pnpm ls -g --depth=0 --json"
+   ]
+  },
+  {
+   "name": "CRLF npm root",
+   "laptop": {
+    "exec": {
+     "npm root -g": "/zz\r\n"
+    }
+   },
+   "args": [
+    "x"
+   ],
+   "out": [
+    "/zz/x",
+    "/opt/homebrew/lib/node_modules/x",
+    "/usr/local/lib/node_modules/x",
+    "/Users/dev/.bun/install/global/node_modules/x"
+   ],
+   "calls": [
+    "run npm root -g",
+    "run pnpm ls -g --depth=0 --json"
+   ]
+  },
+  {
+   "name": "an empty pnpm path is kept",
+   "laptop": {
+    "exec": {
+     "pnpm ls -g --depth=0 --json": "[{\"dependencies\":{\"x\":{\"path\":\"\"}}}]"
+    }
+   },
+   "args": [
+    "x"
+   ],
+   "out": [
+    "/opt/homebrew/lib/node_modules/x",
+    "/usr/local/lib/node_modules/x",
+    "/Users/dev/.bun/install/global/node_modules/x",
+    ""
+   ],
+   "calls": [
+    "run npm root -g",
+    "run pnpm ls -g --depth=0 --json"
+   ]
+  },
+  {
+   "name": "a non-string pnpm path is dropped",
+   "laptop": {
+    "exec": {
+     "pnpm ls -g --depth=0 --json": "[{\"dependencies\":{\"x\":{\"path\":5}}}]"
+    }
+   },
+   "args": [
+    "x"
+   ],
+   "out": [
+    "/opt/homebrew/lib/node_modules/x",
+    "/usr/local/lib/node_modules/x",
+    "/Users/dev/.bun/install/global/node_modules/x"
+   ],
+   "calls": [
+    "run npm root -g",
+    "run pnpm ls -g --depth=0 --json"
+   ]
+  },
+  {
+   "name": "pnpm listing of the wrong shape",
+   "laptop": {
+    "exec": {
+     "pnpm ls -g --depth=0 --json": "{}"
+    }
+   },
+   "args": [
+    "x"
+   ],
+   "out": [
+    "/opt/homebrew/lib/node_modules/x",
+    "/usr/local/lib/node_modules/x",
+    "/Users/dev/.bun/install/global/node_modules/x"
+   ],
+   "calls": [
+    "run npm root -g",
+    "run pnpm ls -g --depth=0 --json"
+   ]
+  },
+  {
+   "name": "scoped name",
+   "laptop": {
+    "exec": {
+     "npm root -g": "/r"
+    }
+   },
+   "args": [
+    "@s/p"
+   ],
+   "out": [
+    "/r/@s/p",
+    "/opt/homebrew/lib/node_modules/@s/p",
+    "/usr/local/lib/node_modules/@s/p",
+    "/Users/dev/.bun/install/global/node_modules/@s/p"
+   ],
+   "calls": [
+    "run npm root -g",
+    "run pnpm ls -g --depth=0 --json"
+   ]
+  }
+ ],
+ "package_commands": [
+  {
+   "name": "bin an empty string is a string",
+   "laptop": {
+    "files": {
+     "/a/package.json": "{\"bin\":\"\"}"
+    }
+   },
+   "args": [
+    "@s/tool",
+    [
+     "/a"
+    ]
+   ],
+   "out": [
+    "tool"
+   ],
+   "calls": [
+    "read /a/package.json"
+   ]
+  },
+  {
+   "name": "bin an array, null, a number, an empty object; a package.json that is [], null or empty",
+   "laptop": {
+    "files": {
+     "/a/package.json": "{\"bin\":[\"x\"]}",
+     "/b/package.json": "{\"bin\":null}",
+     "/c/package.json": "{\"bin\":5}",
+     "/d/package.json": "{\"bin\":{}}",
+     "/e/package.json": "[]",
+     "/f/package.json": "null",
+     "/g/package.json": ""
+    }
+   },
+   "args": [
+    "t",
+    [
+     "/a",
+     "/b",
+     "/c",
+     "/d",
+     "/e",
+     "/f",
+     "/g"
+    ]
+   ],
+   "out": [],
+   "calls": [
+    "read /a/package.json",
+    "read /b/package.json",
+    "read /c/package.json",
+    "read /d/package.json",
+    "read /e/package.json",
+    "read /f/package.json",
+    "read /g/package.json"
+   ]
+  },
+  {
+   "name": "integer-like key first, repeats keep the first place, last segment of the name",
+   "laptop": {
+    "files": {
+     "/a/package.json": "{\"bin\":{\"b\":\"1\",\"2\":\"x\",\"a\":\"3\"}}",
+     "/b/package.json": "{\"bin\":{\"a\":\"1\",\"c\":\"2\"}}",
+     "/c/package.json": "{\"bin\":\"x\"}"
+    }
+   },
+   "args": [
+    "scope/deep/name",
+    [
+     "/a",
+     "/b",
+     "/c"
+    ]
+   ],
+   "out": [
+    "2",
+    "b",
+    "a",
+    "c",
+    "name"
+   ],
+   "calls": [
+    "read /a/package.json",
+    "read /b/package.json",
+    "read /c/package.json"
+   ]
+  },
+  {
+   "name": "empty name with a string bin",
+   "laptop": {
+    "files": {
+     "/a/package.json": "{\"bin\":\"x\"}"
+    }
+   },
+   "args": [
+    "",
+    [
+     "/a"
+    ]
+   ],
+   "out": [
+    ""
+   ],
+   "calls": [
+    "read /a/package.json"
+   ]
+  },
+  {
+   "name": "name ending in a slash with a string bin",
+   "laptop": {
+    "files": {
+     "/a/package.json": "{\"bin\":\"x\"}"
+    }
+   },
+   "args": [
+    "@s/",
+    [
+     "/a"
+    ]
+   ],
+   "out": [
+    ""
+   ],
+   "calls": [
+    "read /a/package.json"
+   ]
+  },
+  {
+   "name": "an empty bin key is kept and the package.json name is not read",
+   "laptop": {
+    "files": {
+     "/a/package.json": "{\"name\":\"other\",\"bin\":{\"\":\"x\",\"cli\":\"y\"}}"
+    }
+   },
+   "args": [
+    "t",
+    [
+     "/a"
+    ]
+   ],
+   "out": [
+    "",
+    "cli"
+   ],
+   "calls": [
+    "read /a/package.json"
+   ]
+  },
+  {
+   "name": "no folders",
+   "laptop": {
+    "files": {}
+   },
+   "args": [
+    "t",
+    []
+   ],
+   "out": [],
+   "calls": []
+  }
+ ],
+ "detect_tools": [
+  {
+   "name": "brew: repeated lines are repeated rows, taps and formulae in the Brewfile's order",
+   "laptop": {
+    "which": [
+     "brew"
+    ],
+    "exec": {
+     "HOMEBREW_NO_AUTO_UPDATE=1 brew bundle dump --file=- --formula --taps --no-restart": "brew \"gh\"\nbrew \"gh\"\ntap \"a/b\"\nbrew \"a/b/c\"\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "tools",
+     "id": "tools/brew/gh",
+     "label": "gh",
+     "group": "Homebrew",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/brew/gh",
+     "label": "gh",
+     "group": "Homebrew",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/brew-tap/a/b",
+     "label": "a/b",
+     "group": "Homebrew taps",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/brew/a/b/c",
+     "label": "a/b/c",
+     "group": "Homebrew",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "linux": "unknown"
+    }
+   ],
+   "calls": [
+    "run HOMEBREW_NO_AUTO_UPDATE=1 brew bundle dump --file=- --formula --taps --no-restart"
+   ]
+  },
+  {
+   "name": "brew: the dump has no answer",
+   "laptop": {
+    "which": [
+     "brew"
+    ]
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "run HOMEBREW_NO_AUTO_UPDATE=1 brew bundle dump --file=- --formula --taps --no-restart"
+   ]
+  },
+  {
+   "name": "brew on linux: every formula is yes and bring",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "brew"
+    ],
+    "exec": {
+     "HOMEBREW_NO_AUTO_UPDATE=1 brew bundle dump --file=- --formula --taps --no-restart": "tap \"x/y\"\nbrew \"mas\"\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "tools",
+     "id": "tools/brew-tap/x/y",
+     "label": "x/y",
+     "group": "Homebrew taps",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/brew/mas",
+     "label": "mas",
+     "group": "Homebrew",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes"
+    }
+   ],
+   "calls": [
+    "run HOMEBREW_NO_AUTO_UPDATE=1 brew bundle dump --file=- --formula --taps --no-restart"
+   ]
+  },
+  {
+   "name": "nix: only nixpkgs home.nix",
+   "laptop": {
+    "files": {
+     "~/.config/nixpkgs/home.nix": 120
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "tools",
+     "id": "tools/nix-home-manager",
+     "label": "Nix home-manager config",
+     "paths": [
+      "~/.config/nixpkgs/home.nix"
+     ],
+     "bytes": 120,
+     "default": "bring",
+     "linux": "yes"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "nix: both, the folder with a size of its own",
+   "laptop": {
+    "files": {
+     "~/.config/home-manager/": 7,
+     "~/.config/nixpkgs/home.nix": 120
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "tools",
+     "id": "tools/nix-home-manager",
+     "label": "Nix home-manager config",
+     "paths": [
+      "~/.config/home-manager",
+      "~/.config/nixpkgs/home.nix"
+     ],
+     "bytes": 127,
+     "default": "bring",
+     "linux": "yes"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "pnpm duplicates and an empty version keep their rows; pipx and uv labels",
+   "laptop": {
+    "which": [
+     "pnpm",
+     "pipx",
+     "uv",
+     "cargo",
+     "bun"
+    ],
+    "exec": {
+     "pnpm ls -g --depth=0 --json": "[{\"dependencies\":{\"a\":{\"version\":\"\",\"path\":\"/p\"},\"b\":{},\"c\":{\"version\":\"1\"}}},{\"dependencies\":{\"a\":{\"version\":\"2\"}}}]",
+     "pipx list --json": "{\"venvs\":{\"black\":{\"metadata\":{}},\"e\":{\"metadata\":{\"main_package\":{\"package_version\":\"\"}}}}}",
+     "uv tool list": "ruff v1\nruff v2\n",
+     "cargo install --list": "x v1.0.0:\n    x\n",
+     "bun pm ls -g": "h\n└── z@"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "tools",
+     "id": "tools/pnpm/a",
+     "label": "a@",
+     "group": "pnpm globals",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes",
+     "version": ""
+    },
+    {
+     "rung": "tools",
+     "id": "tools/pnpm/b",
+     "label": "b",
+     "group": "pnpm globals",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/pnpm/c",
+     "label": "c@1",
+     "group": "pnpm globals",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes",
+     "version": "1"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/pnpm/a",
+     "label": "a@2",
+     "group": "pnpm globals",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes",
+     "version": "2"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/pipx/black",
+     "label": "black",
+     "group": "pipx",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/pipx/e",
+     "label": "e ",
+     "group": "pipx",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes",
+     "version": ""
+    },
+    {
+     "rung": "tools",
+     "id": "tools/uv/ruff",
+     "label": "ruff 1",
+     "group": "uv tools",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes",
+     "version": "1"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/uv/ruff",
+     "label": "ruff 2",
+     "group": "uv tools",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes",
+     "version": "2"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/cargo/x",
+     "label": "x 1.0.0",
+     "group": "cargo installs",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes",
+     "version": "1.0.0"
+    }
+   ]
+  },
+  {
+   "name": "npm: a blank own prefix skips nothing, both fixed prefixes with globals are listed",
+   "laptop": {
+    "which": [
+     "npm"
+    ],
+    "exec": {
+     "npm prefix -g": "\n",
+     "npm ls -g --depth=0 --json": "{\"dependencies\":{\"a\":{\"version\":\"\"},\"b\":{}}}"
+    },
+    "files": {
+     "/opt/homebrew/lib/node_modules/": 1,
+     "/usr/local/lib/node_modules/x/package.json": 1
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "tools",
+     "id": "tools/npm/a",
+     "label": "a@",
+     "group": "npm globals",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes",
+     "version": ""
+    },
+    {
+     "rung": "tools",
+     "id": "tools/npm/b",
+     "label": "b",
+     "group": "npm globals",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes"
+    }
+   ],
+   "calls": [
+    "run npm prefix -g",
+    "run npm ls -g --depth=0 --json",
+    "run npm ls -g --depth=0 --json --prefix /opt/homebrew",
+    "run npm ls -g --depth=0 --json --prefix /usr/local"
+   ]
+  },
+  {
+   "name": "npm: own prefix /usr/local, homebrew listed second, a repeated name keeps the first",
+   "laptop": {
+    "which": [
+     "npm"
+    ],
+    "exec": {
+     "npm prefix -g": "/usr/local\n  ",
+     "npm ls -g --depth=0 --json": "{\"dependencies\":{\"a\":{\"version\":\"1\"}}}",
+     "npm ls -g --depth=0 --json --prefix /opt/homebrew": "{\"dependencies\":{\"b\":{\"version\":\"2\"},\"a\":{\"version\":\"0\"}}}"
+    },
+    "files": {
+     "/opt/homebrew/lib/node_modules/": 1,
+     "/usr/local/lib/node_modules/y/package.json": 1
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "tools",
+     "id": "tools/npm/a",
+     "label": "a@1",
+     "group": "npm globals",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes",
+     "version": "1"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/npm/b",
+     "label": "b@2",
+     "group": "npm globals",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes",
+     "version": "2"
+    }
+   ],
+   "calls": [
+    "run npm prefix -g",
+    "run npm ls -g --depth=0 --json",
+    "run npm ls -g --depth=0 --json --prefix /opt/homebrew"
+   ]
+  },
+  {
+   "name": "npm: an own prefix with a trailing slash is not equal",
+   "laptop": {
+    "which": [
+     "npm"
+    ],
+    "exec": {
+     "npm prefix -g": "/opt/homebrew/\n",
+     "npm ls -g --depth=0 --json": "{\"dependencies\":{\"a\":{\"version\":\"1\"}}}",
+     "npm ls -g --depth=0 --json --prefix /opt/homebrew": "{\"dependencies\":{\"b\":{\"version\":\"2\"}}}"
+    },
+    "files": {
+     "/opt/homebrew/lib/node_modules/y/package.json": 1
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "tools",
+     "id": "tools/npm/a",
+     "label": "a@1",
+     "group": "npm globals",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes",
+     "version": "1"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/npm/b",
+     "label": "b@2",
+     "group": "npm globals",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes",
+     "version": "2"
+    }
+   ],
+   "calls": [
+    "run npm prefix -g",
+    "run npm ls -g --depth=0 --json",
+    "run npm ls -g --depth=0 --json --prefix /opt/homebrew"
+   ]
+  },
+  {
+   "name": "npm: lib/node_modules as a plain file counts",
+   "laptop": {
+    "which": [
+     "npm"
+    ],
+    "exec": {
+     "npm ls -g --depth=0 --json --prefix /opt/homebrew": "{\"dependencies\":{\"b\":{\"version\":\"2\"}}}"
+    },
+    "files": {
+     "/opt/homebrew/lib/node_modules": 1
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "tools",
+     "id": "tools/npm/b",
+     "label": "b@2",
+     "group": "npm globals",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes",
+     "version": "2"
+    }
+   ],
+   "calls": [
+    "run npm prefix -g",
+    "run npm ls -g --depth=0 --json",
+    "run npm ls -g --depth=0 --json --prefix /opt/homebrew"
+   ]
+  },
+  {
+   "name": "npm: every answer missing",
+   "laptop": {
+    "which": [
+     "npm"
+    ]
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "run npm prefix -g",
+    "run npm ls -g --depth=0 --json"
+   ]
+  },
+  {
+   "name": "go: order, an empty answer, a version that is (devel), path line not the mod name",
+   "laptop": {
+    "which": [
+     "go"
+    ],
+    "files": {
+     "~/go/bin/zz": 1,
+     "~/go/bin/aa": 1,
+     "~/go/bin/mid/inner": 1
+    },
+    "exec": {
+     "go version -m /Users/dev/go/bin/aa": "",
+     "go version -m /Users/dev/go/bin/mid": "x\n\tpath\tp/mid\n\tmod\tp/mid\t(devel)\th1:x\n",
+     "go version -m /Users/dev/go/bin/zz": "x\n\tpath\tp/zz\n\tmod\tp/other\tv1.2.3\th1:x\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "tools",
+     "id": "tools/go/aa",
+     "label": "aa (no module info)",
+     "group": "Go binaries",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "linux": "yes"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/go/mid",
+     "label": "mid",
+     "group": "Go binaries",
+     "paths": [
+      "p/mid@(devel)"
+     ],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes",
+     "version": "(devel)"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/go/zz",
+     "label": "zz",
+     "group": "Go binaries",
+     "paths": [
+      "p/zz@v1.2.3"
+     ],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes",
+     "version": "v1.2.3"
+    }
+   ],
+   "calls": [
+    "run go version -m /Users/dev/go/bin/aa",
+    "run go version -m /Users/dev/go/bin/mid",
+    "run go version -m /Users/dev/go/bin/zz"
+   ]
+  },
+  {
+   "name": "go on PATH, no go/bin",
+   "laptop": {
+    "which": [
+     "go"
+    ]
+   },
+   "args": [],
+   "out": [],
+   "calls": []
+  },
+  {
+   "name": "go/bin present, go not on PATH",
+   "laptop": {
+    "files": {
+     "~/go/bin/zz": 1
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": []
+  },
+  {
+   "name": "apt rows: the catalog filter and an npm row for the same name",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "apt-mark",
+     "dpkg-query",
+     "npm"
+    ],
+    "files": {
+     "/var/lib/dpkg/info/tmux.list": "/usr/bin/tmux\n",
+     "/var/lib/dpkg/info/direnv.list": "/usr/bin/direnv\n",
+     "/var/lib/dpkg/info/fish.list": "/usr/bin/fish\n",
+     "/var/lib/dpkg/info/starship.list": "/usr/bin/starship\n",
+     "/var/lib/dpkg/info/jq.list": "/usr/bin/jq\n",
+     "/var/lib/dpkg/info/git.list": "/usr/bin/git\n",
+     "/var/lib/dpkg/info/ripgrep.list": "/usr/bin/ripgrep\n",
+     "/var/lib/dpkg/info/neovim.list": "/usr/bin/neovim\n",
+     "/var/lib/dpkg/info/htop.list": "/usr/bin/htop\n",
+     "/var/lib/dpkg/info/curl.list": "/usr/bin/curl\n",
+     "/var/lib/dpkg/info/zsh.list": "/usr/bin/zsh\n"
+    },
+    "exec": {
+     "apt-mark showmanual": "tmux\ndirenv\nfish\nstarship\njq\ngit\nripgrep\nneovim\nhtop\ncurl\nzsh\n",
+     "dpkg-query -Wf ${Package} ${Priority}\n": "tmux optional\ndirenv optional\nfish optional\nstarship optional\njq optional\ngit optional\nripgrep optional\nneovim optional\nhtop optional\ncurl optional\nzsh optional\n",
+     "npm ls -g --depth=0 --json": "{\"dependencies\":{\"tmux\":{\"version\":\"1\"}}}"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "tools",
+     "id": "tools/npm/tmux",
+     "label": "tmux@1",
+     "group": "npm globals",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes",
+     "version": "1"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/apt/direnv",
+     "label": "direnv",
+     "group": "apt packages",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/apt/fish",
+     "label": "fish",
+     "group": "apt packages",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/apt/starship",
+     "label": "starship",
+     "group": "apt packages",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/apt/neovim",
+     "label": "neovim",
+     "group": "apt packages",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/apt/htop",
+     "label": "htop",
+     "group": "apt packages",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes"
+    },
+    {
+     "rung": "tools",
+     "id": "tools/apt/zsh",
+     "label": "zsh",
+     "group": "apt packages",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes"
+    }
+   ]
+  },
+  {
+   "name": "apt rows on a darwin host with apt-mark on PATH",
+   "laptop": {
+    "platform": "darwin",
+    "which": [
+     "apt-mark"
+    ],
+    "files": {
+     "/var/lib/dpkg/info/aa.list": "/usr/bin/aa\n"
+    },
+    "exec": {
+     "apt-mark showmanual": "aa\n",
+     "dpkg-query -Wf ${Package} ${Priority}\n": "aa optional\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "tools",
+     "id": "tools/apt/aa",
+     "label": "aa",
+     "group": "apt packages",
+     "paths": [],
+     "bytes": 0,
+     "default": "bring",
+     "linux": "yes"
+    }
+   ],
+   "calls": [
+    "run apt-mark showmanual",
+    "run dpkg-query -Wf ${Package} ${Priority}\n",
+    "lines /var/lib/dpkg/info/aa.list"
+   ]
+  },
+  {
+   "name": "a failing line read fails the whole rung",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "apt-mark"
+    ],
+    "files": {
+     "/var/lib/dpkg/info/a.list": "x\n\u0000fail:EIO: boom\n"
+    },
+    "exec": {
+     "apt-mark showmanual": "a\n",
+     "dpkg-query -Wf ${Package} ${Priority}\n": "a optional\n"
+    }
+   },
+   "args": [],
+   "error": "EIO: boom",
+   "calls": [
+    "run apt-mark showmanual",
+    "run dpkg-query -Wf ${Package} ${Priority}\n",
+    "lines /var/lib/dpkg/info/a.list"
+   ]
+  },
+  {
+   "name": "every manager on PATH with no answers: one go row",
+   "laptop": {
+    "which": [
+     "npm",
+     "pnpm",
+     "bun",
+     "pipx",
+     "uv",
+     "cargo",
+     "go",
+     "brew"
+    ],
+    "files": {
+     "~/go/bin/g": 1
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "tools",
+     "id": "tools/go/g",
+     "label": "g (no module info)",
+     "group": "Go binaries",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "linux": "yes"
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,2116 @@
+{
+ "login_default": [
+  {
+   "name": "default of \"gh\"",
+   "args": [
+    "gh"
+   ],
+   "out": "skip"
+  },
+  {
+   "name": "default of \"kube\"",
+   "args": [
+    "kube"
+   ],
+   "out": "bring"
+  },
+  {
+   "name": "default of \"hermes\"",
+   "args": [
+    "hermes"
+   ],
+   "out": "skip"
+  },
+  {
+   "name": "default of \"hermes-keys\"",
+   "args": [
+    "hermes-keys"
+   ],
+   "out": "bring"
+  },
+  {
+   "name": "default of \"opencode\"",
+   "args": [
+    "opencode"
+   ],
+   "out": "bring"
+  },
+  {
+   "name": "default of \"gcloud\"",
+   "args": [
+    "gcloud"
+   ],
+   "out": "skip"
+  },
+  {
+   "name": "default of \"codex\"",
+   "args": [
+    "codex"
+   ],
+   "out": "skip"
+  },
+  {
+   "name": "default of \"claude\"",
+   "args": [
+    "claude"
+   ],
+   "out": "skip"
+  },
+  {
+   "name": "default of \"some-new-tool\"",
+   "args": [
+    "some-new-tool"
+   ],
+   "out": "bring"
+  },
+  {
+   "name": "default of \"\"",
+   "args": [
+    ""
+   ],
+   "out": "bring"
+  }
+ ],
+ "api_key_helper_of": [
+  {
+   "name": "blank BOM",
+   "args": [
+    "{\"apiKeyHelper\":\"﻿\"}"
+   ],
+   "out": null
+  },
+  {
+   "name": "blank NBSP",
+   "args": [
+    "{\"apiKeyHelper\":\" \"}"
+   ],
+   "out": null
+  },
+  {
+   "name": "empty",
+   "args": [
+    "{\"apiKeyHelper\":\"\"}"
+   ],
+   "out": null
+  },
+  {
+   "name": "blank tab and newline",
+   "args": [
+    "{\"apiKeyHelper\":\"\\t\\n\"}"
+   ],
+   "out": null
+  },
+  {
+   "name": "padded helper comes back as written",
+   "args": [
+    "{\"apiKeyHelper\":\" x \"}"
+   ],
+   "out": " x "
+  },
+  {
+   "name": "plain",
+   "args": [
+    "{\"apiKeyHelper\":\"x\"}"
+   ],
+   "out": "x"
+  },
+  {
+   "name": "leading BOM in the text",
+   "args": [
+    "﻿{\"apiKeyHelper\":\"x\"}"
+   ],
+   "out": null
+  },
+  {
+   "name": "trailing comment",
+   "args": [
+    "{\"apiKeyHelper\":\"x\"} // c"
+   ],
+   "out": null
+  },
+  {
+   "name": "array helper",
+   "args": [
+    "{\"apiKeyHelper\":[\"x\"]}"
+   ],
+   "out": null
+  },
+  {
+   "name": "a string",
+   "args": [
+    "\"x\""
+   ],
+   "out": null
+  },
+  {
+   "name": "a number",
+   "args": [
+    "5"
+   ],
+   "out": null
+  },
+  {
+   "name": "empty text",
+   "args": [
+    ""
+   ],
+   "out": null
+  },
+  {
+   "name": "other key case",
+   "args": [
+    "{\"apikeyhelper\":\"x\"}"
+   ],
+   "out": null
+  },
+  {
+   "name": "null helper",
+   "args": [
+    "{\"apiKeyHelper\":null}"
+   ],
+   "out": null
+  },
+  {
+   "name": "duplicate key: the last wins",
+   "args": [
+    "{\"apiKeyHelper\":\"a\",\"apiKeyHelper\":\"b\"}"
+   ],
+   "out": "b"
+  },
+  {
+   "name": "null",
+   "args": [
+    "null"
+   ],
+   "out": null
+  },
+  {
+   "name": "array",
+   "args": [
+    "[]"
+   ],
+   "out": null
+  },
+  {
+   "name": "not json",
+   "args": [
+    "not json"
+   ],
+   "out": null
+  },
+  {
+   "name": "empty object",
+   "args": [
+    "{}"
+   ],
+   "out": null
+  },
+  {
+   "name": "no text",
+   "args": [
+    null
+   ],
+   "out": null
+  }
+ ],
+ "holds_claude_login": [
+  {
+   "name": "a blank token counts",
+   "args": [
+    "{\"claudeAiOauth\":{\"accessToken\":\" \"}}"
+   ],
+   "out": true
+  },
+  {
+   "name": "claudeAiOauth an array",
+   "args": [
+    "{\"claudeAiOauth\":[]}"
+   ],
+   "out": false
+  },
+  {
+   "name": "array",
+   "args": [
+    "[]"
+   ],
+   "out": false
+  },
+  {
+   "name": "string",
+   "args": [
+    "\"x\""
+   ],
+   "out": false
+  },
+  {
+   "name": "number",
+   "args": [
+    "5"
+   ],
+   "out": false
+  },
+  {
+   "name": "true",
+   "args": [
+    "true"
+   ],
+   "out": false
+  },
+  {
+   "name": "empty text",
+   "args": [
+    ""
+   ],
+   "out": false
+  },
+  {
+   "name": "leading BOM",
+   "args": [
+    "﻿{\"claudeAiOauth\":{\"accessToken\":\"t\"}}"
+   ],
+   "out": false
+  },
+  {
+   "name": "claudeAiOauth a string",
+   "args": [
+    "{\"claudeAiOauth\":\"x\"}"
+   ],
+   "out": false
+  },
+  {
+   "name": "duplicate key: the last wins",
+   "args": [
+    "{\"claudeAiOauth\":{\"accessToken\":\"t\"},\"claudeAiOauth\":{\"accessToken\":\"\"}}"
+   ],
+   "out": false
+  },
+  {
+   "name": "token an array",
+   "args": [
+    "{\"claudeAiOauth\":{\"accessToken\":[\"t\"]}}"
+   ],
+   "out": false
+  },
+  {
+   "name": "trailing text",
+   "args": [
+    "{\"claudeAiOauth\":{\"accessToken\":\"t\"}} trailing"
+   ],
+   "out": false
+  },
+  {
+   "name": "a real login",
+   "args": [
+    "{\"claudeAiOauth\":{\"accessToken\":\"placeholder\"},\"mcpOAuth\":{}}"
+   ],
+   "out": true
+  },
+  {
+   "name": "only an mcp token",
+   "args": [
+    "{\"mcpOAuth\":{\"x\":{\"accessToken\":\"t\"}}}"
+   ],
+   "out": false
+  },
+  {
+   "name": "empty token",
+   "args": [
+    "{\"claudeAiOauth\":{\"accessToken\":\"\"}}"
+   ],
+   "out": false
+  },
+  {
+   "name": "token a number",
+   "args": [
+    "{\"claudeAiOauth\":{\"accessToken\":5}}"
+   ],
+   "out": false
+  },
+  {
+   "name": "claudeAiOauth null",
+   "args": [
+    "{\"claudeAiOauth\":null}"
+   ],
+   "out": false
+  },
+  {
+   "name": "null",
+   "args": [
+    "null"
+   ],
+   "out": false
+  },
+  {
+   "name": "not json",
+   "args": [
+    "not json"
+   ],
+   "out": false
+  },
+  {
+   "name": "no text",
+   "args": [
+    null
+   ],
+   "out": false
+  }
+ ],
+ "claude_keychain_service": [
+  {
+   "name": "no dir",
+   "args": [
+    null
+   ],
+   "out": "Claude Code-credentials"
+  },
+  {
+   "name": "empty dir hashes the empty string",
+   "args": [
+    ""
+   ],
+   "out": "Claude Code-credentials-e3b0c442"
+  },
+  {
+   "name": "a tilde dir hashes the raw text",
+   "args": [
+    "~/cfg"
+   ],
+   "out": "Claude Code-credentials-a91cfea7"
+  },
+  {
+   "name": "composed spelling",
+   "args": [
+    "/a/café"
+   ],
+   "out": "Claude Code-credentials-e6ae3e01"
+  },
+  {
+   "name": "decomposed spelling gives the same item",
+   "args": [
+    "/a/café"
+   ],
+   "out": "Claude Code-credentials-e6ae3e01"
+  },
+  {
+   "name": "plain dir",
+   "args": [
+    "/home/me/.claude-cfg"
+   ],
+   "out": "Claude Code-credentials-dc1c3019"
+  }
+ ],
+ "claude_bills": [
+  {
+   "name": "a helper wins over a login file",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.claude/settings.json": "{\"apiKeyHelper\":\"x\"}",
+     "~/.claude/.credentials.json": "{\"claudeAiOauth\":{\"accessToken\":\"t\"}}"
+    }
+   },
+   "args": [],
+   "out": "key",
+   "calls": [
+    "read /Users/dev/.claude/settings.json"
+   ]
+  },
+  {
+   "name": "an exported key wins over a login file",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.bashrc": "export ANTHROPIC_API_KEY=x\n",
+     "~/.claude/.credentials.json": "{\"claudeAiOauth\":{\"accessToken\":\"t\"}}"
+    }
+   },
+   "args": [],
+   "out": "key",
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc"
+   ]
+  },
+  {
+   "name": "a login file only",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.claude/.credentials.json": "{\"claudeAiOauth\":{\"accessToken\":\"t\"}}"
+    }
+   },
+   "args": [],
+   "out": "login",
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/.claude/.credentials.json"
+   ]
+  },
+  {
+   "name": "nothing on linux: every rc file then the credentials file",
+   "laptop": {
+    "platform": "linux"
+   },
+   "args": [],
+   "out": null,
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/.claude/.credentials.json"
+   ]
+  },
+  {
+   "name": "nothing on darwin: every rc file then the Keychain",
+   "laptop": {
+    "platform": "darwin"
+   },
+   "args": [],
+   "out": null,
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "a settings.json that is a folder",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.claude/settings.json/x": 3
+    }
+   },
+   "args": [],
+   "out": null,
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/.claude/.credentials.json"
+   ]
+  },
+  {
+   "name": "darwin with a helper asks no Keychain and reads no rc file",
+   "laptop": {
+    "platform": "darwin",
+    "files": {
+     "~/.claude/settings.json": "{\"apiKeyHelper\":\"x\"}"
+    },
+    "exec": {
+     "security find-generic-password -s Claude Code-credentials": "x"
+    }
+   },
+   "args": [],
+   "out": "key",
+   "calls": [
+    "read /Users/dev/.claude/settings.json"
+   ]
+  },
+  {
+   "name": "darwin: a login file without a Keychain item is no login",
+   "laptop": {
+    "platform": "darwin",
+    "files": {
+     "~/.claude/.credentials.json": "{\"claudeAiOauth\":{\"accessToken\":\"t\"}}"
+    }
+   },
+   "args": [],
+   "out": null,
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "linux: a Keychain answer is ignored and no security run is made",
+   "laptop": {
+    "platform": "linux",
+    "exec": {
+     "security find-generic-password -s Claude Code-credentials": "x"
+    }
+   },
+   "args": [],
+   "out": null,
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/.claude/.credentials.json"
+   ]
+  },
+  {
+   "name": "an empty Keychain answer is a login",
+   "laptop": {
+    "platform": "darwin",
+    "exec": {
+     "security find-generic-password -s Claude Code-credentials": ""
+    }
+   },
+   "args": [],
+   "out": "login",
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "reads stop at the first rc file that exports",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.zshrc": "export ANTHROPIC_API_KEY=x\n",
+     "~/.bashrc": "echo\n"
+    }
+   },
+   "args": [],
+   "out": "key",
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc"
+   ]
+  },
+  {
+   "name": "a config dir: settings still come from ~/.claude",
+   "laptop": {
+    "platform": "linux",
+    "claudeConfigDir": "/cfg",
+    "files": {
+     "~/.claude/settings.json": "{\"apiKeyHelper\":\"x\"}"
+    }
+   },
+   "args": [],
+   "out": "key",
+   "calls": [
+    "read /Users/dev/.claude/settings.json"
+   ]
+  },
+  {
+   "name": "a config dir: settings under the dir are ignored",
+   "laptop": {
+    "platform": "linux",
+    "claudeConfigDir": "/cfg",
+    "files": {
+     "/cfg/settings.json": "{\"apiKeyHelper\":\"x\"}"
+    }
+   },
+   "args": [],
+   "out": null,
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /cfg/.credentials.json"
+   ]
+  },
+  {
+   "name": "a tilde config dir is expanded for the credentials file",
+   "laptop": {
+    "platform": "linux",
+    "claudeConfigDir": "~/cfg",
+    "files": {
+     "~/cfg/.credentials.json": "{\"claudeAiOauth\":{\"accessToken\":\"t\"}}"
+    }
+   },
+   "args": [],
+   "out": "login",
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/cfg/.credentials.json"
+   ]
+  },
+  {
+   "name": "an empty config dir reads /.credentials.json",
+   "laptop": {
+    "platform": "linux",
+    "claudeConfigDir": "",
+    "files": {
+     "/.credentials.json": "{\"claudeAiOauth\":{\"accessToken\":\"t\"}}",
+     "~/.claude/.credentials.json": "{\"claudeAiOauth\":{\"accessToken\":\"t\"}}"
+    }
+   },
+   "args": [],
+   "out": "login",
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /.credentials.json"
+   ]
+  },
+  {
+   "name": "an empty config dir on darwin asks the hashed-empty service",
+   "laptop": {
+    "platform": "darwin",
+    "claudeConfigDir": "",
+    "exec": {
+     "security find-generic-password -s Claude Code-credentials-e3b0c442": "x"
+    }
+   },
+   "args": [],
+   "out": "login",
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials-e3b0c442"
+   ]
+  },
+  {
+   "name": "a config dir on darwin asks its hashed service",
+   "laptop": {
+    "platform": "darwin",
+    "claudeConfigDir": "/home/me/.claude-cfg",
+    "exec": {
+     "security find-generic-password -s Claude Code-credentials": "x"
+    }
+   },
+   "args": [],
+   "out": null,
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials-dc1c3019"
+   ]
+  }
+ ],
+ "billed_here": [
+  {
+   "name": "an rc export",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.bashrc": "export ANTHROPIC_API_KEY=x\n"
+    }
+   },
+   "args": [],
+   "out": {
+    "claude": "key"
+   },
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc"
+   ]
+  },
+  {
+   "name": "a login file",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.claude/.credentials.json": "{\"claudeAiOauth\":{\"accessToken\":\"t\"}}"
+    }
+   },
+   "args": [],
+   "out": {
+    "claude": "login"
+   },
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/.claude/.credentials.json"
+   ]
+  },
+  {
+   "name": "nothing",
+   "laptop": {
+    "platform": "linux"
+   },
+   "args": [],
+   "out": {},
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/.claude/.credentials.json"
+   ]
+  }
+ ],
+ "detect_logins": [
+  {
+   "name": "every candidate file on darwin plus op",
+   "laptop": {
+    "platform": "darwin",
+    "files": {
+     "~/.config/gcloud/credentials.db": 1,
+     "~/.config/gcloud/access_tokens.db": 2,
+     "~/.config/gcloud/application_default_credentials.json": 3,
+     "~/.config/gcloud/configurations": 4,
+     "~/.config/gcloud/active_config": 5,
+     "~/.config/gcloud/legacy_credentials": 6,
+     "~/Library/Preferences/.wrangler/config/default.toml": 7,
+     "~/.config/.wrangler/config/default.toml": 8,
+     "~/.cloudflared/cert.pem": 9,
+     "~/Library/Application Support/com.vercel.cli/auth.json": 10,
+     "~/.config/com.vercel.cli/auth.json": 11,
+     "~/.vercel/auth.json": 12,
+     "~/.aws/credentials": 13,
+     "~/.aws/config": 14,
+     "~/.kube/config": 15,
+     "~/.codex/auth.json": 16,
+     "~/.gemini/oauth_creds.json": 17,
+     "~/.local/share/opencode/auth.json": 18,
+     "~/.pi/agent/auth.json": 19,
+     "~/.hermes/auth.json": 20,
+     "~/.config/gh/hosts.yml": 21,
+     "~/.hermes/.env": 22
+    },
+    "which": [
+     "op"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/gh",
+     "label": "GitHub CLI login",
+     "group": "CLI logins",
+     "paths": [
+      "~/.config/gh/hosts.yml"
+     ],
+     "bytes": 21,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/gcloud",
+     "label": "Google Cloud login",
+     "group": "CLI logins",
+     "paths": [
+      "~/.config/gcloud/credentials.db",
+      "~/.config/gcloud/access_tokens.db",
+      "~/.config/gcloud/application_default_credentials.json",
+      "~/.config/gcloud/configurations",
+      "~/.config/gcloud/active_config",
+      "~/.config/gcloud/legacy_credentials"
+     ],
+     "bytes": 21,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/wrangler",
+     "label": "Cloudflare Wrangler login",
+     "group": "CLI logins",
+     "paths": [
+      "~/Library/Preferences/.wrangler/config/default.toml"
+     ],
+     "bytes": 7,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/cloudflared",
+     "label": "cloudflared login",
+     "group": "CLI logins",
+     "paths": [
+      "~/.cloudflared/cert.pem"
+     ],
+     "bytes": 9,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/vercel",
+     "label": "Vercel login",
+     "group": "CLI logins",
+     "paths": [
+      "~/Library/Application Support/com.vercel.cli/auth.json",
+      "~/.vercel/auth.json"
+     ],
+     "bytes": 22,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/aws",
+     "label": "AWS keys and profiles",
+     "group": "CLI logins",
+     "paths": [
+      "~/.aws/credentials",
+      "~/.aws/config"
+     ],
+     "bytes": 27,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/kube",
+     "label": "kubectl config",
+     "group": "CLI logins",
+     "paths": [
+      "~/.kube/config"
+     ],
+     "bytes": 15,
+     "default": "bring"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/codex",
+     "label": "Codex login",
+     "group": "Agent logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "detail": "it signs in once on the computer that runs your workspaces; nothing of it travels"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/gemini",
+     "label": "Gemini CLI login",
+     "group": "Agent logins",
+     "paths": [
+      "~/.gemini/oauth_creds.json"
+     ],
+     "bytes": 17,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/opencode",
+     "label": "OpenCode login",
+     "group": "Agent logins",
+     "paths": [
+      "~/.local/share/opencode/auth.json"
+     ],
+     "bytes": 18,
+     "default": "bring"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/pi",
+     "label": "Pi login",
+     "group": "Agent logins",
+     "paths": [
+      "~/.pi/agent/auth.json"
+     ],
+     "bytes": 19,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/hermes",
+     "label": "Hermes Agent login",
+     "group": "Agent logins",
+     "paths": [
+      "~/.hermes/auth.json"
+     ],
+     "bytes": 20,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/hermes-keys",
+     "label": "Hermes Agent API keys",
+     "group": "Agent logins",
+     "paths": [
+      "~/.hermes/.env"
+     ],
+     "bytes": 22,
+     "default": "bring",
+     "detail": "the keys in ~/.hermes/.env travel only by copy; no sign-in produces them"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/op",
+     "label": "1Password CLI",
+     "group": "CLI logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "reason": "needs the 1Password desktop app; the machine uses a service account token"
+    }
+   ],
+   "calls": [
+    "run security find-generic-password -s gh:github.com",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "every candidate file on linux plus op",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.config/gcloud/credentials.db": 1,
+     "~/.config/gcloud/access_tokens.db": 2,
+     "~/.config/gcloud/application_default_credentials.json": 3,
+     "~/.config/gcloud/configurations": 4,
+     "~/.config/gcloud/active_config": 5,
+     "~/.config/gcloud/legacy_credentials": 6,
+     "~/Library/Preferences/.wrangler/config/default.toml": 7,
+     "~/.config/.wrangler/config/default.toml": 8,
+     "~/.cloudflared/cert.pem": 9,
+     "~/Library/Application Support/com.vercel.cli/auth.json": 10,
+     "~/.config/com.vercel.cli/auth.json": 11,
+     "~/.vercel/auth.json": 12,
+     "~/.aws/credentials": 13,
+     "~/.aws/config": 14,
+     "~/.kube/config": 15,
+     "~/.codex/auth.json": 16,
+     "~/.gemini/oauth_creds.json": 17,
+     "~/.local/share/opencode/auth.json": 18,
+     "~/.pi/agent/auth.json": 19,
+     "~/.hermes/auth.json": 20,
+     "~/.config/gh/hosts.yml": 21,
+     "~/.hermes/.env": 22
+    },
+    "which": [
+     "op"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/gh",
+     "label": "GitHub CLI login",
+     "group": "CLI logins",
+     "paths": [
+      "~/.config/gh/hosts.yml"
+     ],
+     "bytes": 21,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/gcloud",
+     "label": "Google Cloud login",
+     "group": "CLI logins",
+     "paths": [
+      "~/.config/gcloud/credentials.db",
+      "~/.config/gcloud/access_tokens.db",
+      "~/.config/gcloud/application_default_credentials.json",
+      "~/.config/gcloud/configurations",
+      "~/.config/gcloud/active_config",
+      "~/.config/gcloud/legacy_credentials"
+     ],
+     "bytes": 21,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/wrangler",
+     "label": "Cloudflare Wrangler login",
+     "group": "CLI logins",
+     "paths": [
+      "~/.config/.wrangler/config/default.toml"
+     ],
+     "bytes": 8,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/cloudflared",
+     "label": "cloudflared login",
+     "group": "CLI logins",
+     "paths": [
+      "~/.cloudflared/cert.pem"
+     ],
+     "bytes": 9,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/vercel",
+     "label": "Vercel login",
+     "group": "CLI logins",
+     "paths": [
+      "~/.config/com.vercel.cli/auth.json",
+      "~/.vercel/auth.json"
+     ],
+     "bytes": 23,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/aws",
+     "label": "AWS keys and profiles",
+     "group": "CLI logins",
+     "paths": [
+      "~/.aws/credentials",
+      "~/.aws/config"
+     ],
+     "bytes": 27,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/kube",
+     "label": "kubectl config",
+     "group": "CLI logins",
+     "paths": [
+      "~/.kube/config"
+     ],
+     "bytes": 15,
+     "default": "bring"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/codex",
+     "label": "Codex login",
+     "group": "Agent logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "detail": "it signs in once on the computer that runs your workspaces; nothing of it travels"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/gemini",
+     "label": "Gemini CLI login",
+     "group": "Agent logins",
+     "paths": [
+      "~/.gemini/oauth_creds.json"
+     ],
+     "bytes": 17,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/opencode",
+     "label": "OpenCode login",
+     "group": "Agent logins",
+     "paths": [
+      "~/.local/share/opencode/auth.json"
+     ],
+     "bytes": 18,
+     "default": "bring"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/pi",
+     "label": "Pi login",
+     "group": "Agent logins",
+     "paths": [
+      "~/.pi/agent/auth.json"
+     ],
+     "bytes": 19,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/hermes",
+     "label": "Hermes Agent login",
+     "group": "Agent logins",
+     "paths": [
+      "~/.hermes/auth.json"
+     ],
+     "bytes": 20,
+     "default": "skip"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/hermes-keys",
+     "label": "Hermes Agent API keys",
+     "group": "Agent logins",
+     "paths": [
+      "~/.hermes/.env"
+     ],
+     "bytes": 22,
+     "default": "bring",
+     "detail": "the keys in ~/.hermes/.env travel only by copy; no sign-in produces them"
+    },
+    {
+     "rung": "logins",
+     "id": "logins/op",
+     "label": "1Password CLI",
+     "group": "CLI logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "reason": "needs the 1Password desktop app; the machine uses a service account token"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/.claude/.credentials.json"
+   ]
+  },
+  {
+   "name": "vercel on darwin: the platform path then the all path",
+   "laptop": {
+    "platform": "darwin",
+    "files": {
+     "~/Library/Application Support/com.vercel.cli/auth.json": 100,
+     "~/.vercel/auth.json": 5,
+     "~/.config/com.vercel.cli/auth.json": 9
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/vercel",
+     "label": "Vercel login",
+     "group": "CLI logins",
+     "paths": [
+      "~/Library/Application Support/com.vercel.cli/auth.json",
+      "~/.vercel/auth.json"
+     ],
+     "bytes": 105,
+     "default": "skip"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "vercel on linux: the platform path then the all path",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/Library/Application Support/com.vercel.cli/auth.json": 100,
+     "~/.vercel/auth.json": 5,
+     "~/.config/com.vercel.cli/auth.json": 9
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/vercel",
+     "label": "Vercel login",
+     "group": "CLI logins",
+     "paths": [
+      "~/.config/com.vercel.cli/auth.json",
+      "~/.vercel/auth.json"
+     ],
+     "bytes": 14,
+     "default": "skip"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/.claude/.credentials.json"
+   ]
+  },
+  {
+   "name": "gh Keychain answer is the empty string",
+   "laptop": {
+    "platform": "darwin",
+    "files": {
+     "~/.config/gh/hosts.yml": 5
+    },
+    "exec": {
+     "security find-generic-password -s gh:github.com": ""
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/gh",
+     "label": "GitHub CLI login",
+     "group": "CLI logins",
+     "paths": [
+      "~/.config/gh/hosts.yml",
+      "Keychain: gh:github.com"
+     ],
+     "bytes": 5,
+     "default": "skip"
+    }
+   ],
+   "calls": [
+    "run security find-generic-password -s gh:github.com",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "gh with no hosts.yml asks no gh Keychain item",
+   "laptop": {
+    "platform": "darwin",
+    "exec": {
+     "security find-generic-password -s gh:github.com": "x"
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "gh hosts.yml that is a folder",
+   "laptop": {
+    "platform": "darwin",
+    "files": {
+     "~/.config/gh/hosts.yml/x": 9
+    },
+    "exec": {
+     "security find-generic-password -s gh:github.com": "x"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/gh",
+     "label": "GitHub CLI login",
+     "group": "CLI logins",
+     "paths": [
+      "~/.config/gh/hosts.yml",
+      "Keychain: gh:github.com"
+     ],
+     "bytes": 9,
+     "default": "skip"
+    }
+   ],
+   "calls": [
+    "run security find-generic-password -s gh:github.com",
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "claude on darwin by Keychain",
+   "laptop": {
+    "platform": "darwin",
+    "exec": {
+     "security find-generic-password -s Claude Code-credentials": "x"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/claude",
+     "label": "Claude Code login",
+     "group": "Agent logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "detail": "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "claude on darwin by login file alone: no row",
+   "laptop": {
+    "platform": "darwin",
+    "files": {
+     "~/.claude/.credentials.json": "{\"claudeAiOauth\":{\"accessToken\":\"t\"}}"
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "claude on linux by Keychain answer alone: no row",
+   "laptop": {
+    "platform": "linux",
+    "exec": {
+     "security find-generic-password -s Claude Code-credentials": "x"
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/.claude/.credentials.json"
+   ]
+  },
+  {
+   "name": "claude with a helper on darwin: only the settings read",
+   "laptop": {
+    "platform": "darwin",
+    "files": {
+     "~/.claude/settings.json": "{\"apiKeyHelper\":\"x\"}"
+    },
+    "exec": {
+     "security find-generic-password -s Claude Code-credentials": "x"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/claude",
+     "label": "Claude Code login",
+     "group": "Agent logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "detail": "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json"
+   ]
+  },
+  {
+   "name": "codex home elsewhere hides the default file",
+   "laptop": {
+    "platform": "darwin",
+    "codexHome": "/elsewhere",
+    "files": {
+     "~/.codex/auth.json": 5
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "codex home with a tilde",
+   "laptop": {
+    "platform": "darwin",
+    "codexHome": "~/c2",
+    "files": {
+     "~/c2/auth.json": 5
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/codex",
+     "label": "Codex login",
+     "group": "Agent logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "detail": "it signs in once on the computer that runs your workspaces; nothing of it travels"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "codex home empty reads /auth.json",
+   "laptop": {
+    "platform": "darwin",
+    "codexHome": "",
+    "files": {
+     "/auth.json": 5,
+     "~/.codex/auth.json": 5
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/codex",
+     "label": "Codex login",
+     "group": "Agent logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "detail": "it signs in once on the computer that runs your workspaces; nothing of it travels"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "op alone on linux",
+   "laptop": {
+    "platform": "linux",
+    "which": [
+     "op"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/op",
+     "label": "1Password CLI",
+     "group": "CLI logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "reason": "needs the 1Password desktop app; the machine uses a service account token"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/.claude/.credentials.json"
+   ]
+  },
+  {
+   "name": "op alone on darwin",
+   "laptop": {
+    "platform": "darwin",
+    "which": [
+     "op"
+    ]
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/op",
+     "label": "1Password CLI",
+     "group": "CLI logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "reason": "needs the 1Password desktop app; the machine uses a service account token"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "run security find-generic-password -s Claude Code-credentials"
+   ]
+  },
+  {
+   "name": "export check: export in .zshrc",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.zshrc": "export ANTHROPIC_API_KEY=sk\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/claude",
+     "label": "Claude Code login",
+     "group": "Agent logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "detail": "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc"
+   ]
+  },
+  {
+   "name": "export check: commented export",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.zshrc": "# export ANTHROPIC_API_KEY=sk\n"
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/.claude/.credentials.json"
+   ]
+  },
+  {
+   "name": "export check: bare export",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.zshrc": "export ANTHROPIC_API_KEY\n"
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/.claude/.credentials.json"
+   ]
+  },
+  {
+   "name": "export check: inline env for a command",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.zshrc": "ANTHROPIC_API_KEY=sk claude\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/claude",
+     "label": "Claude Code login",
+     "group": "Agent logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "detail": "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc"
+   ]
+  },
+  {
+   "name": "export check: another variable that starts with the name",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.zshrc": "export ANTHROPIC_API_KEY_2=sk\n"
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/.claude/.credentials.json"
+   ]
+  },
+  {
+   "name": "export check: fish set -gx in config.fish",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.config/fish/config.fish": "set -gx ANTHROPIC_API_KEY sk\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/claude",
+     "label": "Claude Code login",
+     "group": "Agent logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "detail": "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish"
+   ]
+  },
+  {
+   "name": "export check: export in .zshenv",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.zshenv": "export ANTHROPIC_API_KEY=sk\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/claude",
+     "label": "Claude Code login",
+     "group": "Agent logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "detail": "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv"
+   ]
+  },
+  {
+   "name": "export check: export in .profile",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.profile": "export ANTHROPIC_API_KEY=sk\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/claude",
+     "label": "Claude Code login",
+     "group": "Agent logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "detail": "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile"
+   ]
+  },
+  {
+   "name": "export check: fish conf.d is not read",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.config/fish/conf.d/k.fish": "set -gx ANTHROPIC_API_KEY sk\n"
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/.claude/.credentials.json"
+   ]
+  },
+  {
+   "name": "export check: export with an empty value",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.zshrc": "export ANTHROPIC_API_KEY=\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/claude",
+     "label": "Claude Code login",
+     "group": "Agent logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "detail": "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc"
+   ]
+  },
+  {
+   "name": "export check: export among several assignments",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.zshrc": "export A=1 ANTHROPIC_API_KEY=sk B=2\n"
+    }
+   },
+   "args": [],
+   "out": [
+    {
+     "rung": "logins",
+     "id": "logins/claude",
+     "label": "Claude Code login",
+     "group": "Agent logins",
+     "paths": [],
+     "bytes": 0,
+     "default": "skip",
+     "detail": "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels"
+    }
+   ],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc"
+   ]
+  },
+  {
+   "name": "export check: empty rc file",
+   "laptop": {
+    "platform": "linux",
+    "files": {
+     "~/.zshrc": ""
+    }
+   },
+   "args": [],
+   "out": [],
+   "calls": [
+    "read /Users/dev/.claude/settings.json",
+    "read /Users/dev/.zshrc",
+    "read /Users/dev/.zshenv",
+    "read /Users/dev/.zprofile",
+    "read /Users/dev/.zlogin",
+    "read /Users/dev/.bashrc",
+    "read /Users/dev/.bash_profile",
+    "read /Users/dev/.profile",
+    "read /Users/dev/.inputrc",
+    "read /Users/dev/.aliases",
+    "read /Users/dev/.zsh_aliases",
+    "read /Users/dev/.config/fish/config.fish",
+    "read /Users/dev/.claude/.credentials.json"
+   ]
+  }
+ ]
+}

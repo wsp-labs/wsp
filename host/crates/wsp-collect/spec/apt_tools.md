@@ -10,13 +10,14 @@ directly under `/usr/bin` or `/bin`. Every command run below passes no timeout a
 
 ## Behaviour
 1. `parse_dpkg_fields`: each `\n` line matching `^(\S+)\s+(\S+)\s*$` (so a trailing `\r` is fine, a third field drops
-   the line) sets name to value; a repeat replaces the value in the first one's place (apt.ts:126-134).
-2. `parse_apt_manual`: lines `js_trim`med, empties dropped, order and repeats kept (apt.ts:137-139).
-3. `apt_packages` (apt.ts:165-176), in this order: run `apt-mark ["showmanual"]` (`None` reads as `""`); drop
+   the line) sets name to value; a repeat replaces the value in the first one's place (apt.ts:31-39).
+2. `parse_apt_manual`: lines `js_trim`med, empties dropped, order and repeats kept (apt.ts:42-44).
+3. `apt_packages` (apt.ts:70-81), in this order: run `apt-mark ["showmanual"]` (`None` reads as `""`); drop
    NOT_A_CHOICE; if nothing is left, return `[]` having run nothing else. Run `dpkg-query ["-Wf", "${Package} ${Priority}\n"]`
    (a real newline ends the second argument). List DPKG_INFO once: each name ending `.list`, less that suffix, cut at
    the first `:`, maps the package to `DPKG_INFO/<name>`; an empty package is dropped; a later file for the same package
-   replaces the earlier one in place. Then for each manual name, in manual order, whose priority is in CHOSEN (a name
+   (later in `list`'s order, UTF-16 sorted, where `.` sorts before `:`, so `t:amd64.list` beats `t.list`) replaces
+   the earlier one in place. Then for each manual name, in manual order, whose priority is in CHOSEN (a name
    dpkg-query did not list has priority `""` and is out), read its list file with `lines(file, None)` until a
    `js_trim`med line matches COMMAND_PATH; a name with no list file is out without a read. Each kept name is
    `Pkg { name, version: None, path: None }`; a repeated manual name is kept twice.
@@ -27,7 +28,7 @@ directly under `/usr/bin` or `/bin`. Every command run below passes no timeout a
    (coordinator's ruling on #2446; the TS iterator's throw rejects `Promise.all` and `collect`).
 4. `apt_sizes(host, names)`: empty `names` returns an empty map and runs nothing. Otherwise one run of
    `dpkg-query ["-Wf", "${Package} ${Installed-Size}\n"]`; for each name in `names` order, the field read by
-   JavaScript's `Number()` (absent is NaN); kept when finite and above 0, as `kib * 1024` (apt.ts:180-189).
+   JavaScript's `Number()` (absent is NaN); kept when finite and above 0, as `kib * 1024` (apt.ts:85-94).
 5. `parse_brewfile`: each line `js_trim`med, matched by `^(tap|brew)\s+"([^"]+)"` (tools.ts:16-26).
 6. `brewfile_here` runs `brew ["bundle","dump","--file=-","--formula","--taps","--no-restart"]` with env
    `{HOMEBREW_NO_AUTO_UPDATE: "1"}`; `None` parses as `""` (tools.ts:32-34).
@@ -83,6 +84,61 @@ directly under `/usr/bin` or `/bin`. Every command run below passes no timeout a
 
 ## After the port
 - A Linux laptop's formula is `yes` whatever the table says, so a formula with no Linux bottle is ticked there.
+
+## Wave 2 rules
+
+Each rule's cases are in `tests/fixtures/oracle/w2/apt_tools.json` (written by `oracle/w2-apt_tools.oracle.ts` from the
+TS itself) under the key named, and replayed by `tests/detect_tools.rs` `w2_oracle::*`.
+
+- W1. `parse_dpkg_fields` uses JavaScript's `\s`/`\S`: U+0085 is not a separator, U+00A0, U+FEFF and U+2028 are; a
+  line with leading space, or a third field, is dropped; a repeated name keeps the last value (`parse_dpkg_fields`).
+- W2. `parse_apt_manual` trims with `js_trim` (U+FEFF and U+00A0 go) and keeps repeats (`parse_apt_manual`).
+- W3. COMMAND_PATH is tested on each `js_trim`med line: `/usr/bin/x` and `/bin/x` count (a space inside the name
+  too), `/usr/bin/`, `/usr/bin/a/b`, `/usr/sbin/x`, `/usr/local/bin/x` do not; a last line with no LF counts. CHOSEN is
+  case-sensitive (`Optional` is out) and a priority line with three fields is dropped, so its package is out
+  (`apt_packages`: "command path table and the priority filter").
+- W4. A list file name loses one `.list` (`x.list.list` is package `x.list`), is cut at the first `:` (`x:a:b.list`
+  is `x`), `:amd64.list` gives an empty package and is dropped, `.md5sums` and `.LIST` are not lists; a folder named
+  `w.list` is listed like a file (`apt_packages`: "package name from the list file name").
+- W5. NOT_A_CHOICE is exact and case-sensitive, tested after the trim; survivors keep manual order.
+- W6. dpkg-query answering `None` or `""`: no list is read; apt-mark answering `None`, `""` or blank lines: nothing
+  else runs (calls exactly `["run apt-mark showmanual"]`). No list folder: the two runs and no reads. A repeated
+  manual name with no command line is read once per entry.
+- W7. The `lines` failure of rule 3a, three ways: before any match (error, later packages unread), after the match
+  (never seen), in the second package's file (error after the first package was read).
+- W8. `apt_sizes` reads with JavaScript's `Number()` (`+5`, `.5`, `5.`, `0b11`, `0B11`, `0o17`, `0XFF`, `00012`, `1e3`,
+  `1e-1`, `0.0001` all parse; `1e400`, `1_0`, `-0`, `0x`, `1,5`, `NaN`, `-Infinity` are dropped); answers in `names`
+  order, a missing name skipped, a repeated name once at its first place, a repeated dpkg line's last value; one run
+  even for `[""]`, none for `[]` (`apt_sizes`).
+- W9. `parse_brewfile`: `js_trim` per line (a leading U+FEFF goes), double quotes only, an empty name skipped, `brewx`,
+  `Brew`, `cask`, comments and a name split over two lines skipped, repeats kept (`parse_brewfile`).
+- W10. The JSON listings: an empty-string version is a version; a non-string version, a non-object value or `null`
+  gives a name with no version; only `npm` and `corepack` are dropped; a duplicate JSON key keeps its first place and
+  its last value; any top level of the wrong type is `[]` (`parse_npm_globals`, `parse_pnpm_globals`,
+  `parse_pipx_list`). pnpm reads `dependencies` only, keeps an empty `path`, drops a non-string one, and never dedupes
+  across global dirs.
+- W11. uv and cargo share one line parser: the version stops at the first `:` or whitespace (JavaScript's, so `\r`
+  and U+00A0 end it), `y v` has no version, a tab separates, an indented or `-` line is skipped, a last line with no LF
+  counts (`parse_uv_tool_list`, `parse_cargo_installs`). bun's line must match whole: a `\r\n` line, a trailing space,
+  `g@`, `@h`, `@@i@1` and a line with no tree prefix are dropped; `f@1@2` is `f` at `1@2` (`parse_bun_globals`).
+- W12. `parse_go_version_m`: columns split on tab; the first column must be present (a line with no leading tab is
+  not read); empty columns count as set; a `mod` line with three columns is not read; the last `path` and the last
+  `mod` win in either order; `\r` is kept (`parse_go_version_m`).
+- W13. `js_global_folders` runs `npm root -g` and `pnpm ls -g --depth=0 --json` whatever is on PATH, in that order;
+  npm's root is the first line `js_trim`med (a blank first line is no root); the npm root comes first, then the three
+  fixed roots, skipping a root equal to one already listed; pnpm's paths follow, never deduped; a pnpm `path` of `""`
+  is kept, a non-string dropped (`js_global_folders`).
+- W14. `package_commands`: `bin` a string (even `""`) gives the last `/` segment of the asked name (`""` for `@s/`);
+  `bin` an object gives its keys in JavaScript order (integer-like first), `""` kept; anything else gives nothing; the
+  package.json `name` is never read; repeats across folders keep their first place; no folders, no reads
+  (`package_commands`).
+- W15. `detect_tools` rows: repeated Brewfile lines are repeated rows in the Brewfile's order; an empty-string version
+  gives the label `a@` (or `e ` for pipx) and `version: ""`; Go rows are in group `Go binaries`, an empty or failed
+  `go version -m` gives `<name> (no module info)` skip, else the label is the name and `paths` is `["<path line>@<version>"]`
+  (the `path` line, not the `mod` name); nix paths list only the paths found; apt rows have no version and their
+  catalog filter drops what the catalog carries while npm's row of the same name stays; apt rows come on darwin too
+  when apt-mark is on PATH; a failed apt read is the rung's error (`detect_tools`).
+- W16. No run in this unit carries a timeout or a signal; brew's run alone carries env `{HOMEBREW_NO_AUTO_UPDATE: "1"}`.
 
 ## Tests
 | Rule | Test |

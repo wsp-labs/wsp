@@ -1,0 +1,823 @@
+{
+ "classify_formulae": [
+  {
+   "name": "a tag counts when its key is present, whatever its value",
+   "args": [
+    [
+     {
+      "name": "a",
+      "bottle": {
+       "stable": {
+        "files": {
+         "all": null
+        }
+       }
+      }
+     },
+     {
+      "name": "b",
+      "bottle": {
+       "stable": {
+        "files": {
+         "x86_64_linux": 0
+        }
+       }
+      }
+     },
+     {
+      "name": "c",
+      "bottle": {
+       "stable": {
+        "files": {
+         "arm64_linux": ""
+        }
+       }
+      }
+     },
+     {
+      "name": "d",
+      "bottle": {
+       "stable": {
+        "files": {
+         "all": false
+        }
+       }
+      }
+     }
+    ]
+   ],
+   "out": {
+    "linux": [
+     "a",
+     "b",
+     "c",
+     "d"
+    ],
+    "noLinux": []
+   }
+  },
+  {
+   "name": "files as an array",
+   "args": [
+    [
+     {
+      "name": "a",
+      "bottle": {
+       "stable": {
+        "files": [
+         "all"
+        ]
+       }
+      }
+     }
+    ]
+   ],
+   "out": {
+    "linux": [],
+    "noLinux": [
+     "a"
+    ]
+   }
+  },
+  {
+   "name": "files as null",
+   "args": [
+    [
+     {
+      "name": "a",
+      "bottle": {
+       "stable": {
+        "files": null
+       }
+      }
+     }
+    ]
+   ],
+   "out": {
+    "linux": [],
+    "noLinux": [
+     "a"
+    ]
+   }
+  },
+  {
+   "name": "files as a string",
+   "args": [
+    [
+     {
+      "name": "a",
+      "bottle": {
+       "stable": {
+        "files": "all"
+       }
+      }
+     }
+    ]
+   ],
+   "out": {
+    "linux": [],
+    "noLinux": [
+     "a"
+    ]
+   }
+  },
+  {
+   "name": "stable as an array",
+   "args": [
+    [
+     {
+      "name": "a",
+      "bottle": {
+       "stable": []
+      }
+     }
+    ]
+   ],
+   "out": {
+    "linux": [],
+    "noLinux": [
+     "a"
+    ]
+   }
+  },
+  {
+   "name": "bottle as an array",
+   "args": [
+    [
+     {
+      "name": "a",
+      "bottle": []
+     }
+    ]
+   ],
+   "out": {
+    "linux": [],
+    "noLinux": [
+     "a"
+    ]
+   }
+  },
+  {
+   "name": "bottle as null",
+   "args": [
+    [
+     {
+      "name": "a",
+      "bottle": null
+     }
+    ]
+   ],
+   "out": {
+    "linux": [],
+    "noLinux": [
+     "a"
+    ]
+   }
+  },
+  {
+   "name": "files directly under bottle",
+   "args": [
+    [
+     {
+      "name": "a",
+      "bottle": {
+       "files": {
+        "all": {}
+       }
+      }
+     }
+    ]
+   ],
+   "out": {
+    "linux": [],
+    "noLinux": [
+     "a"
+    ]
+   }
+  },
+  {
+   "name": "tags that are not the three",
+   "args": [
+    [
+     {
+      "name": "a",
+      "bottle": {
+       "stable": {
+        "files": {
+         "arm64_linux_x": {},
+         "linux": {},
+         "ALL": {},
+         "x86_64_linux ": {}
+        }
+       }
+      }
+     }
+    ]
+   ],
+   "out": {
+    "linux": [],
+    "noLinux": [
+     "a"
+    ]
+   }
+  },
+  {
+   "name": "another bottle key beside a valid stable",
+   "args": [
+    [
+     {
+      "name": "a",
+      "full_name": "b",
+      "bottle": {
+       "stable": {
+        "files": {
+         "all": {}
+        }
+       },
+       "other": {
+        "files": {
+         "all": {}
+        }
+       }
+      }
+     }
+    ]
+   ],
+   "out": {
+    "linux": [
+     "a"
+    ],
+    "noLinux": []
+   }
+  },
+  {
+   "name": "a numeric name",
+   "args": [
+    [
+     {
+      "name": 7,
+      "bottle": {
+       "stable": {
+        "files": {
+         "all": {}
+        }
+       }
+      }
+     }
+    ]
+   ],
+   "out": {
+    "linux": [],
+    "noLinux": []
+   }
+  },
+  {
+   "name": "a null name",
+   "args": [
+    [
+     {
+      "name": null
+     }
+    ]
+   ],
+   "out": {
+    "linux": [],
+    "noLinux": []
+   }
+  },
+  {
+   "name": "an empty name",
+   "args": [
+    [
+     {
+      "name": "",
+      "bottle": {
+       "stable": {
+        "files": {
+         "all": {}
+        }
+       }
+      }
+     }
+    ]
+   ],
+   "out": {
+    "linux": [
+     ""
+    ],
+    "noLinux": []
+   }
+  },
+  {
+   "name": "an array item and a string item",
+   "args": [
+    [
+     [
+      "a"
+     ],
+     "jq"
+    ]
+   ],
+   "out": {
+    "linux": [],
+    "noLinux": []
+   }
+  },
+  {
+   "name": "duplicates stay, in both lists",
+   "args": [
+    [
+     {
+      "name": "a",
+      "bottle": {
+       "stable": {
+        "files": {
+         "all": {}
+        }
+       }
+      }
+     },
+     {
+      "name": "a"
+     },
+     {
+      "name": "a",
+      "bottle": {
+       "stable": {
+        "files": {
+         "all": {}
+        }
+       }
+      }
+     }
+    ]
+   ],
+   "out": {
+    "linux": [
+     "a",
+     "a"
+    ],
+    "noLinux": [
+     "a"
+    ]
+   }
+  },
+  {
+   "name": "names sort by UTF-16 units",
+   "args": [
+    [
+     {
+      "name": "b"
+     },
+     {
+      "name": "B"
+     },
+     {
+      "name": "a"
+     },
+     {
+      "name": "A"
+     },
+     {
+      "name": "é"
+     },
+     {
+      "name": "e"
+     },
+     {
+      "name": "Z"
+     },
+     {
+      "name": "z"
+     },
+     {
+      "name": "_"
+     },
+     {
+      "name": "0"
+     },
+     {
+      "name": "~"
+     },
+     {
+      "name": "😀"
+     },
+     {
+      "name": "Ａ"
+     },
+     {
+      "name": ""
+     },
+     {
+      "name": "a b"
+     },
+     {
+      "name": "a-b"
+     },
+     {
+      "name": "a@1"
+     },
+     {
+      "name": "a.1"
+     },
+     {
+      "name": "ab"
+     }
+    ]
+   ],
+   "out": {
+    "linux": [],
+    "noLinux": [
+     "0",
+     "A",
+     "B",
+     "Z",
+     "_",
+     "a",
+     "a b",
+     "a-b",
+     "a.1",
+     "a@1",
+     "ab",
+     "b",
+     "e",
+     "z",
+     "~",
+     "é",
+     "😀",
+     "",
+     "Ａ"
+    ]
+   }
+  },
+  {
+   "name": "data as an object",
+   "args": [
+    {
+     "name": "a"
+    }
+   ],
+   "out": {
+    "linux": [],
+    "noLinux": []
+   }
+  },
+  {
+   "name": "data as null",
+   "args": [
+    null
+   ],
+   "out": {
+    "linux": [],
+    "noLinux": []
+   }
+  },
+  {
+   "name": "data as a string",
+   "args": [
+    "x"
+   ],
+   "out": {
+    "linux": [],
+    "noLinux": []
+   }
+  },
+  {
+   "name": "data as an empty array",
+   "args": [
+    []
+   ],
+   "out": {
+    "linux": [],
+    "noLinux": []
+   }
+  }
+ ],
+ "linux_support": [
+  {
+   "name": "\"a\" against a snapshot holding a, \"\" (linux) and a, b, constructor (no linux)",
+   "args": [
+    "a",
+    {
+     "fetched": "x",
+     "source": "y",
+     "linux": [
+      "a",
+      ""
+     ],
+     "noLinux": [
+      "a",
+      "b",
+      "constructor"
+     ]
+    }
+   ],
+   "out": "yes"
+  },
+  {
+   "name": "\"b\" against a snapshot holding a, \"\" (linux) and a, b, constructor (no linux)",
+   "args": [
+    "b",
+    {
+     "fetched": "x",
+     "source": "y",
+     "linux": [
+      "a",
+      ""
+     ],
+     "noLinux": [
+      "a",
+      "b",
+      "constructor"
+     ]
+    }
+   ],
+   "out": "no"
+  },
+  {
+   "name": "\"\" against a snapshot holding a, \"\" (linux) and a, b, constructor (no linux)",
+   "args": [
+    "",
+    {
+     "fetched": "x",
+     "source": "y",
+     "linux": [
+      "a",
+      ""
+     ],
+     "noLinux": [
+      "a",
+      "b",
+      "constructor"
+     ]
+    }
+   ],
+   "out": "yes"
+  },
+  {
+   "name": "\"constructor\" against a snapshot holding a, \"\" (linux) and a, b, constructor (no linux)",
+   "args": [
+    "constructor",
+    {
+     "fetched": "x",
+     "source": "y",
+     "linux": [
+      "a",
+      ""
+     ],
+     "noLinux": [
+      "a",
+      "b",
+      "constructor"
+     ]
+    }
+   ],
+   "out": "no"
+  },
+  {
+   "name": "\"__proto__\" against a snapshot holding a, \"\" (linux) and a, b, constructor (no linux)",
+   "args": [
+    "__proto__",
+    {
+     "fetched": "x",
+     "source": "y",
+     "linux": [
+      "a",
+      ""
+     ],
+     "noLinux": [
+      "a",
+      "b",
+      "constructor"
+     ]
+    }
+   ],
+   "out": "unknown"
+  },
+  {
+   "name": "\"toString\" against a snapshot holding a, \"\" (linux) and a, b, constructor (no linux)",
+   "args": [
+    "toString",
+    {
+     "fetched": "x",
+     "source": "y",
+     "linux": [
+      "a",
+      ""
+     ],
+     "noLinux": [
+      "a",
+      "b",
+      "constructor"
+     ]
+    }
+   ],
+   "out": "unknown"
+  },
+  {
+   "name": "\"A\" against a snapshot holding a, \"\" (linux) and a, b, constructor (no linux)",
+   "args": [
+    "A",
+    {
+     "fetched": "x",
+     "source": "y",
+     "linux": [
+      "a",
+      ""
+     ],
+     "noLinux": [
+      "a",
+      "b",
+      "constructor"
+     ]
+    }
+   ],
+   "out": "unknown"
+  },
+  {
+   "name": "\" a\" against a snapshot holding a, \"\" (linux) and a, b, constructor (no linux)",
+   "args": [
+    " a",
+    {
+     "fetched": "x",
+     "source": "y",
+     "linux": [
+      "a",
+      ""
+     ],
+     "noLinux": [
+      "a",
+      "b",
+      "constructor"
+     ]
+    }
+   ],
+   "out": "unknown"
+  },
+  {
+   "name": "\"a \" against a snapshot holding a, \"\" (linux) and a, b, constructor (no linux)",
+   "args": [
+    "a ",
+    {
+     "fetched": "x",
+     "source": "y",
+     "linux": [
+      "a",
+      ""
+     ],
+     "noLinux": [
+      "a",
+      "b",
+      "constructor"
+     ]
+    }
+   ],
+   "out": "unknown"
+  },
+  {
+   "name": "\"hasOwnProperty\" against a snapshot holding a, \"\" (linux) and a, b, constructor (no linux)",
+   "args": [
+    "hasOwnProperty",
+    {
+     "fetched": "x",
+     "source": "y",
+     "linux": [
+      "a",
+      ""
+     ],
+     "noLinux": [
+      "a",
+      "b",
+      "constructor"
+     ]
+    }
+   ],
+   "out": "unknown"
+  },
+  {
+   "name": "\"c\" against a snapshot holding a, \"\" (linux) and a, b, constructor (no linux)",
+   "args": [
+    "c",
+    {
+     "fetched": "x",
+     "source": "y",
+     "linux": [
+      "a",
+      ""
+     ],
+     "noLinux": [
+      "a",
+      "b",
+      "constructor"
+     ]
+    }
+   ],
+   "out": "unknown"
+  }
+ ],
+ "linux_support_embedded": [
+  {
+   "name": "gh against the embedded snapshot",
+   "args": [
+    "gh"
+   ],
+   "out": "yes"
+  },
+  {
+   "name": "jq against the embedded snapshot",
+   "args": [
+    "jq"
+   ],
+   "out": "yes"
+  },
+  {
+   "name": "mas against the embedded snapshot",
+   "args": [
+    "mas"
+   ],
+   "out": "no"
+  },
+  {
+   "name": "ca-certificates against the embedded snapshot",
+   "args": [
+    "ca-certificates"
+   ],
+   "out": "yes"
+  },
+  {
+   "name": "python@3.12 against the embedded snapshot",
+   "args": [
+    "python@3.12"
+   ],
+   "out": "yes"
+  },
+  {
+   "name": "oven-sh/bun/bun against the embedded snapshot",
+   "args": [
+    "oven-sh/bun/bun"
+   ],
+   "out": "unknown"
+  },
+  {
+   "name": "homebrew/core/jq against the embedded snapshot",
+   "args": [
+    "homebrew/core/jq"
+   ],
+   "out": "unknown"
+  },
+  {
+   "name": "GH against the embedded snapshot",
+   "args": [
+    "GH"
+   ],
+   "out": "unknown"
+  }
+ ],
+ "render_snapshot": [
+  {
+   "name": "quotes, backslash, control, unicode, DEL, U+2028, tab, newline",
+   "args": [
+    {
+     "fetched": "f\"",
+     "source": "s\\",
+     "linux": [
+      "a\"b",
+      "c\\d",
+      "e\u0001",
+      "é😀",
+      "",
+      " ",
+      "tab\t",
+      "n\n"
+     ],
+     "noLinux": []
+    }
+   ],
+   "out": "{\n  \"fetched\": \"f\\\"\",\n  \"source\": \"s\\\\\",\n  \"linux\": [\n    \"a\\\"b\",\n    \"c\\\\d\",\n    \"e\\u0001\",\n    \"é😀\",\n    \"\",\n    \" \",\n    \"tab\\t\",\n    \"n\\n\"\n  ],\n  \"noLinux\": []\n}\n"
+  },
+  {
+   "name": "empty lists and strings",
+   "args": [
+    {
+     "fetched": "",
+     "source": "",
+     "linux": [],
+     "noLinux": []
+    }
+   ],
+   "out": "{\n  \"fetched\": \"\",\n  \"source\": \"\",\n  \"linux\": [],\n  \"noLinux\": []\n}\n"
+  }
+ ],
+ "embedded_table": [
+  {
+   "name": "counts and ends of the shipped table",
+   "out": {
+    "linux": 8428,
+    "noLinux": 158,
+    "fetched": "2026-09-02",
+    "firstLinux": "a2ps",
+    "lastNoLinux": "zzz"
+   }
+  }
+ ]
+}
