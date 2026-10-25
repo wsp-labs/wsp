@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::types::check::{Check, SchemaError};
+use crate::types::js_number::JsInt;
 use crate::types::js_number::JsNumber;
 
 /// TS: packages/protocol/src/sub-thread.ts:19 at a3b870a6e.
@@ -23,13 +24,23 @@ pub const SUB_DROPPED_LINE: &str = "stopped while it waited for a machine, so no
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubOutSize {
-    pub cpu: i64,
-    pub mem_mb: i64,
+    pub cpu: JsInt,
+    pub mem_mb: JsInt,
 }
 
 impl Check for SubOutSize {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("cpu") { None => out.push(crate::types::check::missing::<Self>("cpu")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cpu"))), } } }
+        match obj.get("memMb") { None => out.push(crate::types::check::missing::<Self>("memMb")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memMb"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -56,6 +67,16 @@ impl Check for SubOutBase {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("branch") { None => out.push(crate::types::check::missing::<Self>("branch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } } }
+        match obj.get("sha") { None => out.push(crate::types::check::missing::<Self>("sha")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sha"))), } } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -72,15 +93,26 @@ impl Check for SubOutBase {
 #[serde(rename_all = "camelCase")]
 pub struct SubOutSent {
     pub paths: Vec<String>,
-    pub bytes: i64,
+    pub bytes: JsInt,
     pub missing: Vec<String>,
 }
 
 impl Check for SubOutSent {
     /// Rules: bytes: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.bytes as f64, 0.0).map_err(|e| e.under("bytes"))?;
+        crate::types::check::num_at_least(self.bytes.0.0, 0.0).map_err(|e| e.under("bytes"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("paths") { None => out.push(crate::types::check::missing::<Self>("paths")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("paths"))), } } }
+        match obj.get("bytes") { None => out.push(crate::types::check::missing::<Self>("bytes")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_bytes(&x) { out.push(e.under("bytes")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("bytes"))), } } }
+        match obj.get("missing") { None => out.push(crate::types::check::missing::<Self>("missing")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("missing"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -95,11 +127,17 @@ impl Check for SubOutSent {
         }
     }
 }
+impl SubOutSent {
+    fn rule_bytes(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        Ok(())
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubOutNotSent {
-    pub uncommitted: i64,
+    pub uncommitted: JsInt,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub why: Option<String>,
 }
@@ -107,8 +145,18 @@ pub struct SubOutNotSent {
 impl Check for SubOutNotSent {
     /// Rules: uncommitted: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.uncommitted as f64, 0.0).map_err(|e| e.under("uncommitted"))?;
+        crate::types::check::num_at_least(self.uncommitted.0.0, 0.0).map_err(|e| e.under("uncommitted"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("uncommitted") { None => out.push(crate::types::check::missing::<Self>("uncommitted")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_uncommitted(&x) { out.push(e.under("uncommitted")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("uncommitted"))), } } }
+        if let Some(v) = obj.get("why") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("why"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -120,6 +168,12 @@ impl Check for SubOutNotSent {
                 _ => None,
             },
         }
+    }
+}
+impl SubOutNotSent {
+    fn rule_uncommitted(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        Ok(())
     }
 }
 
@@ -136,7 +190,7 @@ pub struct SubOut {
     pub branch: String,
     pub sent: SubOutSent,
     pub not_sent: SubOutNotSent,
-    pub delete_after_minutes: i64,
+    pub delete_after_minutes: JsInt,
 }
 
 impl Check for SubOut {
@@ -147,8 +201,26 @@ impl Check for SubOut {
         self.base.check().map_err(|e| e.under("base"))?;
         self.sent.check().map_err(|e| e.under("sent"))?;
         self.not_sent.check().map_err(|e| e.under("notSent"))?;
-        crate::types::check::num_at_least(self.delete_after_minutes as f64, 0.0).map_err(|e| e.under("deleteAfterMinutes"))?;
+        crate::types::check::num_at_least(self.delete_after_minutes.0.0, 0.0).map_err(|e| e.under("deleteAfterMinutes"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("on") { None => out.push(crate::types::check::missing::<Self>("on")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("on"))), } } }
+        match obj.get("machine") { None => out.push(crate::types::check::missing::<Self>("machine")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("machine"))), } } }
+        match obj.get("size") { None => out.push(crate::types::check::missing::<Self>("size")), Some(v) => { match crate::types::check::read::<SubOutSize>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("size"))), } } }
+        match obj.get("rateUsdPerHour") { None => out.push(crate::types::check::missing::<Self>("rateUsdPerHour")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rateUsdPerHour"))), } } }
+        match obj.get("repo") { None => out.push(crate::types::check::missing::<Self>("repo")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("repo"))), } } }
+        match obj.get("base") { None => out.push(crate::types::check::missing::<Self>("base")), Some(v) => { match crate::types::check::read::<SubOutBase>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("base"))), } } }
+        match obj.get("branch") { None => out.push(crate::types::check::missing::<Self>("branch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } } }
+        match obj.get("sent") { None => out.push(crate::types::check::missing::<Self>("sent")), Some(v) => { match crate::types::check::read::<SubOutSent>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sent"))), } } }
+        match obj.get("notSent") { None => out.push(crate::types::check::missing::<Self>("notSent")), Some(v) => { match crate::types::check::read::<SubOutNotSent>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("notSent"))), } } }
+        match obj.get("deleteAfterMinutes") { None => out.push(crate::types::check::missing::<Self>("deleteAfterMinutes")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_delete_after_minutes(&x) { out.push(e.under("deleteAfterMinutes")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("deleteAfterMinutes"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -170,6 +242,12 @@ impl Check for SubOut {
         }
     }
 }
+impl SubOut {
+    fn rule_delete_after_minutes(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        Ok(())
+    }
+}
 
 /// TS: packages/protocol/src/sub-thread.ts:40 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -186,6 +264,18 @@ impl Check for SubStarted {
     fn check(&self) -> Result<(), SchemaError> {
         self.out.check().map_err(|e| e.under("out"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("out") { None => out.push(crate::types::check::missing::<Self>("out")), Some(v) => { match crate::types::check::read::<SubOut>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("out"))), } } }
+        match obj.get("folder") { None => out.push(crate::types::check::missing::<Self>("folder")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("folder"))), } } }
+        match obj.get("preamble") { None => out.push(crate::types::check::missing::<Self>("preamble")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("preamble"))), } } }
+        match obj.get("harness") { None => out.push(crate::types::check::missing::<Self>("harness")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("harness"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {

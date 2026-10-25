@@ -142,6 +142,19 @@ impl Check for DaemonEvent {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let Some(tag) = obj.get("type") else { return Some(vec![crate::types::check::missing::<Self>("type")]); };
+        match tag.as_str() {
+            Some("sys.sample") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<SysSample>(&serde_json::Value::Object(body))) }
+            Some("proc.snapshot") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<ProcSnapshot>(&serde_json::Value::Object(body))) }
+            Some("proc.changes") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<ProcChanges>(&serde_json::Value::Object(body))) }
+            _ => Some(vec![crate::types::check::unknown_tag::<Self>("type", tag)]),
+        }
+    }
+
 }
 
 // Refinements on the variants of the unions above, each an issue when it fails:

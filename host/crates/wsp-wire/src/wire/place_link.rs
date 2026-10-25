@@ -2,6 +2,7 @@
 //! Port of packages/protocol/src/wire/place-link.ts.
 
 #![allow(unused_imports)]
+use crate::types::js_number::JsInt;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -270,7 +271,7 @@ impl DeviceAuthRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaceDoorView {
-    pub port: i64,
+    pub port: JsInt,
     pub addresses: Vec<String>,
     pub host_key: String,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -306,7 +307,7 @@ pub struct SshHostSuggestion {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub user: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub port: Option<i64>,
+    pub port: Option<JsInt>,
     pub from: SshHostSuggestionFrom,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -343,6 +344,40 @@ impl Check for PlaceReport {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
+        match obj.get("platform") { None => out.push(crate::types::check::missing::<Self>("platform")), Some(v) => { match crate::types::check::read::<PlaceReportPlatform>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("platform"))), } } }
+        match obj.get("arch") { None => out.push(crate::types::check::missing::<Self>("arch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("arch"))), } } }
+        match obj.get("os") { None => out.push(crate::types::check::missing::<Self>("os")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("os"))), } } }
+        match obj.get("shape") { None => out.push(crate::types::check::missing::<Self>("shape")), Some(v) => { match crate::types::check::read::<WorkspaceSize>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("shape"))), } } }
+        if let Some(v) = obj.get("diskFreeBytes") { match crate::types::check::read_present::<i64>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("diskFreeBytes"))), } }
+        if let Some(v) = obj.get("diskSizeBytes") { match crate::types::check::read_present::<i64>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("diskSizeBytes"))), } }
+        if let Some(v) = obj.get("model") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("model"))), } }
+        match obj.get("login") { None => out.push(crate::types::check::missing::<Self>("login")), Some(v) => { match crate::types::check::read::<IndexMap<String, String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("login"))), } } }
+        match obj.get("runsWorkspaces") { None => out.push(crate::types::check::missing::<Self>("runsWorkspaces")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("runsWorkspaces"))), } } }
+        if let Some(v) = obj.get("workspacesBlocked") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspacesBlocked"))), } }
+        match obj.get("engine") { None => out.push(crate::types::check::missing::<Self>("engine")), Some(v) => { match crate::types::check::read::<PlaceReportEngine>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("engine"))), } } }
+        if let Some(v) = obj.get("copies") { match crate::types::check::read_present::<CopyWord>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("copies"))), } }
+        if let Some(v) = obj.get("uptimeMs") { match crate::types::check::read_present::<i64>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("uptimeMs"))), } }
+        match obj.get("daemonVersion") { None => out.push(crate::types::check::missing::<Self>("daemonVersion")), Some(v) => { match crate::types::check::read::<i64>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("daemonVersion"))), } } }
+        if let Some(v) = obj.get("daemonPort") { match crate::types::check::read_present::<i64>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("daemonPort"))), } }
+        match obj.get("wsp") { None => out.push(crate::types::check::missing::<Self>("wsp")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wsp"))), } } }
+        match obj.get("agents") { None => out.push(crate::types::check::missing::<Self>("agents")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agents"))), } } }
+        if let Some(v) = obj.get("agentVersions") { match crate::types::check::read_present::<IndexMap<String, String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentVersions"))), } }
+        if let Some(v) = obj.get("logins") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("logins"))), } }
+        if let Some(v) = obj.get("wspDoor") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wspDoor"))), } }
+        if let Some(v) = obj.get("wspDoorBlocked") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wspDoorBlocked"))), } }
+        if let Some(v) = obj.get("daemonUnit") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("daemonUnit"))), } }
+        if let Some(v) = obj.get("takesRuntime") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("takesRuntime"))), } }
+        if let Some(v) = obj.get("wspDaemonVersion") { match crate::types::check::read_present::<i64>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wspDaemonVersion"))), } }
+        match obj.get("dialed") { None => out.push(crate::types::check::missing::<Self>("dialed")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("dialed"))), } } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -351,6 +386,18 @@ impl Check for PlaceJoinRequest {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<ReqId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
+        match obj.get("publicKey") { None => out.push(crate::types::check::missing::<Self>("publicKey")), Some(v) => { match crate::types::check::read::<PlacePublicKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("publicKey"))), } } }
+        match obj.get("nonce") { None => out.push(crate::types::check::missing::<Self>("nonce")), Some(v) => { match crate::types::check::read::<PlaceNonce>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("nonce"))), } } }
+        if let Some(v) = obj.get("ephemeral") { match crate::types::check::read_present::<PlaceEphemeral>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ephemeral"))), } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -360,6 +407,20 @@ impl Check for PlaceJoinReply {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("placeId") { None => out.push(crate::types::check::missing::<Self>("placeId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("placeId"))), } } }
+        match obj.get("hostPublicKey") { None => out.push(crate::types::check::missing::<Self>("hostPublicKey")), Some(v) => { match crate::types::check::read::<PlacePublicKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostPublicKey"))), } } }
+        match obj.get("nonce") { None => out.push(crate::types::check::missing::<Self>("nonce")), Some(v) => { match crate::types::check::read::<PlaceNonce>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("nonce"))), } } }
+        match obj.get("signature") { None => out.push(crate::types::check::missing::<Self>("signature")), Some(v) => { match crate::types::check::read::<PlaceSignature>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signature"))), } } }
+        match obj.get("ephemeral") { None => out.push(crate::types::check::missing::<Self>("ephemeral")), Some(v) => { match crate::types::check::read::<PlaceEphemeral>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ephemeral"))), } } }
+        match obj.get("hostName") { None => out.push(crate::types::check::missing::<Self>("hostName")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostName"))), } } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -368,6 +429,16 @@ impl Check for PlaceJoinDevice {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("deviceId") { None => out.push(crate::types::check::missing::<Self>("deviceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("deviceId"))), } } }
+        match obj.get("deviceToken") { None => out.push(crate::types::check::missing::<Self>("deviceToken")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("deviceToken"))), } } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -377,6 +448,18 @@ impl Check for PlaceAuthRequest {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<ReqId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
+        match obj.get("placeId") { None => out.push(crate::types::check::missing::<Self>("placeId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("placeId"))), } } }
+        match obj.get("nonce") { None => out.push(crate::types::check::missing::<Self>("nonce")), Some(v) => { match crate::types::check::read::<PlaceNonce>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("nonce"))), } } }
+        if let Some(v) = obj.get("ephemeral") { match crate::types::check::read_present::<PlaceEphemeral>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ephemeral"))), } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -384,6 +467,18 @@ impl Check for PlaceAuthReply {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("nonce") { None => out.push(crate::types::check::missing::<Self>("nonce")), Some(v) => { match crate::types::check::read::<PlaceNonce>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("nonce"))), } } }
+        match obj.get("hostPublicKey") { None => out.push(crate::types::check::missing::<Self>("hostPublicKey")), Some(v) => { match crate::types::check::read::<PlacePublicKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostPublicKey"))), } } }
+        match obj.get("signature") { None => out.push(crate::types::check::missing::<Self>("signature")), Some(v) => { match crate::types::check::read::<PlaceSignature>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signature"))), } } }
+        match obj.get("ephemeral") { None => out.push(crate::types::check::missing::<Self>("ephemeral")), Some(v) => { match crate::types::check::read::<PlaceEphemeral>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ephemeral"))), } } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -391,6 +486,16 @@ impl Check for PlaceAuthRefusal {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("hostPublicKey") { None => out.push(crate::types::check::missing::<Self>("hostPublicKey")), Some(v) => { match crate::types::check::read::<PlacePublicKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostPublicKey"))), } } }
+        match obj.get("signature") { None => out.push(crate::types::check::missing::<Self>("signature")), Some(v) => { match crate::types::check::read::<PlaceSignature>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signature"))), } } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -400,6 +505,19 @@ impl Check for PlaceProveRequest {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<ReqId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
+        match obj.get("signature") { None => out.push(crate::types::check::missing::<Self>("signature")), Some(v) => { match crate::types::check::read::<PlaceSignature>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signature"))), } } }
+        match obj.get("report") { None => out.push(crate::types::check::missing::<Self>("report")), Some(v) => { match crate::types::check::read::<PlaceReport>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("report"))), } } }
+        if let Some(v) = obj.get("code") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("code"))), } }
+        if let Some(v) = obj.get("client") { match crate::types::check::read_present::<PlaceProveRequestClient>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("client"))), } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -409,6 +527,15 @@ impl Check for PlaceProveRequestClient {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -417,6 +544,17 @@ impl Check for SealOpenRequest {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<ReqId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
+        match obj.get("nonce") { None => out.push(crate::types::check::missing::<Self>("nonce")), Some(v) => { match crate::types::check::read::<PlaceNonce>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("nonce"))), } } }
+        match obj.get("ephemeral") { None => out.push(crate::types::check::missing::<Self>("ephemeral")), Some(v) => { match crate::types::check::read::<PlaceEphemeral>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ephemeral"))), } } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -424,6 +562,18 @@ impl Check for SealOpenReply {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("nonce") { None => out.push(crate::types::check::missing::<Self>("nonce")), Some(v) => { match crate::types::check::read::<PlaceNonce>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("nonce"))), } } }
+        match obj.get("hostPublicKey") { None => out.push(crate::types::check::missing::<Self>("hostPublicKey")), Some(v) => { match crate::types::check::read::<PlacePublicKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostPublicKey"))), } } }
+        match obj.get("signature") { None => out.push(crate::types::check::missing::<Self>("signature")), Some(v) => { match crate::types::check::read::<PlaceSignature>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signature"))), } } }
+        match obj.get("ephemeral") { None => out.push(crate::types::check::missing::<Self>("ephemeral")), Some(v) => { match crate::types::check::read::<PlaceEphemeral>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ephemeral"))), } } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -434,6 +584,18 @@ impl Check for DeviceAuthRequest {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<ReqId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
+        match obj.get("publicKey") { None => out.push(crate::types::check::missing::<Self>("publicKey")), Some(v) => { match crate::types::check::read::<PlacePublicKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("publicKey"))), } } }
+        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
+        match obj.get("signature") { None => out.push(crate::types::check::missing::<Self>("signature")), Some(v) => { match crate::types::check::read::<PlaceSignature>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signature"))), } } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -448,6 +610,18 @@ impl Check for PlaceDoorView {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("port") { None => out.push(crate::types::check::missing::<Self>("port")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("port"))), } } }
+        match obj.get("addresses") { None => out.push(crate::types::check::missing::<Self>("addresses")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("addresses"))), } } }
+        match obj.get("hostKey") { None => out.push(crate::types::check::missing::<Self>("hostKey")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostKey"))), } } }
+        if let Some(v) = obj.get("relay") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("relay"))), } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -457,6 +631,17 @@ impl Check for JoinRoad {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("url") { None => out.push(crate::types::check::missing::<Self>("url")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("url"))), } } }
+        match obj.get("line") { None => out.push(crate::types::check::missing::<Self>("line")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("line"))), } } }
+        if let Some(v) = obj.get("note") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("note"))), } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -466,6 +651,16 @@ impl Check for JoinMint {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("joins") { None => out.push(crate::types::check::missing::<Self>("joins")), Some(v) => { match crate::types::check::read::<Vec<JoinRoad>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("joins"))), } } }
+        match obj.get("expiresAt") { None => out.push(crate::types::check::missing::<Self>("expiresAt")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("expiresAt"))), } } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -479,6 +674,19 @@ impl Check for SshHostSuggestion {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("alias") { None => out.push(crate::types::check::missing::<Self>("alias")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("alias"))), } } }
+        if let Some(v) = obj.get("hostName") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostName"))), } }
+        if let Some(v) = obj.get("user") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("user"))), } }
+        if let Some(v) = obj.get("port") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("port"))), } }
+        match obj.get("from") { None => out.push(crate::types::check::missing::<Self>("from")), Some(v) => { match crate::types::check::read::<SshHostSuggestionFrom>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("from"))), } } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -486,6 +694,16 @@ impl Check for TwoPartRefusal {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("what") { None => out.push(crate::types::check::missing::<Self>("what")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("what"))), } } }
+        match obj.get("fix") { None => out.push(crate::types::check::missing::<Self>("fix")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("fix"))), } } }
+        Some(out)
+    }
+
 }
 
 // place-link.ts:30
@@ -694,6 +912,22 @@ impl Check for PlaceFile {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("placeId") { None => out.push(crate::types::check::missing::<Self>("placeId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("placeId"))), } } }
+        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
+        match obj.get("hostName") { None => out.push(crate::types::check::missing::<Self>("hostName")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostName"))), } } }
+        match obj.get("hostUrls") { None => out.push(crate::types::check::missing::<Self>("hostUrls")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostUrls"))), } } }
+        match obj.get("hostPublicKey") { None => out.push(crate::types::check::missing::<Self>("hostPublicKey")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostPublicKey"))), } } }
+        match obj.get("keyPath") { None => out.push(crate::types::check::missing::<Self>("keyPath")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("keyPath"))), } } }
+        if let Some(v) = obj.get("joinedAt") { match crate::types::check::read_present::<Value>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("joinedAt"))), } }
+        match obj.get("rest") { None => out.push(crate::types::check::missing::<Self>("rest")), Some(v) => { match crate::types::check::read::<IndexMap<String, Value>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rest"))), } } }
+        Some(out)
+    }
+
 }
 
 // A word list zod reads with z.enum: serde refuses any other word, so nothing is left to check.

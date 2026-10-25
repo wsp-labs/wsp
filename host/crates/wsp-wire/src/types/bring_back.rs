@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::types::check::{Check, SchemaError};
+use crate::types::js_number::JsInt;
 use crate::types::pull_request::PullRequest;
 
 /// TS: packages/protocol/src/bring-back.ts:11 at a3b870a6e.
@@ -14,14 +15,28 @@ pub struct GitPushReply {
     pub branch: String,
     pub base: String,
     pub remote: String,
-    pub ahead: i64,
-    pub uncommitted: i64,
+    pub ahead: JsInt,
+    pub uncommitted: JsInt,
     pub stat: Vec<String>,
 }
 
 impl Check for GitPushReply {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("branch") { None => out.push(crate::types::check::missing::<Self>("branch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } } }
+        match obj.get("base") { None => out.push(crate::types::check::missing::<Self>("base")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("base"))), } } }
+        match obj.get("remote") { None => out.push(crate::types::check::missing::<Self>("remote")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("remote"))), } } }
+        match obj.get("ahead") { None => out.push(crate::types::check::missing::<Self>("ahead")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ahead"))), } } }
+        match obj.get("uncommitted") { None => out.push(crate::types::check::missing::<Self>("uncommitted")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("uncommitted"))), } } }
+        match obj.get("stat") { None => out.push(crate::types::check::missing::<Self>("stat")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("stat"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -55,6 +70,16 @@ impl Check for GitPrReply {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("pr") { None => out.push(crate::types::check::missing::<Self>("pr")), Some(v) => { match crate::types::check::read::<PullRequest>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pr"))), } } }
+        match obj.get("created") { None => out.push(crate::types::check::missing::<Self>("created")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("created"))), } } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -73,8 +98,8 @@ impl Check for GitPrReply {
 pub struct BringBackResult {
     pub branch: String,
     pub base: String,
-    pub ahead: i64,
-    pub uncommitted: i64,
+    pub ahead: JsInt,
+    pub uncommitted: JsInt,
     pub stat: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub pr: Option<PullRequest>,
@@ -89,6 +114,22 @@ impl Check for BringBackResult {
     fn check(&self) -> Result<(), SchemaError> {
         self.pr.check().map_err(|e| e.under("pr"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("branch") { None => out.push(crate::types::check::missing::<Self>("branch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } } }
+        match obj.get("base") { None => out.push(crate::types::check::missing::<Self>("base")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("base"))), } } }
+        match obj.get("ahead") { None => out.push(crate::types::check::missing::<Self>("ahead")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ahead"))), } } }
+        match obj.get("uncommitted") { None => out.push(crate::types::check::missing::<Self>("uncommitted")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("uncommitted"))), } } }
+        match obj.get("stat") { None => out.push(crate::types::check::missing::<Self>("stat")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("stat"))), } } }
+        if let Some(v) = obj.get("pr") { match crate::types::check::read_present::<PullRequest>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pr"))), } }
+        if let Some(v) = obj.get("note") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("note"))), } }
+        if let Some(v) = obj.get("refused") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("refused"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {

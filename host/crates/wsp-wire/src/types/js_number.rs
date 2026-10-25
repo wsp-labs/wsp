@@ -90,7 +90,7 @@ impl Check for JsNumber {
 
 /// A `z.number().int()`: a JavaScript number that zod's integer check takes (`Number.isInteger`), so `5.0`, `-0`,
 /// `1e21` and any integral value past 2^63 are integers, and `2.5` is not. It is held as the JsNumber it reads as.
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Default, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Default, Serialize)]
 #[serde(transparent)]
 pub struct JsInt(pub JsNumber);
 
@@ -122,5 +122,14 @@ impl From<i64> for JsInt {
 impl Check for JsInt {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         crate::types::check::leaf(path, crate::types::check::Zod::Int)
+    }
+}
+
+// zod never reads a NaN from JSON, so a JsNumber is equal to itself.
+impl Eq for JsNumber {}
+
+impl std::hash::Hash for JsNumber {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.to_bits().hash(state)
     }
 }

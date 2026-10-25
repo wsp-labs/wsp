@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::types::check::from_json;
+use crate::types::js_number::JsInt;
 use crate::types::check::{Check, SchemaError};
 use crate::types::general_prefs::MidTurn;
 use crate::types::general_prefs::NewThreadIn;
@@ -77,11 +78,11 @@ pub struct PreferencesStored {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub sidebar_mode: Option<SidebarMode>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub sidebar_width: Option<i64>,
+    pub sidebar_width: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub terminal_size: Option<TerminalSizeSource>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
-    pub terminal_zoom: Option<IndexMap<String, i64>>,
+    pub terminal_zoom: Option<IndexMap<String, JsInt>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
     pub access: Option<IndexMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -123,9 +124,9 @@ pub struct PreferencesStored {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub code_font: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub text_size: Option<i64>,
+    pub text_size: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub code_size: Option<i64>,
+    pub code_size: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub default_agent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
@@ -161,7 +162,7 @@ impl Check for PreferencesStored {
         self.theme.check().map_err(|e| e.under("theme"))?;
         self.sidebar_mode.check().map_err(|e| e.under("sidebarMode"))?;
         if let Some(v) = self.sidebar_width {
-            crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("sidebarWidth"))?;
+            crate::types::check::num_above(v.0.0, 0.0).map_err(|e| e.under("sidebarWidth"))?;
         }
         self.terminal_size.check().map_err(|e| e.under("terminalSize"))?;
         self.target.check().map_err(|e| e.under("target"))?;
@@ -186,10 +187,10 @@ impl Check for PreferencesStored {
             crate::types::check::text_at_most(v, 128).map_err(|e| e.under("codeFont"))?;
         }
         if let Some(v) = self.text_size {
-            crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v as u64)), "one of 13, 14, 15, 16, 17").map_err(|e| e.under("textSize"))?;
+            crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v.get() as u64)), "one of 13, 14, 15, 16, 17").map_err(|e| e.under("textSize"))?;
         }
         if let Some(v) = self.code_size {
-            crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v as u64)), "one of 11, 12, 13, 14, 15").map_err(|e| e.under("codeSize"))?;
+            crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v.get() as u64)), "one of 11, 12, 13, 14, 15").map_err(|e| e.under("codeSize"))?;
         }
         self.agent_defaults.check().map_err(|e| e.under("agentDefaults"))?;
         self.project_defaults.check().map_err(|e| e.under("projectDefaults"))?;
@@ -204,6 +205,56 @@ impl Check for PreferencesStored {
         self.dark_theme.check().map_err(|e| e.under("darkTheme"))?;
         self.project_icon.check().map_err(|e| e.under("projectIcon"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        if let Some(v) = obj.get("theme") { match crate::types::check::read_present::<ThemePreference>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("theme"))), } }
+        if let Some(v) = obj.get("lightTheme") { match crate::types::check::read_present::<ThemeId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("lightTheme"))), } }
+        if let Some(v) = obj.get("darkTheme") { match crate::types::check::read_present::<ThemeId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("darkTheme"))), } }
+        if let Some(v) = obj.get("sidebarMode") { match crate::types::check::read_present::<SidebarMode>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sidebarMode"))), } }
+        if let Some(v) = obj.get("sidebarWidth") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_sidebar_width(&x) { out.push(e.under("sidebarWidth")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("sidebarWidth"))), } }
+        if let Some(v) = obj.get("terminalSize") { match crate::types::check::read_present::<TerminalSizeSource>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("terminalSize"))), } }
+        if let Some(v) = obj.get("terminalZoom") { match crate::types::check::read_present::<IndexMap<String, JsInt>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("terminalZoom"))), } }
+        if let Some(v) = obj.get("access") { match crate::types::check::read_present::<IndexMap<String, String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("access"))), } }
+        if let Some(v) = obj.get("target") { match crate::types::check::read_present::<PreferencesTarget>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("target"))), } }
+        if let Some(v) = obj.get("projectLook") { match crate::types::check::read_present::<IndexMap<String, ProjectLook>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectLook"))), } }
+        if let Some(v) = obj.get("projectIcon") { match crate::types::check::read_present::<IndexMap<String, ProjectIconHash>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectIcon"))), } }
+        if let Some(v) = obj.get("computerLook") { match crate::types::check::read_present::<IndexMap<String, ComputerLook>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("computerLook"))), } }
+        if let Some(v) = obj.get("recipeLook") { match crate::types::check::read_present::<IndexMap<String, RecipeLook>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("recipeLook"))), } }
+        if let Some(v) = obj.get("threadsShut") { match crate::types::check::read_present::<IndexMap<String, True>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadsShut"))), } }
+        if let Some(v) = obj.get("serverIcons") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("serverIcons"))), } }
+        if let Some(v) = obj.get("agentVersions") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentVersions"))), } }
+        if let Some(v) = obj.get("usageLogs") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("usageLogs"))), } }
+        if let Some(v) = obj.get("productUsage") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("productUsage"))), } }
+        if let Some(v) = obj.get("editor") { match crate::types::check::read_present::<EditorId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("editor"))), } }
+        if let Some(v) = obj.get("updateDismissed") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("updateDismissed"))), } }
+        if let Some(v) = obj.get("cloudCardDismissed") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cloudCardDismissed"))), } }
+        if let Some(v) = obj.get("keepAwake") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("keepAwake"))), } }
+        if let Some(v) = obj.get("transparency") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("transparency"))), } }
+        if let Some(v) = obj.get("projectOrder") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectOrder"))), } }
+        if let Some(v) = obj.get("keybindings") { match crate::types::check::read_present::<IndexMap<String, String>>(v) { Ok(x) => { if let Err(e) = Self::rule_keybindings(&x) { out.push(e.under("keybindings")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("keybindings"))), } }
+        if let Some(v) = obj.get("appFont") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_app_font(&x) { out.push(e.under("appFont")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("appFont"))), } }
+        if let Some(v) = obj.get("codeFont") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_code_font(&x) { out.push(e.under("codeFont")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("codeFont"))), } }
+        if let Some(v) = obj.get("textSize") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_text_size(&x) { out.push(e.under("textSize")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("textSize"))), } }
+        if let Some(v) = obj.get("codeSize") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_code_size(&x) { out.push(e.under("codeSize")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("codeSize"))), } }
+        if let Some(v) = obj.get("defaultAgent") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("defaultAgent"))), } }
+        if let Some(v) = obj.get("agentDefaults") { match crate::types::check::read_present::<IndexMap<String, AgentDefaults>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentDefaults"))), } }
+        if let Some(v) = obj.get("projectDefaults") { match crate::types::check::read_present::<IndexMap<String, ProjectOverrides>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectDefaults"))), } }
+        if let Some(v) = obj.get("sendWith") { match crate::types::check::read_present::<SendKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sendWith"))), } }
+        if let Some(v) = obj.get("midTurn") { match crate::types::check::read_present::<MidTurn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("midTurn"))), } }
+        if let Some(v) = obj.get("notifyNeeds") { match crate::types::check::read_present::<NotifyChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("notifyNeeds"))), } }
+        if let Some(v) = obj.get("notifyDone") { match crate::types::check::read_present::<NotifyChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("notifyDone"))), } }
+        if let Some(v) = obj.get("planAlerts") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("planAlerts"))), } }
+        if let Some(v) = obj.get("settleAfter") { match crate::types::check::read_present::<SettleAfter>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("settleAfter"))), } }
+        if let Some(v) = obj.get("askDelete") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("askDelete"))), } }
+        if let Some(v) = obj.get("onQuit") { match crate::types::check::read_present::<OnQuit>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("onQuit"))), } }
+        if let Some(v) = obj.get("newThreadIn") { match crate::types::check::read_present::<NewThreadIn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("newThreadIn"))), } }
+        if let Some(v) = obj.get("labs") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("labs"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -255,6 +306,51 @@ impl Check for PreferencesStored {
                 _ => None,
             },
         }
+    }
+}
+impl PreferencesStored {
+    fn rule_sidebar_width(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_above(v.0.0, 0.0)?;
+        }
+        Ok(())
+    }
+    fn rule_keybindings(x: &Option<IndexMap<String, String>>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(list) = x {
+            for (k, item) in list {
+                crate::types::check::text_at_least(item, 1).map_err(|e| e.under(k.as_str()))?;
+            }
+        }
+        if let Some(list) = x {
+            for (k, item) in list {
+                crate::types::check::text_at_most(item, 64).map_err(|e| e.under(k.as_str()))?;
+            }
+        }
+        Ok(())
+    }
+    fn rule_app_font(x: &Option<String>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = x {
+            crate::types::check::text_at_most(v, 128)?;
+        }
+        Ok(())
+    }
+    fn rule_code_font(x: &Option<String>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = x {
+            crate::types::check::text_at_most(v, 128)?;
+        }
+        Ok(())
+    }
+    fn rule_text_size(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v.get() as u64)), "one of 13, 14, 15, 16, 17")?;
+        }
+        Ok(())
+    }
+    fn rule_code_size(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v.get() as u64)), "one of 11, 12, 13, 14, 15")?;
+        }
+        Ok(())
     }
 }
 
@@ -318,6 +414,18 @@ impl Check for PreferencesTarget {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("workspace") { None => out.push(crate::types::check::missing::<Self>("workspace")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspace"))), } } }
+        let known: &[&str] = &["workspace"];
+        let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
+        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -346,6 +454,19 @@ impl Check for ProjectLook {
         self.icon.check().map_err(|e| e.under("icon"))?;
         self.hue.check().map_err(|e| e.under("hue"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        if let Some(v) = obj.get("icon") { match crate::types::check::read_present::<ProjectIcon>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("icon"))), } }
+        if let Some(v) = obj.get("hue") { match crate::types::check::read_present::<ProjectHue>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hue"))), } }
+        let known: &[&str] = &["icon", "hue"];
+        let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
+        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -408,6 +529,18 @@ impl Check for ComputerLook {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("icon") { None => out.push(crate::types::check::missing::<Self>("icon")), Some(v) => { match crate::types::check::read::<ComputerIcon>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("icon"))), } } }
+        let known: &[&str] = &["icon"];
+        let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
+        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -432,6 +565,18 @@ impl Check for RecipeLook {
     fn check(&self) -> Result<(), SchemaError> {
         self.icon.check().map_err(|e| e.under("icon"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("icon") { None => out.push(crate::types::check::missing::<Self>("icon")), Some(v) => { match crate::types::check::read::<ProjectIcon>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("icon"))), } } }
+        let known: &[&str] = &["icon"];
+        let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
+        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -517,6 +662,17 @@ impl Check for EditorChoice {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<EditorId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
+        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
+        if let Some(v) = obj.get("remote") { match crate::types::check::read_present::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("remote"))), } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -542,7 +698,7 @@ pub struct Preferences {
     pub sidebar_mode: SidebarMode,
     pub terminal_size: TerminalSizeSource,
     #[serde(serialize_with = "crate::types::check::js_record")]
-    pub terminal_zoom: IndexMap<String, i64>,
+    pub terminal_zoom: IndexMap<String, JsInt>,
     #[serde(serialize_with = "crate::types::check::js_record")]
     pub access: IndexMap<String, String>,
     #[serde(serialize_with = "crate::types::check::js_record")]
@@ -594,7 +750,7 @@ pub struct Preferences {
     pub new_thread_in: NewThreadIn,
     pub labs: bool,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub sidebar_width: Option<i64>,
+    pub sidebar_width: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub target: Option<PreferencesTarget>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -604,9 +760,9 @@ pub struct Preferences {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cloud_card_dismissed: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub text_size: Option<i64>,
+    pub text_size: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub code_size: Option<i64>,
+    pub code_size: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub default_agent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
@@ -642,21 +798,71 @@ impl Check for Preferences {
         self.on_quit.check().map_err(|e| e.under("onQuit"))?;
         self.new_thread_in.check().map_err(|e| e.under("newThreadIn"))?;
         if let Some(v) = self.sidebar_width {
-            crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("sidebarWidth"))?;
+            crate::types::check::num_above(v.0.0, 0.0).map_err(|e| e.under("sidebarWidth"))?;
         }
         self.target.check().map_err(|e| e.under("target"))?;
         self.editor.check().map_err(|e| e.under("editor"))?;
         if let Some(v) = self.text_size {
-            crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v as u64)), "one of 13, 14, 15, 16, 17").map_err(|e| e.under("textSize"))?;
+            crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v.get() as u64)), "one of 13, 14, 15, 16, 17").map_err(|e| e.under("textSize"))?;
         }
         if let Some(v) = self.code_size {
-            crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v as u64)), "one of 11, 12, 13, 14, 15").map_err(|e| e.under("codeSize"))?;
+            crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v.get() as u64)), "one of 11, 12, 13, 14, 15").map_err(|e| e.under("codeSize"))?;
         }
         self.recipe_look.check().map_err(|e| e.under("recipeLook"))?;
         self.light_theme.check().map_err(|e| e.under("lightTheme"))?;
         self.dark_theme.check().map_err(|e| e.under("darkTheme"))?;
         self.project_icon.check().map_err(|e| e.under("projectIcon"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("theme") { None => out.push(crate::types::check::missing::<Self>("theme")), Some(v) => { match crate::types::check::read::<ThemePreference>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("theme"))), } } }
+        if let Some(v) = obj.get("lightTheme") { match crate::types::check::read::<ThemeId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("lightTheme"))), } }
+        if let Some(v) = obj.get("darkTheme") { match crate::types::check::read::<ThemeId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("darkTheme"))), } }
+        match obj.get("sidebarMode") { None => out.push(crate::types::check::missing::<Self>("sidebarMode")), Some(v) => { match crate::types::check::read::<SidebarMode>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sidebarMode"))), } } }
+        if let Some(v) = obj.get("sidebarWidth") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_sidebar_width(&x) { out.push(e.under("sidebarWidth")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("sidebarWidth"))), } }
+        match obj.get("terminalSize") { None => out.push(crate::types::check::missing::<Self>("terminalSize")), Some(v) => { match crate::types::check::read::<TerminalSizeSource>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("terminalSize"))), } } }
+        match obj.get("terminalZoom") { None => out.push(crate::types::check::missing::<Self>("terminalZoom")), Some(v) => { match crate::types::check::read::<IndexMap<String, JsInt>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("terminalZoom"))), } } }
+        match obj.get("access") { None => out.push(crate::types::check::missing::<Self>("access")), Some(v) => { match crate::types::check::read::<IndexMap<String, String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("access"))), } } }
+        if let Some(v) = obj.get("target") { match crate::types::check::read_present::<PreferencesTarget>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("target"))), } }
+        match obj.get("projectLook") { None => out.push(crate::types::check::missing::<Self>("projectLook")), Some(v) => { match crate::types::check::read::<IndexMap<String, ProjectLook>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectLook"))), } } }
+        if let Some(v) = obj.get("projectIcon") { match crate::types::check::read::<IndexMap<String, ProjectIconHash>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectIcon"))), } }
+        if let Some(v) = obj.get("computerLook") { match crate::types::check::read::<IndexMap<String, ComputerLook>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("computerLook"))), } }
+        if let Some(v) = obj.get("recipeLook") { match crate::types::check::read_present::<IndexMap<String, RecipeLook>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("recipeLook"))), } }
+        if let Some(v) = obj.get("threadsShut") { match crate::types::check::read_present::<IndexMap<String, True>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadsShut"))), } }
+        if let Some(v) = obj.get("serverIcons") { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("serverIcons"))), } }
+        if let Some(v) = obj.get("agentVersions") { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentVersions"))), } }
+        if let Some(v) = obj.get("usageLogs") { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("usageLogs"))), } }
+        if let Some(v) = obj.get("productUsage") { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("productUsage"))), } }
+        if let Some(v) = obj.get("editor") { match crate::types::check::read_present::<EditorId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("editor"))), } }
+        if let Some(v) = obj.get("updateDismissed") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("updateDismissed"))), } }
+        if let Some(v) = obj.get("cloudCardDismissed") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cloudCardDismissed"))), } }
+        if let Some(v) = obj.get("keepAwake") { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("keepAwake"))), } }
+        if let Some(v) = obj.get("transparency") { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("transparency"))), } }
+        match obj.get("projectOrder") { None => out.push(crate::types::check::missing::<Self>("projectOrder")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectOrder"))), } } }
+        if let Some(v) = obj.get("keybindings") { match crate::types::check::read::<IndexMap<String, String>>(v) { Ok(x) => { if let Err(e) = Self::rule_keybindings(&x) { out.push(e.under("keybindings")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("keybindings"))), } }
+        if let Some(v) = obj.get("appFont") { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_app_font(&x) { out.push(e.under("appFont")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("appFont"))), } }
+        if let Some(v) = obj.get("codeFont") { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_code_font(&x) { out.push(e.under("codeFont")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("codeFont"))), } }
+        if let Some(v) = obj.get("textSize") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_text_size(&x) { out.push(e.under("textSize")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("textSize"))), } }
+        if let Some(v) = obj.get("codeSize") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_code_size(&x) { out.push(e.under("codeSize")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("codeSize"))), } }
+        if let Some(v) = obj.get("defaultAgent") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("defaultAgent"))), } }
+        if let Some(v) = obj.get("agentDefaults") { match crate::types::check::read::<IndexMap<String, AgentDefaults>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentDefaults"))), } }
+        if let Some(v) = obj.get("projectDefaults") { match crate::types::check::read::<IndexMap<String, ProjectOverrides>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectDefaults"))), } }
+        if let Some(v) = obj.get("sendWith") { match crate::types::check::read::<SendKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sendWith"))), } }
+        if let Some(v) = obj.get("midTurn") { match crate::types::check::read::<MidTurn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("midTurn"))), } }
+        if let Some(v) = obj.get("notifyNeeds") { match crate::types::check::read::<NotifyChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("notifyNeeds"))), } }
+        if let Some(v) = obj.get("notifyDone") { match crate::types::check::read::<NotifyChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("notifyDone"))), } }
+        if let Some(v) = obj.get("planAlerts") { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("planAlerts"))), } }
+        if let Some(v) = obj.get("settleAfter") { match crate::types::check::read::<SettleAfter>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("settleAfter"))), } }
+        if let Some(v) = obj.get("askDelete") { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("askDelete"))), } }
+        if let Some(v) = obj.get("onQuit") { match crate::types::check::read::<OnQuit>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("onQuit"))), } }
+        if let Some(v) = obj.get("newThreadIn") { match crate::types::check::read::<NewThreadIn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("newThreadIn"))), } }
+        match obj.get("labs") { None => out.push(crate::types::check::missing::<Self>("labs")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("labs"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -708,6 +914,43 @@ impl Check for Preferences {
                 _ => None,
             },
         }
+    }
+}
+impl Preferences {
+    fn rule_keybindings(x: &IndexMap<String, String>) -> Result<(), crate::types::check::SchemaError> {
+        for (k, item) in x {
+            crate::types::check::text_at_least(item, 1).map_err(|e| e.under(k.as_str()))?;
+        }
+        for (k, item) in x {
+            crate::types::check::text_at_most(item, 64).map_err(|e| e.under(k.as_str()))?;
+        }
+        Ok(())
+    }
+    fn rule_app_font(x: &String) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::text_at_most(x, 128)?;
+        Ok(())
+    }
+    fn rule_code_font(x: &String) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::text_at_most(x, 128)?;
+        Ok(())
+    }
+    fn rule_sidebar_width(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_above(v.0.0, 0.0)?;
+        }
+        Ok(())
+    }
+    fn rule_text_size(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v.get() as u64)), "one of 13, 14, 15, 16, 17")?;
+        }
+        Ok(())
+    }
+    fn rule_code_size(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v.get() as u64)), "one of 11, 12, 13, 14, 15")?;
+        }
+        Ok(())
     }
 }
 
@@ -949,6 +1192,57 @@ impl Check for PreferencesPatch {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        if let Some(v) = obj.get("theme") { match crate::types::check::read_present::<ThemePreference>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("theme"))), } }
+        if let Some(v) = obj.get("lightTheme") { match crate::types::check::read_present::<ThemeId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("lightTheme"))), } }
+        if let Some(v) = obj.get("darkTheme") { match crate::types::check::read_present::<ThemeId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("darkTheme"))), } }
+        if let Some(v) = obj.get("sidebarMode") { match crate::types::check::read_present::<SidebarMode>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sidebarMode"))), } }
+        if let Some(v) = obj.get("sidebarWidth") { match crate::types::check::read_double::<i64>(v) { Ok(x) => { if let Err(e) = Self::rule_sidebar_width(&x) { out.push(e.under("sidebarWidth")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("sidebarWidth"))), } }
+        if let Some(v) = obj.get("terminalSize") { match crate::types::check::read_present::<TerminalSizeSource>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("terminalSize"))), } }
+        if let Some(v) = obj.get("terminalZoom") { match crate::types::check::read_present::<IndexMap<String, Option<i64>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("terminalZoom"))), } }
+        if let Some(v) = obj.get("access") { match crate::types::check::read_present::<IndexMap<String, Option<String>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("access"))), } }
+        if let Some(v) = obj.get("target") { match crate::types::check::read_double::<PreferencesTarget>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("target"))), } }
+        if let Some(v) = obj.get("projectLook") { match crate::types::check::read_present::<IndexMap<String, Option<ProjectLook>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectLook"))), } }
+        if let Some(v) = obj.get("computerLook") { match crate::types::check::read_present::<IndexMap<String, Option<ComputerLook>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("computerLook"))), } }
+        if let Some(v) = obj.get("recipeLook") { match crate::types::check::read_present::<IndexMap<String, Option<RecipeLook>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("recipeLook"))), } }
+        if let Some(v) = obj.get("threadsShut") { match crate::types::check::read_present::<IndexMap<String, Option<True>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadsShut"))), } }
+        if let Some(v) = obj.get("serverIcons") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("serverIcons"))), } }
+        if let Some(v) = obj.get("agentVersions") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentVersions"))), } }
+        if let Some(v) = obj.get("usageLogs") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("usageLogs"))), } }
+        if let Some(v) = obj.get("productUsage") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("productUsage"))), } }
+        if let Some(v) = obj.get("editor") { match crate::types::check::read_present::<EditorId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("editor"))), } }
+        if let Some(v) = obj.get("updateDismissed") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("updateDismissed"))), } }
+        if let Some(v) = obj.get("cloudCardDismissed") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cloudCardDismissed"))), } }
+        if let Some(v) = obj.get("keepAwake") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("keepAwake"))), } }
+        if let Some(v) = obj.get("transparency") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("transparency"))), } }
+        if let Some(v) = obj.get("projectOrder") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectOrder"))), } }
+        if let Some(v) = obj.get("keybindings") { match crate::types::check::read_present::<IndexMap<String, Option<String>>>(v) { Ok(x) => { if let Err(e) = Self::rule_keybindings(&x) { out.push(e.under("keybindings")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("keybindings"))), } }
+        if let Some(v) = obj.get("appFont") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_app_font(&x) { out.push(e.under("appFont")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("appFont"))), } }
+        if let Some(v) = obj.get("codeFont") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_code_font(&x) { out.push(e.under("codeFont")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("codeFont"))), } }
+        if let Some(v) = obj.get("textSize") { match crate::types::check::read_double::<i64>(v) { Ok(x) => { if let Err(e) = Self::rule_text_size(&x) { out.push(e.under("textSize")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("textSize"))), } }
+        if let Some(v) = obj.get("codeSize") { match crate::types::check::read_double::<i64>(v) { Ok(x) => { if let Err(e) = Self::rule_code_size(&x) { out.push(e.under("codeSize")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("codeSize"))), } }
+        if let Some(v) = obj.get("defaultAgent") { match crate::types::check::read_double::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("defaultAgent"))), } }
+        if let Some(v) = obj.get("agentDefaults") { match crate::types::check::read_present::<IndexMap<String, Option<AgentDefaultsPatch>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentDefaults"))), } }
+        if let Some(v) = obj.get("projectDefaults") { match crate::types::check::read_present::<IndexMap<String, Option<ProjectOverridesPatch>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectDefaults"))), } }
+        if let Some(v) = obj.get("sendWith") { match crate::types::check::read_present::<SendKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sendWith"))), } }
+        if let Some(v) = obj.get("midTurn") { match crate::types::check::read_present::<MidTurn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("midTurn"))), } }
+        if let Some(v) = obj.get("notifyNeeds") { match crate::types::check::read_present::<NotifyChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("notifyNeeds"))), } }
+        if let Some(v) = obj.get("notifyDone") { match crate::types::check::read_present::<NotifyChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("notifyDone"))), } }
+        if let Some(v) = obj.get("planAlerts") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("planAlerts"))), } }
+        if let Some(v) = obj.get("settleAfter") { match crate::types::check::read_present::<SettleAfter>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("settleAfter"))), } }
+        if let Some(v) = obj.get("askDelete") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("askDelete"))), } }
+        if let Some(v) = obj.get("onQuit") { match crate::types::check::read_present::<OnQuit>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("onQuit"))), } }
+        if let Some(v) = obj.get("newThreadIn") { match crate::types::check::read_present::<NewThreadIn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("newThreadIn"))), } }
+        let known: &[&str] = &["theme", "lightTheme", "darkTheme", "sidebarMode", "sidebarWidth", "terminalSize", "terminalZoom", "access", "target", "projectLook", "computerLook", "recipeLook", "threadsShut", "serverIcons", "agentVersions", "usageLogs", "productUsage", "editor", "updateDismissed", "cloudCardDismissed", "keepAwake", "transparency", "projectOrder", "keybindings", "appFont", "codeFont", "textSize", "codeSize", "defaultAgent", "agentDefaults", "projectDefaults", "sendWith", "midTurn", "notifyNeeds", "notifyDone", "planAlerts", "settleAfter", "askDelete", "onQuit", "newThreadIn"];
+        let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
+        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -998,6 +1292,55 @@ impl Check for PreferencesPatch {
         }
     }
 }
+impl PreferencesPatch {
+    fn rule_sidebar_width(x: &Option<Option<i64>>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(Some(v)) = (*x) {
+            crate::types::check::num_above(v as f64, 0.0)?;
+        }
+        Ok(())
+    }
+    fn rule_keybindings(x: &Option<IndexMap<String, Option<String>>>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(list) = x {
+            for (k, item) in list {
+                if let Some(v) = item {
+                    crate::types::check::text_at_least(v, 1).map_err(|e| e.under(k.as_str()))?;
+                }
+            }
+        }
+        if let Some(list) = x {
+            for (k, item) in list {
+                if let Some(v) = item {
+                    crate::types::check::text_at_most(v, 64).map_err(|e| e.under(k.as_str()))?;
+                }
+            }
+        }
+        Ok(())
+    }
+    fn rule_app_font(x: &Option<String>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = x {
+            crate::types::check::text_at_most(v, 128)?;
+        }
+        Ok(())
+    }
+    fn rule_code_font(x: &Option<String>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = x {
+            crate::types::check::text_at_most(v, 128)?;
+        }
+        Ok(())
+    }
+    fn rule_text_size(x: &Option<Option<i64>>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(Some(v)) = (*x) {
+            crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v as u64)), "one of 13, 14, 15, 16, 17")?;
+        }
+        Ok(())
+    }
+    fn rule_code_size(x: &Option<Option<i64>>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(Some(v)) = (*x) {
+            crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v as u64)), "one of 11, 12, 13, 14, 15")?;
+        }
+        Ok(())
+    }
+}
 
 /// TS: packages/protocol/src/views/preferences.ts:290 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1015,6 +1358,16 @@ impl ThreadMarkedEvent {
 impl Check for ThreadMarkedEvent {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
+        match obj.get("threadIds") { None => out.push(crate::types::check::missing::<Self>("threadIds")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadIds"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -1050,7 +1403,7 @@ pub struct ThreadFacts {
     pub ended_at: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cwd: Option<String>,
-    pub turns: i64,
+    pub turns: JsInt,
     pub ran: bool,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub parent_thread_id: Option<String>,
@@ -1083,9 +1436,9 @@ pub struct ThreadFacts {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub failure: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub pid: Option<i64>,
+    pub pid: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub agent_pid: Option<i64>,
+    pub agent_pid: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub read_at: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -1130,7 +1483,7 @@ impl Check for ThreadFacts {
     fn check(&self) -> Result<(), SchemaError> {
         self.started_by.check().map_err(|e| e.under("startedBy"))?;
         self.status.check().map_err(|e| e.under("status"))?;
-        crate::types::check::num_above(self.turns as f64, 0.0).map_err(|e| e.under("turns"))?;
+        crate::types::check::num_above(self.turns.0.0, 0.0).map_err(|e| e.under("turns"))?;
         self.waiting_on.check().map_err(|e| e.under("waitingOn"))?;
         self.sub.check().map_err(|e| e.under("sub"))?;
         self.capped.check().map_err(|e| e.under("capped"))?;
@@ -1138,6 +1491,63 @@ impl Check for ThreadFacts {
         self.section.check().map_err(|e| e.under("section"))?;
         self.forked_from.check().map_err(|e| e.under("forkedFrom"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
+        if let Some(v) = obj.get("threadId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } }
+        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
+        match obj.get("harness") { None => out.push(crate::types::check::missing::<Self>("harness")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("harness"))), } } }
+        match obj.get("startedBy") { None => out.push(crate::types::check::missing::<Self>("startedBy")), Some(v) => { match crate::types::check::read::<SessionOrigin>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("startedBy"))), } } }
+        match obj.get("status") { None => out.push(crate::types::check::missing::<Self>("status")), Some(v) => { match crate::types::check::read::<SessionStatus>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("status"))), } } }
+        match obj.get("title") { None => out.push(crate::types::check::missing::<Self>("title")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("title"))), } } }
+        match obj.get("sessionId") { None => out.push(crate::types::check::missing::<Self>("sessionId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sessionId"))), } } }
+        if let Some(v) = obj.get("claudeSessionId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("claudeSessionId"))), } }
+        if let Some(v) = obj.get("startedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("startedAt"))), } }
+        if let Some(v) = obj.get("endedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("endedAt"))), } }
+        if let Some(v) = obj.get("cwd") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cwd"))), } }
+        match obj.get("turns") { None => out.push(crate::types::check::missing::<Self>("turns")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_turns(&x) { out.push(e.under("turns")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("turns"))), } } }
+        match obj.get("ran") { None => out.push(crate::types::check::missing::<Self>("ran")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ran"))), } } }
+        if let Some(v) = obj.get("parentThreadId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("parentThreadId"))), } }
+        if let Some(v) = obj.get("rootThreadId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rootThreadId"))), } }
+        if let Some(v) = obj.get("attempt") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("attempt"))), } }
+        if let Some(v) = obj.get("asking") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("asking"))), } }
+        if let Some(v) = obj.get("waitingOn") { match crate::types::check::read_present::<ThreadWaitingOn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("waitingOn"))), } }
+        if let Some(v) = obj.get("setupRefusal") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("setupRefusal"))), } }
+        if let Some(v) = obj.get("sub") { match crate::types::check::read_present::<SubRow>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sub"))), } }
+        if let Some(v) = obj.get("diskKeptUntil") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("diskKeptUntil"))), } }
+        if let Some(v) = obj.get("diskGone") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("diskGone"))), } }
+        if let Some(v) = obj.get("capped") { match crate::types::check::read_present::<ThreadCapWait>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("capped"))), } }
+        if let Some(v) = obj.get("limit") { match crate::types::check::read_present::<TurnLimit>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("limit"))), } }
+        if let Some(v) = obj.get("resumeAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("resumeAt"))), } }
+        if let Some(v) = obj.get("costUsd") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("costUsd"))), } }
+        if let Some(v) = obj.get("lastLine") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("lastLine"))), } }
+        if let Some(v) = obj.get("failure") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("failure"))), } }
+        if let Some(v) = obj.get("pid") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pid"))), } }
+        if let Some(v) = obj.get("agentPid") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentPid"))), } }
+        if let Some(v) = obj.get("readAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("readAt"))), } }
+        if let Some(v) = obj.get("settledAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("settledAt"))), } }
+        if let Some(v) = obj.get("pinnedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pinnedAt"))), } }
+        if let Some(v) = obj.get("order") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("order"))), } }
+        if let Some(v) = obj.get("foldedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("foldedAt"))), } }
+        if let Some(v) = obj.get("replaces") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("replaces"))), } }
+        if let Some(v) = obj.get("replacedBy") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("replacedBy"))), } }
+        if let Some(v) = obj.get("snoozedUntil") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("snoozedUntil"))), } }
+        if let Some(v) = obj.get("wokeAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wokeAt"))), } }
+        if let Some(v) = obj.get("section") { match crate::types::check::read_present::<ThreadPlacement>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("section"))), } }
+        if let Some(v) = obj.get("rewoundAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rewoundAt"))), } }
+        if let Some(v) = obj.get("forkedFrom") { match crate::types::check::read_present::<ForkedFrom>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("forkedFrom"))), } }
+        if let Some(v) = obj.get("permissionMode") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("permissionMode"))), } }
+        if let Some(v) = obj.get("fast") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("fast"))), } }
+        if let Some(v) = obj.get("model") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("model"))), } }
+        if let Some(v) = obj.get("effort") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("effort"))), } }
+        if let Some(v) = obj.get("contextWindow") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("contextWindow"))), } }
+        if let Some(v) = obj.get("turnId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("turnId"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -1198,6 +1608,12 @@ impl Check for ThreadFacts {
         }
     }
 }
+impl ThreadFacts {
+    fn rule_turns(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::num_above((*x).0.0, 0.0)?;
+        Ok(())
+    }
+}
 
 /// TS: packages/protocol/src/views/preferences.ts:321 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1205,8 +1621,8 @@ impl Check for ThreadFacts {
 pub struct ThreadHead {
     pub facts: ThreadFacts,
     pub events: Vec<SessionEvent>,
-    pub pos: i64,
-    pub total: i64,
+    pub pos: JsInt,
+    pub total: JsInt,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub trimmed: Option<True>,
 }
@@ -1217,9 +1633,22 @@ impl Check for ThreadHead {
     fn check(&self) -> Result<(), SchemaError> {
         self.facts.check().map_err(|e| e.under("facts"))?;
         self.events.check().map_err(|e| e.under("events"))?;
-        crate::types::check::num_at_least(self.pos as f64, 0.0).map_err(|e| e.under("pos"))?;
-        crate::types::check::num_at_least(self.total as f64, 0.0).map_err(|e| e.under("total"))?;
+        crate::types::check::num_at_least(self.pos.0.0, 0.0).map_err(|e| e.under("pos"))?;
+        crate::types::check::num_at_least(self.total.0.0, 0.0).map_err(|e| e.under("total"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("facts") { None => out.push(crate::types::check::missing::<Self>("facts")), Some(v) => { match crate::types::check::read::<ThreadFacts>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("facts"))), } } }
+        match obj.get("events") { None => out.push(crate::types::check::missing::<Self>("events")), Some(v) => { match crate::types::check::read::<Vec<SessionEvent>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("events"))), } } }
+        match obj.get("pos") { None => out.push(crate::types::check::missing::<Self>("pos")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_pos(&x) { out.push(e.under("pos")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("pos"))), } } }
+        match obj.get("total") { None => out.push(crate::types::check::missing::<Self>("total")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_total(&x) { out.push(e.under("total")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("total"))), } } }
+        if let Some(v) = obj.get("trimmed") { match crate::types::check::read_present::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("trimmed"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -1236,14 +1665,24 @@ impl Check for ThreadHead {
         }
     }
 }
+impl ThreadHead {
+    fn rule_pos(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        Ok(())
+    }
+    fn rule_total(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        Ok(())
+    }
+}
 
 /// TS: packages/protocol/src/views/preferences.ts:333 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryPage {
     pub events: Vec<SessionEvent>,
-    pub pos: i64,
-    pub total: i64,
+    pub pos: JsInt,
+    pub total: JsInt,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub trimmed: Option<True>,
 }
@@ -1253,9 +1692,21 @@ impl Check for HistoryPage {
     /// Nested checks: events.
     fn check(&self) -> Result<(), SchemaError> {
         self.events.check().map_err(|e| e.under("events"))?;
-        crate::types::check::num_at_least(self.pos as f64, 0.0).map_err(|e| e.under("pos"))?;
-        crate::types::check::num_at_least(self.total as f64, 0.0).map_err(|e| e.under("total"))?;
+        crate::types::check::num_at_least(self.pos.0.0, 0.0).map_err(|e| e.under("pos"))?;
+        crate::types::check::num_at_least(self.total.0.0, 0.0).map_err(|e| e.under("total"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("events") { None => out.push(crate::types::check::missing::<Self>("events")), Some(v) => { match crate::types::check::read::<Vec<SessionEvent>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("events"))), } } }
+        match obj.get("pos") { None => out.push(crate::types::check::missing::<Self>("pos")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_pos(&x) { out.push(e.under("pos")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("pos"))), } } }
+        match obj.get("total") { None => out.push(crate::types::check::missing::<Self>("total")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_total(&x) { out.push(e.under("total")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("total"))), } } }
+        if let Some(v) = obj.get("trimmed") { match crate::types::check::read_present::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("trimmed"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -1271,6 +1722,16 @@ impl Check for HistoryPage {
         }
     }
 }
+impl HistoryPage {
+    fn rule_pos(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        Ok(())
+    }
+    fn rule_total(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        Ok(())
+    }
+}
 
 /// TS: packages/protocol/src/views/preferences.ts:343 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1279,7 +1740,7 @@ pub struct ThreadHeadEvent {
     pub workspace_id: String,
     pub thread_id: String,
     pub facts: ThreadFacts,
-    pub pos: i64,
+    pub pos: JsInt,
 }
 
 impl ThreadHeadEvent {
@@ -1292,8 +1753,20 @@ impl Check for ThreadHeadEvent {
     /// Nested checks: facts.
     fn check(&self) -> Result<(), SchemaError> {
         self.facts.check().map_err(|e| e.under("facts"))?;
-        crate::types::check::num_at_least(self.pos as f64, 0.0).map_err(|e| e.under("pos"))?;
+        crate::types::check::num_at_least(self.pos.0.0, 0.0).map_err(|e| e.under("pos"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
+        match obj.get("threadId") { None => out.push(crate::types::check::missing::<Self>("threadId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } } }
+        match obj.get("facts") { None => out.push(crate::types::check::missing::<Self>("facts")), Some(v) => { match crate::types::check::read::<ThreadFacts>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("facts"))), } } }
+        match obj.get("pos") { None => out.push(crate::types::check::missing::<Self>("pos")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_pos(&x) { out.push(e.under("pos")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("pos"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -1307,6 +1780,12 @@ impl Check for ThreadHeadEvent {
                 _ => None,
             },
         }
+    }
+}
+impl ThreadHeadEvent {
+    fn rule_pos(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        Ok(())
     }
 }
 
@@ -1326,6 +1805,16 @@ impl ThreadRewoundEvent {
 impl Check for ThreadRewoundEvent {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
+        match obj.get("threadId") { None => out.push(crate::types::check::missing::<Self>("threadId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -1357,6 +1846,15 @@ impl Check for PreferencesChangedEvent {
     fn check(&self) -> Result<(), SchemaError> {
         self.preferences.check().map_err(|e| e.under("preferences"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("preferences") { None => out.push(crate::types::check::missing::<Self>("preferences")), Some(v) => { match crate::types::check::read::<Preferences>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("preferences"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {

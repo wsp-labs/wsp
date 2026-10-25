@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::types::check::{Check, SchemaError};
+use crate::types::js_number::JsInt;
 
 /// TS: packages/protocol/src/views/app-procs.ts:19 at a3b870a6e.
 pub const APP_PROC_ORIGINS_MAX: u64 = 20;
@@ -55,19 +56,19 @@ impl Check for AppProcKind {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppProc {
-    pub pid: i64,
+    pub pid: JsInt,
     pub kind: AppProcKind,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub origins: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub contents: Option<Vec<i64>>,
+    pub contents: Option<Vec<JsInt>>,
 }
 
 impl Check for AppProc {
     /// Rules: pid: > 0; origins[]: at most 256 UTF-16 units; origins: at most 20 items; contents[]: >= 0; contents: at most 20 items.
     /// Nested checks: kind.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_above(self.pid as f64, 0.0).map_err(|e| e.under("pid"))?;
+        crate::types::check::num_above(self.pid.0.0, 0.0).map_err(|e| e.under("pid"))?;
         self.kind.check().map_err(|e| e.under("kind"))?;
         if let Some(list) = &self.origins {
             for (i, item) in list.iter().enumerate() {
@@ -79,13 +80,25 @@ impl Check for AppProc {
         }
         if let Some(list) = &self.contents {
             for (i, &item) in list.iter().enumerate() {
-                crate::types::check::num_at_least(item as f64, 0.0).map_err(|e| e.under(i).under("contents"))?;
+                crate::types::check::num_at_least(item.0.0, 0.0).map_err(|e| e.under(i).under("contents"))?;
             }
         }
         if let Some(list) = &self.contents {
             crate::types::check::items_at_most(list.len(), 20).map_err(|e| e.under("contents"))?;
         }
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("pid") { None => out.push(crate::types::check::missing::<Self>("pid")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_pid(&x) { out.push(e.under("pid")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("pid"))), } } }
+        match obj.get("kind") { None => out.push(crate::types::check::missing::<Self>("kind")), Some(v) => { match crate::types::check::read::<AppProcKind>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("kind"))), } } }
+        if let Some(v) = obj.get("origins") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(x) => { if let Err(e) = Self::rule_origins(&x) { out.push(e.under("origins")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("origins"))), } }
+        if let Some(v) = obj.get("contents") { match crate::types::check::read_present::<Vec<JsInt>>(v) { Ok(x) => { if let Err(e) = Self::rule_contents(&x) { out.push(e.under("contents")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("contents"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -99,6 +112,34 @@ impl Check for AppProc {
                 _ => None,
             },
         }
+    }
+}
+impl AppProc {
+    fn rule_pid(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::num_above((*x).0.0, 0.0)?;
+        Ok(())
+    }
+    fn rule_origins(x: &Option<Vec<String>>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(list) = x {
+            for (i, item) in list.iter().enumerate() {
+                crate::types::check::text_at_most(item, 256).map_err(|e| e.under(i))?;
+            }
+        }
+        if let Some(list) = x {
+            crate::types::check::items_at_most(list.len(), 20)?;
+        }
+        Ok(())
+    }
+    fn rule_contents(x: &Option<Vec<JsInt>>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(list) = x {
+            for (i, &item) in list.iter().enumerate() {
+                crate::types::check::num_at_least(item.0.0, 0.0).map_err(|e| e.under(i))?;
+            }
+        }
+        if let Some(list) = x {
+            crate::types::check::items_at_most(list.len(), 20)?;
+        }
+        Ok(())
     }
 }
 
@@ -138,6 +179,15 @@ impl Check for AppProcsEvent {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("procs") { None => out.push(crate::types::check::missing::<Self>("procs")), Some(v) => { match crate::types::check::read::<AppProcList>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("procs"))), } } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -164,6 +214,15 @@ impl AppProcsWantedEvent {
 impl Check for AppProcsWantedEvent {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("wanted") { None => out.push(crate::types::check::missing::<Self>("wanted")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wanted"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
