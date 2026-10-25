@@ -5,17 +5,18 @@ mod common;
 
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use common::{fixture, wire};
 use futures::FutureExt;
 use serde_json::{json, Value};
-use tokio_util::sync::CancellationToken;
+
 use wsp_core::types::pending::Clock;
 use wsp_core::types::wiring::*;
 use wsp_engine::errors::{EngineError, Result as EngineResult};
 use wsp_engine::machine::*;
+use wsp_engine::Cancel;
 use wsp_engine::no_provider_backend::NoProviderBackend;
 use wsp_wire::views::project_bundle::{ProjectAgentOutcome, ProjectAgentResult};
 use wsp_wire::views::workspace::ProjectSource;
@@ -142,9 +143,9 @@ fn wired_place_reads_its_id_at_each_call() {
 
 /// A machine whose run answers as scripted and whose exec fails a cleanup, logging each command as the oracle did.
 struct Scripted {
-    log: Arc<Mutex<Vec<String>>>,
-    run: Box<dyn Fn() -> EngineResult<ExecResult> + Send + Sync>,
-    exec: Box<dyn Fn(&str) -> EngineResult<ExecResult> + Send + Sync>,
+    log: Rc<RefCell<Vec<String>>>,
+    run: Box<dyn Fn() -> EngineResult<ExecResult>>,
+    exec: Box<dyn Fn(&str) -> EngineResult<ExecResult>>,
 }
 
 fn other(message: &str) -> EngineError {
@@ -155,7 +156,7 @@ fn exec_result(code: i64, stdout: &str, stderr: &str) -> ExecResult {
     wire(&json!({ "exitCode": code, "stdout": stdout, "stderr": stderr }))
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for Scripted {
     fn id(&self) -> &str {
         "m9"
@@ -164,11 +165,11 @@ impl Machine for Scripted {
         wire(&json!("sandbox"))
     }
     async fn exec(&self, cmd: &str, _opts: ExecOptions) -> EngineResult<ExecResult> {
-        self.log.lock().unwrap().push(format!("exec {cmd}"));
+        self.log.borrow_mut().push(format!("exec {cmd}"));
         (self.exec)(cmd)
     }
     async fn run(&self, script: &str, opts: RunOptions) -> EngineResult<ExecResult> {
-        self.log.lock().unwrap().push(format!("run {script} {}", json!({ "deadlineMs": opts.deadline_ms })));
+        self.log.borrow_mut().push(format!("run {script} {}", json!({ "deadlineMs": opts.deadline_ms })));
         (self.run)()
     }
     async fn snapshot(&self, _name: &str, _life: MachineLife, _opts: SnapshotOptions) -> EngineResult<String> {
@@ -177,7 +178,7 @@ impl Machine for Scripted {
     async fn pause(&self, _wait_ms: Option<u64>) -> EngineResult<()> {
         unreachable!()
     }
-    async fn resume(&self, _signal: Option<CancellationToken>) -> EngineResult<()> {
+    async fn resume(&self, _signal: Option<&Cancel>) -> EngineResult<()> {
         unreachable!()
     }
     async fn kill(&self) -> EngineResult<()> {
@@ -194,9 +195,9 @@ impl Machine for Scripted {
     }
 }
 
-fn scripted(run: impl Fn() -> EngineResult<ExecResult> + Send + Sync + 'static) -> Scripted {
+fn scripted(run: impl Fn() -> EngineResult<ExecResult> + 'static) -> Scripted {
     Scripted {
-        log: Arc::new(Mutex::new(Vec::new())),
+        log: Rc::new(RefCell::new(Vec::new())),
         run: Box::new(run),
         exec: Box::new(|cmd| if cmd.starts_with("rm") { Err(other("cleanup refused")) } else { Ok(exec_result(0, "", "")) }),
     }
@@ -207,7 +208,7 @@ fn scripted(run: impl Fn() -> EngineResult<ExecResult> + Send + Sync + 'static) 
 #[tokio::test(flavor = "current_thread")]
 async fn merge_on_machine_matches_the_ts() {
     let f = fixture("wiring");
-    let runs: Vec<(&str, Box<dyn Fn() -> EngineResult<ExecResult> + Send + Sync>)> = vec![
+    let runs: Vec<(&str, Box<dyn Fn() -> EngineResult<ExecResult>>)> = vec![
         ("exit2", Box::new(|| Ok(exec_result(2, "", "first\nlast line  \n")))),
         ("exit1Quiet", Box::new(|| Ok(exec_result(1, "{}", "")))),
         ("merged", Box::new(|| Ok(exec_result(0, "noise\n{\"merged\": 3, \"kept\": 1}\n", "")))),
@@ -226,7 +227,7 @@ async fn merge_on_machine_matches_the_ts() {
             Ok(result) => assert_eq!(serde_json::to_value(&result).unwrap(), want["res"]["ok"], "{name}"),
             Err(e) => assert_eq!(e.to_string(), want["res"]["err"].as_str().unwrap(), "{name}"),
         }
-        let log: Vec<Value> = machine.log.lock().unwrap().iter().map(|l| json!(l)).collect();
+        let log: Vec<Value> = machine.log.borrow().iter().map(|l| json!(l)).collect();
         assert_eq!(Value::Array(log), want["log"], "{name}");
     }
 }
@@ -235,18 +236,18 @@ async fn merge_on_machine_matches_the_ts() {
 #[tokio::test(flavor = "current_thread")]
 async fn set_hostname_answers_the_refusal_rather_than_failing() {
     let f = fixture("wiring");
-    let execs: Vec<(&str, Box<dyn Fn(&str) -> EngineResult<ExecResult> + Send + Sync>)> = vec![
+    let execs: Vec<(&str, Box<dyn Fn(&str) -> EngineResult<ExecResult>>)> = vec![
         ("ok", Box::new(|_| Ok(exec_result(0, "", "")))),
         ("refused", Box::new(|_| Ok(exec_result(1, "", "  hostname: you must be root \n")))),
         ("throws", Box::new(|_| Err(other("socket closed")))),
     ];
     for (name, exec) in execs {
         let want = f["hostSet"].as_array().unwrap().iter().find(|m| m["name"] == name).unwrap();
-        let machine = Scripted { log: Arc::new(Mutex::new(Vec::new())), run: Box::new(|| unreachable!()), exec };
+        let machine = Scripted { log: Rc::new(RefCell::new(Vec::new())), run: Box::new(|| unreachable!()), exec };
         let got = set_hostname(&machine, "My Box!").await;
         assert_eq!(got.host, want["res"]["host"].as_str().unwrap(), "{name}");
         assert_eq!(got.refused.as_deref(), want["res"]["refused"].as_str(), "{name}");
-        let log: Vec<String> = machine.log.lock().unwrap().iter().map(|l| l.trim_start_matches("exec ").to_string()).collect();
+        let log: Vec<String> = machine.log.borrow().iter().map(|l| l.trim_start_matches("exec ").to_string()).collect();
         assert_eq!(log, vec![want["log"][0].as_str().unwrap().to_string()], "{name}");
     }
 }

@@ -3,6 +3,7 @@
 //! a workspace, and the small helpers the areas share. Specs: spec/wiring-records.md, spec/wiring-helpers.md. One
 //! thread owns every handle here (chapter 03, rule 3.1), so they are `Rc` and the traits are `?Send`.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -10,7 +11,7 @@ use async_trait::async_trait;
 use futures::future::{LocalBoxFuture, Shared};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use tokio_util::sync::CancellationToken;
+use wsp_engine::Cancel;
 use wsp_wire::types::js_number::JsNumber;
 
 use wsp_adapters::pending::CodexClaims;
@@ -565,9 +566,11 @@ pub struct SizeAsk {
 }
 
 /// A workspace this host holds in memory: its record, its machine, and the joins of its moves. Never stored.
-/// wiring.ts:416-477.
+/// wiring.ts:416-477. `attach` makes a new entry that shares the same record object, as the TS does: every entry for
+/// a workspace holds one `Rc` of it, a done sees that the record was released while it ran, and entries are told
+/// apart by `Rc::ptr_eq` on the record.
 pub struct LiveWorkspace {
-    pub record: WorkspaceRecord,
+    pub record: Rc<RefCell<WorkspaceRecord>>,
     pub opens_thread: Option<String>,
     pub of_record_held: bool,
     pub ws: Rc<Workspace>,
@@ -580,7 +583,7 @@ pub struct LiveWorkspace {
     pub adopting: Option<Joined<()>>,
     pub deleting: Option<Joined<()>>,
     pub late_read: Option<Box<dyn FnOnce()>>,
-    pub wake_stop: Option<CancellationToken>,
+    pub wake_stop: Option<Cancel>,
     pub resize_to: Option<SizeAsk>,
     pub nap_wait_ms: Option<u64>,
     pub wake_said: Option<String>,

@@ -37,11 +37,17 @@ fn settings_ask(v: Value) -> PlaceSettingsAsk {
 }
 
 fn spoo() -> Value {
-    over(place_view(), json!({ "id": "p_1", "kind": "computer", "name": "spoo", "default": false, "shape": { "cpu": 2, "memMb": 7885 }, "daemonVersion": DAEMON_VERSION, "cap": { "threads": 2 }, "running": 0 }))
+    over(
+        place_view(),
+        json!({ "id": "p_1", "kind": "computer", "name": "spoo", "default": false, "shape": { "cpu": 2, "memMb": 7885 }, "daemonVersion": DAEMON_VERSION, "cap": { "threads": 2 }, "running": 0 }),
+    )
 }
 
 fn solari() -> Value {
-    over(place_view(), json!({ "id": "solari", "kind": "provider", "name": "solari", "default": false, "cap": { "machines": 3, "spendPerDayUsd": 10 }, "running": 0 }))
+    over(
+        place_view(),
+        json!({ "id": "solari", "kind": "provider", "name": "solari", "default": false, "cap": { "machines": 3, "spendPerDayUsd": 10 }, "running": 0 }),
+    )
 }
 
 fn cloud_cap_default() -> Value {
@@ -82,14 +88,26 @@ mod threads_at_once {
 
     #[test]
     fn gives_a_computer_its_rules_default_off_its_shape_a_cloud_3_machines_and_10_a_day() {
-        assert_eq!(cap_of(&place(json!({ "kind": "computer", "shape": { "cpu": 10, "memMb": 16384 } })), None), some_cap(json!({ "threads": 8 })));
+        assert_eq!(
+            cap_of(&place(json!({ "kind": "computer", "shape": { "cpu": 10, "memMb": 16384 } })), None),
+            some_cap(json!({ "threads": 8 }))
+        );
         assert_eq!(cap_of(&place(json!({ "kind": "computer" })), None), None);
         assert_eq!(cap_of(&place(json!({ "kind": "computer" })), Some(r#"{"threads":1}"#)), some_cap(json!({ "threads": 1 })));
-        assert_eq!(cap_of(&place(json!({ "kind": "computer", "shape": { "cpu": 2, "memMb": 7885 } })), Some(r#"{"threads":1}"#)), some_cap(json!({ "threads": 1 })));
+        assert_eq!(
+            cap_of(&place(json!({ "kind": "computer", "shape": { "cpu": 2, "memMb": 7885 } })), Some(r#"{"threads":1}"#)),
+            some_cap(json!({ "threads": 1 }))
+        );
         assert_eq!(CLOUD_CAP_DEFAULT, &[("machines", 3.0), ("spendPerDayUsd", 10.0)]);
         assert_eq!(cap_of(&place(json!({ "kind": "provider" })), None), some_cap(json!({ "machines": 3, "spendPerDayUsd": 10 })));
-        assert_eq!(cap_of(&place(json!({ "kind": "provider" })), Some(r#"{"machines":5}"#)), some_cap(json!({ "machines": 5, "spendPerDayUsd": 10 })));
-        assert_eq!(cap_of(&place(json!({ "kind": "provider" })), Some(r#"{"spendPerDayUsd":0}"#)), some_cap(json!({ "machines": 3, "spendPerDayUsd": 0 })));
+        assert_eq!(
+            cap_of(&place(json!({ "kind": "provider" })), Some(r#"{"machines":5}"#)),
+            some_cap(json!({ "machines": 5, "spendPerDayUsd": 10 }))
+        );
+        assert_eq!(
+            cap_of(&place(json!({ "kind": "provider" })), Some(r#"{"spendPerDayUsd":0}"#)),
+            some_cap(json!({ "machines": 3, "spendPerDayUsd": 0 }))
+        );
     }
 
     #[test]
@@ -132,16 +150,27 @@ mod threads_at_once {
             Some("Solari takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once")
         );
         assert_eq!(
-            refusal(json!({ "id": HERE_PLACE_ID, "kind": "computer", "name": "mac", "takesForks": false }), json!({ "napMs": null }), &[]).as_deref(),
+            refusal(json!({ "id": HERE_PLACE_ID, "kind": "computer", "name": "mac", "takesForks": false }), json!({ "napMs": null }), &[])
+                .as_deref(),
             Some("mac takes threads at once, turn limit, agents may start agents and levels deep, not nap after")
         );
-        assert_eq!(refusal(json!({ "id": "p_1", "kind": "computer", "name": "spoo", "takesForks": true }), json!({ "napMs": null }), &[]), None);
+        assert_eq!(
+            refusal(json!({ "id": "p_1", "kind": "computer", "name": "spoo", "takesForks": true }), json!({ "napMs": null }), &[]),
+            None
+        );
         assert_eq!(
             refusal(json!({ "id": "p_1", "kind": "computer", "name": "spoo", "takesForks": false }), json!({}), &[Spend]).as_deref(),
             Some("spoo takes threads at once, turn limit, agents may start agents and levels deep, not spend per day")
         );
         assert_eq!(refusal(json!({ "id": "p_1", "kind": "computer", "name": "spoo" }), json!({ "threads": 1 }), &[]), None);
-        assert_eq!(refusal(json!({ "id": "solari", "kind": "provider", "name": "solari", "takesForks": true }), json!({ "spendPerDayUsd": 0 }), &[]), None);
+        assert_eq!(
+            refusal(
+                json!({ "id": "solari", "kind": "provider", "name": "solari", "takesForks": true }),
+                json!({ "spendPerDayUsd": 0 }),
+                &[]
+            ),
+            None
+        );
         assert_eq!(refusal(json!({ "id": "p_1", "kind": "computer", "name": "spoo" }), json!({}), &[Threads]), None);
         assert_eq!(
             refusal(json!({ "id": "p_1", "kind": "computer", "name": "spoo", "takesForks": true }), json!({}), &[]).as_deref(),
@@ -190,16 +219,25 @@ mod what_a_places_settings_read_as_in_a_line {
             "spoo: 2 threads at once (the default), never naps (20m by default)"
         );
         assert_eq!(
-            line(over(over(spoo(), nap), json!({ "capDefault": { "threads": 2 }, "napMs": 5 * 60_000, "settings": { "napMs": 5 * 60_000 } }))),
+            line(over(
+                over(spoo(), nap),
+                json!({ "capDefault": { "threads": 2 }, "napMs": 5 * 60_000, "settings": { "napMs": 5 * 60_000 } })
+            )),
             "spoo: 2 threads at once (the default), naps after 5m (20m by default)"
         );
         // The default beside a set value is the one the row carries, which is the host's own and not a constant here.
         assert_eq!(
-            line(over(spoo(), json!({ "takesForks": true, "napDefault": 60 * 60_000, "capDefault": { "threads": 2 }, "napMs": 5 * 60_000, "settings": { "napMs": 5 * 60_000 } }))),
+            line(over(
+                spoo(),
+                json!({ "takesForks": true, "napDefault": 60 * 60_000, "capDefault": { "threads": 2 }, "napMs": 5 * 60_000, "settings": { "napMs": 5 * 60_000 } })
+            )),
             "spoo: 2 threads at once (the default), naps after 5m (60m by default)"
         );
         assert_eq!(
-            line(over(solari(), json!({ "cap": { "machines": 5, "spendPerDayUsd": 2.5 }, "capDefault": cloud_cap_default(), "settings": { "machines": 5, "spendPerDayUsd": 2.5 } }))),
+            line(over(
+                solari(),
+                json!({ "cap": { "machines": 5, "spendPerDayUsd": 2.5 }, "capDefault": cloud_cap_default(), "settings": { "machines": 5, "spendPerDayUsd": 2.5 } })
+            )),
             "Solari: 5 machines at once (3 by default), $2.50 a day ($10 by default)"
         );
         assert_eq!(NAP_AFTER_MS, 20 * 60_000);
@@ -210,7 +248,10 @@ mod what_a_places_settings_read_as_in_a_line {
         );
         let agents_off = over(agents_on.clone(), json!({ "spawn": false }));
         assert_eq!(
-            line(over(spoo(), json!({ "capDefault": { "threads": 2 }, "spawn": agents_off, "spawnDefault": agents_on, "settings": { "spawn": { "spawn": false } } }))),
+            line(over(
+                spoo(),
+                json!({ "capDefault": { "threads": 2 }, "spawn": agents_off, "spawnDefault": agents_on, "settings": { "spawn": { "spawn": false } } })
+            )),
             "spoo: 2 threads at once (the default), agents may not spawn (on, up to 3 by default), 2 levels deep (the default)"
         );
     }
@@ -280,7 +321,14 @@ mod the_turn_limit {
 
     #[test]
     fn is_taken_by_every_computer_the_one_the_app_runs_on_included_and_every_cloud() {
-        assert_eq!(refusal(json!({ "id": HERE_PLACE_ID, "kind": "computer", "name": "mac", "takesForks": false }), json!({ "turnLimitMs": null }), &[]), None);
+        assert_eq!(
+            refusal(
+                json!({ "id": HERE_PLACE_ID, "kind": "computer", "name": "mac", "takesForks": false }),
+                json!({ "turnLimitMs": null }),
+                &[]
+            ),
+            None
+        );
     }
 
     #[test]
@@ -290,11 +338,17 @@ mod the_turn_limit {
             "spoo: 2 threads at once (the default), no turn limit (the default)"
         );
         assert_eq!(
-            line(over(spoo(), json!({ "capDefault": { "threads": 2 }, "turnLimitMs": 8 * HOUR, "turnLimitDefault": null, "settings": { "turnLimitMs": 8 * HOUR } }))),
+            line(over(
+                spoo(),
+                json!({ "capDefault": { "threads": 2 }, "turnLimitMs": 8 * HOUR, "turnLimitDefault": null, "settings": { "turnLimitMs": 8 * HOUR } })
+            )),
             "spoo: 2 threads at once (the default), stops a turn at 8h (off by default)"
         );
         assert_eq!(
-            line(over(solari(), json!({ "capDefault": cloud_cap_default(), "turnLimitMs": null, "turnLimitDefault": 6 * HOUR, "settings": { "turnLimitMs": null } }))),
+            line(over(
+                solari(),
+                json!({ "capDefault": cloud_cap_default(), "turnLimitMs": null, "turnLimitDefault": 6 * HOUR, "settings": { "turnLimitMs": null } })
+            )),
             "Solari: 3 machines at once (the default), $10 a day (the default), no turn limit (6h by default)"
         );
         assert_eq!(
@@ -415,7 +469,9 @@ mod a_held_spawns_words_and_the_slots_a_cloud_counts {
 
     #[test]
     fn a_queued_spawn_waiting_holds_no_slot_until_its_machine_is_being_made_and_a_relea() {
-        assert!(!phase_holds_slot(&workspace(json!({ "phase": "queued", "queue": { "since": "2026-10-12T00:00:00.000Z", "why": "slot" } }))));
+        assert!(!phase_holds_slot(&workspace(
+            json!({ "phase": "queued", "queue": { "since": "2026-10-12T00:00:00.000Z", "why": "slot" } })
+        )));
         assert!(phase_holds_slot(&workspace(json!({ "phase": "queued" }))));
         assert!(!phase_holds_slot(&workspace(json!({ "phase": "released" }))));
         assert!(!phase_holds_slot(&workspace(json!({ "phase": "napping" }))));
@@ -438,21 +494,32 @@ mod pinned {
         assert_eq!(nap_ms_of(1.5).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "90000"); // String(napMsOf(1.5))
         assert_eq!(turn_limit_ms_of(1.5).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "5400000"); // String(turnLimitMsOf(1.5))
         assert_eq!(nap_ms_of(-1.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "-60000"); // String(napMsOf(-1))
-        assert_eq!(turn_limit_ms_of(-1.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "-3600000"); // String(turnLimitMsOf(-1))
+        assert_eq!(turn_limit_ms_of(-1.0).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "-3600000");
+        // String(turnLimitMsOf(-1))
     }
 
     #[test]
     fn a_setting_falls_through_only_when_absent() {
-        assert_eq!(setting_for(Some(&Some(5.0)), Some(&Some(7.0)), &Some(9.0)).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "5"); // String(settingFor(5, 7, 9))
+        assert_eq!(
+            setting_for(Some(&Some(5.0)), Some(&Some(7.0)), &Some(9.0)).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()),
+            "5"
+        ); // String(settingFor(5, 7, 9))
         assert_eq!(setting_for(None, Some(&Some(7.0)), &Some(9.0)).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "7"); // String(settingFor(undefined, 7, 9))
         assert_eq!(setting_for(None, None, &Some(9.0)).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "9"); // String(settingFor(undefined, undefined, 9))
-        assert_eq!(setting_for(Some(&None), Some(&Some(7.0)), &Some(9.0)).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "null"); // String(settingFor(null, 7, 9))
-        assert_eq!(setting_for(None, Some(&None), &Some(9.0)).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "null"); // String(settingFor(undefined, null, 9))
+        assert_eq!(
+            setting_for(Some(&None), Some(&Some(7.0)), &Some(9.0)).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()),
+            "null"
+        ); // String(settingFor(null, 7, 9))
+        assert_eq!(setting_for(None, Some(&None), &Some(9.0)).map(wsp_words::js::number_string).unwrap_or_else(|| "null".into()), "null");
+        // String(settingFor(undefined, null, 9))
     }
 
     #[test]
     fn held_turn_lines() {
         assert_eq!(deleted_before_start_line("web"), "web was deleted before this turn started"); // deletedBeforeStartLine("web")
-        assert_eq!(cap_restarted_line("spoo"), "the host restarted while this turn waited for a slot on spoo; nothing started, so send it again"); // capRestartedLine("spoo")
+        assert_eq!(
+            cap_restarted_line("spoo"),
+            "the host restarted while this turn waited for a slot on spoo; nothing started, so send it again"
+        ); // capRestartedLine("spoo")
     }
 }

@@ -1,54 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Stand-ins for the names the five types files import whose Rust home is not written yet, so the crate compiles
-//! while wave 4's other slices are written beside it. Each names its TS home; once that home lands, its line here
-//! becomes a `pub use` of it and nothing else changes. Not a TS file of its own.
-
-use std::rc::Rc;
+//! The names the five types files import, in one place. A name with a Rust home is a `pub use` of it; the rest are
+//! stand-ins for homes not written yet (the image roads' types in the engine, `github_cache`), each naming its TS
+//! home, and each becomes a `pub use` when its home lands. Not a TS file of its own.
 
 use indexmap::IndexMap;
-use wsp_wire::types::js_number::JsNumber;
-use wsp_words::exit::HostError;
+
+pub use wsp_engine::copier::Copier;
+pub use wsp_engine::golden_seam::GoldenImport;
+pub use wsp_engine::vault::CacheRule;
+pub use wsp_store::store::{BlobMark, Store};
 
 pub use crate::clock::{real_clock, Clock};
-
 pub use crate::daemon_channel::{DaemonChannel, DaemonChannelOptions};
-
-/// A turn's stream options on a machine. TS runtime machine-exec.ts:47, wsp-core's `machine_exec` module.
-#[derive(Clone, Debug, Default)]
-pub struct MachineExecOptions {}
-/// Whether the run is stopped on a question only a person can answer. TS machine-exec.ts:222.
-pub type TurnWaiting = Rc<dyn Fn() -> bool>;
-
-pub use crate::status::{StatusApi, StatusListOptions, StatusWatchOptions};
-
 pub use crate::devices::{DeviceDoor, IssuedCode, PairedDevice, ScopedRoad};
+pub use crate::machine_exec::{MachineExecOptions, TurnWaiting};
 pub use crate::reach::DaemonReach;
+pub use crate::status::{StatusApi, StatusListOptions, StatusWatchOptions};
 
 /// Where the reads off a git host keep their bodies and ETags. TS runtime github-cache.ts, wsp-core's `github_cache`.
 pub trait GitHubCache {}
 
-/// The host's store. TS runtime store.ts:9-20, wsp-store's row in chapter 01's table. `transcripts` is the store
-/// writer's to add.
-#[async_trait::async_trait(?Send)]
-pub trait Store {
-    async fn get(&self, collection: &str, id: &str) -> Result<Option<serde_json::Value>, HostError>;
-    async fn put(&self, collection: &str, id: &str, value: serde_json::Value) -> Result<(), HostError>;
-    async fn list(&self, collection: &str) -> Result<Vec<serde_json::Value>, HostError>;
-    async fn keys(&self, collection: &str) -> Result<Vec<String>, HostError>;
-    async fn delete(&self, collection: &str, id: &str) -> Result<(), HostError>;
-    async fn get_blob(&self, collection: &str, id: &str) -> Result<Option<Vec<u8>>, HostError>;
-    async fn put_blob(&self, collection: &str, id: &str, bytes: Vec<u8>) -> Result<(), HostError>;
-    async fn delete_blob(&self, collection: &str, id: &str) -> Result<(), HostError>;
-    async fn stat_blob(&self, collection: &str, id: &str) -> Result<Option<BlobMark>, HostError>;
-}
-/// The size and write time of a blob, which an index names the transcript it was read off by. TS store.ts:26-29.
-#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct BlobMark {
-    pub bytes: JsNumber,
-    pub at: JsNumber,
-}
-
-/// TS engine golden-import.ts:817: `{ HOME: GUEST_HOME, USER: "root" }`.
+/// TS engine golden-import.ts:817: `{ HOME: GUEST_HOME, USER: "root" }`. The engine has no Rust home for it yet.
 pub fn guest_user_env() -> IndexMap<String, String> {
     todo!()
 }
@@ -58,17 +30,9 @@ pub fn guest_user_env() -> IndexMap<String, String> {
 pub struct BuildGoldenOptions {}
 /// TS engine `Builder`: a builder machine as the image roads hold it.
 pub trait Builder {}
-/// TS engine `CacheRule`: what a bundle leaves behind.
-#[derive(Clone, Debug, Default)]
-pub struct CacheRule {}
-/// TS engine `Copier`: the daemon binary's copy verb on this computer.
-pub trait Copier {}
 /// TS engine `GoldenDelta`.
 #[derive(Clone, Debug, Default)]
 pub struct GoldenDelta {}
-/// TS engine `GoldenImport`.
-#[derive(Clone, Debug, Default)]
-pub struct GoldenImport {}
 /// TS engine `ImportLedger`.
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ImportLedger {}

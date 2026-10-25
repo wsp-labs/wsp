@@ -3,7 +3,8 @@
 
 // Cases the spec pins; every expected value is what the TS function returned under node at a3b870a6e.
 mod pinned {
-    #[allow(unused_imports)] use wsp_words::project_path::*;
+    #[allow(unused_imports)]
+    use wsp_words::project_path::*;
 
     use wsp_words::project_path::FolderMachine;
 
@@ -13,11 +14,11 @@ mod pinned {
 
     #[test]
     fn a_path_inside_a_project_reads_through_its_other_names() {
-        assert_eq!(wsp_words::project_path::under_project("/r", "/r"), true); // underProject("/r", "/r")
-        assert_eq!(wsp_words::project_path::under_project("/r/a", "/r"), true); // underProject("/r/a", "/r")
-        assert_eq!(wsp_words::project_path::under_project("/ra", "/r"), false); // underProject("/ra", "/r")
-        assert_eq!(wsp_words::project_path::under_project("/", "/r"), false); // underProject("/", "/r")
-        assert_eq!(wsp_words::project_path::under_project("/r/", "/r"), true); // underProject("/r/", "/r")
+        assert!(wsp_words::project_path::under_project("/r", "/r")); // underProject("/r", "/r")
+        assert!(wsp_words::project_path::under_project("/r/a", "/r")); // underProject("/r/a", "/r")
+        assert!(!wsp_words::project_path::under_project("/ra", "/r")); // underProject("/ra", "/r")
+        assert!(!wsp_words::project_path::under_project("/", "/r")); // underProject("/", "/r")
+        assert!(wsp_words::project_path::under_project("/r/", "/r")); // underProject("/r/", "/r")
         assert_eq!(wsp_words::project_path::repo_path_of("src/a.ts", "/r", "/r"), Some("src/a.ts".to_string())); // repoPathOf("src/a.ts", "/r", "/r")
         assert_eq!(wsp_words::project_path::repo_path_of("/r/src/a.ts", "/x", "/r"), Some("src/a.ts".to_string())); // repoPathOf("/r/src/a.ts", "/x", "/r")
         assert_eq!(wsp_words::project_path::repo_path_of("../b/c", "/r/a", "/r"), Some("b/c".to_string())); // repoPathOf("../b/c", "/r/a", "/r")
@@ -27,11 +28,12 @@ mod pinned {
         assert_eq!(wsp_words::project_path::repo_path_of("a", "/private/tmp/r", "/tmp/r"), None); // repoPathOf("a", "/private/tmp/r", "/tmp/r")
         assert_eq!(wsp_words::project_path::repo_path_of("/tmp/r/a", "/tmp/r", "/private/tmp/r"), Some("a".to_string())); // repoPathOf("/tmp/r/a", "/tmp/r", "/private/tmp/r")
         assert_eq!(wsp_words::project_path::repo_path_of("..", "/r", "/r"), None); // repoPathOf("..", "/r", "/r")
-        assert_eq!(wsp_words::project_path::worktree_of("/r/wt/a/b", &["/r","/r/wt/a"] as &[&str]), Some("/r/wt/a".to_string())); // worktreeOf("/r/wt/a/b", ["/r","/r/wt/a"])
+        assert_eq!(wsp_words::project_path::worktree_of("/r/wt/a/b", &["/r", "/r/wt/a"] as &[&str]), Some("/r/wt/a".to_string())); // worktreeOf("/r/wt/a/b", ["/r","/r/wt/a"])
         assert_eq!(wsp_words::project_path::worktree_of("/r", &["/r/wt/a"] as &[&str]), None); // worktreeOf("/r", ["/r/wt/a"])
         assert_eq!(wsp_words::project_path::worktree_of("/x", &[] as &[&str]), None); // worktreeOf("/x", [])
         assert_eq!(wsp_words::project_path::worktree_of("/tmp/r/sub", &["/private/tmp/r"] as &[&str]), Some("/private/tmp/r".to_string())); // worktreeOf("/tmp/r/sub", ["/private/tmp/r"])
-        assert_eq!(wsp_words::project_path::worktree_of("/r/wt/ab", &["/r/wt/a","/r"] as &[&str]), Some("/r".to_string())); // worktreeOf("/r/wt/ab", ["/r/wt/a","/r"])
+        assert_eq!(wsp_words::project_path::worktree_of("/r/wt/ab", &["/r/wt/a", "/r"] as &[&str]), Some("/r".to_string()));
+        // worktreeOf("/r/wt/ab", ["/r/wt/a","/r"])
     }
 
     #[test]
@@ -43,7 +45,8 @@ mod pinned {
         assert_eq!(wsp_words::project_path::claude_project_key("a.b_c"), "a-b-c"); // claudeProjectKey("a.b_c")
         assert_eq!(wsp_words::project_path::claude_memory_dir("/root/.claude", "-root-x"), "/root/.claude/projects/-root-x/memory"); // claudeMemoryDir("/root/.claude", "-root-x")
         assert_eq!(wsp_words::project_path::claude_memory_dir("/root/.claude//", "k"), "/root/.claude/projects/k/memory"); // claudeMemoryDir("/root/.claude//", "k")
-        assert_eq!(wsp_words::project_path::claude_memory_dir("", "k"), "/projects/k/memory"); // claudeMemoryDir("", "k")
+        assert_eq!(wsp_words::project_path::claude_memory_dir("", "k"), "/projects/k/memory");
+        // claudeMemoryDir("", "k")
     }
 
     #[test]
@@ -58,8 +61,14 @@ mod pinned {
         assert_eq!(wsp_words::project_path::folder_slug("---"), "work"); // folderSlug("---")
         assert_eq!(wsp_words::project_path::folder_slug(""), "work"); // folderSlug("")
         assert_eq!(wsp_words::project_path::folder_slug("\u{dc}n\u{ef}code Name"), "n-code-name"); // folderSlug("Ünïcode Name")
-        assert_eq!(wsp_words::project_path::folder_slug("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bcd"), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"); // folderSlug("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bcd")
-        assert_eq!(wsp_words::project_path::folder_slug("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"), "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"); // folderSlug("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+        assert_eq!(
+            wsp_words::project_path::folder_slug("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bcd"),
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ); // folderSlug("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bcd")
+        assert_eq!(
+            wsp_words::project_path::folder_slug("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"),
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        ); // folderSlug("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
         assert_eq!(wsp_words::project_path::folder_slug("  lead  trail  "), "lead-trail"); // folderSlug("  lead  trail  ")
         assert_eq!(wsp_words::project_path::ssh_alias("My Box"), "wsp-my-box"); // sshAlias("My Box")
         assert_eq!(wsp_words::project_path::ssh_alias(""), "wsp-work"); // sshAlias("")
@@ -72,27 +81,37 @@ mod pinned {
 
     #[test]
     fn a_mac_hides_and_guards_only_its_home_folders() {
-        assert_eq!(wsp_words::project_path::hidden_folder("/h/.git", None), true); // hiddenFolder("/h/.git")
-        assert_eq!(wsp_words::project_path::hidden_folder("/h/.cache/", None), true); // hiddenFolder("/h/.cache/")
-        assert_eq!(wsp_words::project_path::hidden_folder("/h/Library", Some(&FolderMachine { home: Some("/h".into()), mac: Some(true) })), true); // hiddenFolder("/h/Library", {"home":"/h","mac":true})
-        assert_eq!(wsp_words::project_path::hidden_folder("/h/Library", Some(&FolderMachine { home: Some("/h/".into()), mac: Some(true) })), true); // hiddenFolder("/h/Library", {"home":"/h/","mac":true})
-        assert_eq!(wsp_words::project_path::hidden_folder("/h/Library", Some(&FolderMachine { home: Some("/h".into()), mac: Some(false) })), false); // hiddenFolder("/h/Library", {"home":"/h","mac":false})
-        assert_eq!(wsp_words::project_path::hidden_folder("/h/Library", Some(&FolderMachine { home: None, mac: Some(true) })), false); // hiddenFolder("/h/Library", {"home":null,"mac":true})
-        assert_eq!(wsp_words::project_path::hidden_folder("/h/Library", Some(&FolderMachine { home: Some("".into()), mac: Some(true) })), false); // hiddenFolder("/h/Library", {"home":"","mac":true})
-        assert_eq!(wsp_words::project_path::hidden_folder("/h/w/Library", Some(&FolderMachine { home: Some("/h".into()), mac: Some(true) })), false); // hiddenFolder("/h/w/Library", {"home":"/h","mac":true})
-        assert_eq!(wsp_words::project_path::hidden_folder("/h/src", Some(&FolderMachine { home: Some("/h".into()), mac: Some(true) })), false); // hiddenFolder("/h/src", {"home":"/h","mac":true})
-        assert_eq!(wsp_words::project_path::guarded_folder("/h/Desktop", Some(&FolderMachine { home: Some("/h".into()), mac: Some(true) })), true); // guardedFolder("/h/Desktop", {"home":"/h","mac":true})
-        assert_eq!(wsp_words::project_path::guarded_folder("/h/Desktop/", Some(&FolderMachine { home: Some("/h/".into()), mac: Some(true) })), true); // guardedFolder("/h/Desktop/", {"home":"/h/","mac":true})
-        assert_eq!(wsp_words::project_path::guarded_folder("/h/Library/CloudStorage", Some(&FolderMachine { home: Some("/h".into()), mac: Some(true) })), true); // guardedFolder("/h/Library/CloudStorage", {"home":"/h","mac":true})
-        assert_eq!(wsp_words::project_path::guarded_folder("/h/Desktop", Some(&FolderMachine { home: Some("/h".into()), mac: None })), false); // guardedFolder("/h/Desktop", {"home":"/h"})
-        assert_eq!(wsp_words::project_path::guarded_folder("/h/Desktop", None), false); // guardedFolder("/h/Desktop")
-        assert_eq!(wsp_words::project_path::guarded_folder("/h/Desktop/x", Some(&FolderMachine { home: Some("/h".into()), mac: Some(true) })), false); // guardedFolder("/h/Desktop/x", {"home":"/h","mac":true})
-        assert_eq!(wsp_words::project_path::guarded_folder("/h/Library", Some(&FolderMachine { home: Some("/h".into()), mac: Some(true) })), false); // guardedFolder("/h/Library", {"home":"/h","mac":true})
+        assert!(wsp_words::project_path::hidden_folder("/h/.git", None)); // hiddenFolder("/h/.git")
+        assert!(wsp_words::project_path::hidden_folder("/h/.cache/", None)); // hiddenFolder("/h/.cache/")
+        assert!(wsp_words::project_path::hidden_folder("/h/Library", Some(&FolderMachine { home: Some("/h".into()), mac: Some(true) }))); // hiddenFolder("/h/Library", {"home":"/h","mac":true})
+        assert!(wsp_words::project_path::hidden_folder("/h/Library", Some(&FolderMachine { home: Some("/h/".into()), mac: Some(true) }))); // hiddenFolder("/h/Library", {"home":"/h/","mac":true})
+        assert!(!wsp_words::project_path::hidden_folder("/h/Library", Some(&FolderMachine { home: Some("/h".into()), mac: Some(false) }))); // hiddenFolder("/h/Library", {"home":"/h","mac":false})
+        assert!(!wsp_words::project_path::hidden_folder("/h/Library", Some(&FolderMachine { home: None, mac: Some(true) }))); // hiddenFolder("/h/Library", {"home":null,"mac":true})
+        assert!(!wsp_words::project_path::hidden_folder("/h/Library", Some(&FolderMachine { home: Some("".into()), mac: Some(true) }))); // hiddenFolder("/h/Library", {"home":"","mac":true})
+        assert!(!wsp_words::project_path::hidden_folder("/h/w/Library", Some(&FolderMachine { home: Some("/h".into()), mac: Some(true) }))); // hiddenFolder("/h/w/Library", {"home":"/h","mac":true})
+        assert!(!wsp_words::project_path::hidden_folder("/h/src", Some(&FolderMachine { home: Some("/h".into()), mac: Some(true) }))); // hiddenFolder("/h/src", {"home":"/h","mac":true})
+        assert!(wsp_words::project_path::guarded_folder("/h/Desktop", Some(&FolderMachine { home: Some("/h".into()), mac: Some(true) }))); // guardedFolder("/h/Desktop", {"home":"/h","mac":true})
+        assert!(wsp_words::project_path::guarded_folder("/h/Desktop/", Some(&FolderMachine { home: Some("/h/".into()), mac: Some(true) }))); // guardedFolder("/h/Desktop/", {"home":"/h/","mac":true})
+        assert!(wsp_words::project_path::guarded_folder(
+            "/h/Library/CloudStorage",
+            Some(&FolderMachine { home: Some("/h".into()), mac: Some(true) })
+        )); // guardedFolder("/h/Library/CloudStorage", {"home":"/h","mac":true})
+        assert!(!wsp_words::project_path::guarded_folder("/h/Desktop", Some(&FolderMachine { home: Some("/h".into()), mac: None }))); // guardedFolder("/h/Desktop", {"home":"/h"})
+        assert!(!wsp_words::project_path::guarded_folder("/h/Desktop", None)); // guardedFolder("/h/Desktop")
+        assert!(!wsp_words::project_path::guarded_folder(
+            "/h/Desktop/x",
+            Some(&FolderMachine { home: Some("/h".into()), mac: Some(true) })
+        )); // guardedFolder("/h/Desktop/x", {"home":"/h","mac":true})
+        assert!(!wsp_words::project_path::guarded_folder("/h/Library", Some(&FolderMachine { home: Some("/h".into()), mac: Some(true) })));
+        // guardedFolder("/h/Library", {"home":"/h","mac":true})
     }
 
     #[test]
     fn the_paths_wsp_keeps_on_a_joined_computer() {
-        assert_eq!(wsp_words::project_path::probe_path("/root"), "/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/usr/sbin:/usr/bin:/sbin:/bin"); // probePath("/root")
+        assert_eq!(
+            wsp_words::project_path::probe_path("/root"),
+            "/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
+        ); // probePath("/root")
         assert_eq!(wsp_words::project_path::probe_path("/home/u/"), "/root/.local/bin:/usr/local/sbin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/usr/sbin:/usr/bin:/sbin:/bin"); // probePath("/home/u/")
         assert_eq!(wsp_words::project_path::probe_path("/usr"), "/root/.local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/go/bin:/root/.cargo/bin:/root/.local/share/pnpm:/root/.bun/bin:/sbin:/bin"); // probePath("/usr")
         assert_eq!(wsp_words::project_path::roots_path_in("/h"), "/h/.wsp/roots"); // rootsPathIn("/h")
@@ -113,6 +132,7 @@ mod pinned {
         assert_eq!(wsp_words::project_path::stand_in_records_path("/s"), "/s/records.json"); // standInRecordsPath("/s")
         assert_eq!(wsp_words::project_path::stand_in_machine_path("/s", "m1"), "/s/machines/m1"); // standInMachinePath("/s", "m1")
         assert_eq!(wsp_words::project_path::stand_in_records_path("/s/"), "/s/records.json"); // standInRecordsPath("/s/")
-        assert_eq!(wsp_words::project_path::stand_in_machine_path("/s/", "m1"), "/s/machines/m1"); // standInMachinePath("/s/", "m1")
+        assert_eq!(wsp_words::project_path::stand_in_machine_path("/s/", "m1"), "/s/machines/m1");
+        // standInMachinePath("/s/", "m1")
     }
 }
