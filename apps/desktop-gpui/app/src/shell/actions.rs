@@ -17,7 +17,7 @@ use crate::ui;
 impl Shell {
     pub(super) fn end_drag(&mut self, cx: &mut App) {
         match self.dragging.take() {
-            Some(Side::Sidebar) => self.save_sidebar_width(),
+            Some(Side::Sidebar) => self.save_sidebar_width(cx),
             Some(Side::Panel) => self.panel.update(cx, |p, cx| p.keep_width(cx)),
             None => {}
         }
@@ -102,9 +102,7 @@ impl Shell {
             let behind = std::mem::replace(&mut self.behind, Route::Empty);
             self.screen = None;
             // A theme a page showed under the pointer goes with the page.
-            if let Some(theme) = self.theme.filter(|theme| ui::theme::current(cx).id != *theme) {
-                ui::theme::set_theme(theme, cx);
-            }
+            self.pick_theme(window, cx);
             self.go(behind, window, cx);
         }
     }

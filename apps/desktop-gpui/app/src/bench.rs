@@ -8,6 +8,8 @@ use std::time::Instant;
 
 use gpui_kit::{App, Global};
 
+use crate::ui::theme::{Side, THEMES};
+
 /// The scroll rate both apps' benches run at.
 pub const PX_PER_S: f32 = 2400.;
 
@@ -64,6 +66,9 @@ pub struct Bench {
     pub hold: Option<Hold>,
     /// Threads opened one after another, as a person moves down the sidebar, in place of the scroll: memory after each.
     pub session: Vec<String>,
+    /// With `screen` on Settings > Appearance: themes picked and transparency set one after another through the page's
+    /// own writes, each a theme's id, `solid` or `transparent`; `out` takes each switch's frames.
+    pub themes: Vec<String>,
 }
 
 /// A held Ctrl+Tab: its press and `steps - 1` repeats, the first `delay_ms` after the press and each next `every_ms`
@@ -89,16 +94,21 @@ impl Hold {
     }
 }
 
+/// The bench's modes, of which a run takes one.
+const MODE_FLAGS: [&str; 6] =
+    ["--bench-switch", "--bench-terminal", "--bench-replay", "--bench-ctrl-tab", "--bench-session", "--bench-themes"];
+
 /// `desktop-gpui [--state <state.json>] [--glass] [--open <id>] [--screen <name>]`, `desktop-gpui [--state <state.json>] [--glass]
 /// --bench <out.json> --bench-thread <id> [--bench-switch <id,id,...> | --bench-terminal <line> | --bench-replay <events.jsonl>
 /// [--bench-pointer <x>,<y>] [--bench-unfold] | --bench-ctrl-tab <steps> [--bench-repeat <delay ms>,<every ms>] | --bench-session <id,id,...>]`,
 /// `desktop-gpui [--state <state.json>] --bench <out.json> --bench-screen settings:activity --bench-replay <events.jsonl>`,
+/// `desktop-gpui [--state <state.json>] --bench <out.json> --bench-screen settings:appearance --bench-themes <all | id,solid,...>`,
 /// `desktop-gpui --open <id> [--theme <id>] [--unfold] [--now <ms>] [--reveal <text>@<y>]` for a capture,
 /// `desktop-gpui --open <id> [--record-scroll <events.jsonl>] [--trace <trace.json>]`, or `desktop-gpui --gallery`.
 pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     let (mut state, mut out, mut thread, mut switch, mut open, mut glass, mut gallery, mut screen, mut terminal) =
         (None, None, None, Vec::new(), None, false, false, None, None);
-    let (mut replay, mut record, mut trace, mut session) = (None, None, None, Vec::new());
+    let (mut replay, mut record, mut trace, mut session, mut themes) = (None, None, None, Vec::new(), Vec::new());
     let (mut pointer, mut unfold, mut on_screen) = (None, false, false);
     let (mut steps, mut repeat) = (None, None);
     let mut capture = Capture::default();
@@ -119,6 +129,7 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
             "--bench-terminal" => terminal = Some(value()?),
             "--bench-session" => session = value()?.split(',').filter(|id| !id.is_empty()).map(str::to_owned).collect(),
             "--bench-replay" => replay = Some(PathBuf::from(value()?)),
+            "--bench-themes" => themes = theme_words(&value()?)?,
             "--bench-pointer" => {
                 let said = value()?;
                 let (x, y) = said.split_once(',').ok_or("--bench-pointer takes <x>,<y>")?;
@@ -158,19 +169,20 @@ pub fn parse(mut words: impl Iterator<Item = String>) -> Result<Args, String> {
     }
     let (delay_ms, every_ms) = repeat.unwrap_or(MAC_REPEAT);
     let hold = steps.map(|steps| Hold { steps, delay_ms, every_ms });
-    let modes = [!switch.is_empty(), terminal.is_some(), replay.is_some(), hold.is_some(), !session.is_empty()];
+    let modes = [!switch.is_empty(), terminal.is_some(), replay.is_some(), hold.is_some(), !session.is_empty(), !themes.is_empty()];
     let bench = match (out, thread) {
         (Some(out), Some(thread)) if modes.iter().filter(|x| **x).count() <= 1 => {
-            Some(Bench { out, thread, screen: on_screen, switch, terminal, replay, pointer, unfold, hold, session })
+            Some(Bench { out, thread, screen: on_screen, switch, terminal, replay, pointer, unfold, hold, session, themes })
         }
-        (Some(_), Some(_)) => {
-            return Err("--bench-switch, --bench-terminal, --bench-replay, --bench-ctrl-tab and --bench-session go one at a time".to_owned())
-        }
+        (Some(_), Some(_)) => return Err(format!("{} go one at a time", MODE_FLAGS.join(", "))),
         (None, None) if !modes.contains(&true) => None,
         _ => return Err("--bench and --bench-thread go together".to_owned()),
     };
-    if on_screen && bench.as_ref().is_none_or(|b| b.replay.is_none() || b.unfold || !b.switch.is_empty()) {
-        return Err("--bench-screen goes with --bench and --bench-replay".to_owned());
+    if on_screen && bench.as_ref().is_none_or(|b| (b.replay.is_none() && b.themes.is_empty()) || b.unfold || !b.switch.is_empty()) {
+        return Err("--bench-screen goes with --bench and --bench-replay or --bench-themes".to_owned());
+    }
+    if bench.as_ref().is_some_and(|b| !b.themes.is_empty() && !b.screen) {
+        return Err("--bench-themes goes with --bench-screen settings:appearance".to_owned());
     }
     if bench.is_some() && open.is_some() {
         return Err("--open and --bench do not go together".to_owned());
@@ -290,6 +302,86 @@ pub fn hold_result(hold: &Hold, steps: &[Step], frames_ms: &[f64]) -> serde_json
     })
 }
 
+/// `--bench-themes`' words: every theme's id, `solid` or `transparent`; `all` is every theme in the picker's order, then
+/// transparency off and on.
+fn theme_words(said: &str) -> Result<Vec<String>, String> {
+    if said == "all" {
+        return Ok(THEMES.iter().map(|t| t.id.to_owned()).chain(["solid".to_owned(), "transparent".to_owned()]).collect());
+    }
+    let words: Vec<String> = said.split(',').filter(|w| !w.is_empty()).map(str::to_owned).collect();
+    match words.iter().find(|w| theme_patch(w).is_none()) {
+        Some(w) => Err(format!("--bench-themes: {w} is no theme, solid or transparent")),
+        None if words.is_empty() => Err("--bench-themes takes all or theme ids".to_owned()),
+        None => Ok(words),
+    }
+}
+
+/// The preferences patch Settings > Appearance writes for a word of `--bench-themes`: a theme asks for its side too,
+/// so it shows whatever side the system is on.
+pub fn theme_patch(word: &str) -> Option<serde_json::Value> {
+    match word {
+        "solid" => Some(serde_json::json!({ "transparency": false })),
+        "transparent" => Some(serde_json::json!({ "transparency": true })),
+        id => THEMES.iter().find(|t| t.id == id).map(|t| match t.side {
+            Side::Light => serde_json::json!({ "theme": "light", "lightTheme": t.id }),
+            Side::Dark => serde_json::json!({ "theme": "dark", "darkTheme": t.id }),
+        }),
+    }
+}
+
+/// A switch is settled this long after it was sent: a frame drawn later, before the next switch, is a loop of renders.
+pub const SETTLED_MS: f64 = 300.;
+
+/// One switch as the theme bench sent it: its word, when, in ms from the trace's start, and the ms the page's write took
+/// on the UI thread.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Sent {
+    pub word: String,
+    pub at_ms: f64,
+    pub write_ms: f64,
+}
+
+/// Each switch read off the trace's frames, from when it was sent to the next or `pause_ms` on: when the last frame
+/// started within `SETTLED_MS` of it was on screen (`took_ms`, and `took_app_ms` without the presents, which on a
+/// machine with no GPU are the software rasteriser's), the slowest of those frames with the write before the first,
+/// and the frames and renders after it settled.
+pub fn theme_switches(frames: &[serde_json::Value], sent: &[Sent], pause_ms: f64) -> serde_json::Value {
+    let num = |f: &serde_json::Value, key: &str| f[key].as_f64().unwrap_or(0.);
+    let views = |frames: &[&serde_json::Value]| {
+        let mut views = std::collections::BTreeMap::<String, u64>::new();
+        for f in frames {
+            for (view, n) in f["renders"].as_object().into_iter().flatten().filter(|(view, _)| *view != "frame") {
+                *views.entry(view.clone()).or_default() += n.as_u64().unwrap_or(0);
+            }
+        }
+        views
+    };
+    let each: Vec<serde_json::Value> = sent
+        .iter()
+        .enumerate()
+        .map(|(ix, s)| {
+            let end = sent.get(ix + 1).map_or(s.at_ms + pause_ms, |next| next.at_ms.min(s.at_ms + pause_ms));
+            let within: Vec<&serde_json::Value> = frames.iter().filter(|f| num(f, "at") >= s.at_ms && num(f, "at") < end).collect();
+            let (settling, after): (Vec<&serde_json::Value>, Vec<&serde_json::Value>) =
+                within.iter().partition(|f| num(f, "at") < s.at_ms + SETTLED_MS);
+            let took = settling.last().map(|f| num(f, "at") + num(f, "draw") + num(f, "present") - s.at_ms);
+            let presents: f64 = settling.iter().map(|f| num(f, "present")).sum();
+            let slowest = |cost: &dyn Fn(&serde_json::Value) -> f64| settling.iter().map(|f| cost(f)).fold(0., f64::max);
+            let renders_after: u64 = views(&after).values().sum();
+            serde_json::json!({
+                "word": s.word, "patch": theme_patch(&s.word), "at_ms": s.at_ms, "write_ms": s.write_ms, "frames": within.len(),
+                "took_ms": took, "took_app_ms": took.map(|t| t - presents),
+                "slowest_ms": slowest(&|f| num(f, "draw") + num(f, "present") + num(f, "input_ms")),
+                "slowest_app_ms": slowest(&|f| num(f, "app")),
+                "frames_after": after.len(),
+                "renders_after_per_frame": if after.is_empty() { 0. } else { renders_after as f64 / after.len() as f64 },
+                "views": views(&within), "views_after": views(&after),
+            })
+        })
+        .collect();
+    serde_json::Value::Array(each)
+}
+
 /// Where a terminal bench keeps the times its terminals paint at; absent outside one.
 #[derive(Default)]
 pub struct Frames(pub Option<Rc<RefCell<Vec<Instant>>>>);
@@ -327,7 +419,8 @@ mod tests {
                 pointer: None,
                 unfold: false,
                 hold: None,
-                session: Vec::new()
+                session: Vec::new(),
+                themes: Vec::new()
             })
         );
         let typed =
@@ -382,6 +475,48 @@ mod tests {
         assert!(parse(words("--bench-ctrl-tab 3")).is_err());
         assert!(parse(words("--record-scroll /e.jsonl")).is_err());
         assert!(parse(words("--trace /t.json")).is_err());
+    }
+
+    #[test]
+    fn reads_the_theme_bench_flags() {
+        let all = parse(words("--bench /t.json --bench-screen settings:appearance --bench-themes all")).unwrap().bench.unwrap();
+        assert_eq!(all.themes.len(), THEMES.len() + 2);
+        assert_eq!(all.themes[THEMES.len()..], ["solid".to_owned(), "transparent".into()]);
+        let some = parse(words("--bench /t.json --bench-screen settings:appearance --bench-themes moss,solid")).unwrap().bench.unwrap();
+        assert_eq!((some.screen, some.themes), (true, vec!["moss".to_owned(), "solid".into()]));
+        assert!(parse(words("--bench /t.json --bench-screen settings:appearance --bench-themes moss,nope")).is_err());
+        assert!(parse(words("--bench /t.json --bench-thread t --bench-themes moss")).is_err(), "Settings must be on screen");
+        assert!(parse(words("--bench /t.json --bench-screen settings:appearance --bench-themes moss --bench-replay /e.jsonl")).is_err());
+        assert_eq!(theme_patch("paper"), Some(serde_json::json!({ "theme": "light", "lightTheme": "paper" })));
+        assert_eq!(theme_patch("pitch"), Some(serde_json::json!({ "theme": "dark", "darkTheme": "pitch" })));
+    }
+
+    /// Catches: a frame drawn after the switch settled counted into its time rather than as a loop, a frame of the next
+    /// switch counted into this one, and the presents left in the time judged by the app's own.
+    #[test]
+    fn each_theme_switch_reads_its_own_frames() {
+        let frame = |at: f64, draw: f64, present: f64, renders: serde_json::Value| {
+            let app = draw + 1.;
+            serde_json::json!({ "at": at, "draw": draw, "present": present, "app": app, "input_ms": 1., "renders": renders })
+        };
+        let frames = [
+            frame(90., 5., 5., serde_json::json!({})),
+            frame(101., 30., 10., serde_json::json!({ "Shell": 1, "SettingsScreen": 1, "frame": 1 })),
+            frame(150., 4., 6., serde_json::json!({ "Shell": 1 })),
+            frame(450., 2., 2., serde_json::json!({ "Spinner": 2 })),
+            frame(500., 2., 2., serde_json::json!({ "Spinner": 2 })),
+            frame(705., 20., 5., serde_json::json!({ "Shell": 1 })),
+        ];
+        let sent = |word: &str, at_ms: f64| Sent { word: word.into(), at_ms, write_ms: 1. };
+        let json = theme_switches(&frames, &[sent("moss", 100.), sent("solid", 700.)], 600.);
+        let first = &json[0];
+        assert_eq!(first["frames"], 4);
+        assert_eq!((first["took_ms"].as_f64(), first["took_app_ms"].as_f64()), (Some(60.), Some(44.)));
+        assert_eq!((first["slowest_ms"].as_f64(), first["slowest_app_ms"].as_f64()), (Some(41.), Some(31.)));
+        assert_eq!((first["frames_after"].as_u64(), first["renders_after_per_frame"].as_f64()), (Some(2), Some(2.)));
+        assert_eq!(first["views"], serde_json::json!({ "SettingsScreen": 1, "Shell": 2, "Spinner": 4 }));
+        assert_eq!(json[1]["took_ms"].as_f64(), Some(30.));
+        assert_eq!(json[1]["frames_after"], 0);
     }
 
     #[test]

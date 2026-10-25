@@ -7,6 +7,7 @@ pub mod glass;
 pub mod heap;
 pub mod in_front;
 pub mod local_store;
+pub mod prefs;
 pub mod screens;
 pub mod scroll_trace;
 pub mod service;

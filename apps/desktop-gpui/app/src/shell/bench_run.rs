@@ -28,6 +28,8 @@ const SWITCH_REST: Duration = Duration::from_secs(1);
 /// A replay starts this long after the thread's first frame, as a person looks before they scroll, and ends this long
 /// after its last event, so the momentum's last frames are traced.
 const REPLAY_SETTLE: Duration = Duration::from_secs(1);
+/// The theme bench's wait before each switch and after the last, long enough to see a loop of renders after one settles.
+const THEME_PAUSE: Duration = Duration::from_millis(600);
 
 type Presented = Rc<RefCell<Option<Instant>>>;
 
@@ -87,6 +89,12 @@ pub(super) enum Phase {
         start: Instant,
         presented: Presented,
     },
+    /// The theme bench: Settings > Appearance writing each theme and transparency in turn, `sent` as each goes.
+    Theming {
+        sent: Rc<RefCell<Vec<bench::Sent>>>,
+        done: Rc<Cell<bool>>,
+        _play: Task<()>,
+    },
     Session(super::bench_session::Session),
 }
 
@@ -120,6 +128,7 @@ impl Shell {
                 | Phase::Timing { .. }
                 | Phase::Replaying { .. }
                 | Phase::Stepping { .. }
+                | Phase::Theming { .. }
         );
         if !window.is_window_active() && (measuring || run.began.elapsed() > FOCUS_WAIT) {
             eprintln!("desktop-gpui: the bench window has no focus, and GPUI caps a window without focus at 30 fps");
@@ -201,6 +210,45 @@ impl Shell {
                     let json = bench::terminal_result(run.args.terminal.as_deref().unwrap_or_default(), &frame_ms, &output_ms);
                     if let Err(e) = std::fs::write(&run.args.out, format!("{json}\n")) {
                         eprintln!("desktop-gpui: {}: {e}", run.args.out.display());
+                        std::process::exit(1);
+                    }
+                    cx.quit();
+                    return;
+                }
+            }
+            Phase::Loading(presented) if !run.args.themes.is_empty() => {
+                if presented.borrow().is_none() && self.appearance_read(cx) {
+                    *presented.borrow_mut() = Some(Instant::now());
+                }
+                if presented.borrow().is_some() && window.is_window_active() {
+                    eprintln!("bench: appearance drawn");
+                    let wake = cx.spawn(async move |this, cx| {
+                        cx.background_executor().timer(REPLAY_SETTLE).await;
+                        _ = this.update(cx, |_, cx| cx.notify());
+                    });
+                    run.phase = Phase::Settling { until: Instant::now() + REPLAY_SETTLE, _wake: wake };
+                }
+            }
+            Phase::Settling { until, .. } if !run.args.themes.is_empty() => {
+                if Instant::now() >= *until {
+                    scroll_trace::plan(scroll_trace::Plan {
+                        trace: Some(run.args.out.clone()),
+                        thread: Some(run.args.thread.clone()),
+                        replay: true,
+                        ..Default::default()
+                    });
+                    eprintln!("bench: switching {} themes, {} ms apart", run.args.themes.len(), THEME_PAUSE.as_millis());
+                    let began = Instant::now();
+                    scroll_trace::begin(window);
+                    let (sent, done) = (Rc::<RefCell<Vec<bench::Sent>>>::default(), Rc::new(Cell::new(false)));
+                    let play = self.switch_themes(run.args.themes.clone(), began, sent.clone(), done.clone(), window, cx);
+                    run.phase = Phase::Theming { sent, done, _play: play };
+                }
+            }
+            Phase::Theming { sent, done, .. } => {
+                if done.get() {
+                    if let Err(e) = write_switches(&run.args.out, &sent.borrow()) {
+                        eprintln!("desktop-gpui: {e}");
                         std::process::exit(1);
                     }
                     cx.quit();
@@ -368,6 +416,7 @@ impl Shell {
                 | Phase::Settling { .. }
                 | Phase::Replaying { .. }
                 | Phase::Stepping { .. }
+                | Phase::Theming { .. }
         );
         self.bench = Some(run);
         if !holding {
@@ -402,6 +451,7 @@ impl Shell {
             Some(Phase::Settling { .. }) => "waiting to start the replay".to_owned(),
             Some(Phase::Replaying { .. }) => "replaying wheel events".to_owned(),
             Some(Phase::Stepping { held, .. }) => format!("holding ctrl-tab, {} steps sent", held.steps()),
+            Some(Phase::Theming { sent, .. }) => format!("switching themes, {} sent", sent.borrow().len()),
             Some(Phase::Session(_)) => "opening the session's threads".to_owned(),
             None => "past its last step".to_owned(),
         }
@@ -424,6 +474,56 @@ impl Shell {
             |v| v.read(cx).list().clone(),
         );
         play(self, events, pointer, list, view, done, window, cx)
+    }
+
+    /// Settings, while it is on screen.
+    fn settings(&self) -> Option<Entity<screens::settings::SettingsScreen>> {
+        self.screen_view()?.downcast::<screens::settings::SettingsScreen>().ok()
+    }
+
+    /// Whether Settings stands on Appearance with the host's preferences read, which its writes lay a patch onto.
+    fn appearance_read(&self, cx: &App) -> bool {
+        use screens::settings::model::{At, GroupId};
+        self.settings().is_some_and(|s| {
+            let s = s.read(cx);
+            s.resolved() == At::Group(GroupId::Appearance) && s.data().preferences().is_some()
+        })
+    }
+
+    /// Writes each of `words` through Settings as its Appearance cards do, `THEME_PAUSE` apart from a task outside any
+    /// frame, as a click is handled, noting each in `sent`; sets `done` a pause after the last.
+    fn switch_themes(
+        &self,
+        words: Vec<String>,
+        began: Instant,
+        sent: Rc<RefCell<Vec<bench::Sent>>>,
+        done: Rc<Cell<bool>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Task<()> {
+        let Some(settings) = self.settings() else {
+            eprintln!("desktop-gpui: Settings is not on screen, so no theme can be picked");
+            std::process::exit(1);
+        };
+        cx.spawn_in(window, async move |this, cx| {
+            for word in words {
+                cx.background_executor().timer(THEME_PAUSE).await;
+                let patch = bench::theme_patch(&word).unwrap_or_default();
+                _ = cx.update(|window, cx| {
+                    if !window.is_window_active() {
+                        eprintln!("desktop-gpui: the bench window has no focus, and GPUI caps a window without focus at 30 fps");
+                        std::process::exit(UNFOCUSED);
+                    }
+                    let at = Instant::now();
+                    scroll_trace::timed(|w, ms| w.input_ms += ms, || settings.update(cx, |s, cx| s.set_preferences(patch, cx)));
+                    let ms = |t: Instant| t.duration_since(began).as_secs_f64() * 1000.;
+                    sent.borrow_mut().push(bench::Sent { word, at_ms: ms(at), write_ms: at.elapsed().as_secs_f64() * 1000. });
+                });
+            }
+            cx.background_executor().timer(THEME_PAUSE).await;
+            done.set(true);
+            _ = this.update(cx, |_, cx| cx.notify());
+        })
     }
 
     /// The wait before timed switch `n`, which wakes the window when it is over.
@@ -532,6 +632,17 @@ fn unfold_all(view: &mut ThreadView, cx: &mut Context<ThreadView>) {
         }
     }
     view.scroll_to_end(cx);
+}
+
+/// Ends the trace and adds each theme switch read off its frames, as `mode` `themes`.
+fn write_switches(out: &std::path::Path, sent: &[bench::Sent]) -> Result<(), String> {
+    eprintln!("bench: {}", scroll_trace::finish(Vec::new())?);
+    let text = std::fs::read_to_string(out).map_err(|e| format!("{}: {e}", out.display()))?;
+    let mut trace: serde_json::Value = serde_json::from_str(&text).map_err(|e| format!("{}: {e}", out.display()))?;
+    let frames = trace["frames"].as_array().cloned().unwrap_or_default();
+    trace["mode"] = "themes".into();
+    trace["switches"] = bench::theme_switches(&frames, sent, THEME_PAUSE.as_secs_f64() * 1000.);
+    std::fs::write(out, format!("{trace}\n")).map_err(|e| format!("{}: {e}", out.display()))
 }
 
 /// What a trace says of a row: its kind and the size of its text.

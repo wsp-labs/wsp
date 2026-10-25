@@ -125,13 +125,11 @@ pub struct SettingsScreen {
     read_at: Option<std::time::Instant>,
     /// The field still holds the text a move from outside a frame cleared.
     clear_field: bool,
-    /// Writes of the preferences this screen has out. While one is, a record the host sent from before it would paint
-    /// over what the person just picked, so records are kept in `landed` and drawn once the last write answered.
-    sets_out: usize,
-    /// The last record the host sent down the socket, in the order it sent them, and whether one came while a write
-    /// was out.
+    /// The app's one copy of the preferences, which `data.preferences` mirrors and every write goes through.
+    prefs: Entity<crate::prefs::Prefs>,
+    /// The last record the host sent, for what the agents' lists are marked by.
     landed: Option<Preferences>,
-    heard: bool,
+    _prefs: Subscription,
     /// Held on the root, so Settings' own keys reach it from the moment it opens.
     focus: gpui_kit::FocusHandle,
     /// The window Settings stands in, whose page is kept for its next opening and whose layer its dialogs stand on.
@@ -270,8 +268,10 @@ impl SettingsScreen {
                 }
             }
         });
+        let (prefs, mirror) = mirrored(cx);
+        let data = Data { preferences: prefs.read(cx).shown().cloned(), ..Data::default() };
         SettingsScreen {
-            data: Data::default(),
+            data,
             activity: activity_pick(pages::activity::kept(window, cx), cx),
             agents: agents_store(runtime.clone(), cx),
             computers_menu: cx.new(|_| pages::computers::RowMenu::default()),
@@ -291,9 +291,9 @@ impl SettingsScreen {
             read_at: None,
             framed: false,
             drawn: Drawn::default(),
-            sets_out: 0,
+            prefs,
             landed: None,
-            heard: false,
+            _prefs: mirror,
             focus: focused(window, cx),
             window: window.window_handle(),
             asked: std::time::Instant::now(),
@@ -318,6 +318,10 @@ impl SettingsScreen {
             }
         });
         let landed = data.preferences.clone();
+        let (prefs, mirror) = mirrored(cx);
+        if let Some(p) = &landed {
+            prefs.update(cx, |store, cx| store.landed(p, cx));
+        }
         SettingsScreen {
             data,
             activity: activity_pick(cx.new(|_| pages::activity::Pick::default()), cx),
@@ -339,9 +343,9 @@ impl SettingsScreen {
             read_at: None,
             framed: false,
             drawn: Drawn::default(),
-            sets_out: 0,
+            prefs,
             landed,
-            heard: false,
+            _prefs: mirror,
             focus: focused(window, cx),
             window: window.window_handle(),
             asked: std::time::Instant::now(),
@@ -381,10 +385,11 @@ impl SettingsScreen {
             },
             Arrival::Pushed(event) => {
                 if event.get("type").and_then(Value::as_str) == Some("preferences.changed") {
-                    match event.get("preferences").cloned().map(serde_json::from_value::<Preferences>) {
-                        Some(Ok(p)) => self.preferences_landed(p, cx),
-                        _ => return,
+                    // The app's copy draws this screen again if the record moved what it shows.
+                    if let Some(Ok(p)) = event.get("preferences").cloned().map(serde_json::from_value::<Preferences>) {
+                        self.preferences_landed(p, cx);
                     }
+                    return;
                 } else {
                     match self.data.push(&event) {
                         Push::Nothing => return,
@@ -405,8 +410,8 @@ impl SettingsScreen {
         show_theme(self.data.preferences(), cx);
     }
 
-    /// A record the host sent, in the order it sent them: drawn unless a write of this screen's is still out
-    /// (`preferenceSetsInFlight`), and the agents' lists read again where it moved what the host marks them by
+    /// A record the host sent, in the order it sent them, handed to the app's copy, which keeps every write still out
+    /// over it (`preferenceSetsInFlight`); the agents' lists read again where it moved what the host marks them by
     /// (`preferencesLanded`).
     fn preferences_landed(&mut self, p: Preferences, cx: &mut Context<Self>) {
         let marks = |p: &Preferences| {
@@ -415,17 +420,8 @@ impl SettingsScreen {
         if self.landed.as_ref().is_some_and(|before| marks(before) != marks(&p)) {
             self.reread(Reread::Harnesses, cx);
         }
+        self.prefs.update(cx, |store, cx| store.landed(&p, cx));
         self.landed = Some(p);
-        if self.sets_out > 0 {
-            self.heard = true;
-        } else {
-            self.show_landed(cx);
-        }
-    }
-
-    fn show_landed(&mut self, cx: &mut Context<Self>) {
-        self.data.preferences = self.landed.clone();
-        self.apply_theme(cx);
     }
 
     /// Asks the host to read the newest release again; the host's own floor keeps that to one ask.
@@ -613,31 +609,19 @@ impl SettingsScreen {
     /// preferences.changed, on the socket that carries every other client's writes in the order the host made them;
     /// the answer, which rides another road to this thread, says only whether the write stood.
     pub fn set_preferences(&mut self, patch: Value, cx: &mut Context<Self>) {
-        if let Some(current) = self.data.preferences.take() {
-            let mut merged = serde_json::to_value(&current).unwrap_or(Value::Null);
-            merge(&mut merged, &patch);
-            self.data.preferences = Some(serde_json::from_value(merged).unwrap_or(current));
-            self.apply_theme(cx);
-            cx.notify();
-        }
-        self.sets_out += 1;
-        self.call(PatchPreferences { patch }, cx, |this, answer, cx| {
-            this.sets_out -= 1;
-            match answer {
-                // What the set kept but could not finish, which the web app says as a failure.
-                Ok(PatchAnswer { notice: Some(notice) }) => this.notice = Some((notice.into(), Said::Failed)),
-                Ok(PatchAnswer { notice: None }) => {}
-                Err(said) => {
-                    let said = said.trim_end_matches('.');
-                    this.notice =
-                        Some((format!("That setting was not saved: {said}. It shows the host's value again.").into(), Said::Failed));
-                    this.heard = true;
-                }
-            }
-            if this.sets_out == 0 && std::mem::take(&mut this.heard) {
-                this.show_landed(cx);
-            }
-            cx.notify();
+        let host = self.host.clone().map(|host| (host, self.runtime.clone()));
+        let window = self.window;
+        self.prefs.update(cx, |store, cx| {
+            store.write(patch, host, cx, move |answer, cx| {
+                let words = match answer {
+                    Ok(None) => return,
+                    // What the set kept but could not finish, which the web app says as a failure.
+                    Ok(Some(notice)) => notice,
+                    Err(said) => format!("That setting was not saved: {}. It shows the host's value again.", said.trim_end_matches('.')),
+                };
+                // The window says it, as Settings may have closed before the host answered.
+                _ = window.update(cx, |_, window, cx| crate::ui::notify_in(window, cx, crate::ui::Notice::error(words)));
+            })
         });
     }
 
@@ -732,25 +716,6 @@ impl SettingsScreen {
     }
 }
 
-/// `preferences.set` with its patch sent as written: the typed request drops a null, and a null is how a patch deletes a
-/// key (a row's reset, a project's default put back).
-#[derive(serde::Serialize)]
-struct PatchPreferences {
-    patch: Value,
-}
-
-/// The answer's notice alone: the record comes as preferences.changed, and a record this build cannot read does not
-/// turn a write the host kept into a refusal.
-#[derive(serde::Deserialize)]
-struct PatchAnswer {
-    notice: Option<String>,
-}
-
-impl Op for PatchPreferences {
-    const NAME: &'static str = "preferences.set";
-    type Reply = PatchAnswer;
-}
-
 /// The window's theme as the preferences pick it: the side asked for, or the system's.
 fn show_theme(p: Option<&Preferences>, cx: &mut App) {
     let Some(p) = p else { return };
@@ -758,6 +723,17 @@ fn show_theme(p: Option<&Preferences>, cx: &mut App) {
     if theme::current(cx).id != id {
         theme::set_theme(id, cx);
     }
+}
+
+/// The app's copy of the preferences, mirrored into `data.preferences` and drawn again whenever it moves.
+fn mirrored(cx: &mut Context<SettingsScreen>) -> (Entity<crate::prefs::Prefs>, Subscription) {
+    let prefs = crate::prefs::store(cx);
+    let mirror = cx.observe(&prefs, |this, prefs, cx| {
+        this.data.preferences = prefs.read(cx).shown().cloned();
+        this.apply_theme(cx);
+        cx.notify();
+    });
+    (prefs, mirror)
 }
 
 /// Activity's pick, drawn again on this screen whichever view moved it.
@@ -782,26 +758,6 @@ fn said(failure: Failure) -> String {
 /// A failure as `refusalParts` splits it: what happened, and what to do about it, which the host's words end with.
 fn said_and_fix(failure: Failure) -> (String, Option<String>) {
     (failure.said().to_owned(), failure.fix.map(String::from))
-}
-
-/// Lays a patch onto a record, key by key; a null deletes.
-fn merge(into: &mut Value, patch: &Value) {
-    match (into, patch) {
-        (Value::Object(into), Value::Object(patch)) => {
-            for (key, value) in patch {
-                match value {
-                    Value::Null => {
-                        into.remove(key);
-                    }
-                    Value::Object(_) if into.get(key).is_some_and(Value::is_object) => merge(into.get_mut(key).unwrap(), value),
-                    _ => {
-                        into.insert(key.clone(), value.clone());
-                    }
-                }
-            }
-        }
-        (into, patch) => *into = patch.clone(),
-    }
 }
 
 impl Render for SettingsScreen {
