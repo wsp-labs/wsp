@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Port of packages/runtime/src/types/wiring.ts: what a host wires into the runtime, the records the runtime keeps of
-//! a workspace, and the small helpers the areas share. Spec: spec/wiring.md. One thread owns every handle here
-//! (chapter 03, rule 3.1), so they are `Rc` and the traits are `?Send`.
+//! a workspace, and the small helpers the areas share. Specs: spec/wiring-records.md, spec/wiring-helpers.md. One
+//! thread owns every handle here (chapter 03, rule 3.1), so they are `Rc` and the traits are `?Send`.
 
 use std::rc::Rc;
 use std::sync::Arc;
@@ -11,9 +11,11 @@ use futures::future::{LocalBoxFuture, Shared};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
+use wsp_wire::types::js_number::JsNumber;
 
 use wsp_adapters::pending::CodexClaims;
 use wsp_adapters::port::{ExecStream, ExecStreamFactory, TaskStop, TurnImage};
+use wsp_engine::errors::EngineError;
 use wsp_engine::lifecycle::Workspace;
 use wsp_engine::machine::{Machine, MachineBackend, ProviderBoxState};
 use wsp_engine::orphans::ReapResult;
@@ -41,8 +43,7 @@ use wsp_wire::views::workspace::{BranchOfRecord, Caller, DaemonReachView, Projec
 use wsp_wire::views::workspace_events::{WorkspaceCostEvent, WorkspaceCreateStage};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::views::workspace_more::{
-    WorkspaceAgents, WorkspaceStatus, WorkspaceView, WorkspaceViewDaemonRefusedAt, WorkspaceViewQueue, WorkspaceViewScreen,
-    WorktreeFolder,
+    WorkspaceAgents, WorkspaceStatus, WorkspaceView, WorkspaceViewDaemonRefusedAt, WorkspaceViewQueue, WorkspaceViewScreen, WorktreeFolder,
 };
 use wsp_wire::wire::capabilities::{InitSetup, PauseMode, WorkspaceSize};
 use wsp_wire::wire::machine_link::{MachineShape, ReadingsAnswer, SysSample};
@@ -51,9 +52,9 @@ use wsp_words::exit::HostError;
 
 use super::harness::HarnessAdapterFactory;
 use super::pending::{
-    AgentsActs, AgentsReader, BuildGoldenOptions, CacheRule, Clock, Copier, DaemonChannel, DaemonChannelOptions, GitHubCache,
-    GoldenImport, KillConfirm, MachineExecOptions, PlaceWiring, PluginsActs, ServerIcons, ServersActs, Sighting, SkillsActs,
-    StatusApi, StatusListOptions, StatusWatchOptions, Store, TurnWaiting,
+    AgentsActs, AgentsReader, BuildGoldenOptions, CacheRule, Clock, Copier, DaemonChannel, DaemonChannelOptions, GitHubCache, GoldenImport,
+    KillConfirm, MachineExecOptions, PlaceWiring, PluginsActs, ServerIcons, ServersActs, Sighting, SkillsActs, StatusApi,
+    StatusListOptions, StatusWatchOptions, Store, TurnWaiting,
 };
 
 /// A future the one owner thread awaits.
@@ -66,9 +67,9 @@ pub type Local<'a, T> = LocalBoxFuture<'a, Result<T, HostError>>;
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cpu: Option<f64>,
+    pub cpu: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mem_mb: Option<f64>,
+    pub mem_mb: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub envs: Option<IndexMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -123,7 +124,7 @@ pub enum IdleWindow {
     #[default]
     Default,
     Off,
-    Ms(f64),
+    Ms(JsNumber),
 }
 
 /// wiring.ts:108-134.
@@ -357,7 +358,7 @@ pub struct SubBase {
 pub struct SubHeldAt {
     #[serde(flatten)]
     pub held: SubHeld,
-    pub at: f64,
+    pub at: JsNumber,
 }
 
 /// A sub-machine's record of its one sub-thread. wiring.ts:378-401.
@@ -370,7 +371,7 @@ pub struct SubRecord {
     pub branch: String,
     pub folder: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub rate_usd_per_hour: Option<f64>,
+    pub rate_usd_per_hour: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -378,9 +379,9 @@ pub struct SubRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub held: Option<SubHeldAt>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub delete_at: Option<f64>,
+    pub delete_at: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub released_at: Option<f64>,
+    pub released_at: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lost: Option<String>,
     /// `true` where present.
@@ -399,7 +400,7 @@ pub struct SubRecord {
 #[serde(rename_all = "camelCase")]
 pub struct DaemonDeployed {
     pub deployed_at: String,
-    pub version: f64,
+    pub version: JsNumber,
 }
 
 /// wiring.ts:354.
@@ -484,9 +485,9 @@ pub struct WorkspaceRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch_of_record: Option<BranchOfRecord>,
     pub spec: RecordSpec,
-    /// Absent: the runtime default. `Some(None)`: auto-nap off (the TS null).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub idle_window_ms: Option<Option<f64>>,
+    /// Absent: the runtime default. `Some(None)`: auto-nap off (the TS null), written back as null.
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "wsp_wire::types::check::double_option")]
+    pub idle_window_ms: Option<Option<JsNumber>>,
     pub size: WorkspaceSize,
     pub first_life: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -496,7 +497,7 @@ pub struct WorkspaceRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub napped_at: Option<f64>,
+    pub napped_at: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub daemon: Option<DaemonDeployed>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -529,9 +530,9 @@ pub struct SubSession {
     pub agent: String,
     pub id: String,
     /// When its file was last kept, ms epoch; null when it was not.
-    pub kept: Option<f64>,
+    pub kept: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bytes: Option<f64>,
+    pub bytes: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -559,8 +560,8 @@ pub struct WakeAsk {
 /// `{ cpu, memMb }`. wiring.ts:445.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SizeAsk {
-    pub cpu: f64,
-    pub mem_mb: f64,
+    pub cpu: JsNumber,
+    pub mem_mb: JsNumber,
 }
 
 /// A workspace this host holds in memory: its record, its machine, and the joins of its moves. Never stored.
@@ -671,8 +672,8 @@ pub struct GoldenRecipe {
     pub setup: String,
     pub smoke: String,
     pub base_template: Option<String>,
-    pub cpu: Option<f64>,
-    pub mem_mb: Option<f64>,
+    pub cpu: Option<JsNumber>,
+    pub mem_mb: Option<JsNumber>,
     pub envs: Option<IndexMap<String, String>>,
     pub labels: Option<IndexMap<String, String>>,
     pub deploy_daemon: Option<DeployDaemon>,
@@ -688,7 +689,7 @@ pub struct GoldenRecipe {
 pub struct GoldenExec {
     pub machine_id: String,
     pub cmd: String,
-    pub ms: f64,
+    pub ms: JsNumber,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exit_code: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -803,7 +804,7 @@ pub struct AgentsReach {
 }
 
 /// What a host hands `createRuntime`. wiring.ts:647-787. Every `Option` is the TS optional, absent where the host
-/// wired none; the defaults each stands for are spec/wiring.md's table.
+/// wired none; the defaults each stands for are spec/wiring-records.md and spec/wiring-helpers.md's table.
 #[derive(Default)]
 pub struct RuntimeOptions {
     pub backend: Option<Arc<dyn MachineBackend>>,
@@ -936,8 +937,9 @@ pub const MERGE_DEADLINE_MS: u64 = 120_000;
 pub const LISTING_DEADLINE_MS: u64 = 120_000;
 
 /// Runs one agent's merge script on the machine and folds what it printed into the agent's result; the script and its
-/// folder are removed by their own exec whatever the run did, that exec's failure ignored. wiring.ts:873-892.
-pub async fn merge_on_machine(machine: &dyn Machine, script: &str, agent: ProjectAgentResult) -> Result<ProjectAgentResult, HostError> {
+/// folder are removed by their own exec whatever the run did, that exec's failure ignored; the run's own failure is
+/// returned as it came. wiring.ts:873-892.
+pub async fn merge_on_machine(machine: &dyn Machine, script: &str, agent: ProjectAgentResult) -> Result<ProjectAgentResult, EngineError> {
     todo!()
 }
 
@@ -974,7 +976,12 @@ pub enum UntilError<E> {
 /// Fails once `deadline` (epoch ms on `clock`) passes; the future is left to settle on its own. The wait is
 /// `max(0, deadline - clock.now())`, armed with `clock.schedule` and cancelled when the future settles first.
 /// wiring.ts:921-930.
-pub async fn until<T, E>(work: LocalBoxFuture<'_, Result<T, E>>, deadline: i64, what: &str, clock: Rc<dyn Clock>) -> Result<T, UntilError<E>> {
+pub async fn until<T, E>(
+    work: LocalBoxFuture<'_, Result<T, E>>,
+    deadline: i64,
+    what: &str,
+    clock: Rc<dyn Clock>,
+) -> Result<T, UntilError<E>> {
     todo!()
 }
 

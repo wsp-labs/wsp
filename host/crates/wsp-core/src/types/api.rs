@@ -39,9 +39,7 @@ use wsp_wire::views::preferences::{HistoryPage, Preferences, PreferencesPatch, T
 use wsp_wire::views::session::{ForkSource, SessionOrigin, SessionView, ThreadCapWait, ThreadMarks};
 use wsp_wire::views::session_events_more::{RunStep, SessionEarlierEvent, SessionEvent, SessionRunEvent};
 use wsp_wire::views::snapshot_lineage::{SealedImageView, SnapshotStorage};
-use wsp_wire::views::workspace::{
-    Caller, DaemonReachView, PortProbeView, PortReachView, ProjectSeed, ProjectView, SeedChoice, SeedPlan,
-};
+use wsp_wire::views::workspace::{Caller, DaemonReachView, PortProbeView, PortReachView, ProjectSeed, ProjectView, SeedChoice, SeedPlan};
 use wsp_wire::views::workspace_events::WorkspaceCreatingEvent;
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::views::workspace_more::{ProjectBranch, ThreadScope, WorkspaceView, WorktreeMade};
@@ -59,8 +57,8 @@ use super::harness::StartPicksAsked;
 use super::pending::{ActivityDoor, CallbackForwards, DaemonChannel, DeviceDoor, GoldenDelta, PlaceDoor, SignInAsk, SkillAsk, Slates};
 use super::wiring::{
     CreateWorkspaceOptions, CreatedWorkspace, Detach, GoldenBuildRequest, GoldenPromotion, GoldenRecipe, GoldenUpgradeResult,
-    OriginStatusApi, ProjectExportOptions, ProjectImportOptions, RecipeShelf, RunningExec, SessionHandle, SizeAsk, SweepResult, SysListener,
-    UsageDoor,
+    OriginStatusApi, ProjectExportOptions, ProjectImportOptions, RecipeShelf, RunningExec, SessionHandle, SizeAsk, SweepResult,
+    SysListener, UsageDoor,
 };
 
 /// A daemon event as a channel hands it on.
@@ -134,7 +132,13 @@ pub struct SkillsAddAsk {
 pub trait AgentsApi {
     async fn read(&self, target: AgentsTarget, origin: Option<Caller>) -> Result<AgentsReport, HostError>;
     async fn tools(&self, target: AgentsTarget, ask: ToolsAsk, origin: Option<Caller>) -> Result<ServerToolsAnswer, HostError>;
-    async fn sign_in(&self, target: AgentsTarget, ask: SignInAsk, emit: Rc<dyn Fn(AgentsSignInEvent)>, origin: Option<Caller>) -> Result<SignInFollowing, HostError>;
+    async fn sign_in(
+        &self,
+        target: AgentsTarget,
+        ask: SignInAsk,
+        emit: Rc<dyn Fn(AgentsSignInEvent)>,
+        origin: Option<Caller>,
+    ) -> Result<SignInFollowing, HostError>;
     fn sign_ins(&self) -> Vec<AgentsSignInRun>;
     fn sign_in_follow(&self, sign_in_id: &str, emit: Rc<dyn Fn(AgentsSignInEvent)>) -> Result<SignInFollowing, HostError>;
     async fn sign_in_code(&self, sign_in_id: &str, code: &str) -> Result<(), HostError>;
@@ -323,8 +327,15 @@ pub trait WorkspacesApi {
     async fn forget(&self, id: &str, origin: Option<Caller>) -> Result<(), HostError>;
     async fn touch(&self, id: &str, origin: Option<Caller>) -> Result<(), HostError>;
     async fn exec(&self, id: &str, cmd: &str, timeout_ms: Option<u64>, origin: Option<Caller>) -> Result<ExecResult, HostError>;
-    async fn exec_stream(&self, id: &str, argv: Vec<String>, cwd: Option<String>, origin: Option<Caller>) -> Result<RunningExec, HostError>;
-    async fn bring_back(&self, workspace_id: &str, title: Option<String>, body: Option<String>, origin: Option<Caller>) -> Result<BringBackResult, HostError>;
+    async fn exec_stream(&self, id: &str, argv: Vec<String>, cwd: Option<String>, origin: Option<Caller>)
+        -> Result<RunningExec, HostError>;
+    async fn bring_back(
+        &self,
+        workspace_id: &str,
+        title: Option<String>,
+        body: Option<String>,
+        origin: Option<Caller>,
+    ) -> Result<BringBackResult, HostError>;
     async fn folder_for(&self, ask: FolderForAsk, origin: Option<Caller>) -> Result<FolderFor, HostError>;
     async fn take_setup_line(&self, workspace_id: &str, origin: Option<Caller>) -> Result<Option<String>, HostError>;
     async fn folder(&self, project: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError>;
@@ -335,12 +346,36 @@ pub trait WorkspacesApi {
     async fn commit(&self, ask: CommitAsk, origin: Option<Caller>) -> Result<GitCommitReply, HostError>;
     async fn commit_draft(&self, ask: CommitDraftAsk, origin: Option<Caller>) -> Result<CommitDraft, HostError>;
     async fn viewed(&self, workspace_id: &str, mark: Option<ViewedMark>, origin: Option<Caller>) -> Result<ViewedMarks, HostError>;
-    async fn pull_request_view(&self, workspace_id: &str, fresh: Option<bool>, origin: Option<Caller>) -> Result<PullRequestPage, HostError>;
+    async fn pull_request_view(
+        &self,
+        workspace_id: &str,
+        fresh: Option<bool>,
+        origin: Option<Caller>,
+    ) -> Result<PullRequestPage, HostError>;
     async fn pull_request_diff(&self, workspace_id: &str, origin: Option<Caller>) -> Result<GitPrDiffReply, HostError>;
-    async fn pull_request_send(&self, workspace_id: &str, items: Vec<PullRequestItem>, thread_id: Option<String>, origin: Option<Caller>) -> Result<PullRequestSendResult, HostError>;
+    async fn pull_request_send(
+        &self,
+        workspace_id: &str,
+        items: Vec<PullRequestItem>,
+        thread_id: Option<String>,
+        origin: Option<Caller>,
+    ) -> Result<PullRequestSendResult, HostError>;
     async fn pull_request_reply(&self, ask: PullRequestReplyAsk, origin: Option<Caller>) -> Result<GitPrReplyReply, HostError>;
-    async fn pull_request_resolve(&self, workspace_id: &str, thread_id: &str, resolved: bool, origin: Option<Caller>) -> Result<GitPrResolveReply, HostError>;
-    async fn pull_request_react(&self, workspace_id: &str, subject: &str, content: ReactionContent, on: bool, origin: Option<Caller>) -> Result<GitPrReactReply, HostError>;
+    async fn pull_request_resolve(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        resolved: bool,
+        origin: Option<Caller>,
+    ) -> Result<GitPrResolveReply, HostError>;
+    async fn pull_request_react(
+        &self,
+        workspace_id: &str,
+        subject: &str,
+        content: ReactionContent,
+        on: bool,
+        origin: Option<Caller>,
+    ) -> Result<GitPrReactReply, HostError>;
     async fn fix(&self, ask: FixAsk, origin: Option<Caller>) -> Result<FixResult, HostError>;
     async fn merge(&self, ask: MergeAsk, origin: Option<Caller>) -> Result<MergeResult, HostError>;
     async fn update(&self, workspace_id: &str, thread_id: Option<String>, origin: Option<Caller>) -> Result<GitUpdateReply, HostError>;
@@ -348,10 +383,20 @@ pub trait WorkspacesApi {
     async fn start(&self, ask: StartFromLinkAsk, origin: Option<Caller>) -> Result<StartResult, HostError>;
     async fn review(&self, ask: ReviewAsk, origin: Option<Caller>) -> Result<StartResult, HostError>;
     async fn review_draft(&self, ask: ReviewDraftAsk, origin: Option<Caller>) -> Result<Option<ReviewDraft>, HostError>;
-    async fn review_post(&self, workspace_id: &str, thread_id: Option<String>, origin: Option<Caller>) -> Result<ReviewPostResult, HostError>;
+    async fn review_post(
+        &self,
+        workspace_id: &str,
+        thread_id: Option<String>,
+        origin: Option<Caller>,
+    ) -> Result<ReviewPostResult, HostError>;
     async fn daemon_reach(&self, id: &str, origin: Option<Caller>) -> Result<DaemonReachView, HostError>;
     async fn token_refused(&self, id: &str) -> Result<(), HostError>;
-    async fn daemon_channel(&self, id: &str, on_event: DaemonEventListener, origin: Option<Caller>) -> Result<Rc<dyn DaemonChannel>, HostError>;
+    async fn daemon_channel(
+        &self,
+        id: &str,
+        on_event: DaemonEventListener,
+        origin: Option<Caller>,
+    ) -> Result<Rc<dyn DaemonChannel>, HostError>;
     async fn guest_channel(&self, id: &str, on_event: DaemonEventListener) -> Result<Rc<dyn DaemonChannel>, HostError>;
     async fn served_by_its_computer(&self, id: &str, origin: Option<Caller>) -> Result<bool, HostError>;
     async fn watch_sys(&self, id: &str, listener: SysListener, origin: Option<Caller>) -> Result<Detach, HostError>;
@@ -418,12 +463,21 @@ pub trait ProjectsApi {
     async fn computers(&self) -> Result<Vec<ComputerName>, HostError>;
     async fn resolve(&self, reference: &str, origin: Option<Caller>) -> Result<ProjectView, HostError>;
     async fn branch(&self, reference: &str, origin: Option<Caller>) -> Result<ProjectBranch, HostError>;
-    async fn remove(&self, id: &str, origin: Option<Caller>, force: Option<bool>, check: Option<bool>) -> Result<ProjectRemoved, HostError>;
+    async fn remove(&self, id: &str, origin: Option<Caller>, force: Option<bool>, check: Option<bool>)
+        -> Result<ProjectRemoved, HostError>;
     /// Answers the kept hash, None where the image was taken off.
     async fn icon(&self, project_id: &str, png: Option<String>) -> Result<Option<String>, HostError>;
     async fn icons(&self, hashes: Vec<String>) -> Result<IndexMap<String, Option<String>>, HostError>;
-    async fn import(&self, opts: ProjectImportOptions, origin: Option<Caller>) -> Result<wsp_wire::views::project_bundle::ProjectImportResult, HostError>;
-    async fn export(&self, opts: ProjectExportOptions, origin: Option<Caller>) -> Result<wsp_wire::views::project_bundle::ProjectExportResult, HostError>;
+    async fn import(
+        &self,
+        opts: ProjectImportOptions,
+        origin: Option<Caller>,
+    ) -> Result<wsp_wire::views::project_bundle::ProjectImportResult, HostError>;
+    async fn export(
+        &self,
+        opts: ProjectExportOptions,
+        origin: Option<Caller>,
+    ) -> Result<wsp_wire::views::project_bundle::ProjectExportResult, HostError>;
 }
 
 /// A start's `as`. api.ts:405.
@@ -575,7 +629,14 @@ pub trait SessionsApi {
     async fn thread_history(&self, workspace_id: &str, asked: HistoryAsk, origin: Option<Caller>) -> Result<Vec<SessionEvent>, HostError>;
     async fn page(&self, workspace_id: &str, window: PageWindow, origin: Option<Caller>) -> Result<HistoryPage, HostError>;
     async fn head(&self, thread_id: &str, origin: Option<Caller>, after_read: Option<bool>) -> Result<ThreadHead, HostError>;
-    async fn attachment(&self, workspace_id: &str, thread_id: &str, request_id: &str, index: u32, origin: Option<Caller>) -> Result<KeptAttachment, HostError>;
+    async fn attachment(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        request_id: &str,
+        index: u32,
+        origin: Option<Caller>,
+    ) -> Result<KeptAttachment, HostError>;
     async fn interrupt(&self, session_id: &str, origin: Option<Caller>, task: Option<String>) -> Result<SessionInterruptResult, HostError>;
     async fn steer(&self, session_id: &str, ask: SteerAsk, origin: Option<Caller>) -> Result<SessionSteerResult, HostError>;
     async fn answer(&self, session_id: &str, ask: AnswerAsk, origin: Option<Caller>) -> Result<SessionAnswerResult, HostError>;
@@ -591,7 +652,13 @@ pub trait SessionsApi {
     async fn mark(&self, thread_ids: Vec<String>, marks: ThreadMarks, origin: Option<Caller>) -> Result<(), HostError>;
     async fn restore(&self, thread_ids: Vec<String>, origin: Option<Caller>) -> Result<SessionRestoreResult, HostError>;
     async fn search(&self, query: &str, origin: Option<Caller>) -> Result<SessionSearchResult, HostError>;
-    async fn aside(&self, session_id: &str, question: &str, origin: Option<Caller>, ask_id: Option<String>) -> Result<SessionAsideResult, HostError>;
+    async fn aside(
+        &self,
+        session_id: &str,
+        question: &str,
+        origin: Option<Caller>,
+        ask_id: Option<String>,
+    ) -> Result<SessionAsideResult, HostError>;
     async fn rewind(&self, thread_id: &str, ask: RewindAsk, origin: Option<Caller>) -> Result<SessionRewindResult, HostError>;
     async fn run(&self, step: RunStep, origin: Option<Caller>) -> Result<SessionRunEvent, HostError>;
     async fn forget(&self, thread_id: &str, origin: Option<Caller>, check: Option<bool>) -> Result<(), HostError>;
@@ -608,7 +675,12 @@ pub struct CatalogAt {
 /// `rt.harnesses`. api.ts:574-582.
 #[async_trait(?Send)]
 pub trait HarnessesApi {
-    async fn list(&self, workspace_id: Option<String>, origin: Option<Caller>, at: Option<CatalogAt>) -> Result<Vec<HarnessCatalog>, HostError>;
+    async fn list(
+        &self,
+        workspace_id: Option<String>,
+        origin: Option<Caller>,
+        at: Option<CatalogAt>,
+    ) -> Result<Vec<HarnessCatalog>, HostError>;
 }
 
 /// What `golden.build` and `golden.seal` answer. api.ts:584.
@@ -735,7 +807,13 @@ pub struct Placed {
 pub trait ConversationsApi {
     async fn list(&self, project: Option<String>, agent: Option<String>, origin: Option<Caller>) -> Result<ConversationsAnswer, HostError>;
     async fn read(&self, ask: ConversationAsk, origin: Option<Caller>) -> Result<ConversationRead, HostError>;
-    async fn opening(&self, workspace_id: &str, harness: Option<String>, resume: ResumeAsk, origin: Option<Caller>) -> Result<OutsideOpening, HostError>;
+    async fn opening(
+        &self,
+        workspace_id: &str,
+        harness: Option<String>,
+        resume: ResumeAsk,
+        origin: Option<Caller>,
+    ) -> Result<OutsideOpening, HostError>;
     async fn placed(&self, start: PlacedStart, resume: ResumeAsk, origin: Option<Caller>) -> Result<Placed, HostError>;
 }
 
@@ -807,4 +885,3 @@ pub struct OutsideOpening {
     /// `Pick<SessionEarlierEvent, "who" | "text" | "at">` each.
     pub earlier: Vec<SessionEarlierEvent>,
 }
-

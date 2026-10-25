@@ -1,0 +1,728 @@
+{
+ "lastLines": [
+  [
+   "",
+   ""
+  ],
+  [
+   "a",
+   "a"
+  ],
+  [
+   "a\nb\n  ",
+   "b"
+  ],
+  [
+   "a\n\n",
+   "a"
+  ],
+  [
+   "  x  ",
+   "x"
+  ],
+  [
+   "a\r\nb",
+   "b"
+  ],
+  [
+   "a\nb\r",
+   "b"
+  ],
+  [
+   "x\n  \n",
+   "x"
+  ],
+  [
+   "\n\n",
+   ""
+  ],
+  [
+   "a\n  b  \n",
+   "b"
+  ],
+  [
+   "only\t",
+   "only"
+  ]
+ ],
+ "outcomes": [
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "moved"
+   },
+   "moved"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "moved",
+    "rows": 0
+   },
+   "moved, its rows already there"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "moved",
+    "rows": 1
+   },
+   "moved, 1 row merged"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "moved",
+    "rows": 3,
+    "note": "kept 2"
+   },
+   "moved, 3 rows merged (kept 2)"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "moved",
+    "note": "n"
+   },
+   "moved"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "transcript-only"
+   },
+   "transcripts landed but not yet in its session list"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "transcript-only",
+    "note": "later"
+   },
+   "transcripts landed but not yet in its session list (later)"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "carried",
+    "note": "ignored"
+   },
+   "carried unchanged since it is not on the machine"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "nothing",
+    "rows": 4
+   },
+   "had nothing to carry"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "failed"
+   },
+   "failed: no reason given"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "failed",
+    "error": "boom",
+    "note": "x"
+   },
+   "failed: boom"
+  ]
+ ],
+ "homes": [
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "moved",
+    "name": "Claude Code"
+   },
+   "Claude Code moved"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "moved",
+    "sessions": 0,
+    "name": "Codex"
+   },
+   "Codex (0 sessions) moved"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "moved",
+    "sessions": 1,
+    "skipped": 0,
+    "name": "Codex"
+   },
+   "Codex (1 session) moved"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "transcript-only",
+    "sessions": 2,
+    "skipped": 1,
+    "name": "Codex"
+   },
+   "Codex (2 sessions) transcripts landed but not yet in its session list here, 1 indexed rollout not under sessions/ skipped"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "nothing",
+    "skipped": 3,
+    "name": "Cursor"
+   },
+   "Cursor had nothing to bring, 3 indexed rollouts not under sessions/ skipped"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "carried",
+    "name": "OpenCode"
+   },
+   "OpenCode carried unchanged"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "failed",
+    "sessions": 1,
+    "name": "Claude Code"
+   },
+   "Claude Code (1 session) failed: no reason given"
+  ],
+  [
+   {
+    "agent": "claude",
+    "files": 1,
+    "bytes": 2,
+    "outcome": "failed",
+    "error": "disk full",
+    "skipped": 2,
+    "name": "Claude Code"
+   },
+   "Claude Code failed: disk full, 2 indexed rollouts not under sessions/ skipped"
+  ]
+ ],
+ "hostnames": [
+  [
+   "My Box!",
+   "my-box"
+  ],
+  [
+   "---",
+   "wsp"
+  ],
+  [
+   "",
+   "wsp"
+  ],
+  [
+   "a--b",
+   "a--b"
+  ],
+  [
+   "ÉCOLE",
+   "cole"
+  ],
+  [
+   "Café 2",
+   "caf-2"
+  ],
+  [
+   "İstanbul",
+   "i-stanbul"
+  ],
+  [
+   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-b",
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa--b",
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  [
+   "  spaced  out  ",
+   "spaced-out"
+  ],
+  [
+   "UPPER_case.name",
+   "upper-case-name"
+  ],
+  [
+   "😀 emoji",
+   "emoji"
+  ],
+  [
+   "-lead-trail-",
+   "lead-trail"
+  ]
+ ],
+ "shapes": [
+  [
+   {},
+   {},
+   null
+  ],
+  [
+   {
+    "cpu": 2,
+    "memMb": 4096
+   },
+   {
+    "cpu": 2,
+    "memMb": 4096
+   },
+   null
+  ],
+  [
+   {
+    "cpu": 2,
+    "memMb": 4096
+   },
+   {
+    "cpu": 4,
+    "memMb": 2048
+   },
+   "cpu 4 != 2, memMb 2048 != 4096"
+  ],
+  [
+   {
+    "cpu": 2
+   },
+   {
+    "memMb": 8
+   },
+   null
+  ],
+  [
+   {
+    "cpu": 2,
+    "memMb": 4096,
+    "diskGb": 10
+   },
+   {
+    "cpu": 2,
+    "memMb": 4096,
+    "diskGb": 20,
+    "createdAt": "x"
+   },
+   null
+  ],
+  [
+   {
+    "memMb": 1.5
+   },
+   {
+    "memMb": 2
+   },
+   "memMb 2 != 1.5"
+  ]
+ ],
+ "sources": [
+  [
+   {
+    "kind": "git",
+    "url": "u"
+   },
+   {
+    "kind": "git",
+    "url": "u"
+   },
+   true
+  ],
+  [
+   {
+    "kind": "git",
+    "url": "u"
+   },
+   {
+    "kind": "git",
+    "url": "v"
+   },
+   false
+  ],
+  [
+   {
+    "kind": "folder",
+    "path": "/a"
+   },
+   {
+    "kind": "folder",
+    "path": "/a"
+   },
+   true
+  ],
+  [
+   {
+    "kind": "folder",
+    "path": "/a"
+   },
+   {
+    "kind": "folder",
+    "path": "/a/"
+   },
+   false
+  ],
+  [
+   {
+    "kind": "git",
+    "url": "/a"
+   },
+   {
+    "kind": "folder",
+    "path": "/a"
+   },
+   false
+  ]
+ ],
+ "atProvider": [
+  [
+   null,
+   false
+  ],
+  [
+   "solari",
+   true
+  ],
+  [
+   "mac",
+   false
+  ],
+  [
+   "",
+   true
+  ]
+ ],
+ "settled": [
+  [
+   "settled",
+   true
+  ],
+  [
+   "not-gone",
+   false
+  ],
+  [
+   "unchecked",
+   false
+  ],
+  [
+   "moot",
+   true
+  ]
+ ],
+ "merges": [
+  {
+   "name": "exit2",
+   "res": {
+    "ok": {
+     "agent": "claude",
+     "files": 1,
+     "bytes": 2,
+     "outcome": "failed",
+     "note": "before",
+     "error": "the merge on the machine failed (exit 2): last line"
+    }
+   },
+   "log": [
+    "run python3 '/tmp/wsp-merge/x y/claude.py' {\"deadlineMs\":120000}",
+    "exec rm -f '/tmp/wsp-merge/x y/claude.py'; rmdir '/tmp/wsp-merge/x y' 2>/dev/null"
+   ]
+  },
+  {
+   "name": "exit1Quiet",
+   "res": {
+    "ok": {
+     "agent": "claude",
+     "files": 1,
+     "bytes": 2,
+     "outcome": "failed",
+     "note": "before",
+     "error": "the merge on the machine failed (exit 1): no output"
+    }
+   },
+   "log": [
+    "run python3 '/tmp/wsp-merge/x y/claude.py' {\"deadlineMs\":120000}",
+    "exec rm -f '/tmp/wsp-merge/x y/claude.py'; rmdir '/tmp/wsp-merge/x y' 2>/dev/null"
+   ]
+  },
+  {
+   "name": "merged",
+   "res": {
+    "ok": {
+     "agent": "claude",
+     "files": 1,
+     "bytes": 2,
+     "outcome": "moved",
+     "note": "before",
+     "rows": 3
+    }
+   },
+   "log": [
+    "run python3 '/tmp/wsp-merge/x y/claude.py' {\"deadlineMs\":120000}",
+    "exec rm -f '/tmp/wsp-merge/x y/claude.py'; rmdir '/tmp/wsp-merge/x y' 2>/dev/null"
+   ]
+  },
+  {
+   "name": "mergedNote",
+   "res": {
+    "ok": {
+     "agent": "claude",
+     "files": 1,
+     "bytes": 2,
+     "outcome": "moved",
+     "note": "store empty",
+     "rows": 0
+    }
+   },
+   "log": [
+    "run python3 '/tmp/wsp-merge/x y/claude.py' {\"deadlineMs\":120000}",
+    "exec rm -f '/tmp/wsp-merge/x y/claude.py'; rmdir '/tmp/wsp-merge/x y' 2>/dev/null"
+   ]
+  },
+  {
+   "name": "waiting",
+   "res": {
+    "ok": {
+     "agent": "claude",
+     "files": 1,
+     "bytes": 2,
+     "outcome": "nothing",
+     "note": "no store yet"
+    }
+   },
+   "log": [
+    "run python3 '/tmp/wsp-merge/x y/claude.py' {\"deadlineMs\":120000}",
+    "exec rm -f '/tmp/wsp-merge/x y/claude.py'; rmdir '/tmp/wsp-merge/x y' 2>/dev/null"
+   ]
+  },
+  {
+   "name": "empty",
+   "res": {
+    "ok": {
+     "agent": "claude",
+     "files": 1,
+     "bytes": 2,
+     "outcome": "failed",
+     "note": "before",
+     "error": "the merge script printed nothing"
+    }
+   },
+   "log": [
+    "run python3 '/tmp/wsp-merge/x y/claude.py' {\"deadlineMs\":120000}",
+    "exec rm -f '/tmp/wsp-merge/x y/claude.py'; rmdir '/tmp/wsp-merge/x y' 2>/dev/null"
+   ]
+  },
+  {
+   "name": "notJson",
+   "res": {
+    "ok": {
+     "agent": "claude",
+     "files": 1,
+     "bytes": 2,
+     "outcome": "failed",
+     "note": "before",
+     "error": "the merge script ended with: done"
+    }
+   },
+   "log": [
+    "run python3 '/tmp/wsp-merge/x y/claude.py' {\"deadlineMs\":120000}",
+    "exec rm -f '/tmp/wsp-merge/x y/claude.py'; rmdir '/tmp/wsp-merge/x y' 2>/dev/null"
+   ]
+  },
+  {
+   "name": "runThrows",
+   "res": {
+    "err": "machine gone",
+    "name": "Error"
+   },
+   "log": [
+    "run python3 '/tmp/wsp-merge/x y/claude.py' {\"deadlineMs\":120000}",
+    "exec rm -f '/tmp/wsp-merge/x y/claude.py'; rmdir '/tmp/wsp-merge/x y' 2>/dev/null"
+   ]
+  }
+ ],
+ "hostSet": [
+  {
+   "name": "ok",
+   "res": {
+    "host": "my-box"
+   },
+   "log": [
+    "hostname my-box && echo my-box > /etc/hostname"
+   ],
+   "warned": []
+  },
+  {
+   "name": "refused",
+   "res": {
+    "host": "my-box",
+    "refused": "hostname my-box on m9 failed: hostname: you must be root"
+   },
+   "log": [
+    "hostname my-box && echo my-box > /etc/hostname"
+   ],
+   "warned": [
+    "hostname my-box on m9 failed: hostname: you must be root"
+   ]
+  },
+  {
+   "name": "throws",
+   "res": {
+    "host": "my-box",
+    "refused": "hostname my-box on m9 failed: socket closed"
+   },
+   "log": [
+    "hostname my-box && echo my-box > /etc/hostname"
+   ],
+   "warned": [
+    "hostname my-box on m9 failed: socket closed"
+   ]
+  }
+ ],
+ "untils": {
+  "deadline": {
+   "res": {
+    "err": "the probe timed out after 500 ms",
+    "name": "Error"
+   },
+   "log": [
+    "schedule 500"
+   ],
+   "isDeadline": true
+  },
+  "resolves": {
+   "res": {
+    "ok": 7
+   },
+   "log": [
+    "schedule 500",
+    "cancel"
+   ]
+  },
+  "rejects": {
+   "res": {
+    "err": "own",
+    "name": "Error"
+   },
+   "log": [
+    "schedule 500",
+    "cancel"
+   ]
+  },
+  "past": {
+   "res": {
+    "err": "late timed out after 0 ms",
+    "name": "Error"
+   },
+   "log": [
+    "schedule 0"
+   ]
+  }
+ },
+ "wired": {
+  "fixed": {
+   "wired": "solari",
+   "list": [
+    "solari"
+   ],
+   "solari": true,
+   "other": true
+  },
+  "moving": {
+   "wired": "boat",
+   "list": [
+    "boat"
+   ],
+   "boat": true,
+   "solari": true
+  }
+ },
+ "constants": {
+  "PROVIDER_READ_MS": 30000,
+  "GONE_CONFIRM_MS": 5000,
+  "WAKE_LATE_READ_MS": 180000,
+  "DAEMON_HELLO_TIMEOUT_MS": 5000,
+  "PORT_PROBE_TIMEOUT_MS": 10000,
+  "CLONE_MS": 300000,
+  "ADD_IS_A_COMPUTER_LINE": "that is a computer, not a project; wsp add user@host joins it, and a project is a folder here or a repo's url with --on <computer>",
+  "NO_COPIER_HERE": "this host has no daemon binary beside it to make a worktree with; stage this wsp's daemon binary and try again",
+  "MERGE_DEADLINE_MS": 120000,
+  "LISTING_DEADLINE_MS": 120000,
+  "PORT_PROBE_BODY_CAP": 2048,
+  "VAULT_CAP_BYTES": 209715200,
+  "VAULTS": "vaults",
+  "VAULT_SKIP": [
+   ".local",
+   ".cache",
+   ".npm"
+  ],
+  "GRACE_MS": 600000,
+  "DAEMON_REVIVE_AGAIN_MS": 300000,
+  "DAEMON_LACKS_AGAIN_MS": 3600000,
+  "LOG_READ_EVERY_MS": 60000,
+  "LOG_READ_MS": 30000,
+  "RESET_EXEC_MS": 30000,
+  "PLAN_READ_EVERY_MS": 60000,
+  "OUTCOME_WORDS": {
+   "moved": "moved",
+   "transcript-only": "transcripts landed but not yet in its session list",
+   "carried": "carried unchanged since it is not on the machine",
+   "nothing": "had nothing to carry"
+  },
+  "HOME_WORDS": {
+   "moved": "moved",
+   "transcript-only": "transcripts landed but not yet in its session list here",
+   "carried": "carried unchanged",
+   "nothing": "had nothing to bring"
+  }
+ }
+}

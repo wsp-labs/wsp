@@ -6,6 +6,7 @@
 use std::rc::Rc;
 
 use indexmap::IndexMap;
+use wsp_wire::types::js_number::JsNumber;
 use wsp_words::exit::HostError;
 
 /// The clock seam: epoch ms and a one-shot timer whose answer cancels it. TS runtime clock.ts:4-9, wsp-core's
@@ -100,8 +101,8 @@ pub trait Store {
 /// The size and write time of a blob, which an index names the transcript it was read off by. TS store.ts:26-29.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct BlobMark {
-    pub bytes: f64,
-    pub at: f64,
+    pub bytes: JsNumber,
+    pub at: JsNumber,
 }
 
 /// TS engine golden-import.ts:817: `{ HOME: GUEST_HOME, USER: "root" }`.
