@@ -25,7 +25,10 @@ pub struct JoinToken {
 // export const TICKET_ORIGIN: Record<TicketPurpose, WorkspaceOrigin> = { connect: "here", relay: "relayed" };
 /// Where a socket redeeming a ticket of each purpose reached the host from: connect is here, relay is relayed.
 pub fn ticket_origin(purpose: TicketPurpose) -> WorkspaceOrigin {
-    todo!()
+    match purpose {
+        TicketPurpose::Connect => WorkspaceOrigin::Here,
+        TicketPurpose::Relay => WorkspaceOrigin::Relayed,
+    }
 }
 
 pub const PAIR_CODE_TTL_MS: i64 = 600000;
@@ -154,49 +157,137 @@ pub enum DaemonChannelEvent {
 /// - `kind`: literal "account"
 impl Check for DeviceVia {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        if self.kind != "account" {
+            let mut detail = indexmap::IndexMap::new();
+            detail.insert("received".to_string(), serde_json::Value::from(self.kind.as_str()));
+            detail.insert("expected".to_string(), serde_json::Value::from("account"));
+            let message = "Invalid literal value, expected \"account\"".to_string();
+            return Err(SchemaError { code: "invalid_literal".into(), path: vec![serde_json::Value::from("kind")], message, detail });
+        }
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "kind" => crate::types::check::leaf(rest, crate::types::check::Zod::Literal(|| serde_json::Value::from("account"))),
+                "relayDeviceId" => <String as Check>::describe(rest),
+                "fingerprint" => <String as Check>::describe(rest),
+                "publicKey" => <String as Check>::describe(rest),
+                "admittedBy" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
 /// No refinement of its own; checks every nested field that has one.
 impl Check for DeviceView {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.scope.check().map_err(|e| e.under("scope"))?;
+        self.via.check().map_err(|e| e.under("via"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "createdAt" => <String as Check>::describe(rest),
+                "lastSeenAt" => <String as Check>::describe(rest),
+                "scope" => <Option<ThreadScope> as Check>::describe(rest),
+                "here" => crate::types::check::leaf(rest, crate::types::check::Zod::Literal(|| serde_json::Value::from(true))),
+                "via" => <Option<DeviceVia> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
 /// No refinement of its own; checks every nested field that has one.
 impl Check for AccountView {
-    fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "signedIn" => <bool as Check>::describe(rest),
+                "login" => <Option<String> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
 /// No refinement of its own; checks every nested field that has one.
 impl Check for Admission {
-    fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "device" => <String as Check>::describe(rest),
+                "by" => <String as Check>::describe(rest),
+                "issuedAt" => <String as Check>::describe(rest),
+                "signature" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
 /// No refinement of its own; checks every nested field that has one.
 impl Check for AccountDevice {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.admissions.check().map_err(|e| e.under("admissions"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "id" => <String as Check>::describe(rest),
+                "name" => <String as Check>::describe(rest),
+                "fingerprint" => <String as Check>::describe(rest),
+                "admissions" => <Vec<AccountDeviceAdmission> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
 /// No refinement of its own; checks every nested field that has one.
 impl Check for AccountDeviceAdmission {
-    fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "by" => <String as Check>::describe(rest),
+                "issuedAt" => <String as Check>::describe(rest),
+                "signature" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
 /// No refinement of its own; checks every nested field that has one.
 impl Check for AccountDevices {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.devices.check().map_err(|e| e.under("devices"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "devices" => <Vec<AccountDevice> as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -204,35 +295,90 @@ impl Check for AccountDevices {
 /// - `op`: refine: (val, ctx) => { const result = check(val); const setError = () => ctx.addIssue({ code: ZodIssueCode.custom, ...getIssueProperties(val) }); if (typeof Promise !=
 impl Check for DaemonFrame {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        crate::types::check::refine(self.op != "auth", "the host authenticates the channel").map_err(|e| e.under("op"))
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "op" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
 /// No refinement of its own; checks every nested field that has one.
 impl Check for DaemonOpenReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "channel" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
 /// No refinement of its own; checks every nested field that has one.
 impl Check for DaemonSendReply {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.reply.check().map_err(|e| e.under("reply"))?;
+        Ok(())
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "reply" => <DaemonResponse as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
 /// No refinement of its own; checks every nested field that has one.
 impl Check for DaemonChannelEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        match self {
+            DaemonChannelEvent::DaemonEvent { event, .. } => event.check().map_err(|e| e.under("event")),
+            DaemonChannelEvent::DaemonClosed { .. } => Ok(()),
+        }
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        if path.is_empty() {
+            return Some(crate::types::check::Zod::Word("object"));
+        }
+        if path.len() == 1 && path[0].as_str() == Some("type") {
+            return Some(crate::types::check::Zod::Tags("type", &["daemon.event", "daemon.closed"]));
+        }
+        match path.split_first() {
+            Some((key, rest)) => match key.as_str()? {
+                "channel" => <String as Check>::describe(rest),
+                "event" => <DaemonEventEvent as Check>::describe(rest),
+                "code" => <i64 as Check>::describe(rest),
+                "reason" => <String as Check>::describe(rest),
+                _ => None,
+            },
+            None => None,
+        }
     }
 }
 
 /// No refinement of its own; checks every nested field that has one.
 impl Check for DaemonEventEvent {
-    fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) => match key.as_str()? {
+                "type" => <String as Check>::describe(rest),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -245,21 +391,27 @@ impl Check for DaemonEventEvent {
 //   return letters.length <= half ? letters : `${letters.slice(0, half)}-${letters.slice(half)}`;
 // }
 pub fn shown_pair_code(code: &str) -> String {
-    todo!()
+    let letters: Vec<u16> = sent_pair_code(code).encode_utf16().take(PAIR_CODE_LENGTH as usize).collect();
+    let half = (PAIR_CODE_LENGTH as usize).div_ceil(2);
+    if letters.len() <= half {
+        return String::from_utf16_lossy(&letters);
+    }
+    let (first, rest) = letters.split_at(half);
+    format!("{}-{}", String::from_utf16_lossy(first), String::from_utf16_lossy(rest))
 }
 // devices.ts:76
 // /** A pairing code as the host takes it, whichever screen it was copied off: the letters alone, upper case. A
 //  * person copies the code they can read, so the dash the screens put in it is one this reading takes back out. */
 // export const sentPairCode = (shown: string): string => shown.replace(/-/g, "").toUpperCase();
 pub fn sent_pair_code(shown: &str) -> String {
-    todo!()
+    shown.replace('-', "").to_uppercase()
 }
 // devices.ts:85
 // /** Whether a code as the host takes it could be one a host is holding: the alphabet's characters at the length a code
 //  * is. What tells a code from a paste that caught a label, a space for the dash or a character too many. */
 // export const isPairCode = (code: string): boolean => code.length === PAIR_CODE_LENGTH && [...code].every(c => PAIR_CODE_ALPHABET.includes(c));
 pub fn is_pair_code(code: &str) -> bool {
-    todo!()
+    code.encode_utf16().count() == PAIR_CODE_LENGTH as usize && code.chars().all(|c| PAIR_CODE_ALPHABET.contains(c))
 }
 // devices.ts:137
 // /** What a device signs to prove it may come in through the account: the key admitted, the key that signed for it
@@ -270,7 +422,7 @@ pub fn is_pair_code(code: &str) -> bool {
 //   return new TextEncoder().encode(`wsp device admission v1\n${device}\n${by}\n${issuedAt}\n`);
 // }
 pub fn device_admission_transcript(device: &str, by: &str, issued_at: &str) -> Vec<u8> {
-    todo!()
+    format!("wsp device admission v1\n{device}\n{by}\n{issued_at}\n").into_bytes()
 }
 // devices.ts:160
 // /** What a computer reads when the host it dialled answered device.auth with its own request schema's refusal: a
@@ -280,7 +432,7 @@ pub fn device_admission_transcript(device: &str, by: &str, issued_at: &str) -> V
 // export const deviceAuthOldHostLine = (where: string): string =>
 //   `the host at ${where} runs an older wsp, whose door does not know how a computer on the account comes in; update wsp on that computer and run wsp up there again`;
 pub fn device_auth_old_host_line(r#where: &str) -> String {
-    todo!()
+    format!("the host at {where} runs an older wsp, whose door does not know how a computer on the account comes in; update wsp on that computer and run wsp up there again")
 }
 // devices.ts:191
 // /** The refusal a write route and a browser's upgrade answer with when the page that sent them was loaded at
@@ -290,14 +442,14 @@ pub fn device_auth_old_host_line(r#where: &str) -> String {
 //   return `this request came from ${origin} and this host was reached at ${host}; the page and its socket open from the address the host answers at`;
 // }
 pub fn cross_origin_refusal(origin: &str, host: &str) -> String {
-    todo!()
+    format!("this request came from {origin} and this host was reached at {host}; the page and its socket open from the address the host answers at")
 }
 // devices.ts:225
 // /** The one word a person copies off a join line: the single-use code and the fingerprint of the key the host will
 //  * prove, as one string, so a join stays two things to copy and the screens keep the fields they have. */
 // export const joinToken = (code: string, hostKey: string): string => `${shownPairCode(code)}${JOIN_TOKEN_MARK}${hostKey}`;
 pub fn join_token(code: &str, host_key: &str) -> String {
-    todo!()
+    format!("{}{JOIN_TOKEN_MARK}{host_key}", shown_pair_code(code))
 }
 // devices.ts:229
 // /** The same token read back on the computer being joined, whichever road it came by: a person's paste, the flag,
@@ -313,14 +465,23 @@ pub fn join_token(code: &str, host_key: &str) -> String {
 //   return hostKey === "" ? { code } : { code, hostKey };
 // }
 pub fn read_join_token(typed: &str) -> JoinToken {
-    todo!()
+    let trimmed = crate::types::check::js_trim(typed);
+    match trimmed.find(JOIN_TOKEN_MARK) {
+        None => JoinToken { code: sent_pair_code(trimmed), host_key: None },
+        Some(at) => {
+            let key = crate::types::check::js_trim(&trimmed[at + 1..]);
+            JoinToken { code: sent_pair_code(&trimmed[..at]), host_key: (!key.is_empty()).then(|| key.to_string()) }
+        }
+    }
 }
 // devices.ts:246
 // /** The refusal a join gets when the host at that address proved a key that is not the one the join line named:
 //  * something answered where the host was expected. Nothing of this computer's went to it. */
 // export const joinKeyRefusal = (url: string): string => `the host at ${url} proved a key the join line did not name, so it is not the host that printed that line; nothing was sent to it`;
 pub fn join_key_refusal(url: &str) -> String {
-    todo!()
+    format!(
+        "the host at {url} proved a key the join line did not name, so it is not the host that printed that line; nothing was sent to it"
+    )
 }
 // devices.ts:250
 // /** The one word a person copies off wsp host pair, which is the join line's token under the name the pairing road
@@ -328,7 +489,7 @@ pub fn join_key_refusal(url: &str) -> String {
 //  * spends the code. `readJoinToken` reads both roads' tokens, since they are one shape. */
 // export const pairToken = joinToken;
 pub fn pair_token(code: &str, host_key: &str) -> String {
-    todo!()
+    join_token(code, host_key)
 }
 // devices.ts:255
 // /** The refusal a dial gets when whatever answered at that address did not prove the key this computer holds that
@@ -336,12 +497,12 @@ pub fn pair_token(code: &str, host_key: &str) -> String {
 //  * whichever check caught it, and no token of this computer's went to it. */
 // export const pairKeyRefusal = (url: string): string => `the host at ${url} did not prove the key this computer holds for it, so it is not that host; nothing was sent to it`;
 pub fn pair_key_refusal(url: &str) -> String {
-    todo!()
+    format!("the host at {url} did not prove the key this computer holds for it, so it is not that host; nothing was sent to it")
 }
 
 // A word list zod reads with z.enum: serde refuses any other word, so nothing is left to check.
 impl Check for TicketPurpose {
-    fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["connect", "relay"]))
     }
 }

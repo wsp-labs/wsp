@@ -110,16 +110,25 @@ pub fn listed(
     legacy: &[HarnessOption],
     hidden: &[HarnessOption],
 ) -> Result<(), ListedRefusal> {
-    let _ = (subject, word, options, value, legacy, hidden);
-    todo!()
+    let Some(value) = value else { return Ok(()) };
+    if options.iter().chain(legacy).chain(hidden).any(|o| o.value == value) {
+        return Ok(());
+    }
+    let words = |list: &[HarnessOption]| list.iter().map(|o| format!("{} ({})", o.label, o.value)).collect::<Vec<_>>().join(", ");
+    let older = if legacy.is_empty() { String::new() } else { format!("; legacy: {}", words(legacy)) };
+    let message = if options.is_empty() {
+        format!("{subject} takes no {word}")
+    } else {
+        format!(r#"{word} "{value}" is not one {subject} takes; one of: {}{older}"#, words(options))
+    };
+    Err(ListedRefusal { message, kind: "usage", offered: options.len() })
 }
 
 // helpers.ts:68
 // const watchName = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 /// Whether a port watch's name is one a socket may give: 1 to 64 of letters, digits, `_` and `-`.
 pub fn is_watch_name(name: &str) -> bool {
-    let _ = name;
-    todo!()
+    (1..=64).contains(&name.len()) && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
 }
 
 // helpers.ts:71
@@ -130,8 +139,8 @@ pub fn is_watch_name(name: &str) -> bool {
 /// Whether a cgroup path is one /proc/[pid]/cgroup could name: at most 512 UTF-16 units, absolute, every name after the
 /// leading slash non-empty and neither `.` nor `..`. The root alone, `/`, is refused (its one name is empty).
 pub fn is_cgroup_path(path: &str) -> bool {
-    let _ = path;
-    todo!()
+    crate::types::check::utf16_len(path) <= CGROUP_PATH_MAX
+        && path.strip_prefix('/').is_some_and(|rest| rest.split('/').all(|name| !name.is_empty() && name != "." && name != ".."))
 }
 
 // helpers.ts:92
@@ -144,8 +153,7 @@ pub fn is_cgroup_path(path: &str) -> bool {
 // export const base64Length = (bytes: number): number => Math.ceil(bytes / 3) * 4;
 /// How long the base64 of so many bytes is, its padding counted.
 pub fn base64_length(bytes: u64) -> u64 {
-    let _ = bytes;
-    todo!()
+    bytes.div_ceil(3) * 4
 }
 
 // helpers.ts:101
@@ -159,24 +167,66 @@ pub fn base64_length(bytes: u64) -> u64 {
 /// characters, the standard alphabet then up to two `=`, a length a multiple of 4, and the byte count read off the
 /// text and its padding, never decoded.
 pub fn is_base64_of(text: &str, bytes: u64) -> bool {
-    let _ = (text, bytes);
-    todo!()
+    let pad = text.bytes().rev().take_while(|&b| b == b'=').count();
+    if pad > 2 || text.len() > base64_length(bytes) as usize {
+        return false;
+    }
+    let body = &text[..text.len() - pad];
+    if body.is_empty() || !body.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'+' || b == b'/') {
+        return false;
+    }
+    text.len() % 4 == 0 && (text.len() as i64 / 4) * 3 - pad as i64 == bytes as i64
 }
 
 /// Rule 4.26: a parsed or built JSON object writes its keys as JavaScript does, so keys that read as array indexes
 /// (`"0"`, `"2"`, `"10"`: a canonical non-negative integer below 2^32 - 1, no leading zero, no sign) move first in
 /// ascending numeric order and every other key keeps its place. Applied to this map alone, not to the maps inside it.
 pub fn js_key_order(map: &mut IndexMap<String, Value>) {
-    let _ = map;
-    todo!()
+    let is_index = |k: &str| {
+        !k.is_empty()
+            && k.bytes().all(|b| b.is_ascii_digit())
+            && (k == "0" || !k.starts_with('0'))
+            && k.parse::<u64>().is_ok_and(|n| n <= 4294967294)
+    };
+    let (mut indexed, rest): (Vec<(String, Value)>, Vec<(String, Value)>) = std::mem::take(map).into_iter().partition(|(k, _)| is_index(k));
+    indexed.sort_by_key(|(k, _)| k.parse::<u64>().unwrap_or(0));
+    map.extend(indexed);
+    map.extend(rest);
 }
 
 /// zod `.catch(undefined)` on an optional field: a value that does not read as T reads as absent rather than failing
 /// the frame. Absent and null read as absent too.
 pub fn or_none<'de, D: Deserializer<'de>, T: DeserializeOwned>(d: D) -> Result<Option<T>, D::Error> {
-    let _ = d;
-    let _: Option<T> = None;
-    todo!()
+    let value = Value::deserialize(d)?;
+    if value.is_null() {
+        return Ok(None);
+    }
+    Ok(T::deserialize(value).ok())
+}
+
+/// zod's z.literal on a string key: any other word is `invalid_literal` at that key.
+pub fn literal_word(got: &str, expected: &str, key: &str) -> Result<(), SchemaError> {
+    if got == expected {
+        return Ok(());
+    }
+    let mut detail = IndexMap::new();
+    detail.insert("received".to_string(), Value::from(got));
+    detail.insert("expected".to_string(), Value::from(expected));
+    let message = format!("Invalid literal value, expected \"{expected}\"");
+    Err(SchemaError { code: "invalid_literal".into(), path: vec![Value::from(key)], message, detail })
+}
+
+/// zod's discriminator issue for an absent or unknown op or type word: one issue on the key, naming every word in order.
+pub fn op_discriminator(key: &str, words: &[&str]) -> SchemaError {
+    let mut detail = IndexMap::new();
+    detail.insert("options".to_string(), Value::Array(words.iter().map(|w| Value::from(*w)).collect()));
+    let listed = words.iter().map(|w| format!("'{w}'")).collect::<Vec<_>>().join(" | ");
+    SchemaError {
+        code: "invalid_union_discriminator".into(),
+        path: vec![Value::from(key)],
+        message: format!("Invalid discriminator value. Expected {listed}"),
+        detail,
+    }
 }
 
 /// No refinement of its own.
