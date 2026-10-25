@@ -55,6 +55,7 @@ export const SLATE_GLANCE = {
   sketchWords: 400,
   textPerVisual: 2,
   sameRows: 3,
+  rowsRead: 1000,
 } as const;
 
 /** A text's size as the limits count it: UTF-8 bytes, as the host stores and sends it. */
