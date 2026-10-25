@@ -29,7 +29,7 @@ impl Into<ElementId> for SharedString
 
 ## Uniqueness Rules
 
-IDs must be unique within the same **stateful parent's scope** — not globally. GPUI builds a `GlobalElementId` by chaining parent IDs:
+IDs must be unique within the same **stateful parent's scope**, not globally. GPUI builds a `GlobalElementId` by chaining parent IDs:
 
 ```rust
 div().id("app").child(
@@ -39,7 +39,7 @@ div().id("app").child(
     ])
 ).child(
     div().id("list2").children(vec![
-        div().id(1usize).child("Item 1"),  // GlobalId: ["app", "list2", 1] — no conflict
+        div().id(1usize).child("Item 1"),  // GlobalId: ["app", "list2", 1], no conflict
     ])
 )
 ```

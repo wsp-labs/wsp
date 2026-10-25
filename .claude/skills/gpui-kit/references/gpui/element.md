@@ -100,8 +100,8 @@ State flows in one direction through associated types, passed as mutable referen
 ## Reference Documentation
 
 ### Complete API Documentation
-- **API**: See [element-api.md](element-api.md) — associated types, hitbox system, event handling, cursor styles
-- **Examples**: See [element-examples.md](element-examples.md) — text, interactive, complex elements
-- **Patterns**: See [element-patterns.md](element-patterns.md) — text, container, interactive, composite, scrollable
-- **Best Practices**: See [element-best-practices.md](element-best-practices.md) — performance, state, common pitfalls
-- **Advanced**: See [element-advanced.md](element-advanced.md) — masonry/circular layouts, memoization, virtual lists
+- **API**: See [element-api.md](element-api.md), associated types, hitbox system, event handling, cursor styles
+- **Examples**: See [element-examples.md](element-examples.md), text, interactive, complex elements
+- **Patterns**: See [element-patterns.md](element-patterns.md), text, container, interactive, composite, scrollable
+- **Best Practices**: See [element-best-practices.md](element-best-practices.md), performance, state, common pitfalls
+- **Advanced**: See [element-advanced.md](element-advanced.md), masonry/circular layouts, memoization, virtual lists
