@@ -7,8 +7,10 @@ use wsp_frames::ProcEntry;
 use wsp_wire::views::activity_names::proc_name;
 
 fn entry(comm: &str, cmdline: &str) -> ProcEntry {
-    serde_json::from_value(json!({ "pid": 1, "ppid": 0, "user": "u", "state": "S", "comm": comm, "cmdline": cmdline, "cpu": 0, "rss": 0, "startedAt": 0 }))
-        .unwrap()
+    serde_json::from_value(
+        json!({ "pid": 1, "ppid": 0, "user": "u", "state": "S", "comm": comm, "cmdline": cmdline, "cpu": 0, "rss": 0, "startedAt": 0 }),
+    )
+    .unwrap()
 }
 
 #[test]
