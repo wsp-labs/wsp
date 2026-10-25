@@ -1,0 +1,10 @@
+{
+  "kind": "tweet",
+  "url": "https://x.com/theo/status/2084721449114472849",
+  "name": "Theo - t3.gg",
+  "handle": "theo",
+  "avatar": "/blog/embeds/tweet-2084721449114472849/avatar.jpg",
+  "text": "You guys do realize that Codex and Claude are basically acting as terminals, right?\n\nIf your dev server has a memory leak, and Codex spawns it, the memory leak will be credited to Codex.\n\nImagine posting a screenshot of Ghostty using 100gb of RAM and saying it has a memory leak",
+  "date": "2026-08-04T19:21:40.000Z",
+  "media": []
+}

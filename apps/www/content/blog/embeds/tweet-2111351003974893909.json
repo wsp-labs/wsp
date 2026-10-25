@@ -1,0 +1,15 @@
+{
+  "kind": "tweet",
+  "url": "https://x.com/maurice_build/status/2111351003974893909",
+  "name": "Maurice",
+  "handle": "maurice_build",
+  "avatar": "/blog/embeds/tweet-2111351003974893909/avatar.jpg",
+  "text": "It's horrible \n\nSometimes Codex uses up all the RAM. \nMy Mac becomes completely unusable then.\n\nDoes anyone know how to fix this?",
+  "date": "2026-10-17T06:58:01.000Z",
+  "media": [
+    {
+      "kind": "photo",
+      "src": "/blog/embeds/tweet-2111351003974893909/media-0.jpg"
+    }
+  ]
+}
