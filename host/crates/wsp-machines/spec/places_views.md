@@ -63,7 +63,7 @@ Nothing here fails a remove: each answers empty on any failure.
   and `reason`.
 - **V15 `forks_of(record)`** (:234-256): `None` where the computer is not linked; where linked with no backend yet, start
   `forking_backend(id)` in the background (not awaited, failure swallowed) and answer `None`; `None` where the backend
-  has no `capacity`. Else `capacity()` bounded by `CAPACITY_MS` (5 s, what `machine.capacity on <name>`): `running` =
+  does not offer `capacity` (`offers().capacity` false). Else `capacity()` bounded by `CAPACITY_MS` (5 s, what `machine.capacity on <name>`): `running` =
   `machines.running` (a napping fork is not counted), `room` = `fork_room(capacity, min(defaultSize.memMb,
   machineMemMb), largest image sizeBytes or None where it is 0)`. A failure or the bound is `None`.
 
