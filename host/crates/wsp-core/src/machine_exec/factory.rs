@@ -12,6 +12,7 @@ use wsp_engine::Machine;
 
 use super::rules::{ReadingSet, TurnWaiting};
 use crate::ids::Ids;
+use crate::owner_thread::OwnerThread;
 
 /// The clock both limits read; ms epoch.
 pub type NowFn = Arc<dyn Fn() -> i64 + Send + Sync>;
@@ -99,8 +100,9 @@ pub type Launched = Shared<BoxFuture<'static, Result<(), ExecFailure>>>;
 
 /// What the factory and every stream it opens read: the machine and the resolved options.
 pub struct Core {
-    pub machine: Arc<dyn Machine>,
-    pub launch_on: Option<Arc<dyn Machine>>,
+    /// Behind `OwnerThread`: the engine's `Machine` is not `Send`, and the factory must be (wsp-adapters' port).
+    pub machine: OwnerThread<Arc<dyn Machine>>,
+    pub launch_on: Option<OwnerThread<Arc<dyn Machine>>>,
     pub poll_ms: u64,
     pub idle_ms: f64,
     pub deadline_ms: f64,

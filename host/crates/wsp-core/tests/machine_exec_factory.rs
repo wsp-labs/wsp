@@ -7,7 +7,7 @@ use std::future::Future;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32, Ordering::SeqCst};
 use std::sync::{Arc, Mutex};
 
-use futures::future::BoxFuture;
+use futures::future::{BoxFuture, LocalBoxFuture};
 use futures::StreamExt;
 use regex::Regex;
 use support::guest::{errors, Hook, Inner, LocalGuest, ScriptGuest, Step, Wrapped};
@@ -73,17 +73,17 @@ fn now_ms() -> i64 {
 fn hook<F, Fut>(f: F) -> Hook
 where
     F: Fn(String, Option<Vec<u8>>, Inner) -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = EngineResult<ExecResult>> + Send + 'static,
+    Fut: Future<Output = EngineResult<ExecResult>> + 'static,
 {
-    Arc::new(move |cmd: String, stdin: Option<Vec<u8>>, inner: Inner| -> BoxFuture<'static, EngineResult<ExecResult>> { Box::pin(f(cmd, stdin, inner)) })
+    Arc::new(move |cmd: String, stdin: Option<Vec<u8>>, inner: Inner| -> LocalBoxFuture<'static, EngineResult<ExecResult>> { Box::pin(f(cmd, stdin, inner)) })
 }
 
 fn wrapped<F, Fut>(inner: Arc<dyn Machine>, f: F) -> Arc<dyn Machine>
 where
     F: Fn(Arc<dyn Machine>, String, MachineExec) -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = EngineResult<ExecResult>> + Send + 'static,
+    Fut: Future<Output = EngineResult<ExecResult>> + 'static,
 {
-    let f = Arc::new(move |m: Arc<dyn Machine>, c: String, o: MachineExec| -> BoxFuture<'static, EngineResult<ExecResult>> { Box::pin(f(m, c, o)) });
+    let f = Arc::new(move |m: Arc<dyn Machine>, c: String, o: MachineExec| -> LocalBoxFuture<'static, EngineResult<ExecResult>> { Box::pin(f(m, c, o)) });
     Arc::new(Wrapped { inner, f })
 }
 
