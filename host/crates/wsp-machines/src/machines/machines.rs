@@ -35,7 +35,7 @@ use wsp_wire::wire::machine_link::MachineShape;
 use wsp_words::exit::HostError;
 
 /// A live workspace as every area holds it: one object per record, compared by `Rc::ptr_eq` where the TS compares
-/// `live.get(id) !== entry`. Moves to wsp-core's context once it is written.
+/// `live.get(id) !== entry`. No wsp-core item names it.
 pub type Entry = Rc<RefCell<LiveWorkspace>>;
 
 /// One row the runtime holds, a turn of a thread, by reference: `end` and the re-key change the row in place.
