@@ -278,7 +278,27 @@ if [ "$os" = Linux ]; then
   ln -s "$unit" "$unit_link"
   linked=1
   today_env=("${base_env[@]}")
-  today_cmd=("$installed")
+  # Today's app as the install line leaves it: unpacked under ~/.wsp/app/<version>-install and opened from the app
+  # menu's wsp.desktop through the install line's own launcher, which runs the newest folder there.
+  (cd "$work" && "$installed" --appimage-extract >/dev/null) || fail "$installed did not unpack"
+  mkdir -p "$home/.wsp/app" "$home/.wsp/bin" "$home/.local/share/applications"
+  mv "$work/squashfs-root" "$home/.wsp/app/$old_v-install"
+  # The launcher the install line wrote up to 0.3.8 (write_launcher in apps/www/public/install at 9bf1a77b7).
+  cat >"$home/.wsp/bin/wsp-desktop" <<'LAUNCHER'
+#!/bin/sh
+# The wsp install line writes this for the app menu: it opens wsp from the newest folder under ~/.wsp/app.
+newest=""
+for dir in "$HOME"/.wsp/app/*/; do
+  case "$dir" in *.part/) continue ;; esac
+  [ -x "${dir}AppRun" ] || continue
+  if [ -z "$newest" ] || ! [ "$newest" -nt "$dir" ]; then newest=$dir; fi
+done
+[ -n "$newest" ] || { echo "wsp: no app under ~/.wsp/app; run the install line again" >&2; exit 1; }
+exec "${newest}AppRun" "$@"
+LAUNCHER
+  chmod 755 "$home/.wsp/bin/wsp-desktop"
+  printf '[Desktop Entry]\nType=Application\nName=wsp\nExec="%s" %%U\nTerminal=false\nMimeType=x-scheme-handler/wsp;\n' "$home/.wsp/bin/wsp-desktop" >"$home/.local/share/applications/wsp.desktop"
+  today_cmd=("$home/.wsp/bin/wsp-desktop")
   # Chromium will not run as root with its sandbox on.
   [ "$uid" != 0 ] || today_cmd+=(--no-sandbox)
 else
@@ -353,7 +373,7 @@ say "today's host lists threads: $before"
 electron_main() {
   local pid
   for pid in $(tree "$today_pid"); do
-    case "$(args_of "$pid")" in /tmp/.mount_*/wsp|"/tmp/.mount_"*"/wsp --no-sandbox") echo "$pid"; return ;; esac
+    case "$(args_of "$pid")" in */wsp | */"wsp --no-sandbox") echo "$pid"; return ;; esac
   done
   echo "$today_pid"
 }
@@ -470,6 +490,17 @@ else
   [ "$(plutil -extract ProgramArguments.0 raw -o - "$unit")" = "$wsp" ] || why="$why; the unit does not run the wsp command"
 fi
 [ -e "$home/.wsp/desktop/experimental" ] && why="$why; today's switch still stands"
+if [ "$os" = Linux ]; then
+  # The menu's entry stays the install line's; its launcher now runs ~/Applications/wsp.AppImage, which must be this app.
+  menu=$home/.local/share/applications/wsp.desktop
+  menu_runs=$(sed -n 's/^Exec=//p' "$menu" | sed 's/^"\([^"]*\)".*/\1/; s/ .*//')
+  # shellcheck disable=SC2016
+  menu_image=$(sed -n 's/^image="$HOME\(.*\)"$/\1/p' "$menu_runs")
+  say "the app menu's wsp.desktop runs $menu_runs, which runs ~$menu_image"
+  [ "$menu_runs" = "$home/.wsp/bin/wsp-desktop" ] || why="$why; the app menu's entry was written over"
+  [ -n "$menu_image" ] && [ "$(sha "$home$menu_image")" = "$(sha "$got")" ] || why="$why; the app menu does not open the GPUI app at $got"
+  if grep -q '^NoDisplay=true' "$menu"; then why="$why; the app menu hides wsp"; fi
+fi
 login_after=$(login_start)
 say "starts at login: $login_before before the move, $login_after after"
 [ "$login_after" = "$login_before" ] || why="$why; the service's login setting moved from $login_before to $login_after"
@@ -479,7 +510,7 @@ grep -h -e 'wsp command' -e 'switch' -e 'wsp://' -e 'restart' -e 'update:' "$hom
 if [ "$os" = Linux ]; then
   link_to=$(printf '%s' "$seeded" | cut -d' ' -f1)
   say "xdg-mime names $(env -i "${base_env[@]}" /usr/bin/xdg-mime query default x-scheme-handler/wsp) for wsp://; opening wsp://thread/$link_to"
-  sed 's/^/  /' "$home/.local/share/applications/wsp.desktop" || why="$why; no wsp.desktop entry was written"
+  sed 's/^/  /' "$home/.local/share/applications/wsp-links.desktop" || why="$why; no wsp-links.desktop entry was written"
   before_link=$(ps -A -o pid= | wc -l)
   (cd "$home" && env -i "${base_env[@]}" /usr/bin/xdg-open "wsp://thread/$link_to") >"$work/xdg-open.log" 2>&1 || why="$why; xdg-open failed: $(cat "$work/xdg-open.log")"
   sleep 4

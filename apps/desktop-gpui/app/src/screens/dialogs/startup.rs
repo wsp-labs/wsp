@@ -503,7 +503,7 @@ fn restart_then_open(title: &'static str, again: Again, starting: Starting, cx: 
         let said = restarted.await.unwrap_or_else(|_| Err(crate::update::words::STOPPED.into()));
         cx.update(|cx| {
             let (state, env, runtime, app) = again;
-            if let Err(said) | Ok(service::Followed::Left(said)) = said {
+            if let Err(said) | Ok(service::Followed::Left(said) | service::Followed::Newer(said)) = said {
                 let failed = Failed { failure: Box::new(Failure::new(crate::update::words::not_restarted(&said))), log: None };
                 return say_failed(title, &failed, &state, starting, cx);
             }

@@ -439,7 +439,13 @@ fn follow_onto_now(state: &Path, here: Bundled) -> Result<Followed, String> {
 
 fn follow_onto_by<R: Runner>(state: &Path, here: Bundled, runner: &R) -> Result<Followed, String> {
     let vars: Env = [("HOME".to_owned(), state.parent().unwrap().to_string_lossy().into_owned())].into();
-    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(follow_onto(state, &vars, Ok(here), runner))
+    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(follow_onto(
+        state,
+        &vars,
+        Ok(here),
+        runner,
+        std::time::Duration::from_millis(500),
+    ))
 }
 
 /// A manager that keeps every command it was handed and holds no unit.
@@ -498,13 +504,42 @@ fn restart_host_says_what_it_did_and_why_it_left_a_host() {
         Ok(Followed::Left(why)) => why,
         other => panic!("the host was not said to be left: {other:?}"),
     };
-    assert!(said(follow_onto_now(&state, older.clone())).contains("newer than wsp 0.3.8"), "the command runs newer files");
+    match follow_onto_now(&state, older.clone()) {
+        Ok(Followed::Newer(why)) => assert!(why.contains("newer than wsp 0.3.8"), "the command runs newer files: {why}"),
+        other => panic!("a newer command is not said to be newer, which a swap opens on: {other:?}"),
+    }
 
     let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
     let lock = format!(r#"{{"pid":{},"port":{port},"startedAt":"2026-10-24T00:00:00.000Z","startedBy":"service"}}"#, std::process::id());
     std::fs::write(home.join("host.lock"), lock).unwrap();
-    assert!(said(follow_onto_now(&state, newer.clone())).contains("did not say its release within 2 s"), "a page that does not answer");
+    assert!(said(follow_onto_now(&state, newer.clone())).contains("neither said its release nor went"), "a page that does not answer");
     std::fs::remove_file(home.join("host.lock")).unwrap();
+}
+
+/// Catches: a host that a swap's restart is still stopping, holding the lock with its page gone, read as a host left as
+/// it is after 2 s, which fails the swap and puts today's app back.
+#[test]
+fn a_host_still_going_is_waited_on_and_then_followed() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = dir.path().join(".wsp");
+    std::fs::create_dir_all(&home).unwrap();
+    let state = home.join("state.json");
+    let newer = bundle_in(&dir.path().join("Applications"), Os::Mac, "0.3.9");
+    let mut going = Command::new("/bin/sleep").arg("3").spawn().unwrap();
+    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    let lock = format!(r#"{{"pid":{},"port":{port},"startedAt":"2026-10-24T00:00:00.000Z","startedBy":"service"}}"#, going.id());
+    std::fs::write(home.join("host.lock"), lock).unwrap();
+    let reaped = std::thread::spawn(move || going.wait());
+    let vars: Env = [("HOME".to_owned(), home.to_string_lossy().into_owned())].into();
+    let followed = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(follow_onto(
+        &state,
+        &vars,
+        Ok(newer),
+        &NoManager,
+        std::time::Duration::from_secs(20),
+    ));
+    reaped.join().unwrap().unwrap();
+    assert_eq!(followed, Ok(Followed::NotServing), "the host went within the wait, and its unit runs the command");
 }
 
 /// Catches: npm's links read again, and the login shell run again, on every open after the launch's: a later open, the

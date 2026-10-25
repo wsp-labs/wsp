@@ -313,24 +313,30 @@ pub fn owned() -> Option<PathBuf> {
 /// person reads.
 pub async fn restart_host() -> Result<Followed, String> {
     let (state, env) = LAUNCH.get().cloned().unwrap_or_else(|| (default_state(), std::env::vars().collect()));
-    follow_onto(&state, &env, bundled(), &System::new(&env)).await
+    follow_onto(&state, &env, bundled(), &System::new(&env), HOLDER_WAIT).await
 }
 
-async fn follow_onto<R: Runner>(state: &Path, env: &Env, here: Result<Bundled, String>, runner: &R) -> Result<Followed, String> {
+async fn follow_onto<R: Runner>(
+    state: &Path,
+    env: &Env,
+    here: Result<Bundled, String>,
+    runner: &R,
+    wait: std::time::Duration,
+) -> Result<Followed, String> {
     let home = state.parent().unwrap_or(Path::new(""));
-    let serving = start::serving_release(state).await;
-    if serving.is_none() && wsp_host_client::lock::serving(state).is_some() {
+    let Some(serving) = holder_release(state, wait).await else {
         return Ok(Followed::Left(format!(
-            "the host serving {} did not say its release within 2 s, so this app did not restart it",
-            state.display()
+            "the host serving {} neither said its release nor went within {} s, so this app did not restart it",
+            state.display(),
+            wait.as_secs()
         )));
-    }
+    };
     let mine = here.as_ref().ok().and_then(Bundled::release).unwrap_or_default();
     let Some(owned) = claim(home, here, Image::of(env).as_ref(), serving.as_deref())? else {
-        let left = left_as_is(home, serving.as_deref(), &mine).map(|left| left.said(&mine));
-        return Ok(Followed::Left(
-            left.unwrap_or_else(|| format!("this app left the wsp command at {} as it is", shim::path(home).display())),
-        ));
+        return Ok(match left_as_is(home, serving.as_deref(), &mine) {
+            Some(left) => Followed::Newer(left.said(&mine)),
+            None => Followed::Left(format!("this app left the wsp command at {} as it is", shim::path(home).display())),
+        });
     };
     let mut road = Start::here(state, env);
     road.wsp = Some(owned.wsp);
@@ -338,6 +344,28 @@ async fn follow_onto<R: Runner>(state: &Path, env: &Env, here: Result<Bundled, S
         (Some(_), _) => start::follow(&road, runner).await,
         (None, Some(_)) => Ok(Followed::Already),
         (None, None) => start::idle_onto(&road, runner).await,
+    }
+}
+
+/// How long a host holding the state file is given to say its release or go: a swap's restart has just stopped it, and
+/// today's swap waits 60 s on this app in all.
+pub const HOLDER_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// The release the host holding `state` says it is, `Some(None)` once nothing holds it, or nothing where a holder
+/// neither answered nor went within `wait`.
+async fn holder_release(state: &Path, wait: std::time::Duration) -> Option<Option<String>> {
+    let until = std::time::Instant::now() + wait;
+    loop {
+        if let Some(release) = start::serving_release(state).await {
+            return Some(Some(release));
+        }
+        if wsp_host_client::lock::serving(state).is_none() {
+            return Some(None);
+        }
+        if std::time::Instant::now() >= until {
+            return None;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
     }
 }
 
