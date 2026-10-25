@@ -1,5 +1,5 @@
 # recipe_file
-Source: the functions of `packages/protocol/src/recipe-file.ts` (215 lines) at a3b870a6e; its zod shapes (`RecipeSignIn`, `GitHubSignIn`, `ServerSignIn`, `RecipeFile`, `RecipeView`) and flat constants (`WSP_COMMAND`, `RECIPE_KINDS`, `NO_RECIPE`, `COPY_KEYS_WORD`, `RECIPE_NAME_REFUSAL`, `NO_RECIPES`, `RECIPES_TICKET_REFUSAL`) are `wsp_wire::types::recipe_file`. Tests: `packages/protocol/test/gh-status.test.ts` (2 cases on `ghStatusOf`), not ported: `tests/recipe_file.rs` is not written yet. No other TS test of `packages/protocol` reads these functions.
+Source: the functions of `packages/protocol/src/recipe-file.ts` (215 lines) at a3b870a6e; its zod shapes (`RecipeSignIn`, `GitHubSignIn`, `ServerSignIn`, `RecipeFile`, `RecipeView`) and flat constants (`WSP_COMMAND`, `RECIPE_KINDS`, `NO_RECIPE`, `COPY_KEYS_WORD`, `RECIPE_NAME_REFUSAL`, `NO_RECIPES`, `RECIPES_TICKET_REFUSAL`) are `wsp_wire::types::recipe_file`. Tests: `packages/protocol/test/gh-status.test.ts` (2 cases on `ghStatusOf`), ported in `tests/recipe_file.rs`, with `pinned` beside them. No other TS test of `packages/protocol` reads these functions.
 
 ## What it does
 A recipe, a named pick of what goes on a computer: what `gh auth status` says of its account, the file name a recipe's name is kept under, the counts and the one line of what it holds, the canonical text its resolved form hashes to, wsp's own pieces taken out of an old one, and the refusals of the recipe ops.
@@ -51,4 +51,7 @@ A recipe, a named pick of what goes on a computer: what `gh auth status` says of
 ## Rules pinned
 | Rule | Test |
 |---|---|
-| 1 to 9 | not pinned: `tests/recipe_file.rs` is not written; `gh-status.test.ts` (2 cases) waits to be ported for rule 1 |
+| 1 | `gh_s_status_as_wsp_reads_it::*` |
+| 2, 4, 6 | `pinned::a_recipe_is_named_counted_and_its_own_server_left_out` (the summary of an empty file only) |
+| 8, 9 | `pinned::the_lines_a_recipe_refuses_or_keeps_keys_with` |
+| 3, 5, 7 | not pinned: a RecipeFile with rows reads through wsp-wire's own unfinished deserializers |

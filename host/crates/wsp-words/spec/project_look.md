@@ -1,5 +1,5 @@
 # project_look
-Source: the functions of `packages/protocol/src/project-look.ts` (28 lines) at a3b870a6e; its zod shapes (`ProjectIcon`, `ProjectHue`, `ProjectIconHash`) and flat constants (`PROJECT_ICON_PX`, `PROJECT_ICON_MAX_BYTES`, `PROJECT_ICON_SOURCE_PX`, `PROJECT_ICON_TYPES`, `PROJECT_ICON_AGAIN`) are `wsp_wire::types::project_look`. Tests: none; the TS has no test file for this module and there is no `tests/project_look.rs`.
+Source: the functions of `packages/protocol/src/project-look.ts` (28 lines) at a3b870a6e; its zod shapes (`ProjectIcon`, `ProjectHue`, `ProjectIconHash`) and flat constants (`PROJECT_ICON_PX`, `PROJECT_ICON_MAX_BYTES`, `PROJECT_ICON_SOURCE_PX`, `PROJECT_ICON_TYPES`, `PROJECT_ICON_AGAIN`) are `wsp_wire::types::project_look`. Tests: the TS has no test file for this module; `pinned` in `tests/project_look.rs` holds the value the TS printed.
 
 ## What it does
 The words of a project's look that are not wire shapes: the one refusal the host gives when it will not keep an image a person picked for a project, and what that refusal tells the person to do.
@@ -25,4 +25,4 @@ The refusal of a `projects.icon` request, which the runtime raises as a usage re
 ## Rules pinned
 | Rule | Test |
 |---|---|
-| 1 | none: no test pins it, in TS or Rust |
+| 1 | `pinned::an_icon_the_host_refused_says_why_and_what_to_do` |
