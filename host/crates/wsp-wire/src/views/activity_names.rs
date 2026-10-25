@@ -33,6 +33,7 @@ pub const ACTIVITY_GROUP_WORDS: &[(&str, &str)] = &[
 
 // ---- Hand-written below: the functions of the unit.
 
+use crate::types::js_number::JsInt;
 use wsp_frames::ProcEntry;
 
 // views/activity-names.ts:39 at a3b870a6e

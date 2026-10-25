@@ -102,6 +102,15 @@ impl Check for RecipeFileAgentsValue {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        if let Some(v) = obj.get("signin") { match crate::types::check::read_present::<RecipeSignIn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signin"))), } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -129,6 +138,15 @@ impl Check for RecipeFileMcpValue {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("agents") { None => out.push(crate::types::check::missing::<Self>("agents")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(x) => { if let Err(e) = Self::rule_agents(&x) { out.push(e.under("agents")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("agents"))), } } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -137,6 +155,15 @@ impl Check for RecipeFileMcpValue {
                 _ => None,
             },
         }
+    }
+}
+impl RecipeFileMcpValue {
+    fn rule_agents(x: &Vec<String>) -> Result<(), crate::types::check::SchemaError> {
+        for (i, item) in (*x).iter().enumerate() {
+            crate::types::check::text_at_least(item, 1).map_err(|e| e.under(i))?;
+        }
+        crate::types::check::items_at_least((*x).len(), 1)?;
+        Ok(())
     }
 }
 
@@ -160,6 +187,16 @@ impl Check for RecipeFileClisValue {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("via") { None => out.push(crate::types::check::missing::<Self>("via")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_via(&x) { out.push(e.under("via")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("via"))), } } }
+        if let Some(v) = obj.get("needs") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(x) => { if let Err(e) = Self::rule_needs(&x) { out.push(e.under("needs")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("needs"))), } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -169,6 +206,20 @@ impl Check for RecipeFileClisValue {
                 _ => None,
             },
         }
+    }
+}
+impl RecipeFileClisValue {
+    fn rule_via(x: &String) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::text_at_least(x, 1)?;
+        Ok(())
+    }
+    fn rule_needs(x: &Option<Vec<String>>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(list) = x {
+            for (i, item) in list.iter().enumerate() {
+                crate::types::check::text_at_least(item, 1).map_err(|e| e.under(i))?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -185,6 +236,15 @@ impl Check for RecipeFileSkillsValue {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("from") { None => out.push(crate::types::check::missing::<Self>("from")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_from(&x) { out.push(e.under("from")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("from"))), } } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -195,6 +255,12 @@ impl Check for RecipeFileSkillsValue {
         }
     }
 }
+impl RecipeFileSkillsValue {
+    fn rule_from(x: &String) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::text_at_least(x, 1)?;
+        Ok(())
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -203,6 +269,14 @@ pub struct RecipeFilePluginsValue {}
 impl Check for RecipeFilePluginsValue {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -243,6 +317,20 @@ impl Check for RecipeFileFoldersValue {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("from") { None => out.push(crate::types::check::missing::<Self>("from")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_from(&x) { out.push(e.under("from")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("from"))), } } }
+        if let Some(v) = obj.get("name") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_name(&x) { out.push(e.under("name")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } }
+        if let Some(v) = obj.get("icon") { match crate::types::check::read_present::<ProjectIcon>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("icon"))), } }
+        if let Some(v) = obj.get("hue") { match crate::types::check::read_present::<ProjectHue>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hue"))), } }
+        if let Some(v) = obj.get("image") { match crate::types::check::read_present::<ProjectIconHash>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("image"))), } }
+        if let Some(v) = obj.get("keep") { match crate::types::check::read::<Vec<String>>(v) { Ok(x) => { if let Err(e) = Self::rule_keep(&x) { out.push(e.under("keep")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("keep"))), } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -256,6 +344,24 @@ impl Check for RecipeFileFoldersValue {
                 _ => None,
             },
         }
+    }
+}
+impl RecipeFileFoldersValue {
+    fn rule_from(x: &String) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::text_at_least(x, 1)?;
+        Ok(())
+    }
+    fn rule_name(x: &Option<String>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = x {
+            crate::types::check::text_at_least(v, 1)?;
+        }
+        Ok(())
+    }
+    fn rule_keep(x: &Vec<String>) -> Result<(), crate::types::check::SchemaError> {
+        for (i, item) in (*x).iter().enumerate() {
+            crate::types::check::text_at_least(item, 1).map_err(|e| e.under(i))?;
+        }
+        Ok(())
     }
 }
 
@@ -272,6 +378,14 @@ impl Check for RecipeFileConfigsGit {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         if path.is_empty() { Some(crate::types::check::Zod::Word("object")) } else { None }
     }
@@ -284,6 +398,14 @@ pub struct RecipeFileConfigsShell {}
 impl Check for RecipeFileConfigsShell {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -303,6 +425,15 @@ impl Check for RecipeFileConfigsGithub {
     fn check(&self) -> Result<(), SchemaError> {
         self.signin.check().map_err(|e| e.under("signin"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        if let Some(v) = obj.get("signin") { match crate::types::check::read_present::<GitHubSignIn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signin"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -334,6 +465,17 @@ impl Check for RecipeFileConfigs {
         self.shell.check().map_err(|e| e.under("shell"))?;
         self.github.check().map_err(|e| e.under("github"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        if let Some(v) = obj.get("git") { match crate::types::check::read_present::<RecipeFileConfigsGit>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("git"))), } }
+        if let Some(v) = obj.get("shell") { match crate::types::check::read_present::<RecipeFileConfigsShell>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("shell"))), } }
+        if let Some(v) = obj.get("github") { match crate::types::check::read_present::<RecipeFileConfigsGithub>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("github"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -405,6 +547,26 @@ impl Check for RecipeFile {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read_trimmed(v) { Ok(x) => { if let Err(e) = Self::rule_name(&x) { out.push(e.under("name")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
+        if let Some(v) = obj.get("agents") { match crate::types::check::read::<IndexMap<RecipeName, RecipeFileAgentsValue>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agents"))), } }
+        if let Some(v) = obj.get("mcp") { match crate::types::check::read::<IndexMap<RecipeName, RecipeFileMcpValue>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("mcp"))), } }
+        if let Some(v) = obj.get("copyKeys") { match crate::types::check::read_present::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("copyKeys"))), } }
+        if let Some(v) = obj.get("clis") { match crate::types::check::read::<IndexMap<RecipeName, RecipeFileClisValue>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("clis"))), } }
+        if let Some(v) = obj.get("skills") { match crate::types::check::read::<IndexMap<RecipeName, RecipeFileSkillsValue>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("skills"))), } }
+        if let Some(v) = obj.get("plugins") { match crate::types::check::read::<IndexMap<RecipeName, RecipeFilePluginsValue>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("plugins"))), } }
+        if let Some(v) = obj.get("folders") { match crate::types::check::read::<IndexMap<RecipeName, RecipeFileFoldersValue>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("folders"))), } }
+        if let Some(v) = obj.get("configs") { match crate::types::check::read::<RecipeFileConfigs>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("configs"))), } }
+        let known: &[&str] = &["name", "agents", "mcp", "copyKeys", "clis", "skills", "plugins", "folders", "configs"];
+        let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
+        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -421,6 +583,13 @@ impl Check for RecipeFile {
                 _ => None,
             },
         }
+    }
+}
+impl RecipeFile {
+    fn rule_name(x: &String) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::text_at_least(x, 1)?;
+        crate::types::check::text_at_most(x, 64)?;
+        Ok(())
     }
 }
 
@@ -479,6 +648,20 @@ impl Check for RecipeView {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_name(&x) { out.push(e.under("name")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
+        match obj.get("slug") { None => out.push(crate::types::check::missing::<Self>("slug")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_slug(&x) { out.push(e.under("slug")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("slug"))), } } }
+        match obj.get("summary") { None => out.push(crate::types::check::missing::<Self>("summary")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_summary(&x) { out.push(e.under("summary")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("summary"))), } } }
+        match obj.get("machines") { None => out.push(crate::types::check::missing::<Self>("machines")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(x) => { if let Err(e) = Self::rule_machines(&x) { out.push(e.under("machines")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("machines"))), } } }
+        if let Some(v) = obj.get("savedAt") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("savedAt"))), } }
+        match obj.get("file") { None => out.push(crate::types::check::missing::<Self>("file")), Some(v) => { match crate::types::check::read::<RecipeFile>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("file"))), } } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -492,5 +675,25 @@ impl Check for RecipeView {
                 _ => None,
             },
         }
+    }
+}
+impl RecipeView {
+    fn rule_name(x: &String) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::text_at_least(x, 1)?;
+        Ok(())
+    }
+    fn rule_slug(x: &String) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::text_at_least(x, 1)?;
+        Ok(())
+    }
+    fn rule_summary(x: &String) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::text_at_least(x, 1)?;
+        Ok(())
+    }
+    fn rule_machines(x: &Vec<String>) -> Result<(), crate::types::check::SchemaError> {
+        for (i, item) in (*x).iter().enumerate() {
+            crate::types::check::text_at_least(item, 1).map_err(|e| e.under(i))?;
+        }
+        Ok(())
     }
 }

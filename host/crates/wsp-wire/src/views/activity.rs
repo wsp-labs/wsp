@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::types::check::{Check, SchemaError};
+use crate::types::js_number::JsInt;
 use crate::types::js_number::JsNumber;
 use wsp_frames::ProcKind;
 
@@ -78,6 +79,24 @@ impl Check for ActivityProc {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("pid") { None => out.push(crate::types::check::missing::<Self>("pid")), Some(v) => { match crate::types::check::read::<i64>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pid"))), } } }
+        match obj.get("ppid") { None => out.push(crate::types::check::missing::<Self>("ppid")), Some(v) => { match crate::types::check::read::<i64>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ppid"))), } } }
+        match obj.get("depth") { None => out.push(crate::types::check::missing::<Self>("depth")), Some(v) => { match crate::types::check::read::<i64>(v) { Ok(x) => { if let Err(e) = Self::rule_depth(&x) { out.push(e.under("depth")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("depth"))), } } }
+        match obj.get("startedAt") { None => out.push(crate::types::check::missing::<Self>("startedAt")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("startedAt"))), } } }
+        match obj.get("kind") { None => out.push(crate::types::check::missing::<Self>("kind")), Some(v) => { match crate::types::check::read::<ProcKind>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("kind"))), } } }
+        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
+        match obj.get("command") { None => out.push(crate::types::check::missing::<Self>("command")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("command"))), } } }
+        match obj.get("memory") { None => out.push(crate::types::check::missing::<Self>("memory")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memory"))), } } }
+        match obj.get("cpu") { None => out.push(crate::types::check::missing::<Self>("cpu")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cpu"))), } } }
+        match obj.get("ports") { None => out.push(crate::types::check::missing::<Self>("ports")), Some(v) => { match crate::types::check::read::<Vec<i64>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ports"))), } } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -95,6 +114,12 @@ impl Check for ActivityProc {
                 _ => None,
             },
         }
+    }
+}
+impl ActivityProc {
+    fn rule_depth(x: &i64) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::num_at_least((*x) as f64, 0.0)?;
+        Ok(())
     }
 }
 
@@ -115,6 +140,20 @@ impl Check for ActivityThread {
     fn check(&self) -> Result<(), SchemaError> {
         self.processes.check().map_err(|e| e.under("processes"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("threadId") { None => out.push(crate::types::check::missing::<Self>("threadId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } } }
+        match obj.get("title") { None => out.push(crate::types::check::missing::<Self>("title")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("title"))), } } }
+        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
+        match obj.get("memory") { None => out.push(crate::types::check::missing::<Self>("memory")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memory"))), } } }
+        match obj.get("cpu") { None => out.push(crate::types::check::missing::<Self>("cpu")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cpu"))), } } }
+        match obj.get("processes") { None => out.push(crate::types::check::missing::<Self>("processes")), Some(v) => { match crate::types::check::read::<Vec<ActivityProc>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("processes"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -153,6 +192,19 @@ impl Check for ActivityView {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("computer") { None => out.push(crate::types::check::missing::<Self>("computer")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("computer"))), } } }
+        match obj.get("at") { None => out.push(crate::types::check::missing::<Self>("at")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } } }
+        match obj.get("threads") { None => out.push(crate::types::check::missing::<Self>("threads")), Some(v) => { match crate::types::check::read::<Vec<ActivityThread>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threads"))), } } }
+        match obj.get("wsp") { None => out.push(crate::types::check::missing::<Self>("wsp")), Some(v) => { match crate::types::check::read::<Vec<ActivityProc>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wsp"))), } } }
+        match obj.get("unowned") { None => out.push(crate::types::check::missing::<Self>("unowned")), Some(v) => { match crate::types::check::read::<Vec<ActivityProc>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("unowned"))), } } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -189,6 +241,21 @@ impl Check for LeftThread {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("threadId") { None => out.push(crate::types::check::missing::<Self>("threadId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } } }
+        match obj.get("title") { None => out.push(crate::types::check::missing::<Self>("title")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("title"))), } } }
+        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
+        match obj.get("memory") { None => out.push(crate::types::check::missing::<Self>("memory")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memory"))), } } }
+        match obj.get("cpu") { None => out.push(crate::types::check::missing::<Self>("cpu")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cpu"))), } } }
+        match obj.get("processes") { None => out.push(crate::types::check::missing::<Self>("processes")), Some(v) => { match crate::types::check::read::<Vec<ActivityProc>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("processes"))), } } }
+        if let Some(v) = obj.get("on") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("on"))), } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -210,10 +277,10 @@ impl Check for LeftThread {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivityEnded {
-    pub pid: i64,
+    pub pid: JsInt,
     pub ended: Vec<ActivityProc>,
-    pub forced: Vec<i64>,
-    pub left: Vec<i64>,
+    pub forced: Vec<JsInt>,
+    pub left: Vec<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub freed: Option<String>,
 }
@@ -223,6 +290,19 @@ impl Check for ActivityEnded {
     fn check(&self) -> Result<(), SchemaError> {
         self.ended.check().map_err(|e| e.under("ended"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("pid") { None => out.push(crate::types::check::missing::<Self>("pid")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pid"))), } } }
+        match obj.get("ended") { None => out.push(crate::types::check::missing::<Self>("ended")), Some(v) => { match crate::types::check::read::<Vec<ActivityProc>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ended"))), } } }
+        match obj.get("forced") { None => out.push(crate::types::check::missing::<Self>("forced")), Some(v) => { match crate::types::check::read::<Vec<JsInt>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("forced"))), } } }
+        match obj.get("left") { None => out.push(crate::types::check::missing::<Self>("left")), Some(v) => { match crate::types::check::read::<Vec<JsInt>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("left"))), } } }
+        if let Some(v) = obj.get("freed") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("freed"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Port of packages/protocol/src/wire/events-union.ts: every event the host pushes on its bus, and the reply to events.subscribe.
 
+use crate::types::js_number::JsInt;
 use serde::{Deserialize, Serialize};
 
 use crate::types::agents_report::AgentsChangedEvent;
@@ -227,6 +228,93 @@ impl Check for EventUnion {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let Some(tag) = obj.get("type") else { return Some(vec![crate::types::check::missing::<Self>("type")]); };
+        match tag.as_str() {
+            Some("workspace.creating") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<WorkspaceCreatingEvent>>(&serde_json::Value::Object(body))) }
+            Some("workspace.created") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<WorkspaceCreatedEvent>>(&serde_json::Value::Object(body))) }
+            Some("workspace.napped") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<WorkspaceNappedEvent>>(&serde_json::Value::Object(body))) }
+            Some("workspace.woken") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<WorkspaceWokenEvent>>(&serde_json::Value::Object(body))) }
+            Some("workspace.upgraded") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<WorkspaceUpgradedEvent>>(&serde_json::Value::Object(body))) }
+            Some("workspace.renamed") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<WorkspaceRenamedEvent>>(&serde_json::Value::Object(body))) }
+            Some("workspace.look") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<WorkspaceLookEvent>>(&serde_json::Value::Object(body))) }
+            Some("workspace.deleted") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<WorkspaceDeletedEvent>>(&serde_json::Value::Object(body))) }
+            Some("workspace.gone") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<WorkspaceGoneEvent>>(&serde_json::Value::Object(body))) }
+            Some("workspace.released") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<WorkspaceReleasedEvent>>(&serde_json::Value::Object(body))) }
+            Some("workspace.status") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<WorkspaceStatusEvent>>(&serde_json::Value::Object(body))) }
+            Some("workspace.review") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<WorkspaceReviewEvent>>(&serde_json::Value::Object(body))) }
+            Some("workspace.viewed") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<WorkspaceViewedEvent>>(&serde_json::Value::Object(body))) }
+            Some("workspace.cost") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<WorkspaceCostEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.start") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionStartEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.delta") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionDeltaEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.done") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionDoneEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.end") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionEndEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.steer") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionSteerEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.notify") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionNotifyEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.permission") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionPermissionEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.permission.closed") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionPermissionClosedEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.checkpoint") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionCheckpointEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.changes") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionChangesEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.plan") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionPlanEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.compacted") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionCompactedEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.retry") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionRetryEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.context") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionContextEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.run") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionRunEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.moved") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionMovedEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.behind") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionBehindEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.notice") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionNoticeEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.earlier") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionEarlierEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.capped") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionCappedEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.uncapped") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionUncappedEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.subagent") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionSubagentEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.slate") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionSlateEvent>>(&serde_json::Value::Object(body))) }
+            Some("thread.waited") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<ThreadWaitedEvent>>(&serde_json::Value::Object(body))) }
+            Some("slate.values") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SlateValuesEvent>>(&serde_json::Value::Object(body))) }
+            Some("slate.run") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SlateRunEvent>>(&serde_json::Value::Object(body))) }
+            Some("usage.account") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<UsageAccountEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.queued") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionQueuedEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.held") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionHeldEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.row") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionRowEvent>>(&serde_json::Value::Object(body))) }
+            Some("session.starting") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<SessionStartingEvent>>(&serde_json::Value::Object(body))) }
+            Some("thread.marked") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<ThreadMarkedEvent>>(&serde_json::Value::Object(body))) }
+            Some("thread.head") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<ThreadHeadEvent>>(&serde_json::Value::Object(body))) }
+            Some("thread.rewound") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<ThreadRewoundEvent>>(&serde_json::Value::Object(body))) }
+            Some("port.open") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<PortOpenEvent>>(&serde_json::Value::Object(body))) }
+            Some("port.close") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<PortCloseEvent>>(&serde_json::Value::Object(body))) }
+            Some("inbox.file") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<InboxFileEvent>>(&serde_json::Value::Object(body))) }
+            Some("golden.stage") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<GoldenStageEvent>>(&serde_json::Value::Object(body))) }
+            Some("forward.open") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<ForwardOpenEvent>>(&serde_json::Value::Object(body))) }
+            Some("forward.close") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<ForwardCloseEvent>>(&serde_json::Value::Object(body))) }
+            Some("project.added") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<ProjectAddedEvent>>(&serde_json::Value::Object(body))) }
+            Some("project.add") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<ProjectAddEvent>>(&serde_json::Value::Object(body))) }
+            Some("project.removed") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<ProjectRemovedEvent>>(&serde_json::Value::Object(body))) }
+            Some("project.import") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<ProjectImportEvent>>(&serde_json::Value::Object(body))) }
+            Some("project.export") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<ProjectExportEvent>>(&serde_json::Value::Object(body))) }
+            Some("preferences.changed") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<PreferencesChangedEvent>>(&serde_json::Value::Object(body))) }
+            Some("release.changed") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<ReleaseChangedEvent>>(&serde_json::Value::Object(body))) }
+            Some("init.job") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<InitJobEvent>>(&serde_json::Value::Object(body))) }
+            Some("job.needs-you") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<InitNeedsYouEvent>>(&serde_json::Value::Object(body))) }
+            Some("place.stage") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<PlaceStageEvent>>(&serde_json::Value::Object(body))) }
+            Some("place.setup") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<PlaceSetupEvent>>(&serde_json::Value::Object(body))) }
+            Some("place.sync") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<PlaceSyncEvent>>(&serde_json::Value::Object(body))) }
+            Some("recipes.changed") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<RecipesChangedEvent>>(&serde_json::Value::Object(body))) }
+            Some("place.pending") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<PlacePendingEvent>>(&serde_json::Value::Object(body))) }
+            Some("place.joined") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<PlaceJoinedEvent>>(&serde_json::Value::Object(body))) }
+            Some("place.present") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<PlacePresentEvent>>(&serde_json::Value::Object(body))) }
+            Some("place.absent") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<PlaceAbsentEvent>>(&serde_json::Value::Object(body))) }
+            Some("place.removed") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<PlaceRemovedEvent>>(&serde_json::Value::Object(body))) }
+            Some("place.changed") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<PlaceChangedEvent>>(&serde_json::Value::Object(body))) }
+            Some("agents.changed") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<AgentsChangedEvent>>(&serde_json::Value::Object(body))) }
+            Some("usage.alert") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<UsageAlertEvent>>(&serde_json::Value::Object(body))) }
+            Some("host.notice") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<HostNoticeEvent>>(&serde_json::Value::Object(body))) }
+            Some("aside.text") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<Sequenced<AsideTextEvent>>(&serde_json::Value::Object(body))) }
+            _ => Some(vec![crate::types::check::unknown_tag::<Self>("type", tag)]),
+        }
+    }
+
 }
 
 /// Refinement: `seq` non-negative (too_small, "Number must be greater than or equal to 0").
@@ -234,6 +322,17 @@ impl Check for EventsSubscribeReply {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("seq") { None => out.push(crate::types::check::missing::<Self>("seq")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("seq"))), } } }
+        if let Some(v) = obj.get("stream") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("stream"))), } }
+        if let Some(v) = obj.get("gap") { match crate::types::check::read_present::<wsp_frames::True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("gap"))), } }
+        Some(out)
+    }
+
 }
 
 /// One event as the bus carries it, read as zod reads it: an unknown `type` is one invalid_union_discriminator issue on

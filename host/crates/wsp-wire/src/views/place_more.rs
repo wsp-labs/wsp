@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use super::place::*;
 use crate::types::agents_report::AgentSignInState;
 use crate::types::check::{Check, SchemaError};
+use crate::types::js_number::JsInt;
 use crate::types::js_number::JsNumber;
 use crate::types::recipe_file::RecipeFile;
 use crate::views::place_kind::PlaceKind;
@@ -25,14 +26,23 @@ use crate::wire::capabilities::WorkspaceSize;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ComputerCap {
-    pub threads: i64,
+    pub threads: JsInt,
 }
 
 impl Check for ComputerCap {
     /// Rules: threads: >= 1.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.threads as f64, 1.0).map_err(|e| e.under("threads"))?;
+        crate::types::check::num_at_least(self.threads.0.0, 1.0).map_err(|e| e.under("threads"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("threads") { None => out.push(crate::types::check::missing::<Self>("threads")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_threads(&x) { out.push(e.under("threads")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("threads"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -45,21 +55,37 @@ impl Check for ComputerCap {
         }
     }
 }
+impl ComputerCap {
+    fn rule_threads(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::num_at_least((*x).0.0, 1.0)?;
+        Ok(())
+    }
+}
 
 /// TS: packages/protocol/src/views/place.ts:435 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CloudCap {
-    pub machines: i64,
+    pub machines: JsInt,
     pub spend_per_day_usd: JsNumber,
 }
 
 impl Check for CloudCap {
     /// Rules: machines: >= 1; spendPerDayUsd: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.machines as f64, 1.0).map_err(|e| e.under("machines"))?;
+        crate::types::check::num_at_least(self.machines.0.0, 1.0).map_err(|e| e.under("machines"))?;
         crate::types::check::num_at_least(self.spend_per_day_usd.0, 0.0).map_err(|e| e.under("spendPerDayUsd"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("machines") { None => out.push(crate::types::check::missing::<Self>("machines")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_machines(&x) { out.push(e.under("machines")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("machines"))), } } }
+        match obj.get("spendPerDayUsd") { None => out.push(crate::types::check::missing::<Self>("spendPerDayUsd")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(x) => { if let Err(e) = Self::rule_spend_per_day_usd(&x) { out.push(e.under("spendPerDayUsd")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("spendPerDayUsd"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -71,6 +97,16 @@ impl Check for CloudCap {
                 _ => None,
             },
         }
+    }
+}
+impl CloudCap {
+    fn rule_machines(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::num_at_least((*x).0.0, 1.0)?;
+        Ok(())
+    }
+    fn rule_spend_per_day_usd(x: &JsNumber) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::num_at_least((*x).0, 0.0)?;
+        Ok(())
     }
 }
 
@@ -91,6 +127,10 @@ impl Check for PlaceCap {
         }
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        Some(crate::types::check::union_answer(vec![crate::types::check::issues_of::<ComputerCap>(value), crate::types::check::issues_of::<CloudCap>(value)]))
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         if path.is_empty() { return Some(crate::types::check::Zod::Union); }
         <ComputerCap as Check>::describe(path).or_else(|| <CloudCap as Check>::describe(path))
@@ -102,9 +142,9 @@ impl Check for PlaceCap {
 #[serde(rename_all = "camelCase")]
 pub struct PlaceCapSet {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub threads: Option<i64>,
+    pub threads: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub machines: Option<i64>,
+    pub machines: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub spend_per_day_usd: Option<JsNumber>,
 }
@@ -113,15 +153,26 @@ impl Check for PlaceCapSet {
     /// Rules: threads: >= 1; machines: >= 1; spendPerDayUsd: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
         if let Some(v) = self.threads {
-            crate::types::check::num_at_least(v as f64, 1.0).map_err(|e| e.under("threads"))?;
+            crate::types::check::num_at_least(v.0.0, 1.0).map_err(|e| e.under("threads"))?;
         }
         if let Some(v) = self.machines {
-            crate::types::check::num_at_least(v as f64, 1.0).map_err(|e| e.under("machines"))?;
+            crate::types::check::num_at_least(v.0.0, 1.0).map_err(|e| e.under("machines"))?;
         }
         if let Some(v) = self.spend_per_day_usd {
             crate::types::check::num_at_least(v.0, 0.0).map_err(|e| e.under("spendPerDayUsd"))?;
         }
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        if let Some(v) = obj.get("threads") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_threads(&x) { out.push(e.under("threads")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("threads"))), } }
+        if let Some(v) = obj.get("machines") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_machines(&x) { out.push(e.under("machines")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("machines"))), } }
+        if let Some(v) = obj.get("spendPerDayUsd") { match crate::types::check::read_present::<JsNumber>(v) { Ok(x) => { if let Err(e) = Self::rule_spend_per_day_usd(&x) { out.push(e.under("spendPerDayUsd")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("spendPerDayUsd"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -136,6 +187,26 @@ impl Check for PlaceCapSet {
         }
     }
 }
+impl PlaceCapSet {
+    fn rule_threads(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_least(v.0.0, 1.0)?;
+        }
+        Ok(())
+    }
+    fn rule_machines(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_least(v.0.0, 1.0)?;
+        }
+        Ok(())
+    }
+    fn rule_spend_per_day_usd(x: &Option<JsNumber>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_least(v.0, 0.0)?;
+        }
+        Ok(())
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -143,21 +214,32 @@ pub struct PlaceSettingsSpawn {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub spawn: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub max_machines: Option<i64>,
+    pub max_machines: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub max_depth: Option<i64>,
+    pub max_depth: Option<JsInt>,
 }
 
 impl Check for PlaceSettingsSpawn {
     /// Rules: maxMachines: >= 0; maxDepth: >= 1.
     fn check(&self) -> Result<(), SchemaError> {
         if let Some(v) = self.max_machines {
-            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("maxMachines"))?;
+            crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("maxMachines"))?;
         }
         if let Some(v) = self.max_depth {
-            crate::types::check::num_at_least(v as f64, 1.0).map_err(|e| e.under("maxDepth"))?;
+            crate::types::check::num_at_least(v.0.0, 1.0).map_err(|e| e.under("maxDepth"))?;
         }
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        if let Some(v) = obj.get("spawn") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("spawn"))), } }
+        if let Some(v) = obj.get("maxMachines") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_max_machines(&x) { out.push(e.under("maxMachines")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("maxMachines"))), } }
+        if let Some(v) = obj.get("maxDepth") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_max_depth(&x) { out.push(e.under("maxDepth")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("maxDepth"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -172,17 +254,41 @@ impl Check for PlaceSettingsSpawn {
         }
     }
 }
+impl PlaceSettingsSpawn {
+    fn rule_max_machines(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_least(v.0.0, 0.0)?;
+        }
+        Ok(())
+    }
+    fn rule_max_depth(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_least(v.0.0, 1.0)?;
+        }
+        Ok(())
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaceSettingsSize {
-    pub cpu: i64,
-    pub mem_mb: i64,
+    pub cpu: JsInt,
+    pub mem_mb: JsInt,
 }
 
 impl Check for PlaceSettingsSize {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("cpu") { None => out.push(crate::types::check::missing::<Self>("cpu")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cpu"))), } } }
+        match obj.get("memMb") { None => out.push(crate::types::check::missing::<Self>("memMb")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memMb"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -202,21 +308,21 @@ impl Check for PlaceSettingsSize {
 #[serde(rename_all = "camelCase")]
 pub struct PlaceSettings {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub threads: Option<i64>,
+    pub threads: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub machines: Option<i64>,
+    pub machines: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub spend_per_day_usd: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
-    pub nap_ms: Option<Option<i64>>,
+    pub nap_ms: Option<Option<JsInt>>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
-    pub turn_limit_ms: Option<Option<i64>>,
+    pub turn_limit_ms: Option<Option<JsInt>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub spawn: Option<PlaceSettingsSpawn>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub size: Option<PlaceSettingsSize>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub delete_after_ms: Option<i64>,
+    pub delete_after_ms: Option<JsInt>,
 }
 
 impl Check for PlaceSettings {
@@ -224,35 +330,51 @@ impl Check for PlaceSettings {
     /// Nested checks: spawn, size.
     fn check(&self) -> Result<(), SchemaError> {
         if let Some(v) = self.threads {
-            crate::types::check::num_at_least(v as f64, 1.0).map_err(|e| e.under("threads"))?;
+            crate::types::check::num_at_least(v.0.0, 1.0).map_err(|e| e.under("threads"))?;
         }
         if let Some(v) = self.machines {
-            crate::types::check::num_at_least(v as f64, 1.0).map_err(|e| e.under("machines"))?;
+            crate::types::check::num_at_least(v.0.0, 1.0).map_err(|e| e.under("machines"))?;
         }
         if let Some(v) = self.spend_per_day_usd {
             crate::types::check::num_at_least(v.0, 0.0).map_err(|e| e.under("spendPerDayUsd"))?;
         }
         if let Some(Some(v)) = self.nap_ms {
-            crate::types::check::num_at_least(v as f64, 60000.0).map_err(|e| e.under("napMs"))?;
+            crate::types::check::num_at_least(v.0.0, 60000.0).map_err(|e| e.under("napMs"))?;
         }
         if let Some(Some(v)) = self.nap_ms {
-            crate::types::check::num_at_most(v as f64, 10800000.0).map_err(|e| e.under("napMs"))?;
+            crate::types::check::num_at_most(v.0.0, 10800000.0).map_err(|e| e.under("napMs"))?;
         }
         if let Some(Some(v)) = self.turn_limit_ms {
-            crate::types::check::num_at_least(v as f64, 3600000.0).map_err(|e| e.under("turnLimitMs"))?;
+            crate::types::check::num_at_least(v.0.0, 3600000.0).map_err(|e| e.under("turnLimitMs"))?;
         }
         if let Some(Some(v)) = self.turn_limit_ms {
-            crate::types::check::num_at_most(v as f64, 86400000.0).map_err(|e| e.under("turnLimitMs"))?;
+            crate::types::check::num_at_most(v.0.0, 86400000.0).map_err(|e| e.under("turnLimitMs"))?;
         }
         self.spawn.check().map_err(|e| e.under("spawn"))?;
         self.size.check().map_err(|e| e.under("size"))?;
         if let Some(v) = self.delete_after_ms {
-            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("deleteAfterMs"))?;
+            crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("deleteAfterMs"))?;
         }
         if let Some(v) = self.delete_after_ms {
-            crate::types::check::num_at_most(v as f64, 86400000.0).map_err(|e| e.under("deleteAfterMs"))?;
+            crate::types::check::num_at_most(v.0.0, 86400000.0).map_err(|e| e.under("deleteAfterMs"))?;
         }
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        if let Some(v) = obj.get("threads") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_threads(&x) { out.push(e.under("threads")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("threads"))), } }
+        if let Some(v) = obj.get("machines") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_machines(&x) { out.push(e.under("machines")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("machines"))), } }
+        if let Some(v) = obj.get("spendPerDayUsd") { match crate::types::check::read_present::<JsNumber>(v) { Ok(x) => { if let Err(e) = Self::rule_spend_per_day_usd(&x) { out.push(e.under("spendPerDayUsd")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("spendPerDayUsd"))), } }
+        if let Some(v) = obj.get("napMs") { match crate::types::check::read_double::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_nap_ms(&x) { out.push(e.under("napMs")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("napMs"))), } }
+        if let Some(v) = obj.get("turnLimitMs") { match crate::types::check::read_double::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_turn_limit_ms(&x) { out.push(e.under("turnLimitMs")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("turnLimitMs"))), } }
+        if let Some(v) = obj.get("spawn") { match crate::types::check::read_present::<PlaceSettingsSpawn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("spawn"))), } }
+        if let Some(v) = obj.get("size") { match crate::types::check::read_present::<PlaceSettingsSize>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("size"))), } }
+        if let Some(v) = obj.get("deleteAfterMs") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_delete_after_ms(&x) { out.push(e.under("deleteAfterMs")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("deleteAfterMs"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -270,6 +392,53 @@ impl Check for PlaceSettings {
                 _ => None,
             },
         }
+    }
+}
+impl PlaceSettings {
+    fn rule_threads(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_least(v.0.0, 1.0)?;
+        }
+        Ok(())
+    }
+    fn rule_machines(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_least(v.0.0, 1.0)?;
+        }
+        Ok(())
+    }
+    fn rule_spend_per_day_usd(x: &Option<JsNumber>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_least(v.0, 0.0)?;
+        }
+        Ok(())
+    }
+    fn rule_nap_ms(x: &Option<Option<JsInt>>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(Some(v)) = (*x) {
+            crate::types::check::num_at_least(v.0.0, 60000.0)?;
+        }
+        if let Some(Some(v)) = (*x) {
+            crate::types::check::num_at_most(v.0.0, 10800000.0)?;
+        }
+        Ok(())
+    }
+    fn rule_turn_limit_ms(x: &Option<Option<JsInt>>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(Some(v)) = (*x) {
+            crate::types::check::num_at_least(v.0.0, 3600000.0)?;
+        }
+        if let Some(Some(v)) = (*x) {
+            crate::types::check::num_at_most(v.0.0, 86400000.0)?;
+        }
+        Ok(())
+    }
+    fn rule_delete_after_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_least(v.0.0, 0.0)?;
+        }
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_most(v.0.0, 86400000.0)?;
+        }
+        Ok(())
     }
 }
 
@@ -278,56 +447,72 @@ impl Check for PlaceSettings {
 #[serde(rename_all = "camelCase")]
 pub struct PlaceSettingsAsk {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub threads: Option<i64>,
+    pub threads: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub machines: Option<i64>,
+    pub machines: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub spend_per_day_usd: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
-    pub nap_ms: Option<Option<i64>>,
+    pub nap_ms: Option<Option<JsInt>>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
-    pub turn_limit_ms: Option<Option<i64>>,
+    pub turn_limit_ms: Option<Option<JsInt>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub spawn: Option<PlaceSettingsSpawn>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub size: Option<PlaceSettingsSize>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub delete_after_ms: Option<i64>,
+    pub delete_after_ms: Option<JsInt>,
 }
 
 impl Check for PlaceSettingsAsk {
     /// Rules: threads: >= 1; machines: >= 1; spendPerDayUsd: >= 0; napMs: >= 60000; napMs: <= 10800000; turnLimitMs: >= 3600000; turnLimitMs: <= 86400000; deleteAfterMs: >= 0; deleteAfterMs: <= 86400000.
     fn check(&self) -> Result<(), SchemaError> {
         if let Some(v) = self.threads {
-            crate::types::check::num_at_least(v as f64, 1.0).map_err(|e| e.under("threads"))?;
+            crate::types::check::num_at_least(v.0.0, 1.0).map_err(|e| e.under("threads"))?;
         }
         if let Some(v) = self.machines {
-            crate::types::check::num_at_least(v as f64, 1.0).map_err(|e| e.under("machines"))?;
+            crate::types::check::num_at_least(v.0.0, 1.0).map_err(|e| e.under("machines"))?;
         }
         if let Some(v) = self.spend_per_day_usd {
             crate::types::check::num_at_least(v.0, 0.0).map_err(|e| e.under("spendPerDayUsd"))?;
         }
         if let Some(Some(v)) = self.nap_ms {
-            crate::types::check::num_at_least(v as f64, 60000.0).map_err(|e| e.under("napMs"))?;
+            crate::types::check::num_at_least(v.0.0, 60000.0).map_err(|e| e.under("napMs"))?;
         }
         if let Some(Some(v)) = self.nap_ms {
-            crate::types::check::num_at_most(v as f64, 10800000.0).map_err(|e| e.under("napMs"))?;
+            crate::types::check::num_at_most(v.0.0, 10800000.0).map_err(|e| e.under("napMs"))?;
         }
         if let Some(Some(v)) = self.turn_limit_ms {
-            crate::types::check::num_at_least(v as f64, 3600000.0).map_err(|e| e.under("turnLimitMs"))?;
+            crate::types::check::num_at_least(v.0.0, 3600000.0).map_err(|e| e.under("turnLimitMs"))?;
         }
         if let Some(Some(v)) = self.turn_limit_ms {
-            crate::types::check::num_at_most(v as f64, 86400000.0).map_err(|e| e.under("turnLimitMs"))?;
+            crate::types::check::num_at_most(v.0.0, 86400000.0).map_err(|e| e.under("turnLimitMs"))?;
         }
         self.spawn.check().map_err(|e| e.under("spawn"))?;
         self.size.check().map_err(|e| e.under("size"))?;
         if let Some(v) = self.delete_after_ms {
-            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("deleteAfterMs"))?;
+            crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("deleteAfterMs"))?;
         }
         if let Some(v) = self.delete_after_ms {
-            crate::types::check::num_at_most(v as f64, 86400000.0).map_err(|e| e.under("deleteAfterMs"))?;
+            crate::types::check::num_at_most(v.0.0, 86400000.0).map_err(|e| e.under("deleteAfterMs"))?;
         }
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        if let Some(v) = obj.get("threads") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_threads(&x) { out.push(e.under("threads")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("threads"))), } }
+        if let Some(v) = obj.get("machines") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_machines(&x) { out.push(e.under("machines")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("machines"))), } }
+        if let Some(v) = obj.get("spendPerDayUsd") { match crate::types::check::read_present::<JsNumber>(v) { Ok(x) => { if let Err(e) = Self::rule_spend_per_day_usd(&x) { out.push(e.under("spendPerDayUsd")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("spendPerDayUsd"))), } }
+        if let Some(v) = obj.get("napMs") { match crate::types::check::read_double::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_nap_ms(&x) { out.push(e.under("napMs")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("napMs"))), } }
+        if let Some(v) = obj.get("turnLimitMs") { match crate::types::check::read_double::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_turn_limit_ms(&x) { out.push(e.under("turnLimitMs")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("turnLimitMs"))), } }
+        if let Some(v) = obj.get("spawn") { match crate::types::check::read_present::<PlaceSettingsSpawn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("spawn"))), } }
+        if let Some(v) = obj.get("size") { match crate::types::check::read_present::<PlaceSettingsSize>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("size"))), } }
+        if let Some(v) = obj.get("deleteAfterMs") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_delete_after_ms(&x) { out.push(e.under("deleteAfterMs")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("deleteAfterMs"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -345,6 +530,53 @@ impl Check for PlaceSettingsAsk {
                 _ => None,
             },
         }
+    }
+}
+impl PlaceSettingsAsk {
+    fn rule_threads(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_least(v.0.0, 1.0)?;
+        }
+        Ok(())
+    }
+    fn rule_machines(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_least(v.0.0, 1.0)?;
+        }
+        Ok(())
+    }
+    fn rule_spend_per_day_usd(x: &Option<JsNumber>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_least(v.0, 0.0)?;
+        }
+        Ok(())
+    }
+    fn rule_nap_ms(x: &Option<Option<JsInt>>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(Some(v)) = (*x) {
+            crate::types::check::num_at_least(v.0.0, 60000.0)?;
+        }
+        if let Some(Some(v)) = (*x) {
+            crate::types::check::num_at_most(v.0.0, 10800000.0)?;
+        }
+        Ok(())
+    }
+    fn rule_turn_limit_ms(x: &Option<Option<JsInt>>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(Some(v)) = (*x) {
+            crate::types::check::num_at_least(v.0.0, 3600000.0)?;
+        }
+        if let Some(Some(v)) = (*x) {
+            crate::types::check::num_at_most(v.0.0, 86400000.0)?;
+        }
+        Ok(())
+    }
+    fn rule_delete_after_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_least(v.0.0, 0.0)?;
+        }
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_most(v.0.0, 86400000.0)?;
+        }
+        Ok(())
     }
 }
 
@@ -384,15 +616,28 @@ pub struct CloudPlan {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub key: Option<String>,
     pub trial: bool,
-    pub machines_at_once: i64,
+    pub machines_at_once: JsInt,
     pub sizes: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub running: Option<i64>,
+    pub running: Option<JsInt>,
 }
 
 impl Check for CloudPlan {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        if let Some(v) = obj.get("key") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("key"))), } }
+        match obj.get("trial") { None => out.push(crate::types::check::missing::<Self>("trial")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("trial"))), } } }
+        match obj.get("machinesAtOnce") { None => out.push(crate::types::check::missing::<Self>("machinesAtOnce")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("machinesAtOnce"))), } } }
+        match obj.get("sizes") { None => out.push(crate::types::check::missing::<Self>("sizes")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sizes"))), } } }
+        if let Some(v) = obj.get("running") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("running"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -414,13 +659,23 @@ impl Check for CloudPlan {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StartsWindow {
-    pub used: i64,
-    pub limit: i64,
+    pub used: JsInt,
+    pub limit: JsInt,
 }
 
 impl Check for StartsWindow {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("used") { None => out.push(crate::types::check::missing::<Self>("used")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("used"))), } } }
+        match obj.get("limit") { None => out.push(crate::types::check::missing::<Self>("limit")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("limit"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -453,6 +708,17 @@ impl Check for CloudStarts {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("minute") { None => out.push(crate::types::check::missing::<Self>("minute")), Some(v) => { match crate::types::check::read::<StartsWindow>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("minute"))), } } }
+        match obj.get("hour") { None => out.push(crate::types::check::missing::<Self>("hour")), Some(v) => { match crate::types::check::read::<StartsWindow>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hour"))), } } }
+        match obj.get("day") { None => out.push(crate::types::check::missing::<Self>("day")), Some(v) => { match crate::types::check::read::<StartsWindow>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("day"))), } } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -483,6 +749,17 @@ impl Check for CloudLimits {
         self.plan.check().map_err(|e| e.under("plan"))?;
         self.starts.check().map_err(|e| e.under("starts"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("plan") { None => out.push(crate::types::check::missing::<Self>("plan")), Some(v) => { match crate::types::check::read::<CloudPlan>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("plan"))), } } }
+        if let Some(v) = obj.get("starts") { match crate::types::check::read_present::<CloudStarts>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("starts"))), } }
+        if let Some(v) = obj.get("creditHours") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("creditHours"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -563,6 +840,17 @@ impl Check for PlaceViewBehind {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("word") { None => out.push(crate::types::check::missing::<Self>("word")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("word"))), } } }
+        match obj.get("fix") { None => out.push(crate::types::check::missing::<Self>("fix")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("fix"))), } } }
+        match obj.get("act") { None => out.push(crate::types::check::missing::<Self>("act")), Some(v) => { match crate::types::check::read::<PlaceViewBehindAct>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("act"))), } } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -579,13 +867,23 @@ impl Check for PlaceViewBehind {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaceViewForks {
-    pub running: i64,
-    pub room: i64,
+    pub running: JsInt,
+    pub room: JsInt,
 }
 
 impl Check for PlaceViewForks {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("running") { None => out.push(crate::types::check::missing::<Self>("running")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("running"))), } } }
+        match obj.get("room") { None => out.push(crate::types::check::missing::<Self>("room")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("room"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -603,13 +901,23 @@ impl Check for PlaceViewForks {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaceViewSize {
-    pub cpu: i64,
-    pub mem_mb: i64,
+    pub cpu: JsInt,
+    pub mem_mb: JsInt,
 }
 
 impl Check for PlaceViewSize {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("cpu") { None => out.push(crate::types::check::missing::<Self>("cpu")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cpu"))), } } }
+        match obj.get("memMb") { None => out.push(crate::types::check::missing::<Self>("memMb")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memMb"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -627,13 +935,23 @@ impl Check for PlaceViewSize {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaceViewSizeDefault {
-    pub cpu: i64,
-    pub mem_mb: i64,
+    pub cpu: JsInt,
+    pub mem_mb: JsInt,
 }
 
 impl Check for PlaceViewSizeDefault {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("cpu") { None => out.push(crate::types::check::missing::<Self>("cpu")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cpu"))), } } }
+        match obj.get("memMb") { None => out.push(crate::types::check::missing::<Self>("memMb")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memMb"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -665,7 +983,7 @@ pub struct PlaceView {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub shape: Option<WorkspaceSize>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub disk_free_bytes: Option<i64>,
+    pub disk_free_bytes: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub engine: Option<PlaceViewEngine>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -679,7 +997,7 @@ pub struct PlaceView {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub last_seen_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub daemon_version: Option<i64>,
+    pub daemon_version: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub behind: Option<PlaceViewBehind>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -703,7 +1021,7 @@ pub struct PlaceView {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub home: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub uptime_ms: Option<i64>,
+    pub uptime_ms: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub reported_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -735,19 +1053,19 @@ pub struct PlaceView {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub settings: Option<PlaceSettings>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
-    pub nap_ms: Option<Option<i64>>,
+    pub nap_ms: Option<Option<JsInt>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub nap_default: Option<i64>,
+    pub nap_default: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
-    pub turn_limit_ms: Option<Option<i64>>,
+    pub turn_limit_ms: Option<Option<JsInt>>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
-    pub turn_limit_default: Option<Option<i64>>,
+    pub turn_limit_default: Option<Option<JsInt>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub spawn: Option<WorkspaceAgents>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub spawn_default: Option<WorkspaceAgents>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub running: Option<i64>,
+    pub running: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub plan: Option<CloudPlan>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -757,7 +1075,7 @@ pub struct PlaceView {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub size_default: Option<PlaceViewSizeDefault>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub delete_after_ms: Option<i64>,
+    pub delete_after_ms: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub credit_hours: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -776,7 +1094,7 @@ impl Check for PlaceView {
         self.sizes.check().map_err(|e| e.under("sizes"))?;
         self.forks.check().map_err(|e| e.under("forks"))?;
         if let Some(v) = self.uptime_ms {
-            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("uptimeMs"))?;
+            crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("uptimeMs"))?;
         }
         self.picks.check().map_err(|e| e.under("picks"))?;
         self.cap.check().map_err(|e| e.under("cap"))?;
@@ -785,7 +1103,7 @@ impl Check for PlaceView {
         self.spawn.check().map_err(|e| e.under("spawn"))?;
         self.spawn_default.check().map_err(|e| e.under("spawnDefault"))?;
         if let Some(v) = self.running {
-            crate::types::check::num_at_least(v as f64, 0.0).map_err(|e| e.under("running"))?;
+            crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("running"))?;
         }
         self.plan.check().map_err(|e| e.under("plan"))?;
         self.starts.check().map_err(|e| e.under("starts"))?;
@@ -799,6 +1117,71 @@ impl Check for PlaceView {
         self.applied.check().map_err(|e| e.under("applied"))?;
         self.sync.check().map_err(|e| e.under("sync"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
+        match obj.get("kind") { None => out.push(crate::types::check::missing::<Self>("kind")), Some(v) => { match crate::types::check::read::<PlaceKind>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("kind"))), } } }
+        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
+        if let Some(v) = obj.get("label") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("label"))), } }
+        if let Some(v) = obj.get("mac") { match crate::types::check::read_present::<MacKind>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("mac"))), } }
+        match obj.get("default") { None => out.push(crate::types::check::missing::<Self>("default")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("default"))), } } }
+        if let Some(v) = obj.get("os") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("os"))), } }
+        if let Some(v) = obj.get("shape") { match crate::types::check::read_present::<WorkspaceSize>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("shape"))), } }
+        if let Some(v) = obj.get("diskFreeBytes") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("diskFreeBytes"))), } }
+        if let Some(v) = obj.get("engine") { match crate::types::check::read_present::<PlaceViewEngine>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("engine"))), } }
+        if let Some(v) = obj.get("copies") { match crate::types::check::read_present::<CopyWord>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("copies"))), } }
+        if let Some(v) = obj.get("present") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("present"))), } }
+        if let Some(v) = obj.get("takesRuntime") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("takesRuntime"))), } }
+        if let Some(v) = obj.get("joinedAt") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("joinedAt"))), } }
+        if let Some(v) = obj.get("lastSeenAt") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("lastSeenAt"))), } }
+        if let Some(v) = obj.get("daemonVersion") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("daemonVersion"))), } }
+        if let Some(v) = obj.get("behind") { match crate::types::check::read_present::<PlaceViewBehind>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("behind"))), } }
+        if let Some(v) = obj.get("agents") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agents"))), } }
+        if let Some(v) = obj.get("agentVersions") { match crate::types::check::read_present::<IndexMap<String, String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentVersions"))), } }
+        if let Some(v) = obj.get("signIns") { match crate::types::check::read_present::<IndexMap<String, AgentSignInState>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signIns"))), } }
+        if let Some(v) = obj.get("logins") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("logins"))), } }
+        if let Some(v) = obj.get("rateUsdPerHour") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rateUsdPerHour"))), } }
+        if let Some(v) = obj.get("sizes") { match crate::types::check::read_present::<Vec<MachineSizeOffer>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sizes"))), } }
+        if let Some(v) = obj.get("forks") { match crate::types::check::read_present::<PlaceViewForks>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("forks"))), } }
+        if let Some(v) = obj.get("takesForks") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("takesForks"))), } }
+        if let Some(v) = obj.get("road") { match crate::types::check::read_present::<PlaceRoad>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("road"))), } }
+        if let Some(v) = obj.get("home") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("home"))), } }
+        if let Some(v) = obj.get("uptimeMs") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_uptime_ms(&x) { out.push(e.under("uptimeMs")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("uptimeMs"))), } }
+        if let Some(v) = obj.get("reportedAt") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("reportedAt"))), } }
+        if let Some(v) = obj.get("dialled") { match crate::types::check::read_present::<PlaceDialled>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("dialled"))), } }
+        if let Some(v) = obj.get("blocked") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("blocked"))), } }
+        if let Some(v) = obj.get("toolsBlocked") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("toolsBlocked"))), } }
+        if let Some(v) = obj.get("build") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("build"))), } }
+        if let Some(v) = obj.get("buildStopped") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("buildStopped"))), } }
+        if let Some(v) = obj.get("buildsImages") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("buildsImages"))), } }
+        if let Some(v) = obj.get("setup") { match crate::types::check::read_present::<PlaceSetup>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("setup"))), } }
+        if let Some(v) = obj.get("applied") { match crate::types::check::read_present::<PlaceApplied>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("applied"))), } }
+        if let Some(v) = obj.get("picks") { match crate::types::check::read_present::<RecipeFile>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("picks"))), } }
+        if let Some(v) = obj.get("recipe") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("recipe"))), } }
+        if let Some(v) = obj.get("sync") { match crate::types::check::read_present::<PlaceSync>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sync"))), } }
+        if let Some(v) = obj.get("cap") { match crate::types::check::read_present::<PlaceCap>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cap"))), } }
+        if let Some(v) = obj.get("capDefault") { match crate::types::check::read_present::<PlaceCap>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("capDefault"))), } }
+        if let Some(v) = obj.get("settings") { match crate::types::check::read_present::<PlaceSettings>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("settings"))), } }
+        if let Some(v) = obj.get("napMs") { match crate::types::check::read_double::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("napMs"))), } }
+        if let Some(v) = obj.get("napDefault") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("napDefault"))), } }
+        if let Some(v) = obj.get("turnLimitMs") { match crate::types::check::read_double::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("turnLimitMs"))), } }
+        if let Some(v) = obj.get("turnLimitDefault") { match crate::types::check::read_double::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("turnLimitDefault"))), } }
+        if let Some(v) = obj.get("spawn") { match crate::types::check::read_present::<WorkspaceAgents>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("spawn"))), } }
+        if let Some(v) = obj.get("spawnDefault") { match crate::types::check::read_present::<WorkspaceAgents>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("spawnDefault"))), } }
+        if let Some(v) = obj.get("running") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_running(&x) { out.push(e.under("running")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("running"))), } }
+        if let Some(v) = obj.get("plan") { match crate::types::check::read_present::<CloudPlan>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("plan"))), } }
+        if let Some(v) = obj.get("starts") { match crate::types::check::read_present::<CloudStarts>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("starts"))), } }
+        if let Some(v) = obj.get("size") { match crate::types::check::read_present::<PlaceViewSize>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("size"))), } }
+        if let Some(v) = obj.get("sizeDefault") { match crate::types::check::read_present::<PlaceViewSizeDefault>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sizeDefault"))), } }
+        if let Some(v) = obj.get("deleteAfterMs") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("deleteAfterMs"))), } }
+        if let Some(v) = obj.get("creditHours") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("creditHours"))), } }
+        if let Some(v) = obj.get("spentTodayUsd") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("spentTodayUsd"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -867,6 +1250,20 @@ impl Check for PlaceView {
         }
     }
 }
+impl PlaceView {
+    fn rule_uptime_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_least(v.0.0, 0.0)?;
+        }
+        Ok(())
+    }
+    fn rule_running(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_least(v.0.0, 0.0)?;
+        }
+        Ok(())
+    }
+}
 
 /// TS: packages/protocol/src/views/place.ts:662 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -883,6 +1280,17 @@ impl Check for PlaceDial {
         self.place.check().map_err(|e| e.under("place"))?;
         self.dialled.check().map_err(|e| e.under("dialled"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("dialled") { None => out.push(crate::types::check::missing::<Self>("dialled")), Some(v) => { match crate::types::check::read::<PlaceDialled>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("dialled"))), } } }
+        match obj.get("line") { None => out.push(crate::types::check::missing::<Self>("line")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("line"))), } } }
+        match obj.get("place") { None => out.push(crate::types::check::missing::<Self>("place")), Some(v) => { match crate::types::check::read::<PlaceView>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("place"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -915,8 +1323,8 @@ impl Check for PlaceUpdateReplyDaemonRoad {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaceUpdateReplyDaemon {
-    pub from: i64,
-    pub to: i64,
+    pub from: JsInt,
+    pub to: JsInt,
     pub road: PlaceUpdateReplyDaemonRoad,
     pub at: String,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -929,6 +1337,20 @@ impl Check for PlaceUpdateReplyDaemon {
     fn check(&self) -> Result<(), SchemaError> {
         self.road.check().map_err(|e| e.under("road"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("from") { None => out.push(crate::types::check::missing::<Self>("from")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("from"))), } } }
+        match obj.get("to") { None => out.push(crate::types::check::missing::<Self>("to")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("to"))), } } }
+        match obj.get("road") { None => out.push(crate::types::check::missing::<Self>("road")), Some(v) => { match crate::types::check::read::<PlaceUpdateReplyDaemonRoad>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("road"))), } } }
+        match obj.get("at") { None => out.push(crate::types::check::missing::<Self>("at")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } } }
+        if let Some(v) = obj.get("kept") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("kept"))), } }
+        if let Some(v) = obj.get("note") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("note"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -965,6 +1387,16 @@ impl Check for PlaceUpdateReply {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_name(&x) { out.push(e.under("name")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
+        if let Some(v) = obj.get("daemon") { match crate::types::check::read_present::<PlaceUpdateReplyDaemon>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("daemon"))), } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -976,17 +1408,33 @@ impl Check for PlaceUpdateReply {
         }
     }
 }
+impl PlaceUpdateReply {
+    fn rule_name(x: &String) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::text_at_least(x, 1)?;
+        Ok(())
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaceHoldsForksItem {
     pub name: String,
-    pub threads: i64,
+    pub threads: JsInt,
 }
 
 impl Check for PlaceHoldsForksItem {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
+        match obj.get("threads") { None => out.push(crate::types::check::missing::<Self>("threads")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threads"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -1018,6 +1466,16 @@ impl Check for PlaceHoldsImagesItem {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
+        if let Some(v) = obj.get("sizeBytes") { match crate::types::check::read_present::<JsNumber>(v) { Ok(x) => { if let Err(e) = Self::rule_size_bytes(&x) { out.push(e.under("sizeBytes")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("sizeBytes"))), } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -1027,6 +1485,14 @@ impl Check for PlaceHoldsImagesItem {
                 _ => None,
             },
         }
+    }
+}
+impl PlaceHoldsImagesItem {
+    fn rule_size_bytes(x: &Option<JsNumber>) -> Result<(), crate::types::check::SchemaError> {
+        if let Some(v) = (*x) {
+            crate::types::check::num_at_least(v.0, 0.0)?;
+        }
+        Ok(())
     }
 }
 
@@ -1050,6 +1516,19 @@ impl Check for PlaceHolds {
         self.projects.check().map_err(|e| e.under("projects"))?;
         self.images.check().map_err(|e| e.under("images"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("forks") { None => out.push(crate::types::check::missing::<Self>("forks")), Some(v) => { match crate::types::check::read::<Vec<PlaceHoldsForksItem>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("forks"))), } } }
+        match obj.get("projects") { None => out.push(crate::types::check::missing::<Self>("projects")), Some(v) => { match crate::types::check::read::<Vec<PlaceHoldsForksItem>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projects"))), } } }
+        match obj.get("unsaved") { None => out.push(crate::types::check::missing::<Self>("unsaved")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("unsaved"))), } } }
+        if let Some(v) = obj.get("away") { match crate::types::check::read_present::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("away"))), } }
+        if let Some(v) = obj.get("images") { match crate::types::check::read_present::<Vec<PlaceHoldsImagesItem>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("images"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -1086,6 +1565,18 @@ impl Check for PlaceRemovedTook {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("forks") { None => out.push(crate::types::check::missing::<Self>("forks")), Some(v) => { match crate::types::check::read::<Vec<PlaceHoldsForksItem>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("forks"))), } } }
+        match obj.get("projects") { None => out.push(crate::types::check::missing::<Self>("projects")), Some(v) => { match crate::types::check::read::<Vec<PlaceHoldsForksItem>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projects"))), } } }
+        if let Some(v) = obj.get("away") { match crate::types::check::read_present::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("away"))), } }
+        if let Some(v) = obj.get("images") { match crate::types::check::read_present::<Vec<PlaceHoldsImagesItem>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("images"))), } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -1111,9 +1602,9 @@ pub struct PlaceRemoved {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub note: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub deleted: Option<i64>,
+    pub deleted: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub snapshots: Option<i64>,
+    pub snapshots: Option<JsInt>,
 }
 
 impl Check for PlaceRemoved {
@@ -1121,6 +1612,20 @@ impl Check for PlaceRemoved {
     fn check(&self) -> Result<(), SchemaError> {
         self.took.check().map_err(|e| e.under("took"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("removed") { None => out.push(crate::types::check::missing::<Self>("removed")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("removed"))), } } }
+        if let Some(v) = obj.get("took") { match crate::types::check::read_present::<PlaceRemovedTook>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("took"))), } }
+        match obj.get("swept") { None => out.push(crate::types::check::missing::<Self>("swept")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("swept"))), } } }
+        if let Some(v) = obj.get("note") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("note"))), } }
+        if let Some(v) = obj.get("deleted") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("deleted"))), } }
+        if let Some(v) = obj.get("snapshots") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("snapshots"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -1152,6 +1657,18 @@ pub struct PlaceSpend {
 impl Check for PlaceSpend {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("place") { None => out.push(crate::types::check::missing::<Self>("place")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("place"))), } } }
+        match obj.get("todayUsd") { None => out.push(crate::types::check::missing::<Self>("todayUsd")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("todayUsd"))), } } }
+        match obj.get("monthUsd") { None => out.push(crate::types::check::missing::<Self>("monthUsd")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("monthUsd"))), } } }
+        match obj.get("rateUsdPerHour") { None => out.push(crate::types::check::missing::<Self>("rateUsdPerHour")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rateUsdPerHour"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -1188,6 +1705,16 @@ impl Check for PlaceJoinedEvent {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("place") { None => out.push(crate::types::check::missing::<Self>("place")), Some(v) => { match crate::types::check::read::<PlaceView>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("place"))), } } }
+        match obj.get("from") { None => out.push(crate::types::check::missing::<Self>("from")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("from"))), } } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -1216,6 +1743,16 @@ impl PlacePresentEvent {
 impl Check for PlacePresentEvent {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("placeId") { None => out.push(crate::types::check::missing::<Self>("placeId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("placeId"))), } } }
+        match obj.get("from") { None => out.push(crate::types::check::missing::<Self>("from")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("from"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -1249,6 +1786,16 @@ impl Check for PlaceAbsentEvent {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("placeId") { None => out.push(crate::types::check::missing::<Self>("placeId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("placeId"))), } } }
+        if let Some(v) = obj.get("said") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("said"))), } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -1276,6 +1823,15 @@ impl PlaceRemovedEvent {
 impl Check for PlaceRemovedEvent {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("placeId") { None => out.push(crate::types::check::missing::<Self>("placeId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("placeId"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -1306,6 +1862,15 @@ impl Check for PlaceChangedEvent {
     fn check(&self) -> Result<(), SchemaError> {
         self.place.check().map_err(|e| e.under("place"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("place") { None => out.push(crate::types::check::missing::<Self>("place")), Some(v) => { match crate::types::check::read::<PlaceView>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("place"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -1340,6 +1905,16 @@ impl Check for PlacePendingEvent {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
+        if let Some(v) = obj.get("pending") { match crate::types::check::read_present::<PendingComputer>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pending"))), } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -1369,6 +1944,15 @@ impl Check for ProjectAddedEvent {
     fn check(&self) -> Result<(), SchemaError> {
         self.project.check().map_err(|e| e.under("project"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("project") { None => out.push(crate::types::check::missing::<Self>("project")), Some(v) => { match crate::types::check::read::<ProjectView>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("project"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -1405,6 +1989,19 @@ impl Check for ProjectAddEvent {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("projectId") { None => out.push(crate::types::check::missing::<Self>("projectId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectId"))), } } }
+        match obj.get("computer") { None => out.push(crate::types::check::missing::<Self>("computer")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("computer"))), } } }
+        match obj.get("stage") { None => out.push(crate::types::check::missing::<Self>("stage")), Some(v) => { match crate::types::check::read::<ProjectAddStage>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("stage"))), } } }
+        match obj.get("message") { None => out.push(crate::types::check::missing::<Self>("message")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("message"))), } } }
+        match obj.get("elapsedMs") { None => out.push(crate::types::check::missing::<Self>("elapsedMs")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("elapsedMs"))), } } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -1435,6 +2032,15 @@ impl HostNoticeEvent {
 impl Check for HostNoticeEvent {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("message") { None => out.push(crate::types::check::missing::<Self>("message")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("message"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -1469,6 +2075,18 @@ impl Check for AsideTextEvent {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
+        if let Some(v) = obj.get("threadId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } }
+        match obj.get("askId") { None => out.push(crate::types::check::missing::<Self>("askId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("askId"))), } } }
+        match obj.get("text") { None => out.push(crate::types::check::missing::<Self>("text")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("text"))), } } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -1498,6 +2116,15 @@ impl ProjectRemovedEvent {
 impl Check for ProjectRemovedEvent {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("projectId") { None => out.push(crate::types::check::missing::<Self>("projectId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectId"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {

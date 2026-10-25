@@ -815,3 +815,32 @@ impl Check for wsp_frames::True {
         leaf(path, Zod::Literal(|| Value::Bool(true)))
     }
 }
+
+/// The literal `false` the error envelope carries.
+impl Check for wsp_frames::False {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Literal(|| Value::Bool(false)))
+    }
+}
+
+/// The request id: zod's `z.union([z.string(), z.number()])`, which answers invalid_union where it is neither.
+impl Check for wsp_frames::RequestId {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Union)
+    }
+}
+
+/// wsp-frames' process kind, read by its camelCase words (proc-owner.ts).
+impl Check for wsp_frames::ProcKind {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Options(&["agent", "tool", "dev", "test", "build", "slate", "terminal", "tab", "app", "wsp", "other"]))
+    }
+}
+
+/// wsp-frames' process owner, read by its camelCase words.
+impl Check for wsp_frames::ProcOwnedBy {
+    fn describe(path: &[Value]) -> Option<Zod> {
+        leaf(path, Zod::Options(&["root", "fork", "group", "env", "cgroup", "folder", "coalition"]))
+    }
+}
+

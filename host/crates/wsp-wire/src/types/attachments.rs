@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::types::check::{Check, SchemaError};
+use crate::types::js_number::JsInt;
 
 /// TS: packages/protocol/src/attachments.ts:27 at a3b870a6e.
 pub const IMAGE_MAX_BYTES: u64 = 10_485_760;
@@ -44,6 +45,17 @@ impl Check for Attachment {
         Ok(())
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("mediaType") { None => out.push(crate::types::check::missing::<Self>("mediaType")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("mediaType"))), } } }
+        match obj.get("bytes") { None => out.push(crate::types::check::missing::<Self>("bytes")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("bytes"))), } } }
+        if let Some(v) = obj.get("name") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } }
+        Some(out)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
@@ -62,7 +74,7 @@ impl Check for Attachment {
 #[serde(rename_all = "camelCase")]
 pub struct AttachmentRecord {
     pub media_type: String,
-    pub bytes: i64,
+    pub bytes: JsInt,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub name: Option<String>,
 }
@@ -70,8 +82,19 @@ pub struct AttachmentRecord {
 impl Check for AttachmentRecord {
     /// Rules: bytes: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.bytes as f64, 0.0).map_err(|e| e.under("bytes"))?;
+        crate::types::check::num_at_least(self.bytes.0.0, 0.0).map_err(|e| e.under("bytes"))?;
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("mediaType") { None => out.push(crate::types::check::missing::<Self>("mediaType")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("mediaType"))), } } }
+        match obj.get("bytes") { None => out.push(crate::types::check::missing::<Self>("bytes")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_bytes(&x) { out.push(e.under("bytes")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("bytes"))), } } }
+        if let Some(v) = obj.get("name") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
@@ -86,6 +109,12 @@ impl Check for AttachmentRecord {
         }
     }
 }
+impl AttachmentRecord {
+    fn rule_bytes(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
+        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        Ok(())
+    }
+}
 
 /// TS: packages/protocol/src/attachments.ts:166 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -98,6 +127,16 @@ pub struct KeptAttachment {
 impl Check for KeptAttachment {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("mediaType") { None => out.push(crate::types::check::missing::<Self>("mediaType")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("mediaType"))), } } }
+        match obj.get("bytes") { None => out.push(crate::types::check::missing::<Self>("bytes")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("bytes"))), } } }
+        Some(out)
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {

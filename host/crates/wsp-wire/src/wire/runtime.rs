@@ -2,6 +2,7 @@
 //! Port of packages/protocol/src/wire/runtime.ts.
 
 #![allow(unused_imports)]
+use crate::types::js_number::JsInt;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -397,15 +398,15 @@ pub struct PlacesSetSpawn {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub spawn: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub max_machines: Option<i64>,
+    pub max_machines: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub max_depth: Option<i64>,
+    pub max_depth: Option<JsInt>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlacesSetSize {
-    pub cpu: i64,
-    pub mem_mb: i64,
+    pub cpu: JsInt,
+    pub mem_mb: JsInt,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -413,9 +414,9 @@ pub struct WorkspacesCreateAgents {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub spawn: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub max_machines: Option<i64>,
+    pub max_machines: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub max_depth: Option<i64>,
+    pub max_depth: Option<JsInt>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -433,8 +434,8 @@ pub struct WorkspacesCreateSub {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspacesResizeSize {
-    pub cpu: i64,
-    pub mem_mb: i64,
+    pub cpu: JsInt,
+    pub mem_mb: JsInt,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum WorkspacesReviewDraftVerdict {
@@ -470,9 +471,9 @@ pub enum AgentsCloudSignInAgent {
 pub struct SlatesWritePress {
     pub piece: String,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub index: Option<i64>,
+    pub index: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub action: Option<i64>,
+    pub action: Option<JsInt>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SlatesEventEvent {
@@ -487,7 +488,7 @@ pub enum SlatesEventEvent {
 #[serde(rename_all = "camelCase")]
 pub struct SlatesEventScope {
     pub item: Value,
-    pub index: i64,
+    pub index: JsInt,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SlatesApproveScope {
@@ -668,7 +669,7 @@ pub struct SessionSearchHit {
 pub struct SessionSearchResult {
     pub hits: Vec<SessionSearchHit>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub unsearched: Option<i64>,
+    pub unsearched: Option<JsInt>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -678,9 +679,9 @@ pub struct SessionAsideResult {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionRewindResult {
-    pub turns: i64,
+    pub turns: JsInt,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub files: Option<i64>,
+    pub files: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub kept: Option<String>,
 }
@@ -772,6 +773,17 @@ impl Check for PlacesSetSpawn {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        if let Some(v) = obj.get("spawn") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("spawn"))), } }
+        if let Some(v) = obj.get("maxMachines") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("maxMachines"))), } }
+        if let Some(v) = obj.get("maxDepth") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("maxDepth"))), } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -779,6 +791,16 @@ impl Check for PlacesSetSize {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("cpu") { None => out.push(crate::types::check::missing::<Self>("cpu")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cpu"))), } } }
+        match obj.get("memMb") { None => out.push(crate::types::check::missing::<Self>("memMb")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memMb"))), } } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -788,6 +810,17 @@ impl Check for WorkspacesCreateAgents {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        if let Some(v) = obj.get("spawn") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("spawn"))), } }
+        if let Some(v) = obj.get("maxMachines") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("maxMachines"))), } }
+        if let Some(v) = obj.get("maxDepth") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("maxDepth"))), } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -795,6 +828,19 @@ impl Check for WorkspacesCreateSub {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("on") { None => out.push(crate::types::check::missing::<Self>("on")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("on"))), } } }
+        if let Some(v) = obj.get("size") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("size"))), } }
+        if let Some(v) = obj.get("from") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("from"))), } }
+        if let Some(v) = obj.get("branch") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } }
+        if let Some(v) = obj.get("harness") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("harness"))), } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -804,6 +850,16 @@ impl Check for WorkspacesResizeSize {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("cpu") { None => out.push(crate::types::check::missing::<Self>("cpu")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cpu"))), } } }
+        match obj.get("memMb") { None => out.push(crate::types::check::missing::<Self>("memMb")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memMb"))), } } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -811,6 +867,16 @@ impl Check for WorkspacesReviewDraftOnItem {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
+        match obj.get("on") { None => out.push(crate::types::check::missing::<Self>("on")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("on"))), } } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -820,6 +886,17 @@ impl Check for SlatesWritePress {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("piece") { None => out.push(crate::types::check::missing::<Self>("piece")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("piece"))), } } }
+        if let Some(v) = obj.get("index") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("index"))), } }
+        if let Some(v) = obj.get("action") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("action"))), } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -828,6 +905,16 @@ impl Check for SlatesEventScope {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("item") { None => out.push(crate::types::check::missing::<Self>("item")), Some(v) => { match crate::types::check::read::<Value>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("item"))), } } }
+        match obj.get("index") { None => out.push(crate::types::check::missing::<Self>("index")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("index"))), } } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -842,6 +929,16 @@ impl Check for ExecEvent {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let Some(tag) = obj.get("type") else { return Some(vec![crate::types::check::missing::<Self>("type")]); };
+        match tag.as_str() {
+            _ => Some(vec![crate::types::check::unknown_tag::<Self>("type", tag)]),
+        }
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -849,6 +946,17 @@ impl Check for RuntimeOkResponse {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        if let Some(v) = obj.get("id") { match crate::types::check::read_present::<ReqId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } }
+        match obj.get("ok") { None => out.push(crate::types::check::missing::<Self>("ok")), Some(v) => { match crate::types::check::read::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ok"))), } } }
+        match obj.get("rest") { None => out.push(crate::types::check::missing::<Self>("rest")), Some(v) => { match crate::types::check::read::<IndexMap<String, Value>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rest"))), } } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -856,6 +964,19 @@ impl Check for RuntimeErrorResponse {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        if let Some(v) = obj.get("id") { match crate::types::check::read_present::<ReqId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } }
+        match obj.get("ok") { None => out.push(crate::types::check::missing::<Self>("ok")), Some(v) => { match crate::types::check::read::<False>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ok"))), } } }
+        match obj.get("error") { None => out.push(crate::types::check::missing::<Self>("error")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("error"))), } } }
+        if let Some(v) = obj.get("kind") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("kind"))), } }
+        if let Some(v) = obj.get("fix") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("fix"))), } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -863,6 +984,10 @@ impl Check for RuntimeResponse {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        Some(crate::types::check::union_answer(vec![crate::types::check::issues_of::<RuntimeOkResponse>(value), crate::types::check::issues_of::<RuntimeErrorResponse>(value)]))
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -870,6 +995,18 @@ impl Check for SessionInterruptResult {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("outcome") { None => out.push(crate::types::check::missing::<Self>("outcome")), Some(v) => { match crate::types::check::read::<SessionInterruptOutcome>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("outcome"))), } } }
+        if let Some(v) = obj.get("under") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("under"))), } }
+        if let Some(v) = obj.get("error") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("error"))), } }
+        if let Some(v) = obj.get("left") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("left"))), } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -877,6 +1014,15 @@ impl Check for SessionSteerResult {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("outcome") { None => out.push(crate::types::check::missing::<Self>("outcome")), Some(v) => { match crate::types::check::read::<SessionSteerOutcome>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("outcome"))), } } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -884,6 +1030,15 @@ impl Check for SessionAccessResult {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("outcome") { None => out.push(crate::types::check::missing::<Self>("outcome")), Some(v) => { match crate::types::check::read::<SessionAccessOutcome>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("outcome"))), } } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -891,6 +1046,15 @@ impl Check for SessionAnswerResult {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("outcome") { None => out.push(crate::types::check::missing::<Self>("outcome")), Some(v) => { match crate::types::check::read::<SessionAnswerOutcome>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("outcome"))), } } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -898,6 +1062,16 @@ impl Check for SessionRenameResult {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("outcome") { None => out.push(crate::types::check::missing::<Self>("outcome")), Some(v) => { match crate::types::check::read::<SessionRenameOutcome>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("outcome"))), } } }
+        if let Some(v) = obj.get("error") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("error"))), } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -905,6 +1079,16 @@ impl Check for SettledThread {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("threadId") { None => out.push(crate::types::check::missing::<Self>("threadId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } } }
+        match obj.get("title") { None => out.push(crate::types::check::missing::<Self>("title")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("title"))), } } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -912,6 +1096,17 @@ impl Check for SessionSettleResult {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("settled") { None => out.push(crate::types::check::missing::<Self>("settled")), Some(v) => { match crate::types::check::read::<Vec<SettledThread>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("settled"))), } } }
+        match obj.get("left") { None => out.push(crate::types::check::missing::<Self>("left")), Some(v) => { match crate::types::check::read::<Vec<SessionSettleResultLeftItem>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("left"))), } } }
+        if let Some(v) = obj.get("ended") { match crate::types::check::read_present::<Vec<ActivityEnded>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ended"))), } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -919,6 +1114,16 @@ impl Check for SessionSettleResultLeftItem {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("threadId") { None => out.push(crate::types::check::missing::<Self>("threadId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } } }
+        match obj.get("why") { None => out.push(crate::types::check::missing::<Self>("why")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("why"))), } } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -926,6 +1131,15 @@ impl Check for SessionRestoreResult {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("restored") { None => out.push(crate::types::check::missing::<Self>("restored")), Some(v) => { match crate::types::check::read::<Vec<SettledThread>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("restored"))), } } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -933,6 +1147,17 @@ impl Check for SessionSearchHit {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
+        match obj.get("threadId") { None => out.push(crate::types::check::missing::<Self>("threadId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } } }
+        match obj.get("snippet") { None => out.push(crate::types::check::missing::<Self>("snippet")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("snippet"))), } } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -941,6 +1166,16 @@ impl Check for SessionSearchResult {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("hits") { None => out.push(crate::types::check::missing::<Self>("hits")), Some(v) => { match crate::types::check::read::<Vec<SessionSearchHit>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hits"))), } } }
+        if let Some(v) = obj.get("unsearched") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("unsearched"))), } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -948,6 +1183,15 @@ impl Check for SessionAsideResult {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("text") { None => out.push(crate::types::check::missing::<Self>("text")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("text"))), } } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -955,6 +1199,17 @@ impl Check for SessionRewindResult {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("turns") { None => out.push(crate::types::check::missing::<Self>("turns")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("turns"))), } } }
+        if let Some(v) = obj.get("files") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("files"))), } }
+        if let Some(v) = obj.get("kept") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("kept"))), } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -962,6 +1217,18 @@ impl Check for SessionStartResult {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("session") { None => out.push(crate::types::check::missing::<Self>("session")), Some(v) => { match crate::types::check::read::<SessionView>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("session"))), } } }
+        match obj.get("outcome") { None => out.push(crate::types::check::missing::<Self>("outcome")), Some(v) => { match crate::types::check::read::<SessionStartOutcome>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("outcome"))), } } }
+        match obj.get("turnId") { None => out.push(crate::types::check::missing::<Self>("turnId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("turnId"))), } } }
+        if let Some(v) = obj.get("notice") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("notice"))), } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -969,6 +1236,15 @@ impl Check for SessionWarmResult {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("warm") { None => out.push(crate::types::check::missing::<Self>("warm")), Some(v) => { match crate::types::check::read::<SessionWarmResultWarm>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("warm"))), } } }
+        Some(out)
+    }
+
 }
 
 /// Refinements zod puts on this shape, each an issue when it fails:
@@ -978,6 +1254,19 @@ impl Check for ProviderKeyWorks {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        match obj.get("works") { None => out.push(crate::types::check::missing::<Self>("works")), Some(v) => { match crate::types::check::read::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("works"))), } } }
+        match obj.get("account") { None => out.push(crate::types::check::missing::<Self>("account")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("account"))), } } }
+        match obj.get("plan") { None => out.push(crate::types::check::missing::<Self>("plan")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("plan"))), } } }
+        match obj.get("running") { None => out.push(crate::types::check::missing::<Self>("running")), Some(v) => { match crate::types::check::read::<i64>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("running"))), } } }
+        match obj.get("limit") { None => out.push(crate::types::check::missing::<Self>("limit")), Some(v) => { match crate::types::check::read::<i64>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("limit"))), } } }
+        Some(out)
+    }
+
 }
 
 /// No refinement of its own; checks every nested field that has one.
@@ -985,6 +1274,17 @@ impl Check for BrokerStatus {
     fn check(&self) -> Result<(), SchemaError> {
         todo!()
     }
+    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
+        let serde_json::Value::Object(obj) = value else {
+            return Some(vec![crate::types::check::not_object(value)]);
+        };
+        let mut out = Vec::new();
+        if let Some(v) = obj.get("claude") { match crate::types::check::read_present::<BrokerStatusClaude>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("claude"))), } }
+        if let Some(v) = obj.get("codex") { match crate::types::check::read_present::<BrokerStatusCodex>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("codex"))), } }
+        if let Some(v) = obj.get("github") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("github"))), } }
+        Some(out)
+    }
+
 }
 
 // Refinements on the variants of RuntimeOp (runtime_ops.rs), each an issue when it fails:
