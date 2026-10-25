@@ -277,7 +277,7 @@ fn lines_of(file: &[String]) -> Vec<ChainLine> {
 // chain.test.ts: the walk
 // ---------------------------------------------------------------------------------------------------------------
 
-// TS: chain.test.ts:61
+// TS: chain.test.ts:68
 #[test]
 fn walk_fork_before_last_compaction_copies_back_to_start_and_nothing_after() {
     let file = compacted();
@@ -288,7 +288,7 @@ fn walk_fork_before_last_compaction_copies_back_to_start_and_nothing_after() {
     assert_eq!(kept, vec![2, 3, 5, 6, 8, 9]);
 }
 
-// TS: chain.test.ts:69
+// TS: chain.test.ts:76
 #[test]
 fn walk_fork_after_compaction_starts_at_the_boundary() {
     let file = compacted();
@@ -296,7 +296,7 @@ fn walk_fork_after_compaction_starts_at_the_boundary() {
     assert_eq!(texts_of(&file, &kept), strs(&["compact_boundary", "This session is being continued from a previous conversation.", "skills", "Remember DELTA.", "OK"]));
 }
 
-// TS: chain.test.ts:74
+// TS: chain.test.ts:81
 #[test]
 fn walk_copies_the_live_branch_of_a_rewound_session() {
     let file = rewound();
@@ -307,7 +307,7 @@ fn walk_copies_the_live_branch_of_a_rewound_session() {
     assert_eq!(texts_of(&file, &chain_through(&lines, &id(5)).unwrap()), strs(&["Remember ALPHA.", "OK", "todo", "Remember BETA.", "OK"]));
 }
 
-// TS: chain.test.ts:82
+// TS: chain.test.ts:89
 #[test]
 fn walk_refuses_a_missing_anchor_and_a_broken_chain() {
     let file = rewound();
@@ -319,7 +319,7 @@ fn walk_refuses_a_missing_anchor_and_a_broken_chain() {
     assert_eq!(broken, format!("the session's chain to message {} is broken at {}", id(7), id(1)));
 }
 
-// TS: chain.test.ts:89
+// TS: chain.test.ts:96
 #[test]
 fn walk_ends_a_live_copy_before_the_message_whose_call_has_no_result() {
     let mid_turn = fixture_lines("aside-mid-turn.jsonl");
@@ -335,7 +335,7 @@ fn walk_ends_a_live_copy_before_the_message_whose_call_has_no_result() {
     assert_eq!(line["message"]["content"][0]["type"], json!("tool_result"));
 }
 
-// TS: chain.test.ts:101
+// TS: chain.test.ts:108
 #[test]
 fn walk_writes_line_numbers_as_ranges() {
     assert_eq!(line_ranges(&[2, 3, 5, 6, 7, 9]), "2-3,5-7,9");
@@ -346,7 +346,7 @@ fn walk_writes_line_numbers_as_ranges() {
 // chain.test.ts: run by a shell on a session's files
 // ---------------------------------------------------------------------------------------------------------------
 
-// TS: chain.test.ts:155
+// TS: chain.test.ts:161
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shell_writes_exactly_the_anchors_chain_beside_the_source() {
     let root = Root::new("chain-write");
@@ -368,7 +368,7 @@ async fn shell_writes_exactly_the_anchors_chain_beside_the_source() {
     assert_eq!(names(&project), both);
 }
 
-// TS: chain.test.ts:169
+// TS: chain.test.ts:175
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shell_reads_a_long_session_as_kilobytes_and_walks_it_as_the_whole_file_would() {
     let root = Root::new("chain-long");
@@ -386,7 +386,7 @@ async fn shell_reads_a_long_session_as_kilobytes_and_walks_it_as_the_whole_file_
     assert_eq!(chain_through(&read_chain(&read).unwrap().lines, &id(51)).unwrap(), vec![1, 2, 3, 4]);
 }
 
-// TS: chain.test.ts:181
+// TS: chain.test.ts:187
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shell_refuses_an_anchor_the_file_does_not_hold_before_anything_is_written() {
     let root = Root::new("chain-refuse");
@@ -398,7 +398,7 @@ async fn shell_refuses_an_anchor_the_file_does_not_hold_before_anything_is_writt
     assert_eq!(names(&project), vec![format!("{SESSION}.jsonl")]);
 }
 
-// TS: chain.test.ts:189
+// TS: chain.test.ts:195
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shell_says_the_clis_own_words_for_a_session_its_store_does_not_hold() {
     let root = Root::new("chain-nostore");
@@ -408,7 +408,7 @@ async fn shell_says_the_clis_own_words_for_a_session_its_store_does_not_hold() {
     assert_eq!(err.0, no_conversation_line(SESSION));
 }
 
-// TS: chain.test.ts:195
+// TS: chain.test.ts:201
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shell_leaves_no_copy_and_no_part_file_where_the_write_comes_out_short() {
     let root = Root::new("chain-short");
@@ -423,7 +423,7 @@ async fn shell_leaves_no_copy_and_no_part_file_where_the_write_comes_out_short()
     assert_eq!(names(&project), vec![format!("{SESSION}.jsonl")]);
 }
 
-// TS: chain.test.ts:208
+// TS: chain.test.ts:214
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shell_removes_only_the_copy() {
     let root = Root::new("chain-remove");
@@ -645,7 +645,7 @@ fn env_is(env: &Env, key: &str, value: &str) {
 
 // ---- asideCommand
 
-// TS: aside.test.ts:109
+// TS: aside.test.ts:103
 #[test]
 fn aside_command_launches_the_copy_as_the_threads_turns_launch_with_its_hooks_off() {
     let memory_dir = format!("{CONFIG}/projects/-root-spoo/memory");
@@ -695,7 +695,7 @@ fn aside_command_launches_the_copy_as_the_threads_turns_launch_with_its_hooks_of
     }
 }
 
-// TS: aside.test.ts:136
+// TS: aside.test.ts:130
 #[test]
 fn aside_command_keeps_hooks_off_where_the_launch_words_name_a_settings_file() {
     let launch = AgentLaunch { program: None, args: Some(strs(&["--debug", "--settings", "/root/my-settings.json"])) };
@@ -710,7 +710,7 @@ fn aside_command_keeps_hooks_off_where_the_launch_words_name_a_settings_file() {
     assert!(!equals.contains("my-settings.json"), "{equals}");
 }
 
-// TS: aside.test.ts:147
+// TS: aside.test.ts:141
 #[test]
 fn aside_command_hands_the_copy_the_servers_on_the_flag_a_turn_takes_them_on() {
     let line = aside_command(&AsideCommandOptions { fork: FORK.to_string(), mcp_servers: Some(servers()), ..Default::default() }).unwrap();
@@ -719,7 +719,7 @@ fn aside_command_hands_the_copy_the_servers_on_the_flag_a_turn_takes_them_on() {
     assert!(line.contains(&flag), "{flag} not in {line}");
 }
 
-// TS: aside.test.ts:155
+// TS: aside.test.ts:150
 #[test]
 fn aside_command_leaves_the_model_out_and_refuses_a_copy_id_of_the_wrong_shape() {
     let bare = aside_command(&AsideCommandOptions { fork: FORK.to_string(), ..Default::default() }).unwrap();
@@ -764,7 +764,7 @@ async fn shell_asks_the_mid_turn_thread_on_a_copy_cut_before_its_running_call_an
     assert_eq!(std::fs::read_to_string(project.join(format!("{SESSION}.jsonl"))).unwrap(), thread);
 }
 
-// TS: aside.test.ts:218
+// TS: aside.test.ts:217
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn shell_answers_from_the_live_conversation_of_a_rewound_thread() {
     let root = Root::new("aside-rewound");
@@ -795,7 +795,7 @@ async fn shell_answers_from_the_live_conversation_of_a_rewound_thread() {
 
 // ---- the adapter's aside
 
-// TS: aside.test.ts:238
+// TS: aside.test.ts:233
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_copies_through_the_live_end_and_runs_the_copy_on_the_turns_road() {
     let exec = scripted(
@@ -854,7 +854,7 @@ async fn aside_copies_through_the_live_end_and_runs_the_copy_on_the_turns_road()
     assert_eq!(calls.len(), 4);
 }
 
-// TS: aside.test.ts:266
+// TS: aside.test.ts:269
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_hands_the_copy_each_servers_value_in_a_file_of_the_runs() {
     let exec = scripted(vec![result_line()], ScriptOpts::default());
@@ -877,7 +877,7 @@ async fn aside_hands_the_copy_each_servers_value_in_a_file_of_the_runs() {
     assert_eq!([&calls[0], &calls[1], &calls[3]].map(|c| c.secret.clone()), [None, None, None]);
 }
 
-// TS: aside.test.ts:280
+// TS: aside.test.ts:282
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_hands_each_piece_of_the_answer_on_and_still_answers_the_whole_result() {
     // The partial message lines 2.1.289 prints under --include-partial-messages, a thinking piece among them.
@@ -920,7 +920,7 @@ async fn aside_answers_past_the_empty_result_a_resume_gives_a_background_command
     assert!(exec.order().contains(&"closeInput".to_string()));
 }
 
-// TS: aside.test.ts:312
+// TS: aside.test.ts:313
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_rejects_with_the_clis_own_words_when_its_result_is_an_error() {
     let exec = scripted(vec![result_with(&[("subtype", json!("success")), ("is_error", json!(true)), ("result", json!("Not logged in · Please run /login"))], &[])], ScriptOpts::default());
@@ -928,7 +928,7 @@ async fn aside_rejects_with_the_clis_own_words_when_its_result_is_an_error() {
     assert_eq!(err, "Not logged in · Please run /login");
 }
 
-// TS: aside.test.ts:317
+// TS: aside.test.ts:318
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_rejects_with_what_the_cli_printed_on_an_exit_with_no_result_and_removes_the_copy() {
     let exec = scripted(vec![no_conversation_line(SESSION)], ScriptOpts { exit_code: Some(1), ..Default::default() });
@@ -938,7 +938,7 @@ async fn aside_rejects_with_what_the_cli_printed_on_an_exit_with_no_result_and_r
     assert_eq!(calls[3].command, copy_cleanup_command(&fork_of(&calls[2].command), CONFIG).unwrap());
 }
 
-// TS: aside.test.ts:323
+// TS: aside.test.ts:324
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_rejects_with_the_reads_own_line_where_the_session_file_is_not_there() {
     let exec = scripted(vec![result_line()], ScriptOpts { tail: Some(vec![no_conversation_line(SESSION)]), tail_code: Some(1), ..Default::default() });
@@ -947,7 +947,7 @@ async fn aside_rejects_with_the_reads_own_line_where_the_session_file_is_not_the
     assert_eq!(exec.calls().len(), 1);
 }
 
-// TS: aside.test.ts:329
+// TS: aside.test.ts:330
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_ends_a_cli_that_says_nothing_for_the_whole_wall_and_says_so() {
     let exec = scripted(vec![], ScriptOpts { hang: true, ..Default::default() });
@@ -961,7 +961,7 @@ async fn aside_ends_a_cli_that_says_nothing_for_the_whole_wall_and_says_so() {
     assert!(exec.at("exited 3") < exec.at("launch 4"));
 }
 
-// TS: aside.test.ts:338
+// TS: aside.test.ts:340
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_registers_a_pre_tool_use_hook_and_refuses_every_call_through_it() {
     let init = json(&aside_hooks_line());
@@ -997,7 +997,7 @@ async fn aside_registers_a_pre_tool_use_hook_and_refuses_every_call_through_it()
     assert_eq!(writes[1], json!({"type": "control_response", "response": {"subtype": "success", "request_id": "p1", "response": {"behavior": "deny", "message": message}}}));
 }
 
-// TS: aside.test.ts:362
+// TS: aside.test.ts:360
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_asks_the_mid_turn_thread_on_a_copy_cut_before_its_running_call_and_says_it_is_running() {
     let mid_turn = fixture_lines("aside-mid-turn.jsonl");
@@ -1031,7 +1031,7 @@ async fn aside_asks_the_mid_turn_thread_on_a_copy_cut_before_its_running_call_an
     }
 }
 
-// TS: aside.test.ts:388
+// TS: aside.test.ts:386
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_says_in_one_line_that_the_answer_reached_for_a_tool_at_the_turn_cap() {
     let exec = scripted(vec![result_with(&[("subtype", json!("error_max_turns")), ("is_error", json!(true)), ("num_turns", json!(3))], &["result"])], ScriptOpts::default());
@@ -1039,7 +1039,7 @@ async fn aside_says_in_one_line_that_the_answer_reached_for_a_tool_at_the_turn_c
     assert_eq!(err, ASIDE_TOOL_LINE);
 }
 
-// TS: aside.test.ts:394
+// TS: aside.test.ts:391
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_rejects_with_the_last_line_the_cli_printed_when_it_exits_with_no_result() {
     let exec = scripted(strs(&["Warning: something about the shell", "Error: Invalid API key · Please run /login"]), ScriptOpts { exit_code: Some(1), ..Default::default() });
@@ -1047,7 +1047,7 @@ async fn aside_rejects_with_the_last_line_the_cli_printed_when_it_exits_with_no_
     assert_eq!(err, "Error: Invalid API key · Please run /login");
 }
 
-// TS: aside.test.ts:399
+// TS: aside.test.ts:397
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn aside_ends_the_run_and_says_why_where_the_cli_refuses_the_hook() {
     let exec = scripted(
