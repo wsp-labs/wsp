@@ -10,7 +10,7 @@ use crate::mcp::{McpResolved, McpServer, McpTransport};
 use crate::mcp_toml::toml_string;
 use crate::smol_toml::parse_toml;
 use wsp_words::exit::HostError;
-use wsp_words::js::js_trim;
+use wsp_words::js::{js_trim, JS_WS as WS};
 
 /// env_vars pass through where they have a value; each env_http_headers and bearer_token_env_var header must have one
 /// (mcp-codex.ts:12).
@@ -74,8 +74,8 @@ pub fn codex_trusts(text: &str, folder: &str) -> bool {
 pub fn trust_codex(text: Option<&str>, folder: &str) -> Result<String, HostError> {
     static SECTION: OnceLock<Regex> = OnceLock::new();
     static LEVEL: OnceLock<Regex> = OnceLock::new();
-    let section = SECTION.get_or_init(|| Regex::new(r"^\s*\[").expect("a fixed pattern"));
-    let level_re = LEVEL.get_or_init(|| Regex::new(r"^\s*trust_level\s*=").expect("a fixed pattern"));
+    let section = SECTION.get_or_init(|| Regex::new(&format!(r"^[{WS}]*\[")).expect("a fixed pattern"));
+    let level_re = LEVEL.get_or_init(|| Regex::new(&format!(r"^[{WS}]*trust_level[{WS}]*=")).expect("a fixed pattern"));
     let was = text.unwrap_or("");
     if codex_trusts(was, folder) {
         return Ok(was.to_string());

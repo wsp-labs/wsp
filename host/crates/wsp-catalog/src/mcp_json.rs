@@ -17,8 +17,9 @@ use crate::mcp::{
     McpServerScope, McpTransport, MergeOutcome, RewriteString, WholeRef,
 };
 use crate::mcp_travelled::travelled_servers;
+use crate::plugins::js_entries;
 use wsp_words::exit::HostError;
-use wsp_words::js::js_trim;
+use wsp_words::js::{js_trim, JS_WS as WS};
 
 const CLAUDE_REF: &str = r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-[^}]*)?\}";
 const GEMINI_REF: &str = r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)(?::-[^}]*)?\}|([A-Za-z_][A-Za-z0-9_]*))";
@@ -217,7 +218,7 @@ fn fallback_of(reference: &str) -> Option<String> {
 /// (mcp.ts:910). `None` for Codex and for a string that is not one.
 pub fn whole_ref(format: McpFormat, value: &str, bearer: bool) -> Option<WholeRef> {
     static BEARER: OnceLock<Regex> = OnceLock::new();
-    let bearer_re = BEARER.get_or_init(|| Regex::new(r"(?i)^Bearer\s+").expect("a fixed pattern"));
+    let bearer_re = BEARER.get_or_init(|| Regex::new(&format!(r"(?i)^Bearer[{WS}]+")).expect("a fixed pattern"));
     let scheme = if bearer { bearer_re.find(value).map_or("", |m| m.as_str()) } else { "" };
     let rest = &value[scheme.len()..];
     let caps = whole_re(format).captures(rest)?;
@@ -376,8 +377,8 @@ fn servers_in(format: McpFormat, root: &Map<String, Value>, scope: McpServerScop
         return Vec::new();
     };
     let re = ref_re(format);
-    table
-        .iter()
+    js_entries(table)
+        .into_iter()
         .filter_map(|(name, raw)| {
             let s = server_of(format, name, raw, scope)?;
             let oauth = raw.as_object().and_then(|d| d.get("oauth")).and_then(json_object);

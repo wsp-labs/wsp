@@ -299,3 +299,25 @@ fn f19_context_hooks_write_their_keys_in_the_ts_order() {
     let got = serde_json::to_string(&AgentContext::Claude.hooks(&input)).unwrap();
     assert!(got.starts_with(r#"{"outcome":"written","path":"/etc/claude-code/CLAUDE.md","files":"#), "{got}");
 }
+
+// Fix round 2 (#2445, wsp-collect's review). Node lists whole-number keys first and ascending in every object it
+// parses; JavaScript's `\s` holds U+FEFF and not U+0085, the reverse of the regex crate's.
+const NUMBERED: &str = r#"{"b":{"command":"x"},"10":{"command":"x"},"2":{"command":"x"},"a":{"command":"x"},"1":{"command":"x"}}"#;
+
+#[test]
+fn server_names_that_read_as_numbers_come_first_in_each_json_format() {
+    let own = |format: McpFormat, key: &str| names(format.read(&format!(r#"{{"{key}":{NUMBERED}}}"#), "/home/a"));
+    assert_eq!(own(MCP_SERVERS_JSON, "mcpServers"), ["1", "2", "10", "b", "a"]);
+    assert_eq!(own(McpFormat::GeminiSettingsJson, "mcpServers"), ["1", "2", "10", "b", "a"]);
+    let opencode = NUMBERED.replace(r#"{"command":"x"}"#, r#"{"type":"local","command":["x"]}"#);
+    assert_eq!(names(McpFormat::OpencodeJson.read(&format!(r#"{{"mcp":{opencode}}}"#), "/home/a")), ["1", "2", "10", "b", "a"]);
+    let home = format!(r#"{{"projects":{{"/home/a":{{"mcpServers":{NUMBERED}}}}}}}"#);
+    assert_eq!(names(MCP_SERVERS_JSON.read(&home, "/home/a")), ["1", "2", "10", "b", "a"]);
+}
+
+#[test]
+fn a_codex_table_header_takes_javascript_s_whitespace() {
+    let read = |header: &str| names(CX.read(&format!("[mcp_servers.x{header}]\ncommand = \"npx\"\n"), "/home/a"));
+    assert!(read("\u{85}").is_empty());
+    assert_eq!(read("\u{feff}"), ["x"]);
+}
