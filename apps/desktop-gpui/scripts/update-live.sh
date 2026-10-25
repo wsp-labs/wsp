@@ -25,6 +25,9 @@
 #             not stay: the swap puts the old app back, which says why
 #   crash     the new version, whose app is killed once it has moved the host onto its files and before it is up: the
 #             swap puts the old app back, which moves the host back onto its own files
+# INSTALL=1 (Linux) installs the old version with apps/www/public/install from the feed instead, then opens it the way
+# the app menu does, running the Exec line of the entry the install line wrote, so the app updates the AppImage the
+# install line put at ~/Applications/wsp.AppImage. The install line's own first open is stopped before that.
 set -eu
 umask 022
 
@@ -64,6 +67,7 @@ here=$(cd "$(dirname "$0")" && pwd -P)
 REPO=${REPO:-$(cd "$here/../../.." && pwd -P)}
 uid=$(id -u)
 scenario=${SCENARIO:-good}
+install=${INSTALL:-}
 
 case "$os" in
   Linux) triple=$(uname -m)-unknown-linux-musl; node_pa=linux-$(uname -m | sed 's/^x86_64$/x64/; s/^aarch64$/arm64/') ;;
@@ -74,6 +78,11 @@ case "$scenario" in
   good) ;;
   electron|refused|crash) [ "$os" = Linux ] || refuse "SCENARIO=$scenario runs on Linux alone" ;;
   *) refuse "SCENARIO takes good, electron, refused or crash, not $scenario" ;;
+esac
+case "$install" in
+  '') ;;
+  1) [ "$os" = Linux ] || refuse "INSTALL=1 runs on Linux alone" ;;
+  *) refuse "INSTALL takes 1, not $install" ;;
 esac
 for v in "$old_v" "$new_v"; do
   case "$v" in [0-9]*.[0-9]*.[0-9]*) ;; *) refuse "$v is not a version like 1.2.3" ;; esac
@@ -109,9 +118,13 @@ home=$work/home
 state=$home/.wsp/state.json
 lock=$home/.wsp/host.lock
 wsp=$home/.wsp/bin/wsp
-stage_dir=$work/install/.wsp-gpui-update
 tag=$(printf '%s' "$state" | sha | cut -c1-8)
-if [ "$os" = Linux ]; then
+if [ -n "$install" ]; then
+  installed=$home/Applications/wsp.AppImage
+  unit_name=wsp-host-$tag.service
+  unit=$home/.config/systemd/user/$unit_name
+  unit_link=$XDG_RUNTIME_DIR/systemd/user/$unit_name
+elif [ "$os" = Linux ]; then
   installed=$work/install/wsp.AppImage
   unit_name=wsp-host-$tag.service
   unit=$home/.config/systemd/user/$unit_name
@@ -122,6 +135,7 @@ else
   unit=$home/Library/LaunchAgents/$unit_name.plist
   unit_link=
 fi
+stage_dir=$(dirname "$installed")/.wsp-gpui-update
 mkdir -p "$home/.wsp" "$work/install" "$work/feed" "$work/pack"
 
 feed_pid=
@@ -401,20 +415,21 @@ exec "$here/usr/bin/desktop-gpui" "$@"
 EOF
   fi
   chmod 755 "$appdir/AppRun"
-  cat >"$appdir/wsp-experimental.desktop" <<EOF
+  cat >"$appdir/wsp.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=wsp Experimental
-Comment=wsp's desktop app on GPUI, Experimental
-Exec=desktop-gpui
-Icon=wsp-experimental
+Name=wsp
+Comment=wsp's desktop app
+Exec=desktop-gpui %U
+Icon=wsp
 Terminal=false
 Categories=Development;
+MimeType=x-scheme-handler/wsp;
 X-AppImage-Version=$version
 EOF
-  icon_png >"$appdir/wsp-experimental.png"
-  cp "$appdir/wsp-experimental.png" "$appdir/usr/share/icons/hicolor/256x256/apps/wsp-experimental.png"
-  ln -s wsp-experimental.png "$appdir/.DirIcon"
+  icon_png >"$appdir/wsp.png"
+  cp "$appdir/wsp.png" "$appdir/usr/share/icons/hicolor/256x256/apps/wsp.png"
+  ln -s wsp.png "$appdir/.DirIcon"
   mksquashfs "$appdir" "$work/pack/app-$version.squashfs" -all-root -noappend -no-progress -quiet -no-xattrs -no-fragments
   cat "$runtime" "$work/pack/app-$version.squashfs" >"$out"
   chmod 755 "$out"
@@ -474,7 +489,11 @@ fetch_node
 if [ "$os" = Linux ]; then
   asset=$(gpui_asset appImage "$new_v")
   fetch_runtime
-  pack_linux "$old_bin" "$old_v" "$installed"
+  if [ -n "$install" ]; then
+    pack_linux "$old_bin" "$old_v" "$work/feed/$(gpui_asset appImage "$old_v")"
+  else
+    pack_linux "$old_bin" "$old_v" "$installed"
+  fi
   case "$scenario" in
     good) pack_linux "$new_bin" "$new_v" "$work/feed/$asset" ;;
     electron) pack_electron "$work/feed/$asset" ;;
@@ -482,7 +501,7 @@ if [ "$os" = Linux ]; then
     crash) pack_linux "$new_bin" "$new_v" "$work/feed/$asset" "$new_v" crash ;;
   esac
   new_sum=$(sha "$work/feed/$asset")
-  old_sum=$(sha "$installed")
+  if [ -n "$install" ]; then old_sum=$(sha "$work/feed/$(gpui_asset appImage "$old_v")"); else old_sum=$(sha "$installed"); fi
 else
   asset=$(gpui_asset macZip "$new_v")
   pack_mac "$old_bin" "$old_v" "$work/install"
@@ -490,8 +509,8 @@ else
   pack_mac "$new_bin" "$new_v" "$work/pack/new"
   (cd "$work/pack/new" && ditto -c -k --norsrc --noextattr --keepParent wsp.app "$work/feed/$asset")
 fi
-say "the feed offers $asset ($scenario)"
-echo "$new_v" >"$work/feed/VERSION"
+say "the feed offers $asset ($scenario)${install:+, after $old_v for the install line}"
+if [ -n "$install" ]; then echo "$old_v" >"$work/feed/VERSION"; else echo "$new_v" >"$work/feed/VERSION"; fi
 
 port=$("$node_bin" -e 'const s = require("node:net").createServer().listen(0, "127.0.0.1", () => { console.log(s.address().port); s.close(); });')
 feed_pid=$(spawn "$work/feed.log" "$node_bin" "$here/release-feed.mjs" "$work/feed" "$port")
@@ -543,7 +562,35 @@ launch_old() {
   app_old=$(cd "$home" && spawn "$work/app-old.log" env -i "${envs[@]}" "$launch")
   say "launched the old app $old_v as pid $app_old"
 }
-launch_old
+# The install line from this checkout, run as a person runs it on a desktop, then the menu entry's own command line.
+install_old() {
+  local code=0 entry=$home/.local/share/applications/wsp.desktop line t=0 pid
+  say "running apps/www/public/install with WSP_RELEASE_API=$api"
+  (cd "$home" && env -i "${envs[@]}" SHELL=/bin/sh /bin/sh "$here/../../www/public/install" >"$work/install.log" 2>&1) || code=$?
+  sed 's/^/  /' "$work/install.log"
+  [ "$code" = 0 ] || refuse "the install line exited $code"
+  [ "$(sha "$installed")" = "$old_sum" ] || refuse "the install line left no $old_v at $installed"
+  # Read before the install line's own open gets far, since the app names itself wsp://'s handler in the same entry.
+  line=$(sed -n 's/^Exec=//p' "$entry" | sed 's/ %[A-Za-z]//g')
+  echo "== $entry as the install line wrote it"
+  echo "  Exec=$line"
+  case "$line" in *"/.wsp/bin/wsp-desktop"*) ;; *) refuse "the install line's entry runs $line, not its launcher" ;; esac
+  # As a person quits it once it is up: the service host it installed keeps serving for the menu's launch.
+  until [ -n "$(installed_apps)" ] && [ -f "$unit" ] && alive "$(lock_pid)"; do
+    [ "$t" -lt 120 ] || refuse "the install line's own open had no app, unit and host up within 120 s"
+    sleep 1
+    t=$((t + 1))
+  done
+  hosts="$hosts $(lock_pid)"
+  for pid in $(installed_apps); do stop "$pid" "the install line's own open"; done
+  echo "$new_v" >"$work/feed/VERSION"
+  echo "== $home/.wsp/bin/wsp-desktop"
+  sed 's/^/  /' "$home/.wsp/bin/wsp-desktop"
+  eval "set -- $line"
+  app_old=$(cd "$home" && spawn "$work/app-old.log" env -i "${envs[@]}" "$@")
+  say "the feed now offers $new_v; ran the menu entry's command line ($*) as pid $app_old"
+}
+if [ -n "$install" ]; then install_old; else launch_old; fi
 
 fail() {
   result=FAIL

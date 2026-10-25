@@ -123,6 +123,7 @@ fn scroll_through(sidebar: &Entity<Sidebar>, cx: &mut VisualTestContext) {
 fn dismissing_a_restart_keeps_the_version_and_drops_the_checked_download(cx: &mut TestAppContext) {
     use crate::update::{self, stage::Installed, stage::Kind, Act, Download, Phase};
     let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("wsp.AppImage"), b"\x7fELF\x02\x01\x01\x00AI\x02").unwrap();
     let (sidebar, cx) = drawn(cx);
     cx.update(|_, cx| {
         update::init(
