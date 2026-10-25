@@ -430,7 +430,7 @@ mod claude_codes_plugins_off_its_files {
         let mut io = files_io(IndexMap::new(), Some("/x/claude"));
         io.edit_mode = Some(EditMode::Apply);
         *io.text.lock().unwrap() = Some("{\n  \"model\": \"opus\",\n  \"enabledPlugins\": {\n    \"brag@brag\": true,\n    \"vercel@claude-plugins-official\": true\n  }\n}\n".to_string());
-        assert_eq!(block_on(PluginShelf::Claude.turn(&io, &row, false, &no_read())), None);
+        assert_eq!(block_on(PluginShelf::Claude.turn(&io, &row, false, &no_read())), Ok(None));
         {
             let edits = io.edits.lock().unwrap();
             assert_eq!(
@@ -445,25 +445,25 @@ mod claude_codes_plugins_off_its_files {
         );
         // Already off is done: the same text again.
         let before = io.text.lock().unwrap().clone();
-        block_on(PluginShelf::Claude.turn(&io, &row, false, &no_read()));
+        block_on(PluginShelf::Claude.turn(&io, &row, false, &no_read())).unwrap();
         assert_eq!(*io.text.lock().unwrap(), before);
         // claude plugin enable and disable download every user plugin whose folder is missing before they write (2.1.296).
         assert_eq!(*io.runs.lock().unwrap(), Vec::<String>::new());
         *io.text.lock().unwrap() = None;
-        block_on(PluginShelf::Claude.turn(&io, &row, true, &no_read()));
+        block_on(PluginShelf::Claude.turn(&io, &row, true, &no_read())).unwrap();
         let text = io.text.lock().unwrap().clone().unwrap_or_default();
         assert_eq!(serde_json::from_str::<Value>(&text).unwrap(), json!({ "enabledPlugins": { "brag@brag": true } }));
         // A store outside the home, a box's logins folder, is its own write's base.
         let mut logins = files_io(IndexMap::new(), Some("/logins/claude"));
         logins.edit_mode = Some(EditMode::Record);
-        block_on(PluginShelf::Claude.turn(&logins, &row, true, &no_read()));
+        block_on(PluginShelf::Claude.turn(&logins, &row, true, &no_read())).unwrap();
         let edits = logins.edits.lock().unwrap();
         let last = edits.last().unwrap();
         assert_eq!(last.file, "/logins/claude/settings.json");
         assert_eq!(last.base, "/logins/claude");
         let unwritable = files_io(IndexMap::new(), None);
         let refused = block_on(PluginShelf::Claude.turn(&unwritable, &row, true, &no_read()));
-        assert!(refused.unwrap().contains("brag@brag was not switched"));
+        assert!(refused.unwrap().unwrap().contains("brag@brag was not switched"));
     }
 }
 
@@ -621,7 +621,7 @@ mod codexs_plugins_through_its_app_server {
         let io = codex_io(CodexOpts::default());
         let read = read(PluginShelf::Codex, &io, &[]);
         let brag = read.plugins.iter().find(|r| r.id == "brag@brag").unwrap();
-        assert_eq!(block_on(PluginShelf::Codex.turn(&io, brag, false, &read)), None);
+        assert_eq!(block_on(PluginShelf::Codex.turn(&io, brag, false, &read)), Ok(None));
         let last = sent_of(&io).pop().unwrap();
         assert_eq!(
             last,
@@ -633,7 +633,7 @@ mod codexs_plugins_through_its_app_server {
         let stale = codex_io(CodexOpts { stale: true, ..CodexOpts::default() });
         assert_eq!(
             block_on(PluginShelf::Codex.turn(&stale, brag, true, &read)),
-            Some(config_changed_refusal(read.file.as_deref().unwrap()))
+            Ok(Some(config_changed_refusal(read.file.as_deref().unwrap())))
         );
     }
 }

@@ -8,8 +8,9 @@ use regex::Regex;
 
 use crate::mcp::{McpResolved, McpServer, McpTransport};
 use crate::mcp_toml::toml_string;
+use crate::smol_toml::parse_toml;
 use wsp_words::exit::HostError;
-use wsp_words::js::js_trim;
+use wsp_words::js::{js_trim, JS_WS as WS};
 
 /// env_vars pass through where they have a value; each env_http_headers and bearer_token_env_var header must have one
 /// (mcp-codex.ts:12).
@@ -62,7 +63,7 @@ pub fn resolve_codex(server: &McpServer, value: &dyn Fn(&str) -> Option<String>)
 /// Whether `[projects."<folder>"].trust_level` is "trusted", by a TOML parser; false where the text does not parse
 /// (mcp-codex.ts:43).
 pub fn codex_trusts(text: &str, folder: &str) -> bool {
-    let Ok(tree) = text.parse::<toml::Table>() else {
+    let Ok(tree) = parse_toml(text) else {
         return false;
     };
     let entry = tree.get("projects").and_then(toml::Value::as_table).and_then(|p| p.get(folder)).and_then(toml::Value::as_table);
@@ -73,13 +74,13 @@ pub fn codex_trusts(text: &str, folder: &str) -> bool {
 pub fn trust_codex(text: Option<&str>, folder: &str) -> Result<String, HostError> {
     static SECTION: OnceLock<Regex> = OnceLock::new();
     static LEVEL: OnceLock<Regex> = OnceLock::new();
-    let section = SECTION.get_or_init(|| Regex::new(r"^\s*\[").expect("a fixed pattern"));
-    let level_re = LEVEL.get_or_init(|| Regex::new(r"^\s*trust_level\s*=").expect("a fixed pattern"));
+    let section = SECTION.get_or_init(|| Regex::new(&format!(r"^[{WS}]*\[")).expect("a fixed pattern"));
+    let level_re = LEVEL.get_or_init(|| Regex::new(&format!(r"^[{WS}]*trust_level[{WS}]*=")).expect("a fixed pattern"));
     let was = text.unwrap_or("");
     if codex_trusts(was, folder) {
         return Ok(was.to_string());
     }
-    let parsed: toml::Table = was.parse().map_err(|e: toml::de::Error| HostError::new(e.to_string()))?;
+    let parsed = parse_toml(was).map_err(HostError::new)?;
     let projects = parsed.get("projects").and_then(toml::Value::as_table);
     let header = format!("[projects.{}]", toml_string(folder));
     let mut lines: Vec<String> = was.split('\n').map(str::to_string).collect();
@@ -102,7 +103,7 @@ pub fn trust_codex(text: Option<&str>, folder: &str) -> Result<String, HostError
             lines.join("\n")
         }
     };
-    if out.parse::<toml::Table>().is_err() {
+    if parse_toml(&out).is_err() {
         return Err(HostError::new(format!(
             "the trust of {folder} cannot be added to a file that writes its projects in a shape wsp does not edit"
         )));
