@@ -16,6 +16,10 @@ What the host sends a daemon and how it reads the daemon's answers: the auth fra
 9. Every reply shape on the `pub use` line (FsListReply, FsHashReply, GitCommitReply and the rest) is a local type of `daemon_replies.rs`: `JsNumber` for `z.number()`, `JsInt` for `.int()`, `null` refused on an optional key, and zod's rules (SshStartReply's port and one-line host key, HttpBearer, UsageStore, FsSearchReply's line) in its Check.
 10. `parse_daemon_response` is proc_frames 8.
 
+11. Each op's rules run in the key's own read (`src/wire/daemon_checks.rs`), in the TS object's key order, so the first issue is the first key of the schema that fails, by type or by rule, and `issues_of` lists every issue zod lists: a list answers its length rule and then each item, a key with several checks (`uploadId`) answers each that fails. `guest.send` and `guest.reply` `message` and the `guest.message` event's are `z.unknown()`: absent stays absent, `null` stays `null`.
+12. Written order: a `DaemonRequest` writes `op`, the call's keys, then `id`, as the daemon channel builds a frame (`{...frame, id}`); `DaemonExecRequest` read or written alone is zod's own object, `id`, `op: "exec"`, then its keys. `DaemonFrame` and a channel event's `event` write integer-like keys before the known key and never a `__proto__` key.
+13. URLs are read as node's `new URL` reads them (`src/wire/node_host.rs`): the `url` crate's IDNA tables differ from node's, so a host holding a code point node refuses is refused, U+1E9E maps to `ss`, and a host the crate refuses but node takes is rebuilt in punycode when its odd characters are in the generated tables. A host with any other character the crate refuses stays refused, which is the safe side; against node, no host of 253,732 tried and no single code point in six label positions was taken here and refused by node.
+
 ## Edge cases
 - A fraction id (`2.5`) is an id and is written back as `2.5`.
 - 64 headers pass, 65 refuse; a header value of 8193 units refuses at ["headers", "<name>"].
