@@ -133,7 +133,7 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     fn parent_of(&self, thread_id: &str) -> Option<String>;
     fn root_of(&self, thread_id: &str) -> String;
     fn tree_of(&self, scope: Option<&ThreadScope>) -> TreeOf;
-    fn thread_of_token(&self, token: &str) -> String;
+    fn thread_of_token(&self, token: &str) -> Result<String, HostError>;
     fn reaches_row(&self, view: &SessionView, origin: Option<&Caller>, talk: Option<TreeTalk>) -> bool;
     fn notify_reach(&self, notify: &[String]) -> IndexSet<String>;
     fn notify_on(&self, thread_id: &str) -> Option<NotifyOn>;
