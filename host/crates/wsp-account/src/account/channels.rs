@@ -216,8 +216,12 @@ pub struct ChannelsArea {
     pub port_pids: Rc<RefCell<IndexMap<String, IndexMap<String, i64>>>>,
     /// channels.ts:308: each owner's ptys.
     pub(crate) pty_owners: RefCell<IndexMap<String, Rc<RefCell<IndexSet<String>>>>>,
-    /// channels.ts:379-381: the tags read (`tagsRead`); the in-flight reads and writes are private to ptys.rs.
+    /// channels.ts:379: each workspace's tag read, joined by a second reader.
+    pub(crate) tags_held: RefCell<IndexMap<String, futures::future::Shared<LocalBoxFuture<'static, Rc<RefCell<IndexMap<String, String>>>>>>>,
+    /// channels.ts:381: the tags once read (`tagsRead`).
     pub(crate) tags_read: RefCell<IndexMap<String, Rc<RefCell<IndexMap<String, String>>>>>,
+    /// channels.ts:406: each workspace's last queued tag write.
+    pub(crate) tag_writes: RefCell<IndexMap<String, futures::future::Shared<LocalBoxFuture<'static, ()>>>>,
     /// channels.ts:409.
     pub(crate) tags_going: RefCell<IndexSet<String>>,
     /// channels.ts:487.

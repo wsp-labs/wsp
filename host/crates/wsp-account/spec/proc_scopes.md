@@ -62,3 +62,36 @@ holding no workspace is `[]`.
 ## What survives a restart
 
 Nothing: `owned`, the pushes and the standing channel are memory; a restarted host names its threads afresh.
+
+## Tests
+
+`tests/proc_scopes.rs` (14 tests) and, for the two cases that need the channels area, two tests in
+`tests/channels_ptys.rs`. The six TS cases that need one area keep the literals of `test/proc-scopes.test.ts` (real
+`sleep` leaders become fixed pids behind `group_exists`). What that file leaves open is
+`tests/fixtures/oracle/proc_scopes.json`, written by `oracle/proc_scopes.oracle.ts`: each world beside what the TS
+answered.
+
+| Rule | Tests |
+|---|---|
+| P1, P3 | `p1_p3_scopes_here_carry_agents_groups_pids_and_folders`, `p1_sources_in_first_seen_order_and_the_newest_thread_of_each_folder`, `p3_a_workspace_this_host_does_not_hold_has_no_folder` |
+| P2 | `p2_scopes_here_caps_scopes_and_pids`, `p2_live_threads_go_first` |
+| P4 | `p4_a_warm_agent_is_named_until_claimed` |
+| P5 | `p5_a_release_takes_only_its_own_pid` |
+| P6 | `p6_scopes_on_a_box_newest_first`, `p6_terminals_on_a_box` |
+| P7 | `p7_named_before_a_watch_and_as_they_move`, `p7_a_refused_scopes_frame_is_ignored_and_the_push_leaves_at_close_and_at_the_end` |
+| P8 | `p8_this_computers_daemon_is_told_while_a_root_stands`, `p8_never_dialled_without_a_daemon_here`, `p8_a_failed_dial_dials_again` |
+
+| TS case (`packages/runtime/test/proc-scopes.test.ts`) | Test |
+|---|---|
+| :72 | `p1_p3_scopes_here_carry_agents_groups_pids_and_folders` |
+| :90 | `p7_named_before_a_watch_and_as_they_move` |
+| :113 | `p4_a_warm_agent_is_named_until_claimed` |
+| :124 | `p8_this_computers_daemon_is_told_while_a_root_stands` |
+| :147 | `p8_never_dialled_without_a_daemon_here` |
+| :156 | `p6_scopes_on_a_box_newest_first` |
+| :195 | `proc_scopes_terminal_follows_its_thread_and_a_watching_channel_hears_each_move` (channels_ptys.rs) |
+| :211 | `proc_scopes_terminal_on_a_box_is_named_to_the_boxs_daemon_never_this_computers` (channels_ptys.rs) |
+
+Fields the implementation needs that `ProcScopesArea` does not hold yet: `standing` (the standing channel's shared dial
+future, a token telling it from a later one, and the JSON last told), which `proc_scopes_moved` and its close handler
+read and reset.

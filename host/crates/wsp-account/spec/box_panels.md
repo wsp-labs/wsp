@@ -79,7 +79,7 @@ Nothing: placements, holders and asks are memory.
 - B6's close from a watch that never held the port is heard (`!held.delete(watch)` then `held.size === 0`): the pane is
   told of a close it never heard open. Pinned; after-port ticket 2.
 
-## Tests (`tests/box_panels.rs`, 15)
+## Tests (`tests/box_panels.rs`, 14)
 
 | Rule | Tests |
 |---|---|

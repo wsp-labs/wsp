@@ -89,6 +89,9 @@ pub struct ProcScopesArea {
     pub(crate) owned: RefCell<IndexMap<i64, (String, ProcKind)>>,
     /// proc-scopes.ts:32 `pushes`.
     pub(crate) pushes: RefCell<Vec<Rc<dyn Fn()>>>,
+    /// proc-scopes.ts:35 `standing`: the dial to this computer's daemon, shared by every move while it stands, and
+    /// the scopes' JSON it was last told.
+    pub(crate) standing: RefCell<Option<(futures::future::Shared<futures::future::LocalBoxFuture<'static, Option<Rc<dyn DaemonChannel>>>>, String)>>,
 }
 
 impl ProcScopesArea {

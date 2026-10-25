@@ -96,3 +96,55 @@ the TS order (429, 778).
 
 - D16 mixes `Date.now()` (the mint's time) with `setTimeout` (the hello wait); the port reads both off the context's
   clock (README A7).
+
+## Tests
+
+`tests/channels_daemon.rs` (32 tests). Every expected value is `tests/fixtures/oracle/channels_daemon.json`, written by
+`oracle/channels_daemon.oracle.ts` (the TS area run over the same worlds, inputs beside answers). `thread_on` (D16) is not
+exposed by the TS area, so its table is read off channels.ts:180-185 and backed by channels.test.ts:559. Tests settle
+spawned work with `settle()` and drive time with the fake clock; D16's hello wait runs as a local task.
+
+| Rule | Tests |
+|---|---|
+| D1 | `d1_started_as_and_cut_before` |
+| D2 | `d2_resumed_fact_newest_row_then_index`, `d2_access_of_record_then_fact` |
+| D3 | `d3_home_of_is_the_home_the_kind_answers_else_nothing` |
+| D4 | `d4_provider_and_place_of_each_kind` (with and without a door, `settings_at`) |
+| D5 | `d5_turn_limit_three_states` |
+| D6 | `d6_agents_held_record_then_place_then_default` (`spawn` is stripped from the Rust value: wsp-wire still carries it) |
+| D7 | `d7_project_held_refuses_in_its_words` |
+| D8 | `d8_checkout_of_table` (node `join`/`relative`: no shared helper exists, the implementation writes one) |
+| D9 | `d9_computer_of_names_the_place_or_the_kind` |
+| D10 | `d10_served_by_its_computer_is_the_machines_daemon_frame` |
+| D11 | `d11_no_token_is_not_answering_yet` |
+| D12 | `d12_a_failed_dial_adopts_a_pause` |
+| D13 | `d13_reply_of_refusal_keeps_the_code`, `d13_over_channel_closes_on_error` |
+| D14 | `d14_with_daemon_three_roads` |
+| D15 | `d15_brokered_table` |
+| D16 | `d16_only_the_git_host_ops_carry_a_token`, `d16_no_thread_is_a_usage_refusal`, `d16_an_old_or_silent_daemon_gets_no_token`, `d16_the_token_is_revoked_after_a_refusal`, `d16_hello_waits_two_seconds_on_the_clock`, `d16_a_failed_revoke_warns_and_the_reply_stands`, `d16_thread_on_picks_the_named_thread_of_this_workspace_else_the_newest`, `d16_constants_match_the_ts` |
+| D17 | `d17_stdio_road_table` |
+| D18 | `d18_on_this_computer_without_a_daemon_is_no_host_cli`, `d18_on_this_computer_dials_its_own_daemon_in_its_home_and_closes_it`, `d18_on_this_computer_carries_a_refusal_with_its_code_and_a_missing_token` |
+| D19 | `d19_place_guard_refuses_at_the_limit` |
+| D20 | `d20_place_refuses_a_blocked_computer`, `d20_copy_blocked_skips_a_folder` |
+
+TS cases ported (test file:line, under `packages/runtime/test/`):
+
+| TS case | Test |
+|---|---|
+| channels.test.ts:162, :180, :189, :202 | `d16_only_the_git_host_ops_carry_a_token`, `d16_the_token_is_revoked_after_a_refusal`, `d16_an_old_or_silent_daemon_gets_no_token`, `d16_no_thread_is_a_usage_refusal` |
+| channels.test.ts:211, :226 | `d15_brokered_table` |
+| channels.test.ts:559 | `d16_thread_on_picks_the_named_thread_of_this_workspace_else_the_newest` |
+| spawn-guard.test.ts:1038 | `d6_agents_held_record_then_place_then_default` |
+| usage.test.ts:422, bring-back.test.ts:192, :230 | `d13_reply_of_refusal_keeps_the_code` |
+| bring-back.test.ts:88 | `d14_with_daemon_three_roads` |
+| serve-daemon.test.ts:198 | `d11_no_token_is_not_answering_yet` |
+| runtime-index.test.ts:81, :134, local-workspace.test.ts:1715 | `d1_started_as_and_cut_before` |
+| runtime-index.test.ts:585, thread-keeps-picks.test.ts:82, :118 | `d2_resumed_fact_newest_row_then_index` |
+| permission-relay.test.ts:504, :551 | `d2_access_of_record_then_fact` |
+| places-settings.test.ts:354, :402 | `d5_turn_limit_three_states` |
+| places-settings.test.ts:441 | `d19_place_guard_refuses_at_the_limit` |
+| box-folder.test.ts:564 | `d20_copy_blocked_skips_a_folder` |
+| slate-box-server.test.ts:242, slate-box-http.test.ts:186 | `d17_stdio_road_table` |
+| pull-request.test.ts:215, :231, :610 | `d18_*` |
+
+Fields the implementation needs that `ChannelsArea` does not hold yet: none for this file.
