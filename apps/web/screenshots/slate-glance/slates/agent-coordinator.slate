@@ -1,12 +1,21 @@
 <slate title="Payments migration">
   <value name="now" start={1792882592704} />
-  <value name="moved" start={11} />
-  <value name="totalFlows" start={16} />
   <value name="helpersRunning" start={4} />
   <value name="helpersAllowed" start={6} />
   <value name="spend" start={38.20} />
   <value name="errorNow" start={0.1} />
   <value name="flows" start={[
+    {name: "Card payments", done: true, note: "Moved"},
+    {name: "Saved cards", done: true, note: "Moved"},
+    {name: "Apple Pay", done: true, note: "Moved"},
+    {name: "Google Pay", done: true, note: "Moved"},
+    {name: "Bank transfers", done: true, note: "Moved"},
+    {name: "Payment links", done: true, note: "Moved"},
+    {name: "Webhooks", done: true, note: "Moved"},
+    {name: "Payouts", done: true, note: "Moved"},
+    {name: "Disputes", done: true, note: "Moved"},
+    {name: "Coupons", done: true, note: "Moved"},
+    {name: "Receipts", done: true, note: "Moved"},
     {name: "Refunds", done: false, note: "Blocked on sandbox key"},
     {name: "Gift cards", done: false, note: "Queued"},
     {name: "Subscriptions renewal", done: false, note: "Queued"},
@@ -75,7 +84,6 @@
   <secret name="sandbox_key" />
   <column>
     <stats>
-      <stat label="Flows moved" value={$moved} max={$totalFlows} window="checkout flows" />
       <stat label="Helpers running" value={$helpersRunning} max={$helpersAllowed} unit="threads" window="now" />
       <stat label="Error rate" value={$errorNow} unit="%" window="last hour, new provider" tone="good" />
       <stat label="Spent" value={$spend} format="usd" window="this thread" />
@@ -93,8 +101,8 @@
       <input id="key" label="New provider sandbox key" value={$sandbox_key} kind="password" placeholder="Paste the sandbox key" submit="Save" onSubmit={send("Sandbox key saved")} />
       <status value={$sandbox_key.set ? "Key saved, refunds can resume" : "Refunds wait on this key"} tone={$sandbox_key.set ? "good" : "warning"} />
     </section>
-    <section title="Flows left">
-      <progress label="Remaining checkout flows" items={$flows} key="name" name={item.name} done={item.done} note={item.note} />
+    <section title="Checkout flows">
+      <progress label="checkout flows moved" items={$flows} key="name" name={item.name} done={item.done} note={item.note} />
     </section>
     <section title="Helper threads">
       <timeline label="Helpers" items={$helpers} name={item.name} start={item.start} end={item.end} state={item.state} now={$now} />

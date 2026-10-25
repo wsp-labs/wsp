@@ -622,7 +622,7 @@ const PIECES: Record<string, SlatePieceModule> = {
     fallback: "grid of numbers", example: `<stats><stat label="Tests" value={$t.json.passed} max={$t.json.total} format="fraction" window="this run" /><stat label="Spent" value={thread.cost.usd} format="usd" window="this thread" /></stats>`,
   },
   progress: {
-    type: "progress", level: "core", reads: "eye", purpose: "A count of rows done, \"12 of 14 screens in the app\", then only the rows not done, each with its note.", holdsChildren: false, repeating: true,
+    type: "progress", level: "core", reads: "eye", purpose: "A count of rows done, then only the rows not done, each with its note; items holds every row, done ones too.", holdsChildren: false, repeating: true,
     props: { label: str({ ...req, about: "what the count counts, after \"12 of 14\": screens in the app" }), items: { type: "list", binds: "yes", required: true }, key: rowKey(), name: { type: "string", binds: "item", required: true }, done: { type: "boolean", binds: "item", required: true }, note: { type: "string", binds: "item", about: "a few words on a row not done" } },
     items: {}, events: [],
     sketch: v => {
