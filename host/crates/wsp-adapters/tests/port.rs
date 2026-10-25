@@ -284,3 +284,127 @@ fn every_transport_kind_but_other_is_a_silent_computer() {
     let kinds = [ExecFailureKind::Unreached, ExecFailureKind::Unreachable, ExecFailureKind::PlaceAbsent, ExecFailureKind::LaunchUnanswered, ExecFailureKind::Deadline, ExecFailureKind::NoAnswer, ExecFailureKind::Other];
     assert_eq!(kinds.map(ExecFailureKind::silent), [true, true, true, true, true, true, false]);
 }
+
+fn failed(error: &str) -> TurnResult {
+    TurnResult { status: TurnStatus::Failed, duration_ms: None, waited_ms: None, cost_usd: None, tokens: None, model: None, models: None, text: None, error: Some(error.into()), unreached: None, refusal: None, limit: None }
+}
+
+// Rule P2: release is one flag for good. A view a later turn() opens, and an older view, both close the process's
+// input from then on, and the run is never up again.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_release_holds_for_every_view_after_it() {
+    let (inner, order) = manual();
+    let stream: Arc<dyn ExecStream> = Arc::new(Turned { inner: inner.clone(), bytes: AtomicU64::new(0) });
+    let kept = keep_run(stream, None);
+    let (first, _) = kept.turn();
+    kept.release();
+    let (second, _) = kept.turn();
+    second.close_input();
+    first.close_input();
+    assert_eq!(*order.lock().unwrap(), vec!["closeInput", "closeInput"], "no rest: each close reached the process");
+    assert!(!kept.up());
+}
+
+// Rule P3: a view a later turn() cut still rests the process when its input closes, and its exited settles 0, while the
+// newer view stays open and takes writes.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_cut_view_closing_rests_the_process_and_leaves_the_open_one() {
+    let (inner, order) = manual();
+    let stream: Arc<dyn ExecStream> = Arc::new(Turned { inner: inner.clone(), bytes: AtomicU64::new(0) });
+    let kept = keep_run(stream, None);
+    let (first, _) = kept.turn();
+    let (second, from) = kept.turn();
+    assert_eq!(from, Some(100), "next_turn is asked before the cut");
+    first.close_input();
+    assert_eq!(first.exited().await, Some(0));
+    assert_eq!(*order.lock().unwrap(), vec!["rest"]);
+    assert_eq!(second.write("x".into()).await, Ok(WriteOutcome::Written));
+    assert!(kept.up());
+}
+
+// Rule P4: close on a process that lingers past the wait is closeInput, teardown, then kill past the grace; a second
+// close closes the input again.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn closing_a_lingering_kept_process_kills_it_past_the_grace() {
+    let order: Arc<Mutex<Vec<String>>> = Default::default();
+    let inner = FakeStream::manual(StreamOpts { slow_teardown: true, ..Default::default() }, order.clone(), Default::default());
+    let kept = keep_run(inner.clone(), None);
+    let _view = kept.turn();
+    kept.close(20, 10).await;
+    assert_eq!(*order.lock().unwrap(), vec!["closeInput", "teardown", "kill"]);
+    assert_eq!(kept.exited().await, None, "killed: no code");
+    kept.close(0, 10).await;
+    assert_eq!(order.lock().unwrap().iter().filter(|o| *o == "closeInput").count(), 2);
+}
+
+// Rule P5 (the coordinator's ruling of 2026-10-25 on a refused seed): a seed that fails settles the turn failed with the
+// seed's words; no second launch is made and `now` stays the first.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_refused_seed_fails_the_turn_with_its_words() {
+    let (events, on_event) = claude_exec::collect();
+    let calls: Arc<Mutex<Vec<(String, Option<String>)>>> = Default::default();
+    let lost = result(Some(LOST), None);
+    let launch = launcher(vec![(vec![start("old-1"), done("old-1", lost.clone()), end("old-1")], lost)], calls.clone());
+    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { Err("seed broke".to_string()) }.boxed()), on_event };
+    let after = start_after_loss(options, LOST.into(), launch).expect("the first launch starts");
+    assert_eq!(after.finished.clone().await, failed("seed broke"));
+    assert_eq!(calls.lock().unwrap().len(), 1);
+    assert_eq!(*events.lock().unwrap(), vec![start("old-1")]);
+    assert!(Arc::ptr_eq(&after.first, &after.now.lock().unwrap().clone()));
+}
+
+// Rule P6: the second launch refusing (the TS rejects `finished` with its error) settles the turn failed with the
+// launch's words, by the same ruling; nothing more is emitted.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_refused_second_launch_fails_the_turn_with_its_words() {
+    let (events, on_event) = claude_exec::collect();
+    let lost = result(Some(LOST), None);
+    let first = lost.clone();
+    let made = Arc::new(AtomicU64::new(0));
+    let count = made.clone();
+    let launch = move |_prompt: String, _resume: Option<String>, on_event: OnEvent| -> Result<Arc<FakeTurn>, AdapterError> {
+        if count.fetch_add(1, Ordering::SeqCst) > 0 {
+            return Err(AdapterError("no machine".into()));
+        }
+        for e in [start("old-1"), done("old-1", first.clone()), end("old-1")] {
+            on_event(e);
+        }
+        let r = first.clone();
+        Ok(Arc::new(FakeTurn { finished: async move { r }.boxed().shared() }))
+    };
+    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { Ok("so far".to_string()) }.boxed()), on_event };
+    let after = start_after_loss(options, LOST.into(), launch).expect("the first launch starts");
+    assert_eq!(after.finished.clone().await, failed("no machine"));
+    assert_eq!(made.load(Ordering::SeqCst), 2);
+    assert_eq!(*events.lock().unwrap(), vec![start("old-1")]);
+    assert!(Arc::ptr_eq(&after.first, &after.now.lock().unwrap().clone()));
+}
+
+// Rule P7: only a turn.done event marks the session lost: a result carrying the words with no such event is the turn's
+// own, and the seed is never asked.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_loss_is_read_off_the_event_and_never_off_the_result() {
+    let (events, on_event) = claude_exec::collect();
+    let calls: Arc<Mutex<Vec<(String, Option<String>)>>> = Default::default();
+    let lost = result(Some(LOST), None);
+    let launch = launcher(vec![(vec![start("old-1"), end("old-1")], lost.clone())], calls.clone());
+    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { panic!("never asked for a seed") }.boxed()), on_event };
+    let after = start_after_loss(options, LOST.into(), launch).expect("starts");
+    assert_eq!(after.finished.clone().await, lost);
+    assert_eq!(calls.lock().unwrap().len(), 1);
+    assert_eq!(*events.lock().unwrap(), vec![start("old-1"), end("old-1")]);
+}
+
+// Rule P8: a second launch that never says session.start gets no note.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn no_note_without_the_new_sessions_start() {
+    let (events, on_event) = claude_exec::collect();
+    let calls: Arc<Mutex<Vec<(String, Option<String>)>>> = Default::default();
+    let lost = result(Some(LOST), None);
+    let cut = result(Some("cut"), None);
+    let launch = launcher(vec![(vec![start("old-1"), done("old-1", lost.clone()), end("old-1")], lost), (vec![done("new-2", cut.clone()), end("new-2")], cut.clone())], calls.clone());
+    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { Ok("so far".to_string()) }.boxed()), on_event };
+    let after = start_after_loss(options, LOST.into(), launch).expect("starts");
+    assert_eq!(after.finished.clone().await, cut);
+    assert_eq!(*events.lock().unwrap(), vec![start("old-1"), done("new-2", cut), end("new-2")]);
+}

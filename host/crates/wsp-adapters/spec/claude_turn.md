@@ -126,7 +126,71 @@ An attach re-reads the run from byte `from` (or 0): the CLI's own lines are the 
 turn take a steer at once. Steers start from the run's input read back (`taken`, only ids after the last uuid-less user
 line) plus the ids the row kept (`steered`), so a message whose write was lost is still told unread. heldAt and timing
 use this host's clock: a replay takes a moment, and spanned takes the CLI's own figure as the floor. Nothing else is
-carried: no saved totals (fresh false, saved None, so the cost of an attached resume is left out).
+carried: no saved totals (fresh false, saved None, so the cost of an attached resume is left out), and no keeper, so
+the attached turn's result leaves no process for the next message (rule T5).
+
+## Caps and constants
+
+STDERR_TAIL_LINES 5, RUN_EXIT_MS 10000 (`result_exit_ms`), INTERRUPT_GRACE_MS 5000, STEER_JOIN_MS 10000,
+STOP_TASK_WAIT_MS 10000, each the default where its dep is `None`. Request ids come off one counter per turn, from 1.
+
+## Rules added for the port (numbered; each value printed by the TS at a3b870a6e)
+
+- **T1.** On a kept turn (`keep: true`) the result's `close_input` closes the turn's view, not the process's input, and
+  `end_after_result` sees that view exit at once: nothing reaches the process (`claude_kept::a_kept_process_...`).
+- **T2.** `kept()` is `None` before a result, without a keeper, and once the keeper is not up. Its `session_file` is
+  `session_file_in(config_dir, the init's session id)`.
+- **T3.** `kept().next(turn)` follows `keeper.turn()`'s view with the first turn's `local_id`, `fresh: false`, `saved` =
+  this turn's totals and no command; it replaces the earlier turn in the registry. Until its init, `claude_session_id`
+  is that local id. Its line is `user_message_line(prompt, this turn's claude session id, images)` with no uuid,
+  written at once where `after` is `None`, by `write_after` where the stream holds lines, else once `after` settles
+  (a rejected `after` drops it). Its cost is the gain over `saved`: 0.4 over 0.25 is `0.15000000000000002`, tokens
+  160/80 over 100/50 are 60/30. `close(true)` is `closeInput` then `teardown` at once.
+- **T4.** A turn whose status is neither completed nor interrupted, or that answered nothing, releases its keeper: the
+  view's `close_input` reaches the process, `end_after_result` tears it down after the wait, `kept()` is `None`.
+- **T5.** An attached turn has no keeper. With no init read and no totals saved its result has no model, no cost and no
+  models; its tokens are the result's own (`claude_kept::an_attached_turn_keeps_no_process`).
+- **T7.** `set_access`, `stop_task`, a stopped result's stop of each running task and `interrupt` number their requests
+  off one counter: `wsp-set-mode-1`, `wsp-stop-task-2`, `wsp-interrupt-3`. On a kept process that is up and live, the
+  stop is the control line alone: where `finished` settles within the grace, nothing is signalled.
+- **T8.** When the process ends, in this order: each open prompt closes `cancelled`, no option id, in the order raised;
+  every request still waiting settles as gone (`set_access` answers Gone, `stop_task` NotRunning); then `turn.done`;
+  `session.end` is always last. After it, `answer` is Gone for any id, `steer` NotRunning, and nothing is written.
+- **T9.** One `turn.usage` per message id, on its first line: `tokens` = held_tokens, `context` only on the lead's own
+  line, `at` only where `Date.parse(timestamp)` is finite. A call keeps its latest line's input, cached and cacheWrite
+  and the largest output seen. A run with no result carries every call: models merged by model in first-seen order,
+  each with `reasoning: 0` and no cost, tokens summed, `model` the one that spent most (a tie keeps the first). The
+  anchor is the lead's last assistant uuid, never a subagent's.
+- **T10.** A stop before any result reads `interrupted` with the calls so far (T9's use). A run that is not kept goes by
+  `end_run`: teardown, and kill only past the grace. `session.end` carries the process's own code.
+- **T11.** The registry key is the resume for a resume, a new id for a new session and for a copy (`--session-id <new>
+  --resume <copied> --fork-session`, no saved-spend read), `options.session_id` for an attach; a Gone attach registers
+  nothing; a resume with a seed registers under the first launch's local id.
+- **T12.** The adapter never reads a transport failure's kind. Whatever the kind, its message is the turn's error word
+  for word, the result is `{failed, error, ...T9's use}` with no model, and the failure rides `session.end` as it came.
+  The kinds are the TS classes the runtime's `computerSilent` (threads.ts:67) reads; see port rule P1.
+- **T13.** adapter.test.ts:693 ("ends a fork") asserts nothing in the TS: its rewrite spells `"name": "Agent"` with a
+  space, which a re-stringified frame never holds. Run with the rewrite made, the TS gives the same ends and answers:
+  the adapter reads no `subagent_type`, so a fork differs only in its call's drawn input. The port's test makes the
+  rewrite and asserts both.
+- **T14.** `TurnResult` key order on the wire. The TS builds each road's object in its own order; wsp-wire's struct has
+  one. The runtime writes the result into the `session.done` record (turns.ts:445, after `withWaited` appends
+  `waitedMs`), which the transcript keeps and clients read, so the order is visible. Printed by the TS:
+
+  | Road | TS key order |
+  |---|---|
+  | completed, fresh | status, durationMs, tokens{input, output, cached, cacheWrite, reasoning, window, context}, text, costUsd, models, model |
+  | completed, resumed with nothing saved | status, durationMs, tokens{input, output, cached, cacheWrite, window, context}, text, model |
+  | failed, no result | status, error, tokens, models, model |
+  | answered nothing | status, durationMs, text, error, model |
+  | refused (sign-in) | status, durationMs, error, refusal, costUsd, model |
+  | usage limit | status, durationMs, error, costUsd, model, limit |
+  | interrupted, no result | status, tokens, models, model |
+
+  wsp-wire writes status, durationMs, waitedMs, costUsd, tokens{input, output, cached, cacheWrite, reasoning, context,
+  window}, model, models, text, error, unreached, refusal, limit. No single struct order matches every road, so this
+  is a forced difference, not a redesign: the parity list takes a line for the result's key order, and no test here
+  pins it (the order is wsp-wire's, not this crate's).
 
 ## Rules against tests
 
@@ -142,3 +206,13 @@ carried: no saved totals (fresh false, saved None, so the cost of an attached re
 | an attach replays the log without launching and keeps the run handle | `claude_turn::attaches_to_a_run_an_earlier_process_launched` (ported) |
 | on_event may answer a prompt from inside the callback | `claude_restart::a_prompt_answered_from_inside_on_event_closes_once` |
 | a stream that throws ends the turn with its words and carries the failure | `claude_restart::a_transport_failure_rides_session_end` |
+| T1, T2, T3: a kept process's next turn, its cost the gain | `claude_kept::a_kept_process_takes_the_next_turn_under_the_same_local_id_and_costs_only_what_it_added` |
+| T4: a failed turn releases its process | `claude_kept::a_failed_turn_releases_its_process_and_keeps_nothing` |
+| T5: an attach keeps no process | `claude_kept::an_attached_turn_keeps_no_process` |
+| T7: one request counter; a kept stop signals nothing | `claude_turn_edges::one_counter_numbers_every_request_and_a_kept_stop_signals_nothing` |
+| T8: the order of the end under open prompts | `claude_turn_edges::the_process_going_under_open_prompts_cancels_each_in_order_before_the_end` |
+| T9: a call drawn once; a run with no result carries every call | `claude_turn_edges::a_call_is_drawn_once_per_message_and_a_run_with_no_result_carries_every_call` |
+| T10: a stop before any result | `claude_turn_edges::a_stop_before_any_result_reads_interrupted_with_the_calls_so_far` |
+| T11: the registry key of each start | `claude_turn_edges::each_start_is_registered_under_its_own_local_id` |
+| T12: every failure kind rides session.end as it came | `claude_turn_edges::every_transport_failure_kind_rides_session_end_as_it_came` |
+| T13: a fork, rewritten for real | `claude_turn::ends_a_fork_which_never_hands_back_in_an_auto_run` |
