@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! `cargo xtask parity`: every tape replayed against a host, its answers normalized and diffed with the golden, each
 //! difference failed unless `parity/accepted.tsv` names it, and the result printed as a table per op family, then one
-//! row per host op counting its success answers apart from its refusals and closes. A run fails on any difference
-//! left, on any family no tape sends an op of, and on a door, or a tool on either door, with no tape.
+//! row per host op counting its success answers apart from its refusals, its closes and the answers that did nothing.
+//! A run fails on any difference left, on any family no tape sends an op of, on a door, or a tool on either door, with
+//! no tape, and when no tape ran. A tape skipped as recorded on another computer is no tape for coverage, and a family,
+//! door or tool that only skipped tapes reach is said as skipped elsewhere, which fails nothing: the tapes it ran agree.
 
 use crate::accepted::Accepted;
 use crate::computer;
@@ -54,11 +56,19 @@ pub enum Verdict {
 pub enum Answer {
     /// It did what was asked: `ok: true`, a tool's result that is no error, a command line's exit 0.
     Success,
+    /// It said yes and that nothing was done: `outcome: "not-found"`, or `removed`, `revoked` or `wanted` false, as a
+    /// fresh host answers an interrupt of a turn it never held.
+    Nothing,
     /// It answered no: `ok: false`, an error or a tool result marked one, a command line's other exit.
     Refused,
     /// No answer came, as for a request sent after the host closed the socket.
     Closed,
+    /// Not sent: the tape was skipped as recorded on another computer.
+    Skipped,
 }
+
+/// The fields of a yes whose `false` says nothing was done.
+const DONE_FIELDS: &[&str] = &["removed", "revoked", "wanted"];
 
 #[derive(Clone, Debug)]
 pub struct Outcome {
@@ -119,11 +129,12 @@ pub fn check(root: &Path, host: &dyn Host, opts: &Options) -> Result<Report, Str
     for tape in &tapes {
         let ops = tape.ops().into_iter().collect();
         if let Some(other) = elsewhere(tape, &here) {
-            outcomes.push(Outcome { tape: tape.id.clone(), door: tape.door, ops, answers: Vec::new(), verdict: Verdict::Skipped(other) });
+            let answers = answers(tape, None, &tools);
+            outcomes.push(Outcome { tape: tape.id.clone(), door: tape.door, ops, answers, verdict: Verdict::Skipped(other) });
             continue;
         }
         let replay = replays.next().expect("a replay for every tape run");
-        let answers = replay.as_ref().map(|r| answers(tape, &r.replies, &tools)).unwrap_or_default();
+        let answers = replay.as_ref().map(|r| answers(tape, Some(&r.replies), &tools)).unwrap_or_default();
         let verdict = match (golden::read(&goldens_of(root, opts, tape), &tape.id)?, replay) {
             (_, Err(e)) => Verdict::Failed(vec![format!("the replay failed: {e}")]),
             (None, Ok(_)) => Verdict::Failed(vec!["no golden: run cargo xtask parity record".into()]),
@@ -173,9 +184,24 @@ pub fn verb_of(argv: &[Value], tools: &[String]) -> String {
         .unwrap_or_else(|| words.first().map(|w| w.to_string()).unwrap_or_default())
 }
 
-/// Each request of a tape and how the replay met it, read off the replies in the order the requests went.
-fn answers(tape: &Tape, replies: &[Value], tools: &[String]) -> Vec<(String, Answer)> {
-    let closed = |r: &Value| r.get("parity").is_some();
+/// Each request of a tape and how the replay met it, read off the replies in the order the requests went; each
+/// `Skipped` for a tape not run.
+fn answers(tape: &Tape, replies: Option<&[Value]>, tools: &[String]) -> Vec<(String, Answer)> {
+    let skipped = vec![Value::Null; tape.ins.len()];
+    let replies = replies.unwrap_or(&skipped);
+    let met = |r: &Value, refused: bool, nothing: bool| {
+        if r.is_null() {
+            Answer::Skipped
+        } else if r.get("parity").is_some() {
+            Answer::Closed
+        } else if refused {
+            Answer::Refused
+        } else if nothing {
+            Answer::Nothing
+        } else {
+            Answer::Success
+        }
+    };
     match tape.door {
         Door::Ws => tape
             .ins
@@ -184,14 +210,10 @@ fn answers(tape: &Tape, replies: &[Value], tools: &[String]) -> Vec<(String, Ans
             .zip(replies)
             .filter_map(|(f, r)| {
                 let op = f.get("op").and_then(Value::as_str)?.to_string();
-                let answer = if closed(r) {
-                    Answer::Closed
-                } else if r.get("ok") == Some(&Value::Bool(false)) || r.get("error").is_some() {
-                    Answer::Refused
-                } else {
-                    Answer::Success
-                };
-                Some((op, answer))
+                let refused = r.get("ok") == Some(&Value::Bool(false)) || r.get("error").is_some();
+                let nothing = r.get("outcome").and_then(Value::as_str) == Some("not-found")
+                    || DONE_FIELDS.iter().any(|k| r.get(*k) == Some(&Value::Bool(false)));
+                Some((op, met(r, refused, nothing)))
             })
             .collect(),
         Door::Mcp => tape
@@ -202,14 +224,8 @@ fn answers(tape: &Tape, replies: &[Value], tools: &[String]) -> Vec<(String, Ans
             .filter(|(f, _)| f.get("method").and_then(Value::as_str) == Some("tools/call"))
             .filter_map(|(f, r)| {
                 let tool = f.pointer("/params/name").and_then(Value::as_str)?.to_string();
-                let answer = if closed(r) {
-                    Answer::Closed
-                } else if r.get("error").is_some() || r.pointer("/result/isError") == Some(&Value::Bool(true)) {
-                    Answer::Refused
-                } else {
-                    Answer::Success
-                };
-                Some((tool, answer))
+                let refused = r.get("error").is_some() || r.pointer("/result/isError") == Some(&Value::Bool(true));
+                Some((tool, met(r, refused, false)))
             })
             .collect(),
         Door::Cli => tape
@@ -218,12 +234,7 @@ fn answers(tape: &Tape, replies: &[Value], tools: &[String]) -> Vec<(String, Ans
             .zip(replies)
             .map(|(f, r)| {
                 let verb = verb_of(f.get("argv").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default(), tools);
-                let answer = match r.get("exit").and_then(Value::as_i64) {
-                    _ if closed(r) => Answer::Closed,
-                    Some(0) => Answer::Success,
-                    _ => Answer::Refused,
-                };
-                (verb, answer)
+                (verb, met(r, r.get("exit").and_then(Value::as_i64) != Some(0), false))
             })
             .collect(),
     }
@@ -325,6 +336,7 @@ fn replay_all(host: &dyn Host, tapes: &[Tape], opts: &Options) -> Vec<Result<Rep
 struct Tally {
     tapes: usize,
     success: usize,
+    nothing: usize,
     refused: usize,
     closed: usize,
 }
@@ -338,54 +350,77 @@ impl Report {
         self.outcomes.iter().filter(|o| matches!(o.verdict, Verdict::Skipped(_))).count()
     }
 
-    /// The host's op families no tape sends an op of.
+    /// The tapes this run replayed, every one but those skipped as recorded on another computer.
+    fn ran(&self) -> impl Iterator<Item = &Outcome> {
+        self.outcomes.iter().filter(|o| !matches!(o.verdict, Verdict::Skipped(_)))
+    }
+
+    /// The host's op families no tape this run replayed sends an op of.
     pub fn empty_families(&self) -> Vec<String> {
         if self.only {
             return Vec::new();
         }
-        let sent: BTreeSet<&str> = self.outcomes.iter().flat_map(|o| o.ops.iter().map(|op| family(op))).collect();
+        let sent: BTreeSet<&str> = self.ran().flat_map(|o| o.ops.iter().map(|op| family(op))).collect();
         let all: BTreeSet<&str> = self.ops.iter().map(|op| family(op)).collect();
         all.into_iter().filter(|f| !sent.contains(f)).map(str::to_string).collect()
     }
 
+    /// The families with no tape run whose tapes were all skipped as recorded on another computer.
+    pub fn families_skipped_elsewhere(&self) -> Vec<String> {
+        let skipped: BTreeSet<&str> = self.outcomes.iter().flat_map(|o| o.ops.iter().map(|op| family(op))).collect();
+        self.empty_families().into_iter().filter(|f| skipped.contains(f.as_str())).collect()
+    }
+
     /// The command line and the tool server with no tape at all, then each tool with no tape on the tool server or
-    /// no tape of its verb on the command line: the three are one contract, so each holds a tape of every tool.
+    /// no tape of its verb on the command line: the three are one contract, so each holds a tape of every tool. A
+    /// skipped tape is a tape here; what only skipped tapes reach is `doors_skipped_elsewhere`.
     pub fn empty_doors(&self) -> Vec<String> {
-        if self.only {
-            return Vec::new();
-        }
-        let mut out = Vec::new();
-        for door in [Door::Cli, Door::Mcp] {
-            if !self.outcomes.iter().any(|o| o.door == door) {
-                out.push(format!("the {} door has no tape", door.word()));
+        said(self.unreached(true))
+    }
+
+    /// The doors, tools and verbs that only tapes skipped as recorded on another computer reach.
+    pub fn doors_skipped_elsewhere(&self) -> Vec<String> {
+        let (all, ran) = (self.unreached(true), self.unreached(false));
+        let only = |i: usize| -> Vec<String> { ran[i].iter().filter(|x| !all[i].contains(x)).cloned().collect() };
+        let mut out: Vec<String> = only(0).iter().map(|d| format!("the {d} door's every tape")).collect();
+        for (i, door) in [(1, "tool server calls"), (2, "command line runs")] {
+            if !only(i).is_empty() {
+                out.push(format!("the {door} {}", only(i).join(", ")));
             }
-        }
-        let reached = |door: Door| -> BTreeSet<String> {
-            let mut seen = BTreeSet::new();
-            for o in self.outcomes.iter().filter(|o| o.door == door) {
-                seen.extend(o.answers.iter().map(|(name, _)| name.clone()));
-            }
-            seen
-        };
-        let (mcp, cli) = (reached(Door::Mcp), reached(Door::Cli));
-        let no_tool: Vec<&str> = self.tools.iter().filter(|t| !mcp.contains(*t)).map(String::as_str).collect();
-        let no_verb: Vec<String> = self.tools.iter().map(|t| t.replace('_', " ")).filter(|v| !cli.contains(v)).collect();
-        if !no_tool.is_empty() {
-            out.push(format!("no tool server tape calls: {}", no_tool.join(", ")));
-        }
-        if !no_verb.is_empty() {
-            out.push(format!("no command line tape runs: {}", no_verb.join(", ")));
         }
         out
     }
 
+    /// The doors with no tape, the tools no tool server tape calls and the verbs no command line tape runs, counting
+    /// skipped tapes or not.
+    fn unreached(&self, with_skipped: bool) -> [Vec<String>; 3] {
+        if self.only {
+            return Default::default();
+        }
+        let outcomes: Vec<&Outcome> = if with_skipped { self.outcomes.iter().collect() } else { self.ran().collect() };
+        let doors = [Door::Cli, Door::Mcp].into_iter().filter(|d| !outcomes.iter().any(|o| o.door == *d)).map(|d| d.word().to_string());
+        let reached = |door: Door| -> BTreeSet<&str> {
+            outcomes.iter().filter(|o| o.door == door).flat_map(|o| o.answers.iter().map(|(name, _)| name.as_str())).collect()
+        };
+        let (mcp, cli) = (reached(Door::Mcp), reached(Door::Cli));
+        [
+            doors.collect(),
+            self.tools.iter().filter(|t| !mcp.contains(t.as_str())).cloned().collect(),
+            self.tools.iter().map(|t| t.replace('_', " ")).filter(|v| !cli.contains(v.as_str())).collect(),
+        ]
+    }
+
     pub fn ok(&self) -> bool {
-        self.failed() == 0 && self.empty_families().is_empty() && self.empty_doors().is_empty() && !self.outcomes.is_empty()
+        let skipped: BTreeSet<String> = self.families_skipped_elsewhere().into_iter().collect();
+        self.failed() == 0
+            && self.empty_families().iter().all(|f| skipped.contains(f))
+            && self.empty_doors().is_empty()
+            && self.ran().next().is_some()
     }
 
     fn tallies(&self, door: Door) -> BTreeMap<String, Tally> {
         let mut tallies: BTreeMap<String, Tally> = BTreeMap::new();
-        for o in self.outcomes.iter().filter(|o| o.door == door) {
+        for o in self.ran().filter(|o| o.door == door) {
             let mut counted = BTreeSet::new();
             for (name, answer) in &o.answers {
                 let t = tallies.entry(name.clone()).or_default();
@@ -394,14 +429,10 @@ impl Report {
                 }
                 match answer {
                     Answer::Success => t.success += 1,
+                    Answer::Nothing => t.nothing += 1,
                     Answer::Refused => t.refused += 1,
                     Answer::Closed => t.closed += 1,
-                }
-            }
-            // A skipped tape still holds its ops; it has no answers to count.
-            if matches!(o.verdict, Verdict::Skipped(_)) {
-                for op in &o.ops {
-                    tallies.entry(op.clone()).or_default().tapes += 1;
+                    Answer::Skipped => {}
                 }
             }
         }
@@ -479,12 +510,12 @@ impl Report {
             let _ = writeln!(out, "{name:<18} {:>6} {:>7} {:>9} {:>7} {:>8} {ops:>9}", r.tapes, r.passed, r.accepted, r.failed, r.skipped);
         }
         let ws = self.tallies(Door::Ws);
-        let _ = writeln!(out, "\n{:<34} {:>6} {:>8} {:>8} {:>7}", "op", "tapes", "success", "refused", "closed");
+        let _ = writeln!(out, "\n{:<34} {:>6} {:>8} {:>8} {:>8} {:>7}", "op", "tapes", "success", "nothing", "refused", "closed");
         for op in &self.ops {
             let t = ws.get(op).copied().unwrap_or_default();
-            let _ = writeln!(out, "{op:<34} {:>6} {:>8} {:>8} {:>7}", t.tapes, t.success, t.refused, t.closed);
+            let _ = writeln!(out, "{op:<34} {:>6} {:>8} {:>8} {:>8} {:>7}", t.tapes, t.success, t.nothing, t.refused, t.closed);
         }
-        let covered: BTreeSet<&String> = self.outcomes.iter().flat_map(|o| o.ops.iter()).filter(|op| known.contains(op)).collect();
+        let covered: BTreeSet<&String> = self.ran().flat_map(|o| o.ops.iter()).filter(|op| known.contains(op)).collect();
         let missing: Vec<&String> = self.ops.iter().filter(|op| !covered.contains(op)).collect();
         let answered: BTreeSet<&String> = self.ops.iter().filter(|op| ws.get(*op).is_some_and(|t| t.success > 0)).collect();
         let _ = writeln!(
@@ -497,7 +528,7 @@ impl Report {
         let unanswered: Vec<&str> =
             self.ops.iter().filter(|op| covered.contains(op) && !answered.contains(op)).map(String::as_str).collect();
         if !unanswered.is_empty() {
-            let _ = writeln!(out, "sent but only ever refused or closed: {}", unanswered.join(", "));
+            let _ = writeln!(out, "sent but only ever refused, closed or answered with nothing done: {}", unanswered.join(", "));
         }
         if !missing.is_empty() {
             let _ = writeln!(out, "no tape yet: {}", missing.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", "));
@@ -548,14 +579,22 @@ impl Report {
         for g in &self.orphans {
             let _ = writeln!(out, "note: golden {g} answers no tape; cargo xtask parity record takes it out");
         }
-        let empty = self.empty_families();
+        let elsewhere = self.families_skipped_elsewhere();
+        if !elsewhere.is_empty() {
+            let _ =
+                writeln!(out, "skipped elsewhere, families whose every tape was recorded on another computer: {}", elsewhere.join(", "));
+        }
+        for door in self.doors_skipped_elsewhere() {
+            let _ = writeln!(out, "skipped elsewhere: {door} only on tapes recorded on another computer");
+        }
+        let empty: Vec<String> = self.empty_families().into_iter().filter(|f| !elsewhere.contains(f)).collect();
         if !empty.is_empty() {
             let _ = writeln!(out, "FAIL families no tape sends an op of: {}", empty.join(", "));
         }
         for door in self.empty_doors() {
             let _ = writeln!(out, "FAIL {door}");
         }
-        if self.outcomes.is_empty() {
+        if self.ran().next().is_none() {
             let _ = writeln!(out, "FAIL no tape ran");
         }
         let accepted = self.outcomes.iter().filter(|o| matches!(o.verdict, Verdict::Accepted(_))).count();
@@ -572,6 +611,18 @@ impl Report {
         }
         out
     }
+}
+
+/// The doors, tools and verbs `Report::unreached` names, each kind on a line of its own.
+fn said([doors, tools, verbs]: [Vec<String>; 3]) -> Vec<String> {
+    let mut out: Vec<String> = doors.iter().map(|d| format!("the {d} door has no tape")).collect();
+    if !tools.is_empty() {
+        out.push(format!("no tool server tape calls: {}", tools.join(", ")));
+    }
+    if !verbs.is_empty() {
+        out.push(format!("no command line tape runs: {}", verbs.join(", ")));
+    }
+    out
 }
 
 fn short(key: &str) -> &str {

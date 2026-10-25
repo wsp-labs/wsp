@@ -36,8 +36,8 @@ const KEYS: &[&str] = &[
     "\"cores\":",
     "\"capDefault\":{",
 ];
-/// Words an answer prints only from what this computer holds.
-const WORDS: &[&str] = &["wsp-daemon binary missing", "ExperimentalWarning", "CORES"];
+/// Words an answer prints only from what this computer holds: the recipe's table of what is installed here, with sizes.
+const WORDS: &[&str] = &["wsp-daemon binary missing", "ExperimentalWarning", "CORES", "installed here"];
 /// Command lines and tools whose whole answer is a scan of the computer.
 const SCANS: &[&str] = &["doctor", "setup", "recipe scan", "recipe_scan", "init.get", "agents.here"];
 
