@@ -1,0 +1,57 @@
+# 09 Links: daemons, joined computers, the relay and the seal
+
+The host's own connections outward: to a daemon, to a computer that joined it, to the relay, and the seal that protects the last two. On these links the host is the client of the daemon's wire, whose types already live in Rust (`wsp-frames`). Every `file:line` is at `a3b870a6e`; serve.ts is `packages/runtime/src/serve.ts`.
+
+## Three ways the host reaches a daemon
+
+| Road | When | First frame | Lifetime | Where |
+|---|---|---|---|---|
+| a place link | a joined computer dialled in; the handshake was the auth | none | as long as the computer's socket stands; one per place | `runtime/src/places/link.ts:137-200` |
+| a held reach | a machine's daemon through the provider's preview URL with the daemon token | `{id, op: "auth", token}`, never the token in the URL | held and redialled while wanted | `runtime/src/reach.ts:63-265` |
+| a page's channel | one `daemon.open` from a window | `{op: "auth", token, id}` | one dial, no redial, closed with the socket that opened it | `runtime/src/daemon-channel.ts:72-170` |
+
+9.1. A held reach MUST, after auth, send the opening ritual `ports.watch`, `inbox.watch`, `inbox.rescan` (reach.ts:187-204), ping every 10 s and end a socket that answered no pong within one beat (reach.ts:56,117-135), and redial with `linkBackoffMs`: 500 ms doubling to 10 s, plus up to 250 ms of jitter (`protocol/src/wire/limits.ts:101-105`). Its request ids count from 1 per reach (reach.ts:72,100).
+
+9.2. A page's channel MUST bound its connect at 15 s (`CONNECT_TIMEOUT_MS`, `daemon-channel.ts:61`), hand every frame that is not a reply to `onEvent`, and refuse a forwarded frame whose op is `auth` (`DaemonFrame`, `protocol/src/wire/devices.ts:201`). `daemon.open` takes exactly one of `workspaceId` and `placeId`, else the plain error `daemon.open opens a channel to one daemon: name workspaceId or placeId, not both` (no kind, 05); its reply `{id, ok: true, channel}` goes first, with daemon frames that came early queued behind it (serve.ts:1425-1485); `daemon.send {channel, frame}` answers `{id, ok: true, reply: <the daemon's reply untouched>}`.
+
+9.3. The daemon's door mirrors the host's (rule 4.10) with two differences a client reads: its auth deadline closes with 4401, not 4408, and a token rotated under an open socket closes it with `DAEMON_TOKEN_ROTATED` (`protocol/src/daemon-contract.ts:201-213`). Daemon tokens are lowercase hex, per machine, `HMAC-SHA256(seed, machineId)` when a seed is given (`runtime/src/daemon-token.ts:19-29`), re-read from the token file at every auth frame so the host rotates them live (`daemon/CLAUDE.md` invariant 8; `rotateDaemonToken`, `daemon-token.ts:59-69`). `DaemonAuthRequest` is `{id, op: "auth", token, port?, pipe?}` (`protocol/src/wire/daemon.ts:75-82`).
+
+## The daemon's version
+
+`DAEMON_VERSION` is the length of `DAEMON_CONTENTS`, 167 at this commit, one sha of the daemon's sources per version, cut at landing and never on a branch (`protocol/src/wire/daemon-version.ts:716`; `daemon/crates/wsp-frames/src/numbers.rs:5`). A daemon says its version once, in `daemon.hello {root, version}` right after the auth reply (`protocol/src/wire/daemon-events.ts:14`); there is no version op.
+
+9.4. A daemon behind the host MUST still link. `placeDaemonBehind(place)` answers nothing when the version is unknown or not behind, else the word `daemon <n>, host <DAEMON_VERSION>` (`daemon-version.ts:766-769`): it is a row word and an update trigger (`runtime/src/places/views.ts:280-283,382-396`), not a refusal. Hard refusals exist only per op, by minimum version: `FS_FOLDERS` 73, `NAMED_WATCH` 136, `LEAVE_ASKS` 141, `LEAVE_TAKES` 145, `FORK_BRANCH` 150, `SYS_UNWATCH` 152, `STDIO` 154, `HTTP_POST` 155, `PIPE` 159 (`daemon-version.ts:773-815`), refused with `placeBehindLine` (serve.ts:435-437). A machine whose hello is behind gets its daemon replaced on wake (`runtime/src/machines/daemon.ts:221`). A daemon or command line one version behind still answers: gate a new op or flag on its version and read a missing op as refused (runtime trap, #1484, #1613).
+
+9.5. The Rust host MUST reuse `wsp-frames` for every daemon frame and MUST keep reading the contract fixtures in `daemon/fixtures/contract` (216 frame files for 108 ops, 42 event files, 52 reply files) as the wire's truth. A frame that fails its schema is dropped whole, so a field the host makes required that an older daemon does not send drops every such frame (protocol trap, #1720: `seq` on `ProcSnapshot` blanked the Processes pane); a new field stays optional.
+
+## The place link
+
+A joined computer dials the host, never the other way: `ws://<host>:<door port>/ws` on a LAN door, or `wss://<relay host>/ws` through the relay, with TLS against roots baked into the daemon (`daemon/crates/wsp-daemon/src/link.rs:70-90`).
+
+9.6. The handshake MUST be: `place.join` or `place.auth` in the clear; the host answers with its public key, its nonce, its signature and its ephemeral key, and sets the seal; `place.prove`, the first sealed frame, carries the computer's signature over the expected transcript, its `PlaceReport`, and on a join the code and window name; the sealed reply `{id, ok: true, device?}`; then the socket is handed to the place door (`handedOver`: `ws.pause()`, the client listener off, serve.ts:692-716,735-763). A place that sends no ephemeral at a join gets `PLACE_UNSEALED_JOIN_REFUSAL`, at an auth `placeBehindLine` (`places/link.ts:92-95,112`). A refused `place.auth` for an unknown place carries the host's signature over `"wsp place refusal v1\n<placeId>\n<nonce>\n<sentence>\n"` (`protocol/src/wire/place-link.ts:176-178`).
+
+9.7. The place door MUST keep one socket per place: a second link cuts the first with the reason `replaced by a newer link` (`places/helpers.ts:236`); it records `report`, `lastSeenAt` and `road.from`, writes `seen` every 60 s through `change()`, and emits `place.present` on attach and `place.absent` on close (`places/link.ts:137-206`). From then on the host is the requester on that socket: sealed binary frames `{id, op, ...}` for `machine.*` (20 ops, `protocol/src/wire/machine-link.ts:203-242`) and the daemon's own ops, and the place answers or pushes events.
+
+9.8. The computer's side of the link (already Rust) cuts a link quiet for 30 s and redials with backoff `2 s << (attempt - 1)` up to 30 s, jittered 0.8 to 1.2 times; a refused link waits 10 minutes (`daemon/crates/wsp-daemon/src/link.rs:34-50`). The host's ping every 10 s is what keeps a healthy link from going quiet.
+
+9.9. Machine link replies MUST keep their shapes: `{id, ok: true, ...}` or `{id, ok: false, error, code?, kind?, status?}` with `kind` one of `concurrency plan missing conflict snapshotUnavailable transient auth unknown absent` (`machine-link.ts:155,531-544`); `putBytes` parts are base64 of at most 4 MiB in `seq` order under one `uploadId`, and the part marked `last` lands the file (`machine-link.ts:196-242`).
+
+## The seal
+
+After a handshake that proves ed25519 keys, every frame both ways travels inside AES-256-GCM under keys agreed in the same handshake (`packages/keys/src/index.ts:1-169`). The daemon's twin is `daemon/crates/wsp-seal`; the vectors are `daemon/fixtures/place-link-seal.json` and `place-link-signing.json`.
+
+9.10. The seal MUST be byte-compatible with `wsp-seal` and the fixtures: ed25519 keys as SPKI DER in base64 (44 bytes), raw 64-byte signatures in base64, X25519 ephemeral keys raw 32 bytes, 32-byte nonces; fingerprint `SHA256:` plus unpadded base64 of the sha256 of the DER (`keyFingerprint`, `keys/src/index.ts:23-25`); two keys from HKDF-SHA256 with the shared secret as input, the place id in UTF-8 as salt (`client` for a native client), length 32, info `wsp place link host to place` and `wsp place link place to host` (`:67-88`); AES-256-GCM with a 12-byte nonce of four zero bytes and an 8-byte big-endian counter, no AAD, ciphertext then the 16-byte tag (`:107-133`); one counter per direction per socket from 0, moving at every frame sealed or opened. The transcript a side signs is the UTF-8 of `"wsp place link v2\n<role>\n<placeId>\n<challenge>\n<answer>\n<challenger ephemeral>\n<answerer ephemeral>\n"` (`place-link.ts:169-178`).
+
+9.11. A sealed frame MUST be one websocket binary message; plain frames are text. With no seal, a binary frame is read as text (`String(raw)`), so a binary frame holding JSON passes; with a seal, a text frame is a seal failure. Every seal failure (a bad tag, a short frame, a counter out of step) is one sentence, `a frame on this link did not open under the key both ends agreed` (`keys/src/index.ts:75,146-150`). On the client websocket a frame that fails to open is answered `{id: null, ok: false, error: "invalid json"}` and closes the socket only before auth; the host's own daemon reach and the node client close with 1002 instead (serve.ts:646-650; reach.ts:144).
+
+9.12. A native client that pins a host key sends `seal.open {nonce, ephemeral}` first; the host answers `{nonce, hostPublicKey, signature, ephemeral}` and the client checks the fingerprint and the signature before it sends any secret (`packages/host/src/verbs/client.ts:287-305,345-346`). One key per socket: a second `seal.open`, or a `place.*` after one, is refused; a host with no place key refuses with `this host holds no key to prove itself with; the host that serves the app wires one` and closes (serve.ts:719-739; `place-link.ts:211`). The web page and loopback clients do not seal: the loopback is the trust boundary.
+
+## The relay
+
+9.13. A host linked to an account (`relay.json`) MUST: ask the relay over HTTPS for a tunnel (`POST <relayUrl>/hosts/<hostId>/tunnel {port}` with `Authorization: Bearer <relay token>`, `packages/host/src/relay-link.ts:680`); run the pinned `cloudflared` as 07 says; beat `POST <relayUrl>/hosts/<hostId>/heartbeat {hostname?, version, hostKey?}` every 60 s (`HOST_BEAT_MS`, `protocol/src/words/places.ts:531`); and verify the account's computers and their signed admissions in the beat's answer itself (`relay-link.ts:592-632,701-725`). The default relay is `https://relay.usewsp.com` (`protocol/src/wire/devices.ts:108`); sign-in is a device-code flow, `POST /link/start` then `POST /link/poll` (`relay-link.ts:170-178`).
+
+9.14. A request through the relay lands on the host's own loopback app port as an ordinary request carrying `cf-connecting-ip` or `cf-ray`; the host MUST read either header as "not the own road" (rule 4.4) and MUST NOT put the token in the page it serves there (`server.ts:219-252`). The relay's operator ends TLS, which is why a client off the loopback pins the host key and seals (9.12).
+
+## Guests
+
+9.15. A process inside a machine reaches the host through its daemon's guest road: the daemon carries a session up its link as `guest.opened`, `guest.message`, `guest.closed` events, and the host answers with `guest.reply` and `guest.close` ops (`protocol/src/wire/daemon-events.ts:68-92`; `packages/host/src/guest.ts:62-93`). The host's guest door turns an opened session into either a tool session (the daemon binary's `mcp --scoped --guest`, 10) or a command line run in the host process, each dialling the host's own loopback socket with the thread's launch pair, and caps the guest sessions per workspace itself (host invariant 4; `guest.ts:107-118`). A box's agent is root there and can go around anything its daemon enforces, so every limit on a guest lives on the host too.
