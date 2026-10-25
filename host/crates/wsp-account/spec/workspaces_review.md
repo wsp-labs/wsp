@@ -49,7 +49,7 @@ reach and probe, and the synchronous filters the event stream runs per socket.
     no redirect and `PORT_PROBE_TIMEOUT_MS`; `{status, body: readBodyUpTo(res, PORT_PROBE_BODY_CAP)}`. Else
     `ws.portReach(port)`, the same fetch; a 401 then `ws.remintPortReach(port)`; `{status, body}`.
 12. `origin_refusal(id, origin)`: `ready()`, `refusalFor(live record, origin)`.
-13. `creating()` (:1211-1215): every create stage whose live record has no `lead` and that is not a shown create.
+13. `creating()` (:1211-1215, ported in `create.rs` beside the create stages it reads): every create stage whose live record has no `lead` and that is not a shown create.
 14. `seen_by(event, origin)` (:1217-1231), synchronous: the person: true. `askerOf(event)` some: its thread is the
     scope's, or its root thread is the scope's root. Else the event's workspace id; no live record: false; a string
     `threadId` on the event: `reachesRow({threadId, workspaceId}, origin)`; else `refusalFor(record, origin)` is none.
