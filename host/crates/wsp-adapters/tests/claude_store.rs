@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 
-use futures::future::{BoxFuture, FutureExt};
+use futures::future::{LocalBoxFuture, FutureExt};
 use indexmap::IndexSet;
 use serde_json::{json, Map, Value};
 
@@ -72,10 +72,10 @@ fn recording_exec(stdout: &str) -> (Asked, Arc<dyn HarnessExec>) {
     let asked: Asked = Default::default();
     let log = asked.clone();
     let stdout = stdout.to_string();
-    let exec = move |command: &str, env: Option<&Env>| -> BoxFuture<'static, Result<String, ExecFailure>> {
+    let exec = move |command: &str, env: Option<&Env>| -> LocalBoxFuture<'static, Result<String, ExecFailure>> {
         log.lock().unwrap().push((command.to_string(), env.cloned()));
         let out = stdout.clone();
-        async move { Ok(out) }.boxed()
+        async move { Ok(out) }.boxed_local()
     };
     (asked, Arc::new(exec))
 }
@@ -178,6 +178,10 @@ fn model<'a>(models: &'a [HarnessCatalogModelProbe], slug: &str) -> &'a HarnessC
 // TS: catalog.test.ts:28
 #[tokio::test]
 async fn probe_reads_base_env_off_its_input_and_carries_no_value_in_its_words() {
+    tokio::task::LocalSet::new().run_until(probe_reads_base_env_off_its_input_and_carries_no_value_in_its_words_body()).await
+}
+
+async fn probe_reads_base_env_off_its_input_and_carries_no_value_in_its_words_body() {
     let adapter = adapter(Arc::new(NoTurns), "/root/.claude-cfg", Some(base(&[("PATH", "/root/.local/bin:/usr/bin"), ("CLAUDECODE", "1"), ("GATEWAY_TOKEN", "tok-x")])), None);
     let (asked, exec) = recording_exec("");
     adapter.probe_catalog(exec).await.unwrap();
@@ -303,6 +307,10 @@ fn parse_catalog_ignores_hook_chatter_and_a_response_without_models() {
 // TS: session-title.test.ts:49
 #[tokio::test]
 async fn title_comes_out_of_the_session_file_the_persons_rename_beating_a_later_generated_title() {
+    tokio::task::LocalSet::new().run_until(title_comes_out_of_the_session_file_the_persons_rename_beating_a_later_generated_title_body()).await
+}
+
+async fn title_comes_out_of_the_session_file_the_persons_rename_beating_a_later_generated_title_body() {
     let scratch = Scratch::new("title_from_session_file");
     let dir = scratch.config_dir("cfg", &[(format!("{SESSION}.jsonl"), fixture("session-titles.jsonl"))]);
     assert_eq!(title_of(&dir, SESSION).as_deref(), Some("the sidebar's own name"));
@@ -311,6 +319,10 @@ async fn title_comes_out_of_the_session_file_the_persons_rename_beating_a_later_
 // TS: session-title.test.ts:53
 #[tokio::test]
 async fn title_is_the_generated_one_until_the_person_renames() {
+    tokio::task::LocalSet::new().run_until(title_is_the_generated_one_until_the_person_renames_body()).await
+}
+
+async fn title_is_the_generated_one_until_the_person_renames_body() {
     let scratch = Scratch::new("title_generated_until_renamed");
     let only = format!("{{\"type\":\"ai-title\",\"aiTitle\":\"Understanding the build\",\"sessionId\":\"{SESSION}\"}}\n");
     let dir = scratch.config_dir("cfg", &[(format!("{SESSION}.jsonl"), only)]);
@@ -320,6 +332,10 @@ async fn title_is_the_generated_one_until_the_person_renames() {
 // TS: session-title.test.ts:58
 #[tokio::test]
 async fn title_is_nothing_without_a_title_record_and_without_the_session() {
+    tokio::task::LocalSet::new().run_until(title_is_nothing_without_a_title_record_and_without_the_session_body()).await
+}
+
+async fn title_is_nothing_without_a_title_record_and_without_the_session_body() {
     let scratch = Scratch::new("title_nothing");
     let bare = format!("{{\"type\":\"user\",\"sessionId\":\"{SESSION}\",\"message\":{{\"role\":\"user\",\"content\":\"...\"}}}}\n");
     let with_file = scratch.config_dir("with", &[(format!("{SESSION}.jsonl"), bare)]);
@@ -357,6 +373,10 @@ fn title_command_quotes_the_config_dir_and_session_id() {
 // TS: session-title.test.ts:95
 #[tokio::test]
 async fn title_for_sends_the_question_on_stdin_and_reads_the_print_mode_result() {
+    tokio::task::LocalSet::new().run_until(title_for_sends_the_question_on_stdin_and_reads_the_print_mode_result_body()).await
+}
+
+async fn title_for_sends_the_question_on_stdin_and_reads_the_print_mode_result_body() {
     let scratch = Scratch::new("title_for_stdin");
     let seen = scratch.text("seen");
     let bin = scratch.fake_claude("bin", &format!("{{ printf '%s\\n' \"$*\"; cat; }} > {seen}\nprintf '{{\"type\":\"result\",\"is_error\":false,\"result\":\"Seed thread titles here\"}}\\n'"));
@@ -373,6 +393,10 @@ async fn title_for_sends_the_question_on_stdin_and_reads_the_print_mode_result()
 // TS: session-title.test.ts:107
 #[tokio::test]
 async fn title_for_and_draft_for_run_under_the_logins_config_dir_after_the_nesting_marks_are_dropped() {
+    tokio::task::LocalSet::new().run_until(title_for_and_draft_for_run_under_the_logins_config_dir_after_the_nesting_marks_are_dropped_body()).await
+}
+
+async fn title_for_and_draft_for_run_under_the_logins_config_dir_after_the_nesting_marks_are_dropped_body() {
     let adapter = adapter(Arc::new(NoTurns), "/root/.claude-cfg", Some(base(&[("CLAUDE_CONFIG_DIR", "/root/it's here"), ("CLAUDE_CODE_ENTRYPOINT", "cli"), ("PATH", "/bin")])), None);
     let (asked, exec) = recording_exec("");
     adapter.title_for(TitleTurn { opening: "name it".to_string(), ..Default::default() }, exec.clone()).await.unwrap();
@@ -403,6 +427,10 @@ fn title_for_keeps_the_persons_customizations_off_and_never_uses_bare() {
 // TS: session-title.test.ts:129
 #[tokio::test]
 async fn title_for_and_draft_for_take_every_tool_away() {
+    tokio::task::LocalSet::new().run_until(title_for_and_draft_for_take_every_tool_away_body()).await
+}
+
+async fn title_for_and_draft_for_take_every_tool_away_body() {
     let scratch = Scratch::new("title_takes_every_tool_away");
     let ran = scratch.text("ran");
     let asked = scratch.text("asked");
@@ -426,6 +454,10 @@ async fn title_for_and_draft_for_take_every_tool_away() {
 // TS: session-title.test.ts:147
 #[tokio::test]
 async fn title_for_and_draft_for_keep_no_session_of_their_own() {
+    tokio::task::LocalSet::new().run_until(title_for_and_draft_for_keep_no_session_of_their_own_body()).await
+}
+
+async fn title_for_and_draft_for_keep_no_session_of_their_own_body() {
     let scratch = Scratch::new("title_keeps_no_session");
     let dir = scratch.text("");
     let bin = scratch.fake_claude(
@@ -462,6 +494,10 @@ fn title_for_reads_no_title_out_of_an_answer_that_is_not_one() {
 // TS: session-title.test.ts:182
 #[tokio::test]
 async fn rename_appends_the_record_the_cli_appends_and_the_read_gives_it_back() {
+    tokio::task::LocalSet::new().run_until(rename_appends_the_record_the_cli_appends_and_the_read_gives_it_back_body()).await
+}
+
+async fn rename_appends_the_record_the_cli_appends_and_the_read_gives_it_back_body() {
     let scratch = Scratch::new("rename_appends");
     let dir = scratch.config_dir("cfg", &[(format!("{SESSION}.jsonl"), format!("{{\"type\":\"ai-title\",\"aiTitle\":\"Understanding the build\",\"sessionId\":\"{SESSION}\"}}\n"))]);
     assert_eq!(rename_to(&dir, SESSION, "the name he typed in wsp"), SessionRenameWrite::Written);
@@ -476,6 +512,10 @@ async fn rename_appends_the_record_the_cli_appends_and_the_read_gives_it_back() 
 // TS: session-title.test.ts:191
 #[tokio::test]
 async fn rename_keeps_a_name_with_a_quote_a_newline_and_a_percent_sign_as_one_record() {
+    tokio::task::LocalSet::new().run_until(rename_keeps_a_name_with_a_quote_a_newline_and_a_percent_sign_as_one_record_body()).await
+}
+
+async fn rename_keeps_a_name_with_a_quote_a_newline_and_a_percent_sign_as_one_record_body() {
     let scratch = Scratch::new("rename_quote_newline_percent");
     let dir = scratch.config_dir("cfg", &[(format!("{SESSION}.jsonl"), format!("{{\"type\":\"user\",\"sessionId\":\"{SESSION}\"}}\n"))]);
     assert_eq!(rename_to(&dir, SESSION, "it's 100%\nhere"), SessionRenameWrite::Written);
@@ -489,6 +529,10 @@ async fn rename_keeps_a_name_with_a_quote_a_newline_and_a_percent_sign_as_one_re
 // TS: session-title.test.ts:198
 #[tokio::test]
 async fn rename_closes_a_half_written_last_line_rather_than_being_swallowed_by_it() {
+    tokio::task::LocalSet::new().run_until(rename_closes_a_half_written_last_line_rather_than_being_swallowed_by_it_body()).await
+}
+
+async fn rename_closes_a_half_written_last_line_rather_than_being_swallowed_by_it_body() {
     let scratch = Scratch::new("rename_half_written_line");
     let content = format!("{{\"type\":\"ai-title\",\"aiTitle\":\"Understanding the build\",\"sessionId\":\"{SESSION}\"}}\n{{\"type\":\"assis");
     let dir = scratch.config_dir("cfg", &[(format!("{SESSION}.jsonl"), content)]);
@@ -502,6 +546,10 @@ async fn rename_closes_a_half_written_last_line_rather_than_being_swallowed_by_i
 // TS: session-title.test.ts:204
 #[tokio::test]
 async fn rename_says_no_session_when_the_glob_answered_and_no_file_of_that_id_is_there() {
+    tokio::task::LocalSet::new().run_until(rename_says_no_session_when_the_glob_answered_and_no_file_of_that_id_is_there_body()).await
+}
+
+async fn rename_says_no_session_when_the_glob_answered_and_no_file_of_that_id_is_there_body() {
     let scratch = Scratch::new("rename_no_session");
     let dir = scratch.config_dir("cfg", &[]);
     assert_eq!(rename_to(&dir, SESSION, "the name"), SessionRenameWrite::NoSession);
@@ -510,6 +558,10 @@ async fn rename_says_no_session_when_the_glob_answered_and_no_file_of_that_id_is
 // TS: session-title.test.ts:208
 #[tokio::test]
 async fn rename_says_failed_with_the_machines_own_line_when_the_append_cannot_run() {
+    tokio::task::LocalSet::new().run_until(rename_says_failed_with_the_machines_own_line_when_the_append_cannot_run_body()).await
+}
+
+async fn rename_says_failed_with_the_machines_own_line_when_the_append_cannot_run_body() {
     let scratch = Scratch::new("rename_append_fails");
     let dir = scratch.config_dir("cfg", &[]);
     std::fs::create_dir_all(format!("{dir}/projects/-root-work-proj/{SESSION}.jsonl")).unwrap();
@@ -522,6 +574,10 @@ async fn rename_says_failed_with_the_machines_own_line_when_the_append_cannot_ru
 // TS: session-title.test.ts:217
 #[tokio::test]
 async fn rename_quotes_the_dir_and_id_and_a_name_that_reads_as_shell_lands_as_the_bytes_it_is() {
+    tokio::task::LocalSet::new().run_until(rename_quotes_the_dir_and_id_and_a_name_that_reads_as_shell_lands_as_the_bytes_it_is_body()).await
+}
+
+async fn rename_quotes_the_dir_and_id_and_a_name_that_reads_as_shell_lands_as_the_bytes_it_is_body() {
     let command = rename_command("/root/it's here", SESSION, "x");
     assert!(command.contains(r#"'/root/it'\''s here/projects'/*/"#), "{command}");
     assert!(command.contains(&format!("'{SESSION}.jsonl'")), "{command}");
@@ -545,6 +601,10 @@ fn parse_rename_reads_an_unknown_stdout_as_a_failure_carrying_what_was_said() {
 // TS: session-title.test.ts:236
 #[tokio::test]
 async fn draft_for_reads_the_question_from_the_file_on_stdin_with_no_tool_and_answers_the_result_whole() {
+    tokio::task::LocalSet::new().run_until(draft_for_reads_the_question_from_the_file_on_stdin_with_no_tool_and_answers_the_result_whole_body()).await
+}
+
+async fn draft_for_reads_the_question_from_the_file_on_stdin_with_no_tool_and_answers_the_result_whole_body() {
     let scratch = Scratch::new("draft_for_reads_file");
     let seen = scratch.text("seen");
     let asked = scratch.text("it's the question.txt");
@@ -592,11 +652,11 @@ fn road(answers: Value, stdout: &str) -> Road {
     let frames: Arc<Mutex<Vec<Map<String, Value>>>> = Default::default();
     let (lines, exec) = recording_exec(stdout);
     let seen = frames.clone();
-    let ask = move |frame: Map<String, Value>| -> BoxFuture<'static, Result<Map<String, Value>, ExecFailure>> {
+    let ask = move |frame: Map<String, Value>| -> LocalBoxFuture<'static, Result<Map<String, Value>, ExecFailure>> {
         let op = frame.get("op").and_then(Value::as_str).unwrap_or_default().to_string();
         seen.lock().unwrap().push(frame);
         let answer = answers.get(&op).and_then(Value::as_object).cloned();
-        async move { answer.ok_or(ExecFailure { kind: ExecFailureKind::Other, message: format!("unknown op: {op}") }) }.boxed()
+        async move { answer.ok_or(ExecFailure { kind: ExecFailureKind::Other, message: format!("unknown op: {op}") }) }.boxed_local()
     };
     Road { road: ConversationRoad { exec, ask: Arc::new(ask) }, frames, lines }
 }
@@ -608,6 +668,10 @@ fn id_set(ids: &[&str]) -> IndexSet<String> {
 // TS: conversations.test.ts:53
 #[tokio::test]
 async fn list_comes_off_transcripts_list_under_the_turns_store_in_the_folders_keys_and_the_pinned_one() {
+    tokio::task::LocalSet::new().run_until(list_comes_off_transcripts_list_under_the_turns_store_in_the_folders_keys_and_the_pinned_one_body()).await
+}
+
+async fn list_comes_off_transcripts_list_under_the_turns_store_in_the_folders_keys_and_the_pinned_one_body() {
     let adapter = adapter(recorded(), "/home/dev/.config/claude/", None, Some("-work-acme-lab"));
     let r = road(
         json!({
@@ -653,6 +717,10 @@ fn keys_sit_under_each_folders_own_key_with_the_pinned_key_once() {
 // TS: conversations.test.ts:82
 #[tokio::test]
 async fn live_is_open_where_claude_agents_json_names_the_session_under_the_turns_environment() {
+    tokio::task::LocalSet::new().run_until(live_is_open_where_claude_agents_json_names_the_session_under_the_turns_environment_body()).await
+}
+
+async fn live_is_open_where_claude_agents_json_names_the_session_under_the_turns_environment_body() {
     let adapter = adapter(recorded(), "/home/dev/.claude", Some(base(&[("PATH", "/usr/bin"), ("CLAUDE_CONFIG_DIR", "/home/dev/.claude")])), None);
     let agents = json!([{"pid": 30886, "cwd": "/work/acme/lab", "kind": "interactive", "startedAt": 1, "sessionId": ID, "name": "lab codewords", "status": "idle"}]).to_string();
     let r = road(json!({}), &agents);
@@ -669,12 +737,16 @@ async fn live_is_open_where_claude_agents_json_names_the_session_under_the_turns
 // TS: conversations.test.ts:92
 #[tokio::test]
 async fn live_is_none_where_the_command_answers_no_list() {
+    tokio::task::LocalSet::new().run_until(live_is_none_where_the_command_answers_no_list_body()).await
+}
+
+async fn live_is_none_where_the_command_answers_no_list_body() {
     assert_eq!(parse_live("error: unknown command 'agents'"), None);
     assert_eq!(parse_live(r#"{"not":"a list"}"#), None);
     assert_eq!(parse_live("[]"), Some(IndexSet::new()));
     let adapter = adapter(recorded(), "/home/dev/.claude", None, None);
-    let exec = |_command: &str, _env: Option<&Env>| -> BoxFuture<'static, Result<String, ExecFailure>> { async { Err(ExecFailure { kind: ExecFailureKind::Other, message: "exit 127".to_string() }) }.boxed() };
-    let ask = |_frame: Map<String, Value>| -> BoxFuture<'static, Result<Map<String, Value>, ExecFailure>> { async { Ok(Map::new()) }.boxed() };
+    let exec = |_command: &str, _env: Option<&Env>| -> LocalBoxFuture<'static, Result<String, ExecFailure>> { async { Err(ExecFailure { kind: ExecFailureKind::Other, message: "exit 127".to_string() }) }.boxed_local() };
+    let ask = |_frame: Map<String, Value>| -> LocalBoxFuture<'static, Result<Map<String, Value>, ExecFailure>> { async { Ok(Map::new()) }.boxed_local() };
     let failing = ConversationRoad { exec: Arc::new(exec), ask: Arc::new(ask) };
     assert_eq!(adapter.conversations().live(failing).expect("live is offered").await, None);
 }
@@ -682,6 +754,10 @@ async fn live_is_none_where_the_command_answers_no_list() {
 // TS: conversations.test.ts:101
 #[tokio::test]
 async fn earlier_reads_one_conversation_off_transcripts_read_and_is_gone_where_no_folder_holds_it() {
+    tokio::task::LocalSet::new().run_until(earlier_reads_one_conversation_off_transcripts_read_and_is_gone_where_no_folder_holds_it_body()).await
+}
+
+async fn earlier_reads_one_conversation_off_transcripts_read_and_is_gone_where_no_folder_holds_it_body() {
     let adapter = adapter(recorded(), "/home/dev/.claude", None, None);
     let found = road(
         json!({"transcripts.read": {"found": true, "cwd": "/work/acme/lab", "title": "lab codewords", "messages": [{"who": "person", "text": "hi", "at": 1791848679454_u64}, {"who": "tool", "text": "{\"command\":\"ls\"}", "tool": "Bash", "at": 1791848681000_u64}, {"who": "agent", "text": "done"}], "earlier": 4}}),
@@ -710,6 +786,10 @@ async fn earlier_reads_one_conversation_off_transcripts_read_and_is_gone_where_n
 // TS: conversations.test.ts:114
 #[tokio::test]
 async fn earlier_asks_the_daemon_for_the_end_of_the_file_alone_where_the_read_names_a_tail() {
+    tokio::task::LocalSet::new().run_until(earlier_asks_the_daemon_for_the_end_of_the_file_alone_where_the_read_names_a_tail_body()).await
+}
+
+async fn earlier_asks_the_daemon_for_the_end_of_the_file_alone_where_the_read_names_a_tail_body() {
     let adapter = adapter(recorded(), "/home/dev/.claude", None, None);
     let found = road(json!({"transcripts.read": {"found": true, "messages": [{"who": "agent", "text": "done"}], "earlier": 0}}), "[]");
     let ask = EarlierAsk { cwds: strings(&["/work/acme/lab"]), last: 4, probe: false, tail: Some(262144), count: true };
@@ -724,20 +804,24 @@ async fn earlier_asks_the_daemon_for_the_end_of_the_file_alone_where_the_read_na
 // TS: conversations.test.ts:121
 #[tokio::test]
 async fn list_of_more_than_64_folders_asks_in_frames_of_at_most_64_and_keeps_the_newest_of_an_id() {
+    tokio::task::LocalSet::new().run_until(list_of_more_than_64_folders_asks_in_frames_of_at_most_64_and_keeps_the_newest_of_an_id_body()).await
+}
+
+async fn list_of_more_than_64_folders_asks_in_frames_of_at_most_64_and_keeps_the_newest_of_an_id_body() {
     let cwds: Vec<String> = (0..70).map(|i| format!("/work/acme/lab-t{i}")).collect();
     let adapter = adapter(recorded(), "/home/dev/.claude", None, Some("-work-acme-lab"));
     let frames: Arc<Mutex<Vec<Map<String, Value>>>> = Default::default();
     let seen = frames.clone();
-    let ask = move |frame: Map<String, Value>| -> BoxFuture<'static, Result<Map<String, Value>, ExecFailure>> {
+    let ask = move |frame: Map<String, Value>| -> LocalBoxFuture<'static, Result<Map<String, Value>, ExecFailure>> {
         let has_t3 = frame.get("cwds").and_then(Value::as_array).is_some_and(|c| c.iter().any(|v| v == "/work/acme/lab-t3"));
         seen.lock().unwrap().push(frame);
         let last_at = if has_t3 { 9 } else { 5 };
         let reply = json!({"rows": [{"id": ID, "cwd": "/work/acme/lab-t3", "lastAt": last_at, "bytes": 1}]});
-        async move { Ok(reply.as_object().cloned().unwrap()) }.boxed()
+        async move { Ok(reply.as_object().cloned().unwrap()) }.boxed_local()
     };
-    let exec = |command: &str, _env: Option<&Env>| -> BoxFuture<'static, Result<String, ExecFailure>> {
+    let exec = |command: &str, _env: Option<&Env>| -> LocalBoxFuture<'static, Result<String, ExecFailure>> {
         assert!(command.contains("'-work-acme-lab-t69'"), "{command}");
-        async { Ok("-work-acme-lab\n-work-acme-lab-t3\nnot-asked\n".to_string()) }.boxed()
+        async { Ok("-work-acme-lab\n-work-acme-lab-t3\nnot-asked\n".to_string()) }.boxed_local()
     };
     let road = ConversationRoad { exec: Arc::new(exec), ask: Arc::new(ask) };
     let rows = adapter.conversations().list(cwds, road).await.unwrap();
@@ -760,6 +844,10 @@ fn copy_is_a_new_session_the_cli_starts_off_the_original_with_fork_session() {
 // TS: conversations.test.ts:152
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn copy_runs_under_an_id_of_wsps_with_no_name_and_no_saved_spend_read_off_the_original() {
+    tokio::task::LocalSet::new().run_until(copy_runs_under_an_id_of_wsps_with_no_name_and_no_saved_spend_read_off_the_original_body()).await
+}
+
+async fn copy_runs_under_an_id_of_wsps_with_no_name_and_no_saved_spend_read_off_the_original_body() {
     let exec = recorded();
     let adapter = adapter(exec.clone(), "/home/dev/.claude", None, None);
     let (_events, on_event) = collect();
@@ -776,6 +864,10 @@ async fn copy_runs_under_an_id_of_wsps_with_no_name_and_no_saved_spend_read_off_
 // TS: conversations.test.ts:165
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn plain_resume_resumes_the_original_by_its_id_and_never_forks() {
+    tokio::task::LocalSet::new().run_until(plain_resume_resumes_the_original_by_its_id_and_never_forks_body()).await
+}
+
+async fn plain_resume_resumes_the_original_by_its_id_and_never_forks_body() {
     let exec = recorded();
     let adapter = adapter(exec.clone(), "/home/dev/.claude", None, None);
     let (_events, on_event) = collect();

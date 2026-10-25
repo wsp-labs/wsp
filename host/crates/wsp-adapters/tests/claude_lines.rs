@@ -535,6 +535,10 @@ fn delta<'a>(r: &'a HashMap<String, TurnDelta>, id: &str) -> &'a TurnDelta {
 // TS: tool-results.test.ts:88
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_failing_commands_exit_code_is_read_off_the_exit_code_line_its_error_opens_with() {
+    tokio::task::LocalSet::new().run_until(a_failing_commands_exit_code_is_read_off_the_exit_code_line_its_error_opens_with_body()).await
+}
+
+async fn a_failing_commands_exit_code_is_read_off_the_exit_code_line_its_error_opens_with_body() {
     let r = results(lines()).await;
     let fail = delta(&r, "t_fail");
     assert_eq!(fail.is_error, Some(true));
@@ -545,6 +549,10 @@ async fn a_failing_commands_exit_code_is_read_off_the_exit_code_line_its_error_o
 // TS: tool-results.test.ts:93
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_clean_command_names_no_code() {
+    tokio::task::LocalSet::new().run_until(a_clean_command_names_no_code_body()).await
+}
+
+async fn a_clean_command_names_no_code_body() {
     let r = results(lines()).await;
     assert_eq!(delta(&r, "t_seq").exit_code, None);
     assert_eq!(delta(&r, "t_grep").exit_code, None);
@@ -556,6 +564,10 @@ async fn a_clean_command_names_no_code() {
 // TS: tool-results.test.ts:101
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_output_the_cli_kept_of_one_too_large_for_the_model_comes_with_the_bytes_of_the_whole() {
+    tokio::task::LocalSet::new().run_until(the_output_the_cli_kept_of_one_too_large_for_the_model_comes_with_the_bytes_of_the_whole_body()).await
+}
+
+async fn the_output_the_cli_kept_of_one_too_large_for_the_model_comes_with_the_bytes_of_the_whole_body() {
     let r = results(lines()).await;
     let big_delta = delta(&r, "t_big");
     let big = big();
@@ -567,6 +579,10 @@ async fn the_output_the_cli_kept_of_one_too_large_for_the_model_comes_with_the_b
 // TS: tool-results.test.ts:108
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_edits_structured_patch_is_the_files_hunks() {
+    tokio::task::LocalSet::new().run_until(an_edits_structured_patch_is_the_files_hunks_body()).await
+}
+
+async fn an_edits_structured_patch_is_the_files_hunks_body() {
     let r = results(lines()).await;
     assert_eq!(delta(&r, "t_edit").patch, Some(patch("/root/lab/f.txt", vec![hunk(1, 3, 1, 3, &[" alpha", "-beta", "+BETA", " gamma"])])));
     assert_eq!(delta(&r, "t_over").patch, Some(patch("/root/lab/f.txt", vec![hunk(1, 3, 1, 3, &["-alpha", "-BETA", "-gamma", "+one", "+two", "+three"])])));
@@ -575,6 +591,10 @@ async fn an_edits_structured_patch_is_the_files_hunks() {
 // TS: tool-results.test.ts:114
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_new_file_with_an_empty_structured_patch_is_one_hunk_of_every_line_added() {
+    tokio::task::LocalSet::new().run_until(a_new_file_with_an_empty_structured_patch_is_one_hunk_of_every_line_added_body()).await
+}
+
+async fn a_new_file_with_an_empty_structured_patch_is_one_hunk_of_every_line_added_body() {
     let r = results(lines()).await;
     assert_eq!(delta(&r, "t_new").patch, Some(patch("/root/lab/new.txt", vec![hunk(0, 0, 1, 1, &["+hi"])])));
 }
@@ -582,6 +602,10 @@ async fn a_new_file_with_an_empty_structured_patch_is_one_hunk_of_every_line_add
 // TS: tool-results.test.ts:119
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_line_that_answers_two_calls_reads_no_tool_use_result() {
+    tokio::task::LocalSet::new().run_until(a_line_that_answers_two_calls_reads_no_tool_use_result_body()).await
+}
+
+async fn a_line_that_answers_two_calls_reads_no_tool_use_result_body() {
     let two = line(json!({
         "type": "user",
         "message": { "role": "user", "content": [

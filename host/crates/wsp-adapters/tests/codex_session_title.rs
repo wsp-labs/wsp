@@ -380,3 +380,45 @@ mod a_persons_setup_for_codex_on_a_computer {
         }
     }
 }
+
+/// Rules ST1 to ST4 of spec/codex_session_title.md, "Rules added for the port", each value printed by the TS at 65f6b89c7.
+mod rules_added {
+    use super::*;
+
+    #[test]
+    fn the_first_object_line_decides_the_title_even_one_holding_neither_field() {
+        // ST1; session-title.ts:39-55.
+        assert_eq!(parse_session_title("{} \n{\"name\":\"X\"}"), None);
+        assert_eq!(parse_session_title(r#"{"name":5,"title":"T"}"#).as_deref(), Some("T"));
+        assert_eq!(parse_session_title("{\"name\":\"a\"} trailing\n{\"name\":\"  b  \"}").as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn the_last_string_message_wins_even_empty_and_a_title_is_one_line_with_its_dot_dropped() {
+        // ST2; session-title.ts:89-120, words/turn.ts:373.
+        let msg = |t: Value| json!({"type": "item.completed", "item": {"type": "agent_message", "text": t}}).to_string();
+        let one_then_empty = format!("{}\n{}", msg(json!("one")), msg(json!("")));
+        assert_eq!((parse_title_for(&one_then_empty), parse_draft_for(&one_then_empty)), (None, None));
+        assert_eq!(parse_title_for(&msg(json!("Fix the bug."))).as_deref(), Some("Fix the bug"));
+        assert_eq!(parse_title_for(&msg(json!("two\nlines"))), None);
+        assert_eq!(parse_draft_for(&msg(json!("  keep  \n  spaces \n"))).as_deref(), Some("  keep  \n  spaces \n"));
+        assert_eq!(parse_title_for(&format!("{}\n{}", msg(json!("one")), msg(json!(5)))).as_deref(), Some("one"));
+    }
+
+    #[test]
+    fn a_rename_s_answer_must_be_an_object_and_only_a_lowercase_no_rollout_found_start_is_no_session() {
+        // ST3; session-title.ts:155-160.
+        assert_eq!(parse_rename(r#"{"id":2,"result":[]}"#), SessionRenameWrite::Failed { error: "codex's app server did not answer the rename".into() });
+        assert_eq!(parse_rename(r#"{"id":2,"error":{"message":"No rollout found"}}"#), SessionRenameWrite::Failed { error: "No rollout found".into() });
+        assert_eq!(parse_rename(r#"{"id":2,"error":{"message":""}}"#), SessionRenameWrite::Failed { error: String::new() });
+        assert_eq!(parse_rename(r#"{"id":2,"error":{"message":"no rollout found for thread x"}}"#), SessionRenameWrite::NoSession);
+    }
+
+    #[test]
+    fn the_held_words_split_a_file_line_on_single_spaces_and_a_state_db_answer_outranks_a_row() {
+        // ST4; lost-session.ts:35-58.
+        assert_eq!(parse_session_held("boot T\nlisted\nfile  12  /a\nnodb\nrow {\"path\":\"/a\"}\n"), "boot T; rollout files: 12  /a ( bytes); index row: no state db");
+        assert_eq!(parse_session_held(""), "boot unread; rollout files: none, the listing cut short; index row: not read");
+        assert_eq!(parse_session_held("boot T\nnohome\n"), "boot T; rollout files: none; index row: no Codex home");
+    }
+}

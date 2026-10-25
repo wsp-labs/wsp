@@ -9,7 +9,7 @@ mod claude_exec;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use futures::future::{BoxFuture, FutureExt};
+use futures::future::{LocalBoxFuture, FutureExt};
 use serde_json::{json, Value};
 use wsp_adapters::claude::adapter::{create_claude_adapter, AdapterDeps, AttachedSession, ClaudeAdapter};
 use wsp_adapters::claude::catalog::claude_screen_commands;
@@ -88,10 +88,10 @@ fn attach_opts(run: &str, session_id: &str, on_event: OnEvent) -> AdapterAttachO
 }
 
 fn recording_exec(ran: Arc<Mutex<Vec<(String, Option<Env>)>>>, answer: String) -> Arc<dyn HarnessExec> {
-    Arc::new(move |command: &str, env: Option<&Env>| -> BoxFuture<'static, Result<String, ExecFailure>> {
+    Arc::new(move |command: &str, env: Option<&Env>| -> LocalBoxFuture<'static, Result<String, ExecFailure>> {
         ran.lock().unwrap().push((command.to_string(), env.cloned()));
         let answer = answer.clone();
-        async move { Ok(answer) }.boxed()
+        async move { Ok(answer) }.boxed_local()
     })
 }
 
@@ -218,7 +218,7 @@ struct Steering {
 fn steering(session: &ClaudeSession, prompt: &'static str) -> Steering {
     let answer: Arc<Mutex<Option<SteerOutcome>>> = Default::default();
     let (s, cell) = (session.clone(), answer.clone());
-    let task = tokio::spawn(async move {
+    let task = tokio::task::spawn_local(async move {
         let outcome = s.steer(prompt, None, vec![]).await.expect("steer");
         *cell.lock().unwrap() = Some(outcome);
     });
@@ -267,6 +267,10 @@ fn screen_commands_are_one_table_by_name_without_a_slash() {
 // TS: adapter.test.ts:158
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn launches_with_the_picked_model_effort_and_permission_mode() {
+    tokio::task::LocalSet::new().run_until(launches_with_the_picked_model_effort_and_permission_mode_body()).await
+}
+
+async fn launches_with_the_picked_model_effort_and_permission_mode_body() {
     let exec = FakeExec::scripted(stream_lines(), StreamOpts::default());
     let adapter = adapter_for(&exec);
     let options = HarnessStartOptions { model: Some("claude-opus-5".into()), effort: Some("low".into()), permission_mode: Some("acceptEdits".into()), ..go("go", noop()) };
@@ -280,6 +284,10 @@ async fn launches_with_the_picked_model_effort_and_permission_mode() {
 // TS: adapter.test.ts:168
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn keeps_its_auto_memory_in_the_folder_it_was_keyed_to() {
+    tokio::task::LocalSet::new().run_until(keeps_its_auto_memory_in_the_folder_it_was_keyed_to_body()).await
+}
+
+async fn keeps_its_auto_memory_in_the_folder_it_was_keyed_to_body() {
     let mut lines = stream_lines();
     lines.extend(stream_lines());
     let exec = FakeExec::scripted(lines, StreamOpts::default());
@@ -305,6 +313,10 @@ async fn keeps_its_auto_memory_in_the_folder_it_was_keyed_to() {
 // TS: adapter.test.ts:187
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn folds_the_persons_own_settings_into_its_one_flag() {
+    tokio::task::LocalSet::new().run_until(folds_the_persons_own_settings_into_its_one_flag_body()).await
+}
+
+async fn folds_the_persons_own_settings_into_its_one_flag_body() {
     let memory = "/Users/z/.claude/projects/-Users-z-wt/memory";
     async fn launched(args: Vec<String>) -> String {
         let exec = FakeExec::scripted(stream_lines(), StreamOpts::default());
@@ -330,6 +342,10 @@ async fn folds_the_persons_own_settings_into_its_one_flag() {
 // TS: adapter.test.ts:209
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_launched_session_carries_the_run_its_stream_reported() {
+    tokio::task::LocalSet::new().run_until(a_launched_session_carries_the_run_its_stream_reported_body()).await
+}
+
+async fn a_launched_session_carries_the_run_its_stream_reported_body() {
     let exec = FakeExec::scripted(stream_lines(), StreamOpts::default());
     let adapter = adapter_for(&exec);
     let session = adapter.start(go("go", noop())).unwrap();
@@ -340,6 +356,10 @@ async fn a_launched_session_carries_the_run_its_stream_reported() {
 // TS: adapter.test.ts:217
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn attaches_to_a_run_an_earlier_process_launched() {
+    tokio::task::LocalSet::new().run_until(attaches_to_a_run_an_earlier_process_launched_body()).await
+}
+
+async fn attaches_to_a_run_an_earlier_process_launched_body() {
     let exec = FakeExec::attaching(stream_lines(), false);
     let adapter = adapter_for(&exec);
     let (events, on_event) = collect();
@@ -371,6 +391,10 @@ async fn attaches_to_a_run_an_earlier_process_launched() {
 // TS: adapter.test.ts:237
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_machine_that_no_longer_holds_the_run_is_passed_through_as_gone() {
+    tokio::task::LocalSet::new().run_until(a_machine_that_no_longer_holds_the_run_is_passed_through_as_gone_body()).await
+}
+
+async fn a_machine_that_no_longer_holds_the_run_is_passed_through_as_gone_body() {
     let exec = FakeExec::attaching(stream_lines(), true);
     let (events, on_event) = collect();
     let adapter = adapter_for(&exec);
@@ -391,6 +415,10 @@ fn an_adapter_whose_exec_cannot_attach_has_no_attach_of_its_own() {
 // TS: adapter.test.ts:253
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn probes_the_catalog_through_the_exec_it_is_handed() {
+    tokio::task::LocalSet::new().run_until(probes_the_catalog_through_the_exec_it_is_handed_body()).await
+}
+
+async fn probes_the_catalog_through_the_exec_it_is_handed_body() {
     let exec = FakeExec::scripted(vec![], StreamOpts::default());
     let mut deps = AdapterDeps::new(exec.clone(), CONFIG_DIR);
     deps.base_env = Some(guest_env());
@@ -412,6 +440,10 @@ async fn probes_the_catalog_through_the_exec_it_is_handed() {
 // TS: adapter.test.ts:268
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn normalizes_the_stream_into_session_start_delta_done_end() {
+    tokio::task::LocalSet::new().run_until(normalizes_the_stream_into_session_start_delta_done_end_body()).await
+}
+
+async fn normalizes_the_stream_into_session_start_delta_done_end_body() {
     let exec = FakeExec::scripted(stream_lines(), StreamOpts::default());
     let adapter = adapter_for(&exec);
     let (events, on_event) = collect();
@@ -460,6 +492,10 @@ async fn normalizes_the_stream_into_session_start_delta_done_end() {
 // TS: adapter.test.ts:333
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn carries_the_clis_own_id_for_each_message_its_text_came_out_of() {
+    tokio::task::LocalSet::new().run_until(carries_the_clis_own_id_for_each_message_its_text_came_out_of_body()).await
+}
+
+async fn carries_the_clis_own_id_for_each_message_its_text_came_out_of_body() {
     let (_, events) = run_lines(stream_lines(), "write a hello world server").await;
     let ids: Vec<Option<String>> = deltas(&events).into_iter().filter(|d| d.kind == DeltaKind::Text).map(|d| d.message_id).collect();
     assert_eq!(ids, vec![Some("msg_01WspFixA1".to_string()), Some("msg_01WspFixA4".to_string())]);
@@ -484,6 +520,10 @@ fn tool_rows(events: &[AdapterEvent]) -> Vec<TurnDelta> {
 // TS: adapter.test.ts:343
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn reads_the_todo_list_and_the_proposed_plan_as_the_turns_plan() {
+    tokio::task::LocalSet::new().run_until(reads_the_todo_list_and_the_proposed_plan_as_the_turns_plan_body()).await
+}
+
+async fn reads_the_todo_list_and_the_proposed_plan_as_the_turns_plan_body() {
     let todos = |states: &[&str]| json!({"todos": states.iter().enumerate().map(|(n, status)| json!({"content": format!("step {}", n + 1), "activeForm": format!("doing step {}", n + 1), "status": status})).collect::<Vec<_>>()});
     let lines = stream_lines();
     let script = vec![
@@ -512,6 +552,10 @@ async fn reads_the_todo_list_and_the_proposed_plan_as_the_turns_plan() {
 // TS: adapter.test.ts:371
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn keeps_the_task_list_built_call_by_call_as_the_turns_plan() {
+    tokio::task::LocalSet::new().run_until(keeps_the_task_list_built_call_by_call_as_the_turns_plan_body()).await
+}
+
+async fn keeps_the_task_list_built_call_by_call_as_the_turns_plan_body() {
     let lines = stream_lines();
     let script = vec![
         lines[1].clone(),
@@ -541,6 +585,10 @@ async fn keeps_the_task_list_built_call_by_call_as_the_turns_plan() {
 // TS: adapter.test.ts:400
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn stamps_every_line_a_subagent_wrote_with_the_call_that_launched_it() {
+    tokio::task::LocalSet::new().run_until(stamps_every_line_a_subagent_wrote_with_the_call_that_launched_it_body()).await
+}
+
+async fn stamps_every_line_a_subagent_wrote_with_the_call_that_launched_it_body() {
     let fx = subagent_fixture();
     let (_, events) = run_lines(fx.lines.clone(), "fan out").await;
     let ds = deltas(&events);
@@ -554,6 +602,10 @@ async fn stamps_every_line_a_subagent_wrote_with_the_call_that_launched_it() {
 // TS: adapter.test.ts:422
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn says_each_subagents_start_model_spend_and_end_once_each() {
+    tokio::task::LocalSet::new().run_until(says_each_subagents_start_model_spend_and_end_once_each_body()).await
+}
+
+async fn says_each_subagents_start_model_spend_and_end_once_each_body() {
     let fx = subagent_fixture();
     let (_, events) = run_lines(fx.lines.clone(), "fan out").await;
 
@@ -615,12 +667,20 @@ fn spend_expected() -> Vec<(String, SubagentState, SubagentUsage)> {
 // TS: adapter.test.ts:474
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn sums_a_subagents_own_calls_into_a_row_at_each_progress_line_and_its_end() {
+    tokio::task::LocalSet::new().run_until(sums_a_subagents_own_calls_into_a_row_at_each_progress_line_and_its_end_body()).await
+}
+
+async fn sums_a_subagents_own_calls_into_a_row_at_each_progress_line_and_its_end_body() {
     assert_eq!(spent_rows(spend_lines()).await, spend_expected());
 }
 
 // TS: adapter.test.ts:478
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn counts_a_call_once_however_many_of_its_blocks_the_cli_writes() {
+    tokio::task::LocalSet::new().run_until(counts_a_call_once_however_many_of_its_blocks_the_cli_writes_body()).await
+}
+
+async fn counts_a_call_once_however_many_of_its_blocks_the_cli_writes_body() {
     let mut lines = spend_lines();
     let at = lines.iter().position(|l| l.contains(&format!("\"agent_id\":\"{SPEND_ONE}\"")) && l.contains("\"type\":\"assistant\"")).expect("an assistant line of the first subagent");
     let mut early: Value = serde_json::from_str(&lines[at]).unwrap();
@@ -634,6 +694,10 @@ async fn counts_a_call_once_however_many_of_its_blocks_the_cli_writes() {
 // TS: adapter.test.ts:490
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn forwards_a_subagents_own_text_only_from_a_cli_that_takes_the_flag() {
+    tokio::task::LocalSet::new().run_until(forwards_a_subagents_own_text_only_from_a_cli_that_takes_the_flag_body()).await
+}
+
+async fn forwards_a_subagents_own_text_only_from_a_cli_that_takes_the_flag_body() {
     async fn launched(version: Option<&str>) -> (String, usize) {
         let exec = FakeExec::scripted(subagent_fixture().lines, StreamOpts::default());
         let adapter = adapter_for(&exec);
@@ -657,6 +721,10 @@ async fn forwards_a_subagents_own_text_only_from_a_cli_that_takes_the_flag() {
 // TS: adapter.test.ts:508
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_subagents_model_comes_off_its_first_line_never_an_api_error() {
+    tokio::task::LocalSet::new().run_until(a_subagents_model_comes_off_its_first_line_never_an_api_error_body()).await
+}
+
+async fn a_subagents_model_comes_off_its_first_line_never_an_api_error_body() {
     let lines = vec![
         json!({"type": "system", "subtype": "init", "session_id": SID}).to_string(),
         json!({"type": "assistant", "session_id": SID, "parent_tool_use_id": null, "message": {"id": "m1", "model": "claude-sonnet-4-5", "content": [{"type": "tool_use", "id": "toolu_t", "name": "Task", "input": {"description": "count", "prompt": "Count to three."}}]}}).to_string(),
@@ -676,6 +744,10 @@ async fn a_subagents_model_comes_off_its_first_line_never_an_api_error() {
 // TS: adapter.test.ts:528
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_background_command_the_cli_tracks_as_a_task_is_no_subagent() {
+    tokio::task::LocalSet::new().run_until(a_background_command_the_cli_tracks_as_a_task_is_no_subagent_body()).await
+}
+
+async fn a_background_command_the_cli_tracks_as_a_task_is_no_subagent_body() {
     let lines = vec![
         json!({"type": "system", "subtype": "init", "session_id": SID}).to_string(),
         json!({"type": "system", "subtype": "task_started", "task_id": "b1", "tool_use_id": "toolu_bash", "description": "npm run dev", "task_type": "local_bash", "session_id": SID}).to_string(),
@@ -767,6 +839,10 @@ const PLAIN_FG: &str = "2 + 2 is 4, and 3 + 3 is 6.\n\nBoth are basic addition f
 // TS: adapter.test.ts:557
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn answers_a_backgrounded_launch_with_the_report_and_draws_no_hand_back() {
+    tokio::task::LocalSet::new().run_until(answers_a_backgrounded_launch_with_the_report_and_draws_no_hand_back_body()).await
+}
+
+async fn answers_a_backgrounded_launch_with_the_report_and_draws_no_hand_back_body() {
     let report = "2 + 2 is 4.\n\n3 + 3 is 6.";
     let events = replay(recorded("subagent-handback.jsonl")).await;
     let fold = fold_of(&events, BG);
@@ -784,6 +860,10 @@ async fn answers_a_backgrounded_launch_with_the_report_and_draws_no_hand_back() 
 // TS: adapter.test.ts:573
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn answers_a_launch_it_waited_on_with_the_report_once_never_the_note() {
+    tokio::task::LocalSet::new().run_until(answers_a_launch_it_waited_on_with_the_report_once_never_the_note_body()).await
+}
+
+async fn answers_a_launch_it_waited_on_with_the_report_once_never_the_note_body() {
     let sid = "21921000-0000-4aaa-8bbb-000000000002";
     let report = "2+2 is 4.\n\n3+3 is 6.";
     let call = "toolu_01WspFixHandFg";
@@ -801,6 +881,10 @@ async fn answers_a_launch_it_waited_on_with_the_report_once_never_the_note() {
 // TS: adapter.test.ts:585
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn leaves_an_older_clis_launch_answered_with_the_report_as_it_was() {
+    tokio::task::LocalSet::new().run_until(leaves_an_older_clis_launch_answered_with_the_report_as_it_was_body()).await
+}
+
+async fn leaves_an_older_clis_launch_answered_with_the_report_as_it_was_body() {
     let fx = subagent_fixture();
     let events = replay(fx.lines.clone()).await;
     assert_eq!(fold_of(&events, &fx.a_call).last().unwrap(), &answer(SID, &fx.a_call, "acpi\nadduser.conf\nalsa"));
@@ -809,6 +893,10 @@ async fn leaves_an_older_clis_launch_answered_with_the_report_as_it_was() {
 // TS: adapter.test.ts:602
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn draws_a_report_auto_mode_flagged_with_its_warning_above_it() {
+    tokio::task::LocalSet::new().run_until(draws_a_report_auto_mode_flagged_with_its_warning_above_it_body()).await
+}
+
+async fn draws_a_report_auto_mode_flagged_with_its_warning_above_it_body() {
     let warning = "SECURITY WARNING: auto mode blocked this subagent's report. Reason: the report asks the caller to run a command it was not asked for. The report follows; review the subagent's actions carefully before acting on it.";
     let events = replay(variant(|mut f| {
         if is_notification(&f) {
@@ -828,6 +916,10 @@ async fn draws_a_report_auto_mode_flagged_with_its_warning_above_it() {
 // TS: adapter.test.ts:612
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn leaves_a_hand_back_the_cli_refused_as_the_failed_call_it_was() {
+    tokio::task::LocalSet::new().run_until(leaves_a_hand_back_the_cli_refused_as_the_failed_call_it_was_body()).await
+}
+
+async fn leaves_a_hand_back_the_cli_refused_as_the_failed_call_it_was_body() {
     let refused = "Nothing was sent: the agent that spawned you is no longer running.";
     let events = replay(variant(|mut f| {
         if handback_result(&f) {
@@ -862,6 +954,10 @@ async fn leaves_a_hand_back_the_cli_refused_as_the_failed_call_it_was() {
 // TS: adapter.test.ts:635
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn ends_a_withheld_subagent_it_waited_on_in_wsps_words() {
+    tokio::task::LocalSet::new().run_until(ends_a_withheld_subagent_it_waited_on_in_wsps_words_body()).await
+}
+
+async fn ends_a_withheld_subagent_it_waited_on_in_wsps_words_body() {
     let call = "toolu_01WspFixWh1";
     let sid = "21921000-0000-4aaa-8bbb-000000000003";
     let events = replay(recorded("subagent-handback-withheld.jsonl")).await;
@@ -877,6 +973,10 @@ async fn ends_a_withheld_subagent_it_waited_on_in_wsps_words() {
 // TS: adapter.test.ts:646
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn answers_a_launch_made_inside_a_subagent_with_the_report() {
+    tokio::task::LocalSet::new().run_until(answers_a_launch_made_inside_a_subagent_with_the_report_body()).await
+}
+
+async fn answers_a_launch_made_inside_a_subagent_with_the_report_body() {
     let (outer, inner) = ("toolu_01WspFixNe1", "toolu_01WspFixNe2");
     let sid = "21921000-0000-4aaa-8bbb-000000000005";
     let outer_report = "I launched one general-purpose subagent (model haiku) with the prompt \"What is 2+2? Answer in one short sentence, no tools.\" It finished and reported: \"2 + 2 = 4.\"";
@@ -893,6 +993,10 @@ async fn answers_a_launch_made_inside_a_subagent_with_the_report() {
 // TS: adapter.test.ts:659
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn says_a_report_once_when_the_subagent_wrote_it_as_text_then_handed_it_back() {
+    tokio::task::LocalSet::new().run_until(says_a_report_once_when_the_subagent_wrote_it_as_text_then_handed_it_back_body()).await
+}
+
+async fn says_a_report_once_when_the_subagent_wrote_it_as_text_then_handed_it_back_body() {
     let call = "toolu_01WspFixTf1";
     let events = replay(recorded("subagent-handback-text-first.jsonl")).await;
     let texts: Vec<String> = fold_of(&events, call).into_iter().filter(|d| d.parent_tool_use_id.as_deref() == Some(call) && d.kind == DeltaKind::Text).map(|d| d.text).collect();
@@ -903,6 +1007,10 @@ async fn says_a_report_once_when_the_subagent_wrote_it_as_text_then_handed_it_ba
 // TS: adapter.test.ts:666
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn lets_a_later_notification_replace_a_subagents_earlier_end() {
+    tokio::task::LocalSet::new().run_until(lets_a_later_notification_replace_a_subagents_earlier_end_body()).await
+}
+
+async fn lets_a_later_notification_replace_a_subagents_earlier_end_body() {
     let again = "2 + 2 is 4.\n\n3 + 3 is 6.\n\nChecked twice.";
     let events = replay(variant(|f| {
         if is_notification(&f) {
@@ -921,6 +1029,10 @@ async fn lets_a_later_notification_replace_a_subagents_earlier_end() {
 // TS: adapter.test.ts:679
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn ends_a_subagent_it_waited_on_in_auto_mode_with_the_hand_back_flag_off() {
+    tokio::task::LocalSet::new().run_until(ends_a_subagent_it_waited_on_in_auto_mode_with_the_hand_back_flag_off_body()).await
+}
+
+async fn ends_a_subagent_it_waited_on_in_auto_mode_with_the_hand_back_flag_off_body() {
     let call = "toolu_01WspFixPf1";
     let events = replay(with_init("subagent-bypass-foreground.jsonl", json!({"permissionMode": "auto"}), &same)).await;
     assert_eq!(done_summaries(&events), vec![(SubagentState::Done, Some(PLAIN_FG.to_string()))]);
@@ -930,6 +1042,10 @@ async fn ends_a_subagent_it_waited_on_in_auto_mode_with_the_hand_back_flag_off()
 // TS: adapter.test.ts:686
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn ends_a_backgrounded_subagent_started_after_a_switch_away_from_auto_mode() {
+    tokio::task::LocalSet::new().run_until(ends_a_backgrounded_subagent_started_after_a_switch_away_from_auto_mode_body()).await
+}
+
+async fn ends_a_backgrounded_subagent_started_after_a_switch_away_from_auto_mode_body() {
     let call = "toolu_01WspFixPb1";
     let events = replay(with_init("subagent-bypass-background.jsonl", json!({"permissionMode": "auto"}), &same)).await;
     assert_eq!(done_summaries(&events), vec![(SubagentState::Done, Some(BG_REPORT.to_string()))]);
@@ -939,6 +1055,10 @@ async fn ends_a_backgrounded_subagent_started_after_a_switch_away_from_auto_mode
 // TS: adapter.test.ts:693
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn ends_a_fork_which_never_hands_back_in_an_auto_run() {
+    tokio::task::LocalSet::new().run_until(ends_a_fork_which_never_hands_back_in_an_auto_run_body()).await
+}
+
+async fn ends_a_fork_which_never_hands_back_in_an_auto_run_body() {
     let call = "toolu_01WspFixPb1";
     // The TS test spells these with a space after each colon, so against its compact re-stringified frames the rewrite
     // never happened (spec/claude_turn.md rule T13). Here it rewrites the call and its task_started line, as meant.
@@ -972,6 +1092,10 @@ async fn ends_a_fork_which_never_hands_back_in_an_auto_run() {
 // TS: adapter.test.ts:701
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn holds_a_subagents_notification_while_a_command_it_started_runs_and_answers_once() {
+    tokio::task::LocalSet::new().run_until(holds_a_subagents_notification_while_a_command_it_started_runs_and_answers_once_body()).await
+}
+
+async fn holds_a_subagents_notification_while_a_command_it_started_runs_and_answers_once_body() {
     let call = "toolu_01WspFixOw1";
     let sid = "21921000-0000-4aaa-8bbb-000000000008";
     let report = "The background command `sleep 3; echo hi` ran with run_in_background: true and completed with exit code 0. It printed: hi";
@@ -994,6 +1118,10 @@ async fn holds_a_subagents_notification_while_a_command_it_started_runs_and_answ
 // TS: adapter.test.ts:717
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn leaves_a_background_command_alone_in_auto_mode() {
+    tokio::task::LocalSet::new().run_until(leaves_a_background_command_alone_in_auto_mode_body()).await
+}
+
+async fn leaves_a_background_command_alone_in_auto_mode_body() {
     let call = "toolu_01WspFixBc1";
     let recorded_lines = recorded("background-command-auto.jsonl");
     let woken = recorded_lines.iter().enumerate().position(|(i, line)| i > 1 && serde_json::from_str::<Value>(line).unwrap()["subtype"] == "init").expect("a second init");
@@ -1020,6 +1148,10 @@ async fn leaves_a_background_command_alone_in_auto_mode() {
 // TS: adapter.test.ts:732
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn answers_a_launch_the_default_mode_waited_on_with_the_bare_report() {
+    tokio::task::LocalSet::new().run_until(answers_a_launch_the_default_mode_waited_on_with_the_bare_report_body()).await
+}
+
+async fn answers_a_launch_the_default_mode_waited_on_with_the_bare_report_body() {
     let call = "toolu_01WspFixPf1";
     let events = replay(recorded("subagent-bypass-foreground.jsonl")).await;
     assert_eq!(answers(&events, call), vec![answer("21921000-0000-4aaa-8bbb-000000000007", call, PLAIN_FG)]);
@@ -1028,6 +1160,10 @@ async fn answers_a_launch_the_default_mode_waited_on_with_the_bare_report() {
 // TS: adapter.test.ts:739
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn ends_a_backgrounded_subagent_of_the_default_mode_on_its_report() {
+    tokio::task::LocalSet::new().run_until(ends_a_backgrounded_subagent_of_the_default_mode_on_its_report_body()).await
+}
+
+async fn ends_a_backgrounded_subagent_of_the_default_mode_on_its_report_body() {
     let call = "toolu_01WspFixPb1";
     let events = replay(recorded("subagent-bypass-background.jsonl")).await;
     assert_eq!(not_internal(answers(&events, call)), vec![answer("21921000-0000-4aaa-8bbb-000000000006", call, BG_REPORT)]);
@@ -1039,6 +1175,10 @@ async fn ends_a_backgrounded_subagent_of_the_default_mode_on_its_report() {
 // TS: adapter.test.ts:747
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn forwards_init_slash_commands_permission_mode_and_agents_as_harness() {
+    tokio::task::LocalSet::new().run_until(forwards_init_slash_commands_permission_mode_and_agents_as_harness_body()).await
+}
+
+async fn forwards_init_slash_commands_permission_mode_and_agents_as_harness_body() {
     let (_, events) = run_lines(stream_lines(), "write a hello world server").await;
     match &events[0] {
         AdapterEvent::SessionStart { harness, .. } => assert_eq!(
@@ -1052,6 +1192,10 @@ async fn forwards_init_slash_commands_permission_mode_and_agents_as_harness() {
 // TS: adapter.test.ts:763
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn leaves_harness_unset_when_init_carries_none_of_its_fields() {
+    tokio::task::LocalSet::new().run_until(leaves_harness_unset_when_init_carries_none_of_its_fields_body()).await
+}
+
+async fn leaves_harness_unset_when_init_carries_none_of_its_fields_body() {
     let (_, events) = run_lines(vec![init_line()], "x").await;
     match &events[0] {
         AdapterEvent::SessionStart { harness, .. } => assert_eq!(harness, &None),
@@ -1063,6 +1207,10 @@ async fn leaves_harness_unset_when_init_carries_none_of_its_fields() {
 // TS: adapter.test.ts:777
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn spawns_with_the_landmine_safe_command_and_env() {
+    tokio::task::LocalSet::new().run_until(spawns_with_the_landmine_safe_command_and_env_body()).await
+}
+
+async fn spawns_with_the_landmine_safe_command_and_env_body() {
     let exec = FakeExec::scripted(stream_lines(), StreamOpts::default());
     let mut deps = AdapterDeps::new(exec.clone(), CONFIG_DIR);
     deps.base_env = Some(guest_env_with(&[("CLAUDECODE", "1"), ("CLAUDE_CODE_ENTRYPOINT", "cli"), ("PATH", "/usr/bin"), ("HOME", "/Users/z")]));
@@ -1088,10 +1236,14 @@ async fn spawns_with_the_landmine_safe_command_and_env() {
 // TS: adapter.test.ts:807
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn with_prompt_after_starts_the_cli_at_once_and_holds_the_seed() {
+    tokio::task::LocalSet::new().run_until(with_prompt_after_starts_the_cli_at_once_and_holds_the_seed_body()).await
+}
+
+async fn with_prompt_after_starts_the_cli_at_once_and_holds_the_seed_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = adapter_for(&exec);
     let (release, released) = futures::channel::oneshot::channel::<()>();
-    let prompt_after = async move { released.await.map_err(|e| e.to_string()) }.boxed();
+    let prompt_after = async move { released.await.map_err(|e| e.to_string()) }.boxed_local();
     let session = adapter.start(HarnessStartOptions { prompt_after: Some(prompt_after), ..go("say ok", noop()) }).unwrap();
     assert_eq!(exec.calls()[0].input, Some(vec![user_message_line("say ok", &session.local_id(), &[], None)]));
     let held = exec.held.lock().unwrap().pop().expect("the launch held a seed");
@@ -1108,6 +1260,10 @@ async fn with_prompt_after_starts_the_cli_at_once_and_holds_the_seed() {
 // TS: adapter.test.ts:822
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn on_a_persons_own_computer_exports_no_config_dir_and_no_sandbox_flag() {
+    tokio::task::LocalSet::new().run_until(on_a_persons_own_computer_exports_no_config_dir_and_no_sandbox_flag_body()).await
+}
+
+async fn on_a_persons_own_computer_exports_no_config_dir_and_no_sandbox_flag_body() {
     let exec = FakeExec::scripted(stream_lines(), StreamOpts::default());
     let mut deps = AdapterDeps::new(exec.clone(), "/Users/z/.claude");
     deps.base_env = Some(base_env(&[("PATH", "/usr/bin"), ("HOME", "/Users/z")]));
@@ -1139,6 +1295,10 @@ fn refuses_a_relative_config_dir() {
 // TS: adapter.test.ts:846
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn on_a_persons_own_computer_whose_shell_names_a_store_exports_theirs() {
+    tokio::task::LocalSet::new().run_until(on_a_persons_own_computer_whose_shell_names_a_store_exports_theirs_body()).await
+}
+
+async fn on_a_persons_own_computer_whose_shell_names_a_store_exports_theirs_body() {
     let exec = FakeExec::scripted(stream_lines(), StreamOpts::default());
     let mut deps = AdapterDeps::new(exec.clone(), "/Users/z/elsewhere");
     deps.base_env = Some(base_env(&[("PATH", "/usr/bin"), ("HOME", "/Users/z"), ("CLAUDE_CONFIG_DIR", "/Users/z/elsewhere")]));
@@ -1151,6 +1311,10 @@ async fn on_a_persons_own_computer_whose_shell_names_a_store_exports_theirs() {
 // TS: adapter.test.ts:855
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn starts_claude_in_the_guest_home_unless_a_cwd_is_named() {
+    tokio::task::LocalSet::new().run_until(starts_claude_in_the_guest_home_unless_a_cwd_is_named_body()).await
+}
+
+async fn starts_claude_in_the_guest_home_unless_a_cwd_is_named_body() {
     let exec = FakeExec::scripted(stream_lines(), StreamOpts::default());
     let adapter = adapter_for(&exec);
     adapter.start(go("say ok", noop())).unwrap().finished().await;
@@ -1163,6 +1327,10 @@ async fn starts_claude_in_the_guest_home_unless_a_cwd_is_named() {
 // TS: adapter.test.ts:867
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn self_generates_the_session_uuid_and_registers_the_session_before_any_output() {
+    tokio::task::LocalSet::new().run_until(self_generates_the_session_uuid_and_registers_the_session_before_any_output_body()).await
+}
+
+async fn self_generates_the_session_uuid_and_registers_the_session_before_any_output_body() {
     let exec = FakeExec::scripted(stream_lines(), StreamOpts::default());
     let adapter = adapter_for(&exec);
     let session = adapter.start(go("say ok", noop())).unwrap();
@@ -1175,6 +1343,10 @@ async fn self_generates_the_session_uuid_and_registers_the_session_before_any_ou
 // TS: adapter.test.ts:878
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn resumes_with_the_prior_session_id_as_the_registry_key() {
+    tokio::task::LocalSet::new().run_until(resumes_with_the_prior_session_id_as_the_registry_key_body()).await
+}
+
+async fn resumes_with_the_prior_session_id_as_the_registry_key_body() {
     let exec = FakeExec::scripted(stream_lines(), StreamOpts::default());
     let adapter = adapter_for(&exec);
     let session = adapter.start(HarnessStartOptions { resume: Some(SID.into()), ..go("next turn", noop()) }).unwrap();
@@ -1189,6 +1361,10 @@ async fn resumes_with_the_prior_session_id_as_the_registry_key() {
 // TS: adapter.test.ts:892
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn escalates_to_kill_when_teardown_does_not_end_the_process() {
+    tokio::task::LocalSet::new().run_until(escalates_to_kill_when_teardown_does_not_end_the_process_body()).await
+}
+
+async fn escalates_to_kill_when_teardown_does_not_end_the_process_body() {
     let exec = FakeExec::scripted(vec![init_line()], StreamOpts { hang: true, ..Default::default() });
     let mut deps = AdapterDeps::new(exec.clone(), CONFIG_DIR);
     deps.interrupt_grace_ms = Some(15);
@@ -1211,6 +1387,10 @@ async fn escalates_to_kill_when_teardown_does_not_end_the_process() {
 // TS: adapter.test.ts:914
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn does_not_kill_when_teardown_ends_the_process_within_the_grace_window() {
+    tokio::task::LocalSet::new().run_until(does_not_kill_when_teardown_ends_the_process_within_the_grace_window_body()).await
+}
+
+async fn does_not_kill_when_teardown_ends_the_process_within_the_grace_window_body() {
     let exec = FakeExec::scripted(stream_lines(), StreamOpts::default());
     let mut deps = AdapterDeps::new(exec.clone(), CONFIG_DIR);
     deps.interrupt_grace_ms = Some(5_000);
@@ -1226,6 +1406,10 @@ async fn does_not_kill_when_teardown_ends_the_process_within_the_grace_window() 
 // TS: adapter.test.ts:935
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_cli_that_does_not_go_on_the_eof_is_ended_with_its_tree() {
+    tokio::task::LocalSet::new().run_until(a_cli_that_does_not_go_on_the_eof_is_ended_with_its_tree_body()).await
+}
+
+async fn a_cli_that_does_not_go_on_the_eof_is_ended_with_its_tree_body() {
     let exec = FakeExec::manual(StreamOpts { slow_teardown: true, ..Default::default() });
     let mut deps = AdapterDeps::new(exec.clone(), CONFIG_DIR);
     deps.result_exit_ms = Some(15);
@@ -1248,6 +1432,10 @@ async fn a_cli_that_does_not_go_on_the_eof_is_ended_with_its_tree() {
 // TS: adapter.test.ts:950
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_cli_that_goes_on_its_own_is_left_alone() {
+    tokio::task::LocalSet::new().run_until(a_cli_that_goes_on_its_own_is_left_alone_body()).await
+}
+
+async fn a_cli_that_goes_on_its_own_is_left_alone_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let mut deps = AdapterDeps::new(exec.clone(), CONFIG_DIR);
     deps.result_exit_ms = Some(15);
@@ -1277,6 +1465,10 @@ fn declares_that_its_sessions_take_a_message_mid_turn() {
 // TS: adapter.test.ts:975
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn before_init_a_steer_waits_for_it_and_writes_under_the_session_it_names() {
+    tokio::task::LocalSet::new().run_until(before_init_a_steer_waits_for_it_and_writes_under_the_session_it_names_body()).await
+}
+
+async fn before_init_a_steer_waits_for_it_and_writes_under_the_session_it_names_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = adapter_for(&exec);
     let session = adapter.start(go("go", noop())).unwrap();
@@ -1297,6 +1489,10 @@ async fn before_init_a_steer_waits_for_it_and_writes_under_the_session_it_names(
 // TS: adapter.test.ts:993
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn before_init_on_a_cli_that_exits_without_one_answers_not_running() {
+    tokio::task::LocalSet::new().run_until(before_init_on_a_cli_that_exits_without_one_answers_not_running_body()).await
+}
+
+async fn before_init_on_a_cli_that_exits_without_one_answers_not_running_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = adapter_for(&exec);
     let session = adapter.start(go("go", noop())).unwrap();
@@ -1310,6 +1506,10 @@ async fn before_init_on_a_cli_that_exits_without_one_answers_not_running() {
 // TS: adapter.test.ts:1004
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn before_init_at_a_stop_on_a_cli_whose_stream_does_not_end_answers_not_running() {
+    tokio::task::LocalSet::new().run_until(before_init_at_a_stop_on_a_cli_whose_stream_does_not_end_answers_not_running_body()).await
+}
+
+async fn before_init_at_a_stop_on_a_cli_whose_stream_does_not_end_answers_not_running_body() {
     let exec = FakeExec::manual(StreamOpts { slow_teardown: true, ..Default::default() });
     let mut deps = AdapterDeps::new(exec.clone(), CONFIG_DIR);
     deps.interrupt_grace_ms = Some(60_000);
@@ -1317,7 +1517,7 @@ async fn before_init_at_a_stop_on_a_cli_whose_stream_does_not_end_answers_not_ru
     let session = adapter.start(go("go", noop())).unwrap();
     let steer = steering(&session, "also this");
     let stopper = session.clone();
-    let _interrupting = tokio::spawn(async move { stopper.interrupt().await });
+    let _interrupting = tokio::task::spawn_local(async move { stopper.interrupt().await });
     pause(50).await;
     assert_eq!(steer.answer(), Some(SteerOutcome::NotRunning));
     assert_eq!(exec.writes(), Vec::<String>::new());
@@ -1329,6 +1529,10 @@ async fn before_init_at_a_stop_on_a_cli_whose_stream_does_not_end_answers_not_ru
 // TS: adapter.test.ts:1019
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn before_init_on_a_cli_that_stays_silent_past_the_bound_answers_not_running() {
+    tokio::task::LocalSet::new().run_until(before_init_on_a_cli_that_stays_silent_past_the_bound_answers_not_running_body()).await
+}
+
+async fn before_init_on_a_cli_that_stays_silent_past_the_bound_answers_not_running_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let mut deps = AdapterDeps::new(exec.clone(), CONFIG_DIR);
     deps.steer_join_ms = Some(100);
@@ -1346,6 +1550,10 @@ async fn before_init_on_a_cli_that_stays_silent_past_the_bound_answers_not_runni
 // TS: adapter.test.ts:1034
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn between_init_and_result_writes_one_user_line_and_answers_accepted() {
+    tokio::task::LocalSet::new().run_until(between_init_and_result_writes_one_user_line_and_answers_accepted_body()).await
+}
+
+async fn between_init_and_result_writes_one_user_line_and_answers_accepted_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = adapter_for(&exec);
     let (events, on_event) = collect();
@@ -1365,6 +1573,10 @@ async fn between_init_and_result_writes_one_user_line_and_answers_accepted() {
 // TS: adapter.test.ts:1049
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn carries_a_steered_messages_images_as_base64_blocks_ahead_of_its_words() {
+    tokio::task::LocalSet::new().run_until(carries_a_steered_messages_images_as_base64_blocks_ahead_of_its_words_body()).await
+}
+
+async fn carries_a_steered_messages_images_as_base64_blocks_ahead_of_its_words_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = adapter_for(&exec);
     assert!(wsp_adapters::port::HarnessAdapter::steers_images(&adapter));
@@ -1387,6 +1599,10 @@ async fn carries_a_steered_messages_images_as_base64_blocks_ahead_of_its_words()
 // TS: adapter.test.ts:1068
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn after_result_answers_not_running_and_result_closed_the_channel_once() {
+    tokio::task::LocalSet::new().run_until(after_result_answers_not_running_and_result_closed_the_channel_once_body()).await
+}
+
+async fn after_result_answers_not_running_and_result_closed_the_channel_once_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = adapter_for(&exec);
     let (events, on_event) = collect();
@@ -1405,6 +1621,10 @@ async fn after_result_answers_not_running_and_result_closed_the_channel_once() {
 // TS: adapter.test.ts:1084
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn after_the_process_exited_without_a_result_answers_not_running() {
+    tokio::task::LocalSet::new().run_until(after_the_process_exited_without_a_result_answers_not_running_body()).await
+}
+
+async fn after_the_process_exited_without_a_result_answers_not_running_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = adapter_for(&exec);
     let session = adapter.start(go("go", noop())).unwrap();
@@ -1418,6 +1638,10 @@ async fn after_the_process_exited_without_a_result_answers_not_running() {
 // TS: adapter.test.ts:1095
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn when_the_guest_says_the_process_is_already_gone_answers_not_running_and_no_line_landed() {
+    tokio::task::LocalSet::new().run_until(when_the_guest_says_the_process_is_already_gone_answers_not_running_and_no_line_landed_body()).await
+}
+
+async fn when_the_guest_says_the_process_is_already_gone_answers_not_running_and_no_line_landed_body() {
     let exec = FakeExec::manual(StreamOpts { gone: true, ..Default::default() });
     let adapter = adapter_for(&exec);
     let (events, on_event) = collect();
@@ -1434,6 +1658,10 @@ async fn when_the_guest_says_the_process_is_already_gone_answers_not_running_and
 // TS: adapter.test.ts:1109
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn once_interrupt_was_asked_answers_not_running_and_writes_nothing() {
+    tokio::task::LocalSet::new().run_until(once_interrupt_was_asked_answers_not_running_and_writes_nothing_body()).await
+}
+
+async fn once_interrupt_was_asked_answers_not_running_and_writes_nothing_body() {
     let exec = FakeExec::manual(StreamOpts { slow_teardown: true, ..Default::default() });
     let mut deps = AdapterDeps::new(exec.clone(), CONFIG_DIR);
     deps.interrupt_grace_ms = Some(30);
@@ -1443,7 +1671,7 @@ async fn once_interrupt_was_asked_answers_not_running_and_writes_nothing() {
     exec.push(init_line());
     until(|| seen(&events, "session.start")).await;
     let stopper = session.clone();
-    let interrupting = tokio::spawn(async move { stopper.interrupt().await });
+    let interrupting = tokio::task::spawn_local(async move { stopper.interrupt().await });
     until(|| exec.order() == vec!["teardown"]).await;
     assert_eq!(session.steer("into a stopping turn", None, vec![]).await.unwrap(), SteerOutcome::NotRunning);
     assert_eq!(exec.writes(), Vec::<String>::new());
@@ -1455,10 +1683,14 @@ async fn once_interrupt_was_asked_answers_not_running_and_writes_nothing() {
 // TS: adapter.test.ts:1125
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_write_that_lands_after_the_turn_ended_answers_not_running() {
+    tokio::task::LocalSet::new().run_until(a_write_that_lands_after_the_turn_ended_answers_not_running_body()).await
+}
+
+async fn a_write_that_lands_after_the_turn_ended_answers_not_running_body() {
     let (events, on_event) = collect();
     let feed: Arc<Mutex<Option<Arc<FakeExec>>>> = Default::default();
     let (feed_in, events_in) = (feed.clone(), events.clone());
-    let before_write: Arc<dyn Fn() -> BoxFuture<'static, ()> + Send + Sync> = Arc::new(move || {
+    let before_write: Arc<dyn Fn() -> LocalBoxFuture<'static, ()>> = Arc::new(move || {
         let (feed, events) = (feed_in.clone(), events_in.clone());
         async move {
             let turn_ends = feed.lock().unwrap().clone();
@@ -1467,7 +1699,7 @@ async fn a_write_that_lands_after_the_turn_ended_answers_not_running() {
             }
             until(|| seen(&events, "turn.done")).await;
         }
-        .boxed()
+        .boxed_local()
     });
     let exec = FakeExec::manual(StreamOpts { before_write: Some(before_write), ..Default::default() });
     let adapter = adapter_for(&exec);
@@ -1486,10 +1718,14 @@ async fn a_write_that_lands_after_the_turn_ended_answers_not_running() {
 // TS: adapter.test.ts:1145
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_result_read_while_a_steers_write_travels_does_not_end_the_turn_under_it() {
+    tokio::task::LocalSet::new().run_until(a_result_read_while_a_steers_write_travels_does_not_end_the_turn_under_it_body()).await
+}
+
+async fn a_result_read_while_a_steers_write_travels_does_not_end_the_turn_under_it_body() {
     let (events, on_event) = collect();
     let feed: Arc<Mutex<Option<Arc<FakeExec>>>> = Default::default();
     let feed_in = feed.clone();
-    let before_write: Arc<dyn Fn() -> BoxFuture<'static, ()> + Send + Sync> = Arc::new(move || {
+    let before_write: Arc<dyn Fn() -> LocalBoxFuture<'static, ()>> = Arc::new(move || {
         let feed = feed_in.clone();
         async move {
             let result_lands = feed.lock().unwrap().clone();
@@ -1498,7 +1734,7 @@ async fn a_result_read_while_a_steers_write_travels_does_not_end_the_turn_under_
             }
             pause(20).await;
         }
-        .boxed()
+        .boxed_local()
     });
     let exec = FakeExec::manual(StreamOpts { before_write: Some(before_write), ..Default::default() });
     let mut deps = AdapterDeps::new(exec.clone(), CONFIG_DIR);
@@ -1527,13 +1763,17 @@ async fn a_result_read_while_a_steers_write_travels_does_not_end_the_turn_under_
 // TS: adapter.test.ts:1171
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn emits_the_reply_at_the_result_but_leaves_the_turn_open_until_the_process_exits() {
+    tokio::task::LocalSet::new().run_until(emits_the_reply_at_the_result_but_leaves_the_turn_open_until_the_process_exits_body()).await
+}
+
+async fn emits_the_reply_at_the_result_but_leaves_the_turn_open_until_the_process_exits_body() {
     let m = FakeExec::manual(StreamOpts::default());
     let adapter = adapter_for(&m);
     let (events, on_event) = collect();
     let session = adapter.start(go("x", on_event)).unwrap();
     let settled = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let (flag, finished) = (settled.clone(), session.finished());
-    tokio::spawn(async move {
+    tokio::task::spawn_local(async move {
         finished.await;
         flag.store(true, std::sync::atomic::Ordering::SeqCst);
     });
