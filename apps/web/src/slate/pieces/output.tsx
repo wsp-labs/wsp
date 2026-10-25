@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// A run's output summary first (#2468): a row of the card with its label and its state as one word, a quiet Cancel in
+// A run's output summary first: a row of the card with its label and its state as one word, a quiet Cancel in
 // the slot while it runs, then what passed and failed as the runner tallied it and the lines that name a failure, or
 // the last line where no tally reads; the raw lines fold under "All N lines", `lines` rows tall once open, following
 // the end while it runs. Why under them when held or failed.
@@ -109,7 +109,7 @@ export const output: PieceView = {
         )}
         {result !== undefined || lines.length === 0 ? null : (
           <div className={cn("flex min-w-0 flex-col py-1.5", inset)}>
-            <button type="button" data-slate-fold={run} aria-expanded={unfolded} onClick={() => setUnfolded(open => !open)} className="-mx-1 inline-flex h-7 items-center gap-1 self-start rounded-md px-1 text-[13px] leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+            <button type="button" data-slate-fold={run} aria-expanded={unfolded} onClick={() => setUnfolded(open => !open)} className="-mx-1 inline-flex h-7 items-center gap-1 self-start rounded-md px-1 text-xs leading-4 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
               <ChevronRight aria-hidden className={cn("size-3.5 shrink-0 transition-transform duration-150 motion-reduce:transition-none", unfolded && "rotate-90")} />
               {`All ${lines.length.toLocaleString("en-US")} line${lines.length === 1 ? "" : "s"}`}
             </button>

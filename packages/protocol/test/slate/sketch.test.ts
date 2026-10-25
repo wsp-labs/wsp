@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseSlate, runSlateBatch, sketchSlate, slateCatalog, slateStartValues, slateTokens, SLATE_EXAMPLES, SLATE_LIMITS, SLATE_PIECES, SLATE_SOURCES, type SlateDoc, type SlateJson } from "../../src/slate/index.js";
-import { SLATE_INDEX_EXAMPLE, SLATE_LOOK_RULE, slateTakesFigures } from "../../src/slate/catalog.js";
+import { SLATE_INDEX_EXAMPLE, slateTakesFigures } from "../../src/slate/catalog.js";
 import { SLATE_PURPOSE } from "../../src/wsp-tools.js";
 import { SPEC_EXAMPLES } from "./examples.js";
 
@@ -99,11 +99,13 @@ describe("the sketch", () => {
 
 describe("the catalog", () => {
   it("keeps the index under its budget and its example valid", () => {
-    // With the look step #2065 adds as one more rule, the index still fits.
+    // With the frame's look step as rule 13 and its clause on the pick line, worded as the frame's branch has them, the
+    // index still fits.
+    const look = "Look once with slate_look after writing a frame or a large change, never after each patch.";
     const tokens = slateTokens(slateCatalog());
-    const withLook = tokens + slateTokens(`14. ${SLATE_LOOK_RULE}`) + 1;
-    console.log(`catalog index: ${tokens} tokens; with the look rule: ${withLook}; budget ${SLATE_LIMITS.catalogIndexTokens}`);
-    expect(withLook).toBeLessThan(SLATE_LIMITS.catalogIndexTokens);
+    const withFrame = tokens + slateTokens(`\n13. ${look}`) + slateTokens("; what no piece draws, a frame: an .html file you wrote");
+    console.log(`catalog index: ${tokens} tokens; with the frame's look rule and clause: ${withFrame}; budget ${SLATE_LIMITS.catalogIndexTokens}`);
+    expect(withFrame).toBeLessThan(SLATE_LIMITS.catalogIndexTokens);
     expect(slateCatalog().startsWith(SLATE_PURPOSE)).toBe(true);
     for (const said of ["short labels, no emoji.", "in sentence case, never bold text.", "Show a run's json fields, never its raw out; times through date(), time() or ago()."]) expect(slateCatalog(), said).toContain(said);
     expect(slateCatalog()).toContain("One in a file stays there for the run to read, never you.");

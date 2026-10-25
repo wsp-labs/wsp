@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The output piece reads summary first (#2468): what passed and failed, the lines that failed, the raw lines folded.
+// The output piece reads summary first: what passed and failed, the lines that failed, the raw lines folded.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanup, fireEvent, render } from "@testing-library/react";
@@ -29,7 +29,7 @@ describe("the output piece", () => {
     const counts = [...c.querySelectorAll<HTMLElement>("[data-slate-count]")];
     expect(counts.map(n => n.textContent)).toEqual(["1 failed", "1 passed", "1 skipped"]);
     expect(counts[0]!.className).toContain("text-error-foreground");
-    expect(c.querySelector("[data-slate-matters]")!.textContent).toContain("× checkout > rounds a refund 7ms");
+    expect(c.querySelector("[data-slate-matters]")!.textContent).toContain("FAIL |node|  src/checkout.test.ts > checkout > rounds a refund");
     expect(c.querySelector("[role=log]")).toBeNull();
     const fold = c.querySelector<HTMLButtonElement>("[data-slate-fold]")!;
     expect(fold.getAttribute("aria-expanded")).toBe("false");

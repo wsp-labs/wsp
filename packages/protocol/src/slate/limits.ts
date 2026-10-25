@@ -27,6 +27,7 @@ export const SLATE_LIMITS = {
   pipelineSteps: 12,
   evalSteps: 20_000,
   listItems: 5_000,
+  rowsDrawn: 200,
   imagesPerList: 60,
   pipelineVisits: 100_000,
   columns: 8,
@@ -44,7 +45,7 @@ export const SLATE_LIMITS = {
   catalogEntryTokens: 200,
 } as const;
 
-/** What a slate read at a glance holds at most (#2439): past each, the sketch warns the agent. */
+/** What a slate read at a glance holds at most: past each, the sketch warns the agent. */
 export const SLATE_GLANCE = {
   sectionsOpen: 4,
   tablesOpen: 1,
