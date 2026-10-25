@@ -9,6 +9,7 @@ use sha2::{Digest, Sha256};
 use unicode_normalization::UnicodeNormalization;
 use wsp_catalog::catalog::{login_row, login_rows, EntryKind};
 use wsp_catalog::hooks::CLAUDE_SETTINGS_FILE;
+use wsp_catalog::json_parse::parse_json;
 use wsp_catalog::signin::{lives_on_computer, mints_token};
 use wsp_catalog::signin_rows::SIGN_IN_ROWS;
 use wsp_words::js::js_trim;
@@ -130,7 +131,7 @@ pub fn claude_keychain_service(config_dir: Option<&str>) -> String {
 
 /// The apiKeyHelper command a settings.json names, when it parses and has one.
 pub fn api_key_helper_of(text: Option<&str>) -> Option<String> {
-    let parsed: Value = serde_json::from_str(text?).ok()?;
+    let parsed: Value = parse_json(text?).ok()?;
     let helper = parsed.get("apiKeyHelper")?.as_str()?;
     (!js_trim(helper).is_empty()).then(|| helper.to_string())
 }
@@ -163,7 +164,7 @@ async fn keychain_has(host: &Host, service: &str) -> bool {
 /// Whether Claude Code's credentials file holds its own login: a non-empty claudeAiOauth access token. The same file
 /// keeps MCP servers' OAuth tokens, and one holding only those is no login. The value is never kept.
 pub fn holds_claude_login(text: Option<&str>) -> bool {
-    let Some(parsed) = text.and_then(|t| serde_json::from_str::<Value>(t).ok()) else { return false };
+    let Some(parsed) = text.and_then(|t| parse_json(t).ok()) else { return false };
     parsed.get("claudeAiOauth").and_then(|o| o.get("accessToken")).and_then(Value::as_str).is_some_and(|t| !t.is_empty())
 }
 
