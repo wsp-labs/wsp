@@ -329,6 +329,7 @@ impl AddComputer {
         .into_iter()
         .map(|(list, own)| (list, cx.new(|cx| PickListState::new(own, window, cx))))
         .collect();
+        let prefs = crate::prefs::store(cx);
         let subs = vec![
             cx.subscribe(&address, |_, _, e: &InputEvent, cx| {
                 if matches!(e, InputEvent::Change) {
@@ -348,6 +349,12 @@ impl AddComputer {
             cx.subscribe_in(&sudo, window, |this, _, e: &InputEvent, window, cx| {
                 if matches!(e, InputEvent::PressEnter { .. }) && !this.sudo.read(cx).value().is_empty() {
                     this.try_again(window, cx);
+                }
+            }),
+            cx.observe(&prefs, |this, store, cx| {
+                if let Some(shown) = store.read(cx).record() {
+                    this.preferences = shown.clone();
+                    cx.notify();
                 }
             }),
         ];
@@ -377,7 +384,7 @@ impl AddComputer {
             places: Vec::new(),
             recipes: Vec::new(),
             projects: Vec::new(),
-            preferences: json!({}),
+            preferences: crate::prefs::record(cx).cloned().unwrap_or_else(|| json!({})),
             added: Vec::new(),
             logs: None,
             turned: HashMap::new(),
@@ -451,6 +458,11 @@ impl AddComputer {
         true
     }
 
+    /// How the person dressed each project (`projectLook`), as the app's store shows it.
+    pub(crate) fn project_look(&self) -> Value {
+        self.preferences.get("projectLook").cloned().unwrap_or_else(|| json!({}))
+    }
+
     /// The reads every open makes, and the host's pushes followed while the dialog stands.
     fn start(&mut self, setup: Option<String>, cx: &mut Context<Self>) {
         if let Some(id) = setup {
@@ -473,9 +485,10 @@ impl AddComputer {
             self.call(op, cx, |this, r, cx| this.take_hosts(model::hosts_read(r.map(|h| h.hosts.iter().map(value).collect())), cx));
         }
         if let Ok(op) = ask::<PreferencesGetRequest>(json!({})) {
-            self.call(op, cx, |this, r, _| {
+            self.call(op, cx, |this, r, cx| {
                 if let Ok(r) = r {
-                    this.preferences = value(&r.preferences);
+                    crate::prefs::land(value(&r.preferences), cx);
+                    this.preferences = crate::prefs::record(cx).cloned().unwrap_or_default();
                 }
             });
         }
@@ -966,8 +979,7 @@ impl AddComputer {
         let Some(options) = self.options.clone() else { return };
         if self.step.picks() && self.from == "here" && self.saves == 0 && model::empty(self.picks.as_ref()) {
             let name = self.picks.as_ref().and_then(|p| str_of(p, "name")).map(str::to_owned).unwrap_or_else(|| self.box_name(cx));
-            let all =
-                choices::everything(&name, &options, &self.here_projects(), self.preferences.get("projectLook").unwrap_or(&json!({})));
+            let all = choices::everything(&name, &options, &self.here_projects(), &self.project_look());
             self.set_picks(all, None, cx);
         }
         if let Some(picks) = &self.picks {

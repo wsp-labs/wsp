@@ -464,7 +464,9 @@ impl Composer {
         let field = cx.new(|cx| field::Field::new(editor.clone(), this, line_width.clone(), cx));
         let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search models..."));
         let dock_field = cx.new(|cx| InputState::new(window, cx));
+        let prefs = crate::prefs::store(cx);
         let subscriptions = vec![
+            cx.observe(&prefs, |this, prefs, cx| this.follow_preferences(prefs.read(cx).record().cloned(), cx)),
             cx.subscribe(&dock_field, |this, field, event: &InputEvent, cx| {
                 if matches!(event, InputEvent::Change) {
                     this.on_dock_field(&field, cx);
@@ -573,6 +575,9 @@ impl Composer {
         };
         if let Some(sidebar) = crate::screens::terminal::workspaces_sidebar(cx) {
             composer.watch(&sidebar, cx);
+        }
+        if let Some(record) = crate::prefs::record(cx) {
+            (composer.steer_preferred, composer.send_with_mod) = link::followed(record);
         }
         composer
     }

@@ -450,6 +450,24 @@ pub fn start(state: PathBuf, env: Env, runtime: Arc<Runtime>, reopen: Rc<dyn Fn(
     notify::init(reopen, cx);
     cx.set_global(Desk { state, env, runtime, feed: None, fed: None, begun: 0, draw });
     cx.observe_new::<Shell>(|_, _, cx| cx.defer(begin)).detach();
+    let store = crate::prefs::store(cx);
+    cx.observe(&store, |_, cx| {
+        let Some(mut fed) = cx.global::<Desk>().fed.clone() else { return };
+        if switched(&mut fed, cx) {
+            awake::hold(fed.awake(), cx);
+            cx.global_mut::<Desk>().fed = Some(fed);
+        }
+    })
+    .detach();
+}
+
+/// The switches as the app's store shows them, a write still out over the host's record, where it holds one; whether
+/// they moved.
+pub(crate) fn switched(fed: &mut FeedState, cx: &App) -> bool {
+    let Some(shown) = crate::prefs::record(cx).map(Prefs::of) else { return false };
+    let moved = fed.prefs != shown;
+    fed.prefs = shown;
+    moved
 }
 
 fn begin(cx: &mut App) {
@@ -498,7 +516,8 @@ pub fn follow_window(cx: &mut App) {
 
 fn took(fed: Fed, cx: &mut App) {
     match fed {
-        Fed::State(state) => {
+        Fed::State(mut state) => {
+            switched(&mut state, cx);
             awake::hold(state.awake(), cx);
             let draw = cx.global::<Desk>().draw.clone();
             draw(&state.tray(), cx);

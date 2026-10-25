@@ -357,6 +357,7 @@ impl Sidebar {
             }
         });
         cx.observe_global::<crate::update::Updates>(|_, cx| cx.notify()).detach();
+        Self::follow_store(cx);
         let (kept_sections, kept_setting_up) = model::stored_folds(cx.try_global::<LocalStore>());
         Sidebar {
             items: Vec::new(),
@@ -649,7 +650,8 @@ impl Sidebar {
     pub fn apply(&mut self, change: Change, cx: &mut Context<Self>) {
         match change {
             Change::Whole(snapshot) => {
-                self.take(*snapshot);
+                let preferences = self.take(*snapshot);
+                self.land_preferences(preferences, cx);
                 self.read_whole(cx);
                 self.update_in_background(cx);
             }
@@ -672,7 +674,7 @@ impl Sidebar {
                 }
             }
             Change::Preferences(p) => {
-                self.take_preferences(p);
+                self.land_preferences(p, cx);
                 self.update_in_background(cx);
             }
             Change::Places(places) => self.around.places = places,
@@ -905,7 +907,8 @@ impl Sidebar {
         .detach();
     }
 
-    fn take(&mut self, s: Snapshot) {
+    /// Takes a full read, all but its preferences, which it hands back for the app's store.
+    fn take(&mut self, s: Snapshot) -> Value {
         self.rows = s.sessions;
         self.around.places = s.places;
         self.around.job = s.job.map(Rc::new);
@@ -922,7 +925,30 @@ impl Sidebar {
         self.around.checkouts_asked.clear();
         self.take_workspaces(&s.workspaces);
         self.take_projects(&s.projects);
-        self.take_preferences(s.preferences);
+        s.preferences
+    }
+
+    /// Hands a record heard from the host to the app's store and draws what the store shows, a write still out over it.
+    fn land_preferences(&mut self, p: Value, cx: &mut Context<Self>) {
+        crate::prefs::land(p, cx);
+        if let Some(shown) = crate::prefs::record(cx).cloned() {
+            self.take_preferences(shown);
+        }
+    }
+
+    /// A write another view made, or a record another road heard, moves the store: the list draws it at once.
+    fn follow_store(cx: &mut Context<Self>) {
+        let store = crate::prefs::store(cx);
+        cx.observe(&store, |this, store, cx| {
+            let Some(shown) = store.read(cx).record().cloned() else { return };
+            if this.around.preferences.as_deref() != Some(&shown) {
+                this.take_preferences(shown);
+                this.update_in_background(cx);
+                this.revision += 1;
+                this.refold(cx);
+            }
+        })
+        .detach();
     }
 
     fn take_preferences(&mut self, p: Value) {

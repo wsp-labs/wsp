@@ -114,6 +114,17 @@ impl Composer {
         cx.notify();
     }
 
+    /// `midTurn` and `sendWith` as the app's store shows them, a write still out over the host's record.
+    pub(super) fn follow_preferences(&mut self, record: Option<serde_json::Value>, cx: &mut Context<Self>) {
+        let Some(record) = record else { return };
+        let (steer, mod_enter) = super::link::followed(&record);
+        if (steer, mod_enter) != (self.steer_preferred, self.send_with_mod) {
+            self.steer_preferred = steer;
+            self.send_with_mod = mod_enter;
+            cx.notify();
+        }
+    }
+
     /// A steer the host has answered: taken by the turn, or left to wait for its end.
     pub fn steered(&mut self, taken: bool, cx: &mut Context<Self>) {
         if let Some(id) = self.steering.take() {

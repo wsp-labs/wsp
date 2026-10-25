@@ -633,24 +633,24 @@ impl Link {
         .detach();
     }
 
-    /// The person's choice of what a message sent mid-turn does and of the key that sends (`preferences.get`'s
-    /// `midTurn` and `sendWith`), read once per composer and followed as the host pushes a change.
+    /// The preferences read once per composer and followed as the host pushes a change, handed to the app's store,
+    /// which the composer reads `midTurn` and `sendWith` off.
     fn watch_preferences(&mut self, composer: &Entity<Composer>, cx: &mut Context<Self>) {
         if composer.read(cx).watching.is_some() {
             return;
         }
-        let (tx, mut rx) = mpsc::unbounded::<(bool, bool)>();
+        let (tx, mut rx) = mpsc::unbounded::<protocol::Preferences>();
         // Read again and followed again a second after the socket closes, as the header's watch does.
         let watched = self.host.run(move |host| async move {
             loop {
                 let followed: Result<(), Failure> = async {
                     let mut events = host.events().await?;
                     let read = host.call(request::<protocol::PreferencesGetRequest>(json!({}))?).await?;
-                    tx.unbounded_send(followed(&read.preferences)).map_err(|_| Failure::new("gone"))?;
+                    tx.unbounded_send(read.preferences).map_err(|_| Failure::new("gone"))?;
                     while let Some(event) = events.next().await {
                         if let Ok(Event::Host(event)) = event {
                             if let protocol::EventUnion::PreferencesChanged { preferences, .. } = *event {
-                                tx.unbounded_send(followed(&preferences)).map_err(|_| Failure::new("gone"))?;
+                                tx.unbounded_send(preferences).map_err(|_| Failure::new("gone"))?;
                             }
                         }
                     }
@@ -669,14 +669,11 @@ impl Link {
         let weak = composer.downgrade();
         let task = cx.spawn(async move |_, cx| {
             let receive = async {
-                while let Some((steer, mod_enter)) = rx.next().await {
-                    let set = weak.update(cx, |c, cx| {
-                        c.set_steer_preferred(steer, cx);
-                        c.set_send_with_mod(mod_enter, cx);
-                    });
-                    if set.is_err() {
+                while let Some(preferences) = rx.next().await {
+                    if weak.upgrade().is_none() {
                         break;
                     }
+                    cx.update(|cx| crate::prefs::store(cx).update(cx, |store, cx| store.landed(&preferences, cx)));
                 }
             };
             futures::join!(receive, async { _ = watched.await });
