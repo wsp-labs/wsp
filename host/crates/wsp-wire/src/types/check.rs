@@ -108,9 +108,18 @@ pub enum Zod {
 /// The refinements of one type. A type with none keeps the default, which checks nothing; a struct's check runs the
 /// check of every field whose type has one, in field order, and answers the first issue with the field's key in front
 /// of its path.
-pub trait Check {
+pub trait Check: DeserializeOwned {
     fn check(&self) -> Result<(), SchemaError> {
         Ok(())
+    }
+
+    /// zod's answer for `value` read as this type: every issue, in zod's order, found by the type's schema pass. None
+    /// where the type has no pass, and serde's read and `check` decide.
+    fn pass(_value: &Value) -> Option<Vec<SchemaError>>
+    where
+        Self: Sized,
+    {
+        None
     }
 
     /// What zod calls the value at `path` below this type, or None where the type does not say. A missing key, a wrong
@@ -136,6 +145,11 @@ impl<T: Check> Check for Vec<T> {
         Ok(())
     }
 
+    fn pass(value: &Value) -> Option<Vec<SchemaError>> {
+        let Value::Array(items) = value else { return None };
+        Some(items.iter().enumerate().flat_map(|(i, item)| issues_of::<T>(item).into_iter().map(move |e| e.under(i))).collect())
+    }
+
     fn describe(path: &[Value]) -> Option<Zod> {
         match path.split_first() {
             None => Some(Zod::Word("array")),
@@ -152,12 +166,19 @@ impl<T: Check> Check for Option<T> {
         }
     }
 
+    fn pass(value: &Value) -> Option<Vec<SchemaError>> {
+        if value.is_null() {
+            return Some(Vec::new());
+        }
+        Some(issues_of::<T>(value))
+    }
+
     fn describe(path: &[Value]) -> Option<Zod> {
         T::describe(path)
     }
 }
 
-impl<K: Check + Serialize, V: Check> Check for IndexMap<K, V> {
+impl<K: Check + Serialize + std::hash::Hash + Eq, V: Check> Check for IndexMap<K, V> {
     fn check(&self) -> Result<(), SchemaError> {
         for (k, v) in self {
             let key = serde_json::to_value(k).expect("a map key writes as JSON");
@@ -165,6 +186,16 @@ impl<K: Check + Serialize, V: Check> Check for IndexMap<K, V> {
             v.check().map_err(|e| e.under(key))?;
         }
         Ok(())
+    }
+
+    fn pass(value: &Value) -> Option<Vec<SchemaError>> {
+        let Value::Object(map) = value else { return None };
+        let mut out = Vec::new();
+        for (key, item) in map {
+            out.extend(issues_of::<K>(&Value::String(key.clone())).into_iter().map(|e| e.under(key.as_str())));
+            out.extend(issues_of::<V>(item).into_iter().map(|e| e.under(key.as_str())));
+        }
+        Some(out)
     }
 
     fn describe(path: &[Value]) -> Option<Zod> {
@@ -400,77 +431,118 @@ pub mod double_option_trimmed {
     }
 }
 
-/// zod's `schema.safeParse(value)`: the shape through serde, then the type's check. A serde failure answers code
-/// `invalid_type`, path `[]` and serde's message.
-///
-/// Unknown keys are not one serde error: serde stops at the first, so each one is taken out and the read retried, and
-/// the keys answer as one `unrecognized_keys` at their object's path once nothing else is refused.
+/// zod's `schema.safeParse(value)`: the first issue of `issues_of`, else the value serde reads.
 pub fn parse<T: DeserializeOwned + Check>(value: &Value) -> Result<T, SchemaError> {
-    if let Some(e) = array_at_object::<T>(value, &mut Vec::new()) {
-        return Err(e);
+    read::<T>(value).map_err(|mut issues| issues.remove(0))
+}
+
+/// Every issue zod would find reading `value` as `T`, in zod's order: the type's schema pass, or serde's one error and
+/// then `check`.
+pub fn issues_of<T: DeserializeOwned + Check>(value: &Value) -> Vec<SchemaError> {
+    if let Some(issues) = T::pass(value) {
+        return issues;
     }
-    let mut work = value.clone();
-    let mut unknown: Option<(Vec<Value>, Vec<String>)> = None;
-    loop {
-        match serde_path_to_error::deserialize::<_, T>(&work) {
-            Ok(read) => {
-                read.check()?;
-                return match unknown {
-                    Some((path, keys)) => Err(unrecognized(path, keys)),
-                    None => Ok(read),
-                };
-            }
-            Err(e) => {
-                let mut path = segments(e.path());
-                let msg = e.inner().to_string();
-                let Some(rest) = msg.strip_prefix("unknown field `") else {
-                    return Err(serde_issue::<T>(&msg, path, &work));
-                };
-                let key = rest.split('`').next().unwrap_or_default().to_string();
-                if path.last() == Some(&Value::from(key.as_str())) {
-                    path.pop();
-                }
-                match &mut unknown {
-                    None => unknown = Some((path.clone(), vec![key.clone()])),
-                    Some((at, keys)) if *at == path => keys.push(key.clone()),
-                    Some((at, keys)) => return Err(unrecognized(at.clone(), std::mem::take(keys))),
-                }
-                if !remove(&mut work, &path, &key) {
-                    return Err(serde_issue::<T>(&msg, path, &work));
-                }
-            }
-        }
+    match serde_path_to_error::deserialize::<_, T>(value) {
+        Ok(read) => read.check().err().into_iter().collect(),
+        Err(e) => vec![serde_issue::<T>(&e.inner().to_string(), segments(e.path()), value)],
     }
 }
 
-/// serde's derive reads a struct, and an internally tagged enum, from a JSON array by position; zod reads no array as an
-/// object. Every position `describe` names an object at is checked before serde reads it.
-fn array_at_object<T: Check>(value: &Value, path: &mut Vec<Value>) -> Option<SchemaError> {
-    let object_here = matches!(T::describe(path), Some(Zod::Word("object")) | Some(Zod::Tags(..)));
+/// The value read as `T` when no issue is found, else the issues.
+pub fn read<T: DeserializeOwned + Check>(value: &Value) -> Result<T, Vec<SchemaError>> {
+    let issues = issues_of::<T>(value);
+    if !issues.is_empty() {
+        return Err(issues);
+    }
+    serde_path_to_error::deserialize::<_, T>(value).map_err(|e| vec![serde_issue::<T>(&e.inner().to_string(), segments(e.path()), value)])
+}
+
+/// A field zod reads as `.optional()` alone: a value is read, and `null` is refused.
+pub fn read_present<T: DeserializeOwned + Check>(value: &Value) -> Result<Option<T>, Vec<SchemaError>> {
+    if value.is_null() {
+        return Err(vec![null_issue::<T>()]);
+    }
+    read::<T>(value).map(Some)
+}
+
+/// A field zod reads as `.optional().nullable()`: `null` is `Some(None)`, a value `Some(Some(v))`.
+pub fn read_double<T: DeserializeOwned + Check>(value: &Value) -> Result<Option<Option<T>>, Vec<SchemaError>> {
+    if value.is_null() {
+        return Ok(Some(None));
+    }
+    read::<T>(value).map(|v| Some(Some(v)))
+}
+
+/// A string zod trims as it reads it (`.trim()`), so the value is kept trimmed.
+pub fn read_trimmed(value: &Value) -> Result<String, Vec<SchemaError>> {
     match value {
-        Value::Array(_) if object_here => {
-            let mut detail = IndexMap::new();
-            detail.insert("expected".to_string(), Value::from("object"));
-            detail.insert("received".to_string(), Value::from("array"));
-            Some(SchemaError { code: "invalid_type".into(), path: path.clone(), message: "Expected object, received array".into(), detail })
-        }
-        Value::Object(map) => map.iter().find_map(|(k, child)| {
-            path.push(Value::from(k.as_str()));
-            let found = array_at_object::<T>(child, path);
-            path.pop();
-            found
-        }),
-        Value::Array(items) => items.iter().enumerate().find_map(|(i, child)| {
-            path.push(Value::from(i));
-            let found = array_at_object::<T>(child, path);
-            path.pop();
-            found
-        }),
-        _ => None,
+        Value::String(text) => Ok(js_trim(text).to_string()),
+        other => read::<String>(other),
     }
 }
 
-fn unrecognized(path: Vec<Value>, keys: Vec<String>) -> SchemaError {
+pub fn read_trimmed_opt(value: &Value) -> Result<Option<String>, Vec<SchemaError>> {
+    if value.is_null() {
+        return Ok(None);
+    }
+    read_trimmed(value).map(Some)
+}
+
+pub fn read_double_trimmed(value: &Value) -> Result<Option<Option<String>>, Vec<SchemaError>> {
+    if value.is_null() {
+        return Ok(Some(None));
+    }
+    read_trimmed(value).map(|v| Some(Some(v)))
+}
+
+/// A missing key zod reports at `key` ("Required", or the discriminator or literal words the key's type gives).
+pub fn missing<T: Check>(key: &str) -> SchemaError {
+    serde_issue::<T>(&format!("missing field `{key}`"), Vec::new(), &Value::Null)
+}
+
+/// A `null` where zod's type takes a value: invalid_type with the expected word of `T`.
+pub fn null_issue<T: Check>() -> SchemaError {
+    serde_issue::<T>("invalid type: null, expected a value", Vec::new(), &Value::Null)
+}
+
+/// A JSON value where zod reads an object: invalid_type, "Expected object, received <its word>".
+pub fn not_object(value: &Value) -> SchemaError {
+    let received = received_word(Some(value));
+    let mut detail = IndexMap::new();
+    detail.insert("expected".to_string(), Value::from("object"));
+    detail.insert("received".to_string(), Value::from(received));
+    SchemaError { code: "invalid_type".into(), path: Vec::new(), message: format!("Expected object, received {received}"), detail }
+}
+
+/// A discriminator zod cannot match: invalid_union_discriminator at `key`, with the tags of `T`.
+pub fn unknown_tag<T: Check>(key: &str, value: &Value) -> SchemaError {
+    let text = match value {
+        Value::String(s) => s.clone(),
+        other => other.to_string(),
+    };
+    serde_issue::<T>(&format!("unknown variant `{text}`"), vec![Value::from(key)], value)
+}
+
+/// zod's issues that abort a parse, as opposed to the ones that leave a value dirty (its refinements and unknown keys).
+fn is_aborted(code: &str) -> bool {
+    matches!(code, "invalid_type" | "invalid_enum_value" | "invalid_literal" | "invalid_union" | "invalid_union_discriminator")
+}
+
+/// zod's z.union: the first member that reads clean wins; else the first member with issues that abort nothing answers
+/// with its issues; else the union answers invalid_union.
+pub fn union_answer(members: Vec<Vec<SchemaError>>) -> Vec<SchemaError> {
+    if members.iter().any(|issues| issues.is_empty()) {
+        return Vec::new();
+    }
+    for issues in members.iter() {
+        if !issues.iter().any(|e| is_aborted(&e.code)) {
+            return issues.clone();
+        }
+    }
+    vec![SchemaError { code: "invalid_union".into(), path: Vec::new(), message: "Invalid input".into(), detail: IndexMap::new() }]
+}
+
+pub fn unrecognized(path: Vec<Value>, keys: Vec<String>) -> SchemaError {
     let message = format!("Unrecognized key(s) in object: {}", keys.iter().map(|k| format!("'{k}'")).collect::<Vec<_>>().join(", "));
     let mut detail = IndexMap::new();
     detail.insert("keys".to_string(), Value::Array(keys.into_iter().map(Value::from).collect()));

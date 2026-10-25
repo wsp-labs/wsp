@@ -64,6 +64,12 @@ impl Serialize for JsNumber {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         if self.0.fract() == 0.0 && self.0.abs() < 9007199254740992.0 {
             s.serialize_i64(self.0 as i64)
+        } else if self.0.fract() == 0.0 && self.0.abs() < 3.0e38 {
+            if self.0 < 0.0 {
+                s.serialize_i128(self.0 as i128)
+            } else {
+                s.serialize_u128(self.0 as u128)
+            }
         } else {
             s.serialize_f64(self.0)
         }
@@ -79,5 +85,42 @@ impl<'de> Deserialize<'de> for JsNumber {
 impl Check for JsNumber {
     fn describe(path: &[Value]) -> Option<Zod> {
         leaf(path, Zod::Word("number"))
+    }
+}
+
+/// A `z.number().int()`: a JavaScript number that zod's integer check takes (`Number.isInteger`), so `5.0`, `-0`,
+/// `1e21` and any integral value past 2^63 are integers, and `2.5` is not. It is held as the JsNumber it reads as.
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Default, Serialize)]
+#[serde(transparent)]
+pub struct JsInt(pub JsNumber);
+
+impl<'de> Deserialize<'de> for JsInt {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+        let n = f64::deserialize(d)?;
+        if n.is_finite() && n.fract() == 0.0 {
+            Ok(JsInt(JsNumber(n)))
+        } else {
+            Err(D::Error::invalid_value(serde::de::Unexpected::Float(n), &"integer"))
+        }
+    }
+}
+
+impl JsInt {
+    /// The integer as JavaScript holds it, a float; the integer's exact value where it fits an i64.
+    pub fn get(self) -> i64 {
+        self.0 .0 as i64
+    }
+}
+
+impl From<i64> for JsInt {
+    fn from(n: i64) -> Self {
+        JsInt(JsNumber(n as f64))
+    }
+}
+
+impl Check for JsInt {
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Int)
     }
 }
