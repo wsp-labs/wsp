@@ -105,16 +105,26 @@ pub fn sign_place_bytes(private_key_pem: &str, bytes: &[u8]) -> Result<String, K
     Ok(STANDARD.encode(key.sign(bytes).to_bytes()))
 }
 
-/// The DER between a PKCS#8 PEM's BEGIN and END lines, read as node reads it: text outside those lines is ignored,
-/// and the base64 inside may be wrapped at any width or carry CRLF and indentation.
+/// The DER of a PKCS#8 PEM, read line by line as OpenSSL reads it: each marker must stand alone on its line, a blank
+/// line in the body is refused, and ASCII whitespace inside the body is dropped. Text after END is never read.
 fn pkcs8_der_of(pem: &str) -> Result<Vec<u8>, KeyError> {
     const BEGIN: &str = "-----BEGIN PRIVATE KEY-----";
     const END: &str = "-----END PRIVATE KEY-----";
-    let no_begin = || KeyError("no PKCS#8 PEM begins in this text".to_string());
-    let start = pem.find(BEGIN).ok_or_else(no_begin)? + BEGIN.len();
-    let end = start + pem[start..].find(END).ok_or_else(|| KeyError("a PKCS#8 PEM has no END line".to_string()))?;
-    let body: String = pem[start..end].chars().filter(|c| !c.is_whitespace()).collect();
-    STANDARD.decode(body).map_err(|e| KeyError(e.to_string()))
+    let mut lines = pem.split('\n');
+    if !lines.any(|line| line == BEGIN) {
+        return Err(KeyError("no PKCS#8 PEM begins in this text".to_string()));
+    }
+    let mut body = String::new();
+    for line in lines {
+        if line == END {
+            return STANDARD.decode(body).map_err(|e| KeyError(e.to_string()));
+        }
+        if line.is_empty() {
+            return Err(KeyError("a PKCS#8 PEM has a blank line in its body".to_string()));
+        }
+        body.extend(line.chars().filter(|c| !c.is_ascii_whitespace()));
+    }
+    Err(KeyError("a PKCS#8 PEM has no END line".to_string()))
 }
 
 /// Whether the SPKI DER key made the signature; a key or a signature that does not parse is false, never an error

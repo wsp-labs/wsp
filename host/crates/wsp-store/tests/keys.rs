@@ -175,6 +175,18 @@ mod signing {
     }
 
     #[test]
+    fn refuses_a_pem_node_refuses_begin_or_end_not_alone_on_its_line_or_a_blank_line_in_the_body() {
+        let v = signing_vectors();
+        let pem = v.private_key_pem.as_str();
+        assert!(sign_place_bytes(&format!("xx{pem}"), b"x").is_err());
+        assert!(sign_place_bytes(&format!("  {pem}"), b"x").is_err());
+        assert!(sign_place_bytes(&format!("{}xx\n", pem.trim_end()), b"x").is_err());
+        let (head, body) = pem.split_at("-----BEGIN PRIVATE KEY-----\n".len() + 32);
+        assert!(sign_place_bytes(&format!("{head}\n\n{body}"), b"x").is_err());
+        assert!(sign_place_bytes(&format!("{head}\u{a0}{body}"), b"x").is_err());
+    }
+
+    #[test]
     fn a_pair_printed_for_debugging_shows_no_private_key() {
         let pair = new_place_key_pair();
         let body = pair.private_key_pem.lines().nth(1).unwrap();
