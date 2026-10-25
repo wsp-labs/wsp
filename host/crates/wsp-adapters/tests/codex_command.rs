@@ -968,3 +968,17 @@ mod rules_added {
         );
     }
 }
+
+/// Rule CM5 of spec/codex_command.md, printed by the TS at 65f6b89c7.
+mod rules_added_now {
+    use super::*;
+
+    #[test]
+    fn the_login_s_expiry_floors_a_negative_now_and_its_stamp_is_the_js_iso_string() {
+        // CM5; command.ts:103-120 (`Math.floor(now / 1000)`, `new Date(now).toISOString()`).
+        let claims = CodexClaims { account_id: "acc_1".into(), plan_type: None, user_id: None, fedramp: None };
+        let line = build_command(&BuildCommandOptions { broker: Some(chatgpt_with(claims)), ..turn_options() }, -1500).unwrap();
+        assert!(line.contains(r#""exp":31535998,"#), "{line}");
+        assert!(line.contains(r#""last_refresh":"1969-12-31T23:59:58.500Z""#), "{line}");
+    }
+}

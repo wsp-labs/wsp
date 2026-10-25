@@ -8,6 +8,8 @@ mod codex_wire;
 
 use std::sync::Arc;
 
+use futures::FutureExt;
+
 use codex_wire::*;
 use serde_json::Value;
 use wsp_adapters::codex::adapter::{create_codex_adapter, CodexAdapter, CodexAdapterDeps};
@@ -415,4 +417,74 @@ async fn an_answer_s_close_carries_the_caller_s_outcome_and_option_and_a_deny_s_
     );
     w.exit(Some(0));
     let _ = session.finished().await;
+}
+
+#[tokio::test]
+async fn the_reconnect_stall_is_cleared_by_any_notification_but_an_error_and_never_by_a_request_a_response_or_stderr() {
+    // CT14; adapter.ts:612-628, 951. The stall's end is the exit road: no durationMs; a hanging process is torn down, then killed.
+    let reconnecting = format!(r#"{{"method":"error","params":{{"error":{{"message":"Reconnecting... 2/5","additionalDetails":"error sending request"}},"willRetry":true,"threadId":"{THREAD}","turnId":"{TURN}"}}}}"#);
+    let launch = scripted(vec![], true);
+    let events = Events::default();
+    let a = create_codex_adapter(CodexAdapterDeps { reconnect_stall_ms: Some(30), interrupt_grace_ms: Some(10), ..CodexAdapterDeps::new(launch.factory(), "/root/.codex", "codex login --device-auth") }).unwrap();
+    let session = start(&a, &events);
+    until(|| events.any("turn.anchor")).await;
+    let w = launch.wire(0);
+    w.push1(&reconnecting);
+    sleep_ms(10).await;
+    w.push1(format!(r#"{{"method":"serverRequest/resolved","params":{{"threadId":"{THREAD}","requestId":99}}}}"#));
+    sleep_ms(60).await;
+    assert!(!events.any("turn.done"), "a notification cleared the stall");
+    w.push1(&reconnecting);
+    sleep_ms(10).await;
+    w.push(&[approval("5"), r#"{"id":"x-unknown","result":{}}"#.to_string(), "stderr text".to_string()]);
+    assert_eq!(session.finished().await, failed("stopped after 0m 00s of Codex reconnecting to its model provider with no answer"));
+    assert_eq!(events.kinds(), ["session.start", "session.start", "turn.anchor", "turn.retry", "turn.retry", "permission.ask", "permission.close", "turn.done", "session.end"]);
+    assert_eq!(w.order(), ["teardown", "kill"]);
+}
+
+#[tokio::test]
+async fn a_kept_turn_writes_its_unsubscribe_and_says_its_compaction_before_turn_done() {
+    // CT15; adapter.ts:749-763, 1055. A compaction with no usage after it is said with `before` alone.
+    let compacting = |phase: &str| format!(r#"{{"method":"item/{phase}","params":{{"item":{{"type":"contextCompaction","id":"c1"}},"threadId":"{THREAD}","turnId":"{TURN}"}}}}"#);
+    let usage = format!(r#"{{"method":"thread/tokenUsage/updated","params":{{"threadId":"{THREAD}","turnId":"{TURN}","tokenUsage":{{"total":{{"inputTokens":900,"outputTokens":0}},"last":{{"inputTokens":900,"outputTokens":0}}}}}}}}"#);
+    let launch = scripted(vec![usage, compacting("started"), compacting("completed"), completed("completed")], false);
+    let wires = launch.wires.clone();
+    let seen = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let log = seen.clone();
+    let on_event: wsp_adapters::port::OnEvent = Arc::new(move |e: AdapterEvent| {
+        let mut log = log.lock().unwrap();
+        log.push(kind_of(&e));
+        match &e {
+            AdapterEvent::TurnDone { .. } => {
+                let unsubscribed = wires.lock().unwrap()[0].wrote("thread/unsubscribe");
+                log.push(format!("unsubscribed:{unsubscribed}"));
+            }
+            AdapterEvent::TurnCompacted { before, after, .. } => log.push(format!("before:{before:?} after:{after:?}")),
+            _ => {}
+        }
+    });
+    let session = adapter(&launch).start(HarnessStartOptions { prompt: "go".into(), keep: true, on_event: Some(on_event), ..Default::default() }).unwrap();
+    let _ = session.finished().await;
+    assert_eq!(
+        *seen.lock().unwrap(),
+        ["session.start", "session.start", "turn.anchor", "turn.usage", "turn.compacted", "before:Some(900.0) after:None", "turn.done", "unsubscribed:true", "session.end"]
+    );
+}
+
+#[tokio::test]
+async fn a_stop_before_the_prompt_is_due_sends_no_turn_and_ends_interrupted() {
+    // CT16; adapter.ts:884-895, 1193-1199. With no turn id the stop ends the run at once.
+    let launch = scripted(vec![], true);
+    let events = Events::default();
+    let session = adapter(&launch)
+        .start(HarnessStartOptions { prompt: "go".into(), prompt_after: Some(futures::future::pending().boxed_local()), on_event: Some(events.on_event()), ..Default::default() })
+        .unwrap();
+    until(|| events.any("session.start")).await;
+    session.interrupt().await;
+    assert_eq!(session.finished().await.status, TurnStatus::Interrupted);
+    assert_eq!(events.kinds(), ["session.start", "turn.done", "session.end"]);
+    let w = launch.wire(0);
+    let methods: Vec<String> = w.written().iter().map(method_of).collect();
+    assert_eq!(methods, ["initialize", "initialized", "account/read", "account/rateLimits/read", "thread/start"]);
+    assert_eq!(w.order(), ["teardown", "kill"]);
 }

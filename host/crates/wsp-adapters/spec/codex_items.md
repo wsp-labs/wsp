@@ -95,6 +95,10 @@ keys on.
   The TS key order (lead's keys, then new ones) is wsp-wire's struct order here, the same accepted difference as the TurnResult's.
 - After-port: a `reasoning` item with `summary: [""]` drops a non-empty `content`; `file_patches` and `changes_of` read the kind
   differently; `failure_words` is fed `message + " " + additionalDetails`, so the reason runs on into the details.
+- **CI10.** `retry_of` matches the prefix `Reconnecting... <n>/<m>` only (`(extra)` after it still counts; no space, a leading space or
+  no count give none); `02/005` is attempt 2 of 5 and `5/3` attempt 5 of 3; the why names the provider for any number under
+  `responseStreamDisconnected.httpStatusCode` (`1.5` gives `the provider answered 1.5`), a string or nothing reads `the connection
+  dropped`. `is_reconnecting` is true for `Reconnecting...` alone.
 
 ## Tests (tests/codex_items.rs, 30, written for this port; red on todo!())
 - Rule 1: `a_401_with_a_key_handed_is_the_refused_key_line_with_the_providers_reason_and_no`,
@@ -116,3 +120,4 @@ keys on.
 - Rules 12, 13: `compact_alone_is_the_servers_compaction_and_with_words_after_it_a_turn`, `a_line_already_starting_a_turn_is_told_apart_from_any_other`,
   `a_threads_rollout_is_found_three_folders_under_sessions_by_its_name_end`.
 - CI1 to CI9: `rules_added::*` in `codex_items.rs` (9 tests).
+- CI10: `rules_added_retry::a_retry_is_a_prefix_match_with_a_count_and_only_a_numeric_status_names_the_provider`.

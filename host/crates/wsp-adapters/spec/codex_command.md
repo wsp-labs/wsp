@@ -94,6 +94,7 @@ draft, rename, conversation read, a terminal's `codex`) is started with.
 - **CM4.** Servers inserted `b, 10, 2, a` are written `2, 10, b, a`; off names `dup, dup, "", "b c", a.b, ok` write `dup, dup, ok`.
 - After-port: a user's own `wsp_slate` server beside a slate launch is written twice, the generated block first; `apiKey: ""` with no
   broker writes empty key variables.
+- **CM5.** `now = -1500` writes `"exp":31535998` (a floor, not a truncation) and `"last_refresh":"1969-12-31T23:59:58.500Z"`.
 
 ## Tests (tests/codex_command.rs, 42; TS 18 + 29 less 5 moved)
 - Rules 1, 17: through the store and title files (`refuse_an_id_that_is_not_a_plain_slug_before_anything_runs`); images in
@@ -109,3 +110,4 @@ draft, rename, conversation read, a terminal's `codex`) is started with.
 - Rules 15, 16: `every_other_codex_launch_on_a_brokered_machine::a_title_hands_codex_the_broker_s_overrides_after_exec_beside_its_own`,
   `codex_typed_in_a_terminal_on_a_brokered_machine::*` (5: PATH filter, `--skip-git-repo-check` once, key file, CODEX_HOME default, no token).
 - CM1 to CM4: `rules_added::*` in `codex_command.rs` (3 tests).
+- CM5: `rules_added_now::the_login_s_expiry_floors_a_negative_now_and_its_stamp_is_the_js_iso_string`.

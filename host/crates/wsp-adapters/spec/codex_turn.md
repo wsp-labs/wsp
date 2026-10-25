@@ -183,6 +183,15 @@ still runs, and answers steer, approval, stop-one-subagent, interrupt and kept.
   | exit road, words or died | status, error, refusal? |
   | exit road, usage limit | status, error, limit |
   | refused request (`onError`, :941-947) | status, error |
+- **CT14.** The reconnect stall (`reconnect_stall_ms`) arms at the first `Reconnecting...` error while none is armed and is cleared by
+  any notification but `error` (a foreign one or `serverRequest/resolved` included), and by the exit; a request, a response or a stderr
+  line does not clear it. At it the words are `codexReconnectLine(elapsed)` (`stopped after 0m 00s of Codex reconnecting to its model
+  provider with no answer` under a second), the run is ended (`teardown`, then `kill` past the grace), and the exit road's result
+  carries no `durationMs`. The open ask closes `cancelled` before `turn.done`.
+- **CT15.** In `finish` the keeper's `thread/unsubscribe` is written before `turn.done` is said, and an open compaction is said before
+  `turn.done` (`before: 900`, no `after` where no usage followed it).
+- **CT16.** A stop while `prompt_after` is pending: no turn id, so the run ends at once; no `turn/start` is ever written; events
+  `session.start` (unprompted), `turn.done {interrupted}`, `session.end`.
 
 ## Tests (tests/codex_turn.rs 42, codex_turn_more.rs 41, codex_turn_rules.rs 7 written for this port; TS 84 of adapter.test.ts)
 - Rules 1, 21: `codex_turn_rules.rs` `a_turn_joins_the_registry_under_its_local_id_and_a_side_question_never_does`,
@@ -221,3 +230,5 @@ still runs, and answers steer, approval, stop-one-subagent, interrupt and kept.
   `failure_words_said_earlier_beat_the_completed_turn_s_own_error` (CT11),
   `a_later_turn_started_takes_the_turn_id_with_no_new_anchor_and_the_old_turn_s_end_is_ignored` (CT12),
   `an_answer_s_close_carries_the_caller_s_outcome_and_option_and_a_deny_s_reason_is_steered_after_the_decision` (CT13).
+- CT14 to CT16: `codex_turn_edges.rs` `the_reconnect_stall_is_cleared_by_any_notification_but_an_error_and_never_by_a_request_a_response_or_stderr`,
+  `a_kept_turn_writes_its_unsubscribe_and_says_its_compaction_before_turn_done`, `a_stop_before_the_prompt_is_due_sends_no_turn_and_ends_interrupted`.

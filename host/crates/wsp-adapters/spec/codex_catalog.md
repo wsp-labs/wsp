@@ -58,6 +58,12 @@ binary's.
 - A synchronous throw from the handed `models` read escapes `read_catalog_probe` (only an async rejection is no list), and
   `account_models_of(models, "")` asks with `""`: only an absent version falls back to the pin.
 - Any priority that is no number sorts as 0 (`"1"`, `null`, absent), stable.
+## Rules added for the port (printed by the TS at 65f6b89c7)
+
+- **CC1.** The sandbox modes' window is 600 UTF-16 units from the flag's first unit, the closing `]` inside it: 556 filler units between
+  the 24-unit flag and the 20-unit list read `["a"]`, 576 read `[]`, 285 emoji (570 units) read `[]`; `[possible values: a[b]c, d]`
+  reads `["a[b"]`.
+
 ## Tests (tests/codex_catalog.rs, 9; the brokered 4 in tests/codex_adapter.rs; TS 13)
 - Rules 1-3: `catalog_probe_command::reads_the_base_env_a_turn_gets_off_its_input_path_and_codex_home_included_so_a_p`,
   `catalog_probe_command::asks_for_the_version_the_help_and_the_four_app_server_requests_and_never_a_turn`,
@@ -70,3 +76,4 @@ binary's.
 - Rule 7: `parse_catalog_probe::a_route_to_another_provider_leads_with_the_model_config_names_since_that_is_what` (asserts no `efforts` key).
 - Rule 8: `parse_catalog_probe::names_the_sign_in_when_the_app_server_answered_and_offered_no_model_for_want_of`.
 - Rules 10, 11: `codex_adapter.rs` `a_probe_on_a_machine_whose_chatgpt_sign_in_the_host_holds::*` (4).
+- CC1: `rules_added::the_sandbox_modes_are_read_within_600_utf16_units_counted_from_the_flag_itself`.

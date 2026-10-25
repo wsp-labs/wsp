@@ -70,6 +70,8 @@ by resuming it the way a turn would (`-32600 ... already has an active writer`).
 - **CV3.** `parse_opened` reads a blank preview as title `""`; an empty `name` falls to the preview.
 - After-port: a blank preview makes an empty title; `parse_sizes` reads hex and exponent text as sizes; two rows with one rollout
   path lose the size (the later absent one wins in the map); `earlier`'s 10 pages count the first.
+- **CV4.** `newest_lines` over `[t0, p1, t1, a1, t2, p2, a2, t3]`, total 10: last 0 keeps `[]` with 10 earlier; 1 keeps `[a2, t3]`, 9;
+  3 keeps `[a1, t2, p2, a2, t3]`, 7; 4 and 9 keep `[p1 .. t3]`, 6 (the tool line before the oldest message kept is dropped).
 
 ## Tests (tests/codex_conversations.rs, 10; TS 9 + 1)
 - Rules 2-7: `the_threads_codex_kept_in_a_folder::come_off_thread_list_on_the_computers_own_app_server_newest_first_with_a_name_a`
@@ -83,3 +85,4 @@ by resuming it the way a turn would (`-32600 ... already has an active writer`).
 - Rule 14: `...::say_a_person_may_try_again_once_codex_lets_go_and_how_soon`.
 - Rules 2, 15 (each line runs codex through the brokered word): `every_other_codex_launch_on_a_brokered_machine::titles_drafts_renames_probes_and_conversation_reads_each_run_codex_through_it`.
 - CV1 to CV3: `rules_added::*` in `codex_conversations.rs` (3 tests).
+- CV4: `rules_added_newest::the_newest_lines_keep_every_tool_line_back_to_the_last_message_kept`.

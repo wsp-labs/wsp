@@ -454,3 +454,28 @@ mod rules_added {
         assert_eq!(with_child_tokens(Some(lead), &kids), Some(TurnTokens { input: JsNumber(7.0), output: JsNumber(2.0), cached: None, cache_write: None, reasoning: n(2.0), context: n(3.0), window: n(9.0) }));
     }
 }
+
+/// Rule CI10 of spec/codex_items.md, printed by the TS at 65f6b89c7.
+mod rules_added_retry {
+    use super::*;
+
+    fn retry(attempt: f64, of: f64, why: &str) -> Option<AdapterEvent> {
+        Some(AdapterEvent::TurnRetry { session_id: "S".into(), attempt, of: Some(of), why: Some(why.into()) })
+    }
+
+    #[test]
+    fn a_retry_is_a_prefix_match_with_a_count_and_only_a_numeric_status_names_the_provider() {
+        // CI10; adapter.ts:262-273.
+        let zero = json!({"responseStreamDisconnected": {"httpStatusCode": 0}});
+        assert_eq!(retry_of("Reconnecting... 2/5 (extra)", Some(&zero), "S"), retry(2.0, 5.0, "the provider answered 0"));
+        assert_eq!(retry_of("Reconnecting... 02/005", Some(&zero), "S"), retry(2.0, 5.0, "the provider answered 0"));
+        assert_eq!(retry_of("Reconnecting... 5/3", Some(&zero), "S"), retry(5.0, 3.0, "the provider answered 0"));
+        for none in ["Reconnecting...2/5", " Reconnecting... 2/5", "Reconnecting..."] {
+            assert_eq!(retry_of(none, Some(&zero), "S"), None, "{none}");
+        }
+        assert_eq!(retry_of("Reconnecting... 1/5", None, "S"), retry(1.0, 5.0, "the connection dropped"));
+        assert_eq!(retry_of("Reconnecting... 1/5", Some(&json!({"responseStreamDisconnected": {"httpStatusCode": "500"}})), "S"), retry(1.0, 5.0, "the connection dropped"));
+        assert_eq!(retry_of("Reconnecting... 1/5", Some(&json!({"responseStreamDisconnected": {"httpStatusCode": 1.5}})), "S"), retry(1.0, 5.0, "the provider answered 1.5"));
+        assert!(is_reconnecting("Reconnecting..."));
+    }
+}
