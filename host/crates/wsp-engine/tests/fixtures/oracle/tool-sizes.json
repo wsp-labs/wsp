@@ -1,0 +1,339 @@
+{
+ "parseBrewInfo": [
+  {
+   "name": "ffmpeg",
+   "fullName": "ffmpeg",
+   "deps": [
+    "x264",
+    "openssl@3",
+    "ca-certificates"
+   ],
+   "macosOnly": false,
+   "version": "8.1.2"
+  },
+  {
+   "name": "nofull",
+   "fullName": "nofull",
+   "deps": [],
+   "macosOnly": false
+  },
+  {
+   "name": "gitonly",
+   "fullName": "someone/tap/gitonly",
+   "deps": [],
+   "macosOnly": false,
+   "version": "1.0",
+   "source": {
+    "repo": "someone/gitonly",
+    "tag": "v3.1.0"
+   }
+  },
+  {
+   "name": "rel",
+   "fullName": "rel",
+   "deps": [],
+   "macosOnly": false,
+   "version": "1.0",
+   "source": {
+    "repo": "o/r",
+    "tag": "v1"
+   }
+  },
+  {
+   "name": "macthing",
+   "fullName": "someone/tap/macthing",
+   "deps": [],
+   "macosOnly": true,
+   "version": "1.0"
+  },
+  {
+   "name": "sketchybar",
+   "fullName": "felixkratz/formulae/sketchybar",
+   "deps": [],
+   "macosOnly": true,
+   "version": "1.0"
+  },
+  {
+   "name": "nourls",
+   "fullName": "nourls",
+   "deps": [],
+   "macosOnly": false,
+   "version": "1.0"
+  }
+ ],
+ "parseBrewInfoNotShaped": [
+  [],
+  [],
+  []
+ ],
+ "parseDu": [
+  [
+   "ffmpeg",
+   7168
+  ],
+  [
+   "y",
+   20480
+  ],
+  [
+   "rel",
+   5120
+  ]
+ ],
+ "parseDuKeyed": [
+  [
+   "k:/opt/homebrew/Cellar/ffmpeg",
+   7168
+  ],
+  [
+   "k:/x/y",
+   20480
+  ],
+  [
+   "k:/opt/rel",
+   5120
+  ]
+ ],
+ "brewTable": [
+  [
+   "ffmpeg",
+   {
+    "name": "ffmpeg",
+    "fullName": "ffmpeg",
+    "deps": [
+     "x264",
+     "openssl@3",
+     "ca-certificates"
+    ],
+    "macosOnly": false,
+    "version": "8.1.2",
+    "bytes": 7168
+   }
+  ],
+  [
+   "nofull",
+   {
+    "name": "nofull",
+    "fullName": "nofull",
+    "deps": [],
+    "macosOnly": false
+   }
+  ],
+  [
+   "someone/tap/gitonly",
+   {
+    "name": "gitonly",
+    "fullName": "someone/tap/gitonly",
+    "deps": [],
+    "macosOnly": false,
+    "version": "1.0",
+    "source": {
+     "repo": "someone/gitonly",
+     "tag": "v3.1.0"
+    }
+   }
+  ],
+  [
+   "rel",
+   {
+    "name": "rel",
+    "fullName": "rel",
+    "deps": [],
+    "macosOnly": false,
+    "version": "1.0",
+    "source": {
+     "repo": "o/r",
+     "tag": "v1"
+    },
+    "bytes": 5120
+   }
+  ],
+  [
+   "someone/tap/macthing",
+   {
+    "name": "macthing",
+    "fullName": "someone/tap/macthing",
+    "deps": [],
+    "macosOnly": true,
+    "version": "1.0"
+   }
+  ],
+  [
+   "felixkratz/formulae/sketchybar",
+   {
+    "name": "sketchybar",
+    "fullName": "felixkratz/formulae/sketchybar",
+    "deps": [],
+    "macosOnly": true,
+    "version": "1.0"
+   }
+  ],
+  [
+   "nourls",
+   {
+    "name": "nourls",
+    "fullName": "nourls",
+    "deps": [],
+    "macosOnly": false,
+    "version": "1.0"
+   }
+  ]
+ ],
+ "sourceOf": [
+  {
+   "url": "https://github.com/cli/cli/archive/refs/tags/v2.100.0.tar.gz",
+   "tag": null,
+   "source": {
+    "repo": "cli/cli",
+    "tag": "v2.100.0"
+   }
+  },
+  {
+   "url": "https://github.com/cli/cli/archive/v2.zip",
+   "tag": null,
+   "source": {
+    "repo": "cli/cli",
+    "tag": "v2"
+   }
+  },
+  {
+   "url": "https://github.com/Zingzy/diskbloom/releases/download/v0.1.0/x.tar.gz",
+   "tag": null,
+   "source": {
+    "repo": "Zingzy/diskbloom",
+    "tag": "v0.1.0"
+   }
+  },
+  {
+   "url": "https://github.com/someone/gitonly.git",
+   "tag": "v3.1.0",
+   "source": {
+    "repo": "someone/gitonly",
+    "tag": "v3.1.0"
+   }
+  },
+  {
+   "url": "https://github.com/someone/gitonly",
+   "tag": "v3",
+   "source": {
+    "repo": "someone/gitonly",
+    "tag": "v3"
+   }
+  },
+  {
+   "url": "https://github.com/someone/gitonly.git",
+   "tag": null,
+   "source": null
+  },
+  {
+   "url": "https://github.com/someone/gitonly.git",
+   "tag": "",
+   "source": {
+    "repo": "someone/gitonly",
+    "tag": ""
+   }
+  },
+  {
+   "url": "https://github.com/o/r/tree/main",
+   "tag": "v1",
+   "source": null
+  },
+  {
+   "url": "https://dl.example.org/x.tar.gz",
+   "tag": "v1",
+   "source": null
+  },
+  {
+   "url": null,
+   "tag": "v1",
+   "source": null
+  },
+  {
+   "url": "https://github.com/o",
+   "tag": null,
+   "source": null
+  },
+  {
+   "url": "https://github.com/o/r.git/",
+   "tag": "t",
+   "source": {
+    "repo": "o/r",
+    "tag": "t"
+   }
+  }
+ ],
+ "assumed": [
+  {
+   "rung": "tools",
+   "id": "tools/go/x",
+   "size": {
+    "bytes": 524288000,
+    "kind": "a go install"
+   }
+  },
+  {
+   "rung": "tools",
+   "id": "tools/uv/y",
+   "size": {
+    "bytes": 104857600,
+    "kind": "a uv tool"
+   }
+  },
+  {
+   "rung": "tools",
+   "id": "tools/npm/z",
+   "size": {
+    "bytes": 52428800,
+    "kind": "an npm global"
+   }
+  },
+  {
+   "rung": "tools",
+   "id": "tools/pnpm/z",
+   "size": {
+    "bytes": 52428800,
+    "kind": "an npm global"
+   }
+  },
+  {
+   "rung": "tools",
+   "id": "tools/bun/z",
+   "size": {
+    "bytes": 52428800,
+    "kind": "an npm global"
+   }
+  },
+  {
+   "rung": "tools",
+   "id": "tools/brew/w",
+   "size": {
+    "bytes": 104857600,
+    "kind": "an install"
+   }
+  },
+  {
+   "rung": "tools",
+   "id": "tools/gox",
+   "size": {
+    "bytes": 104857600,
+    "kind": "an install"
+   }
+  },
+  {
+   "rung": "tools",
+   "id": "tools/cargo/c",
+   "size": {
+    "bytes": 104857600,
+    "kind": "an install"
+   }
+  },
+  {
+   "rung": "agents",
+   "id": "agents/claude",
+   "size": {
+    "bytes": 367001600,
+    "kind": "an agent"
+   }
+  }
+ ]
+}

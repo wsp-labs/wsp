@@ -105,3 +105,85 @@ pub struct SkippedPath {
     pub path: String,
     pub note: String,
 }
+
+// ---- Read by the rest slice (orphans, drop_template, tool_sizes).
+
+/// golden.ts:378. The idle window a builder is created with: six hours.
+pub const BUILDER_IDLE_MS: u64 = 6 * 60 * 60_000;
+
+/// golden.ts:291 `templatesOf`, as a test: the backend says it has templates and offers all four template methods.
+pub fn has_templates(backend: &dyn crate::machine::MachineBackend) -> bool {
+    todo!()
+}
+
+/// golden-import.ts:761.
+pub const CATALOG_PREFIX: &str = "tools/catalog/";
+/// golden-import.ts:856.
+pub const TAP_PREFIX: &str = "tools/brew-tap/";
+
+/// golden-import.ts:801. Tap formulae that only build for macOS and say nothing of it in their metadata.
+pub const MACOS_ONLY_FORMULAE: [&str; 4] = ["felixkratz/formulae/sketchybar", "felixkratz/formulae/borders", "koekeishiya/formulae/yabai", "koekeishiya/formulae/skhd"];
+
+/// golden-import.ts:22 `RecipeEntry`, the two fields tool-sizes.ts reads; the golden port widens it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecipeEntry {
+    pub rung: String,
+    pub id: String,
+}
+
+/// golden-import.ts:777.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToolSource {
+    pub repo: String,
+    pub tag: String,
+}
+
+/// golden-import.ts:783. What this Mac's Homebrew says about one installed formula.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BrewFormula {
+    pub name: String,
+    /// With the tap prefix for a tap formula; the same as name for homebrew/core.
+    pub full_name: String,
+    /// Runtime dependencies by full name, direct and transitive, each once, first-seen order.
+    pub deps: Vec<String>,
+    /// The Cellar entry's size on the Mac, when read.
+    pub bytes: Option<f64>,
+    pub version: Option<String>,
+    pub macos_only: bool,
+    pub source: Option<ToolSource>,
+}
+
+/// golden-import.ts:798. By full name, in insertion order.
+pub type BrewTable = indexmap::IndexMap<String, BrewFormula>;
+
+/// golden-import.ts:858. The id starts with `TAP_PREFIX`.
+pub fn is_tap(e: &RecipeEntry) -> bool {
+    todo!()
+}
+
+/// golden-import.ts:862. The id after `tools/brew/`, or `None`.
+pub fn formula_of(e: &RecipeEntry) -> Option<String> {
+    todo!()
+}
+
+/// golden-import.ts:928. A `tools/catalog/` row is the catalog entry by its package when that entry is a tool; a
+/// `tools/brew/` row is the formula's manager tool (golden-import.ts:920: `catalog_tool_for(formula)` whose install road
+/// is not brew and which is one of the managers' own tools); nothing for any other row.
+pub fn catalog_tool_of(e: &RecipeEntry) -> Option<&'static wsp_catalog::catalog::ToolEntry> {
+    todo!()
+}
+
+/// golden-tools.ts:279 answer.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MissingCommands {
+    pub missing: std::collections::HashSet<String>,
+    /// Why the check itself could not run (golden-tools' `reasonOf`), where it exited non-zero.
+    pub failed: Option<String>,
+}
+
+/// golden-tools.ts:279, on the tools PATH with no prefix: one exec under INLINE_EXEC_MS of golden-import's
+/// `pathLine(TOOLS_PATH)`, a newline, then `for b in <q bins...>; do command -v "$b" >/dev/null 2>&1 || echo "missing $b"; done`
+/// (the exact text pinned by the oracle). `missing` is every stdout line opening `missing `, the rest trimmed.
+pub async fn missing_commands(machine: &dyn crate::machine::Machine, bins: &[String]) -> crate::errors::Result<MissingCommands> {
+    todo!()
+}
