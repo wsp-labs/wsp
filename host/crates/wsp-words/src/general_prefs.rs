@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! How a notify choice is said outside the app. Port of the one function of packages/protocol/src/general-prefs.ts at
+//! a3b870a6e that wsp_wire::types::general_prefs leaves to this crate. See spec/costs_and_alerts.md.
+
+use wsp_wire::types::general_prefs::NotifyChoice;
+
+/// Whether a notification shows and whether it sounds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NotifyHow {
+    pub show: bool,
+    pub sound: bool,
+}
+
+/// off: None; notify: show alone; sound: sound alone; notify-sound: both.
+// general-prefs.ts:25
+// export function notifyBy(choice: NotifyChoice): { show: boolean; sound: boolean } | undefined {
+//   if (choice === "off") return undefined;
+//   return { show: choice !== "sound", sound: choice !== "notify" };
+// }
+pub fn notify_by(choice: NotifyChoice) -> Option<NotifyHow> {
+    todo!()
+}
