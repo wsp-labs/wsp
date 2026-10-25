@@ -96,6 +96,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn launches_the_print_line_with_the_key_in_the_environment_and_none_on_the_line_and() {
+        tokio::task::LocalSet::new().run_until(launches_the_print_line_with_the_key_in_the_environment_and_none_on_the_line_and_body()).await
+    }
+
+    async fn launches_the_print_line_with_the_key_in_the_environment_and_none_on_the_line_and_body() {
         let exec = scripted_exec(fixture("cursor", "turn.jsonl"), ScriptOpts::default(), RUN_HANDLE);
         let adapter = adapter_over(&exec, Extra { api_key: Some("key_x".into()), key_env: Some("CURSOR_API_KEY".into()), ..Default::default() });
         let session = start(
@@ -133,6 +137,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn normalizes_a_turn_session_start_off_init_only_the_streamed_text_and_never_its_tw() {
+        tokio::task::LocalSet::new().run_until(normalizes_a_turn_session_start_off_init_only_the_streamed_text_and_never_its_tw_body()).await
+    }
+
+    async fn normalizes_a_turn_session_start_off_init_only_the_streamed_text_and_never_its_tw_body() {
         let events = Events::default();
         let session = start(
             &adapter_over(&scripted_exec(fixture("cursor", "turn.jsonl"), ScriptOpts::default(), RUN_HANDLE), Extra::default()),
@@ -174,6 +182,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn a_tool_the_cli_refused_is_an_error_result_in_its_own_words_and_a_function_call_k() {
+        tokio::task::LocalSet::new().run_until(a_tool_the_cli_refused_is_an_error_result_in_its_own_words_and_a_function_call_k_body()).await
+    }
+
+    async fn a_tool_the_cli_refused_is_an_error_result_in_its_own_words_and_a_function_call_k_body() {
         let lines = vec![
             init(),
             json!({ "type": "tool_call", "subtype": "started", "call_id": "c1", "tool_call": { "shellToolCall": { "args": { "command": "rm -rf build" } } }, "session_id": CHAT }).to_string(),
@@ -190,6 +202,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn no_credential_is_a_sign_in_refusal_the_cli_s_sentence_first_and_wsp_s_road_besid() {
+        tokio::task::LocalSet::new().run_until(no_credential_is_a_sign_in_refusal_the_cli_s_sentence_first_and_wsp_s_road_besid_body()).await
+    }
+
+    async fn no_credential_is_a_sign_in_refusal_the_cli_s_sentence_first_and_wsp_s_road_besid_body() {
         let events = Events::default();
         let exec = scripted_exec(fixture("cursor", "no-login.jsonl"), ScriptOpts { exit_code: Some(1), ..Default::default() }, RUN_HANDLE);
         let result = start(&adapter_over(&exec, Extra::default()), HarnessStartOptions { prompt: "say hi".into(), on_event: Some(events.on_event()), ..Default::default() }).finished().await;
@@ -206,6 +222,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn a_stream_its_transport_failed_hands_that_very_error_to_the_runtime_on_session_en() {
+        tokio::task::LocalSet::new().run_until(a_stream_its_transport_failed_hands_that_very_error_to_the_runtime_on_session_en_body()).await
+    }
+
+    async fn a_stream_its_transport_failed_hands_that_very_error_to_the_runtime_on_session_en_body() {
         let lost = ExecFailure { kind: ExecFailureKind::NoAnswer, message: "remote launch failed on m1: daemon on m1 did not answer within 30000 ms".into() };
         let events = Events::default();
         let exec = scripted_exec(vec![], ScriptOpts { fails: Some(lost.clone()), ..Default::default() }, RUN_HANDLE);
@@ -220,6 +240,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn a_process_that_dies_before_its_result_fails_the_turn_with_what_it_printed_last() {
+        tokio::task::LocalSet::new().run_until(a_process_that_dies_before_its_result_fails_the_turn_with_what_it_printed_last_body()).await
+    }
+
+    async fn a_process_that_dies_before_its_result_fails_the_turn_with_what_it_printed_last_body() {
         let lines = vec![init(), "Error: Cannot use this model: nope. Available models: gpt-5, sonnet-4.5".to_string()];
         let exec = scripted_exec(lines, ScriptOpts { exit_code: Some(1), ..Default::default() }, RUN_HANDLE);
         let result = start(&adapter_over(&exec, Extra::default()), silent("go")).finished().await;
@@ -228,6 +252,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn a_result_marked_as_an_error_fails_the_turn_with_its_own_text() {
+        tokio::task::LocalSet::new().run_until(a_result_marked_as_an_error_fails_the_turn_with_its_own_text_body()).await
+    }
+
+    async fn a_result_marked_as_an_error_fails_the_turn_with_its_own_text_body() {
         let lines = vec![json!({ "type": "result", "subtype": "error", "is_error": true, "duration_ms": 9, "result": "the model refused", "session_id": CHAT }).to_string()];
         let exec = scripted_exec(lines, ScriptOpts::default(), RUN_HANDLE);
         let result = start(&adapter_over(&exec, Extra::default()), silent("go")).finished().await;
@@ -236,6 +264,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn a_process_that_lingers_past_its_result_is_ended() {
+        tokio::task::LocalSet::new().run_until(a_process_that_lingers_past_its_result_is_ended_body()).await
+    }
+
+    async fn a_process_that_lingers_past_its_result_is_ended_body() {
         let exec = scripted_exec(fixture("cursor", "turn.jsonl"), ScriptOpts { hang: true, ..Default::default() }, RUN_HANDLE);
         let result = start(&adapter_over(&exec, Extra { result_exit_ms: Some(5), interrupt_grace_ms: Some(5), ..Default::default() }), silent("go")).finished().await;
         assert_eq!(result.status, TurnStatus::Completed);
@@ -244,6 +276,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn interrupt_ends_the_process_and_the_turn_reads_interrupted() {
+        tokio::task::LocalSet::new().run_until(interrupt_ends_the_process_and_the_turn_reads_interrupted_body()).await
+    }
+
+    async fn interrupt_ends_the_process_and_the_turn_reads_interrupted_body() {
         let exec = scripted_exec(vec![init()], ScriptOpts { hang: true, ..Default::default() }, RUN_HANDLE);
         let events = Events::default();
         let session = start(&adapter_over(&exec, Extra { interrupt_grace_ms: Some(5), ..Default::default() }), go(&events));
@@ -255,6 +291,10 @@ mod cursor_adapter_over_an_agent_p_stream_json_turn {
 
     #[tokio::test]
     async fn an_attach_re_opens_the_run_with_no_channel() {
+        tokio::task::LocalSet::new().run_until(an_attach_re_opens_the_run_with_no_channel_body()).await
+    }
+
+    async fn an_attach_re_opens_the_run_with_no_channel_body() {
         let exec = scripted_exec(fixture("cursor", "turn.jsonl"), ScriptOpts::default(), RUN_HANDLE).with_attach();
         let events = Events::default();
         let attached = adapter_over(&exec, Extra::default())
@@ -295,6 +335,10 @@ mod a_person_s_setup_for_cursor_on_a_computer {
 
     #[tokio::test]
     async fn runs_the_program_in_place_of_cursor_agent_the_launch_words_after_p() {
+        tokio::task::LocalSet::new().run_until(runs_the_program_in_place_of_cursor_agent_the_launch_words_after_p_body()).await
+    }
+
+    async fn runs_the_program_in_place_of_cursor_agent_the_launch_words_after_p_body() {
         let exec = scripted_exec(fixture("cursor", "turn.jsonl"), ScriptOpts::default(), RUN_HANDLE);
         let adapter = create_cursor_adapter(CursorAdapterDeps {
             launch: Some(AgentLaunch { program: Some("/opt/ca".into()), args: Some(vec!["--sandbox".into(), "disabled".into()]) }),
@@ -381,6 +425,10 @@ mod rules_this_port_pins {
 
     #[tokio::test]
     async fn every_init_line_names_the_chat_and_says_the_start_again() {
+        tokio::task::LocalSet::new().run_until(every_init_line_names_the_chat_and_says_the_start_again_body()).await
+    }
+
+    async fn every_init_line_names_the_chat_and_says_the_start_again_body() {
         // Rule 6; adapter.ts:139-143.
         let second = serde_json::json!({"type": "system", "subtype": "init", "session_id": "chat-two"}).to_string();
         let events = Events::default();

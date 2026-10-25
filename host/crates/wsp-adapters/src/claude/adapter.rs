@@ -4,7 +4,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 
 use crate::claude::landmines::{BaseEnv, BrokeredSignIn};
@@ -82,7 +82,7 @@ impl ClaudeAdapter {
         todo!()
     }
     /// adapter.ts:1426. `None` where the exec factory has no attach.
-    pub fn attach(&self, options: AdapterAttachOptions) -> Option<BoxFuture<'static, Result<AttachedSession, ExecFailure>>> {
+    pub fn attach(&self, options: AdapterAttachOptions) -> Option<LocalBoxFuture<'static, Result<AttachedSession, ExecFailure>>> {
         todo!()
     }
     /// A snapshot of the sessions map, in the order they were registered.
@@ -153,7 +153,7 @@ impl crate::port::HarnessAdapter for ClaudeAdapter {
     fn warm(&self, options: HarnessWarmOptions) -> Option<Result<Box<dyn crate::port::KeptAgent>, AdapterError>> {
         todo!()
     }
-    fn attach(&self, options: AdapterAttachOptions) -> Option<BoxFuture<'static, Result<Option<Arc<dyn crate::port::HarnessSession>>, ExecFailure>>> {
+    fn attach(&self, options: AdapterAttachOptions) -> Option<LocalBoxFuture<'static, Result<Option<Arc<dyn crate::port::HarnessSession>>, ExecFailure>>> {
         todo!()
     }
     fn steers(&self) -> bool {
@@ -162,7 +162,7 @@ impl crate::port::HarnessAdapter for ClaudeAdapter {
     fn reports_edits(&self) -> bool {
         todo!()
     }
-    fn fork_session(&self, session: String, turn: ForkTurn) -> Option<BoxFuture<'static, Result<ForkedSession, String>>> {
+    fn fork_session(&self, session: String, turn: ForkTurn) -> Option<LocalBoxFuture<'static, Result<ForkedSession, String>>> {
         todo!()
     }
     fn attachments(&self) -> Option<crate::port::AttachmentRoad> {
@@ -186,28 +186,28 @@ impl crate::port::HarnessAdapter for ClaudeAdapter {
     fn waits_for_prompt(&self) -> bool {
         todo!()
     }
-    fn probe_catalog(&self, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<crate::port::HarnessCatalogAnswer>, ExecFailure>>> {
+    fn probe_catalog(&self, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<crate::port::HarnessCatalogAnswer>, ExecFailure>>> {
         todo!()
     }
-    fn probe_version(&self, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+    fn probe_version(&self, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         todo!()
     }
-    fn session_title(&self, harness_session_id: String, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+    fn session_title(&self, harness_session_id: String, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         todo!()
     }
     fn session_file(&self, session_id: &str) -> Option<SessionFile> {
         todo!()
     }
-    fn rename_session(&self, harness_session_id: String, title: String, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<SessionRenameWrite, ExecFailure>>> {
+    fn rename_session(&self, harness_session_id: String, title: String, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<SessionRenameWrite, ExecFailure>>> {
         todo!()
     }
-    fn title_for(&self, turn: TitleTurn, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+    fn title_for(&self, turn: TitleTurn, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         todo!()
     }
-    fn draft_for(&self, ask: DraftAsk, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+    fn draft_for(&self, ask: DraftAsk, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         todo!()
     }
-    fn aside(&self, question: AsideQuestion) -> Option<BoxFuture<'static, Result<AsideAnswer, String>>> {
+    fn aside(&self, question: AsideQuestion) -> Option<LocalBoxFuture<'static, Result<AsideAnswer, String>>> {
         todo!()
     }
     fn aside_servers(&self) -> bool {

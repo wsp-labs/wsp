@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
+use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 use serde_json::{Map, Value};
 
@@ -29,7 +29,7 @@ pub const NO_MODELS: &str = "http://127.0.0.1:0";
 
 /// ChatGPT's list of the models the host's sign-in may run on the codex version named, read by the host: `Ok(None)`
 /// or `Err` where it could not read one. TS command.ts:27.
-pub type AccountModels = Arc<dyn Fn(String) -> BoxFuture<'static, Result<Option<Value>, String>> + Send + Sync>;
+pub type AccountModels = Arc<dyn Fn(String) -> LocalBoxFuture<'static, Result<Option<Value>, String>>>;
 
 /// Which placeholder login a brokered machine runs on. TS command.ts:31.
 #[derive(Clone)]

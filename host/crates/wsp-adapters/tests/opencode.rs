@@ -13,7 +13,7 @@ mod codex_shell;
 
 use std::sync::{Arc, Mutex};
 
-use futures::future::{BoxFuture, FutureExt};
+use futures::future::{LocalBoxFuture, FutureExt};
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 use wsp_adapters::opencode::adapter::{AttachedSession, OpenCodeAdapter, OpenCodeAdapterDeps, OpenCodeSession};
@@ -96,10 +96,10 @@ struct Probe {
 }
 
 impl HarnessExec for Probe {
-    fn exec(&self, command: &str, _env: Option<&Env>) -> BoxFuture<'static, Result<String, ExecFailure>> {
+    fn exec(&self, command: &str, _env: Option<&Env>) -> LocalBoxFuture<'static, Result<String, ExecFailure>> {
         self.asked.lock().unwrap().push(command.to_string());
         let answer = self.answer.clone();
-        async move { Ok(answer) }.boxed()
+        async move { Ok(answer) }.boxed_local()
     }
 }
 
@@ -117,6 +117,10 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
 
     #[tokio::test]
     async fn launches_the_run_line_with_the_picks_under_the_login_environment_the_prompt_on_t() {
+        tokio::task::LocalSet::new().run_until(launches_the_run_line_with_the_picks_under_the_login_environment_the_prompt_on_t_body()).await
+    }
+
+    async fn launches_the_run_line_with_the_picks_under_the_login_environment_the_prompt_on_t_body() {
         let exec = scripted_exec(fixture("opencode", "turn.jsonl"), ScriptOpts::default(), RUN_HANDLE);
         let adapter = adapter_over(&exec, Extra::default());
         let session = start(
@@ -152,6 +156,10 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
 
     #[tokio::test]
     async fn normalizes_a_turn_into_session_start_text_and_tool_deltas_turn_done_at_the_last() {
+        tokio::task::LocalSet::new().run_until(normalizes_a_turn_into_session_start_text_and_tool_deltas_turn_done_at_the_last_body()).await
+    }
+
+    async fn normalizes_a_turn_into_session_start_text_and_tool_deltas_turn_done_at_the_last_body() {
         let exec = scripted_exec(fixture("opencode", "turn.jsonl"), ScriptOpts::default(), RUN_HANDLE);
         let events = Events::default();
         let session = start(
@@ -199,6 +207,10 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
 
     #[tokio::test]
     async fn a_tool_part_that_failed_is_an_error_result_carrying_the_tool_s_own_error() {
+        tokio::task::LocalSet::new().run_until(a_tool_part_that_failed_is_an_error_result_carrying_the_tool_s_own_error_body()).await
+    }
+
+    async fn a_tool_part_that_failed_is_an_error_result_carrying_the_tool_s_own_error_body() {
         let failed_part = line(
             "tool_use",
             json!({ "part": { "id": "prt_1", "sessionID": SESSION, "messageID": "msg_1", "type": "tool", "callID": "call_rd", "tool": "read", "state": { "status": "error", "input": { "filePath": "/nope" }, "error": "File not found: /nope", "time": { "start": 1, "end": 2 } } } }),
@@ -214,6 +226,10 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
 
     #[tokio::test]
     async fn the_turn_ends_at_the_step_whose_reason_ends_the_loop_and_a_process_that_lingers() {
+        tokio::task::LocalSet::new().run_until(the_turn_ends_at_the_step_whose_reason_ends_the_loop_and_a_process_that_lingers_body()).await
+    }
+
+    async fn the_turn_ends_at_the_step_whose_reason_ends_the_loop_and_a_process_that_lingers_body() {
         let exec = scripted_exec(fixture("opencode", "turn.jsonl"), ScriptOpts { hang: true, ..Default::default() }, RUN_HANDLE);
         let events = Events::default();
         let result = start(&adapter_over(&exec, Extra { result_exit_ms: Some(5), interrupt_grace_ms: Some(5) }), turn_start("go", &events)).finished().await;
@@ -224,6 +240,10 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
 
     #[tokio::test]
     async fn a_step_that_asked_for_tools_does_not_end_the_turn_the_process_exiting_after_it_w() {
+        tokio::task::LocalSet::new().run_until(a_step_that_asked_for_tools_does_not_end_the_turn_the_process_exiting_after_it_w_body()).await
+    }
+
+    async fn a_step_that_asked_for_tools_does_not_end_the_turn_the_process_exiting_after_it_w_body() {
         let lines: Vec<String> = fixture("opencode", "turn.jsonl").into_iter().take(4).collect();
         let exec = scripted_exec(lines, ScriptOpts::default(), RUN_HANDLE);
         let result = start(&adapter_over(&exec, Extra::default()), HarnessStartOptions { prompt: "go".into(), on_event: Some(no_events()), ..Default::default() }).finished().await;
@@ -233,6 +253,10 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
 
     #[tokio::test]
     async fn an_unknown_model_fails_the_turn_in_the_log_s_own_words_not_the_stream_s_server_e() {
+        tokio::task::LocalSet::new().run_until(an_unknown_model_fails_the_turn_in_the_log_s_own_words_not_the_stream_s_server_e_body()).await
+    }
+
+    async fn an_unknown_model_fails_the_turn_in_the_log_s_own_words_not_the_stream_s_server_e_body() {
         let exec = scripted_exec(fixture("opencode", "model-not-found.jsonl"), ScriptOpts { exit_code: Some(1), ..Default::default() }, RUN_HANDLE);
         let events = Events::default();
         let result = start(&adapter_over(&exec, Extra::default()), turn_start("say hi", &events)).finished().await;
@@ -248,6 +272,10 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
 
     #[tokio::test]
     async fn a_provider_that_refuses_the_credential_is_a_sign_in_refusal_with_wsp_s_road_besi() {
+        tokio::task::LocalSet::new().run_until(a_provider_that_refuses_the_credential_is_a_sign_in_refusal_with_wsp_s_road_besi_body()).await
+    }
+
+    async fn a_provider_that_refuses_the_credential_is_a_sign_in_refusal_with_wsp_s_road_besi_body() {
         let refused = line("error", json!({ "error": { "name": "ProviderAuthError", "data": { "providerID": "anthropic", "message": "Invalid API key" } } }));
         let exec = scripted_exec(vec![refused], ScriptOpts { exit_code: Some(1), ..Default::default() }, RUN_HANDLE);
         let result = start(&adapter_over(&exec, Extra::default()), HarnessStartOptions { prompt: "go".into(), on_event: Some(no_events()), ..Default::default() }).finished().await;
@@ -260,6 +288,10 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
 
     #[tokio::test]
     async fn a_process_that_dies_before_any_event_fails_the_turn_with_what_it_printed() {
+        tokio::task::LocalSet::new().run_until(a_process_that_dies_before_any_event_fails_the_turn_with_what_it_printed_body()).await
+    }
+
+    async fn a_process_that_dies_before_any_event_fails_the_turn_with_what_it_printed_body() {
         let exec = scripted_exec(vec!["bash: opencode: command not found".into()], ScriptOpts { exit_code: Some(127), ..Default::default() }, RUN_HANDLE);
         let result = start(&adapter_over(&exec, Extra::default()), HarnessStartOptions { prompt: "go".into(), on_event: Some(no_events()), ..Default::default() }).finished().await;
         assert_eq!(result, failed("opencode exited with code 127 before its turn ended: bash: opencode: command not found"));
@@ -267,6 +299,10 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
 
     #[tokio::test]
     async fn interrupt_ends_the_process_and_the_turn_reads_interrupted() {
+        tokio::task::LocalSet::new().run_until(interrupt_ends_the_process_and_the_turn_reads_interrupted_body()).await
+    }
+
+    async fn interrupt_ends_the_process_and_the_turn_reads_interrupted_body() {
         let exec = scripted_exec(
             vec![line("step_start", json!({ "part": { "id": "p", "sessionID": SESSION, "messageID": "m", "type": "step-start" } }))],
             ScriptOpts { hang: true, ..Default::default() },
@@ -285,6 +321,10 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
 
     #[tokio::test]
     async fn an_attach_re_opens_the_run_with_no_channel_and_takes_the_model_and_folder_off_th() {
+        tokio::task::LocalSet::new().run_until(an_attach_re_opens_the_run_with_no_channel_and_takes_the_model_and_folder_off_th_body()).await
+    }
+
+    async fn an_attach_re_opens_the_run_with_no_channel_and_takes_the_model_and_folder_off_th_body() {
         let exec = scripted_exec(fixture("opencode", "turn.jsonl"), ScriptOpts::default(), RUN_HANDLE).with_attach();
         let events = Events::default();
         let attached = adapter_over(&exec, Extra::default())
@@ -322,6 +362,10 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
 
     #[tokio::test]
     async fn an_image_reaches_the_line_as_a_file_on_the_machine_and_one_with_no_path_is_refus() {
+        tokio::task::LocalSet::new().run_until(an_image_reaches_the_line_as_a_file_on_the_machine_and_one_with_no_path_is_refus_body()).await
+    }
+
+    async fn an_image_reaches_the_line_as_a_file_on_the_machine_and_one_with_no_path_is_refus_body() {
         let exec = scripted_exec(fixture("opencode", "turn.jsonl"), ScriptOpts::default(), RUN_HANDLE);
         let adapter = adapter_over(&exec, Extra::default());
         start(
@@ -352,6 +396,10 @@ mod what_opencode_reports_about_itself {
 
     #[tokio::test]
     async fn reads_its_version_and_each_model_with_the_variants_it_offers_off_opencode_models() {
+        tokio::task::LocalSet::new().run_until(reads_its_version_and_each_model_with_the_variants_it_offers_off_opencode_models_body()).await
+    }
+
+    async fn reads_its_version_and_each_model_with_the_variants_it_offers_off_opencode_models_body() {
         let (exec, asked) = probe_over(&fixture("opencode", "catalog-probe.txt").join("\n"));
         let probe = adapter_over(&scripted_exec(vec![], ScriptOpts::default(), RUN_HANDLE), Extra::default()).probe_catalog(exec).await.unwrap();
         assert_eq!(
@@ -385,6 +433,10 @@ mod what_opencode_reports_about_itself {
 
     #[tokio::test]
     async fn answers_nothing_when_the_binary_printed_no_model() {
+        tokio::task::LocalSet::new().run_until(answers_nothing_when_the_binary_printed_no_model_body()).await
+    }
+
+    async fn answers_nothing_when_the_binary_printed_no_model_body() {
         let adapter = adapter_over(&scripted_exec(vec![], ScriptOpts::default(), RUN_HANDLE), Extra::default());
         let (exec, _) = probe_over("bash: opencode: command not found\n");
         assert_eq!(adapter.probe_catalog(exec).await.unwrap(), None);
@@ -398,6 +450,10 @@ mod a_person_s_setup_for_opencode_on_a_computer {
 
     #[tokio::test]
     async fn runs_the_program_in_place_of_opencode_on_a_turn_and_a_probe_the_launch_words_on() {
+        tokio::task::LocalSet::new().run_until(runs_the_program_in_place_of_opencode_on_a_turn_and_a_probe_the_launch_words_on_body()).await
+    }
+
+    async fn runs_the_program_in_place_of_opencode_on_a_turn_and_a_probe_the_launch_words_on_body() {
         let exec = scripted_exec(fixture("opencode", "turn.jsonl"), ScriptOpts::default(), RUN_HANDLE);
         let adapter = create_opencode_adapter(OpenCodeAdapterDeps {
             launch: Some(AgentLaunch { program: Some("/opt/oc".into()), args: Some(vec!["--port".into(), "0".into()]) }),
@@ -517,6 +573,10 @@ mod rules_this_port_pins {
 
     #[tokio::test]
     async fn the_first_error_is_the_turns_failure_and_a_later_one_changes_nothing() {
+        tokio::task::LocalSet::new().run_until(the_first_error_is_the_turns_failure_and_a_later_one_changes_nothing_body()).await
+    }
+
+    async fn the_first_error_is_the_turns_failure_and_a_later_one_changes_nothing_body() {
         // Rule 11; adapter.ts:202 (`failure ??=`).
         let first = line("error", json!({"error": {"name": "APIError", "data": {"message": "first words"}}}));
         let second = line("error", json!({"error": {"name": "ProviderAuthError", "data": {"message": "second words"}}}));
@@ -527,6 +587,10 @@ mod rules_this_port_pins {
 
     #[tokio::test]
     async fn a_text_part_that_trims_empty_is_neither_said_nor_the_reply() {
+        tokio::task::LocalSet::new().run_until(a_text_part_that_trims_empty_is_neither_said_nor_the_reply_body()).await
+    }
+
+    async fn a_text_part_that_trims_empty_is_neither_said_nor_the_reply_body() {
         // Rule 8; adapter.ts:183.
         let said = line("text", json!({"part": {"type": "text", "text": "the reply", "messageID": "m1"}}));
         let blank = line("text", json!({"part": {"type": "text", "text": "  \n"}}));
