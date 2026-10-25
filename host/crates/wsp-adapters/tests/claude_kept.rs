@@ -97,6 +97,35 @@ async fn a_kept_process_takes_the_next_turn_under_the_same_local_id_and_costs_on
     assert_eq!(exec.order(), vec!["write", "closeInput", "teardown"], "close(now) closes the process's input and ends its tree at once");
 }
 
+// T3: on a road that holds no line (no write_after), the next turn's line waits for `after`: written once it
+// resolves, never where it rejects.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_kept_turns_line_waits_for_after_and_goes_nowhere_where_it_rejects() {
+    let exec = FakeExec::manual(StreamOpts::default());
+    let adapter = create_claude_adapter(deps(&exec)).unwrap();
+    let first = adapter.start(HarnessStartOptions { prompt: "one".into(), keep: true, on_event: Some(Arc::new(|_| {})), ..Default::default() }).unwrap();
+    let done = json!({"type": "result", "subtype": "success", "is_error": false, "result": "ok", "duration_ms": 40, "num_turns": 1, "session_id": SID, "usage": {"input_tokens": 10, "output_tokens": 5}}).to_string();
+    exec.push(init());
+    exec.push(done.clone());
+    first.finished().await;
+    let (go, gate) = tokio::sync::oneshot::channel::<Result<(), String>>();
+    let after: Settle = Box::pin(async move { gate.await.unwrap_or(Err("dropped".into())) });
+    let second = first.kept().expect("kept").next(KeptTurn { prompt: "two".into(), images: vec![], after: Some(after), on_event: Arc::new(|_| {}) });
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    assert!(exec.writes().is_empty(), "held until after settles");
+    go.send(Ok(())).unwrap();
+    until(|| exec.writes().len() == 1).await;
+    assert_eq!(claude_exec::json(&exec.writes()[0])["message"]["content"][0]["text"], json!("two"));
+    exec.push(init());
+    exec.push(done);
+    second.finished().await;
+    let refused: Settle = Box::pin(async { Err("the seed went".to_string()) });
+    let _third = second.kept().expect("kept").next(KeptTurn { prompt: "three".into(), images: vec![], after: Some(refused), on_event: Arc::new(|_| {}) });
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    assert_eq!(exec.writes().len(), 1, "a rejected after drops the line");
+    assert_eq!(exec.order(), vec!["write"]);
+}
+
 // T4: a turn that failed on a kept process gives the process up: it is launched again for the next message.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_failed_turn_releases_its_process_and_keeps_nothing() {

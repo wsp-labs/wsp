@@ -206,6 +206,7 @@ STOP_TASK_WAIT_MS 10000, each the default where its dep is `None`. Request ids c
 | an attach replays the log without launching and keeps the run handle | `claude_turn::attaches_to_a_run_an_earlier_process_launched` (ported) |
 | on_event may answer a prompt from inside the callback | `claude_restart::a_prompt_answered_from_inside_on_event_closes_once` |
 | a stream that throws ends the turn with its words and carries the failure | `claude_restart::a_transport_failure_rides_session_end` |
+| T3: a kept turn's line waits for after | `claude_kept::a_kept_turns_line_waits_for_after_and_goes_nowhere_where_it_rejects` |
 | T1, T2, T3: a kept process's next turn, its cost the gain | `claude_kept::a_kept_process_takes_the_next_turn_under_the_same_local_id_and_costs_only_what_it_added` |
 | T4: a failed turn releases its process | `claude_kept::a_failed_turn_releases_its_process_and_keeps_nothing` |
 | T5: an attach keeps no process | `claude_kept::an_attached_turn_keeps_no_process` |
