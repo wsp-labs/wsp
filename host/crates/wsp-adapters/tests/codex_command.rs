@@ -909,3 +909,62 @@ mod codex_typed_in_a_terminal_on_a_brokered_machine {
         assert!(args_of(&dir).contains(&"cli_auth_credentials_store=\"file\"".to_string()));
     }
 }
+
+/// Rules CM1 to CM4 of spec/codex_command.md, "Rules added for the port", each value printed by the TS at 65f6b89c7.
+mod rules_added {
+    use super::*;
+
+    const AGENT: &str = r#"sh -c '[ -z "${WSP_AGENT_PID_FILE:-}" ] || echo $$ > "$WSP_AGENT_PID_FILE"; unset WSP_AGENT_PID_FILE; exec "$0" "$@"'"#;
+
+    #[test]
+    fn every_key_set_over_the_base_keeps_the_base_s_place_and_an_empty_key_is_a_key() {
+        // CM1, CM2; command.ts:66-74.
+        let mut base = IndexMap::new();
+        for (k, v) in [("A", Some("1")), ("CODEX_HOME", Some("/old")), ("B", Some("2")), ("CODEX_API_KEY", Some("old")), ("OPENAI_API_KEY", Some("old2")), ("GONE", None)] {
+            base.insert(k.to_string(), v.map(String::from));
+        }
+        let env = build_env(&CodexEnvOptions { base: Some(base), home: "/h".into(), api_key: Some("k".into()), broker: None }).unwrap();
+        let pairs: Vec<(&str, &str)> = env.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        assert_eq!(pairs, [("A", "1"), ("CODEX_HOME", "/h"), ("B", "2"), ("CODEX_API_KEY", "k"), ("OPENAI_API_KEY", "k")]);
+        let env = build_env(&CodexEnvOptions { base: Some(IndexMap::new()), home: "/h".into(), api_key: Some(String::new()), broker: None }).unwrap();
+        let pairs: Vec<(&str, &str)> = env.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        assert_eq!(pairs, [("CODEX_HOME", "/h"), ("CODEX_API_KEY", ""), ("OPENAI_API_KEY", "")]);
+    }
+
+    #[test]
+    fn an_empty_folder_is_a_folder_and_the_launch_words_follow_app_server_each_quoted() {
+        // CM3; command.ts:326-331.
+        let launch = AgentLaunch { program: Some("/opt/cx".into()), args: Some(vec!["--x".into(), "a b".into(), "it's".into(), String::new()]) };
+        let line = build_command(&BuildCommandOptions { cwd: Some(String::new()), launch: Some(launch), ..turn_options() }, NOW).unwrap();
+        assert_eq!(line, format!(r#"cd '' && {AGENT} '/opt/cx' app-server '--x' 'a b' 'it'\''s' '' -c tools.update_plan.enabled='true'"#));
+    }
+
+    #[test]
+    fn servers_go_in_js_object_order_integer_names_first_and_off_names_are_never_deduplicated() {
+        // CM4; command.ts:285 (`Object.entries`), 305 (`filter`, no dedupe).
+        let line = build_command(
+            &BuildCommandOptions {
+                mcp_servers: servers(&[("b", spec("b", &[])), ("10", spec("ten", &[])), ("2", spec("two", &[])), ("a", spec("a", &[]))]),
+                off_servers: Some(["dup", "dup", "", "b c", "a.b", "ok"].map(String::from).to_vec()),
+                ..turn_options()
+            },
+            NOW,
+        )
+        .unwrap();
+        let off = |name: &str| format!(r#"$(grep -Eqs '^[[:space:]]*(\[mcp_servers\.{name}[].]|mcp_servers\.{name}\.)' "$CODEX_HOME/config.toml" && printf %s '-c mcp_servers.{name}.enabled=false')"#);
+        let server = |name: &str, command: &str| format!(r#"-c mcp_servers.{name}.command='"{command}"' -c mcp_servers.{name}.args='[]'"#);
+        assert_eq!(
+            line,
+            format!(
+                "cd ~ && {AGENT} codex app-server -c tools.update_plan.enabled='true' {} {} {} {} {} {} {}",
+                server("2", "two"),
+                server("10", "ten"),
+                server("b", "b"),
+                server("a", "a"),
+                off("dup"),
+                off("dup"),
+                off("ok")
+            )
+        );
+    }
+}

@@ -297,3 +297,66 @@ mod credits_of {
         );
     }
 }
+
+/// Rules CL1 to CL3 of spec/codex_limits.md, "Rules added for the port", each value printed by the TS at 65f6b89c7.
+mod rules_added {
+    use super::*;
+    use wsp_adapters::codex::limits::{limit_of, LimitAccount};
+
+    fn obj(v: Value) -> serde_json::Map<String, Value> {
+        v.as_object().cloned().unwrap()
+    }
+
+    #[test]
+    fn a_reset_below_1e11_is_seconds_made_ms_and_anything_not_a_number_is_none() {
+        // CL1; limits.ts:7, 20.
+        let reset = |at: Value| limit_of(&obj(json!({"primary": {"usedPercent": 1, "windowDurationMins": 300, "resetsAt": at}})), &LimitAccount::default(), None).unwrap().windows[0].resets_at;
+        let got: Vec<Option<JsNumber>> = [json!(99999999999_i64), json!(99999999999.9), json!(100000000000_i64), json!(0), json!(-5), json!(1.5), json!(86400.123456), json!("5"), json!(null)].into_iter().map(reset).collect();
+        let want: Vec<Option<JsNumber>> =
+            [Some(99999999999000.0), Some(99999999999900.0), Some(100000000000.0), Some(0.0), Some(-5000.0), Some(1500.0), Some(86400123.456), None, None].into_iter().map(|v| v.map(JsNumber)).collect();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn a_banked_count_is_any_whole_js_number_and_each_credit_reads_its_status_exactly() {
+        // CL2; limits.ts:12-28.
+        let count = |c: Value| credits_of(Some(&obj(json!({"rateLimitResetCredits": {"availableCount": c}})))).map(|b| b.count);
+        assert_eq!(count(json!(2.0)), Some(2.into()));
+        assert_eq!(count(json!(0)), Some(0.into()));
+        assert_eq!(count(json!(1e20)), Some(wsp_wire::types::js_number::JsInt(JsNumber(1e20))));
+        for none in [json!(0.5), json!(true), json!("2")] {
+            assert_eq!(count(none.clone()), None, "{none}");
+        }
+        let credits = credits_of(Some(&obj(json!({"rateLimitResetCredits": {"availableCount": 3, "credits": [
+            null, 1, {"id": ""}, {"id": "a", "status": "Available", "resetType": "codexRateLimits"},
+            {"id": "b", "status": "available", "resetType": "codexRateLimits", "expiresAt": -5}, {"id": 7}
+        ]}}))));
+        assert_eq!(
+            credits,
+            Some(BankedResets {
+                count: 3.into(),
+                credits: Some(vec![
+                    ResetCredit { id: String::new(), status: ResetCreditStatus::Unknown, expires_at: None },
+                    ResetCredit { id: "a".into(), status: ResetCreditStatus::Unknown, expires_at: None },
+                    ResetCredit { id: "b".into(), status: ResetCreditStatus::Available, expires_at: Some(JsNumber(-5000.0)) },
+                ]),
+            })
+        );
+    }
+
+    #[test]
+    fn a_window_s_kind_cuts_at_300_and_10080_minutes_and_any_reached_type_but_null_is_reached() {
+        // CL3; limits.ts:45-70. A minutes value that is not a number takes the slot's fallback (300 for primary); a
+        // negative percent is a window; an empty plan is a plan.
+        let kind = |mins: Value| limit_of(&obj(json!({"primary": {"usedPercent": -3.5, "windowDurationMins": mins}})), &LimitAccount::default(), None).unwrap().windows[0].clone();
+        let kinds: Vec<LimitKind> = [json!(0), json!(-5), json!(299), json!(300), json!(300.5), json!(301), json!(10080), json!(10080.5), json!(null), json!("5")].into_iter().map(|m| kind(m).kind).collect();
+        use LimitKind::*;
+        assert_eq!(kinds, [Session, Session, Session, Session, Week, Week, Week, Month, Session, Session]);
+        assert_eq!(kind(json!(0)).used_percent, JsNumber(-3.5));
+        let pro = LimitAccount { plan: Some("pro".into()), ..Default::default() };
+        for (reached, status) in [(json!(""), LimitStatus::Reached), (json!(false), LimitStatus::Reached), (json!(0), LimitStatus::Reached), (json!(null), LimitStatus::Ok)] {
+            let limit = limit_of(&obj(json!({"primary": {"usedPercent": 1}, "planType": "", "rateLimitReachedType": reached})), &pro, None).unwrap();
+            assert_eq!((limit.plan.as_deref(), limit.status), (Some(""), Some(status)), "{reached}");
+        }
+    }
+}

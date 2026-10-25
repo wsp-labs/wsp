@@ -15,7 +15,7 @@ argv codex reports for each command.
    `initialize_line` is `{"id":"wsp-initialize","method":"initialize","params":{"clientInfo":{"name":"wsp","title":"wsp","version":"1"}}}`
    (rpc.ts:23). `INITIALIZED_LINE` is `{"method":"initialized"}`. `ACCOUNT_READ_LINE` is `{"id":"wsp-account","method":"account/read","params":{}}`.
 3. `rate_limits_read_line(false)` has params `{"excludeResetCreditDetails":true}`; `(true)` has params `{}` (rpc.ts:34).
-4. `named` (rpc.ts:17) keeps only the fields that are set, in the order cwd, model, serviceTier. Thread params are laid out as
+4. `named` (rpc.ts:17) leaves a field out only where it is absent (an empty string is written, RP3), in the order cwd, model, serviceTier. Thread params are laid out as
    `named(...)`, then `sandbox`, `approvalPolicy` (the access pair, in that order), then `config` only where it holds at least one key
    (rpc.ts:48). `thread/resume` puts `threadId`, `excludeTurns: true` first (rpc.ts:57).
 5. `thread_fork_line` (side question): `threadId, ephemeral: true, excludeTurns: true, sandbox: "read-only", approvalPolicy: "never"`,
@@ -27,15 +27,15 @@ argv codex reports for each command.
 9. `turn_steer_line(id, ..)` names `expectedTurnId`; `turn_interrupt_line` names `turnId` (rpc.ts:111-118).
 10. `decision_line(id, d)` is `{"id":<id as it came>,"result":{"decision":"accept"|"decline"}}`; an integer id stays a JSON number (rpc.ts:122).
 11. `refuse_request_line(id, method)` is `{"id":..,"error":{"code":-32601,"message":"wsp does not answer <method>"}}` (rpc.ts:127).
-12. `read_message` (rpc.ts:144): trims with JS `trim` (`wsp_words::js_trim`, rule 8.6); a line not starting with `{` after the trim, one that
-    does not parse, or one that parses to anything but an object, is `None`. With a string `method`: a string-or-number `id` makes it a
+12. `read_message` (rpc.ts:144, RP5): trims with JS `trim` (`wsp_words::js_trim`, rule 8.6); a line not starting with `{` after the trim, one that
+    does not parse, or one that parses to anything but an object, is `None`. With a string `method` (the empty string counts; any other type is no method): a string-or-number `id` makes it a
     request, anything else a notification, carrying `emittedAtMs` only when it is a JSON number. `params` is the object or an empty map
     when absent or not an object. Without a method: an `id` that is not a string or number is `None`; an `error` object makes an error
     whose message is `error.message` when a string, else `codex refused the request without saying why`; else a present `result` key
     (even `null`) makes a response carrying that value; else `None`.
 13. `rec` is an object (not an array, not null); `str` is any string, the empty string included (fields.ts:8); `count` is a finite number.
     Other files carry their own `str` that refuses `""`: never share this one with them.
-14. `shell_script_of` (shell-script.ts:30) splits like POSIX sh: space, tab and newline separate words; `'...'` keeps every byte; inside
+14. `shell_script_of` (shell-script.ts:42, its splitter :10) splits like POSIX sh: space, tab and newline separate words; `'...'` keeps every byte; inside
     `"..."` a backslash is dropped only before `"`, `\`, `$`, a backtick or a newline; a bare backslash takes the next byte; an unclosed
     quote or a trailing backslash refuses the line. Exactly three words, the first's last path segment one of `sh`, `bash`, `zsh`, `dash`,
     and the second `-lc` or `-c`, give the third word; anything else gives the command unchanged.
@@ -51,13 +51,30 @@ argv codex reports for each command.
 - Rule 8.6: the trim in `read_message` is `js_trim`; a line wrapped in U+FEFF still reads as a message.
 
 ## Decisions
-1. `RequestId` is `Str(String) | Num(serde_json::Number)`: the number is echoed as it was parsed, so `0` writes `0`. The ask id the turn
+1. `RequestId` is `Str(String) | Num(serde_json::Number)`: the number is echoed as the JS number, never its source text: `1.0` writes
+   `1`, `1e2` writes `100`, `-0` writes `0` (RP4). `1e400` parses in JS as Infinity and writes `null`; serde_json refuses the line, so it
+   reads as `None` here (accepted difference). The ask id the turn
    derives from it (`String(id)`) is the number written by JS rules, `wsp_wire`'s JS formatter (rule 4.25).
-2. A line holding a lone surrogate escape parses in JS and fails in serde_json, so it reads as `None` here. Accepted difference: codex never
-   prints one.
+2. A line holding a lone surrogate escape parses in JS, and a Rust string cannot hold one: it reads as U+FFFD and the line still reads
+   (rule RP1, the coordinator's ruling on #2447 for every adapter, as claude_reading R2). Accepted difference.
 
 ## After the port
 - Nothing.
+
+## Rules added for the port (each value printed by the TS at 65f6b89c7)
+
+- **RP1.** A lone surrogate escape reads as U+FFFD and the line still reads; a pair stays one character (decision 2).
+- **RP2.** `thread_unsubscribe_line(T)` is `{"id":"wsp-unsubscribe","method":"thread/unsubscribe","params":{"threadId":"T"}}`;
+  `thread_compact_start_line(T)` is `{"id":"wsp-turn","method":"thread/compact/start","params":{"threadId":"T"}}`, under the turn's id.
+- **RP3.** Empty strings are written: `cwd: ""`, `model: ""` give `"cwd":"","model":""`; `effort: ""` gives `"effort":""`;
+  `lastTurnId: ""` gives `"lastTurnId":""`. Only absent leaves a key out.
+- **RP4.** A numeric id is echoed and named (`js_string`) as JS writes the number: `1.0` is `1`, `1e2` is `100`, `-0` is `0`.
+- **RP5.** `read_message` on odd shapes: a non-string `method` is none (`{"method":5,"id":1,"result":1}` is a response); `{"method":""}`
+  is a notification with method `""`; `emittedAtMs` rides a notification only, any finite number (`-1.5` kept); an error object beats a
+  result; `{"id":1,"error":null,"result":2}` is a response; `{"id":1,"error":{}}` is an error with the default words and
+  `{"message":""}` an error with `""`; an id that is neither string nor number with a method is a notification, without one nothing;
+  params that are no object are `{}`; U+FEFF and `\r` are trimmed, U+0085 is not; `{"id":1}`, `{"id":1,"error":"boom"}` and two
+  objects on one line are `None`.
 
 ## Tests (tests/codex_rpc.rs, 24; TS 14 + 2)
 - Rules 1-3, 5-11: `the_lines_wsp_writes_to_codex_app_server::*` (10), `the_revert_line::*`; key order as text (rules 2, 4, 6, 7, 10):
@@ -65,3 +82,4 @@ argv codex reports for each command.
 - Rule 12: `read_message_cases::*` (2) and `read_message_cases::a_response_whose_result_is_null_is_still_a_response_carrying_null`.
 - Rule 13: `fields_readers::str_accepts_the_empty_string`, `fields_readers::count_refuses_a_non_number`.
 - Rule 14: `shell_script_of_cases::*` (2).
+- RP1 to RP5: `rules_added::*` in `codex_rpc.rs` (RP1 is `read_message_cases::a_lone_surrogate_escape_reads_as_the_replacement_character_and_the_line_still_reads`).
