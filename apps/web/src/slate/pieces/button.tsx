@@ -2,9 +2,8 @@
 import { slateLinkDomain } from "@wsp/protocol/slate";
 import { stepsOf, type SlateStep } from "../model.js";
 import { Button, DANGER_BUTTON } from "../../components/ui/button.js";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../../components/ui/tooltip.js";
 import type { PieceView } from "../SlateView.js";
-import { str, heldBy } from "./look.js";
+import { NOTE, str, heldBy } from "./look.js";
 import { placeOf } from "./runs.js";
 import { Outcome } from "./outcome.js";
 import { usePress } from "./press.js";
@@ -76,19 +75,11 @@ export const button: PieceView = {
         {label}
       </Button>
     );
+    // A held button says why under itself, where the person looks for it, not in a tooltip a disabled button never opens.
     return (
-      <div className="flex min-w-0 flex-col items-start gap-1">
-        {held === undefined ? (
-          control
-        ) : (
-          // A disabled button takes no pointer, so the sentence it is held by rides a tooltip on the span around it.
-          <Tooltip>
-            <TooltipTrigger render={<span data-slate-held-button={held} className="inline-flex" />}>{control}</TooltipTrigger>
-            <TooltipPopup side="top" className="max-w-72 text-pretty">
-              {held}
-            </TooltipPopup>
-          </Tooltip>
-        )}
+      <div data-slate-held-button={held} className="flex min-w-0 flex-col items-start gap-1">
+        {control}
+        {held === undefined ? null : <span data-slate-held-why className={NOTE}>{held}</span>}
         <Outcome said={said} refused={refused} />
       </div>
     );

@@ -37,6 +37,11 @@ pub fn draw(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement
 }
 
 /// Whether this piece holds the slate's one accent: the first chart, donut, timeline or treemap that names no tone.
+/// The tone the chart's own `tone` names, where it names one other than default.
+fn layout_tone(p: &PieceCx) -> Option<Tone> {
+    p.prop("tone").map(|t| super::layout::tone_of(Some(t), p.slate, p.id())).filter(|t| *t != Tone::Default)
+}
+
 fn loud(p: &PieceCx) -> bool {
     p.slate.is_loud(Loud::Accent, p.id())
 }
@@ -133,18 +138,49 @@ fn parse_time(s: &str) -> Option<f64> {
     NaiveDate::parse_from_str(s, "%Y-%m-%d").ok().and_then(|d| d.and_hms_opt(0, 0, 0)).map(|t| t.and_utc().timestamp_millis() as f64)
 }
 
-/// `slateAxisWord`: a time in ms or an ISO time by the clock, anything else as written.
-fn axis_word(x: Option<&Value>) -> String {
+/// A day in ms: an axis spanning one or more says dates rather than clock times.
+const AXIS_DAY: f64 = 86_400_000.;
+
+/// An x as a moment, and whether it is a date alone: ms past 2001, or an ISO date or time.
+fn axis_time(x: Option<&Value>) -> Option<(f64, bool)> {
+    match x? {
+        Value::Number(n) => n.as_f64().filter(|n| *n > 1e12).map(|n| (n, false)),
+        Value::String(s) => {
+            let date = s.get(..10).is_some_and(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok());
+            let alone = date && s.len() == 10;
+            (alone || (date && s.as_bytes()[10] == b'T')).then(|| parse_time(s)).flatten().map(|ms| (ms, alone))
+        }
+        _ => None,
+    }
+}
+
+/// `slateAxisSpan`: how long a list of x values spans, in ms, where they are times; 0 otherwise.
+fn axis_span(xs: &[Value]) -> f64 {
+    let times: Vec<f64> = xs.iter().filter_map(|x| axis_time(Some(x)).map(|t| t.0)).collect();
+    if times.len() < 2 {
+        return 0.;
+    }
+    times.iter().copied().fold(f64::NEG_INFINITY, f64::max) - times.iter().copied().fold(f64::INFINITY, f64::min)
+}
+
+/// `slateAxisWord`: a time by the clock, by its date (Oct 12) where the axis spans a day or more or the x is a date
+/// alone, anything else as written.
+fn axis_word(x: Option<&Value>, span: f64) -> String {
+    if let Some((ms, alone)) = axis_time(x) {
+        if !alone && span < AXIS_DAY {
+            return time_word(ms, &Local);
+        }
+        // A date alone is midnight UTC, so it reads as that day in every time zone.
+        let at = chrono::Utc.timestamp_millis_opt(ms as i64).single();
+        return match at {
+            Some(t) if alone => t.format("%b %-d").to_string(),
+            Some(t) => t.with_timezone(&Local).format("%b %-d").to_string(),
+            None => String::new(),
+        };
+    }
     match x {
         None | Some(Value::Null) => String::new(),
-        Some(Value::Number(n)) if n.as_f64().is_some_and(|n| n > 1e12) => time_word(n.as_f64().unwrap_or_default(), &Local),
-        Some(Value::String(s)) => {
-            let iso = s.len() > 10 && s.as_bytes()[10] == b'T' && NaiveDate::parse_from_str(&s[..10], "%Y-%m-%d").is_ok();
-            match parse_time(s).filter(|_| iso) {
-                Some(ms) => time_word(ms, &Local),
-                None => s.clone(),
-            }
-        }
+        Some(Value::String(s)) => s.clone(),
         Some(Value::Number(n)) => look::num_text(n.as_f64().unwrap_or_default()),
         Some(other) => other.to_string(),
     }
@@ -215,12 +251,14 @@ fn axis_for(values: &[f64], format: Option<&Value>) -> Axis {
     Axis { from, to, parts }
 }
 
-/// The panel decides a chart's height: 200 px in the 400 px panel, 260 once it is widened.
-fn chart_height(width: f32) -> Pixels {
-    if width >= 560. {
-        px(260.)
-    } else {
-        px(200.)
+/// A normal chart's height follows the panel, 200 px in the 400 px panel and 260 once it is widened; a small or large
+/// one keeps the height its word names at any width.
+fn chart_height(width: f32, size: Option<&Value>) -> Pixels {
+    match size.and_then(Value::as_str) {
+        Some("small") => px(120.),
+        Some("large") => px(320.),
+        _ if width >= 560. => px(260.),
+        _ => px(200.),
     }
 }
 
@@ -270,7 +308,14 @@ fn chart(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
     let values: Vec<f64> = if rows.len() == 1 { vec![rows[0].1, rows[0].1] } else { rows.iter().map(|r| r.1).collect() };
     // A series that holds one value the whole window says so on the legend's line; one sample still draws its plot.
     let flat = rows.len() > 1 && rows.iter().all(|r| r.1 == rows[0].1);
-    let ink = if loud(p) { Tone::Accent } else { Tone::Muted }.ink(cx);
+    // A tone the agent named holds; else one chart per slate carries the accent and any other draws its line muted.
+    let named_tone = layout_tone(p);
+    let ink = match named_tone {
+        Some(tone) => tone,
+        None if loud(p) => Tone::Accent,
+        None => Tone::Muted,
+    }
+    .ink(cx);
     let (name, what) = named(p);
     let (width, probe) = measured(p, "width", window, cx);
     let legend = sized(h_flex().flex_wrap().gap_x_6().gap_y_2(), text::NOTE).text_color(pal.foreground).child(
@@ -284,20 +329,21 @@ fn chart(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
         None
     } else {
         let xs: Vec<Value> = rows.iter().map(|r| r.0.clone()).collect();
+        let span = axis_span(&xs);
         let ticks = if rows.len() == 1 {
-            vec![Tick { at: 1., word: axis_word(Some(&xs[0])).into() }]
+            vec![Tick { at: 1., word: axis_word(Some(&xs[0]), span).into() }]
         } else {
-            vec![Tick { at: 0., word: axis_word(xs.first()).into() }, Tick { at: 1., word: axis_word(xs.last()).into() }]
+            vec![Tick { at: 0., word: axis_word(xs.first(), span).into() }, Tick { at: 1., word: axis_word(xs.last(), span).into() }]
         };
         let axis = axis_for(&values, p.prop("format"));
         let line = ChartLine { key: "line".into(), label: label.into(), points: values.clone(), ink };
         let steps = (0..values.len()).map(|i| i as f64).collect();
         Some(
             Chart::new(p.el("chart"), steps, vec![line], ticks)
-                .height(chart_height(width))
+                .height(chart_height(width, p.prop("height")))
                 .figure(shown)
                 .axis_figure(bare)
-                .step_word(move |i| axis_word(xs.get((i as usize).min(xs.len() - 1))))
+                .step_word(move |i| axis_word(xs.get((i as usize).min(xs.len() - 1)), span))
                 .axis(axis)
                 .small()
                 .every_figure()
@@ -391,7 +437,8 @@ fn series_chart(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
                 |row| if p.piece.prop("x").is_some() { row.props.get("x").cloned().unwrap_or(Value::Null) } else { Value::from(row.index) },
             )
             .collect();
-        let ticks = vec![Tick { at: 0., word: axis_word(xs.first()).into() }, Tick { at: 1., word: axis_word(xs.last()).into() }];
+        let span = axis_span(&xs);
+        let ticks = vec![Tick { at: 0., word: axis_word(xs.first(), span).into() }, Tick { at: 1., word: axis_word(xs.last(), span).into() }];
         let lines = series
             .iter()
             .zip(drawn)
@@ -406,10 +453,10 @@ fn series_chart(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
             .collect();
         let steps = (0..rows.len()).map(|i| i as f64).collect();
         Chart::new(p.el("chart"), steps, lines, ticks)
-            .height(chart_height(width))
+            .height(chart_height(width, p.prop("height")))
             .figure(shown)
             .axis_figure(bare)
-            .step_word(move |i| axis_word(xs.get((i as usize).min(xs.len() - 1))))
+            .step_word(move |i| axis_word(xs.get((i as usize).min(xs.len() - 1)), span))
             .axis(axis)
             .small()
             .every_figure()
@@ -1004,7 +1051,27 @@ mod tests {
     fn the_axis_reads_round_steps_as_the_web_does() {
         assert_eq!(chart_axis(&[2410., 2415., 2408., 2421., 2430., 2426.]), Axis { from: 2405., to: 2430., parts: 5 });
         assert_eq!(axis_for(&[0., 1.], Some(&Value::from("integer"))), Axis { from: 0., to: 1., parts: 1 });
-        assert_eq!(axis_word(Some(&Value::from("idle"))), "idle");
-        assert_eq!(axis_word(Some(&Value::from(3))), "3");
+        assert_eq!(axis_word(Some(&Value::from("idle")), 0.), "idle");
+        assert_eq!(axis_word(Some(&Value::from(3)), 0.), "3");
+    }
+
+    #[test]
+    fn a_small_or_large_chart_keeps_its_height_at_any_width() {
+        assert_eq!(chart_height(380., Some(&Value::from("small"))), px(120.));
+        assert_eq!(chart_height(900., Some(&Value::from("small"))), px(120.));
+        assert_eq!(chart_height(900., Some(&Value::from("large"))), px(320.));
+        assert_eq!(chart_height(380., None), px(200.));
+        assert_eq!(chart_height(600., Some(&Value::from("normal"))), px(260.));
+    }
+
+    #[test]
+    fn an_axis_across_days_says_dates_and_a_date_alone_says_its_day() {
+        let xs = [Value::from(1_790_000_000_000_u64), Value::from(1_790_000_000_000_u64 + 14 * 86_400_000)];
+        let span = axis_span(&xs);
+        assert_eq!(span, 14. * AXIS_DAY);
+        assert!(!axis_word(xs.first(), span).contains(':'), "two weeks of ms read as dates");
+        assert!(axis_word(xs.first(), 3_600_000.).contains(':'), "an hour reads as clock times");
+        assert_eq!(axis_word(Some(&Value::from("2026-10-12")), 0.), "Oct 12");
+        assert_eq!(axis_span(&[Value::from("2026-10-12"), Value::from("2026-10-25")]), 13. * AXIS_DAY);
     }
 }
