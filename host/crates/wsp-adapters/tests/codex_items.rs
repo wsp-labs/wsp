@@ -118,7 +118,7 @@ fn each_file_change_carries_its_hunks_and_a_rename_its_moved_to() {
         {"path": "/root/lab/old.txt", "kind": {"type": "delete"}, "diff": "gone\n"},
         {"path": "/root/lab/a.txt", "kind": {"type": "update", "move_path": "/root/lab/b.txt"}, "diff": "@@ -2 +2 @@\n-x\n+y\n\n\nMoved to: /root/lab/b.txt"}
     ]);
-    let hunk = |os, ol, ns, nl, lines: &[&str]| PatchHunk { old_start: os, old_lines: ol, new_start: ns, new_lines: nl, lines: lines.iter().map(|s| s.to_string()).collect() };
+    let hunk = |os: i64, ol: i64, ns: i64, nl: i64, lines: &[&str]| PatchHunk { old_start: os.into(), old_lines: ol.into(), new_start: ns.into(), new_lines: nl.into(), lines: lines.iter().map(|s| s.to_string()).collect() };
     assert_eq!(
         file_patches(Some(&changes)),
         Some(vec![
@@ -285,7 +285,7 @@ fn what_the_model_held_is_the_total_tokens_else_input_and_output() {
 fn a_childs_usage_is_its_whole_breakdown_each_missing_field_zero_and_none_without_a() {
     // adapter.test.ts "holds the lead's reply while its child runs": the child's own thread's running total.
     let u = child_usage_of(Some(&obj(json!({"inputTokens": 900, "outputTokens": "x"})))).unwrap();
-    assert_eq!(u.tokens, Some(wsp_frames::UsageTokens { input: 900, output: 0, cached: 0, cache_write: 0, reasoning: 0 }));
+    assert_eq!(u.tokens, Some(wsp_wire::types::usage::UsageTokens { input: 900.0.into(), output: 0.0.into(), cached: 0.0.into(), cache_write: 0.0.into(), reasoning: 0.0.into() }));
     assert_eq!((u.tool_uses, u.duration_ms), (None, None));
     assert_eq!(child_usage_of(Some(&obj(json!({"totalTokens": 5})))), None);
     assert_eq!(child_usage_of(None), None);

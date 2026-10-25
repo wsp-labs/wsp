@@ -199,7 +199,7 @@ fn sub(session: &str, task: &str, state: SubagentState, s: Sub) -> AdapterEvent 
 }
 
 fn child_usage(input: u64, cached: u64, output: u64) -> SubagentUsage {
-    SubagentUsage { tokens: Some(UsageTokens { input, output, cached, cache_write: 0, reasoning: 0 }), tool_uses: None, duration_ms: None }
+    SubagentUsage { tokens: Some(UsageTokens { input: JsNumber(input as f64), output: JsNumber(output as f64), cached: JsNumber(cached as f64), cache_write: JsNumber(0.0), reasoning: JsNumber(0.0) }), tool_uses: None, duration_ms: None }
 }
 
 fn tool_use_delta(session: &str, tool_use_id: &str, prompt: &str) -> TurnDelta {
@@ -1050,7 +1050,7 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
     async fn reads_how_many_resets_the_plan_has_banked_off_the_turn_s_read_where_the_details() {
         let (_, limits) = limits_after(vec![read(primary_only(window(34.5, 300, 1_790_700_000)), json!({ "rateLimitResetCredits": banked(json!(null)) })), completed("completed")]).await;
         let credits: Vec<Option<BankedResets>> = limits.into_iter().map(|l| l.credits).collect();
-        assert_eq!(credits, vec![Some(BankedResets { count: 2, credits: None })]);
+        assert_eq!(credits, vec![Some(BankedResets { count: 2.into(), credits: None })]);
     }
 
     #[tokio::test]

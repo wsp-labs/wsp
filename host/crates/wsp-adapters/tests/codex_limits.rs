@@ -90,7 +90,7 @@ mod reading_the_banked_resets {
                     account: Some(HarnessLimitAccount { id: "acct_7f3a".to_string(), label: Some("dev@example.com".to_string()) }),
                     keyed: None,
                     credits: Some(BankedResets {
-                        count: 2,
+                        count: 2.into(),
                         credits: Some(vec![
                             ResetCredit { id: "rc_1".to_string(), status: ResetCreditStatus::Available, expires_at: Some(JsNumber(1_792_000_000_000.0)) },
                             ResetCredit { id: "rc_2".to_string(), status: ResetCreditStatus::Available, expires_at: Some(JsNumber(1_793_000_000_000.0)) },
@@ -145,7 +145,7 @@ mod spending_one {
                 assert_eq!(outcome, "reset");
                 let limit = limit.expect("a limit");
                 assert_eq!(limit.windows, vec![session_window(0.0)]);
-                assert_eq!(limit.credits.expect("credits").count, 1);
+                assert_eq!(limit.credits.expect("credits").count, 1.into());
             }
             other => panic!("{other:?}"),
         }
@@ -250,8 +250,8 @@ mod credits_of {
 
     #[test]
     fn reads_the_count_alone_where_the_details_are_null_or_not_a_list() {
-        assert_eq!(read(json!({ "rateLimitResetCredits": { "availableCount": 2, "credits": null } })), Some(BankedResets { count: 2, credits: None }));
-        assert_eq!(read(json!({ "rateLimitResetCredits": { "availableCount": 2, "credits": "two" } })), Some(BankedResets { count: 2, credits: None }));
+        assert_eq!(read(json!({ "rateLimitResetCredits": { "availableCount": 2, "credits": null } })), Some(BankedResets { count: 2.into(), credits: None }));
+        assert_eq!(read(json!({ "rateLimitResetCredits": { "availableCount": 2, "credits": "two" } })), Some(BankedResets { count: 2.into(), credits: None }));
     }
 
     #[test]
@@ -259,11 +259,11 @@ mod credits_of {
         assert_eq!(
             read(json!({ "rateLimitResetCredits": { "availableCount": 2, "credits": [credit(json!({})), credit(json!({ "id": "rc_2", "expiresAt": null }))] } })),
             Some(BankedResets {
-                count: 2,
+                count: 2.into(),
                 credits: Some(vec![banked("rc_1", ResetCreditStatus::Available, Some(1_792_000_000_000.0)), banked("rc_2", ResetCreditStatus::Available, None)]),
             })
         );
-        assert_eq!(read(json!({ "rateLimitResetCredits": { "availableCount": 0, "credits": [] } })), Some(BankedResets { count: 0, credits: Some(vec![]) }));
+        assert_eq!(read(json!({ "rateLimitResetCredits": { "availableCount": 0, "credits": [] } })), Some(BankedResets { count: 0.into(), credits: Some(vec![]) }));
     }
 
     #[test]
