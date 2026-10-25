@@ -118,3 +118,36 @@ Oracle: `tests/fixtures/roads/ssh_dial.json`, `ssh_carried.json` (the TS's own a
 | sudo roads through the client | ssh_sudo.rs (7 cases) |
 | carried options, quoting, %%, jump, known hosts | ssh_back_forward.rs (8 config cases), `carried_values_match_the_ts_for_every_config` |
 | held forward up, ended, release, caps | ssh_back_forward.rs (8 holder cases) |
+
+## Pins (wave 2)
+
+Scenes in `oracle/roads_scenes.oracle.ts`, replayed by `tests/roads_scenes.rs::<name>` against
+`tests/fixtures/scenes/roads.json`: each step is one write to the fake child's pipe (or its exit), with a pause
+after it, and `up` and `ended` must say what the TS said.
+
+- D-H1 A line is cut to 300 units from its head after the one trailing `\r` goes: a 1,000-unit stderr line written in
+  one piece keeps its first 300 (`the_cut_keeps_a_lines_head`). The held text is cut to its last 4,096 units only
+  when, after a read's complete lines are taken, more than 4,096 units are still waiting; so a 5,000-unit write with no
+  newline keeps its last 4,096, and the line the next newline ends starts there
+  (`a_flood_without_a_newline_keeps_only_its_last_4096_units`).
+- D-H2 Only the last 50 stderr lines are kept, and `client_words` runs over those 50 alone: ten real lines followed by
+  fifty of ssh's known-hosts note leave nothing, so the words are the fallback `ssh exited with 255`
+  (`only_the_last_50_stderr_lines_are_kept`).
+- D-H3 The words are the last line `client_words` keeps: debug lines and the known-hosts note after the real line are
+  dropped (`the_last_line_client_words_keeps_is_the_words`).
+- D-H4 `up` assembles a line across writes and trims it with JS trim after the one `\r` goes: `  WSP_BA` then
+  `CK_UP \r\n` is up (`up_on_a_line_written_in_two_pieces_and_padded`).
+- D-H5 More words on the line is not up, and an unended `WSP_BACK_UP` at the end of stdout is never read
+  (`the_up_word_with_more_on_its_line_is_not_up`).
+- D-H6 An exit with code 0 is `ssh exited with 0` (`an_exit_with_code_zero_says_so`); a start failure is the error's
+  message, `up` rejected with it (`a_child_that_fails_to_start_says_the_error`).
+- D-H7 Only one trailing `\r` goes with the line; `box_word` then strips every control character left, the tab and the
+  other `\r` included: `bad\tword\r\r\n` says `badword`
+  (`one_trailing_cr_goes_with_the_line_and_box_word_strips_the_rest`).
+- D-H8 A stderr tail with no newline when the child ends is never a line: the words are the line before it
+  (`a_stderr_tail_with_no_newline_is_never_read`).
+- D-H9 A cut inside a surrogate pair writes U+FFFD for the half left, so `box_word` keeps exactly `cap` units
+  (`a_cut_inside_an_emoji_writes_the_replacement_character_for_the_half`; the ruling in roads-README.md).
+- D-H10 The TS settles on the child's `exit` event, which can come before its pipes have been read to the end; this
+  spec has the holder read both pipes to their end before it settles (the fake closes them first), so a last line
+  written just before the exit is always counted. A difference only in a race the TS loses.

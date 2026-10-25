@@ -1,0 +1,456 @@
+{
+ "forwards": [
+  {
+   "name": "the_cut_keeps_a_lines_head",
+   "steps": [
+    {
+     "err": {
+      "len": 1001,
+      "head": "AAAAAAAAAAAAAAAAAAAA",
+      "tail": "BBBBBBBBBBBBBBBBBBB\n"
+     }
+    },
+    {
+     "exit": {
+      "code": 255,
+      "signal": null
+     }
+    }
+   ],
+   "up": "rejected: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+   "ended": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+  },
+  {
+   "name": "only_the_last_50_stderr_lines_are_kept",
+   "steps": [
+    {
+     "err": "early 0\n"
+    },
+    {
+     "err": "early 1\n"
+    },
+    {
+     "err": "early 2\n"
+    },
+    {
+     "err": "early 3\n"
+    },
+    {
+     "err": "early 4\n"
+    },
+    {
+     "err": "early 5\n"
+    },
+    {
+     "err": "early 6\n"
+    },
+    {
+     "err": "early 7\n"
+    },
+    {
+     "err": "early 8\n"
+    },
+    {
+     "err": "early 9\n"
+    },
+    {
+     "err": {
+      "len": 3550,
+      "head": "Warning: Permanently",
+      "tail": "ist of known hosts.\n"
+     }
+    },
+    {
+     "exit": {
+      "code": 255,
+      "signal": null
+     }
+    }
+   ],
+   "up": "rejected: ssh exited with 255",
+   "ended": "ssh exited with 255"
+  },
+  {
+   "name": "the_last_line_client_words_keeps_is_the_words",
+   "steps": [
+    {
+     "err": "Permission denied (publickey).\n"
+    },
+    {
+     "err": "Warning: Permanently added 'box' (ED25519) to the list of known hosts.\n"
+    },
+    {
+     "err": "debug1: Exit status 255\n"
+    },
+    {
+     "exit": {
+      "code": 255,
+      "signal": null
+     }
+    }
+   ],
+   "up": "rejected: Permission denied (publickey).",
+   "ended": "Permission denied (publickey)."
+  },
+  {
+   "name": "up_on_a_line_written_in_two_pieces_and_padded",
+   "steps": [
+    {
+     "out": "  WSP_BA"
+    },
+    {
+     "out": "CK_UP \r\n"
+    },
+    {
+     "exit": {
+      "code": 0,
+      "signal": null
+     }
+    }
+   ],
+   "up": "up",
+   "ended": "ssh exited with 0"
+  },
+  {
+   "name": "the_up_word_with_more_on_its_line_is_not_up",
+   "steps": [
+    {
+     "out": "WSP_BACK_UP now\n"
+    },
+    {
+     "out": "WSP_BACK_UP"
+    },
+    {
+     "exit": {
+      "code": 255,
+      "signal": null
+     }
+    }
+   ],
+   "up": "rejected: ssh exited with 255",
+   "ended": "ssh exited with 255"
+  },
+  {
+   "name": "an_exit_with_code_zero_says_so",
+   "steps": [
+    {
+     "exit": {
+      "code": 0,
+      "signal": null
+     }
+    }
+   ],
+   "up": "rejected: ssh exited with 0",
+   "ended": "ssh exited with 0"
+  },
+  {
+   "name": "a_child_that_fails_to_start_says_the_error",
+   "steps": [
+    {
+     "fail": "spawn ssh ENOENT"
+    }
+   ],
+   "up": "rejected: spawn ssh ENOENT",
+   "ended": "spawn ssh ENOENT"
+  },
+  {
+   "name": "one_trailing_cr_goes_with_the_line_and_box_word_strips_the_rest",
+   "steps": [
+    {
+     "err": "bad\tword\r\r\n"
+    },
+    {
+     "exit": {
+      "code": 255,
+      "signal": null
+     }
+    }
+   ],
+   "up": "rejected: badword",
+   "ended": "badword"
+  },
+  {
+   "name": "a_stderr_tail_with_no_newline_is_never_read",
+   "steps": [
+    {
+     "err": "said first\n"
+    },
+    {
+     "err": "never ended"
+    },
+    {
+     "exit": {
+      "code": 255,
+      "signal": null
+     }
+    }
+   ],
+   "up": "rejected: said first",
+   "ended": "said first"
+  },
+  {
+   "name": "a_flood_without_a_newline_keeps_only_its_last_4096_units",
+   "steps": [
+    {
+     "err": {
+      "len": 5000,
+      "head": "AAAAAAAAAAAAAAAAAAAA",
+      "tail": "AAAAAAAAAAAAAAAAAAAA"
+     }
+    },
+    {
+     "err": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\n"
+    },
+    {
+     "exit": {
+      "code": 255,
+      "signal": null
+     }
+    }
+   ],
+   "up": "rejected: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+   "ended": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  }
+ ],
+ "runs": [
+  {
+   "name": "an_exit_in_hex_is_a_number",
+   "polls": [
+    "WSP_POLL\n0x10\n\n\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [],
+   "result": {
+    "exitCode": 16,
+    "stdout": "",
+    "stderr": ""
+   },
+   "err": null
+  },
+  {
+   "name": "an_exit_with_a_fraction_is_minus_one_with_the_note",
+   "polls": [
+    "WSP_POLL\n1.5\n\nYm9vbQ==\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [
+    "boom"
+   ],
+   "result": {
+    "exitCode": -1,
+    "stdout": "",
+    "stderr": "boom\nwsp: the command ended without reporting an exit code\n"
+   },
+   "err": null
+  },
+  {
+   "name": "lines_go_stdout_then_stderr_per_poll_and_the_tails_at_the_end",
+   "polls": [
+    "WSP_POLL\n\nYQpi\nYwo=\nup\nWSP_POLL_END\n",
+    "WSP_POLL\n0\n\nZA==\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +4 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +3 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [
+    "a",
+    "c",
+    "b",
+    "d"
+   ],
+   "result": {
+    "exitCode": 0,
+    "stdout": "a\nb",
+    "stderr": "c\nd"
+   },
+   "err": null
+  },
+  {
+   "name": "a_blank_line_is_not_handed_over_and_a_cr_is_kept",
+   "polls": [
+    "WSP_POLL\n0\neA0KCgp5Cg==\n\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [
+    "x\r",
+    "y"
+   ],
+   "result": {
+    "exitCode": 0,
+    "stdout": "x\r\n\n\ny\n",
+    "stderr": ""
+   },
+   "err": null
+  },
+  {
+   "name": "a_full_chunk_with_an_exit_reads_again_before_the_exit",
+   "polls": [
+    {
+     "len": 349559,
+     "head": "WSP_POLL\n0\nYWFhYWFhY",
+     "tail": "\n\ndown\nWSP_POLL_END\n"
+    },
+    "WSP_POLL\n0\ndGFpbA==\n\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +262145 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [
+    {
+     "len": 262148,
+     "head": "aaaaaaaaaaaaaaaaaaaa",
+     "tail": "aaaaaaaaaaaaaaaatail"
+    }
+   ],
+   "result": {
+    "exitCode": 0,
+    "stdout": {
+     "len": 262148,
+     "head": "aaaaaaaaaaaaaaaaaaaa",
+     "tail": "aaaaaaaaaaaaaaaatail"
+    },
+    "stderr": ""
+   },
+   "err": null
+  },
+  {
+   "name": "past_the_deadline_the_last_polls_exit_is_ignored",
+   "polls": [
+    "WSP_POLL\n0\nbGF0ZQo=\n\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {
+    "deadlineMs": 0,
+    "launchDelayMs": 5
+   },
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab; p=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ]; then kill -TERM -- \"-$p\" \"$p\" 2>/dev/null; sleep 2; kill -KILL -- \"-$p\" \"$p\" 2>/dev/null; fi; true",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [
+    "late"
+   ],
+   "result": {
+    "exitCode": 124,
+    "stdout": "late\n",
+    "stderr": ""
+   },
+   "err": null
+  },
+  {
+   "name": "a_block_closed_late_is_no_answer",
+   "polls": [
+    "WSP_POLL\n0\n\n\nup\nnoise\nWSP_POLL_END\n",
+    "WSP_POLL\n7\n\n\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [],
+   "result": {
+    "exitCode": 7,
+    "stdout": "",
+    "stderr": ""
+   },
+   "err": null
+  },
+  {
+   "name": "the_streams_decode_as_node_decodes_base64",
+   "polls": [
+    "WSP_POLL\n0\nYQ\nYg==Yw==\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [
+    "a",
+    "b"
+   ],
+   "result": {
+    "exitCode": 0,
+    "stdout": "a",
+    "stderr": "b"
+   },
+   "err": null
+  },
+  {
+   "name": "a_poll_that_rejects_is_no_answer_and_is_asked_again",
+   "polls": [
+    {
+     "reject": "502 bad gateway"
+    },
+    "WSP_POLL\n3\neA==\n\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [
+    "x"
+   ],
+   "result": {
+    "exitCode": 3,
+    "stdout": "x",
+    "stderr": ""
+   },
+   "err": null
+  },
+  {
+   "name": "a_utf8_char_split_across_polls_reaches_the_listener_whole",
+   "polls": [
+    "WSP_POLL\n\nww==\n\nup\nWSP_POLL_END\n",
+    "WSP_POLL\n0\nqQo=\n\ndown\nWSP_POLL_END\n"
+   ],
+   "opts": {},
+   "calls": [
+    "mkdir -p '/tmp/wsp-run'\nu=$(umask)\numask 077\nb=/tmp/wsp-run/abababababab\nmkdir \"$b.d\" 2>/dev/null || { echo WSP_LAUNCHED; exit 0; }\nset -o pipefail\nprintf %s 'ZWNobyBoaQ==' | base64 -d > '/tmp/wsp-run/abababababab.sh' || exit 1\nsetsid nohup bash -c '( umask \"$1\"; exec bash \"$0.sh\" ) > \"$0.out\" 2> \"$0.err\" < /dev/null; echo $? > \"$0.exit\"' \"$b\" \"$u\" > /dev/null 2>&1 &\necho $! > \"$b.pid\"\necho WSP_LAUNCHED",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "b=/tmp/wsp-run/abababababab\necho WSP_POLL\nprintf '%s\\n' \"$(cat \"$b.exit\" 2>/dev/null)\"\nprintf '%s\\n' \"$(tail -c +2 \"$b.out\" 2>/dev/null | head -c 262144 | base64 -w0)\"\nprintf '%s\\n' \"$(tail -c +1 \"$b.err\" 2>/dev/null | head -c 262144 | base64 -w0)\"\np=$(cat \"$b.pid\" 2>/dev/null); if [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; then echo up; else echo down; fi\necho WSP_POLL_END",
+    "rm -rf /tmp/wsp-run/abababababab.*"
+   ],
+   "lines": [
+    "é"
+   ],
+   "result": {
+    "exitCode": 0,
+    "stdout": "é\n",
+    "stderr": ""
+   },
+   "err": null
+  }
+ ]
+}
