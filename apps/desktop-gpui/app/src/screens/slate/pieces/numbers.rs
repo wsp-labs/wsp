@@ -15,7 +15,7 @@ use super::PieceCx;
 use crate::screens::usage::words::js_round;
 use crate::ui::controls::bevel;
 use crate::ui::sparkline::Sparkline;
-use crate::ui::{motion, ActivePalette};
+use crate::ui::{motion, tip, ActivePalette};
 
 /// A figure's roll and a meter's fill, `duration-500` and `duration-200`.
 const ROLL: Duration = Duration::from_millis(500);
@@ -54,78 +54,223 @@ fn ring(share: f64, ink: Hsla) -> gpui_kit::Div {
         .when(percent > 0, |el| el.child(gpui_kit::svg().absolute().inset_0().size(px(20.)).path(crate::ui::icons::ring_arc(percent)).text_color(ink)))
 }
 
-/// `stats.tsx` and `tile.tsx`: two to four figures as equal tiles in one card, a hairline between them; a tile's label
-/// with its ring where it has a max, the figure 26 px mono rolling to a new value, its window under it.
+/// How a stat row stands at its width: every tile across, two a row (a third spanning), or one line a tile.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tiles {
+    Across,
+    Pairs,
+    Lines,
+}
+
+/// Three tiles under 480 px two a row with the third spanning, where set; one line a tile otherwise. Held for the
+/// owner's ruling between the two (#2439).
+#[derive(Clone, Copy, Default)]
+pub struct ThreeAsPairs(pub bool);
+impl gpui_kit::Global for ThreeAsPairs {}
+
+/// The widths from which three or four tiles stand across, `stats.tsx`'s `ACROSS` steps: 30 to 46 rem.
+const ACROSS_FROM: [f32; 5] = [480., 544., 608., 672., 736.];
+/// A tile of the narrow panel's 366 px card, two a row, and the figure's sizes with their lines, largest first.
+const NARROW_TILE: f32 = 183.;
+const SIZES: [(f32, f32); 3] = [(26., 32.), (20., 28.), (16., 24.)];
+/// A ring's room beside its figure, and a trend's at the figure row's right.
+const RING_ROOM: f32 = 30.;
+const TREND_ROOM: f32 = 72.;
+
+/// The figure size of a row, the largest whose widest figure row fits a tile two a row, from what each figure row
+/// needs at a size; and the width from which all stand across, none for two or for a row no step holds.
+pub fn stats_fit(count: usize, need: impl Fn(f32) -> f32) -> ((f32, f32), Option<f32>) {
+    // Two tiles pad 16 px a side, more 12.
+    let pad = if count == 2 { 2. * f32::from(INSET) } else { 24. };
+    let size = SIZES.into_iter().find(|(s, _)| need(*s) + pad <= NARROW_TILE).unwrap_or(SIZES[2]);
+    let room = count as f32 * (need(size.0) + pad) + 2.;
+    let least = if count == 4 { 544. } else { 480. };
+    (size, (count > 2).then(|| ACROSS_FROM.into_iter().find(|w| *w >= least && *w >= room)).flatten())
+}
+
+/// The ruling on a stat row by its width: two tiles always two a row; three and four across from `across`, and under
+/// it four two a row and three as lines, or two a row with the third spanning where `pairs`.
+pub fn tiles_at(count: usize, width: Option<f32>, across: Option<f32>, pairs: bool) -> Tiles {
+    let wide = count <= 2 || width.zip(across).is_some_and(|(w, a)| w >= a);
+    match () {
+        _ if wide => Tiles::Across,
+        _ if count == 3 && !pairs => Tiles::Lines,
+        _ => Tiles::Pairs,
+    }
+}
+
+/// One stat as it reads off the slate.
+struct Stat {
+    label: Option<String>,
+    shown: Option<String>,
+    unit: Option<String>,
+    window: Option<String>,
+    share: Option<f64>,
+    trend: Vec<f64>,
+    tone: Tone,
+}
+
+fn stat_of(p: &PieceCx, t: &Value) -> Stat {
+    let get = |k: &str| t.get(k).filter(|v| !v.is_null());
+    let value = figure_value(get("value"));
+    let n = value.as_ref().and_then(Value::as_f64);
+    let max = get("max").and_then(Value::as_f64).filter(|m| *m > 0.);
+    let format = get("format").and_then(Value::as_str).unwrap_or(if max.is_some() { "fraction" } else { "plain" });
+    let plain = |x: f64| look::figure(Some(&Value::from(x)), None).unwrap_or_default();
+    let shown = match (n, format, max) {
+        (Some(v), "fraction", Some(m)) => Some(format!("{}/{}", plain(v), plain(m))),
+        (Some(v), "percent", Some(m)) => Some(format!("{}%", js_round(v / m * 100.))),
+        _ => look::figure(value.as_ref(), Some(&Value::from(format))),
+    };
+    let trend = match get("trend") {
+        Some(Value::Array(a)) => a.iter().filter_map(|v| v.as_f64().filter(|n| n.is_finite())).collect(),
+        _ => Vec::new(),
+    };
+    Stat {
+        label: look::str(get("label")),
+        shown,
+        unit: look::str(get("unit")),
+        window: look::str(get("window")),
+        share: n.zip(max).map(|(v, m)| v / m),
+        trend,
+        tone: layout::tone_of(get("tone"), p.slate, p.id()),
+    }
+}
+
+/// `stats.tsx` and `tile.tsx`: two to four figures as equal tiles in one card, a hairline between them. A tile's label
+/// on one line, the figure mono rolling to a new value with its ring beside it where it has a max or a trend at its
+/// right, its window under it on one line; a cut label or window says itself whole on hover. Under 480 px of the row
+/// two a row, or three one line a tile: the label over its window at the left, the figure and its ring at the right.
 fn stats(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
     let pal = cx.palette().clone();
     let resolved = p.prop("stats").and_then(Value::as_array).cloned().unwrap_or_default();
-    let tiles: Vec<Value> = p.slate.present(p.piece.prop("stats"), &resolved).into_iter().take(4).collect();
-    let pad = if tiles.len() >= 3 { px(12.) } else { INSET };
+    let tiles: Vec<Stat> = p.slate.present(p.piece.prop("stats"), &resolved).iter().take(4).map(|t| stat_of(p, t)).collect();
+    let (mono_font, sans) = (mono(cx), cx.theme().font_family.clone());
+    let need = |size: f32| {
+        tiles
+            .iter()
+            .map(|t| {
+                let figure = t.shown.as_deref().map_or(0., |s| f32::from(crate::ui::text::width(s, size, mono_font.clone(), window)));
+                let unit = t.unit.as_deref().map_or(0., |u| f32::from(crate::ui::text::width(u, 12., sans.clone(), window)) + 4.);
+                let beside = if t.share.is_some() { RING_ROOM } else if t.trend.len() > 1 { TREND_ROOM } else { 0. };
+                figure + unit + beside
+            })
+            .fold(0., f32::max)
+    };
+    let (size, across) = stats_fit(tiles.len(), need);
+    let (width, probe) = layout::measured(p.el("stats-width"), window, cx);
+    let pairs = cx.try_global::<ThreeAsPairs>().is_some_and(|t| t.0);
+    let arrangement = tiles_at(tiles.len(), width.map(f32::from), across, pairs);
+    let pad = if arrangement == Tiles::Lines || tiles.len() <= 2 { INSET } else { px(12.) };
     let rule = pal.border.opacity(0.5);
-    let cells: Vec<AnyElement> = tiles
+    let mut cells: Vec<AnyElement> = tiles
         .iter()
         .enumerate()
-        .map(|(ix, t)| {
-            let get = |k: &str| t.get(k).filter(|v| !v.is_null());
-            let value = figure_value(get("value"));
-            let n = value.as_ref().and_then(Value::as_f64);
-            let max = get("max").and_then(Value::as_f64).filter(|m| *m > 0.);
-            let format = get("format").and_then(Value::as_str).unwrap_or(if max.is_some() { "fraction" } else { "plain" });
-            let plain = |x: f64| look::figure(Some(&Value::from(x)), None).unwrap_or_default();
-            let shown = match (n, format, max) {
-                (Some(v), "fraction", Some(m)) => Some(format!("{}/{}", plain(v), plain(m))),
-                (Some(v), "percent", Some(m)) => Some(format!("{}%", js_round(v / m * 100.))),
-                _ => look::figure(value.as_ref(), Some(&Value::from(format))),
-            };
-            let tone = layout::tone_of(get("tone"), p.slate, p.id());
-            let share = n.zip(max).map(|(v, m)| v / m);
-            let ink = if tone == Tone::Default { pal.foreground.opacity(0.55) } else { tone.ink(cx) };
-            let figure_ink = if share.is_none() && tone != Tone::Default { tone.ink(cx) } else { pal.foreground };
-            let figure = h_flex()
-                .min_h(px(32.))
-                .min_w_0()
-                .flex_wrap()
-                .items_baseline()
-                .gap_x_1()
-                .font_family(mono(cx))
-                .text_size(px(26.))
-                .line_height(px(32.))
-                .font_weight(FontWeight::MEDIUM)
-                .text_color(figure_ink);
-            let figure = match shown {
-                None => figure.child(note("Not read yet", cx).self_center().font_family(cx.theme().font_family.clone()).font_weight(FontWeight::NORMAL)),
-                Some(shown) => figure.child(digit_roll(p.el(&format!("stat-{ix}")), &shown, px(32.), window, cx)).children(look::str(get("unit")).map(|unit| {
-                    div().font_family(cx.theme().font_family.clone()).font_weight(FontWeight::NORMAL).text_size(px(12.)).line_height(px(16.)).text_color(pal.muted_foreground).child(unit)
-                })),
-            };
-            v_flex()
-                .flex_1()
-                .min_w_0()
-                .gap(px(6.))
-                .px(pad)
-                .pt(px(16.))
-                .pb(px(14.))
-                .when(ix > 0, |el| el.border_l_1().border_color(rule))
-                .child(
-                    h_flex()
-                        .min_w_0()
-                        .items_start()
-                        .justify_between()
-                        .gap(px(8.))
-                        .child(div().min_w_0().text_size(px(13.)).line_height(px(20.)).text_color(pal.muted_foreground).children(look::str(get("label"))))
-                        .children(share.map(|s| ring(s, ink))),
-                )
-                .child(figure)
-                .children(look::str(get("window")).map(|w| note(w, cx)))
-                .into_any_element()
-        })
+        .map(|(ix, t)| tile(p, ix, t, size, pad, arrangement == Tiles::Lines, window, cx))
         .collect();
-    let strip = h_flex().w_full().min_w_0().items_stretch().children(cells).debug_selector(|| "slate-stats".into());
+    let body = match arrangement {
+        Tiles::Across => h_flex()
+            .w_full()
+            .min_w_0()
+            .items_stretch()
+            .children(cells.into_iter().enumerate().map(|(ix, c)| div().flex_1().min_w_0().when(ix > 0, |d| d.border_l_1().border_color(rule)).child(c))),
+        Tiles::Lines => v_flex()
+            .w_full()
+            .min_w_0()
+            .children(cells.into_iter().enumerate().map(|(ix, c)| div().min_w_0().when(ix > 0, |d| d.border_t_1().border_color(rule)).child(c))),
+        Tiles::Pairs => {
+            let mut rows = Vec::new();
+            while !cells.is_empty() {
+                let row: Vec<AnyElement> = cells.drain(..cells.len().min(2)).collect();
+                rows.push(row);
+            }
+            v_flex().w_full().min_w_0().children(rows.into_iter().enumerate().map(|(r, row)| {
+                h_flex()
+                    .w_full()
+                    .min_w_0()
+                    .items_stretch()
+                    .when(r > 0, |d| d.border_t_1().border_color(rule))
+                    .children(row.into_iter().enumerate().map(|(ix, c)| div().flex_1().min_w_0().when(ix > 0, |d| d.border_l_1().border_color(rule)).child(c)))
+            }))
+        }
+    };
+    let strip = div().relative().w_full().min_w_0().debug_selector(|| "slate-stats".into()).child(body).child(probe);
     if layout::place_of(p.slate, p.id()) == Place::Inside {
         strip.into_any_element()
     } else {
         layout::surface(p.el("stats"), strip)
     }
+}
+
+/// One stat's tile: stacked, or as one line where `line`.
+#[allow(clippy::too_many_arguments)]
+fn tile(p: &PieceCx, ix: usize, t: &Stat, (size, line_h): (f32, f32), pad: Pixels, line: bool, window: &mut Window, cx: &mut App) -> AnyElement {
+    let pal = cx.palette().clone();
+    let ink = if t.tone == Tone::Default { pal.foreground.opacity(0.55) } else { t.tone.ink(cx) };
+    let figure_ink = if t.share.is_none() && t.tone != Tone::Default { t.tone.ink(cx) } else { pal.foreground };
+    let figure = h_flex()
+        .debug_selector(|| "slate-stat-figure".into())
+        .flex_none()
+        .items_baseline()
+        .gap_x_1()
+        .font_family(mono(cx))
+        .text_size(px(size))
+        .line_height(px(line_h))
+        .font_weight(FontWeight::MEDIUM)
+        .text_color(figure_ink);
+    let figure = match &t.shown {
+        None => figure.child(note("Not read yet", cx).self_center().font_family(cx.theme().font_family.clone()).font_weight(FontWeight::NORMAL)),
+        Some(shown) => figure.child(digit_roll(p.el(&format!("stat-{ix}")), shown, px(line_h), window, cx)).children(t.unit.clone().map(|unit| {
+            div().font_family(cx.theme().font_family.clone()).font_weight(FontWeight::NORMAL).text_size(px(12.)).line_height(px(16.)).text_color(pal.muted_foreground).child(unit)
+        })),
+    };
+    let trend = (t.share.is_none() && t.trend.len() > 1).then(|| {
+        div().flex_none().w(px(64.)).h(px(16.)).child(Sparkline::new(line_points(&t.trend), ink).bare().height(px(16.)))
+    });
+    let figure_row = h_flex()
+        .min_h(px(32.))
+        .min_w_0()
+        .items_center()
+        .justify_between()
+        .gap(px(8.))
+        .child(h_flex().flex_none().items_center().gap(px(10.)).child(figure).children(t.share.map(|s| ring(s, ink).debug_selector(|| "slate-stat-ring".into()))))
+        .children(trend);
+    let label = div()
+        .id(p.el(&format!("stat-{ix}-label")))
+        .debug_selector(|| "slate-stat-label".into())
+        .min_h(px(20.))
+        .min_w_0()
+        .truncate()
+        .text_size(px(13.))
+        .line_height(px(20.))
+        .text_color(pal.muted_foreground)
+        .children(t.label.clone())
+        .when_some(t.label.clone(), |d, l| d.tooltip(tip(l)));
+    let under = t.window.clone().map(|w| {
+        div()
+            .id(p.el(&format!("stat-{ix}-window")))
+            .debug_selector(|| "slate-stat-window".into())
+            .min_w_0()
+            .truncate()
+            .text_size(px(12.))
+            .line_height(px(16.))
+            .text_color(pal.muted_foreground)
+            .child(w.clone())
+            .tooltip(tip(w))
+    });
+    if line {
+        return h_flex()
+            .min_w_0()
+            .items_center()
+            .gap(px(16.))
+            .px(pad)
+            .pt(px(16.))
+            .pb(px(14.))
+            .child(v_flex().flex_1().min_w_0().gap(px(2.)).child(label).children(under))
+            .child(figure_row.flex_none())
+            .into_any_element();
+    }
+    v_flex().min_w_0().gap(px(6.)).px(pad).pt(px(16.)).pb(px(14.)).child(label).child(figure_row).children(under).into_any_element()
 }
 
 fn mono(cx: &App) -> SharedString {
@@ -456,7 +601,7 @@ mod tests {
 
     use gpui_kit::{div, prelude::*, px, size, Context, TestAppContext, Window};
 
-    use super::{digit_roll, line_points};
+    use super::{digit_roll, line_points, stats_fit, tiles_at, Tiles};
     use crate::ui::{self, Side};
 
     struct Figure(Rc<RefCell<&'static str>>);
@@ -496,5 +641,31 @@ mod tests {
     #[test]
     fn a_line_keeps_a_pixel_above_and_below_its_range() {
         assert_eq!(line_points(&[2., 4., 3.]), vec![(0., 1. / 16.), (0.5, 15. / 16.), (1., 8. / 16.)]);
+    }
+
+    #[test]
+    fn a_stat_row_takes_its_tiles_a_row_by_its_own_width() {
+        assert_eq!(tiles_at(2, Some(366.), None, false), Tiles::Across, "two tiles stand two a row however narrow");
+        assert_eq!(tiles_at(3, Some(366.), Some(480.), false), Tiles::Lines, "three under 480 px are one line each");
+        assert_eq!(tiles_at(3, Some(366.), Some(480.), true), Tiles::Pairs, "or two a row with the third spanning");
+        assert_eq!(tiles_at(3, Some(479.), Some(480.), false), Tiles::Lines);
+        assert_eq!(tiles_at(3, Some(480.), Some(480.), false), Tiles::Across);
+        assert_eq!(tiles_at(4, Some(543.), Some(544.), false), Tiles::Pairs, "four under 544 px are two a row");
+        assert_eq!(tiles_at(4, Some(608.), Some(544.), false), Tiles::Across);
+        assert_eq!(tiles_at(4, Some(1000.), None, false), Tiles::Pairs, "a row no width holds across stays two a row");
+        assert_eq!(tiles_at(3, None, Some(480.), false), Tiles::Lines, "a row not measured yet draws narrow");
+    }
+
+    #[test]
+    fn a_stat_row_goes_across_from_the_least_width_its_widest_tile_needs() {
+        // 182/200 and its ring: 139 px at 26 px, 163 with a tile's padding, so 26 px and four across from 672.
+        assert_eq!(stats_fit(4, |_| 139.), ((26., 32.), Some(672.)));
+        assert_eq!(stats_fit(3, |_| 139.), ((26., 32.), Some(544.)));
+        assert_eq!(stats_fit(3, |_| 60.), ((26., 32.), Some(480.)), "never under 480 px");
+        assert_eq!(stats_fit(4, |_| 60.), ((26., 32.), Some(544.)), "four never under 544 px");
+        // 8,412/9,650 and its ring fits a tile two a row only at 16 px.
+        assert_eq!(stats_fit(3, |s| 11. * 0.6 * s + 30.), ((16., 24.), Some(544.)));
+        assert_eq!(stats_fit(2, |_| 139.).1, None, "two have no width to go across from");
+        assert_eq!(stats_fit(4, |_| 300.).1, None);
     }
 }
