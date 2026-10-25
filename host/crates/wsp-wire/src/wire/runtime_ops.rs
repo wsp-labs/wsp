@@ -785,7 +785,7 @@ pub(super) fn env_name_issue(key: &str) -> SchemaError {
         code: "invalid_string".into(),
         path: vec![Value::from(key)],
         message: "a variable's name is letters, digits and _, not starting with a digit".into(),
-        detail: IndexMap::from([("validation".to_string(), Value::from("regex"))]),
+        detail: Box::new(IndexMap::from([("validation".to_string(), Value::from("regex"))])),
     }
 }
 

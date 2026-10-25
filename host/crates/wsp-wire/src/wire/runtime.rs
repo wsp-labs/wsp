@@ -1390,7 +1390,6 @@ impl Check for RuntimeOp {
     }
 
     /// serde reads the op as {word: fields}, so a path starts with the op word; the id is read by name.
-
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         crate::types::check::tag_describe(path, "op", RUNTIME_OPS)
     }
@@ -3038,13 +3037,13 @@ impl Check for PlacesSetSpawn {
 }
 impl PlacesSetSpawn {
     fn rule_max_machines(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_at_least(v.as_f64(), 0.0)?;
         }
         Ok(())
     }
     fn rule_max_depth(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_at_least(v.as_f64(), 1.0)?;
         }
         Ok(())
@@ -3093,13 +3092,13 @@ impl Check for WorkspacesCreateAgents {
 }
 impl WorkspacesCreateAgents {
     fn rule_max_machines(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_at_least(v.as_f64(), 0.0)?;
         }
         Ok(())
     }
     fn rule_max_depth(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_at_least(v.as_f64(), 1.0)?;
         }
         Ok(())
@@ -3197,13 +3196,13 @@ impl Check for SlatesWritePress {
 }
 impl SlatesWritePress {
     fn rule_index(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_at_least(v.as_f64(), 0.0)?;
         }
         Ok(())
     }
     fn rule_action(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_at_least(v.as_f64(), 0.0)?;
         }
         Ok(())
@@ -3540,7 +3539,7 @@ impl Check for SessionSearchResult {
 }
 impl SessionSearchResult {
     fn rule_unsearched(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_above(v.as_f64(), 0.0)?;
         }
         Ok(())

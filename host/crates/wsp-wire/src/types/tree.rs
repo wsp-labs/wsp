@@ -83,13 +83,13 @@ impl Check for GitBranchCompareReply {
 }
 impl GitBranchCompareReply {
     fn rule_ahead_by(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
     }
     fn rule_behind_by(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -148,7 +148,7 @@ impl Check for GitMergeInReply {
 }
 impl GitMergeInReply {
     fn rule_commits(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -306,13 +306,13 @@ impl Check for TreeChild {
 }
 impl TreeChild {
     fn rule_ahead_of_lead(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
     }
     fn rule_behind_lead(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -416,11 +416,11 @@ impl Check for MergeInResult {
 }
 impl MergeInResult {
     fn rule_commits(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_unpushed(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())

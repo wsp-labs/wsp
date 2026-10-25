@@ -689,12 +689,8 @@ impl Check for DaemonAuthRequest {
     }
 }
 impl DaemonAuthRequest {
-    fn rule_op(x: &String) -> Result<(), crate::types::check::SchemaError> {
-        literal_word(x, "auth")?;
-        Ok(())
-    }
     fn rule_port(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(port) = (*x) {
+        if let Some(port) = *x {
             num_at_least(port.as_f64(), 1.0)?;
             num_at_most(port.as_f64(), 65535.0)?;
         }
@@ -843,7 +839,7 @@ impl Check for GitStatusReply {
 }
 impl GitStatusReply {
     fn rule_stashes(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(stashes) = (*x) {
+        if let Some(stashes) = *x {
             num_above(stashes.as_f64(), 0.0)?;
         }
         Ok(())
@@ -1357,7 +1353,7 @@ impl DaemonExecRequest {
         Ok(())
     }
     fn rule_timeout_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(timeout) = (*x) {
+        if let Some(timeout) = *x {
             num_above(timeout.as_f64(), 0.0)?;
             num_at_most(timeout.as_f64(), EXEC_TIMEOUT_MAX_MS as f64)?;
         }

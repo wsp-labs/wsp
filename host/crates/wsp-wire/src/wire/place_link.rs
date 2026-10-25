@@ -132,7 +132,7 @@ fn url_string(s: &str) -> Result<(), SchemaError> {
     }
     let mut detail = indexmap::IndexMap::new();
     detail.insert("validation".to_string(), Value::from("url"));
-    Err(SchemaError { code: "invalid_string".into(), path: Vec::new(), message: "Invalid url".into(), detail })
+    Err(SchemaError { code: "invalid_string".into(), path: Vec::new(), message: "Invalid url".into(), detail: Box::new(detail) })
 }
 
 /// zod 3.25.76's `.datetime()` regex with no offset allowed: a real calendar date (leap years included), `T`, an hour
@@ -181,7 +181,7 @@ fn datetime_string(s: &str) -> Result<(), SchemaError> {
     }
     let mut detail = indexmap::IndexMap::new();
     detail.insert("validation".to_string(), Value::from("datetime"));
-    Err(SchemaError { code: "invalid_string".into(), path: Vec::new(), message: "Invalid datetime".into(), detail })
+    Err(SchemaError { code: "invalid_string".into(), path: Vec::new(), message: "Invalid datetime".into(), detail: Box::new(detail) })
 }
 
 /// The daemon unit name zod's regex takes: word characters, `@.:-`, then `.service`.
@@ -619,13 +619,13 @@ impl PlaceReport {
         Ok(())
     }
     fn rule_disk_free_bytes(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_at_least(v.as_f64(), 0.0)?;
         }
         Ok(())
     }
     fn rule_disk_size_bytes(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_at_least(v.as_f64(), 0.0)?;
         }
         Ok(())
@@ -637,7 +637,7 @@ impl PlaceReport {
         Ok(())
     }
     fn rule_uptime_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_at_least(v.as_f64(), 0.0)?;
         }
         Ok(())
@@ -647,7 +647,7 @@ impl PlaceReport {
         Ok(())
     }
     fn rule_daemon_port(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             num_at_least(v.as_f64(), 1.0)?;
             num_at_most(v.as_f64(), 65535.0)?;
         }
@@ -1318,7 +1318,7 @@ impl SshHostSuggestion {
         Ok(())
     }
     fn rule_port(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(port) = (*x) {
+        if let Some(port) = *x {
             num_at_least(port.as_f64(), 1.0)?;
             num_at_most(port.as_f64(), 65535.0)?;
         }
@@ -1641,7 +1641,7 @@ impl<const N: usize> Check for wsp_frames::Base64Bytes<N> {
         let in_alphabet = !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'+' || b == b'/');
         let len = crate::types::check::utf16_len(text);
         let pad_bytes = if text.ends_with("==") { 2 } else { usize::from(text.ends_with('=')) };
-        let counts = len % 4 == 0 && len / 4 * 3 - pad_bytes == N;
+        let counts = len.is_multiple_of(4) && len / 4 * 3 - pad_bytes == N;
         Some(
             [
                 text_at_most(text, N.div_ceil(3) * 4),

@@ -411,7 +411,7 @@ impl Check for GoldenVersion {
 }
 impl GoldenVersion {
     fn rule_used_bytes(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -803,11 +803,11 @@ impl Check for RecipeSourceUsed {
 }
 impl RecipeSourceUsed {
     fn rule_sessions(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_calls(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -855,11 +855,11 @@ impl Check for RecipeSourcePopular {
 }
 impl RecipeSourcePopular {
     fn rule_sessions(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_images(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -1017,7 +1017,7 @@ impl RecipeRow {
         Ok(())
     }
     fn rule_size(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -1093,11 +1093,11 @@ impl RecipeHistory {
         Ok(())
     }
     fn rule_sessions(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_calls(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -1216,7 +1216,7 @@ impl RecipeCustomRow {
         Ok(())
     }
     fn rule_size(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -1725,11 +1725,11 @@ impl SealedVault {
         Ok(())
     }
     fn rule_bytes(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_paths(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -1894,7 +1894,7 @@ impl Check for SealedImage {
 }
 impl SealedImage {
     fn rule_version(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_above((*x).0 .0, 0.0)?;
+        crate::types::check::num_above(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_hash(x: &String) -> Result<(), crate::types::check::SchemaError> {
@@ -1902,7 +1902,7 @@ impl SealedImage {
         Ok(())
     }
     fn rule_used_bytes(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -1971,7 +1971,7 @@ impl Check for SealedImageCopy {
 }
 impl SealedImageCopy {
     fn rule_version(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_above((*x).0 .0, 0.0)?;
+        crate::types::check::num_above(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_hash(x: &Option<String>) -> Result<(), crate::types::check::SchemaError> {
@@ -1981,7 +1981,7 @@ impl SealedImageCopy {
         Ok(())
     }
     fn rule_size_bytes(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -2067,7 +2067,7 @@ impl Check for SealedImageExport {
 }
 impl SealedImageExport {
     fn rule_bytes(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_hash(x: &String) -> Result<(), crate::types::check::SchemaError> {
@@ -2253,7 +2253,7 @@ pub fn recipe_pins(digest: &RecipeDigest, key: Option<&dyn Fn(&str) -> String>) 
                 id,
                 tag: pin.tag.clone(),
                 sha256: pin.sha256.clone(),
-                arch: pin.arch.clone(),
+                arch: pin.arch,
                 latest: pin.latest,
                 road: tick.road.clone(),
             })

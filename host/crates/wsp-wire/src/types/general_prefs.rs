@@ -199,14 +199,14 @@ pub fn general_defaults() -> GeneralPreferences {
 // }
 pub fn patched_general(current: &GeneralPreferences, patch: &GeneralPatch) -> GeneralPreferences {
     GeneralPreferences {
-        send_with: patch.send_with.clone().unwrap_or_else(|| current.send_with.clone()),
-        mid_turn: patch.mid_turn.clone().unwrap_or_else(|| current.mid_turn.clone()),
-        notify_needs: patch.notify_needs.clone().unwrap_or_else(|| current.notify_needs.clone()),
-        notify_done: patch.notify_done.clone().unwrap_or_else(|| current.notify_done.clone()),
+        send_with: patch.send_with.unwrap_or(current.send_with),
+        mid_turn: patch.mid_turn.unwrap_or(current.mid_turn),
+        notify_needs: patch.notify_needs.unwrap_or(current.notify_needs),
+        notify_done: patch.notify_done.unwrap_or(current.notify_done),
         plan_alerts: patch.plan_alerts.unwrap_or(current.plan_alerts),
-        settle_after: patch.settle_after.clone().unwrap_or_else(|| current.settle_after.clone()),
+        settle_after: patch.settle_after.unwrap_or(current.settle_after),
         ask_delete: patch.ask_delete.unwrap_or(current.ask_delete),
-        on_quit: patch.on_quit.clone().unwrap_or_else(|| current.on_quit.clone()),
-        new_thread_in: patch.new_thread_in.clone().unwrap_or_else(|| current.new_thread_in.clone()),
+        on_quit: patch.on_quit.unwrap_or(current.on_quit),
+        new_thread_in: patch.new_thread_in.unwrap_or(current.new_thread_in),
     }
 }

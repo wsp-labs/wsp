@@ -76,7 +76,7 @@ impl Check for GithubLink {
 }
 impl GithubLink {
     fn rule_number(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -230,7 +230,7 @@ impl Check for WorkspaceFrom {
 }
 impl WorkspaceFrom {
     fn rule_number(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -323,7 +323,7 @@ impl Check for IssueRead {
 }
 impl IssueRead {
     fn rule_number(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -504,7 +504,7 @@ impl ReviewBlockCommentsItem {
         Ok(())
     }
     fn rule_line(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_above((*x).0 .0, 0.0)?;
+        crate::types::check::num_above(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -627,7 +627,7 @@ impl Check for ReviewDraftComment {
 }
 impl ReviewDraftComment {
     fn rule_line(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_above((*x).0 .0, 0.0)?;
+        crate::types::check::num_above(x.0 .0, 0.0)?;
         Ok(())
     }
 }

@@ -4,19 +4,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::literal;
-use crate::types::changes::Checkout;
 use crate::types::check::{Check, SchemaError};
 use crate::types::js_number::JsInt;
 use crate::types::js_number::JsNumber;
-use crate::types::pull_request::PullRequestSeen;
-use crate::types::start::ReviewDraft;
-use crate::types::start::WorkspaceFrom;
-use crate::types::tree::TreeFact;
-use crate::types::workspace_look::WorkspaceGlyph;
-use crate::types::workspace_look::WorkspaceTheme;
-use crate::views::workspace_kind::WorkspaceKind;
-use crate::wire::capabilities::PauseMode;
-use crate::wire::capabilities::WorkspaceSize;
 use wsp_frames::True;
 
 literal!(ThreadLit, "thread");
@@ -338,7 +328,7 @@ impl Check for WorkspaceProject {
 }
 impl WorkspaceProject {
     fn rule_size(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -456,7 +446,7 @@ impl Check for SeedFile {
 }
 impl SeedFile {
     fn rule_bytes(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -603,7 +593,7 @@ impl Check for SeedPlan {
 }
 impl SeedPlan {
     fn rule_uncommitted(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -1346,7 +1336,7 @@ impl Check for BranchOfRecord {
 }
 impl BranchOfRecord {
     fn rule_repo_id(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_above((*x).0 .0, 0.0)?;
+        crate::types::check::num_above(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_owner(x: &String) -> Result<(), crate::types::check::SchemaError> {
@@ -1386,7 +1376,7 @@ pub enum Caller {
 // export const roadOf = (caller: Caller | undefined): WorkspaceOrigin | undefined => (typeof caller === "string" ? caller : caller?.origin);
 pub fn road_of(caller: Option<&Caller>) -> Option<WorkspaceOrigin> {
     caller.map(|caller| match caller {
-        Caller::Road(origin) | Caller::Scoped { origin, .. } => origin.clone(),
+        Caller::Road(origin) | Caller::Scoped { origin, .. } => *origin,
     })
 }
 

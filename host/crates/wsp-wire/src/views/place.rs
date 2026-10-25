@@ -3,21 +3,12 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::types::agents_report::AgentSignInState;
 use crate::types::check::{Check, SchemaError};
 use crate::types::js_number::JsInt;
-use crate::types::js_number::JsNumber;
 use crate::types::recipe_file::RecipeFile;
-use crate::views::place_kind::PlaceKind;
-use crate::views::workspace::ProjectAddStage;
-use crate::views::workspace::ProjectView;
-use crate::views::workspace::WorkspaceAgents;
-use crate::wire::capabilities::MachineSizeOffer;
-use crate::wire::capabilities::WorkspaceSize;
 use crate::wire::limits::PortForward;
 use crate::wire::limits::RelayPort;
 use indexmap::IndexMap;
-use wsp_frames::True;
 
 /// TS: packages/protocol/src/views/place.ts:27 at a3b870a6e.
 /// A Record in the TS: its keys in the TS's order.
@@ -303,7 +294,7 @@ impl Check for PlaceStageEvent {
 }
 impl PlaceStageEvent {
     fn rule_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -392,7 +383,7 @@ impl Check for PlaceAddJobStepsItem {
 }
 impl PlaceAddJobStepsItem {
     fn rule_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -564,8 +555,8 @@ impl Check for PlaceBack {
 }
 impl PlaceBack {
     fn rule_box_port(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 1.0)?;
-        crate::types::check::num_at_most((*x).0 .0, 65535.0)?;
+        crate::types::check::num_at_least(x.0 .0, 1.0)?;
+        crate::types::check::num_at_most(x.0 .0, 65535.0)?;
         Ok(())
     }
 }
@@ -685,7 +676,7 @@ impl Check for PlaceDialled {
 }
 impl PlaceDialled {
     fn rule_round_trip_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -1051,7 +1042,7 @@ impl PlaceProvisionRow {
         Ok(())
     }
     fn rule_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -1182,7 +1173,7 @@ impl Check for PlaceSetupLine {
 }
 impl PlaceSetupLine {
     fn rule_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -1691,7 +1682,7 @@ impl Check for AddLine {
 }
 impl AddLine {
     fn rule_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())

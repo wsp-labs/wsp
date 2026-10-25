@@ -345,7 +345,6 @@ use crate::wire::daemon::{by_proc_column, ProcSort};
 use crate::wire::daemon_version::place_behind_line;
 use indexmap::IndexMap;
 use std::cell::RefCell;
-use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet, VecDeque};
 use wsp_frames::{CgroupMemory, ProcEntry, ProcOwnedBy};
 
@@ -1259,7 +1258,7 @@ pub fn activity_of(read: &ActivityRead) -> ActivityView {
         let of = |w: Whose| -> Vec<ProcEntry> { placed.procs.iter().filter(|p| placed.whose.get(&p.pid) == Some(&w)).cloned().collect() };
         ActivityView {
             computer: read.computer.clone(),
-            at: read.at.clone(),
+            at: read.at,
             threads,
             wsp: tree_rows(placed, &of(Whose::Wsp), read.ports.as_ref()),
             unowned: tree_rows(placed, &of(Whose::Loose), read.ports.as_ref()),
@@ -1390,7 +1389,7 @@ pub fn end_reused_line(pid: i64, now: &ProcEntry, asked: i64) -> String {
     format!(
         "pid {pid} names another process now, {} started {}, not the one started {}:",
         now.comm,
-        iso_time(i64::from(now.started_at)),
+        iso_time(now.started_at),
         iso_time(asked)
     )
 }

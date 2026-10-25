@@ -68,7 +68,7 @@ fn the_general_choices_start_at_their_defaults_and_a_patch_lands_each_it_names()
         let current: GeneralPreferences = of(&a[0]);
         let p = &a[1];
         let patch = GeneralPatch {
-            on_quit: p.get("onQuit").map(|v| of(v)),
+            on_quit: p.get("onQuit").map(of),
             ask_delete: p.get("askDelete").and_then(Value::as_bool),
             ..Default::default()
         };

@@ -269,7 +269,7 @@ impl Check for InitScreenItem {
 }
 impl InitScreenItem {
     fn rule_size(x: &Option<Option<JsNumber>>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(Some(v)) = (*x) {
+        if let Some(Some(v)) = *x {
             crate::types::check::num_at_least(v.0, 0.0)?;
         }
         Ok(())
@@ -645,7 +645,7 @@ impl Check for InitNeedsYou {
 }
 impl InitNeedsYou {
     fn rule_since(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -783,11 +783,11 @@ impl Check for InitJobDisk {
 }
 impl InitJobDisk {
     fn rule_fixed(x: &JsNumber) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0, 0.0)?;
+        crate::types::check::num_at_least(x.0, 0.0)?;
         Ok(())
     }
     fn rule_total(x: &JsNumber) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_above((*x).0, 0.0)?;
+        crate::types::check::num_above(x.0, 0.0)?;
         Ok(())
     }
 }
@@ -830,11 +830,11 @@ impl Check for InitJobProgress {
 }
 impl InitJobProgress {
     fn rule_done(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_total(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -1075,7 +1075,7 @@ impl Check for InitJob {
 }
 impl InitJob {
     fn rule_step(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }

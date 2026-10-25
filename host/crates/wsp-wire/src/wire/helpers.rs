@@ -179,12 +179,14 @@ pub fn is_base64_of(text: &str, bytes: u64) -> bool {
     if body.is_empty() || !body.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'+' || b == b'/') {
         return false;
     }
-    text.len() % 4 == 0 && (text.len() as i64 / 4) * 3 - pad as i64 == bytes as i64
+    text.len().is_multiple_of(4) && (text.len() as i64 / 4) * 3 - pad as i64 == bytes as i64
 }
 
 /// Rule 4.26: a parsed or built JSON object writes its keys as JavaScript does, so keys that read as array indexes
 /// (`"0"`, `"2"`, `"10"`: a canonical non-negative integer below 2^32 - 1, no leading zero, no sign) move first in
 /// ascending numeric order and every other key keeps its place. Applied to this map alone, not to the maps inside it.
+type Entries = Vec<(String, Value)>;
+
 pub fn js_key_order(map: &mut IndexMap<String, Value>) {
     let is_index = |k: &str| {
         !k.is_empty()
@@ -192,7 +194,7 @@ pub fn js_key_order(map: &mut IndexMap<String, Value>) {
             && (k == "0" || !k.starts_with('0'))
             && k.parse::<u64>().is_ok_and(|n| n <= 4294967294)
     };
-    let (mut indexed, rest): (Vec<(String, Value)>, Vec<(String, Value)>) = std::mem::take(map).into_iter().partition(|(k, _)| is_index(k));
+    let (mut indexed, rest): (Entries, Entries) = std::mem::take(map).into_iter().partition(|(k, _)| is_index(k));
     indexed.sort_by_key(|(k, _)| k.parse::<u64>().unwrap_or(0));
     map.extend(indexed);
     map.extend(rest);
@@ -217,7 +219,7 @@ pub fn literal_word(got: &str, expected: &str) -> Result<(), SchemaError> {
     detail.insert("received".to_string(), Value::from(got));
     detail.insert("expected".to_string(), Value::from(expected));
     let message = format!("Invalid literal value, expected \"{expected}\"");
-    Err(SchemaError { code: "invalid_literal".into(), path: Vec::new(), message, detail })
+    Err(SchemaError { code: "invalid_literal".into(), path: Vec::new(), message, detail: Box::new(detail) })
 }
 
 /// No refinement of its own.

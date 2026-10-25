@@ -498,15 +498,15 @@ impl Check for ReviewPostResult {
 }
 impl ReviewPostResult {
     fn rule_number(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_comments(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_folded(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -559,7 +559,7 @@ pub fn mcp_servers_blocked(servers: Option<&indexmap::IndexMap<String, McpServer
 //   return catalog === null || catalog === undefined || catalog.source === "table" || catalog.renames;
 // }
 pub fn keeps_rename(catalog: Option<&HarnessCatalog>) -> bool {
-    catalog.map_or(true, |c| c.source == HarnessCatalogSource::Table || c.renames)
+    catalog.is_none_or(|c| c.source == HarnessCatalogSource::Table || c.renames)
 }
 
 // views/harness.ts:194 at a3b870a6e
@@ -567,7 +567,7 @@ pub fn keeps_rename(catalog: Option<&HarnessCatalog>) -> bool {
 //   return catalog === null || catalog === undefined || catalog.source === "table" || catalog.images;
 // }
 pub fn reads_images(catalog: Option<&HarnessCatalog>) -> bool {
-    catalog.map_or(true, |c| c.source == HarnessCatalogSource::Table || c.images)
+    catalog.is_none_or(|c| c.source == HarnessCatalogSource::Table || c.images)
 }
 
 // views/harness.ts:201 at a3b870a6e

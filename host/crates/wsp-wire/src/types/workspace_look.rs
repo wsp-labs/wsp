@@ -139,13 +139,13 @@ impl Check for ThemeDot {
 }
 impl ThemeDot {
     fn rule_angle(x: &JsNumber) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0, 0.0)?;
-        crate::types::check::num_at_most((*x).0, 360.0)?;
+        crate::types::check::num_at_least(x.0, 0.0)?;
+        crate::types::check::num_at_most(x.0, 360.0)?;
         Ok(())
     }
     fn rule_radius(x: &JsNumber) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0, 0.0)?;
-        crate::types::check::num_at_most((*x).0, 1.0)?;
+        crate::types::check::num_at_least(x.0, 0.0)?;
+        crate::types::check::num_at_most(x.0, 1.0)?;
         Ok(())
     }
 }
@@ -254,13 +254,13 @@ impl WorkspaceTheme {
         Ok(())
     }
     fn rule_grain(x: &JsNumber) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0, 0.0)?;
-        crate::types::check::num_at_most((*x).0, 1.0)?;
+        crate::types::check::num_at_least(x.0, 0.0)?;
+        crate::types::check::num_at_most(x.0, 1.0)?;
         Ok(())
     }
     fn rule_opacity(x: &JsNumber) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0, 0.1)?;
-        crate::types::check::num_at_most((*x).0, 1.0)?;
+        crate::types::check::num_at_least(x.0, 0.1)?;
+        crate::types::check::num_at_most(x.0, 1.0)?;
         Ok(())
     }
 }

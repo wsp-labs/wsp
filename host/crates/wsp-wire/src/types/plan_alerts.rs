@@ -66,10 +66,10 @@ impl Check for PlanAlertBlocked {
     }
 
     fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
-        let serde_json::Value::Object(obj) = value else {
+        let serde_json::Value::Object(_obj) = value else {
             return Some(vec![crate::types::check::not_object(value)]);
         };
-        let mut out = Vec::new();
+        let out = Vec::new();
         Some(out)
     }
 
@@ -97,10 +97,10 @@ impl Check for PlanAlertBack {
     }
 
     fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
-        let serde_json::Value::Object(obj) = value else {
+        let serde_json::Value::Object(_obj) = value else {
             return Some(vec![crate::types::check::not_object(value)]);
         };
-        let mut out = Vec::new();
+        let out = Vec::new();
         Some(out)
     }
 

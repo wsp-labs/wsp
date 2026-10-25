@@ -61,6 +61,7 @@ mod daemon_wire_types_one_home_for_the_ops_the_daemon_answers {
     // protocol.test.ts:746
     // The runtime's workspaces.updateDaemon refusal at the end of this case is the runtime writer's.
     #[test]
+    #[allow(clippy::assertions_on_constants)]
     fn the_hello_carries_the_daemon_s_version_and_one_without_is_refused() {
         assert!(DAEMON_VERSION >= 2);
         let current = reads_with(parse_daemon_event, json!({"type": "daemon.hello", "root": "/root", "version": DAEMON_VERSION}));

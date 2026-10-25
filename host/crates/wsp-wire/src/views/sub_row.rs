@@ -80,15 +80,15 @@ impl Check for SubResult {
 }
 impl SubResult {
     fn rule_commits(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_unpushed(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_changed(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -133,7 +133,7 @@ impl Check for SubSpawnBranch {
 }
 impl SubSpawnBranch {
     fn rule_ms(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -185,7 +185,7 @@ impl Check for SubSpawnMachine {
 }
 impl SubSpawnMachine {
     fn rule_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -239,11 +239,11 @@ impl Check for SubSpawnFiles {
 }
 impl SubSpawnFiles {
     fn rule_bytes(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -384,7 +384,7 @@ impl Check for SubSpawn {
 }
 impl SubSpawn {
     fn rule_uncommitted(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -451,11 +451,11 @@ impl Check for SubHeld {
 }
 impl SubHeld {
     fn rule_files(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_commits(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -599,5 +599,5 @@ pub fn sub_all_pushed(r: &SubResult) -> bool {
 //   sub?.releasedAt !== undefined && (startedAt === undefined || startedAt < sub.releasedAt);
 /// `released_at` is the sub-thread's, where there is one; `started_at` the turn's start.
 pub fn sub_turn_gone(released_at: Option<f64>, started_at: Option<f64>) -> bool {
-    released_at.is_some_and(|released| started_at.map_or(true, |started| started < released))
+    released_at.is_some_and(|released| started_at.is_none_or(|started| started < released))
 }

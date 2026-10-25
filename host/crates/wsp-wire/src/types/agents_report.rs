@@ -623,7 +623,7 @@ impl Check for SkillHit {
 }
 impl SkillHit {
     fn rule_installs(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -666,7 +666,7 @@ impl Check for SkillPreview {
 }
 impl SkillPreview {
     fn rule_size(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }

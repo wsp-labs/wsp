@@ -57,7 +57,7 @@ impl Check for ComputerCap {
 }
 impl ComputerCap {
     fn rule_threads(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 1.0)?;
+        crate::types::check::num_at_least(x.0 .0, 1.0)?;
         Ok(())
     }
 }
@@ -101,11 +101,11 @@ impl Check for CloudCap {
 }
 impl CloudCap {
     fn rule_machines(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0 .0, 1.0)?;
+        crate::types::check::num_at_least(x.0 .0, 1.0)?;
         Ok(())
     }
     fn rule_spend_per_day_usd(x: &JsNumber) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0, 0.0)?;
+        crate::types::check::num_at_least(x.0, 0.0)?;
         Ok(())
     }
 }
@@ -196,19 +196,19 @@ impl Check for PlaceCapSet {
 }
 impl PlaceCapSet {
     fn rule_threads(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 1.0)?;
         }
         Ok(())
     }
     fn rule_machines(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 1.0)?;
         }
         Ok(())
     }
     fn rule_spend_per_day_usd(x: &Option<JsNumber>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0, 0.0)?;
         }
         Ok(())
@@ -263,13 +263,13 @@ impl Check for PlaceSettingsSpawn {
 }
 impl PlaceSettingsSpawn {
     fn rule_max_machines(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
     }
     fn rule_max_depth(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 1.0)?;
         }
         Ok(())
@@ -403,46 +403,46 @@ impl Check for PlaceSettings {
 }
 impl PlaceSettings {
     fn rule_threads(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 1.0)?;
         }
         Ok(())
     }
     fn rule_machines(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 1.0)?;
         }
         Ok(())
     }
     fn rule_spend_per_day_usd(x: &Option<JsNumber>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0, 0.0)?;
         }
         Ok(())
     }
     fn rule_nap_ms(x: &Option<Option<JsInt>>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(Some(v)) = (*x) {
+        if let Some(Some(v)) = *x {
             crate::types::check::num_at_least(v.0 .0, 60000.0)?;
         }
-        if let Some(Some(v)) = (*x) {
+        if let Some(Some(v)) = *x {
             crate::types::check::num_at_most(v.0 .0, 10800000.0)?;
         }
         Ok(())
     }
     fn rule_turn_limit_ms(x: &Option<Option<JsInt>>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(Some(v)) = (*x) {
+        if let Some(Some(v)) = *x {
             crate::types::check::num_at_least(v.0 .0, 3600000.0)?;
         }
-        if let Some(Some(v)) = (*x) {
+        if let Some(Some(v)) = *x {
             crate::types::check::num_at_most(v.0 .0, 86400000.0)?;
         }
         Ok(())
     }
     fn rule_delete_after_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_most(v.0 .0, 86400000.0)?;
         }
         Ok(())
@@ -541,46 +541,46 @@ impl Check for PlaceSettingsAsk {
 }
 impl PlaceSettingsAsk {
     fn rule_threads(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 1.0)?;
         }
         Ok(())
     }
     fn rule_machines(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 1.0)?;
         }
         Ok(())
     }
     fn rule_spend_per_day_usd(x: &Option<JsNumber>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0, 0.0)?;
         }
         Ok(())
     }
     fn rule_nap_ms(x: &Option<Option<JsInt>>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(Some(v)) = (*x) {
+        if let Some(Some(v)) = *x {
             crate::types::check::num_at_least(v.0 .0, 60000.0)?;
         }
-        if let Some(Some(v)) = (*x) {
+        if let Some(Some(v)) = *x {
             crate::types::check::num_at_most(v.0 .0, 10800000.0)?;
         }
         Ok(())
     }
     fn rule_turn_limit_ms(x: &Option<Option<JsInt>>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(Some(v)) = (*x) {
+        if let Some(Some(v)) = *x {
             crate::types::check::num_at_least(v.0 .0, 3600000.0)?;
         }
-        if let Some(Some(v)) = (*x) {
+        if let Some(Some(v)) = *x {
             crate::types::check::num_at_most(v.0 .0, 86400000.0)?;
         }
         Ok(())
     }
     fn rule_delete_after_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_most(v.0 .0, 86400000.0)?;
         }
         Ok(())
@@ -1282,13 +1282,13 @@ impl Check for PlaceView {
 }
 impl PlaceView {
     fn rule_uptime_ms(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
     }
     fn rule_running(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
@@ -1519,7 +1519,7 @@ impl Check for PlaceHoldsImagesItem {
 }
 impl PlaceHoldsImagesItem {
     fn rule_size_bytes(x: &Option<JsNumber>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
+        if let Some(v) = *x {
             crate::types::check::num_at_least(v.0, 0.0)?;
         }
         Ok(())

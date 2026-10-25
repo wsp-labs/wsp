@@ -345,7 +345,8 @@ fn a_re_exported_reply_reads_every_number_zod_reads() {
 fn a_re_exported_reply_refuses_null_on_an_optional_key() {
     let nul = |ty: &str, text: &str, path: Value, what: &str| -> Option<String> {
         let message = format!("Expected {what}, received null");
-        let r = match ty {
+
+        match ty {
             "FsImageReply" => refused::<FsImageReply>(text, "invalid_type", path, &message),
             "FsSearchReply" => refused::<FsSearchReply>(text, "invalid_type", path, &message),
             "GitBranchesReply" => refused::<GitBranchesReply>(text, "invalid_type", path, &message),
@@ -355,8 +356,7 @@ fn a_re_exported_reply_refuses_null_on_an_optional_key() {
             "GitWorktree" => refused::<GitWorktree>(text, "invalid_type", path, &message),
             "HttpPostReply" => refused::<HttpPostReply>(text, "invalid_type", path, &message),
             _ => unreachable!(),
-        };
-        r
+        }
     };
     none_differ(vec![
         // :189
