@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The renderer problems #2439's gallery found drawing 48 slates (round 2), one test each in the ticket's order; the
+// The renderer problems the gallery found drawing 48 slates (round 2), one test each in the ticket's order; the
 // seventeenth, GPUI's every.slate, is the GPUI app's own.
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { parseSlate, slateStartValues, type SlateDoc } from "@wsp/protocol/slate";
+import { parseSlate, slateStartValues, type SlateDoc, type SlateJson } from "@wsp/protocol/slate";
 import { ActionRunner, StateSender } from "./actions";
 import { SlateEngine } from "./engine";
 import { SLATE_VIEWS } from "./pieces";
@@ -17,12 +17,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function draw(text: string) {
+function draw(text: string, values: Record<string, SlateJson> = {}) {
   const r = parseSlate(text);
   expect(r.errors).toEqual([]);
   const doc: SlateDoc = r.document!;
   const engine = new SlateEngine("t1", () => undefined, manualScheduler());
-  engine.setRecord(doc, slateStartValues(doc), 3, 3);
+  engine.setRecord(doc, { ...slateStartValues(doc), ...values }, 3, 3);
   const link = fakeLink();
   const view = render(<SlateView engine={engine} views={SLATE_VIEWS} runner={new ActionRunner(engine, () => link)} sender={new StateSender(engine, () => link)} />);
   return { engine, c: view.container };
@@ -150,5 +150,31 @@ describe("the gallery's findings, round 2", () => {
     </column></slate>`);
     expect(piece(c, "strip").closest("[data-slate-card]")).toBeNull();
     expect(piece(c, "after").closest("[data-slate-card]")).not.toBeNull();
+  });
+});
+
+describe("the cold review's findings", () => {
+  it("a held decision says why on screen, under its answers and beside its Change", () => {
+    const decision = (pick: string) => `<slate><value name="pick" start="${pick}" /><column>
+      <decision id="d" label="Ship?" value={$pick} held="Checks are still running" onChange={send("Ship", $pick)}><option value="now" label="Now" /><option value="later" label="Later" /></decision>
+    </column></slate>`;
+    const open = piece(draw(decision("")).c, "d");
+    expect([...open.querySelectorAll("button")].every(b => b.disabled)).toBe(true);
+    expect(open.querySelector("[data-slate-held-why]")?.textContent).toBe("Checks are still running");
+    cleanup();
+    const answered = piece(draw(decision("now")).c, "d");
+    expect(answered.querySelector("button")?.disabled).toBe(true);
+    expect(answered.querySelector("[data-slate-held-why]")?.textContent).toBe("Checks are still running");
+  });
+
+  it("an output of a run that prints one long line keeps its summary to one line's worth", () => {
+    const out = JSON.stringify(Array.from({ length: 60 }, (_, i) => ({ number: i, title: `Pull request ${i}`, state: "open" })));
+    const { c } = draw(`<slate><run name="pr" cmd="gh api repos/acme/lab/pulls" /><column><output id="out" run={$pr} /></column></slate>`, { pr: { state: "done", exit: 0, out, runs: 1 } });
+    expect(c.querySelector("[data-slate-summary]")!.textContent!.length).toBeLessThanOrEqual(160);
+  });
+
+  it("an empty progress says None yet alone", () => {
+    const { c } = draw(`<slate><value name="jobs" start={[]} /><column><progress id="p" label="packages finished" items={$jobs} name={item.n} done={item.d} /></column></slate>`);
+    expect(piece(c, "p").textContent).toBe("None yet");
   });
 });

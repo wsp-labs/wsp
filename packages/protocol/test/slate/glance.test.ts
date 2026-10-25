@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { parseSlate, sketchSlate, slateStartValues, SLATE_GLANCE, type SlateDoc, type SlateJson } from "../../src/slate/index.js";
+import { parseSlate, sketchSlate, slateGlanceProblems, slateStartValues, SLATE_GLANCE, SLATE_LIMITS, type SlateDoc, type SlateJson } from "../../src/slate/index.js";
 
-// The GPUI coordinator's slate the owner shot on 2026-10-25 (#2439), as its agent wrote it and with every value it held,
+// The GPUI coordinator's slate the owner shot on 2026-10-25, as its agent wrote it and with every value it held,
 // and the same values written the visual-first way.
 const read = (name: string): string => readFileSync(new URL(`./glance/${name}`, import.meta.url), "utf8");
 const data = JSON.parse(read("values.json")) as { now: number; values: Record<string, SlateJson> };
@@ -59,13 +59,13 @@ describe("a slate read at a glance", () => {
     expect(sketch.split("\n")[0]).toMatch(/, 0 problems$/);
   });
 
-  it("prints both counts for the report", () => {
+  it("counts each warning on the slate as the owner saw it, and none on its rewrite", () => {
     const count = (codes: string[]) => GLANCE.map(c => `${c} ${codes.filter(x => x === c).length}`).join(", ");
-    console.log(`before: ${count(before.codes)}\nafter: ${count(after.codes)}`);
+    expect(count(before.codes)).toBe("W030 1, W031 1, W032 1, W033 5, W034 2, W035 1, W036 1, W037 1, W038 2");
+    expect(count(after.codes)).toBe(GLANCE.map(c => `${c} 0`).join(", "));
   });
 });
 
-// The cold test's task 3 (#2439): a monorepo test run that drew raw run output and the same status on every row.
 describe("raw output and a same-status column", () => {
   const vitest = readFileSync(new URL("./output/vitest.txt", import.meta.url), "utf8");
   const codes = (text: string, values: Record<string, SlateJson> = {}): string[] => {
@@ -75,15 +75,6 @@ describe("raw output and a same-status column", () => {
     return [...sketch.matchAll(/^ {2}(W03\d) /gm)].map(m => m[1]!);
   };
   const ran = { tests: { state: "failed", exit: 1, out: vitest, runs: 1 } };
-
-  // A stand-in shaped as the report describes task 3, until the Mac's copy of the written slate is in: a status column
-  // whose rows all say passed in different words, and the run's raw output in a folded section.
-  it("W034 and W036 fire on the cold test's task 3 slate", () => {
-    const packages = ["api", "web", "cli", "engine", "runtime"].map((name, i) => ({ name, result: `✓ ${[42, 311, 18, 126, 240][i]} passed` }));
-    const said = codes(read("task3-standin.slate"), { tests: { ...ran.tests, state: "done", exit: 0, json: { count: 5, seconds: 48, packages } } });
-    expect(said).toContain("W034");
-    expect(said).toContain("W036");
-  });
 
   it("W034 stays silent on an <output>, which leads with the summary and folds the raw lines", () => {
     expect(codes(`<slate><run name="tests" cmd="pnpm test" /><column><output run={$tests} /></column></slate>`, ran)).not.toContain("W034");
@@ -95,10 +86,13 @@ describe("raw output and a same-status column", () => {
     expect(codes(`<slate><value name="note" start="" /><column><text>{$note}</text></column></slate>`, { note: "Rounding fails on refunds; the fix is in review." })).not.toContain("W034");
   });
 
-  it("W036 fires on a status column whose rows all say passed, whatever their counts and marks", () => {
+  it("W036 fires on a status column whose rows all say passed, whatever their counts and marks, and asks for a <progress>", () => {
     const pkgs = [{ n: "api", r: "✓ passed (42)" }, { n: "web", r: "passed (311)" }, { n: "cli", r: "Passed in 3s" }];
     const table = `<slate><value name="pkgs" start={[]} /><column><table items={$pkgs}><col title="Package" value={item.n} /><col title="Result" value={item.r} /></table></column></slate>`;
     expect(codes(table, { pkgs })).toContain("W036");
+    const doc = parseSlate(table).document!;
+    const line = sketchSlate(doc, { ...slateStartValues(doc), pkgs }, { version: 1, now: data.now }).split("\n").find(l => l.startsWith("  W036 "));
+    expect(line).toContain("<progress>");
     expect(codes(table, { pkgs: [...pkgs.slice(0, 2), { n: "cli", r: "✗ failed (2)" }] })).not.toContain("W036");
     // A column of durations differs row by row and names no state.
     expect(codes(table, { pkgs: [{ n: "api", r: "1.2s" }, { n: "web", r: "3.4s" }, { n: "cli", r: "0.8s" }] })).not.toContain("W036");
@@ -109,5 +103,53 @@ describe("raw output and a same-status column", () => {
     const list = (editable: string) => `<slate><value name="jobs" start={[{ t: "Lint", d: true }, { t: "Unit", d: true }, { t: "E2E", d: true }]} /><column><checklist items={$jobs} title={item.t} done={item.d}${editable} /></column></slate>`;
     expect(codes(list(""))).toContain("W036");
     expect(codes(list(" editable"))).not.toContain("W036");
+  });
+});
+
+// The slate a fresh thread wrote with the new catalog for the cold test's task 3 (a monorepo's test run), and the runs
+// the harness fed it.
+describe("the cold test's task 3 slate, as the thread wrote it, with its runs", () => {
+  const runs = JSON.parse(read("task3.runs.json")) as { suite: Record<string, SlateJson> & { json: { failures: { package: string; error: string }[] } } };
+  const task3 = (values: Record<string, SlateJson>): string => {
+    const parsed = parseSlate(read("task3.slate"));
+    expect(parsed.errors ?? []).toEqual([]);
+    return sketchSlate(parsed.document!, { ...slateStartValues(parsed.document!), ...values }, { version: 1, now: 1761384600000 });
+  };
+  const codesOf = (sketch: string): string[] => [...sketch.matchAll(/^ {2}(W03\d) /gm)].map(m => m[1]!);
+
+  it("W034 and W036 fire on it", () => {
+    const said = codesOf(task3(runs));
+    expect(said).toContain("W034");
+    expect(said).toContain("W036");
+  });
+
+  it("W034 fires on its error column whatever class the runner's message names", () => {
+    const suite = structuredClone(runs.suite);
+    suite.json.failures = suite.json.failures.filter(f => f.package === "billing");
+    expect(suite.json.failures.every(f => f.error.startsWith("AssertionError:"))).toBe(true);
+    expect(codesOf(task3({ suite }))).toContain("W034");
+  });
+
+  it("W036 on a column red on every row of a list of failures asks to drop the tone, not to swap the table for a <progress>", () => {
+    const line = task3(runs).split("\n").find(l => l.startsWith("  W036 ") && l.includes("Error is bad"));
+    expect(line).toBeDefined();
+    expect(line).not.toContain("<progress>");
+    expect(line).toContain("drop the tone");
+  });
+});
+
+describe("the glance checks over a long table", () => {
+  it("read only the rows the person sees", () => {
+    let furthest = -1;
+    const rows = Array.from({ length: SLATE_LIMITS.listItems }, (_, i) => ({ a: `row ${i}`, b: "passed", c: i, d: "Error: no", e: "x", f: "y", g: "z", h: "w" }));
+    const counted = new Proxy(rows, { get(target, key, receiver) {
+      if (typeof key === "string" && /^\d+$/.test(key)) furthest = Math.max(furthest, Number(key));
+      return Reflect.get(target, key, receiver);
+    } });
+    const cols = ["a", "b", "c", "d", "e", "f", "g", "h"].map(k => `<col title="${k}" value={item.${k}} tone={item.c > 10 ? 'bad' : 'good'} />`).join("");
+    const doc = parseSlate(`<slate><value name="rows" start={[]} /><column><table items={$rows}>${cols}</table></column></slate>`).document!;
+    const glance = slateGlanceProblems(doc, { resolve: path => (path === "$rows" ? (counted as unknown as SlateJson) : undefined), now: data.now }, 0);
+    expect(glance.map(p => p.code)).toContain("W036");
+    expect(furthest).toBeLessThan(SLATE_LIMITS.rowsDrawn);
   });
 });
