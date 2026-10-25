@@ -3,6 +3,7 @@
 
 pub mod capabilities;
 pub mod daemon;
+pub mod daemon_checks;
 pub mod daemon_events;
 pub mod daemon_version;
 pub mod devices;
