@@ -386,7 +386,7 @@ mod workers {
     use wsp_words::exit::HostError;
 
     fn error(message: &str) -> HostError {
-        HostError { message: message.to_string(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: vec![] }
+        HostError { message: message.to_string(), fix: None, kind: None, errors: None, warnings: None, left: None, host_key: None, marks: vec![] }
     }
 
     /// Each file's read waits on its own gate; the gate's message, when there is one, is the read's error.
