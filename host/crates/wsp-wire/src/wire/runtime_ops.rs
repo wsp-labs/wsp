@@ -4,12 +4,15 @@
 
 #![allow(unused_imports)]
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
+use serde::de::Error as _;
+use serde::ser::Error as _;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 use super::helpers::ReqId;
 use crate::types::agents_report::{AgentsTarget, McpScope};
 use crate::types::attachments::Attachment;
+use crate::types::check::Zod;
 use crate::types::conversations::ResumeAsk;
 use crate::types::init_job::{InitRoad, InitScreenId};
 use crate::types::project_look::ProjectIconHash;
@@ -19,7 +22,7 @@ use crate::types::slate_wire::SlateWireValues;
 use crate::types::thread_defaults::AccessChoice;
 use crate::types::usage::{ReadingsRange, UsageRange, UsageSplit};
 use crate::types::workspace_look::{WorkspaceGlyph, WorkspaceTheme};
-use crate::types::{Check, JsNumber, SchemaError};
+use crate::types::{parse, Check, JsNumber, SchemaError};
 use crate::views::activity::{ActivityEnded, ProcessesAsk};
 use crate::views::app_procs::AppProcList;
 use crate::views::golden_image::MachineKind;
@@ -37,9 +40,10 @@ use wsp_frames::{False, True};
 use super::runtime::*;
 use crate::views::workspace::EventAsker;
 
+/// Read by its variant key (`{"auth": {...}}`), so serde keeps the path of a field that fails. The frame form, with `op`
+/// first, is written by RuntimeRequest.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "op")]
 pub enum RuntimeOp {
     #[serde(rename = "auth", rename_all = "camelCase")]
     Auth { id: ReqId, token: String },
@@ -706,12 +710,66 @@ pub enum RuntimeOp {
     SlatesImage { id: ReqId, thread_id: String, src: String, have: Option<String> },
 }
 /// One frame a client sends the host: the op and its params, and where the frame says it reached the host from.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RuntimeRequest {
-    #[serde(flatten)]
     pub op: RuntimeOp,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<WorkspaceOrigin>,
+}
+
+impl Serialize for RuntimeRequest {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let keyed = serde_json::to_value(&self.op).map_err(S::Error::custom)?;
+        let mut frame = serde_json::Map::new();
+        if let Some((word, fields)) = keyed.as_object().and_then(|m| m.iter().next()) {
+            frame.insert("op".to_string(), Value::from(word.as_str()));
+            frame.extend(fields.as_object().cloned().unwrap_or_default());
+        }
+        if let Some(origin) = &self.origin {
+            frame.insert("origin".to_string(), serde_json::to_value(origin).map_err(S::Error::custom)?);
+        }
+        Value::Object(frame).serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for RuntimeRequest {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let frame = Value::deserialize(d)?;
+        parse_runtime_request(&frame).map_err(|e| D::Error::custom(e.message))
+    }
+}
+
+/// The op as serde reads an externally tagged enum: a path names the variant first.
+#[derive(Deserialize)]
+#[serde(transparent)]
+struct OpByKey(RuntimeOp);
+
+/// Reads with serde alone. The op's own check runs after it, so that check's paths start at the field, not the variant.
+impl Check for OpByKey {
+    fn check(&self) -> Result<(), SchemaError> {
+        Ok(())
+    }
+
+    fn describe(path: &[Value]) -> Option<Zod> {
+        <RuntimeOp as Check>::describe(path)
+    }
+}
+
+/// The keys of the ops whose object zod reads strict: a merge keeps the strictness of the schema merged in, so these ops
+/// refuse a key they do not name. `origin` is the envelope's and is always allowed.
+fn strict_keys(word: &str) -> Option<&'static [&'static str]> {
+    match word {
+        "agents.setup" => Some(&["id", "op", "placeId", "agent", "on", "program", "configDir", "args", "env", "origin"]),
+        _ => None,
+    }
+}
+
+/// The frame's own keys with `op` taken out, under the op word: `{"auth": {"id": 1, ...}}`.
+fn keyed(frame: &Value, word: &str) -> Value {
+    let mut fields = frame.clone();
+    if let Some(map) = fields.as_object_mut() {
+        map.shift_remove("op");
+    }
+    Value::Object(serde_json::Map::from_iter([(word.to_string(), fields)]))
 }
 
 /// Reads one client frame as zod's discriminated union on `op` reads it, so a refusal's first issue is zod's: a value
@@ -721,18 +779,480 @@ pub struct RuntimeRequest {
 /// field, then its Check. Unknown keys are dropped.
 /// `origin`, where present, is one of here, relayed, paired. The `id` is read as RequestId: a string or a number.
 pub fn parse_runtime_request(frame: &Value) -> Result<RuntimeRequest, SchemaError> {
-    let _ = frame;
-    todo!()
+    let word = frame.get("op").and_then(Value::as_str).filter(|word| RUNTIME_OPS.contains(word));
+    if frame.is_object() && word.is_none() {
+        let mut detail = IndexMap::new();
+        detail.insert("options".to_string(), Value::Array(RUNTIME_OPS.iter().map(|op| Value::from(*op)).collect()));
+        let expected = RUNTIME_OPS.iter().map(|op| format!("'{op}'")).collect::<Vec<_>>().join(" | ");
+        return Err(SchemaError {
+            code: "invalid_union_discriminator".into(),
+            path: vec![Value::from("op")],
+            message: format!("Invalid discriminator value. Expected {expected}"),
+            detail,
+        });
+    }
+    let shaped = match word {
+        Some(word) => keyed(frame, word),
+        None => frame.clone(),
+    };
+    let OpByKey(op) = parse::<OpByKey>(&shaped).map_err(|mut e| {
+        if let (Some(word), Some(first)) = (word, e.path.first()) {
+            if first.as_str() == Some(word) {
+                e.path.remove(0);
+            }
+        }
+        e
+    })?;
+    op.check()?;
+    if let Some(named) = word.and_then(strict_keys) {
+        let unknown: Vec<&String> = frame.as_object().into_iter().flat_map(|m| m.keys()).filter(|k| !named.contains(&k.as_str())).collect();
+        if !unknown.is_empty() {
+            let message =
+                format!("Unrecognized key(s) in object: {}", unknown.iter().map(|k| format!("'{k}'")).collect::<Vec<_>>().join(", "));
+            let mut detail = IndexMap::new();
+            detail.insert("keys".to_string(), Value::Array(unknown.iter().map(|k| Value::from(k.as_str())).collect()));
+            return Err(SchemaError { code: "unrecognized_keys".into(), path: Vec::new(), message, detail });
+        }
+    }
+    let origin = match frame.get("origin") {
+        None => None,
+        Some(origin) => Some(parse::<WorkspaceOrigin>(origin).map_err(|e| e.under("origin"))?),
+    };
+    Ok(RuntimeRequest { op, origin })
 }
 
 impl RuntimeOp {
     /// The op word this variant is read from and written as: "places.list" for PlacesList.
     pub fn name(&self) -> &'static str {
-        todo!()
+        match self {
+            Self::Auth { .. } => "auth",
+            Self::TicketIssue { .. } => "ticket.issue",
+            Self::PairIssue { .. } => "pair.issue",
+            Self::PairRedeem { .. } => "pair.redeem",
+            Self::SealOpen(_) => "seal.open",
+            Self::DeviceAuth(_) => "device.auth",
+            Self::AccountGet { .. } => "account.get",
+            Self::DevicesList { .. } => "devices.list",
+            Self::DevicesRevoke { .. } => "devices.revoke",
+            Self::PlaceJoin(_) => "place.join",
+            Self::PlaceAuth(_) => "place.auth",
+            Self::PlaceProve(_) => "place.prove",
+            Self::PlacesList { .. } => "places.list",
+            Self::PlacesUpdate { .. } => "places.update",
+            Self::PlacesHolds { .. } => "places.holds",
+            Self::PlacesRemove { .. } => "places.remove",
+            Self::PlacesDoctor { .. } => "places.doctor",
+            Self::PlacesDial { .. } => "places.dial",
+            Self::PlacesSet { .. } => "places.set",
+            Self::PlacesFollow { .. } => "places.follow",
+            Self::PlacesSkip { .. } => "places.skip",
+            Self::PlacesSetupLog { .. } => "places.setupLog",
+            Self::PlacesEstimate { .. } => "places.estimate",
+            Self::PlacesLoginLanded { .. } => "places.loginLanded",
+            Self::PlacesDoor { .. } => "places.door",
+            Self::PlacesMint { .. } => "places.mint",
+            Self::PlacesSshHosts { .. } => "places.sshHosts",
+            Self::PlacesAdd { .. } => "places.add",
+            Self::PlacesSetup { .. } => "places.setup",
+            Self::PlacesChoose { .. } => "places.choose",
+            Self::RecipesList { .. } => "recipes.list",
+            Self::RecipesGet { .. } => "recipes.get",
+            Self::RecipesSave { .. } => "recipes.save",
+            Self::RecipesRemove { .. } => "recipes.remove",
+            Self::RecipesOptions { .. } => "recipes.options",
+            Self::EventsSubscribe { .. } => "events.subscribe",
+            Self::StatusSubscribe { .. } => "status.subscribe",
+            Self::StatusList { .. } => "status.list",
+            Self::WorkspacesCreate { .. } => "workspaces.create",
+            Self::WorkspacesLanding { .. } => "workspaces.landing",
+            Self::WorkspacesList { .. } => "workspaces.list",
+            Self::WorkspacesResolve { .. } => "workspaces.resolve",
+            Self::WorkspacesGet { .. } => "workspaces.get",
+            Self::WorkspacesNap { .. } => "workspaces.nap",
+            Self::WorkspacesResize { .. } => "workspaces.resize",
+            Self::WorkspacesWake { .. } => "workspaces.wake",
+            Self::WorkspacesRestartDaemon { .. } => "workspaces.restartDaemon",
+            Self::WorkspacesStopWake { .. } => "workspaces.stopWake",
+            Self::WorkspacesUpgrade { .. } => "workspaces.upgrade",
+            Self::WorkspacesRename { .. } => "workspaces.rename",
+            Self::WorkspacesLook { .. } => "workspaces.look",
+            Self::WorkspacesBringBack { .. } => "workspaces.bringBack",
+            Self::WorktreeMake { .. } => "worktree.make",
+            Self::FolderMake { .. } => "folder.make",
+            Self::WorktreeRemove { .. } => "worktree.remove",
+            Self::WorkspacesCheckout { .. } => "workspaces.checkout",
+            Self::WorkspacesDiscard { .. } => "workspaces.discard",
+            Self::WorkspacesCommit { .. } => "workspaces.commit",
+            Self::WorkspacesCommitDraft { .. } => "workspaces.commitDraft",
+            Self::WorkspacesViewed { .. } => "workspaces.viewed",
+            Self::WorkspacesPullRequestView { .. } => "workspaces.pullRequestView",
+            Self::WorkspacesPullRequestDiff { .. } => "workspaces.pullRequestDiff",
+            Self::WorkspacesPullRequestSend { .. } => "workspaces.pullRequestSend",
+            Self::WorkspacesPullRequestReply { .. } => "workspaces.pullRequestReply",
+            Self::WorkspacesPullRequestResolve { .. } => "workspaces.pullRequestResolve",
+            Self::WorkspacesPullRequestReact { .. } => "workspaces.pullRequestReact",
+            Self::WorkspacesFix { .. } => "workspaces.fix",
+            Self::WorkspacesMerge { .. } => "workspaces.merge",
+            Self::WorkspacesStart { .. } => "workspaces.start",
+            Self::WorkspacesReview { .. } => "workspaces.review",
+            Self::WorkspacesReviewDraft { .. } => "workspaces.reviewDraft",
+            Self::WorkspacesReviewPost { .. } => "workspaces.reviewPost",
+            Self::WorkspacesUpdate { .. } => "workspaces.update",
+            Self::WorkspacesMergeIn { .. } => "workspaces.mergeIn",
+            Self::WorkspacesDelete { .. } => "workspaces.delete",
+            Self::WorkspacesForget { .. } => "workspaces.forget",
+            Self::WorkspacesSnapshot { .. } => "workspaces.snapshot",
+            Self::ProjectGoldensList { .. } => "projectGoldens.list",
+            Self::ProjectGoldensRemove { .. } => "projectGoldens.remove",
+            Self::WorkspacesTouch { .. } => "workspaces.touch",
+            Self::DaemonOpen { .. } => "daemon.open",
+            Self::SysSubscribe { .. } => "sys.subscribe",
+            Self::SysUnsubscribe { .. } => "sys.unsubscribe",
+            Self::AppProcsWatch { .. } => "appProcs.watch",
+            Self::AppProcsUnwatch { .. } => "appProcs.unwatch",
+            Self::AppProcsOffer { .. } => "appProcs.offer",
+            Self::AppProcsSet { .. } => "appProcs.set",
+            Self::ActivityRead { .. } => "activity.read",
+            Self::ActivityEnd { .. } => "activity.end",
+            Self::DaemonSend { .. } => "daemon.send",
+            Self::DaemonClose { .. } => "daemon.close",
+            Self::SessionsStart { .. } => "sessions.start",
+            Self::HarnessesList { .. } => "harnesses.list",
+            Self::SessionsList { .. } => "sessions.list",
+            Self::SessionsHistory { .. } => "sessions.history",
+            Self::SessionsHead { .. } => "sessions.head",
+            Self::SessionsAttachment { .. } => "sessions.attachment",
+            Self::SessionsInterrupt { .. } => "sessions.interrupt",
+            Self::SessionsSteer { .. } => "sessions.steer",
+            Self::SessionsAnswer { .. } => "sessions.answer",
+            Self::SessionsAccess { .. } => "sessions.access",
+            Self::SessionsRename { .. } => "sessions.rename",
+            Self::SessionsForget { .. } => "sessions.forget",
+            Self::SessionsDelete { .. } => "sessions.delete",
+            Self::SessionsRead { .. } => "sessions.read",
+            Self::SessionsReplaceable { .. } => "sessions.replaceable",
+            Self::SessionsWarm { .. } => "sessions.warm",
+            Self::SessionsSettle { .. } => "sessions.settle",
+            Self::SessionsMark { .. } => "sessions.mark",
+            Self::SessionsRestore { .. } => "sessions.restore",
+            Self::SessionsSearch { .. } => "sessions.search",
+            Self::SessionsAside { .. } => "sessions.aside",
+            Self::SessionsRun { .. } => "sessions.run",
+            Self::SessionsRewind { .. } => "sessions.rewind",
+            Self::GoldenGet { .. } => "golden.get",
+            Self::CapabilitiesGet { .. } => "capabilities.get",
+            Self::GoldenPrepare { .. } => "golden.prepare",
+            Self::GoldenSeal { .. } => "golden.seal",
+            Self::SnapshotsList { .. } => "snapshots.list",
+            Self::SnapshotsStorage { .. } => "snapshots.storage",
+            Self::CostHistory { .. } => "cost.history",
+            Self::CostSpend { .. } => "cost.spend",
+            Self::UsageUsed { .. } => "usage.used",
+            Self::UsageAccounts { .. } => "usage.accounts",
+            Self::UsageReset { .. } => "usage.reset",
+            Self::PlacesReadings { .. } => "places.readings",
+            Self::SnapshotsRollback { .. } => "snapshots.rollback",
+            Self::WorkspacesPortReach { .. } => "workspaces.portReach",
+            Self::WorkspacesPortProbe { .. } => "workspaces.portProbe",
+            Self::WorkspacesRebuild { .. } => "workspaces.rebuild",
+            Self::ForwardsList { .. } => "forwards.list",
+            Self::ForwardsStop { .. } => "forwards.stop",
+            Self::WorkspacesExec { .. } => "workspaces.exec",
+            Self::HostFolders { .. } => "host.folders",
+            Self::HostTerminalConfig { .. } => "host.terminalConfig",
+            Self::EditorList { .. } => "editor.list",
+            Self::EditorOpen { .. } => "editor.open",
+            Self::SshPort { .. } => "ssh.port",
+            Self::SshInclude { .. } => "ssh.include",
+            Self::AgentsRead { .. } => "agents.read",
+            Self::ServersTools { .. } => "servers.tools",
+            Self::ServersIcon { .. } => "servers.icon",
+            Self::AgentsSignIn { .. } => "agents.signIn",
+            Self::ServersSignIn { .. } => "servers.signIn",
+            Self::AgentsSignInCode { .. } => "agents.signInCode",
+            Self::AgentsSignIns { .. } => "agents.signIns",
+            Self::AgentsSignInStop { .. } => "agents.signInStop",
+            Self::AgentsSignInLine { .. } => "agents.signInLine",
+            Self::AgentsKey { .. } => "agents.key",
+            Self::AgentsCloudSignIn { .. } => "agents.cloudSignIn",
+            Self::ProvidersCheckKey { .. } => "providers.checkKey",
+            Self::BrokerStatus { .. } => "broker.status",
+            Self::AgentsAddTools { .. } => "agents.addTools",
+            Self::AgentsSetup { .. } => "agents.setup",
+            Self::SkillsSearch { .. } => "skills.search",
+            Self::SkillsGet { .. } => "skills.get",
+            Self::SkillsPreview { .. } => "skills.preview",
+            Self::SkillsAdd { .. } => "skills.add",
+            Self::SkillsRemove { .. } => "skills.remove",
+            Self::SkillsToggle { .. } => "skills.toggle",
+            Self::ServersAdd { .. } => "servers.add",
+            Self::ServersRemove { .. } => "servers.remove",
+            Self::ServersToggle { .. } => "servers.toggle",
+            Self::PluginsToggle { .. } => "plugins.toggle",
+            Self::InitGet { .. } => "init.get",
+            Self::InitKeys { .. } => "init.keys",
+            Self::InitStart { .. } => "init.start",
+            Self::InitAnswer { .. } => "init.answer",
+            Self::InitStep { .. } => "init.step",
+            Self::InitDraft { .. } => "init.draft",
+            Self::InitRetry { .. } => "init.retry",
+            Self::InitBuild { .. } => "init.build",
+            Self::InitSignInCode { .. } => "init.signInCode",
+            Self::InitCancel { .. } => "init.cancel",
+            Self::PreferencesGet { .. } => "preferences.get",
+            Self::PreferencesSet { .. } => "preferences.set",
+            Self::ReleaseGet { .. } => "release.get",
+            Self::ReleaseCheck { .. } => "release.check",
+            Self::HostRestart { .. } => "host.restart",
+            Self::ProjectsAdd { .. } => "projects.add",
+            Self::ProjectSeedPlan { .. } => "project.seed.plan",
+            Self::ProjectsSeed { .. } => "projects.seed",
+            Self::ProjectsList { .. } => "projects.list",
+            Self::ConversationsList { .. } => "conversations.list",
+            Self::ConversationsRead { .. } => "conversations.read",
+            Self::ProjectsDefaults { .. } => "projects.defaults",
+            Self::ProjectsResolve { .. } => "projects.resolve",
+            Self::ProjectsBranch { .. } => "projects.branch",
+            Self::ProjectsRemove { .. } => "projects.remove",
+            Self::ProjectsIcon { .. } => "projects.icon",
+            Self::ProjectsIcons { .. } => "projects.icons",
+            Self::ProjectPlan { .. } => "project.plan",
+            Self::ProjectImport { .. } => "project.import",
+            Self::ProjectExport { .. } => "project.export",
+            Self::ImageGet { .. } => "image.get",
+            Self::ImageBuild { .. } => "image.build",
+            Self::ImageExport { .. } => "image.export",
+            Self::SlatesGet { .. } => "slates.get",
+            Self::SlatesWrite { .. } => "slates.write",
+            Self::SlatesState { .. } => "slates.state",
+            Self::SlatesRead { .. } => "slates.read",
+            Self::SlatesCatalog { .. } => "slates.catalog",
+            Self::SlatesEvent { .. } => "slates.event",
+            Self::SlatesApprove { .. } => "slates.approve",
+            Self::SlatesCancel { .. } => "slates.cancel",
+            Self::SlatesRevoke { .. } => "slates.revoke",
+            Self::SlatesShown { .. } => "slates.shown",
+            Self::SlatesSubscribe { .. } => "slates.subscribe",
+            Self::SlatesUnsubscribe { .. } => "slates.unsubscribe",
+            Self::SlatesResolve { .. } => "slates.resolve",
+            Self::SlatesImage { .. } => "slates.image",
+        }
     }
 
     /// The request id the frame carried, which the reply echoes.
     pub fn id(&self) -> &ReqId {
-        todo!()
+        match self {
+            Self::Auth { id, .. } => id,
+            Self::TicketIssue { id, .. } => id,
+            Self::PairIssue { id, .. } => id,
+            Self::PairRedeem { id, .. } => id,
+            Self::SealOpen(r) => &r.id,
+            Self::DeviceAuth(r) => &r.id,
+            Self::AccountGet { id, .. } => id,
+            Self::DevicesList { id, .. } => id,
+            Self::DevicesRevoke { id, .. } => id,
+            Self::PlaceJoin(r) => &r.id,
+            Self::PlaceAuth(r) => &r.id,
+            Self::PlaceProve(r) => &r.id,
+            Self::PlacesList { id, .. } => id,
+            Self::PlacesUpdate { id, .. } => id,
+            Self::PlacesHolds { id, .. } => id,
+            Self::PlacesRemove { id, .. } => id,
+            Self::PlacesDoctor { id, .. } => id,
+            Self::PlacesDial { id, .. } => id,
+            Self::PlacesSet { id, .. } => id,
+            Self::PlacesFollow { id, .. } => id,
+            Self::PlacesSkip { id, .. } => id,
+            Self::PlacesSetupLog { id, .. } => id,
+            Self::PlacesEstimate { id, .. } => id,
+            Self::PlacesLoginLanded { id, .. } => id,
+            Self::PlacesDoor { id, .. } => id,
+            Self::PlacesMint { id, .. } => id,
+            Self::PlacesSshHosts { id, .. } => id,
+            Self::PlacesAdd { id, .. } => id,
+            Self::PlacesSetup { id, .. } => id,
+            Self::PlacesChoose { id, .. } => id,
+            Self::RecipesList { id, .. } => id,
+            Self::RecipesGet { id, .. } => id,
+            Self::RecipesSave { id, .. } => id,
+            Self::RecipesRemove { id, .. } => id,
+            Self::RecipesOptions { id, .. } => id,
+            Self::EventsSubscribe { id, .. } => id,
+            Self::StatusSubscribe { id, .. } => id,
+            Self::StatusList { id, .. } => id,
+            Self::WorkspacesCreate { id, .. } => id,
+            Self::WorkspacesLanding { id, .. } => id,
+            Self::WorkspacesList { id, .. } => id,
+            Self::WorkspacesResolve { id, .. } => id,
+            Self::WorkspacesGet { id, .. } => id,
+            Self::WorkspacesNap { id, .. } => id,
+            Self::WorkspacesResize { id, .. } => id,
+            Self::WorkspacesWake { id, .. } => id,
+            Self::WorkspacesRestartDaemon { id, .. } => id,
+            Self::WorkspacesStopWake { id, .. } => id,
+            Self::WorkspacesUpgrade { id, .. } => id,
+            Self::WorkspacesRename { id, .. } => id,
+            Self::WorkspacesLook { id, .. } => id,
+            Self::WorkspacesBringBack { id, .. } => id,
+            Self::WorktreeMake { id, .. } => id,
+            Self::FolderMake { id, .. } => id,
+            Self::WorktreeRemove { id, .. } => id,
+            Self::WorkspacesCheckout { id, .. } => id,
+            Self::WorkspacesDiscard { id, .. } => id,
+            Self::WorkspacesCommit { id, .. } => id,
+            Self::WorkspacesCommitDraft { id, .. } => id,
+            Self::WorkspacesViewed { id, .. } => id,
+            Self::WorkspacesPullRequestView { id, .. } => id,
+            Self::WorkspacesPullRequestDiff { id, .. } => id,
+            Self::WorkspacesPullRequestSend { id, .. } => id,
+            Self::WorkspacesPullRequestReply { id, .. } => id,
+            Self::WorkspacesPullRequestResolve { id, .. } => id,
+            Self::WorkspacesPullRequestReact { id, .. } => id,
+            Self::WorkspacesFix { id, .. } => id,
+            Self::WorkspacesMerge { id, .. } => id,
+            Self::WorkspacesStart { id, .. } => id,
+            Self::WorkspacesReview { id, .. } => id,
+            Self::WorkspacesReviewDraft { id, .. } => id,
+            Self::WorkspacesReviewPost { id, .. } => id,
+            Self::WorkspacesUpdate { id, .. } => id,
+            Self::WorkspacesMergeIn { id, .. } => id,
+            Self::WorkspacesDelete { id, .. } => id,
+            Self::WorkspacesForget { id, .. } => id,
+            Self::WorkspacesSnapshot { id, .. } => id,
+            Self::ProjectGoldensList { id, .. } => id,
+            Self::ProjectGoldensRemove { id, .. } => id,
+            Self::WorkspacesTouch { id, .. } => id,
+            Self::DaemonOpen { id, .. } => id,
+            Self::SysSubscribe { id, .. } => id,
+            Self::SysUnsubscribe { id, .. } => id,
+            Self::AppProcsWatch { id, .. } => id,
+            Self::AppProcsUnwatch { id, .. } => id,
+            Self::AppProcsOffer { id, .. } => id,
+            Self::AppProcsSet { id, .. } => id,
+            Self::ActivityRead { id, .. } => id,
+            Self::ActivityEnd { id, .. } => id,
+            Self::DaemonSend { id, .. } => id,
+            Self::DaemonClose { id, .. } => id,
+            Self::SessionsStart { id, .. } => id,
+            Self::HarnessesList { id, .. } => id,
+            Self::SessionsList { id, .. } => id,
+            Self::SessionsHistory { id, .. } => id,
+            Self::SessionsHead { id, .. } => id,
+            Self::SessionsAttachment { id, .. } => id,
+            Self::SessionsInterrupt { id, .. } => id,
+            Self::SessionsSteer { id, .. } => id,
+            Self::SessionsAnswer { id, .. } => id,
+            Self::SessionsAccess { id, .. } => id,
+            Self::SessionsRename { id, .. } => id,
+            Self::SessionsForget { id, .. } => id,
+            Self::SessionsDelete { id, .. } => id,
+            Self::SessionsRead { id, .. } => id,
+            Self::SessionsReplaceable { id, .. } => id,
+            Self::SessionsWarm { id, .. } => id,
+            Self::SessionsSettle { id, .. } => id,
+            Self::SessionsMark { id, .. } => id,
+            Self::SessionsRestore { id, .. } => id,
+            Self::SessionsSearch { id, .. } => id,
+            Self::SessionsAside { id, .. } => id,
+            Self::SessionsRun { id, .. } => id,
+            Self::SessionsRewind { id, .. } => id,
+            Self::GoldenGet { id, .. } => id,
+            Self::CapabilitiesGet { id, .. } => id,
+            Self::GoldenPrepare { id, .. } => id,
+            Self::GoldenSeal { id, .. } => id,
+            Self::SnapshotsList { id, .. } => id,
+            Self::SnapshotsStorage { id, .. } => id,
+            Self::CostHistory { id, .. } => id,
+            Self::CostSpend { id, .. } => id,
+            Self::UsageUsed { id, .. } => id,
+            Self::UsageAccounts { id, .. } => id,
+            Self::UsageReset { id, .. } => id,
+            Self::PlacesReadings { id, .. } => id,
+            Self::SnapshotsRollback { id, .. } => id,
+            Self::WorkspacesPortReach { id, .. } => id,
+            Self::WorkspacesPortProbe { id, .. } => id,
+            Self::WorkspacesRebuild { id, .. } => id,
+            Self::ForwardsList { id, .. } => id,
+            Self::ForwardsStop { id, .. } => id,
+            Self::WorkspacesExec { id, .. } => id,
+            Self::HostFolders { id, .. } => id,
+            Self::HostTerminalConfig { id, .. } => id,
+            Self::EditorList { id, .. } => id,
+            Self::EditorOpen { id, .. } => id,
+            Self::SshPort { id, .. } => id,
+            Self::SshInclude { id, .. } => id,
+            Self::AgentsRead { id, .. } => id,
+            Self::ServersTools { id, .. } => id,
+            Self::ServersIcon { id, .. } => id,
+            Self::AgentsSignIn { id, .. } => id,
+            Self::ServersSignIn { id, .. } => id,
+            Self::AgentsSignInCode { id, .. } => id,
+            Self::AgentsSignIns { id, .. } => id,
+            Self::AgentsSignInStop { id, .. } => id,
+            Self::AgentsSignInLine { id, .. } => id,
+            Self::AgentsKey { id, .. } => id,
+            Self::AgentsCloudSignIn { id, .. } => id,
+            Self::ProvidersCheckKey { id, .. } => id,
+            Self::BrokerStatus { id, .. } => id,
+            Self::AgentsAddTools { id, .. } => id,
+            Self::AgentsSetup { id, .. } => id,
+            Self::SkillsSearch { id, .. } => id,
+            Self::SkillsGet { id, .. } => id,
+            Self::SkillsPreview { id, .. } => id,
+            Self::SkillsAdd { id, .. } => id,
+            Self::SkillsRemove { id, .. } => id,
+            Self::SkillsToggle { id, .. } => id,
+            Self::ServersAdd { id, .. } => id,
+            Self::ServersRemove { id, .. } => id,
+            Self::ServersToggle { id, .. } => id,
+            Self::PluginsToggle { id, .. } => id,
+            Self::InitGet { id, .. } => id,
+            Self::InitKeys { id, .. } => id,
+            Self::InitStart { id, .. } => id,
+            Self::InitAnswer { id, .. } => id,
+            Self::InitStep { id, .. } => id,
+            Self::InitDraft { id, .. } => id,
+            Self::InitRetry { id, .. } => id,
+            Self::InitBuild { id, .. } => id,
+            Self::InitSignInCode { id, .. } => id,
+            Self::InitCancel { id, .. } => id,
+            Self::PreferencesGet { id, .. } => id,
+            Self::PreferencesSet { id, .. } => id,
+            Self::ReleaseGet { id, .. } => id,
+            Self::ReleaseCheck { id, .. } => id,
+            Self::HostRestart { id, .. } => id,
+            Self::ProjectsAdd { id, .. } => id,
+            Self::ProjectSeedPlan { id, .. } => id,
+            Self::ProjectsSeed { id, .. } => id,
+            Self::ProjectsList { id, .. } => id,
+            Self::ConversationsList { id, .. } => id,
+            Self::ConversationsRead { id, .. } => id,
+            Self::ProjectsDefaults { id, .. } => id,
+            Self::ProjectsResolve { id, .. } => id,
+            Self::ProjectsBranch { id, .. } => id,
+            Self::ProjectsRemove { id, .. } => id,
+            Self::ProjectsIcon { id, .. } => id,
+            Self::ProjectsIcons { id, .. } => id,
+            Self::ProjectPlan { id, .. } => id,
+            Self::ProjectImport { id, .. } => id,
+            Self::ProjectExport { id, .. } => id,
+            Self::ImageGet { id, .. } => id,
+            Self::ImageBuild { id, .. } => id,
+            Self::ImageExport { id, .. } => id,
+            Self::SlatesGet { id, .. } => id,
+            Self::SlatesWrite { id, .. } => id,
+            Self::SlatesState { id, .. } => id,
+            Self::SlatesRead { id, .. } => id,
+            Self::SlatesCatalog { id, .. } => id,
+            Self::SlatesEvent { id, .. } => id,
+            Self::SlatesApprove { id, .. } => id,
+            Self::SlatesCancel { id, .. } => id,
+            Self::SlatesRevoke { id, .. } => id,
+            Self::SlatesShown { id, .. } => id,
+            Self::SlatesSubscribe { id, .. } => id,
+            Self::SlatesUnsubscribe { id, .. } => id,
+            Self::SlatesResolve { id, .. } => id,
+            Self::SlatesImage { id, .. } => id,
+        }
     }
 }
