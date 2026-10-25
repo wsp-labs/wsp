@@ -1,0 +1,33 @@
+<slate title="Checkout 502s in eu-west-1">
+  <value name="started" start={1792881512704} />
+  <value name="errorRate" start={14.2} />
+  <value name="failedOrders" start={1312} />
+  <value name="rates" start={[
+    {at: 1792879592704, pct: 0.2},
+    {at: 1792879892704, pct: 0.3},
+    {at: 1792880192704, pct: 0.2},
+    {at: 1792880492704, pct: 0.2},
+    {at: 1792880792704, pct: 0.3},
+    {at: 1792881092704, pct: 0.2},
+    {at: 1792881392704, pct: 0.4},
+    {at: 1792881692704, pct: 6.8},
+    {at: 1792881992704, pct: 12.9},
+    {at: 1792882292704, pct: 15.1},
+    {at: 1792882592704, pct: 14.2}
+  ]} />
+  <value name="rollback" start="" />
+  <column>
+    <status value={concat("Ongoing, started ", ago($started))} tone="bad" />
+    <stats>
+      <stat label="Checkout 5xx" value={$errorRate} unit="%" window="last 5 min" tone="bad" />
+      <stat label="Orders failed" value={$failedOrders} format="integer" window="since it started" tone="bad" />
+    </stats>
+    <chart label="Checkout 5xx rate, last 50 min" items={$rates} x={item.at} value={item.pct} unit="%" height="small" tone="bad" />
+    <decision id="rollback" label="Roll back payments-svc to v3.8.2?" value={$rollback} pick="rollback"
+        onChange={send("Roll back payments-svc", $rollback)}>
+      <option value="rollback" label="Roll back now" note="502s began 2 min after v3.9.0 shipped" />
+      <option value="scale" label="Scale to 12 pods first" note="Pods are at 41% CPU, likely no help" />
+      <option value="wait" label="Wait on the card processor" note="Their status page shows no incident" />
+    </decision>
+  </column>
+</slate>

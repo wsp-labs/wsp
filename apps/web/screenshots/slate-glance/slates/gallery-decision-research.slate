@@ -1,0 +1,21 @@
+<slate title="A job queue for the email sender">
+  <value name="bench" start={[
+    {name: "BullMQ on Redis", jobs: 14800},
+    {name: "Graphile Worker", jobs: 9400},
+    {name: "pg-boss", jobs: 3100}
+  ]} />
+  <value name="queue" start="" />
+  <column>
+    <facts>
+      <fact label="Peak need" value="2,000 jobs/s on Black Friday" />
+      <fact label="Stack" value="Node 22, Postgres 16, no Redis today" />
+    </facts>
+    <bars label="Jobs per second, our staging box" items={$bench} key={item.name} name={item.name} value={item.jobs} format="value" />
+    <decision id="queue" label="Which queue runs the email sender?" value={$queue} pick="graphile"
+        onChange={send("Job queue for the email sender", $queue)}>
+      <option value="graphile" label="Graphile Worker" note="4x our peak, and no new service to run" />
+      <option value="pgboss" label="pg-boss" note="Only 1.5x our peak" />
+      <option value="bullmq" label="BullMQ with Redis" note="Fastest, but adds a Redis to run" />
+    </decision>
+  </column>
+</slate>

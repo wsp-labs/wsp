@@ -1,0 +1,23 @@
+<slate title="Tests after the date-fns 4 upgrade">
+  <value name="passed" start={1278} />
+  <value name="total" start={1284} />
+  <value name="took" start={372000} />
+  <value name="snapshots" start="" />
+  <value name="timezone" start="" />
+  <column>
+    <stats>
+      <stat label="Tests passed" value={$passed} max={$total} window="full suite" tone="warning" />
+      <stat label="Took" value={$took} format="duration" window="on 8 workers" />
+    </stats>
+    <decision id="snapshots" label="Update 4 snapshots for the new date format?" value={$snapshots} pick="update"
+        onChange={send("Invoice snapshots", $snapshots)}>
+      <option value="update" label="Update all 4" note="Each diff changes only the date string" />
+      <option value="diffs" label="Show me the diffs" />
+    </decision>
+    <decision id="timezone" label="2 timezone tests fail: fix now or pin date-fns 3?" value={$timezone} pick="fix"
+        onChange={send("Timezone tests", $timezone)}>
+      <option value="fix" label="Fix in this PR" note="parseISO now keeps the offset, a two-line fix" />
+      <option value="pin" label="Pin date-fns 3" note="Upgrade waits for a separate PR" />
+    </decision>
+  </column>
+</slate>

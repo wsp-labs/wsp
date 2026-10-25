@@ -1,0 +1,14 @@
+<slate title="Merge PR #482">
+  <value name="method" start="squash" />
+  <value name="dropBranch" start={true} />
+  <column>
+    <status tone="good">Approved by 2, checks passed</status>
+    <choices id="method" label="Merge method" value={$method}>
+      <option value="squash" label="Squash and merge" note="One commit: feat(api): rate limit public routes" />
+      <option value="rebase" label="Rebase and merge" note="All 7 commits land on main" />
+      <option value="merge" label="Merge commit" note="Keeps the branch history behind a merge commit" />
+    </choices>
+    <toggle label="Delete rate-limit-public after merge" value={$dropBranch} />
+    <button label="Merge #482" variant="primary" onPress={send("Merge #482", $method)} />
+  </column>
+</slate>

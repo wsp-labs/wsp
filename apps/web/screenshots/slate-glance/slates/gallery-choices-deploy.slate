@@ -1,0 +1,23 @@
+<slate title="Deploy web v5.3.0">
+  <value name="built" start={1792881872704} />
+  <value name="rollout" start="canary" />
+  <value name="target" start="" />
+  <column>
+    <facts>
+      <fact label="Changes" value="23 commits since v5.2.1" />
+      <fact label="Commit" value="8f3c2a1" mono={true} />
+      <fact label="Built" value={ago($built)} />
+    </facts>
+    <choices id="target" label="Where it goes" value={$target}>
+      <option value="staging" label="Staging" note="staging.acme.dev, then production after a check" />
+      <option value="production" label="Production" note="acme.com, 3 regions" />
+    </choices>
+    <choices id="rollout" label="Rollout" value={$rollout}>
+      <option value="canary" label="Canary, 10% then all" note="20 min at 10%, rolls back past 1% errors" />
+      <option value="all" label="All at once" note="About 4 min, no automatic roll back" />
+      <option value="bluegreen" label="Blue green" note="Doubles the pods for 10 min" />
+    </choices>
+    <button label="Deploy v5.3.0" variant="primary" held={$target == "" ? "Pick where it goes" : ""}
+        onPress={send("Deploy v5.3.0", $target, $rollout)} />
+  </column>
+</slate>
