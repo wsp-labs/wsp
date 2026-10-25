@@ -8,6 +8,15 @@ publish = false
 description = "The command line's verb table and what it reads: the verbs, the socket client, the hosts records, the lock and the help pages"
 
 [dependencies]
+async-trait = "0.1"
+base64 = "0.22"
+futures = "0.3"
+libc = "0.2"
+regex = "1"
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "sync", "time", "net", "io-util", "io-std"] }
+tokio-tungstenite = "0.30"
+unicode-segmentation = "1"
+url = "2"
 indexmap = { version = "2", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
@@ -20,3 +29,4 @@ wsp-store = { path = "../wsp-store" }
 
 [dev-dependencies]
 tempfile = "3"
+tokio = { version = "1", features = ["test-util"] }

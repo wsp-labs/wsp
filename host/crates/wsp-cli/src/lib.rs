@@ -3,6 +3,7 @@
 //! and the files of chapter 01's `wsp-cli` row). A socket client of the host: it depends on no
 //! runtime crate (rule 1.6).
 
+pub mod parse_args;
 pub mod verbs;
 
 pub mod account;
