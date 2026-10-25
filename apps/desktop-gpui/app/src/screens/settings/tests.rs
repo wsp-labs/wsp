@@ -499,7 +499,7 @@ impl gpui_kit::Render for Blank {
 fn record(given: Value) -> Value {
     let mut whole = json!({ "theme": "system", "sidebarMode": "list", "terminalSize": "app", "terminalZoom": {}, "access": {},
         "projectLook": {}, "projectOrder": [], "labs": false });
-    super::merge(&mut whole, &given);
+    crate::prefs::merge(&mut whole, &given);
     whole
 }
 
@@ -557,6 +557,14 @@ fn read_through(door: &Door, screen: &Entity<SettingsScreen>, cx: &mut VisualTes
     screen.update(cx, |s, _| s.notice = None);
 }
 
+/// The notices the window's toasts stand, each with whether it says a failure.
+fn toasts(cx: &mut VisualTestContext) -> Vec<(String, bool)> {
+    cx.update(|window, cx| {
+        let standing = crate::ui::toast::of(window, cx).map(|t| t.read(cx).standing()).unwrap_or_default();
+        standing.iter().map(|n| (n.text.to_string(), matches!(n.kind, crate::ui::NoticeKind::Error))).collect()
+    })
+}
+
 /// The notice standing: its words, and whether it says a failure.
 fn notice(screen: &Entity<SettingsScreen>, cx: &mut VisualTestContext) -> Option<(String, bool)> {
     screen.read_with(cx, |s, _| s.notice.as_ref().map(|(words, said)| (words.to_string(), matches!(said, Said::Failed))))
@@ -566,23 +574,26 @@ fn shown(screen: &Entity<SettingsScreen>, cx: &mut VisualTestContext) -> Option<
     screen.read_with(cx, |s, _| s.data.preferences.as_ref().map(|p| (p.theme.to_string(), p.light_theme.clone())))
 }
 
+/// Catches: a record from before the write that paints over the pick while it is out, and another client's change to
+/// another preference that waits for this write to answer.
 #[gpui_kit::test]
-fn a_record_pushed_while_a_set_is_out_waits_for_its_answer_and_then_the_last_one_shows(cx: &mut TestAppContext) {
-    let (mine, theirs) = (record(json!({ "theme": "dark" })), record(json!({ "theme": "dark", "lightTheme": "linen" })));
-    // This window's write lands, another window's after it, and only then does this one's answer come back.
+fn a_record_pushed_while_a_set_is_out_shows_under_the_pick_and_the_last_one_stands(cx: &mut TestAppContext) {
+    // Another client's write lands at the host before this one's, and its record comes while this one is out; the
+    // answer carries no record, as one that rides another socket can come first.
+    let theirs = record(json!({ "lightTheme": "linen" }));
     let door = Door::start(json!({
         "preferences.get": { "reply": { "preferences": record(json!({})) } },
-        "preferences.set": { "push": [changed(&mine), changed(&theirs)], "delayMs": 600, "reply": {} },
+        "preferences.set": { "push": [changed(&theirs)], "delayMs": 600, "reply": {} },
     }));
     let (screen, cx) = undrawn(&door, At::Group(GroupId::Privacy), cx);
     read_through(&door, &screen, cx);
     screen.update(cx, |s, cx| s.set_preferences(json!({ "theme": "dark" }), cx));
-    waits(cx, "both records landed", |cx| screen.read_with(cx, |s, _| s.landed.as_ref().is_some_and(|p| p.light_theme == "linen")));
-    assert_eq!(screen.read_with(cx, |s, _| s.sets_out), 1, "the set has not answered yet");
-    assert_eq!(shown(&screen, cx), Some(("dark".into(), "paper".into())), "while the set is out its pick stands");
-    waits(cx, "the set's answer", |cx| screen.read_with(cx, |s, _| s.sets_out == 0));
-    assert_eq!(shown(&screen, cx), Some(("dark".into(), "linen".into())), "once it answered, the last record the host sent");
-    assert_eq!(notice(&screen, cx), None, "a set that stood says nothing");
+    waits(cx, "their record landed", |cx| screen.read_with(cx, |s, _| s.landed.as_ref().is_some_and(|p| p.light_theme == "linen")));
+    assert_eq!(screen.read_with(cx, |s, cx| s.prefs.read(cx).writes_out()), 1, "the set has not answered yet");
+    assert_eq!(shown(&screen, cx), Some(("dark".into(), "linen".into())), "while the set is out its pick stands over the last record");
+    waits(cx, "the set's answer", |cx| screen.read_with(cx, |s, cx| s.prefs.read(cx).writes_out() == 0));
+    assert_eq!(shown(&screen, cx), Some(("dark".into(), "linen".into())), "once it answered, the pick the host kept over the last record");
+    assert_eq!(toasts(cx), [], "a set that stood says nothing");
 }
 
 #[gpui_kit::test]
@@ -595,12 +606,9 @@ fn a_refused_set_shows_the_hosts_value_again_and_says_it_was_not_saved(cx: &mut 
     read_through(&door, &screen, cx);
     screen.update(cx, |s, cx| s.set_preferences(json!({ "theme": "dark" }), cx));
     assert_eq!(shown(&screen, cx), Some(("dark".into(), "paper".into())), "the pick shows at once");
-    waits(cx, "the refusal", |cx| screen.read_with(cx, |s, _| s.sets_out == 0));
+    waits(cx, "the refusal", |cx| screen.read_with(cx, |s, cx| s.prefs.read(cx).writes_out() == 0));
     assert_eq!(shown(&screen, cx), Some(("system".into(), "paper".into())), "the host's value again");
-    assert_eq!(
-        notice(&screen, cx),
-        Some(("That setting was not saved: The state file is read-only. It shows the host's value again.".into(), true))
-    );
+    assert_eq!(toasts(cx), [("That setting was not saved: The state file is read-only. It shows the host's value again.".into(), true)]);
 }
 
 #[gpui_kit::test]
@@ -613,8 +621,8 @@ fn a_set_that_answers_a_notice_says_it_as_a_failure(cx: &mut TestAppContext) {
     let (screen, cx) = undrawn(&door, At::Group(GroupId::Privacy), cx);
     read_through(&door, &screen, cx);
     screen.update(cx, |s, cx| s.set_preferences(json!({ "theme": "dark" }), cx));
-    waits(cx, "the answer", |cx| screen.read_with(cx, |s, _| s.sets_out == 0));
-    assert_eq!(notice(&screen, cx), Some(("Kept, but the login item did not change.".into(), true)));
+    waits(cx, "the answer", |cx| screen.read_with(cx, |s, cx| s.prefs.read(cx).writes_out() == 0));
+    assert_eq!(toasts(cx), [("Kept, but the login item did not change.".into(), true)]);
     assert_eq!(shown(&screen, cx), Some(("dark".into(), "paper".into())), "what the set kept stands");
 }
 

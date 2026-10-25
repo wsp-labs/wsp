@@ -105,8 +105,8 @@ pub struct Shell {
     panel_fading: Option<PanelTabs>,
     /// The chord rules bound now, so a change of the person's overrides can unbind exactly them.
     rules: Vec<Bound>,
+    /// The theme and look this window's material was last set for.
     theme: Option<&'static str>,
-    picks: Picks,
     look: Look,
     vibrancy: Vibrancy,
     focus: FocusHandle,
@@ -117,6 +117,7 @@ pub struct Shell {
     first_run: Option<Entity<dialogs::first_run::FirstRun>>,
     _connect: Task<()>,
     _events: Option<Task<()>>,
+    _prefs: Subscription,
     _selected: Subscription,
     /// The sidebar's pushes, which carry each workspace's pull request and a New thread page's first thread.
     _followed: Subscription,
@@ -124,14 +125,6 @@ pub struct Shell {
     _focus_lost: Subscription,
     _appearance: Subscription,
     _activation: Subscription,
-}
-
-/// The person's theme picks: light, dark or the system's (none), each side's theme, and whether the page draws glass.
-struct Picks {
-    mode: Option<String>,
-    light: String,
-    dark: String,
-    transparency: bool,
 }
 
 /// The rail being dragged, which the root reads the pointer for.
@@ -233,8 +226,13 @@ impl Shell {
                     this.first_run = Some(cx.new(|cx| dialogs::first_run::FirstRun::new(first, page.clone(), center, cx)));
                     crate::desktop::app_procs::offer_once(host.clone(), &runtime, cx);
                     this.sidebar.update(cx, |s, cx| s.attach(Link { host: host.clone(), runtime, page }, cx));
+                    let prefs = crate::prefs::store(cx);
                     if let Some(preferences) = &preferences {
-                        this.apply(preferences, window, cx);
+                        prefs.update(cx, |store, cx| store.landed(preferences, cx));
+                    }
+                    // Another window may have landed the same record, which moves nothing to hear.
+                    if let Some(shown) = prefs.read(cx).shown().cloned() {
+                        this.apply(&shown, window, cx);
                     }
                     this._events = Some(this.follow_preferences(host, window, cx));
                     if let (Route::Screen(route), None) = (this.route.clone(), &this.screen) {
@@ -312,6 +310,12 @@ impl Shell {
         let appearance = cx.observe_window_appearance(window, |this, window, cx| this.pick_theme(window, cx));
         // Reduce transparency has no window callback and is switched in System Settings, so it is read again on return.
         let activation = cx.observe_window_activation(window, |this, window, cx| this.pick_theme(window, cx));
+        let store = crate::prefs::store(cx);
+        let prefs = cx.observe_in(&store, window, |this, prefs, window, cx| {
+            if let Some(p) = prefs.read(cx).shown().cloned() {
+                this.apply(&p, window, cx);
+            }
+        });
         let mut shell = Shell {
             sidebar,
             thread_view,
@@ -338,7 +342,6 @@ impl Shell {
             panel_fading: None,
             rules,
             theme: None,
-            picks: Picks { mode: None, light: ui::theme::LIGHT.to_owned(), dark: ui::theme::DARK.to_owned(), transparency: true },
             look: Look { mac: false, glass: false },
             vibrancy: Vibrancy::default(),
             focus,
@@ -348,6 +351,7 @@ impl Shell {
             first_run: None,
             _connect: connect,
             _events: None,
+            _prefs: prefs,
             _selected: selected,
             _followed: followed,
             _asked: asked,
