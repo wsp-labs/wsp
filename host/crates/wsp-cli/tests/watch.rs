@@ -162,7 +162,7 @@ async fn watch_reads_the_width_again_for_every_frame() {
         vec![
             HIDE.to_string(),
             format!("{x}\n"),
-            format!("\x1b[1A\x1b[G\x1b[J{x}\n"),
+            format!("\x1b[3A\x1b[G\x1b[J{x}\n"),
             format!("\x1b[3A\x1b[G\x1b[J{x}\n"),
             SHOW.to_string()
         ]
