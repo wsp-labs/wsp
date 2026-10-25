@@ -28,6 +28,8 @@ libghostty-vt = { git = "https://github.com/Uzaaft/libghostty-rs", rev = "d2036b
 libc = "0.2"
 lyon = "1.0"
 regex = "1"
+# Today's app's local storage, Chromium's LevelDB, read in memory so its folder is never written (src/desktop/carry.rs).
+rusty-leveldb = { version = "4.0", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"

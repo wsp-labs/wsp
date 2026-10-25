@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! What the desktop shell does around the window (`apps/desktop/src/main.ts`): today's switch taken away, links and who
-//! opens them, zoom, the Linux frame, and the host feed behind the badge, the tray, notifications, keep-awake and the Quit box; and
+//! What the desktop shell does around the window (`apps/desktop/src/main.ts`): today's switch taken away, today's local
+//! storage carried over, links and who opens them, zoom, the Linux frame, and the host feed behind the badge, the tray,
+//! notifications, keep-awake and the Quit box; and
 //! what Settings asks of this computer apart from the host (`service:login`, `service:login-set`, `logs:open`): whether
 //! the host's service starts at login, and opening the app's log folder, one module per platform behind [`Desktop`].
 
+pub mod carry;
 pub mod frame;
 pub mod hosts;
 pub mod links;
