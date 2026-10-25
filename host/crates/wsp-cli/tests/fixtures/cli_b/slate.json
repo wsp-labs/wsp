@@ -1,0 +1,2060 @@
+{
+ "source": "TS command line at 65f6b89c7 against daemon/crates/wsp-mcp/tests/answers; recorded by the cli-b recorder",
+ "cases": [
+  {
+   "tool": "slate_catalog",
+   "case": "the index",
+   "argv": [
+    "slate",
+    "catalog"
+   ],
+   "replies": {
+    "slates.catalog": "{\"id\":1,\"ok\":true,\"text\":\"pieces:\\n  meter label value max tone\\n  input  \\\"name\\\" 🧪\"}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "slates.catalog"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "pieces:\n  meter label value max tone\n  input  \"name\" 🧪"
+     }
+    ],
+    "structuredContent": {
+     "text": "pieces:\n  meter label value max tone\n  input  \"name\" 🧪"
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"slates.catalog\"}"
+    ],
+    "stdout": [
+     "pieces:\n  meter label value max tone\n  input  \"name\" 🧪"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"slates.catalog\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"pieces:\\n  meter label value max tone\\n  input \\u0085 \\\"name\\\" 🧪\"}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "slate_catalog",
+   "case": "one entry",
+   "argv": [
+    "slate",
+    "catalog",
+    "meter"
+   ],
+   "replies": {
+    "slates.catalog": "{\"id\":1,\"ok\":true,\"text\":\"meter: a number against its max\"}"
+   },
+   "tool_arguments": {
+    "name": "meter"
+   },
+   "tool_asked": [
+    {
+     "op": "slates.catalog",
+     "name": "meter"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "meter: a number against its max"
+     }
+    ],
+    "structuredContent": {
+     "text": "meter: a number against its max"
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"name\":\"meter\",\"id\":2,\"op\":\"slates.catalog\"}"
+    ],
+    "stdout": [
+     "meter: a number against its max"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"name\":\"meter\",\"id\":2,\"op\":\"slates.catalog\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"meter: a number against its max\"}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "slate_catalog",
+   "case": "no such entry",
+   "argv": [
+    "slate",
+    "catalog",
+    "meeter"
+   ],
+   "replies": {
+    "slates.catalog": "{\"id\":1,\"ok\":false,\"error\":\"the catalog has no meeter: did you mean meter?\",\"kind\":\"usage\"}"
+   },
+   "tool_arguments": {
+    "name": "meeter"
+   },
+   "tool_asked": [
+    {
+     "op": "slates.catalog",
+     "name": "meeter"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "the catalog has no meeter: did you mean meter?"
+     }
+    ],
+    "structuredContent": {
+     "error": "the catalog has no meeter: did you mean meter?",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"name\":\"meeter\",\"id\":2,\"op\":\"slates.catalog\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp slate catalog: the catalog has no meeter: did you mean meter?"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"name\":\"meeter\",\"id\":2,\"op\":\"slates.catalog\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"the catalog has no meeter: did you mean meter?\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "slate_write",
+   "case": "a whole slate from this turn",
+   "argv": [
+    "slate",
+    "write",
+    "slate.slate"
+   ],
+   "env": {
+    "WSP_TURN": "turn-token-1"
+   },
+   "files": {
+    "slate.slate": "<slate title=\"Vercel\">\n  <secret name=\"token\" />\n</slate>"
+   },
+   "replies": {
+    "slates.write": "{\"id\":1,\"ok\":true,\"version\":3,\"text\":\"slate v3 \\\"Vercel  setup 🧪\\\", 4 pieces, 2 bound, 0 problems\\nToken  ••••  [token input]\\n\\\"Next\\\" held: paste the project  [next button]\",\"warnings\":[{\"code\":\"W004\",\"name\":\"copy-style\",\"message\":\"a long dash in a literal\"}],\"took\":0.30000000000000004}"
+   },
+   "tool_arguments": {
+    "text": "<slate title=\"Vercel\">\n  <secret name=\"token\" />\n</slate>"
+   },
+   "tool_asked": [
+    {
+     "op": "slates.write",
+     "turnToken": "turn-token-1",
+     "text": "<slate title=\"Vercel\">\n  <secret name=\"token\" />\n</slate>"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "slate v3 \"Vercel  setup 🧪\", 4 pieces, 2 bound, 0 problems\nToken  ••••  [token input]\n\"Next\" held: paste the project  [next button]"
+     }
+    ],
+    "structuredContent": {
+     "version": 3,
+     "text": "slate v3 \"Vercel  setup 🧪\", 4 pieces, 2 bound, 0 problems\nToken  ••••  [token input]\n\"Next\" held: paste the project  [next button]",
+     "warnings": [
+      {
+       "code": "W004",
+       "name": "copy-style",
+       "message": "a long dash in a literal"
+      }
+     ],
+     "took": 0.30000000000000004
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"turnToken\":\"turn-token-1\",\"text\":\"<slate title=\\\"Vercel\\\">\\n  <secret name=\\\"token\\\" />\\n</slate>\",\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "slate v3 \"Vercel  setup 🧪\", 4 pieces, 2 bound, 0 problems\nToken  ••••  [token input]\n\"Next\" held: paste the project  [next button]"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"turnToken\":\"turn-token-1\",\"text\":\"<slate title=\\\"Vercel\\\">\\n  <secret name=\\\"token\\\" />\\n</slate>\",\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"slate v3 \\\"Vercel \\u0085 setup 🧪\\\", 4 pieces, 2 bound, 0 problems\\nToken  ••••  [token input]\\n\\\"Next\\\" held: paste the project  [next button]\"}",
+     "{\"version\":3,\"warnings\":[{\"code\":\"W004\",\"name\":\"copy-style\",\"message\":\"a long dash in a literal\"}],\"took\":0.30000000000000004}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "slate_write",
+   "case": "a check on a named thread",
+   "argv": [
+    "slate",
+    "write",
+    "t-child",
+    "slate.slate",
+    "--check",
+    "--if-version=2"
+   ],
+   "files": {
+    "slate.slate": "<props id=\"week\" tone=\"warning\" />"
+   },
+   "replies": {
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"threadId\":\"t-child-1\",\"workspaceId\":\"w\",\"harness\":\"claude\",\"status\":\"completed\"},{\"id\":\"s-2\",\"workspaceId\":\"w\",\"harness\":\"codex\",\"status\":\"running\"}]}",
+    "slates.write": "{\"id\":1,\"ok\":true,\"version\":2,\"text\":\"slate v2, 1 piece, 1 bound, 0 problems\"}"
+   },
+   "tool_arguments": {
+    "thread": "t-child",
+    "text": "<props id=\"week\" tone=\"warning\" />",
+    "check": true,
+    "if_version": 2
+   },
+   "tool_asked": [
+    {
+     "op": "sessions.list"
+    },
+    {
+     "op": "slates.write",
+     "threadId": "t-child-1",
+     "text": "<props id=\"week\" tone=\"warning\" />",
+     "check": true,
+     "ifVersion": 2
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "slate v2, 1 piece, 1 bound, 0 problems"
+     }
+    ],
+    "structuredContent": {
+     "version": 2,
+     "text": "slate v2, 1 piece, 1 bound, 0 problems"
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"threadId\":\"t-child-1\",\"text\":\"<props id=\\\"week\\\" tone=\\\"warning\\\" />\",\"check\":true,\"ifVersion\":2,\"id\":3,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "slate v2, 1 piece, 1 bound, 0 problems"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"threadId\":\"t-child-1\",\"text\":\"<props id=\\\"week\\\" tone=\\\"warning\\\" />\",\"check\":true,\"ifVersion\":2,\"id\":3,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"slate v2, 1 piece, 1 bound, 0 problems\"}",
+     "{\"version\":2}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "slate_write",
+   "case": "a rehearsal of values and a press",
+   "argv": [
+    "slate",
+    "write",
+    "--check",
+    "--set=i=2",
+    "--set=$picked=[1]",
+    "--press=next",
+    "--row=0"
+   ],
+   "env": {
+    "WSP_TURN": "turn-token-1"
+   },
+   "replies": {
+    "slates.write": "{\"id\":1,\"ok\":true,\"version\":4,\"text\":\"slate v4, 2 pieces, 1 bound, 0 problems\\nwould start $grade (a press on next)\",\"warnings\":[],\"problems\":[]}"
+   },
+   "tool_arguments": {
+    "check": true,
+    "values": {
+     "i": 2,
+     "$picked": [
+      1
+     ]
+    },
+    "press": "next",
+    "row": 0
+   },
+   "tool_asked": [
+    {
+     "op": "slates.write",
+     "turnToken": "turn-token-1",
+     "check": true,
+     "values": {
+      "i": 2,
+      "$picked": [
+       1
+      ]
+     },
+     "press": {
+      "piece": "next",
+      "index": 0
+     }
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "slate v4, 2 pieces, 1 bound, 0 problems\nwould start $grade (a press on next)"
+     }
+    ],
+    "structuredContent": {
+     "version": 4,
+     "text": "slate v4, 2 pieces, 1 bound, 0 problems\nwould start $grade (a press on next)",
+     "warnings": [],
+     "problems": []
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"turnToken\":\"turn-token-1\",\"check\":true,\"values\":{\"i\":2,\"$picked\":[1]},\"press\":{\"piece\":\"next\",\"index\":0},\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "slate v4, 2 pieces, 1 bound, 0 problems\nwould start $grade (a press on next)"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"turnToken\":\"turn-token-1\",\"check\":true,\"values\":{\"i\":2,\"$picked\":[1]},\"press\":{\"piece\":\"next\",\"index\":0},\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"slate v4, 2 pieces, 1 bound, 0 problems\\nwould start $grade (a press on next)\"}",
+     "{\"version\":4,\"warnings\":[],\"problems\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "slate_write",
+   "case": "the stored form",
+   "argv": [
+    "slate",
+    "write",
+    "slate.json"
+   ],
+   "files": {
+    "slate.json": "{\"schema\":2,\"root\":\"r\",\"pieces\":{\"r\":{\"type\":\"text\"}}}"
+   },
+   "replies": {
+    "slates.write": "{\"id\":1,\"ok\":true,\"version\":1,\"text\":\"slate v1, 1 piece, 0 bound, 0 problems\"}"
+   },
+   "tool_arguments": {
+    "document": {
+     "schema": 2,
+     "root": "r",
+     "pieces": {
+      "r": {
+       "type": "text"
+      }
+     }
+    }
+   },
+   "tool_asked": [
+    {
+     "op": "slates.write",
+     "document": {
+      "schema": 2,
+      "root": "r",
+      "pieces": {
+       "r": {
+        "type": "text"
+       }
+      }
+     }
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "slate v1, 1 piece, 0 bound, 0 problems"
+     }
+    ],
+    "structuredContent": {
+     "version": 1,
+     "text": "slate v1, 1 piece, 0 bound, 0 problems"
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"document\":{\"schema\":2,\"root\":\"r\",\"pieces\":{\"r\":{\"type\":\"text\"}}},\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "slate v1, 1 piece, 0 bound, 0 problems"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"document\":{\"schema\":2,\"root\":\"r\",\"pieces\":{\"r\":{\"type\":\"text\"}}},\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"slate v1, 1 piece, 0 bound, 0 problems\"}",
+     "{\"version\":1}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "slate_write",
+   "case": "refused with every error",
+   "argv": [
+    "slate",
+    "write",
+    "slate.slate"
+   ],
+   "env": {
+    "WSP_TURN": "turn-token-1"
+   },
+   "files": {
+    "slate.slate": "<slate><meter value=\"usage.weekley.percent\" /></slate>"
+   },
+   "replies": {
+    "slates.write": "{\"id\":1,\"ok\":false,\"error\":\"slate refused: 1 error: line 9, week.value: X401 path-unknown\",\"kind\":\"invalid\",\"errors\":[{\"code\":\"X401\",\"name\":\"path-unknown\",\"line\":9,\"piece\":\"week\",\"prop\":\"value\",\"message\":\"usage.weekley.percent is not a path \\\"\\\"\",\"fix\":\"usage.week.percent\"}],\"warnings\":[]}"
+   },
+   "tool_arguments": {
+    "text": "<slate><meter value=\"usage.weekley.percent\" /></slate>"
+   },
+   "tool_asked": [
+    {
+     "op": "slates.write",
+     "turnToken": "turn-token-1",
+     "text": "<slate><meter value=\"usage.weekley.percent\" /></slate>"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "slate refused: 1 error: line 9, week.value: X401 path-unknown"
+     }
+    ],
+    "structuredContent": {
+     "error": "slate refused: 1 error: line 9, week.value: X401 path-unknown",
+     "class": "usage",
+     "exit": 3,
+     "errors": [
+      {
+       "code": "X401",
+       "name": "path-unknown",
+       "line": 9,
+       "piece": "week",
+       "prop": "value",
+       "message": "usage.weekley.percent is not a path \"\"",
+       "fix": "usage.week.percent"
+      }
+     ],
+     "warnings": []
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"turnToken\":\"turn-token-1\",\"text\":\"<slate><meter value=\\\"usage.weekley.percent\\\" /></slate>\",\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write: slate refused: 1 error: line 9, week.value: X401 path-unknown"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"turnToken\":\"turn-token-1\",\"text\":\"<slate><meter value=\\\"usage.weekley.percent\\\" /></slate>\",\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"slate refused: 1 error: line 9, week.value: X401 path-unknown\",\"class\":\"usage\",\"exit\":3,\"errors\":[{\"code\":\"X401\",\"name\":\"path-unknown\",\"line\":9,\"piece\":\"week\",\"prop\":\"value\",\"message\":\"usage.weekley.percent is not a path \\\"\\u0085\\\"\",\"fix\":\"usage.week.percent\"}],\"warnings\":[]}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "slate_write",
+   "case": "a thread nobody has",
+   "argv": [
+    "slate",
+    "write",
+    "zz",
+    "slate.slate"
+   ],
+   "files": {
+    "slate.slate": "<clear />"
+   },
+   "replies": {
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"threadId\":\"t-child-1\",\"workspaceId\":\"w\",\"harness\":\"claude\",\"status\":\"completed\"},{\"id\":\"s-2\",\"workspaceId\":\"w\",\"harness\":\"codex\",\"status\":\"running\"}]}"
+   },
+   "tool_arguments": {
+    "thread": "zz",
+    "text": "<clear />"
+   },
+   "tool_asked": [
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "no thread zz"
+     }
+    ],
+    "structuredContent": {
+     "error": "no thread zz",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write: no thread zz"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"no thread zz\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "slate_state",
+   "case": "a value set",
+   "argv": [
+    "slate",
+    "state",
+    "$steps[2].done=true",
+    "$name=\"wsp  landing\"",
+    "--if-version=7"
+   ],
+   "env": {
+    "WSP_TURN": "turn-token-1"
+   },
+   "replies": {
+    "slates.state": "{\"id\":1,\"ok\":true,\"version\":8,\"text\":\"slate v8, 3 pieces, 1 bound, 0 problems\"}"
+   },
+   "tool_arguments": {
+    "values": {
+     "$steps[2].done": true,
+     "$name": "wsp  landing"
+    },
+    "if_version": 7
+   },
+   "tool_asked": [
+    {
+     "op": "slates.state",
+     "turnToken": "turn-token-1",
+     "values": {
+      "$steps[2].done": true,
+      "$name": "wsp  landing"
+     },
+     "ifVersion": 7
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "slate v8, 3 pieces, 1 bound, 0 problems"
+     }
+    ],
+    "structuredContent": {
+     "version": 8,
+     "text": "slate v8, 3 pieces, 1 bound, 0 problems"
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"turnToken\":\"turn-token-1\",\"values\":{\"$steps[2].done\":true,\"$name\":\"wsp  landing\"},\"ifVersion\":7,\"id\":2,\"op\":\"slates.state\"}"
+    ],
+    "stdout": [
+     "slate v8, 3 pieces, 1 bound, 0 problems"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"turnToken\":\"turn-token-1\",\"values\":{\"$steps[2].done\":true,\"$name\":\"wsp  landing\"},\"ifVersion\":7,\"id\":2,\"op\":\"slates.state\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"slate v8, 3 pieces, 1 bound, 0 problems\"}",
+     "{\"version\":8}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "slate_state",
+   "case": "behind",
+   "argv": [
+    "slate",
+    "state",
+    "$x=1",
+    "--if-version=1"
+   ],
+   "replies": {
+    "slates.state": "{\"id\":1,\"ok\":false,\"error\":\"V750 version-behind: the slate is at v4: read it and write again\"}"
+   },
+   "tool_arguments": {
+    "values": {
+     "$x": 1
+    },
+    "if_version": 1
+   },
+   "tool_asked": [
+    {
+     "op": "slates.state",
+     "values": {
+      "$x": 1
+     },
+     "ifVersion": 1
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "V750 version-behind: the slate is at v4: read it and write again"
+     }
+    ],
+    "structuredContent": {
+     "error": "V750 version-behind: the slate is at v4: read it and write again",
+     "class": "provider",
+     "exit": 1
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"values\":{\"$x\":1},\"ifVersion\":1,\"id\":2,\"op\":\"slates.state\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp slate state: V750 version-behind: the slate is at v4: read it and write again"
+    ],
+    "exit": 1
+   },
+   "json": {
+    "frames": [
+     "{\"values\":{\"$x\":1},\"ifVersion\":1,\"id\":2,\"op\":\"slates.state\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"V750 version-behind: the slate is at v4: read it and write again\",\"class\":\"provider\",\"exit\":1}"
+    ],
+    "exit": 1
+   }
+  },
+  {
+   "tool": "slate_state",
+   "case": "a run started and one held",
+   "argv": [
+    "slate",
+    "state",
+    "--start=check",
+    "--start=$deploy"
+   ],
+   "env": {
+    "WSP_TURN": "turn-token-1"
+   },
+   "replies": {
+    "slates.state": "{\"id\":1,\"ok\":true,\"version\":8,\"text\":\"slate v8, 3 pieces, 1 bound, 1 problem\\nruns:\\n  $check: running, refreshing (exit 0, 840 ms)\",\"problems\":[{\"code\":\"R913\",\"name\":\"run-held\",\"message\":\"$deploy was not started: it starts from here once the person says \\\"Always in this thread\\\" to it\"}]}"
+   },
+   "tool_arguments": {
+    "start": [
+     "check",
+     "$deploy"
+    ]
+   },
+   "tool_asked": [
+    {
+     "op": "slates.state",
+     "turnToken": "turn-token-1",
+     "start": [
+      "check",
+      "$deploy"
+     ]
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "slate v8, 3 pieces, 1 bound, 1 problem\nruns:\n  $check: running, refreshing (exit 0, 840 ms)"
+     }
+    ],
+    "structuredContent": {
+     "version": 8,
+     "text": "slate v8, 3 pieces, 1 bound, 1 problem\nruns:\n  $check: running, refreshing (exit 0, 840 ms)",
+     "problems": [
+      {
+       "code": "R913",
+       "name": "run-held",
+       "message": "$deploy was not started: it starts from here once the person says \"Always in this thread\" to it"
+      }
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"turnToken\":\"turn-token-1\",\"start\":[\"check\",\"$deploy\"],\"id\":2,\"op\":\"slates.state\"}"
+    ],
+    "stdout": [
+     "slate v8, 3 pieces, 1 bound, 1 problem\nruns:\n  $check: running, refreshing (exit 0, 840 ms)"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"turnToken\":\"turn-token-1\",\"start\":[\"check\",\"$deploy\"],\"id\":2,\"op\":\"slates.state\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"slate v8, 3 pieces, 1 bound, 1 problem\\nruns:\\n  $check: running, refreshing (exit 0, 840 ms)\"}",
+     "{\"version\":8,\"problems\":[{\"code\":\"R913\",\"name\":\"run-held\",\"message\":\"$deploy was not started: it starts from here once the person says \\\"Always in this thread\\\" to it\"}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "slate_read",
+   "case": "values and the text",
+   "argv": [
+    "slate",
+    "read",
+    "--values=$env.state",
+    "--values=usage.week.percent",
+    "--document"
+   ],
+   "env": {
+    "WSP_TURN": "turn-token-1"
+   },
+   "replies": {
+    "slates.read": "{\"id\":1,\"ok\":true,\"version\":23,\"text\":\"slate v3 \\\"Vercel  setup 🧪\\\", 4 pieces, 2 bound, 0 problems\\nToken  ••••  [token input]\\n\\\"Next\\\" held: paste the project  [next button]\",\"document\":{\"schema\":2,\"root\":\"r\"},\"values\":{\"$env.state\":\"done\",\"usage.week.percent\":46.5},\"runs\":{\"env\":{\"state\":\"done\",\"exit\":0,\"out\":\"wrote .env [secret:token]\"}},\"problems\":[],\"approvals\":{\"run:env\":\"allowed\"}}"
+   },
+   "tool_arguments": {
+    "values": [
+     "$env.state",
+     "usage.week.percent"
+    ],
+    "text": true,
+    "document": true
+   },
+   "tool_asked": [
+    {
+     "op": "slates.read",
+     "turnToken": "turn-token-1",
+     "values": [
+      "$env.state",
+      "usage.week.percent"
+     ],
+     "text": true,
+     "document": true
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "slate v3 \"Vercel  setup 🧪\", 4 pieces, 2 bound, 0 problems\nToken  ••••  [token input]\n\"Next\" held: paste the project  [next button]"
+     }
+    ],
+    "structuredContent": {
+     "version": 23,
+     "text": "slate v3 \"Vercel  setup 🧪\", 4 pieces, 2 bound, 0 problems\nToken  ••••  [token input]\n\"Next\" held: paste the project  [next button]",
+     "document": {
+      "schema": 2,
+      "root": "r"
+     },
+     "values": {
+      "$env.state": "done",
+      "usage.week.percent": 46.5
+     },
+     "runs": {
+      "env": {
+       "state": "done",
+       "exit": 0,
+       "out": "wrote .env [secret:token]"
+      }
+     },
+     "problems": [],
+     "approvals": {
+      "run:env": "allowed"
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"turnToken\":\"turn-token-1\",\"values\":[\"$env.state\",\"usage.week.percent\"],\"document\":true,\"id\":2,\"op\":\"slates.read\"}"
+    ],
+    "stdout": [
+     "slate v3 \"Vercel  setup 🧪\", 4 pieces, 2 bound, 0 problems\nToken  ••••  [token input]\n\"Next\" held: paste the project  [next button]"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"turnToken\":\"turn-token-1\",\"values\":[\"$env.state\",\"usage.week.percent\"],\"document\":true,\"id\":2,\"op\":\"slates.read\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"slate v3 \\\"Vercel \\u0085 setup 🧪\\\", 4 pieces, 2 bound, 0 problems\\nToken  ••••  [token input]\\n\\\"Next\\\" held: paste the project  [next button]\"}",
+     "{\"version\":23,\"document\":{\"schema\":2,\"root\":\"r\"},\"values\":{\"$env.state\":\"done\",\"usage.week.percent\":46.5},\"runs\":{\"env\":{\"state\":\"done\",\"exit\":0,\"out\":\"wrote .env [secret:token]\"}},\"problems\":[],\"approvals\":{\"run:env\":\"allowed\"}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "slate_read",
+   "case": "a child without its sketch",
+   "argv": [
+    "slate",
+    "read",
+    "t-child-1",
+    "--no-sketch"
+   ],
+   "replies": {
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"threadId\":\"t-child-1\",\"workspaceId\":\"w\",\"harness\":\"claude\",\"status\":\"completed\"},{\"id\":\"s-2\",\"workspaceId\":\"w\",\"harness\":\"codex\",\"status\":\"running\"}]}",
+    "slates.read": "{\"id\":1,\"ok\":true,\"version\":1,\"text\":\"\",\"values\":{}}"
+   },
+   "tool_arguments": {
+    "thread": "t-child-1",
+    "sketch": false
+   },
+   "tool_asked": [
+    {
+     "op": "sessions.list"
+    },
+    {
+     "op": "slates.read",
+     "threadId": "t-child-1",
+     "sketch": false
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": ""
+     }
+    ],
+    "structuredContent": {
+     "version": 1,
+     "text": "",
+     "values": {}
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"threadId\":\"t-child-1\",\"sketch\":false,\"id\":3,\"op\":\"slates.read\"}"
+    ],
+    "stdout": [
+     ""
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"threadId\":\"t-child-1\",\"sketch\":false,\"id\":3,\"op\":\"slates.read\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"\"}",
+     "{\"version\":1,\"values\":{}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "slate_read",
+   "case": "no slate",
+   "argv": [
+    "slate",
+    "read"
+   ],
+   "replies": {
+    "slates.read": "{\"id\":1,\"ok\":true,\"version\":0,\"text\":\"slate v0, empty: write one with slate_write\",\"values\":{},\"problems\":[]}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "slates.read"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "slate v0, empty: write one with slate_write"
+     }
+    ],
+    "structuredContent": {
+     "version": 0,
+     "text": "slate v0, empty: write one with slate_write",
+     "values": {},
+     "problems": []
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"slates.read\"}"
+    ],
+    "stdout": [
+     "slate v0, empty: write one with slate_write"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"slates.read\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"slate v0, empty: write one with slate_write\"}",
+     "{\"version\":0,\"values\":{},\"problems\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "state values JSON reads as V8 does",
+   "argv": [
+    "slate",
+    "state",
+    "$big=12345678901234567890",
+    "$huge=1e400",
+    "$neg=-0",
+    "$exp=0.1e1",
+    "$lead=01",
+    "$pad= 1 ",
+    "$str=\"q\"",
+    "$deep={\"b\":1,\"a\":[2]}"
+   ],
+   "replies": {
+    "slates.state": "{\"id\":1,\"ok\":true,\"version\":2,\"text\":\"s\"}"
+   },
+   "text": {
+    "frames": [
+     "{\"values\":{\"$big\":12345678901234567000,\"$huge\":null,\"$neg\":0,\"$exp\":1,\"$lead\":\"01\",\"$pad\":1,\"$str\":\"q\",\"$deep\":{\"b\":1,\"a\":[2]}},\"id\":2,\"op\":\"slates.state\"}"
+    ],
+    "stdout": [
+     "s"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"values\":{\"$big\":12345678901234567000,\"$huge\":null,\"$neg\":0,\"$exp\":1,\"$lead\":\"01\",\"$pad\":1,\"$str\":\"q\",\"$deep\":{\"b\":1,\"a\":[2]}},\"id\":2,\"op\":\"slates.state\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"s\"}",
+     "{\"version\":2}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "write JSON with a duplicate key and a big number",
+   "argv": [
+    "slate",
+    "write",
+    "dup.json"
+   ],
+   "files": {
+    "dup.json": "{\"schema\":1,\"a\":1,\"a\":2,\"n\":12345678901234567890,\"z\":0.1e1}"
+   },
+   "replies": {
+    "slates.write": "{\"id\":1,\"ok\":true,\"version\":1,\"text\":\"s\"}"
+   },
+   "text": {
+    "frames": [
+     "{\"document\":{\"schema\":1,\"a\":2,\"n\":12345678901234567000,\"z\":1},\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "s"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"document\":{\"schema\":1,\"a\":2,\"n\":12345678901234567000,\"z\":1},\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"s\"}",
+     "{\"version\":1}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "write JSON with a trailing comma",
+   "argv": [
+    "slate",
+    "write",
+    "comma.json"
+   ],
+   "files": {
+    "comma.json": "{\"a\":1,}"
+   },
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write: comma.json does not parse as JSON (Expected double-quoted property name in JSON at position 7 (line 1 column 8)). Fix the JSON or write the JSX-like form to a .slate file."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"comma.json does not parse as JSON (Expected double-quoted property name in JSON at position 7 (line 1 column 8)). Fix the JSON or write the JSX-like form to a .slate file.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "write an empty JSON file",
+   "argv": [
+    "slate",
+    "write",
+    "empty.json"
+   ],
+   "files": {
+    "empty.json": ""
+   },
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write: empty.json does not parse as JSON (Unexpected end of JSON input). Fix the JSON or write the JSX-like form to a .slate file."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"empty.json does not parse as JSON (Unexpected end of JSON input). Fix the JSON or write the JSX-like form to a .slate file.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "a hex row",
+   "argv": [
+    "slate",
+    "write",
+    "--press",
+    "p",
+    "--row",
+    "0x2"
+   ],
+   "replies": {
+    "slates.write": "{\"id\":1,\"ok\":true,\"version\":1,\"text\":\"s\"}"
+   },
+   "text": {
+    "frames": [
+     "{\"press\":{\"piece\":\"p\",\"index\":2},\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "s"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"press\":{\"piece\":\"p\",\"index\":2},\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"s\"}",
+     "{\"version\":1}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "a blank if-version reads as 0",
+   "argv": [
+    "slate",
+    "write",
+    "a.slate",
+    "--if-version="
+   ],
+   "files": {
+    "a.slate": "<slate/>"
+   },
+   "replies": {
+    "slates.write": "{\"id\":1,\"ok\":true,\"version\":1,\"text\":\"s\"}"
+   },
+   "text": {
+    "frames": [
+     "{\"text\":\"<slate/>\",\"ifVersion\":0,\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "s"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"text\":\"<slate/>\",\"ifVersion\":0,\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"s\"}",
+     "{\"version\":1}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "catalog of one entry under a token",
+   "argv": [
+    "slate",
+    "catalog",
+    "runs"
+   ],
+   "env": {
+    "WSP_TURN": "tok-9"
+   },
+   "replies": {
+    "slates.catalog": "{\"id\":1,\"ok\":true,\"text\":\"runs: ...\"}"
+   },
+   "text": {
+    "frames": [
+     "{\"turnToken\":\"tok-9\",\"name\":\"runs\",\"id\":2,\"op\":\"slates.catalog\"}"
+    ],
+    "stdout": [
+     "runs: ..."
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"turnToken\":\"tok-9\",\"name\":\"runs\",\"id\":2,\"op\":\"slates.catalog\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"runs: ...\"}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "catalog of two names",
+   "argv": [
+    "slate",
+    "catalog",
+    "a",
+    "b"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate catalog takes one name at most. usage: wsp slate catalog [<name>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp slate catalog takes one name at most. usage: wsp slate catalog [<name>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "write with nothing",
+   "argv": [
+    "slate",
+    "write"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write takes a file, after a thread where it is not yours. usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp slate write takes a file, after a thread where it is not yours. usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "write with three words",
+   "argv": [
+    "slate",
+    "write",
+    "a",
+    "b",
+    "c"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write takes a file, after a thread where it is not yours. usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp slate write takes a file, after a thread where it is not yours. usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "write a thread and no file",
+   "argv": [
+    "slate",
+    "write",
+    "t1"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write takes a .slate or .json file, after a thread where it is not yours. usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp slate write takes a .slate or .json file, after a thread where it is not yours. usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "write a file of another kind",
+   "argv": [
+    "slate",
+    "write",
+    "notes.txt"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write takes a .slate or .json file, after a thread where it is not yours. usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp slate write takes a .slate or .json file, after a thread where it is not yours. usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "write a file that is not there",
+   "argv": [
+    "slate",
+    "write",
+    "missing.slate"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write: there is no file at <cwd>/missing.slate. Name a .slate or .json file that is there."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"there is no file at <cwd>/missing.slate. Name a .slate or .json file that is there.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "write JSON that does not parse",
+   "argv": [
+    "slate",
+    "write",
+    "bad.json"
+   ],
+   "files": {
+    "bad.json": "{nope"
+   },
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write: bad.json does not parse as JSON (Expected property name or '}' in JSON at position 1 (line 1 column 2)). Fix the JSON or write the JSX-like form to a .slate file."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"bad.json does not parse as JSON (Expected property name or '}' in JSON at position 1 (line 1 column 2)). Fix the JSON or write the JSX-like form to a .slate file.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "write JSON that is no object",
+   "argv": [
+    "slate",
+    "write",
+    "list.json"
+   ],
+   "files": {
+    "list.json": "[1,2]"
+   },
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write: list.json holds no JSON object. Write the stored document, an object with schema, root and pieces."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"list.json holds no JSON object. Write the stored document, an object with schema, root and pieces.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "write JSON null",
+   "argv": [
+    "slate",
+    "write",
+    "null.json"
+   ],
+   "files": {
+    "null.json": "null"
+   },
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write: null.json holds no JSON object. Write the stored document, an object with schema, root and pieces."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"null.json holds no JSON object. Write the stored document, an object with schema, root and pieces.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "row without press",
+   "argv": [
+    "slate",
+    "write",
+    "--row",
+    "1",
+    "--check"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write: --row goes with --press, a whole number from 0: usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--row goes with --press, a whole number from 0: usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "a negative row",
+   "argv": [
+    "slate",
+    "write",
+    "--press",
+    "p",
+    "--row=-1"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write: --row goes with --press, a whole number from 0: usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--row goes with --press, a whole number from 0: usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "a fractional action",
+   "argv": [
+    "slate",
+    "write",
+    "--press",
+    "p",
+    "--action",
+    "1.5"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write: --action goes with --press, a whole number from 0: usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--action goes with --press, a whole number from 0: usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "set without =",
+   "argv": [
+    "slate",
+    "write",
+    "--set",
+    "nope"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write: --set nope is not <path>=<json>. Write it like --set '$i=2'."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--set nope is not <path>=<json>. Write it like --set '$i=2'.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "set with = first",
+   "argv": [
+    "slate",
+    "write",
+    "--set",
+    "=1"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write: --set =1 is not <path>=<json>. Write it like --set '$i=2'."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--set =1 is not <path>=<json>. Write it like --set '$i=2'.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "if-version a word",
+   "argv": [
+    "slate",
+    "write",
+    "a.slate",
+    "--if-version",
+    "abc"
+   ],
+   "files": {
+    "a.slate": "<slate/>"
+   },
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write: --if-version takes a version number, and abc is not one. usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--if-version takes a version number, and abc is not one. usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "if-version negative",
+   "argv": [
+    "slate",
+    "write",
+    "a.slate",
+    "--if-version=-1"
+   ],
+   "files": {
+    "a.slate": "<slate/>"
+   },
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate write: --if-version takes a version number, and -1 is not one. usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--if-version takes a version number, and -1 is not one. usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "write a .slate by its own name, values as text and JSON",
+   "argv": [
+    "slate",
+    "write",
+    "a.slate",
+    "--set",
+    "$a=2",
+    "--set",
+    "$b=two",
+    "--set",
+    "c={\"x\":1}",
+    "--if-version",
+    "0"
+   ],
+   "files": {
+    "a.slate": "<slate>hi</slate>"
+   },
+   "replies": {
+    "slates.write": "{\"id\":1,\"ok\":true,\"version\":3,\"text\":\"sketch\",\"warnings\":[]}"
+   },
+   "text": {
+    "frames": [
+     "{\"text\":\"<slate>hi</slate>\",\"values\":{\"$a\":2,\"$b\":\"two\",\"c\":{\"x\":1}},\"ifVersion\":0,\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "sketch"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"text\":\"<slate>hi</slate>\",\"values\":{\"$a\":2,\"$b\":\"two\",\"c\":{\"x\":1}},\"ifVersion\":0,\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"sketch\"}",
+     "{\"version\":3,\"warnings\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "write a .json document",
+   "argv": [
+    "slate",
+    "write",
+    "doc.json",
+    "--check"
+   ],
+   "files": {
+    "doc.json": "{\"schema\":1,\"root\":\"r\",\"pieces\":{}}"
+   },
+   "replies": {
+    "slates.write": "{\"id\":1,\"ok\":true,\"version\":3,\"text\":\"sketch\",\"problems\":[]}"
+   },
+   "text": {
+    "frames": [
+     "{\"document\":{\"schema\":1,\"root\":\"r\",\"pieces\":{}},\"check\":true,\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "sketch"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"document\":{\"schema\":1,\"root\":\"r\",\"pieces\":{}},\"check\":true,\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"sketch\"}",
+     "{\"version\":3,\"problems\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "write a press rehearsal with no file",
+   "argv": [
+    "slate",
+    "write",
+    "--press",
+    "go",
+    "--row",
+    "0",
+    "--action",
+    "2"
+   ],
+   "replies": {
+    "slates.write": "{\"id\":1,\"ok\":true,\"version\":1,\"text\":\"s\"}"
+   },
+   "text": {
+    "frames": [
+     "{\"press\":{\"piece\":\"go\",\"index\":0,\"action\":2},\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "s"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"press\":{\"piece\":\"go\",\"index\":0,\"action\":2},\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"s\"}",
+     "{\"version\":1}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "write under a turn token",
+   "argv": [
+    "slate",
+    "write",
+    "a.slate"
+   ],
+   "env": {
+    "WSP_TURN": "tok-1"
+   },
+   "files": {
+    "a.slate": "<slate/>"
+   },
+   "replies": {
+    "slates.write": "{\"id\":1,\"ok\":true,\"version\":1,\"text\":\"s\"}"
+   },
+   "text": {
+    "frames": [
+     "{\"turnToken\":\"tok-1\",\"text\":\"<slate/>\",\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "s"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"turnToken\":\"tok-1\",\"text\":\"<slate/>\",\"id\":2,\"op\":\"slates.write\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"s\"}",
+     "{\"version\":1}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "state with nothing",
+   "argv": [
+    "slate",
+    "state"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate state takes $path=<json> words or --start <run>, after a thread where it is not yours. usage: wsp slate state [<thread>] [<path>=<json>...] [--start <run>]... [--if-version <n>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp slate state takes $path=<json> words or --start <run>, after a thread where it is not yours. usage: wsp slate state [<thread>] [<path>=<json>...] [--start <run>]... [--if-version <n>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "state with two loose words",
+   "argv": [
+    "slate",
+    "state",
+    "a",
+    "b",
+    "$x=1"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate state takes $path=<json> words or --start <run>, after a thread where it is not yours. usage: wsp slate state [<thread>] [<path>=<json>...] [--start <run>]... [--if-version <n>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp slate state takes $path=<json> words or --start <run>, after a thread where it is not yours. usage: wsp slate state [<thread>] [<path>=<json>...] [--start <run>]... [--if-version <n>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "state with a start only",
+   "argv": [
+    "slate",
+    "state",
+    "--start",
+    "r1",
+    "--start",
+    "r2"
+   ],
+   "replies": {
+    "slates.state": "{\"id\":1,\"ok\":true,\"version\":2,\"text\":\"s\",\"notStarted\":[]}"
+   },
+   "text": {
+    "frames": [
+     "{\"start\":[\"r1\",\"r2\"],\"id\":2,\"op\":\"slates.state\"}"
+    ],
+    "stdout": [
+     "s"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"start\":[\"r1\",\"r2\"],\"id\":2,\"op\":\"slates.state\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"s\"}",
+     "{\"version\":2,\"notStarted\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "state values as JSON and text",
+   "argv": [
+    "slate",
+    "state",
+    "$a=1",
+    "$b=x",
+    "$c=[1]",
+    "i="
+   ],
+   "replies": {
+    "slates.state": "{\"id\":1,\"ok\":true,\"version\":2,\"text\":\"s\"}"
+   },
+   "text": {
+    "frames": [
+     "{\"values\":{\"$a\":1,\"$b\":\"x\",\"$c\":[1],\"i\":\"\"},\"id\":2,\"op\":\"slates.state\"}"
+    ],
+    "stdout": [
+     "s"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"values\":{\"$a\":1,\"$b\":\"x\",\"$c\":[1],\"i\":\"\"},\"id\":2,\"op\":\"slates.state\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"s\"}",
+     "{\"version\":2}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "state if-version a word",
+   "argv": [
+    "slate",
+    "state",
+    "$a=1",
+    "--if-version",
+    "x"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate state: --if-version takes a version number, and x is not one. usage: wsp slate state [<thread>] [<path>=<json>...] [--start <run>]... [--if-version <n>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--if-version takes a version number, and x is not one. usage: wsp slate state [<thread>] [<path>=<json>...] [--start <run>]... [--if-version <n>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "read of two threads",
+   "argv": [
+    "slate",
+    "read",
+    "a",
+    "b"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp slate read takes one thread at most. usage: wsp slate read [<thread>] [--values <path>]... [--no-text] [--no-sketch] [--document]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp slate read takes one thread at most. usage: wsp slate read [<thread>] [--values <path>]... [--no-text] [--no-sketch] [--document]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "read every switch",
+   "argv": [
+    "slate",
+    "read",
+    "--values",
+    "$a",
+    "--values",
+    "*",
+    "--no-text",
+    "--no-sketch",
+    "--document"
+   ],
+   "replies": {
+    "slates.read": "{\"id\":1,\"ok\":true,\"version\":2,\"text\":\"s\",\"values\":{}}"
+   },
+   "text": {
+    "frames": [
+     "{\"values\":[\"$a\",\"*\"],\"text\":false,\"sketch\":false,\"document\":true,\"id\":2,\"op\":\"slates.read\"}"
+    ],
+    "stdout": [
+     "s"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"values\":[\"$a\",\"*\"],\"text\":false,\"sketch\":false,\"document\":true,\"id\":2,\"op\":\"slates.read\"}"
+    ],
+    "stdout": [
+     "{\"text\":\"s\"}",
+     "{\"version\":2,\"values\":{}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  }
+ ]
+}
