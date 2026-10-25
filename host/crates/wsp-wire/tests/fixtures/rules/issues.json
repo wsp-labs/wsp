@@ -1,0 +1,517 @@
+[
+ {
+  "type": "SubResult",
+  "module": "views/sub-row",
+  "case": "a missing key",
+  "input": {
+   "pushedSha": null,
+   "commits": 0,
+   "unpushed": 0,
+   "changed": 0,
+   "readAt": "t"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "expected": "string",
+   "received": "undefined",
+   "path": [
+    "branch"
+   ],
+   "message": "Required"
+  },
+  "text": "[\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"string\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"branch\"\n    ],\n    \"message\": \"Required\"\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "SubResult",
+  "module": "views/sub-row",
+  "case": "a string where a number goes",
+  "input": {
+   "branch": "b",
+   "pushedSha": null,
+   "commits": "7",
+   "unpushed": 0,
+   "changed": 0,
+   "readAt": "t"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "expected": "number",
+   "received": "string",
+   "path": [
+    "commits"
+   ],
+   "message": "Expected number, received string"
+  },
+  "text": "[\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"string\",\n    \"path\": [\n      \"commits\"\n    ],\n    \"message\": \"Expected number, received string\"\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "SubResult",
+  "module": "views/sub-row",
+  "case": "a fraction where an integer goes",
+  "input": {
+   "branch": "b",
+   "pushedSha": null,
+   "commits": 2.5,
+   "unpushed": 0,
+   "changed": 0,
+   "readAt": "t"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "expected": "integer",
+   "received": "float",
+   "message": "Expected integer, received float",
+   "path": [
+    "commits"
+   ]
+  },
+  "text": "[\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"integer\",\n    \"received\": \"float\",\n    \"message\": \"Expected integer, received float\",\n    \"path\": [\n      \"commits\"\n    ]\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "SubResult",
+  "module": "views/sub-row",
+  "case": "a negative count",
+  "input": {
+   "branch": "b",
+   "pushedSha": null,
+   "commits": 0,
+   "unpushed": -1,
+   "changed": 0,
+   "readAt": "t"
+  },
+  "issue": {
+   "code": "too_small",
+   "minimum": 0,
+   "type": "number",
+   "inclusive": true,
+   "exact": false,
+   "message": "Number must be greater than or equal to 0",
+   "path": [
+    "unpushed"
+   ]
+  },
+  "text": "[\n  {\n    \"code\": \"too_small\",\n    \"minimum\": 0,\n    \"type\": \"number\",\n    \"inclusive\": true,\n    \"exact\": false,\n    \"message\": \"Number must be greater than or equal to 0\",\n    \"path\": [\n      \"unpushed\"\n    ]\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "SubResult",
+  "module": "views/sub-row",
+  "case": "a missing nullable key",
+  "input": {
+   "branch": "b",
+   "commits": 0,
+   "unpushed": 0,
+   "changed": 0,
+   "readAt": "t"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "expected": "string",
+   "received": "undefined",
+   "path": [
+    "pushedSha"
+   ],
+   "message": "Required"
+  },
+  "text": "[\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"string\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"pushedSha\"\n    ],\n    \"message\": \"Required\"\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "AppProc",
+  "module": "views/app-procs",
+  "case": "a pid of 0 where it must be positive",
+  "input": {
+   "pid": 0,
+   "kind": "tab",
+   "origins": [
+    "https://a.example"
+   ],
+   "contents": [
+    1
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "minimum": 0,
+   "type": "number",
+   "inclusive": false,
+   "exact": false,
+   "message": "Number must be greater than 0",
+   "path": [
+    "pid"
+   ]
+  },
+  "text": "[\n  {\n    \"code\": \"too_small\",\n    \"minimum\": 0,\n    \"type\": \"number\",\n    \"inclusive\": false,\n    \"exact\": false,\n    \"message\": \"Number must be greater than 0\",\n    \"path\": [\n      \"pid\"\n    ]\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "AppProc",
+  "module": "views/app-procs",
+  "case": "an origin past 256 UTF-16 units",
+  "input": {
+   "pid": 3,
+   "kind": "tab",
+   "origins": [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   ],
+   "contents": [
+    1
+   ]
+  },
+  "issue": {
+   "code": "too_big",
+   "maximum": 256,
+   "type": "string",
+   "inclusive": true,
+   "exact": false,
+   "message": "String must contain at most 256 character(s)",
+   "path": [
+    "origins",
+    0
+   ]
+  },
+  "text": "[\n  {\n    \"code\": \"too_big\",\n    \"maximum\": 256,\n    \"type\": \"string\",\n    \"inclusive\": true,\n    \"exact\": false,\n    \"message\": \"String must contain at most 256 character(s)\",\n    \"path\": [\n      \"origins\",\n      0\n    ]\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "AppProc",
+  "module": "views/app-procs",
+  "case": "an origin of 129 emoji, 258 UTF-16 units but 129 chars",
+  "input": {
+   "pid": 3,
+   "kind": "tab",
+   "origins": [
+    "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+   ],
+   "contents": [
+    1
+   ]
+  },
+  "issue": {
+   "code": "too_big",
+   "maximum": 256,
+   "type": "string",
+   "inclusive": true,
+   "exact": false,
+   "message": "String must contain at most 256 character(s)",
+   "path": [
+    "origins",
+    0
+   ]
+  },
+  "text": "[\n  {\n    \"code\": \"too_big\",\n    \"maximum\": 256,\n    \"type\": \"string\",\n    \"inclusive\": true,\n    \"exact\": false,\n    \"message\": \"String must contain at most 256 character(s)\",\n    \"path\": [\n      \"origins\",\n      0\n    ]\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "AppProc",
+  "module": "views/app-procs",
+  "case": "21 origins",
+  "input": {
+   "pid": 3,
+   "kind": "tab",
+   "origins": [
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x",
+    "x"
+   ],
+   "contents": [
+    1
+   ]
+  },
+  "issue": {
+   "code": "too_big",
+   "maximum": 20,
+   "type": "array",
+   "inclusive": true,
+   "exact": false,
+   "message": "Array must contain at most 20 element(s)",
+   "path": [
+    "origins"
+   ]
+  },
+  "text": "[\n  {\n    \"code\": \"too_big\",\n    \"maximum\": 20,\n    \"type\": \"array\",\n    \"inclusive\": true,\n    \"exact\": false,\n    \"message\": \"Array must contain at most 20 element(s)\",\n    \"path\": [\n      \"origins\"\n    ]\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "AppProc",
+  "module": "views/app-procs",
+  "case": "an unknown kind",
+  "input": {
+   "pid": 3,
+   "kind": "worker",
+   "origins": [
+    "https://a.example"
+   ],
+   "contents": [
+    1
+   ]
+  },
+  "issue": {
+   "received": "worker",
+   "code": "invalid_enum_value",
+   "options": [
+    "main",
+    "gpu",
+    "network",
+    "renderer",
+    "tab",
+    "frame",
+    "helper"
+   ],
+   "path": [
+    "kind"
+   ],
+   "message": "Invalid enum value. Expected 'main' | 'gpu' | 'network' | 'renderer' | 'tab' | 'frame' | 'helper', received 'worker'"
+  },
+  "text": "[\n  {\n    \"received\": \"worker\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"main\",\n      \"gpu\",\n      \"network\",\n      \"renderer\",\n      \"tab\",\n      \"frame\",\n      \"helper\"\n    ],\n    \"path\": [\n      \"kind\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'main' | 'gpu' | 'network' | 'renderer' | 'tab' | 'frame' | 'helper', received 'worker'\"\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "AppProcList",
+  "module": "views/app-procs",
+  "case": "the second row's pid negative",
+  "input": [
+   {
+    "pid": 3,
+    "kind": "tab",
+    "origins": [
+     "https://a.example"
+    ],
+    "contents": [
+     1
+    ]
+   },
+   {
+    "pid": -1,
+    "kind": "tab",
+    "origins": [
+     "https://a.example"
+    ],
+    "contents": [
+     1
+    ]
+   }
+  ],
+  "issue": {
+   "code": "too_small",
+   "minimum": 0,
+   "type": "number",
+   "inclusive": false,
+   "exact": false,
+   "message": "Number must be greater than 0",
+   "path": [
+    1,
+    "pid"
+   ]
+  },
+  "text": "[\n  {\n    \"code\": \"too_small\",\n    \"minimum\": 0,\n    \"type\": \"number\",\n    \"inclusive\": false,\n    \"exact\": false,\n    \"message\": \"Number must be greater than 0\",\n    \"path\": [\n      1,\n      \"pid\"\n    ]\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "PreferencesTarget",
+  "module": "views/preferences",
+  "case": "an unknown key on a strict object",
+  "input": {
+   "workspace": "w",
+   "extra": 1,
+   "more": 2
+  },
+  "issue": {
+   "code": "unrecognized_keys",
+   "keys": [
+    "extra",
+    "more"
+   ],
+   "path": [],
+   "message": "Unrecognized key(s) in object: 'extra', 'more'"
+  },
+  "text": "[\n  {\n    \"code\": \"unrecognized_keys\",\n    \"keys\": [\n      \"extra\",\n      \"more\"\n    ],\n    \"path\": [],\n    \"message\": \"Unrecognized key(s) in object: 'extra', 'more'\"\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "ThreadScope",
+  "module": "views/workspace",
+  "case": "the wrong literal",
+  "input": {
+   "kind": "lead",
+   "threadId": "t",
+   "workspaceId": "w",
+   "rootThreadId": "r"
+  },
+  "issue": {
+   "received": "lead",
+   "code": "invalid_literal",
+   "expected": "thread",
+   "path": [
+    "kind"
+   ],
+   "message": "Invalid literal value, expected \"thread\""
+  },
+  "text": "[\n  {\n    \"received\": \"lead\",\n    \"code\": \"invalid_literal\",\n    \"expected\": \"thread\",\n    \"path\": [\n      \"kind\"\n    ],\n    \"message\": \"Invalid literal value, expected \\\"thread\\\"\"\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "SessionEvent",
+  "module": "views/session-events",
+  "case": "an unknown type",
+  "input": {
+   "type": "session.nope",
+   "sessionId": "s"
+  },
+  "issue": {
+   "code": "invalid_union_discriminator",
+   "options": [
+    "session.start",
+    "session.delta",
+    "session.done",
+    "session.end",
+    "session.steer",
+    "session.notify",
+    "session.permission",
+    "session.permission.closed",
+    "session.checkpoint",
+    "session.changes",
+    "session.plan",
+    "session.compacted",
+    "session.retry",
+    "session.context",
+    "session.run",
+    "session.moved",
+    "session.behind",
+    "session.notice",
+    "session.earlier",
+    "session.capped",
+    "session.uncapped",
+    "session.subagent",
+    "session.slate",
+    "thread.waited"
+   ],
+   "path": [
+    "type"
+   ],
+   "message": "Invalid discriminator value. Expected 'session.start' | 'session.delta' | 'session.done' | 'session.end' | 'session.steer' | 'session.notify' | 'session.permission' | 'session.permission.closed' | 'session.checkpoint' | 'session.changes' | 'session.plan' | 'session.compacted' | 'session.retry' | 'session.context' | 'session.run' | 'session.moved' | 'session.behind' | 'session.notice' | 'session.earlier' | 'session.capped' | 'session.uncapped' | 'session.subagent' | 'session.slate' | 'thread.waited'"
+  },
+  "text": "[\n  {\n    \"code\": \"invalid_union_discriminator\",\n    \"options\": [\n      \"session.start\",\n      \"session.delta\",\n      \"session.done\",\n      \"session.end\",\n      \"session.steer\",\n      \"session.notify\",\n      \"session.permission\",\n      \"session.permission.closed\",\n      \"session.checkpoint\",\n      \"session.changes\",\n      \"session.plan\",\n      \"session.compacted\",\n      \"session.retry\",\n      \"session.context\",\n      \"session.run\",\n      \"session.moved\",\n      \"session.behind\",\n      \"session.notice\",\n      \"session.earlier\",\n      \"session.capped\",\n      \"session.uncapped\",\n      \"session.subagent\",\n      \"session.slate\",\n      \"thread.waited\"\n    ],\n    \"path\": [\n      \"type\"\n    ],\n    \"message\": \"Invalid discriminator value. Expected 'session.start' | 'session.delta' | 'session.done' | 'session.end' | 'session.steer' | 'session.notify' | 'session.permission' | 'session.permission.closed' | 'session.checkpoint' | 'session.changes' | 'session.plan' | 'session.compacted' | 'session.retry' | 'session.context' | 'session.run' | 'session.moved' | 'session.behind' | 'session.notice' | 'session.earlier' | 'session.capped' | 'session.uncapped' | 'session.subagent' | 'session.slate' | 'thread.waited'\"\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "SessionEvent",
+  "module": "views/session-events",
+  "case": "no type at all",
+  "input": {
+   "sessionId": "s"
+  },
+  "issue": {
+   "code": "invalid_union_discriminator",
+   "options": [
+    "session.start",
+    "session.delta",
+    "session.done",
+    "session.end",
+    "session.steer",
+    "session.notify",
+    "session.permission",
+    "session.permission.closed",
+    "session.checkpoint",
+    "session.changes",
+    "session.plan",
+    "session.compacted",
+    "session.retry",
+    "session.context",
+    "session.run",
+    "session.moved",
+    "session.behind",
+    "session.notice",
+    "session.earlier",
+    "session.capped",
+    "session.uncapped",
+    "session.subagent",
+    "session.slate",
+    "thread.waited"
+   ],
+   "path": [
+    "type"
+   ],
+   "message": "Invalid discriminator value. Expected 'session.start' | 'session.delta' | 'session.done' | 'session.end' | 'session.steer' | 'session.notify' | 'session.permission' | 'session.permission.closed' | 'session.checkpoint' | 'session.changes' | 'session.plan' | 'session.compacted' | 'session.retry' | 'session.context' | 'session.run' | 'session.moved' | 'session.behind' | 'session.notice' | 'session.earlier' | 'session.capped' | 'session.uncapped' | 'session.subagent' | 'session.slate' | 'thread.waited'"
+  },
+  "text": "[\n  {\n    \"code\": \"invalid_union_discriminator\",\n    \"options\": [\n      \"session.start\",\n      \"session.delta\",\n      \"session.done\",\n      \"session.end\",\n      \"session.steer\",\n      \"session.notify\",\n      \"session.permission\",\n      \"session.permission.closed\",\n      \"session.checkpoint\",\n      \"session.changes\",\n      \"session.plan\",\n      \"session.compacted\",\n      \"session.retry\",\n      \"session.context\",\n      \"session.run\",\n      \"session.moved\",\n      \"session.behind\",\n      \"session.notice\",\n      \"session.earlier\",\n      \"session.capped\",\n      \"session.uncapped\",\n      \"session.subagent\",\n      \"session.slate\",\n      \"thread.waited\"\n    ],\n    \"path\": [\n      \"type\"\n    ],\n    \"message\": \"Invalid discriminator value. Expected 'session.start' | 'session.delta' | 'session.done' | 'session.end' | 'session.steer' | 'session.notify' | 'session.permission' | 'session.permission.closed' | 'session.checkpoint' | 'session.changes' | 'session.plan' | 'session.compacted' | 'session.retry' | 'session.context' | 'session.run' | 'session.moved' | 'session.behind' | 'session.notice' | 'session.earlier' | 'session.capped' | 'session.uncapped' | 'session.subagent' | 'session.slate' | 'thread.waited'\"\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "ProjectOverrides",
+  "module": "thread-defaults",
+  "case": "a tracker failing its regex",
+  "input": {
+   "trackers": [
+    "no slash"
+   ]
+  },
+  "issue": {
+   "validation": "regex",
+   "code": "invalid_string",
+   "message": "Invalid",
+   "path": [
+    "trackers",
+    0
+   ]
+  },
+  "text": "[\n  {\n    \"validation\": \"regex\",\n    \"code\": \"invalid_string\",\n    \"message\": \"Invalid\",\n    \"path\": [\n      \"trackers\",\n      0\n    ]\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "WorkspaceCopy",
+  "module": "views/place",
+  "case": "a refine that wants an absolute path",
+  "input": {
+   "from": "rel",
+   "at": "/x"
+  },
+  "issue": {
+   "code": "custom",
+   "message": "an absolute path on the computer",
+   "path": [
+    "from"
+   ]
+  },
+  "text": "[\n  {\n    \"code\": \"custom\",\n    \"message\": \"an absolute path on the computer\",\n    \"path\": [\n      \"from\"\n    ]\n  }\n]",
+  "message": "issues"
+ },
+ {
+  "type": "PreferencesPatch",
+  "module": "views/preferences",
+  "case": "a refine that wants a size off the table",
+  "input": {
+   "textSize": 99
+  },
+  "issue": {
+   "code": "custom",
+   "message": "one of 13, 14, 15, 16, 17",
+   "path": [
+    "textSize"
+   ]
+  },
+  "text": "[\n  {\n    \"code\": \"custom\",\n    \"message\": \"one of 13, 14, 15, 16, 17\",\n    \"path\": [\n      \"textSize\"\n    ]\n  }\n]",
+  "message": "issues"
+ }
+]

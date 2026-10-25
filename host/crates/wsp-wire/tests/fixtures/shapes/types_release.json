@@ -1,0 +1,283 @@
+[
+ {
+  "type": "HostShape",
+  "case": "full",
+  "input": "service",
+  "output": "\"service\""
+ },
+ {
+  "type": "HostShape",
+  "case": "minimal",
+  "input": "verb",
+  "output": "\"verb\""
+ },
+ {
+  "type": "HostShape",
+  "case": "value up",
+  "input": "up",
+  "output": "\"up\""
+ },
+ {
+  "type": "HostShape",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReleaseChangedEvent",
+  "case": "full",
+  "input": {
+   "type": "release.changed",
+   "release": {
+    "state": "off",
+    "latest": {
+     "version": "text é",
+     "tag": "text é",
+     "url": "text é",
+     "publishedAt": "text é"
+    },
+    "checkedAt": "text é",
+    "triedAt": "text é",
+    "installed": "text é",
+    "update": "text é",
+    "shape": "service",
+    "restartRefusal": "text é"
+   }
+  },
+  "output": "{\"release\":{\"state\":\"off\",\"latest\":{\"version\":\"text é\",\"tag\":\"text é\",\"url\":\"text é\",\"publishedAt\":\"text é\"},\"checkedAt\":\"text é\",\"triedAt\":\"text é\",\"installed\":\"text é\",\"update\":\"text é\",\"shape\":\"service\",\"restartRefusal\":\"text é\"}}",
+  "tag": {
+   "key": "type",
+   "value": "release.changed"
+  }
+ },
+ {
+  "type": "ReleaseChangedEvent",
+  "case": "minimal",
+  "input": {
+   "type": "release.changed",
+   "release": {
+    "state": "checking"
+   }
+  },
+  "output": "{\"release\":{\"state\":\"checking\"}}",
+  "tag": {
+   "key": "type",
+   "value": "release.changed"
+  }
+ },
+ {
+  "type": "ReleaseChangedEvent",
+  "case": "missing release",
+  "input": {
+   "type": "release.changed"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "release"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReleaseLatest",
+  "case": "full",
+  "input": {
+   "version": "text é",
+   "tag": "text é",
+   "url": "text é",
+   "publishedAt": "text é"
+  },
+  "output": "{\"version\":\"text é\",\"tag\":\"text é\",\"url\":\"text é\",\"publishedAt\":\"text é\"}"
+ },
+ {
+  "type": "ReleaseLatest",
+  "case": "minimal",
+  "input": {
+   "version": "s",
+   "tag": "s",
+   "url": "s",
+   "publishedAt": "s"
+  },
+  "output": "{\"version\":\"s\",\"tag\":\"s\",\"url\":\"s\",\"publishedAt\":\"s\"}"
+ },
+ {
+  "type": "ReleaseLatest",
+  "case": "missing version",
+  "input": {
+   "tag": "text é",
+   "url": "text é",
+   "publishedAt": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "version"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReleaseState",
+  "case": "full",
+  "input": "off",
+  "output": "\"off\""
+ },
+ {
+  "type": "ReleaseState",
+  "case": "minimal",
+  "input": "checking",
+  "output": "\"checking\""
+ },
+ {
+  "type": "ReleaseState",
+  "case": "value read",
+  "input": "read",
+  "output": "\"read\""
+ },
+ {
+  "type": "ReleaseState",
+  "case": "value unreached",
+  "input": "unreached",
+  "output": "\"unreached\""
+ },
+ {
+  "type": "ReleaseState",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReleaseView",
+  "case": "full",
+  "input": {
+   "state": "off",
+   "latest": {
+    "version": "text é",
+    "tag": "text é",
+    "url": "text é",
+    "publishedAt": "text é"
+   },
+   "checkedAt": "text é",
+   "triedAt": "text é",
+   "installed": "text é",
+   "update": "text é",
+   "shape": "service",
+   "restartRefusal": "text é"
+  },
+  "output": "{\"state\":\"off\",\"latest\":{\"version\":\"text é\",\"tag\":\"text é\",\"url\":\"text é\",\"publishedAt\":\"text é\"},\"checkedAt\":\"text é\",\"triedAt\":\"text é\",\"installed\":\"text é\",\"update\":\"text é\",\"shape\":\"service\",\"restartRefusal\":\"text é\"}"
+ },
+ {
+  "type": "ReleaseView",
+  "case": "minimal",
+  "input": {
+   "state": "checking"
+  },
+  "output": "{\"state\":\"checking\"}"
+ },
+ {
+  "type": "ReleaseView",
+  "case": "nulls",
+  "input": {
+   "state": "checking",
+   "latest": {
+    "version": "s",
+    "tag": "s",
+    "url": "s",
+    "publishedAt": "s"
+   },
+   "checkedAt": "s",
+   "triedAt": "s",
+   "installed": "s",
+   "update": "s",
+   "shape": "verb",
+   "restartRefusal": "s"
+  },
+  "output": "{\"state\":\"checking\",\"latest\":{\"version\":\"s\",\"tag\":\"s\",\"url\":\"s\",\"publishedAt\":\"s\"},\"checkedAt\":\"s\",\"triedAt\":\"s\",\"installed\":\"s\",\"update\":\"s\",\"shape\":\"verb\",\"restartRefusal\":\"s\"}"
+ },
+ {
+  "type": "ReleaseView",
+  "case": "missing state",
+  "input": {
+   "latest": {
+    "version": "text é",
+    "tag": "text é",
+    "url": "text é",
+    "publishedAt": "text é"
+   },
+   "checkedAt": "text é",
+   "triedAt": "text é",
+   "installed": "text é",
+   "update": "text é",
+   "shape": "service",
+   "restartRefusal": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReleaseView",
+  "case": "state: not one of its values",
+  "input": {
+   "state": "not-a-value",
+   "latest": {
+    "version": "text é",
+    "tag": "text é",
+    "url": "text é",
+    "publishedAt": "text é"
+   },
+   "checkedAt": "text é",
+   "triedAt": "text é",
+   "installed": "text é",
+   "update": "text é",
+   "shape": "service",
+   "restartRefusal": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ReleaseView",
+  "case": "shape: not one of its values",
+  "input": {
+   "state": "off",
+   "latest": {
+    "version": "text é",
+    "tag": "text é",
+    "url": "text é",
+    "publishedAt": "text é"
+   },
+   "checkedAt": "text é",
+   "triedAt": "text é",
+   "installed": "text é",
+   "update": "text é",
+   "shape": "not-a-value",
+   "restartRefusal": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "shape"
+   ],
+   "serdeLevel": true
+  }
+ }
+]

@@ -1,0 +1,4818 @@
+[
+ {
+  "type": "ForkSource",
+  "case": "full",
+  "input": {
+   "threadId": "text é",
+   "turnId": "text é",
+   "at": 7
+  },
+  "output": "{\"threadId\":\"text é\",\"turnId\":\"text é\",\"at\":7}"
+ },
+ {
+  "type": "ForkSource",
+  "case": "minimal",
+  "input": {
+   "threadId": "s"
+  },
+  "output": "{\"threadId\":\"s\"}"
+ },
+ {
+  "type": "ForkSource",
+  "case": "nulls",
+  "input": {
+   "threadId": "s",
+   "turnId": "s",
+   "at": 7
+  },
+  "output": "{\"threadId\":\"s\",\"turnId\":\"s\",\"at\":7}"
+ },
+ {
+  "type": "ForkSource",
+  "case": "missing threadId",
+  "input": {
+   "turnId": "text é",
+   "at": 7
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "threadId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ForkSource",
+  "case": "at: not an integer",
+  "input": {
+   "threadId": "text é",
+   "turnId": "text é",
+   "at": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "at"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ForkSource",
+  "case": "at: under 0",
+  "input": {
+   "threadId": "text é",
+   "turnId": "text é",
+   "at": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "at"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ForkedFrom",
+  "case": "full",
+  "input": {
+   "threadId": "text é",
+   "turnId": "text é",
+   "title": "text é"
+  },
+  "output": "{\"threadId\":\"text é\",\"turnId\":\"text é\",\"title\":\"text é\"}"
+ },
+ {
+  "type": "ForkedFrom",
+  "case": "minimal",
+  "input": {
+   "threadId": "s",
+   "title": "s"
+  },
+  "output": "{\"threadId\":\"s\",\"title\":\"s\"}"
+ },
+ {
+  "type": "ForkedFrom",
+  "case": "nulls",
+  "input": {
+   "threadId": "s",
+   "turnId": "s",
+   "title": "s"
+  },
+  "output": "{\"threadId\":\"s\",\"turnId\":\"s\",\"title\":\"s\"}"
+ },
+ {
+  "type": "ForkedFrom",
+  "case": "missing threadId",
+  "input": {
+   "turnId": "text é",
+   "title": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "threadId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "PermissionOutcome",
+  "case": "full",
+  "input": "cancelled",
+  "output": "\"cancelled\""
+ },
+ {
+  "type": "PermissionOutcome",
+  "case": "minimal",
+  "input": "allowed",
+  "output": "\"allowed\""
+ },
+ {
+  "type": "PermissionOutcome",
+  "case": "value denied",
+  "input": "denied",
+  "output": "\"denied\""
+ },
+ {
+  "type": "PermissionOutcome",
+  "case": "value unanswered",
+  "input": "unanswered",
+  "output": "\"unanswered\""
+ },
+ {
+  "type": "PermissionOutcome",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionOrigin",
+  "case": "full",
+  "input": "agent",
+  "output": "\"agent\""
+ },
+ {
+  "type": "SessionOrigin",
+  "case": "minimal",
+  "input": "person",
+  "output": "\"person\""
+ },
+ {
+  "type": "SessionOrigin",
+  "case": "value cli",
+  "input": "cli",
+  "output": "\"cli\""
+ },
+ {
+  "type": "SessionOrigin",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionStatus",
+  "case": "full",
+  "input": "failed",
+  "output": "\"failed\""
+ },
+ {
+  "type": "SessionStatus",
+  "case": "minimal",
+  "input": "running",
+  "output": "\"running\""
+ },
+ {
+  "type": "SessionStatus",
+  "case": "value completed",
+  "input": "completed",
+  "output": "\"completed\""
+ },
+ {
+  "type": "SessionStatus",
+  "case": "value interrupted",
+  "input": "interrupted",
+  "output": "\"interrupted\""
+ },
+ {
+  "type": "SessionStatus",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionView",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "status": "failed",
+   "startedBy": "agent",
+   "claudeSessionId": "text é",
+   "threadId": "text é",
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "prompt": "text é",
+   "harnessTitle": "text é",
+   "titleSource": "person",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "refusal": "sign-in",
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "permissionMode": "text é",
+   "contextWindow": "text é",
+   "fast": true,
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "computerName": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "waitsFor": "text é",
+   "pid": 7,
+   "agentPid": 7,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ],
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   }
+  },
+  "output": "{\"id\":\"text é\",\"workspaceId\":\"text é\",\"harness\":\"text é\",\"status\":\"failed\",\"startedBy\":\"agent\",\"claudeSessionId\":\"text é\",\"threadId\":\"text é\",\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"attempt\":\"text é\",\"prompt\":\"text é\",\"harnessTitle\":\"text é\",\"titleSource\":\"person\",\"startedAt\":2.5,\"endedAt\":2.5,\"cwd\":\"text é\",\"refusal\":\"sign-in\",\"limit\":{\"resetsAt\":2.5},\"resumeAt\":2.5,\"costUsd\":2.5,\"lastLine\":\"text é\",\"failure\":\"text é\",\"model\":\"text é\",\"effort\":\"text é\",\"permissionMode\":\"text é\",\"contextWindow\":\"text é\",\"fast\":true,\"asking\":\"text é\",\"waitingOn\":{\"threadId\":\"text é\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"title\":\"text é\",\"prompt\":{\"askId\":\"text é\",\"toolName\":\"text é\",\"toolUseId\":\"text é\",\"parentToolUseId\":\"text é\",\"input\":\"text é\",\"detail\":\"text é\",\"options\":[{\"id\":\"text é\",\"label\":\"text é\",\"effect\":\"answer\"}]}},\"setupRefusal\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\"},\"computerName\":\"text é\",\"sub\":{\"state\":\"released\",\"on\":\"text é\",\"machine\":\"text é\",\"size\":{\"cpu\":7,\"memMb\":7,\"name\":\"text é\"},\"rateUsdPerHour\":2.5,\"branch\":\"text é\",\"result\":{\"branch\":\"text é\",\"pushedSha\":\"text é\",\"commits\":7,\"unpushed\":7,\"changed\":7,\"onBranch\":\"text é\",\"norepo\":true,\"readFailed\":\"text é\",\"readAt\":\"text é\",\"pushRefused\":\"text é\"},\"held\":{\"files\":7,\"commits\":7},\"deleteAt\":2.5,\"releasedAt\":2.5,\"cloudGone\":true,\"sessionNotKept\":\"text é\",\"spawn\":{\"startedAt\":2.5,\"branch\":{\"branch\":\"text é\",\"sha\":\"text é\",\"ms\":7},\"machine\":{\"since\":2.5,\"id\":\"text é\",\"states\":[],\"ms\":7},\"files\":{\"since\":2.5,\"paths\":[],\"bytes\":7,\"ms\":7},\"readyAt\":2.5,\"failed\":{\"step\":\"files\",\"said\":\"text é\",\"fix\":\"text é\"},\"uncommitted\":7,\"asked\":\"text é\",\"notSent\":\"text é\",\"replaced\":[\"text é\"],\"log\":[\"text é\"]}},\"diskKeptUntil\":2.5,\"diskGone\":\"text é\",\"capped\":{\"placeId\":\"text é\",\"place\":\"text é\",\"running\":7,\"atOnce\":7,\"why\":\"minute\"},\"waitsFor\":\"text é\",\"pid\":7,\"agentPid\":7,\"subagents\":[{\"id\":\"text é\",\"title\":\"text é\",\"state\":\"stopped\",\"parentToolUseId\":\"text é\",\"depth\":7,\"model\":\"text é\",\"asked\":\"text é\",\"startedAt\":2.5,\"endedAt\":2.5,\"lastLine\":\"text é\",\"failure\":\"text é\",\"usage\":{\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5},\"toolUses\":7,\"durationMs\":2.5}}],\"readAt\":2.5,\"settledAt\":2.5,\"pinnedAt\":2.5,\"order\":2.5,\"foldedAt\":2.5,\"replaces\":\"text é\",\"replacedBy\":\"text é\",\"snoozedUntil\":2.5,\"wokeAt\":2.5,\"section\":{\"name\":\"idle\",\"whileState\":\"text é\"},\"rewoundAt\":2.5,\"forkedFrom\":{\"threadId\":\"text é\",\"turnId\":\"text é\",\"title\":\"text é\"}}"
+ },
+ {
+  "type": "SessionView",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "workspaceId": "s",
+   "harness": "s",
+   "status": "running"
+  },
+  "output": "{\"id\":\"s\",\"workspaceId\":\"s\",\"harness\":\"s\",\"status\":\"running\"}"
+ },
+ {
+  "type": "SessionView",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "workspaceId": "s",
+   "harness": "s",
+   "status": "running",
+   "startedBy": "person",
+   "claudeSessionId": "s",
+   "threadId": "s",
+   "parentThreadId": "s",
+   "rootThreadId": "s",
+   "attempt": "s",
+   "prompt": "s",
+   "harnessTitle": "s",
+   "titleSource": "seed",
+   "startedAt": 3,
+   "endedAt": 3,
+   "cwd": "s",
+   "refusal": "sign-in",
+   "limit": {},
+   "resumeAt": 3,
+   "costUsd": 3,
+   "lastLine": "s",
+   "failure": "s",
+   "model": "s",
+   "effort": "s",
+   "permissionMode": "s",
+   "contextWindow": "s",
+   "fast": false,
+   "asking": "s",
+   "waitingOn": {
+    "threadId": "s",
+    "workspaceId": "s",
+    "sessionId": "s",
+    "title": "s",
+    "prompt": {
+     "askId": "s",
+     "toolName": "s",
+     "input": "s",
+     "options": []
+    }
+   },
+   "setupRefusal": "s",
+   "project": {
+    "id": "s",
+    "name": "s"
+   },
+   "computerName": "s",
+   "sub": {
+    "state": "waiting",
+    "on": "s",
+    "machine": "s",
+    "size": {
+     "cpu": 7,
+     "memMb": 7
+    },
+    "branch": "s"
+   },
+   "diskKeptUntil": 3,
+   "diskGone": "s",
+   "capped": {
+    "placeId": "s",
+    "place": "s",
+    "running": 7,
+    "atOnce": 7
+   },
+   "waitsFor": "s",
+   "pid": 7,
+   "agentPid": 7,
+   "subagents": [],
+   "readAt": 3,
+   "settledAt": 3,
+   "pinnedAt": 3,
+   "order": 3,
+   "foldedAt": 3,
+   "replaces": "s",
+   "replacedBy": "s",
+   "snoozedUntil": 3,
+   "wokeAt": 3,
+   "section": {
+    "name": "needs-you",
+    "whileState": "s"
+   },
+   "rewoundAt": 3,
+   "forkedFrom": {
+    "threadId": "s",
+    "title": "s"
+   }
+  },
+  "output": "{\"id\":\"s\",\"workspaceId\":\"s\",\"harness\":\"s\",\"status\":\"running\",\"startedBy\":\"person\",\"claudeSessionId\":\"s\",\"threadId\":\"s\",\"parentThreadId\":\"s\",\"rootThreadId\":\"s\",\"attempt\":\"s\",\"prompt\":\"s\",\"harnessTitle\":\"s\",\"titleSource\":\"seed\",\"startedAt\":3,\"endedAt\":3,\"cwd\":\"s\",\"refusal\":\"sign-in\",\"limit\":{},\"resumeAt\":3,\"costUsd\":3,\"lastLine\":\"s\",\"failure\":\"s\",\"model\":\"s\",\"effort\":\"s\",\"permissionMode\":\"s\",\"contextWindow\":\"s\",\"fast\":false,\"asking\":\"s\",\"waitingOn\":{\"threadId\":\"s\",\"workspaceId\":\"s\",\"sessionId\":\"s\",\"title\":\"s\",\"prompt\":{\"askId\":\"s\",\"toolName\":\"s\",\"input\":\"s\",\"options\":[]}},\"setupRefusal\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\"},\"computerName\":\"s\",\"sub\":{\"state\":\"waiting\",\"on\":\"s\",\"machine\":\"s\",\"size\":{\"cpu\":7,\"memMb\":7},\"branch\":\"s\"},\"diskKeptUntil\":3,\"diskGone\":\"s\",\"capped\":{\"placeId\":\"s\",\"place\":\"s\",\"running\":7,\"atOnce\":7},\"waitsFor\":\"s\",\"pid\":7,\"agentPid\":7,\"subagents\":[],\"readAt\":3,\"settledAt\":3,\"pinnedAt\":3,\"order\":3,\"foldedAt\":3,\"replaces\":\"s\",\"replacedBy\":\"s\",\"snoozedUntil\":3,\"wokeAt\":3,\"section\":{\"name\":\"needs-you\",\"whileState\":\"s\"},\"rewoundAt\":3,\"forkedFrom\":{\"threadId\":\"s\",\"title\":\"s\"}}"
+ },
+ {
+  "type": "SessionView",
+  "case": "missing id",
+  "input": {
+   "workspaceId": "text é",
+   "harness": "text é",
+   "status": "failed",
+   "startedBy": "agent",
+   "claudeSessionId": "text é",
+   "threadId": "text é",
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "prompt": "text é",
+   "harnessTitle": "text é",
+   "titleSource": "person",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "refusal": "sign-in",
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "permissionMode": "text é",
+   "contextWindow": "text é",
+   "fast": true,
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "computerName": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "waitsFor": "text é",
+   "pid": 7,
+   "agentPid": 7,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ],
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionView",
+  "case": "status: not one of its values",
+  "input": {
+   "id": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "status": "not-a-value",
+   "startedBy": "agent",
+   "claudeSessionId": "text é",
+   "threadId": "text é",
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "prompt": "text é",
+   "harnessTitle": "text é",
+   "titleSource": "person",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "refusal": "sign-in",
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "permissionMode": "text é",
+   "contextWindow": "text é",
+   "fast": true,
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "computerName": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "waitsFor": "text é",
+   "pid": 7,
+   "agentPid": 7,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ],
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "status"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionView",
+  "case": "startedBy: not one of its values",
+  "input": {
+   "id": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "status": "failed",
+   "startedBy": "not-a-value",
+   "claudeSessionId": "text é",
+   "threadId": "text é",
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "prompt": "text é",
+   "harnessTitle": "text é",
+   "titleSource": "person",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "refusal": "sign-in",
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "permissionMode": "text é",
+   "contextWindow": "text é",
+   "fast": true,
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "computerName": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "waitsFor": "text é",
+   "pid": 7,
+   "agentPid": 7,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ],
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "startedBy"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionView",
+  "case": "titleSource: not one of its values",
+  "input": {
+   "id": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "status": "failed",
+   "startedBy": "agent",
+   "claudeSessionId": "text é",
+   "threadId": "text é",
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "prompt": "text é",
+   "harnessTitle": "text é",
+   "titleSource": "not-a-value",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "refusal": "sign-in",
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "permissionMode": "text é",
+   "contextWindow": "text é",
+   "fast": true,
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "computerName": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "waitsFor": "text é",
+   "pid": 7,
+   "agentPid": 7,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ],
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "titleSource"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionView",
+  "case": "refusal: not one of its values",
+  "input": {
+   "id": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "status": "failed",
+   "startedBy": "agent",
+   "claudeSessionId": "text é",
+   "threadId": "text é",
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "prompt": "text é",
+   "harnessTitle": "text é",
+   "titleSource": "person",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "refusal": "not-a-value",
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "permissionMode": "text é",
+   "contextWindow": "text é",
+   "fast": true,
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "computerName": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "waitsFor": "text é",
+   "pid": 7,
+   "agentPid": 7,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ],
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "refusal"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionView",
+  "case": "fast: not a boolean",
+  "input": {
+   "id": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "status": "failed",
+   "startedBy": "agent",
+   "claudeSessionId": "text é",
+   "threadId": "text é",
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "prompt": "text é",
+   "harnessTitle": "text é",
+   "titleSource": "person",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "refusal": "sign-in",
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "permissionMode": "text é",
+   "contextWindow": "text é",
+   "fast": "yes",
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "computerName": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "waitsFor": "text é",
+   "pid": 7,
+   "agentPid": 7,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ],
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "fast"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionView",
+  "case": "pid: not an integer",
+  "input": {
+   "id": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "status": "failed",
+   "startedBy": "agent",
+   "claudeSessionId": "text é",
+   "threadId": "text é",
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "prompt": "text é",
+   "harnessTitle": "text é",
+   "titleSource": "person",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "refusal": "sign-in",
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "permissionMode": "text é",
+   "contextWindow": "text é",
+   "fast": true,
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "computerName": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "waitsFor": "text é",
+   "pid": 2.5,
+   "agentPid": 7,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ],
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pid"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SessionView",
+  "case": "agentPid: not an integer",
+  "input": {
+   "id": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "status": "failed",
+   "startedBy": "agent",
+   "claudeSessionId": "text é",
+   "threadId": "text é",
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "prompt": "text é",
+   "harnessTitle": "text é",
+   "titleSource": "person",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "refusal": "sign-in",
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "model": "text é",
+   "effort": "text é",
+   "permissionMode": "text é",
+   "contextWindow": "text é",
+   "fast": true,
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "project": {
+    "id": "text é",
+    "name": "text é"
+   },
+   "computerName": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "waitsFor": "text é",
+   "pid": 7,
+   "agentPid": 2.5,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ],
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "agentPid"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubagentState",
+  "case": "full",
+  "input": "stopped",
+  "output": "\"stopped\""
+ },
+ {
+  "type": "SubagentState",
+  "case": "minimal",
+  "input": "running",
+  "output": "\"running\""
+ },
+ {
+  "type": "SubagentState",
+  "case": "value done",
+  "input": "done",
+  "output": "\"done\""
+ },
+ {
+  "type": "SubagentState",
+  "case": "value failed",
+  "input": "failed",
+  "output": "\"failed\""
+ },
+ {
+  "type": "SubagentState",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubagentUsage",
+  "case": "full",
+  "input": {
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "toolUses": 7,
+   "durationMs": 2.5
+  },
+  "output": "{\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5},\"toolUses\":7,\"durationMs\":2.5}"
+ },
+ {
+  "type": "SubagentUsage",
+  "case": "minimal",
+  "input": {},
+  "output": "{}"
+ },
+ {
+  "type": "SubagentUsage",
+  "case": "nulls",
+  "input": {
+   "tokens": {
+    "input": 3,
+    "output": 3,
+    "cached": 3,
+    "cacheWrite": 3,
+    "reasoning": 3
+   },
+   "toolUses": 7,
+   "durationMs": 3
+  },
+  "output": "{\"tokens\":{\"input\":3,\"output\":3,\"cached\":3,\"cacheWrite\":3,\"reasoning\":3},\"toolUses\":7,\"durationMs\":3}"
+ },
+ {
+  "type": "SubagentUsage",
+  "case": "toolUses: not an integer",
+  "input": {
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "toolUses": 2.5,
+   "durationMs": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "toolUses"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubagentUsage",
+  "case": "toolUses: under 0",
+  "input": {
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "toolUses": -1,
+   "durationMs": 2.5
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "toolUses"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SubagentUsage",
+  "case": "durationMs: under 0",
+  "input": {
+   "tokens": {
+    "input": 2.5,
+    "output": 2.5,
+    "cached": 2.5,
+    "cacheWrite": 2.5,
+    "reasoning": 2.5
+   },
+   "toolUses": 7,
+   "durationMs": -1
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "durationMs"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "SubagentView",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "title": "text é",
+   "state": "stopped",
+   "parentToolUseId": "text é",
+   "depth": 7,
+   "model": "text é",
+   "asked": "text é",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "usage": {
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5
+    },
+    "toolUses": 7,
+    "durationMs": 2.5
+   }
+  },
+  "output": "{\"id\":\"text é\",\"title\":\"text é\",\"state\":\"stopped\",\"parentToolUseId\":\"text é\",\"depth\":7,\"model\":\"text é\",\"asked\":\"text é\",\"startedAt\":2.5,\"endedAt\":2.5,\"lastLine\":\"text é\",\"failure\":\"text é\",\"usage\":{\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5},\"toolUses\":7,\"durationMs\":2.5}}"
+ },
+ {
+  "type": "SubagentView",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "title": "s",
+   "state": "running",
+   "startedAt": 3
+  },
+  "output": "{\"id\":\"s\",\"title\":\"s\",\"state\":\"running\",\"startedAt\":3}"
+ },
+ {
+  "type": "SubagentView",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "title": "s",
+   "state": "running",
+   "parentToolUseId": "s",
+   "depth": 7,
+   "model": "s",
+   "asked": "s",
+   "startedAt": 3,
+   "endedAt": 3,
+   "lastLine": "s",
+   "failure": "s",
+   "usage": {}
+  },
+  "output": "{\"id\":\"s\",\"title\":\"s\",\"state\":\"running\",\"parentToolUseId\":\"s\",\"depth\":7,\"model\":\"s\",\"asked\":\"s\",\"startedAt\":3,\"endedAt\":3,\"lastLine\":\"s\",\"failure\":\"s\",\"usage\":{}}"
+ },
+ {
+  "type": "SubagentView",
+  "case": "missing id",
+  "input": {
+   "title": "text é",
+   "state": "stopped",
+   "parentToolUseId": "text é",
+   "depth": 7,
+   "model": "text é",
+   "asked": "text é",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "usage": {
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5
+    },
+    "toolUses": 7,
+    "durationMs": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubagentView",
+  "case": "state: not one of its values",
+  "input": {
+   "id": "text é",
+   "title": "text é",
+   "state": "not-a-value",
+   "parentToolUseId": "text é",
+   "depth": 7,
+   "model": "text é",
+   "asked": "text é",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "usage": {
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5
+    },
+    "toolUses": 7,
+    "durationMs": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "state"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubagentView",
+  "case": "depth: not an integer",
+  "input": {
+   "id": "text é",
+   "title": "text é",
+   "state": "stopped",
+   "parentToolUseId": "text é",
+   "depth": 2.5,
+   "model": "text é",
+   "asked": "text é",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "usage": {
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5
+    },
+    "toolUses": 7,
+    "durationMs": 2.5
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "depth"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "SubagentView",
+  "case": "depth: under 0",
+  "input": {
+   "id": "text é",
+   "title": "text é",
+   "state": "stopped",
+   "parentToolUseId": "text é",
+   "depth": 0,
+   "model": "text é",
+   "asked": "text é",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "usage": {
+    "tokens": {
+     "input": 2.5,
+     "output": 2.5,
+     "cached": 2.5,
+     "cacheWrite": 2.5,
+     "reasoning": 2.5
+    },
+    "toolUses": 7,
+    "durationMs": 2.5
+   }
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "depth"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ThreadCapWait",
+  "case": "full",
+  "input": {
+   "placeId": "text é",
+   "place": "text é",
+   "running": 7,
+   "atOnce": 7,
+   "why": "minute"
+  },
+  "output": "{\"placeId\":\"text é\",\"place\":\"text é\",\"running\":7,\"atOnce\":7,\"why\":\"minute\"}"
+ },
+ {
+  "type": "ThreadCapWait",
+  "case": "minimal",
+  "input": {
+   "placeId": "s",
+   "place": "s",
+   "running": 7,
+   "atOnce": 7
+  },
+  "output": "{\"placeId\":\"s\",\"place\":\"s\",\"running\":7,\"atOnce\":7}"
+ },
+ {
+  "type": "ThreadCapWait",
+  "case": "nulls",
+  "input": {
+   "placeId": "s",
+   "place": "s",
+   "running": 7,
+   "atOnce": 7,
+   "why": "slot"
+  },
+  "output": "{\"placeId\":\"s\",\"place\":\"s\",\"running\":7,\"atOnce\":7,\"why\":\"slot\"}"
+ },
+ {
+  "type": "ThreadCapWait",
+  "case": "missing placeId",
+  "input": {
+   "place": "text é",
+   "running": 7,
+   "atOnce": 7,
+   "why": "minute"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "placeId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadCapWait",
+  "case": "running: not an integer",
+  "input": {
+   "placeId": "text é",
+   "place": "text é",
+   "running": 2.5,
+   "atOnce": 7,
+   "why": "minute"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "running"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadCapWait",
+  "case": "atOnce: not an integer",
+  "input": {
+   "placeId": "text é",
+   "place": "text é",
+   "running": 7,
+   "atOnce": 2.5,
+   "why": "minute"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "atOnce"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadCapWait",
+  "case": "why: not one of its values",
+  "input": {
+   "placeId": "text é",
+   "place": "text é",
+   "running": 7,
+   "atOnce": 7,
+   "why": "not-a-value"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "why"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadMarks",
+  "case": "full",
+  "input": {
+   "pinned": 2.5,
+   "order": 2.5,
+   "snoozedUntil": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "resumeAtReset": true,
+   "folded": true
+  },
+  "output": "{\"pinned\":2.5,\"order\":2.5,\"snoozedUntil\":2.5,\"section\":{\"name\":\"idle\",\"whileState\":\"text é\"},\"resumeAtReset\":true,\"folded\":true}"
+ },
+ {
+  "type": "ThreadMarks",
+  "case": "minimal",
+  "input": {},
+  "output": "{}"
+ },
+ {
+  "type": "ThreadMarks",
+  "case": "nulls",
+  "input": {
+   "pinned": false,
+   "order": null,
+   "snoozedUntil": null,
+   "section": null,
+   "resumeAtReset": false,
+   "folded": false
+  },
+  "output": "{\"pinned\":false,\"order\":null,\"snoozedUntil\":null,\"section\":null,\"resumeAtReset\":false,\"folded\":false}"
+ },
+ {
+  "type": "ThreadMarks",
+  "case": "an unknown key",
+  "input": {
+   "pinned": 2.5,
+   "order": 2.5,
+   "snoozedUntil": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "resumeAtReset": true,
+   "folded": true,
+   "unexpectedKey": 1
+  },
+  "issue": {
+   "code": "unrecognized_keys",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadMarks",
+  "case": "resumeAtReset: not a boolean",
+  "input": {
+   "pinned": 2.5,
+   "order": 2.5,
+   "snoozedUntil": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "resumeAtReset": "yes",
+   "folded": true
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "resumeAtReset"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadMarks",
+  "case": "folded: not a boolean",
+  "input": {
+   "pinned": 2.5,
+   "order": 2.5,
+   "snoozedUntil": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "resumeAtReset": true,
+   "folded": "yes"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "folded"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadPlacement",
+  "case": "full",
+  "input": {
+   "name": "idle",
+   "whileState": "text é"
+  },
+  "output": "{\"name\":\"idle\",\"whileState\":\"text é\"}"
+ },
+ {
+  "type": "ThreadPlacement",
+  "case": "minimal",
+  "input": {
+   "name": "needs-you",
+   "whileState": "s"
+  },
+  "output": "{\"name\":\"needs-you\",\"whileState\":\"s\"}"
+ },
+ {
+  "type": "ThreadPlacement",
+  "case": "missing name",
+  "input": {
+   "whileState": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadPlacement",
+  "case": "name: not one of its values",
+  "input": {
+   "name": "not-a-value",
+   "whileState": "text é"
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "name"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadPrompt",
+  "case": "full",
+  "input": {
+   "askId": "text é",
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "parentToolUseId": "text é",
+   "input": "text é",
+   "detail": "text é",
+   "options": [
+    {
+     "id": "text é",
+     "label": "text é",
+     "effect": "answer",
+     "mode": "text é"
+    }
+   ]
+  },
+  "output": "{\"askId\":\"text é\",\"toolName\":\"text é\",\"toolUseId\":\"text é\",\"parentToolUseId\":\"text é\",\"input\":\"text é\",\"detail\":\"text é\",\"options\":[{\"id\":\"text é\",\"label\":\"text é\",\"effect\":\"answer\",\"mode\":\"text é\"}]}"
+ },
+ {
+  "type": "ThreadPrompt",
+  "case": "minimal",
+  "input": {
+   "askId": "s",
+   "toolName": "s",
+   "input": "s",
+   "options": []
+  },
+  "output": "{\"askId\":\"s\",\"toolName\":\"s\",\"input\":\"s\",\"options\":[]}"
+ },
+ {
+  "type": "ThreadPrompt",
+  "case": "nulls",
+  "input": {
+   "askId": "s",
+   "toolName": "s",
+   "toolUseId": "s",
+   "parentToolUseId": "s",
+   "input": "s",
+   "detail": "s",
+   "options": []
+  },
+  "output": "{\"askId\":\"s\",\"toolName\":\"s\",\"toolUseId\":\"s\",\"parentToolUseId\":\"s\",\"input\":\"s\",\"detail\":\"s\",\"options\":[]}"
+ },
+ {
+  "type": "ThreadPrompt",
+  "case": "missing askId",
+  "input": {
+   "toolName": "text é",
+   "toolUseId": "text é",
+   "parentToolUseId": "text é",
+   "input": "text é",
+   "detail": "text é",
+   "options": [
+    {
+     "id": "text é",
+     "label": "text é",
+     "effect": "answer",
+     "mode": "text é"
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "askId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadSection",
+  "case": "full",
+  "input": "idle",
+  "output": "\"idle\""
+ },
+ {
+  "type": "ThreadSection",
+  "case": "minimal",
+  "input": "needs-you",
+  "output": "\"needs-you\""
+ },
+ {
+  "type": "ThreadSection",
+  "case": "value working",
+  "input": "working",
+  "output": "\"working\""
+ },
+ {
+  "type": "ThreadSection",
+  "case": "value done",
+  "input": "done",
+  "output": "\"done\""
+ },
+ {
+  "type": "ThreadSection",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadView",
+  "case": "full",
+  "input": {
+   "id": "text é",
+   "threadId": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "startedBy": "agent",
+   "status": "failed",
+   "title": "text é",
+   "sessionId": "text é",
+   "claudeSessionId": "text é",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "turns": 7,
+   "ran": true,
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "pid": 7,
+   "agentPid": 7,
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   },
+   "permissionMode": "text é",
+   "fast": true,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ]
+  },
+  "output": "{\"id\":\"text é\",\"threadId\":\"text é\",\"workspaceId\":\"text é\",\"harness\":\"text é\",\"startedBy\":\"agent\",\"status\":\"failed\",\"title\":\"text é\",\"sessionId\":\"text é\",\"claudeSessionId\":\"text é\",\"startedAt\":2.5,\"endedAt\":2.5,\"cwd\":\"text é\",\"turns\":7,\"ran\":true,\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"attempt\":\"text é\",\"asking\":\"text é\",\"waitingOn\":{\"threadId\":\"text é\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"title\":\"text é\",\"prompt\":{\"askId\":\"text é\",\"toolName\":\"text é\",\"toolUseId\":\"text é\",\"parentToolUseId\":\"text é\",\"input\":\"text é\",\"detail\":\"text é\",\"options\":[{\"id\":\"text é\",\"label\":\"text é\",\"effect\":\"answer\"}]}},\"setupRefusal\":\"text é\",\"sub\":{\"state\":\"released\",\"on\":\"text é\",\"machine\":\"text é\",\"size\":{\"cpu\":7,\"memMb\":7,\"name\":\"text é\"},\"rateUsdPerHour\":2.5,\"branch\":\"text é\",\"result\":{\"branch\":\"text é\",\"pushedSha\":\"text é\",\"commits\":7,\"unpushed\":7,\"changed\":7,\"onBranch\":\"text é\",\"norepo\":true,\"readFailed\":\"text é\",\"readAt\":\"text é\",\"pushRefused\":\"text é\"},\"held\":{\"files\":7,\"commits\":7},\"deleteAt\":2.5,\"releasedAt\":2.5,\"cloudGone\":true,\"sessionNotKept\":\"text é\",\"spawn\":{\"startedAt\":2.5,\"branch\":{\"branch\":\"text é\",\"sha\":\"text é\",\"ms\":7},\"machine\":{\"since\":2.5,\"id\":\"text é\",\"states\":[],\"ms\":7},\"files\":{\"since\":2.5,\"paths\":[],\"bytes\":7,\"ms\":7},\"readyAt\":2.5,\"failed\":{\"step\":\"files\",\"said\":\"text é\",\"fix\":\"text é\"},\"uncommitted\":7,\"asked\":\"text é\",\"notSent\":\"text é\",\"replaced\":[\"text é\"],\"log\":[\"text é\"]}},\"diskKeptUntil\":2.5,\"diskGone\":\"text é\",\"capped\":{\"placeId\":\"text é\",\"place\":\"text é\",\"running\":7,\"atOnce\":7,\"why\":\"minute\"},\"limit\":{\"resetsAt\":2.5},\"resumeAt\":2.5,\"costUsd\":2.5,\"lastLine\":\"text é\",\"failure\":\"text é\",\"pid\":7,\"agentPid\":7,\"readAt\":2.5,\"settledAt\":2.5,\"pinnedAt\":2.5,\"order\":2.5,\"foldedAt\":2.5,\"replaces\":\"text é\",\"replacedBy\":\"text é\",\"snoozedUntil\":2.5,\"wokeAt\":2.5,\"section\":{\"name\":\"idle\",\"whileState\":\"text é\"},\"rewoundAt\":2.5,\"forkedFrom\":{\"threadId\":\"text é\",\"turnId\":\"text é\",\"title\":\"text é\"},\"permissionMode\":\"text é\",\"fast\":true,\"subagents\":[{\"id\":\"text é\",\"title\":\"text é\",\"state\":\"stopped\",\"parentToolUseId\":\"text é\",\"depth\":7,\"model\":\"text é\",\"asked\":\"text é\",\"startedAt\":2.5,\"endedAt\":2.5,\"lastLine\":\"text é\",\"failure\":\"text é\",\"usage\":{\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5},\"toolUses\":7,\"durationMs\":2.5}}]}"
+ },
+ {
+  "type": "ThreadView",
+  "case": "minimal",
+  "input": {
+   "id": "s",
+   "workspaceId": "s",
+   "harness": "s",
+   "startedBy": "person",
+   "status": "running",
+   "title": "s",
+   "sessionId": "s",
+   "turns": 7,
+   "ran": false
+  },
+  "output": "{\"id\":\"s\",\"workspaceId\":\"s\",\"harness\":\"s\",\"startedBy\":\"person\",\"status\":\"running\",\"title\":\"s\",\"sessionId\":\"s\",\"turns\":7,\"ran\":false}"
+ },
+ {
+  "type": "ThreadView",
+  "case": "nulls",
+  "input": {
+   "id": "s",
+   "threadId": "s",
+   "workspaceId": "s",
+   "harness": "s",
+   "startedBy": "person",
+   "status": "running",
+   "title": "s",
+   "sessionId": "s",
+   "claudeSessionId": "s",
+   "startedAt": 3,
+   "endedAt": 3,
+   "cwd": "s",
+   "turns": 7,
+   "ran": false,
+   "parentThreadId": "s",
+   "rootThreadId": "s",
+   "attempt": "s",
+   "asking": "s",
+   "waitingOn": {
+    "threadId": "s",
+    "workspaceId": "s",
+    "sessionId": "s",
+    "title": "s",
+    "prompt": {
+     "askId": "s",
+     "toolName": "s",
+     "input": "s",
+     "options": []
+    }
+   },
+   "setupRefusal": "s",
+   "sub": {
+    "state": "waiting",
+    "on": "s",
+    "machine": "s",
+    "size": {
+     "cpu": 7,
+     "memMb": 7
+    },
+    "branch": "s"
+   },
+   "diskKeptUntil": 3,
+   "diskGone": "s",
+   "capped": {
+    "placeId": "s",
+    "place": "s",
+    "running": 7,
+    "atOnce": 7
+   },
+   "limit": {},
+   "resumeAt": 3,
+   "costUsd": 3,
+   "lastLine": "s",
+   "failure": "s",
+   "pid": 7,
+   "agentPid": 7,
+   "readAt": 3,
+   "settledAt": 3,
+   "pinnedAt": 3,
+   "order": 3,
+   "foldedAt": 3,
+   "replaces": "s",
+   "replacedBy": "s",
+   "snoozedUntil": 3,
+   "wokeAt": 3,
+   "section": {
+    "name": "needs-you",
+    "whileState": "s"
+   },
+   "rewoundAt": 3,
+   "forkedFrom": {
+    "threadId": "s",
+    "title": "s"
+   },
+   "permissionMode": "s",
+   "fast": false,
+   "subagents": []
+  },
+  "output": "{\"id\":\"s\",\"threadId\":\"s\",\"workspaceId\":\"s\",\"harness\":\"s\",\"startedBy\":\"person\",\"status\":\"running\",\"title\":\"s\",\"sessionId\":\"s\",\"claudeSessionId\":\"s\",\"startedAt\":3,\"endedAt\":3,\"cwd\":\"s\",\"turns\":7,\"ran\":false,\"parentThreadId\":\"s\",\"rootThreadId\":\"s\",\"attempt\":\"s\",\"asking\":\"s\",\"waitingOn\":{\"threadId\":\"s\",\"workspaceId\":\"s\",\"sessionId\":\"s\",\"title\":\"s\",\"prompt\":{\"askId\":\"s\",\"toolName\":\"s\",\"input\":\"s\",\"options\":[]}},\"setupRefusal\":\"s\",\"sub\":{\"state\":\"waiting\",\"on\":\"s\",\"machine\":\"s\",\"size\":{\"cpu\":7,\"memMb\":7},\"branch\":\"s\"},\"diskKeptUntil\":3,\"diskGone\":\"s\",\"capped\":{\"placeId\":\"s\",\"place\":\"s\",\"running\":7,\"atOnce\":7},\"limit\":{},\"resumeAt\":3,\"costUsd\":3,\"lastLine\":\"s\",\"failure\":\"s\",\"pid\":7,\"agentPid\":7,\"readAt\":3,\"settledAt\":3,\"pinnedAt\":3,\"order\":3,\"foldedAt\":3,\"replaces\":\"s\",\"replacedBy\":\"s\",\"snoozedUntil\":3,\"wokeAt\":3,\"section\":{\"name\":\"needs-you\",\"whileState\":\"s\"},\"rewoundAt\":3,\"forkedFrom\":{\"threadId\":\"s\",\"title\":\"s\"},\"permissionMode\":\"s\",\"fast\":false,\"subagents\":[]}"
+ },
+ {
+  "type": "ThreadView",
+  "case": "missing id",
+  "input": {
+   "threadId": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "startedBy": "agent",
+   "status": "failed",
+   "title": "text é",
+   "sessionId": "text é",
+   "claudeSessionId": "text é",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "turns": 7,
+   "ran": true,
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "pid": 7,
+   "agentPid": 7,
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   },
+   "permissionMode": "text é",
+   "fast": true,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "id"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadView",
+  "case": "startedBy: not one of its values",
+  "input": {
+   "id": "text é",
+   "threadId": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "startedBy": "not-a-value",
+   "status": "failed",
+   "title": "text é",
+   "sessionId": "text é",
+   "claudeSessionId": "text é",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "turns": 7,
+   "ran": true,
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "pid": 7,
+   "agentPid": 7,
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   },
+   "permissionMode": "text é",
+   "fast": true,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "startedBy"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadView",
+  "case": "status: not one of its values",
+  "input": {
+   "id": "text é",
+   "threadId": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "startedBy": "agent",
+   "status": "not-a-value",
+   "title": "text é",
+   "sessionId": "text é",
+   "claudeSessionId": "text é",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "turns": 7,
+   "ran": true,
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "pid": 7,
+   "agentPid": 7,
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   },
+   "permissionMode": "text é",
+   "fast": true,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [
+    "status"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadView",
+  "case": "turns: not an integer",
+  "input": {
+   "id": "text é",
+   "threadId": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "startedBy": "agent",
+   "status": "failed",
+   "title": "text é",
+   "sessionId": "text é",
+   "claudeSessionId": "text é",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "turns": 2.5,
+   "ran": true,
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "pid": 7,
+   "agentPid": 7,
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   },
+   "permissionMode": "text é",
+   "fast": true,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "turns"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadView",
+  "case": "turns: under 0",
+  "input": {
+   "id": "text é",
+   "threadId": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "startedBy": "agent",
+   "status": "failed",
+   "title": "text é",
+   "sessionId": "text é",
+   "claudeSessionId": "text é",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "turns": 0,
+   "ran": true,
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "pid": 7,
+   "agentPid": 7,
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   },
+   "permissionMode": "text é",
+   "fast": true,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ]
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "turns"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "ThreadView",
+  "case": "ran: not a boolean",
+  "input": {
+   "id": "text é",
+   "threadId": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "startedBy": "agent",
+   "status": "failed",
+   "title": "text é",
+   "sessionId": "text é",
+   "claudeSessionId": "text é",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "turns": 7,
+   "ran": "yes",
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "pid": 7,
+   "agentPid": 7,
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   },
+   "permissionMode": "text é",
+   "fast": true,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "ran"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadView",
+  "case": "pid: not an integer",
+  "input": {
+   "id": "text é",
+   "threadId": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "startedBy": "agent",
+   "status": "failed",
+   "title": "text é",
+   "sessionId": "text é",
+   "claudeSessionId": "text é",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "turns": 7,
+   "ran": true,
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "pid": 2.5,
+   "agentPid": 7,
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   },
+   "permissionMode": "text é",
+   "fast": true,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "pid"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadView",
+  "case": "agentPid: not an integer",
+  "input": {
+   "id": "text é",
+   "threadId": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "startedBy": "agent",
+   "status": "failed",
+   "title": "text é",
+   "sessionId": "text é",
+   "claudeSessionId": "text é",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "turns": 7,
+   "ran": true,
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "pid": 7,
+   "agentPid": 2.5,
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   },
+   "permissionMode": "text é",
+   "fast": true,
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "agentPid"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadView",
+  "case": "fast: not a boolean",
+  "input": {
+   "id": "text é",
+   "threadId": "text é",
+   "workspaceId": "text é",
+   "harness": "text é",
+   "startedBy": "agent",
+   "status": "failed",
+   "title": "text é",
+   "sessionId": "text é",
+   "claudeSessionId": "text é",
+   "startedAt": 2.5,
+   "endedAt": 2.5,
+   "cwd": "text é",
+   "turns": 7,
+   "ran": true,
+   "parentThreadId": "text é",
+   "rootThreadId": "text é",
+   "attempt": "text é",
+   "asking": "text é",
+   "waitingOn": {
+    "threadId": "text é",
+    "workspaceId": "text é",
+    "sessionId": "text é",
+    "title": "text é",
+    "prompt": {
+     "askId": "text é",
+     "toolName": "text é",
+     "toolUseId": "text é",
+     "parentToolUseId": "text é",
+     "input": "text é",
+     "detail": "text é",
+     "options": [
+      {
+       "id": "text é",
+       "label": "text é",
+       "effect": "answer"
+      }
+     ]
+    }
+   },
+   "setupRefusal": "text é",
+   "sub": {
+    "state": "released",
+    "on": "text é",
+    "machine": "text é",
+    "size": {
+     "cpu": 7,
+     "memMb": 7,
+     "name": "text é"
+    },
+    "rateUsdPerHour": 2.5,
+    "branch": "text é",
+    "result": {
+     "branch": "text é",
+     "pushedSha": "text é",
+     "commits": 7,
+     "unpushed": 7,
+     "changed": 7,
+     "onBranch": "text é",
+     "norepo": true,
+     "readFailed": "text é",
+     "readAt": "text é",
+     "pushRefused": "text é"
+    },
+    "held": {
+     "files": 7,
+     "commits": 7
+    },
+    "deleteAt": 2.5,
+    "releasedAt": 2.5,
+    "cloudGone": true,
+    "sessionNotKept": "text é",
+    "spawn": {
+     "startedAt": 2.5,
+     "branch": {
+      "branch": "text é",
+      "sha": "text é",
+      "ms": 7
+     },
+     "machine": {
+      "since": 2.5,
+      "id": "text é",
+      "states": [],
+      "ms": 7
+     },
+     "files": {
+      "since": 2.5,
+      "paths": [],
+      "bytes": 7,
+      "ms": 7
+     },
+     "readyAt": 2.5,
+     "failed": {
+      "step": "files",
+      "said": "text é",
+      "fix": "text é"
+     },
+     "uncommitted": 7,
+     "asked": "text é",
+     "notSent": "text é",
+     "replaced": [
+      "text é"
+     ],
+     "log": [
+      "text é"
+     ]
+    }
+   },
+   "diskKeptUntil": 2.5,
+   "diskGone": "text é",
+   "capped": {
+    "placeId": "text é",
+    "place": "text é",
+    "running": 7,
+    "atOnce": 7,
+    "why": "minute"
+   },
+   "limit": {
+    "resetsAt": 2.5
+   },
+   "resumeAt": 2.5,
+   "costUsd": 2.5,
+   "lastLine": "text é",
+   "failure": "text é",
+   "pid": 7,
+   "agentPid": 7,
+   "readAt": 2.5,
+   "settledAt": 2.5,
+   "pinnedAt": 2.5,
+   "order": 2.5,
+   "foldedAt": 2.5,
+   "replaces": "text é",
+   "replacedBy": "text é",
+   "snoozedUntil": 2.5,
+   "wokeAt": 2.5,
+   "section": {
+    "name": "idle",
+    "whileState": "text é"
+   },
+   "rewoundAt": 2.5,
+   "forkedFrom": {
+    "threadId": "text é",
+    "turnId": "text é",
+    "title": "text é"
+   },
+   "permissionMode": "text é",
+   "fast": "yes",
+   "subagents": [
+    {
+     "id": "text é",
+     "title": "text é",
+     "state": "stopped",
+     "parentToolUseId": "text é",
+     "depth": 7,
+     "model": "text é",
+     "asked": "text é",
+     "startedAt": 2.5,
+     "endedAt": 2.5,
+     "lastLine": "text é",
+     "failure": "text é",
+     "usage": {
+      "tokens": {
+       "input": 2.5,
+       "output": 2.5,
+       "cached": 2.5,
+       "cacheWrite": 2.5,
+       "reasoning": 2.5
+      },
+      "toolUses": 7,
+      "durationMs": 2.5
+     }
+    }
+   ]
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "fast"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ThreadWaitingOn",
+  "case": "full",
+  "input": {
+   "threadId": "text é",
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "title": "text é",
+   "prompt": {
+    "askId": "text é",
+    "toolName": "text é",
+    "toolUseId": "text é",
+    "parentToolUseId": "text é",
+    "input": "text é",
+    "detail": "text é",
+    "options": [
+     {
+      "id": "text é",
+      "label": "text é",
+      "effect": "answer",
+      "mode": "text é"
+     }
+    ]
+   }
+  },
+  "output": "{\"threadId\":\"text é\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"title\":\"text é\",\"prompt\":{\"askId\":\"text é\",\"toolName\":\"text é\",\"toolUseId\":\"text é\",\"parentToolUseId\":\"text é\",\"input\":\"text é\",\"detail\":\"text é\",\"options\":[{\"id\":\"text é\",\"label\":\"text é\",\"effect\":\"answer\",\"mode\":\"text é\"}]}}"
+ },
+ {
+  "type": "ThreadWaitingOn",
+  "case": "minimal",
+  "input": {
+   "threadId": "s",
+   "workspaceId": "s",
+   "sessionId": "s",
+   "title": "s",
+   "prompt": {
+    "askId": "s",
+    "toolName": "s",
+    "input": "s",
+    "options": []
+   }
+  },
+  "output": "{\"threadId\":\"s\",\"workspaceId\":\"s\",\"sessionId\":\"s\",\"title\":\"s\",\"prompt\":{\"askId\":\"s\",\"toolName\":\"s\",\"input\":\"s\",\"options\":[]}}"
+ },
+ {
+  "type": "ThreadWaitingOn",
+  "case": "missing threadId",
+  "input": {
+   "workspaceId": "text é",
+   "sessionId": "text é",
+   "title": "text é",
+   "prompt": {
+    "askId": "text é",
+    "toolName": "text é",
+    "toolUseId": "text é",
+    "parentToolUseId": "text é",
+    "input": "text é",
+    "detail": "text é",
+    "options": [
+     {
+      "id": "text é",
+      "label": "text é",
+      "effect": "answer",
+      "mode": "text é"
+     }
+    ]
+   }
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "threadId"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TitleSource",
+  "case": "full",
+  "input": "person",
+  "output": "\"person\""
+ },
+ {
+  "type": "TitleSource",
+  "case": "minimal",
+  "input": "seed",
+  "output": "\"seed\""
+ },
+ {
+  "type": "TitleSource",
+  "case": "value auto",
+  "input": "auto",
+  "output": "\"auto\""
+ },
+ {
+  "type": "TitleSource",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "TurnRefusal",
+  "case": "full",
+  "input": "sign-in",
+  "output": "\"sign-in\""
+ },
+ {
+  "type": "TurnRefusal",
+  "case": "not one of the values",
+  "input": "not-a-value",
+  "issue": {
+   "code": "invalid_enum_value",
+   "path": [],
+   "serdeLevel": true
+  }
+ }
+]

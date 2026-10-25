@@ -1,0 +1,343 @@
+[
+ {
+  "type": "Checkout",
+  "case": "full",
+  "input": {
+   "branch": "text é",
+   "ahead": 7,
+   "behind": 7,
+   "changed": 7,
+   "editsUnread": true,
+   "countsUnknown": true,
+   "stashes": 7,
+   "head": "text é",
+   "readAt": 2.5
+  },
+  "output": "{\"branch\":\"text é\",\"ahead\":7,\"behind\":7,\"changed\":7,\"editsUnread\":true,\"countsUnknown\":true,\"stashes\":7,\"head\":\"text é\",\"readAt\":2.5}"
+ },
+ {
+  "type": "Checkout",
+  "case": "minimal",
+  "input": {
+   "branch": "s",
+   "ahead": 7,
+   "behind": 7,
+   "changed": 7,
+   "readAt": 3
+  },
+  "output": "{\"branch\":\"s\",\"ahead\":7,\"behind\":7,\"changed\":7,\"readAt\":3}"
+ },
+ {
+  "type": "Checkout",
+  "case": "nulls",
+  "input": {
+   "branch": "s",
+   "ahead": 7,
+   "behind": 7,
+   "changed": 7,
+   "editsUnread": false,
+   "countsUnknown": false,
+   "stashes": 7,
+   "head": "s",
+   "readAt": 3
+  },
+  "output": "{\"branch\":\"s\",\"ahead\":7,\"behind\":7,\"changed\":7,\"editsUnread\":false,\"countsUnknown\":false,\"stashes\":7,\"head\":\"s\",\"readAt\":3}"
+ },
+ {
+  "type": "Checkout",
+  "case": "missing branch",
+  "input": {
+   "ahead": 7,
+   "behind": 7,
+   "changed": 7,
+   "editsUnread": true,
+   "countsUnknown": true,
+   "stashes": 7,
+   "head": "text é",
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "branch"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "Checkout",
+  "case": "ahead: not an integer",
+  "input": {
+   "branch": "text é",
+   "ahead": 2.5,
+   "behind": 7,
+   "changed": 7,
+   "editsUnread": true,
+   "countsUnknown": true,
+   "stashes": 7,
+   "head": "text é",
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "ahead"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "Checkout",
+  "case": "behind: not an integer",
+  "input": {
+   "branch": "text é",
+   "ahead": 7,
+   "behind": 2.5,
+   "changed": 7,
+   "editsUnread": true,
+   "countsUnknown": true,
+   "stashes": 7,
+   "head": "text é",
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "behind"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "Checkout",
+  "case": "changed: not an integer",
+  "input": {
+   "branch": "text é",
+   "ahead": 7,
+   "behind": 7,
+   "changed": 2.5,
+   "editsUnread": true,
+   "countsUnknown": true,
+   "stashes": 7,
+   "head": "text é",
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "changed"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "Checkout",
+  "case": "editsUnread: not a boolean",
+  "input": {
+   "branch": "text é",
+   "ahead": 7,
+   "behind": 7,
+   "changed": 7,
+   "editsUnread": "yes",
+   "countsUnknown": true,
+   "stashes": 7,
+   "head": "text é",
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "editsUnread"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "Checkout",
+  "case": "countsUnknown: not a boolean",
+  "input": {
+   "branch": "text é",
+   "ahead": 7,
+   "behind": 7,
+   "changed": 7,
+   "editsUnread": true,
+   "countsUnknown": "yes",
+   "stashes": 7,
+   "head": "text é",
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "countsUnknown"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "Checkout",
+  "case": "stashes: not an integer",
+  "input": {
+   "branch": "text é",
+   "ahead": 7,
+   "behind": 7,
+   "changed": 7,
+   "editsUnread": true,
+   "countsUnknown": true,
+   "stashes": 2.5,
+   "head": "text é",
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "stashes"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "Checkout",
+  "case": "stashes: under 0",
+  "input": {
+   "branch": "text é",
+   "ahead": 7,
+   "behind": 7,
+   "changed": 7,
+   "editsUnread": true,
+   "countsUnknown": true,
+   "stashes": 0,
+   "head": "text é",
+   "readAt": 2.5
+  },
+  "issue": {
+   "code": "too_small",
+   "path": [
+    "stashes"
+   ],
+   "serdeLevel": false
+  }
+ },
+ {
+  "type": "CheckoutReply",
+  "case": "full",
+  "input": {
+   "checkout": {
+    "branch": "text é",
+    "ahead": 7,
+    "behind": 7,
+    "changed": 7,
+    "editsUnread": true,
+    "countsUnknown": true,
+    "stashes": 7,
+    "head": "text é",
+    "readAt": 2.5
+   }
+  },
+  "output": "{\"checkout\":{\"branch\":\"text é\",\"ahead\":7,\"behind\":7,\"changed\":7,\"editsUnread\":true,\"countsUnknown\":true,\"stashes\":7,\"head\":\"text é\",\"readAt\":2.5}}"
+ },
+ {
+  "type": "CheckoutReply",
+  "case": "minimal",
+  "input": {},
+  "output": "{}"
+ },
+ {
+  "type": "CheckoutReply",
+  "case": "nulls",
+  "input": {
+   "checkout": {
+    "branch": "s",
+    "ahead": 7,
+    "behind": 7,
+    "changed": 7,
+    "readAt": 3
+   }
+  },
+  "output": "{\"checkout\":{\"branch\":\"s\",\"ahead\":7,\"behind\":7,\"changed\":7,\"readAt\":3}}"
+ },
+ {
+  "type": "CommitDraft",
+  "case": "full",
+  "input": {
+   "message": "text é",
+   "note": "text é"
+  },
+  "output": "{\"message\":\"text é\",\"note\":\"text é\"}"
+ },
+ {
+  "type": "CommitDraft",
+  "case": "minimal",
+  "input": {
+   "message": "s"
+  },
+  "output": "{\"message\":\"s\"}"
+ },
+ {
+  "type": "CommitDraft",
+  "case": "nulls",
+  "input": {
+   "message": null,
+   "note": "s"
+  },
+  "output": "{\"message\":null,\"note\":\"s\"}"
+ },
+ {
+  "type": "CommitDraft",
+  "case": "missing message, which is null or a value but never absent",
+  "input": {
+   "note": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "message"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "CommitDraft",
+  "case": "missing message",
+  "input": {
+   "note": "text é"
+  },
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "message"
+   ],
+   "serdeLevel": true
+  }
+ },
+ {
+  "type": "ViewedMarks",
+  "case": "full",
+  "input": {
+   "viewed": {
+    "k": "text é"
+   }
+  },
+  "output": "{\"viewed\":{\"k\":\"text é\"}}"
+ },
+ {
+  "type": "ViewedMarks",
+  "case": "minimal",
+  "input": {
+   "viewed": {}
+  },
+  "output": "{\"viewed\":{}}"
+ },
+ {
+  "type": "ViewedMarks",
+  "case": "missing viewed",
+  "input": {},
+  "issue": {
+   "code": "invalid_type",
+   "path": [
+    "viewed"
+   ],
+   "serdeLevel": true
+  }
+ }
+]
