@@ -78,7 +78,7 @@ One live MCP connection per thread and server; runs of `tool` and `resource` kin
 | 3 | `names_a_stdio_servers_process_as_the_threads_tool_server_until_closed` (TS :175-204), `a_failed_start_says_what_the_server_said_and_connects_again_next_time` |
 | client caps via runs | `cuts_a_server_off_past_2_mb_and_fails_too_deep_or_too_wide_answers` (TS :206-254) |
 | 8, 11, 15 | `skips_the_ask_for_a_read_only_tool_and_asks_every_start_of_a_confirm_run` (TS :481-518), `asks_once_per_piece_of_code_and_new_arguments_ask_again`, `at_bypass_starts_a_tool_not_marked_read_only_with_no_ask` |
-| 7, 9, 17 | `the_sheet_names_the_tool_its_code_and_dots_for_a_secret`, `named_cuts_to_120` |
+| 7, 9, 17 | `the_sheet_names_the_tool_its_code_and_dots_for_a_secret`, `named_cuts_to_120`, `a_then_reading_a_slate_file_carries_its_text_in_the_ask` (TS :639-662) |
 | 12, 13 | `a_tool_run_fills_json_and_a_text_only_run_says_text`, `a_resource_run_parses_its_one_text`, `a_tool_that_says_it_failed_fails`, `a_missing_tool_or_secret_fails_the_run`, `a_then_reshapes_a_text_tool_into_json`, `a_tools_structured_answer_moves_the_catalog_to_returns_data` |
 | 11 | `a_persons_presses_meet_the_start_budget` (TS :622-637), `once_beside_a_running_call_is_noop` |
 | 14, 16, 19 | `deny_cancels_a_held_start_and_leaves_a_running_call`, `cancel_tells_the_server_and_writes_cancelled`, `stop_all_quiet_writes_nothing` |

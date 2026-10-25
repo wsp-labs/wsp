@@ -15,7 +15,7 @@ use indexmap::IndexMap;
 pub use wsp_wire::types::daemon_contract::{FS_HASH_CAP_BYTES, FS_HASH_FILES_MAX, FS_HASH_PATHS_MAX};
 pub use wsp_wire::wire::daemon::FsHashReply;
 
-use crate::pending::{SlateDoc, SlateRunDecl};
+use crate::pending::slate::{SlateDoc, SlateRunDecl};
 
 /// What a read of the files a run names found, on this computer or by the daemon of the thread's own (slate-files.ts:51).
 pub type HashRead = FsHashReply;

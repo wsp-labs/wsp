@@ -17,8 +17,12 @@ use serde_json::{Map, Value};
 use wsp_core::clock::{Cancel, Clock};
 
 use super::client::{McpClient, McpRunDecl, McpServerSpec, McpToolInfo, ToolAsks};
-use crate::pending::{SlateAsk, SlateDoc, SlateProblem};
+use crate::pending::slate::{SlateDoc, SlateProblem};
+use crate::pending::wire::SlateAsk;
 use crate::slate_runs::{Reshape, RunApprovals, RunBy, RunRecord, RunResult, RunStartAnswer};
+
+/// Which approval scope the person chose: `Always` is the TS's "thread".
+pub use crate::slate_runs::ApproveScope;
 
 /// A start of a tool or resource run (slate-mcp.ts:127).
 #[derive(Clone)]
@@ -78,13 +82,6 @@ pub struct StopAll {
 pub struct NamedAsk {
     pub run: String,
     pub cmd: String,
-}
-
-/// Which approval scope the person chose.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ApproveScope {
-    Once,
-    Thread,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

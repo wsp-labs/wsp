@@ -13,7 +13,7 @@ use futures::future::LocalBoxFuture;
 
 pub use wsp_wire::wire::daemon::FsImageReply;
 
-use crate::pending::SlatesImageAnswer;
+use crate::pending::wire::SlatesImageAnswer;
 use crate::slate_image_fetch::FetchRoad;
 
 /// How many images one thread reads or fetches at once (slate-images.ts:189).
