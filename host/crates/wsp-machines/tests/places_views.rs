@@ -162,22 +162,27 @@ fn floor_throw_is_one_floor_row() {
 
 #[test]
 fn floor_pending_gone_writes_nothing() {
-    // spec: V4, V5: a remove or a set up that took the pending add during the floor leaves it gone.
+    // spec: V4, V5: a remove or a set up that took the pending add while the floor ran leaves it gone.
     run(async {
-        let d = flooring(Ok(vec![]));
+        let prov = Rc::new(Provision::default());
+        let p2 = prov.clone();
+        let d = door(move |s| {
+            s.pending = vec![pending_json("a_000000000001", "10.0.0.5", json!({ "step": "join" }))];
+            *s.setup.link.borrow_mut() = Some(FakeMachineLink::exec_says(""));
+            s.wiring = Box::new(move |w| w.provision = Some(p2));
+        });
+        let store = d.store.clone();
+        *prov.on_floor.borrow_mut() = Some(Box::new(move || {
+            store.docs.borrow_mut().get_mut("pending-computers").unwrap().shift_remove("a_000000000001");
+        }));
         let p = pending_record(d.pending_docs()[0].clone());
-        let (views, store) = (d.views.clone(), d.store.clone());
-        let p2 = p.clone();
-        let floor = tokio::task::spawn_local(async move { views.floor_once(&p2, PLACE).await });
-        settle().await;
-        // The provisioner fake answers at once, so the take happens between the floor write and its end only if the
-        // store moved first: drop it now and run the floor again to pin the read of the stored document.
-        floor.await.unwrap().unwrap();
-        store.docs.borrow_mut().get_mut("pending-computers").unwrap().shift_remove("a_000000000001");
-        d.views.floor_while_choosing(&p, PLACE).await.unwrap();
-        // The floor step's write lands (it is first), the final one does not: the store read found nothing.
-        let stored = d.store.doc("pending-computers", "a_000000000001").unwrap();
-        assert_eq!(stored["step"], json!("floor"));
+        d.views.floor_once(&p, PLACE).await.unwrap();
+        assert!(d.store.doc("pending-computers", "a_000000000001").is_none(), "the floor's end wrote nothing back");
+        let steps: Vec<Value> = d.setups.borrow().iter().map(|e| match e {
+            SetupEvent::Pending(p) => js(p.pending.as_ref().unwrap())["step"].clone(),
+            _ => Value::Null,
+        }).collect();
+        assert_eq!(steps, vec![json!("floor")], "only the floor step was written");
         assert!(d.views.flooring.borrow().is_empty(), "floor_once took its mark off");
     });
 }
