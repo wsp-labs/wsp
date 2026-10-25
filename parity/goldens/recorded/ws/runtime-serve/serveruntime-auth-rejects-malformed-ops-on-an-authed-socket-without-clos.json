@@ -9,7 +9,28 @@
     {
       "id": 2,
       "ok": false,
-      "error": "[\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"string\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"project\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"string\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"name\"\n    ],\n    \"message\": \"Required\"\n  }\n]"
+      "error": {
+        "json": [
+          {
+            "code": "<code>",
+            "expected": "string",
+            "received": "undefined",
+            "path": [
+              "project"
+            ],
+            "message": "Required"
+          },
+          {
+            "code": "<code>",
+            "expected": "string",
+            "received": "undefined",
+            "path": [
+              "name"
+            ],
+            "message": "Required"
+          }
+        ]
+      }
     },
     {
       "id": 3,

@@ -324,9 +324,12 @@ impl Swaps {
 
 fn ws(tape: &Tape, order: &mut Order, host: &Running, wait: Duration) -> Result<(Vec<Value>, Vec<Value>), String> {
     let stream = TcpStream::connect(("127.0.0.1", host.port)).map_err(|e| format!("dial the host: {e}"))?;
-    stream.set_read_timeout(Some(Duration::from_millis(50))).map_err(|e| e.to_string())?;
+    // The handshake reads its answer in one blocking call, which a loaded computer can keep waiting for seconds; the
+    // short timeout the reading loop polls with goes on once the socket is open.
+    stream.set_read_timeout(Some(wait)).map_err(|e| e.to_string())?;
     let (mut socket, _) =
         tungstenite::client::client(format!("ws://127.0.0.1:{}/ws", host.port), stream).map_err(|e| format!("open the socket: {e}"))?;
+    socket.get_ref().set_read_timeout(Some(Duration::from_millis(50))).map_err(|e| e.to_string())?;
     let mut written: HashMap<String, VecDeque<Value>> = HashMap::new();
     for out in &tape.outs {
         if let Some(id) = request_id(out).filter(|_| out.get("op").is_none()) {

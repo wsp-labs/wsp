@@ -53,7 +53,19 @@
     {
       "id": 10,
       "ok": false,
-      "error": "[\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"string\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"prompt\"\n    ],\n    \"message\": \"Required\"\n  }\n]"
+      "error": {
+        "json": [
+          {
+            "code": "<code>",
+            "expected": "string",
+            "received": "undefined",
+            "path": [
+              "prompt"
+            ],
+            "message": "Required"
+          }
+        ]
+      }
     }
   ],
   "events": []

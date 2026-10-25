@@ -22,7 +22,11 @@
         "content": [
           {
             "type": "text",
-            "text": "{\n  \"threads\": []\n}"
+            "text": {
+              "json": {
+                "threads": []
+              }
+            }
           }
         ],
         "structuredContent": {

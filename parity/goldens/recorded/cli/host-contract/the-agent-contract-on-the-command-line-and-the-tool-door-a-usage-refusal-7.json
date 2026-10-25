@@ -3,7 +3,13 @@
     {
       "exit": 3,
       "stdout": "",
-      "stderr": "{\"error\":\"wsp pause needs the cloud, which is off on this computer: start the host with WSP_CLOUD=1 to turn it on.\",\"class\":\"usage\",\"exit\":3}\n"
+      "stderr": {
+        "json": {
+          "error": "wsp pause needs the cloud, which is off on this computer: start the host with WSP_CLOUD=1 to turn it on.",
+          "class": "usage",
+          "exit": 3
+        }
+      }
     }
   ],
   "events": []

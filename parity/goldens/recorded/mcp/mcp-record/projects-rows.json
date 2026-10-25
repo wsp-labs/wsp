@@ -22,7 +22,12 @@
         "content": [
           {
             "type": "text",
-            "text": "{\n  \"projects\": [],\n  \"defaults\": {}\n}"
+            "text": {
+              "json": {
+                "projects": [],
+                "defaults": {}
+              }
+            }
           }
         ],
         "structuredContent": {

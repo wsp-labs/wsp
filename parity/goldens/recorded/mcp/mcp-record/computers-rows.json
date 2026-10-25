@@ -22,7 +22,43 @@
         "content": [
           {
             "type": "text",
-            "text": "{\n  \"computers\": [\n    {\n      \"id\": \"here\",\n      \"kind\": \"computer\",\n      \"name\": \"<computer>\",\n      \"default\": true,\n      \"os\": \"Linux 7.0.0-1014-aws\",\n      \"shape\": {\n        \"cpu\": 8,\n        \"memMb\": 31744\n      },\n      \"diskFreeBytes\": 166316699648,\n      \"engine\": \"none\",\n      \"home\": \"<tmp>/home\",\n      \"present\": true,\n      \"takesForks\": false,\n      \"buildsImages\": false,\n      \"cap\": {\n        \"threads\": 16\n      },\n      \"capDefault\": {\n        \"threads\": 16\n      },\n      \"turnLimitMs\": null,\n      \"turnLimitDefault\": null,\n      \"spawn\": {\n        \"spawn\": true,\n        \"maxMachines\": 3,\n        \"maxDepth\": 2\n      },\n      \"spawnDefault\": {\n        \"spawn\": true,\n        \"maxMachines\": 3,\n        \"maxDepth\": 2\n      },\n      \"running\": 0\n    }\n  ],\n  \"spend\": [],\n  \"pending\": []\n}"
+            "text": {
+              "json": {
+                "computers": [
+                  {
+                    "id": "here",
+                    "kind": "computer",
+                    "name": "<computer>",
+                    "default": true,
+                    "os": "<machine>",
+                    "shape": "<machine>",
+                    "diskFreeBytes": "<machine>",
+                    "engine": "none",
+                    "home": "<tmp>/home",
+                    "present": true,
+                    "takesForks": false,
+                    "buildsImages": false,
+                    "cap": "<machine>",
+                    "capDefault": "<machine>",
+                    "turnLimitMs": null,
+                    "turnLimitDefault": null,
+                    "spawn": {
+                      "spawn": true,
+                      "maxMachines": 3,
+                      "maxDepth": 2
+                    },
+                    "spawnDefault": {
+                      "spawn": true,
+                      "maxMachines": 3,
+                      "maxDepth": 2
+                    },
+                    "running": 0
+                  }
+                ],
+                "spend": [],
+                "pending": []
+              }
+            }
           }
         ],
         "structuredContent": {
