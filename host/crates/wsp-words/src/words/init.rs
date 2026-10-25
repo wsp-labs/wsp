@@ -3,11 +3,15 @@
 //! rows and sign-ins, the counts and lines the sidebar, the toast and the terminal read off one job, and the agent
 //! road's brief. Each TS statement stands as a comment above its stub. See spec/init.md.
 
-use wsp_wire::types::init_job::{InitJob, InitPhase, InitRow, LoginChoice, LoginState};
+use crate::js::{js_trim, number_string, to_fixed};
+use crate::words::base::lower_first;
+use crate::words::computer::{this_computer, Platform};
+use crate::words::units::{fmt_bytes, fmt_duration, fmt_size};
+use regex::Regex;
+use serde::Serialize;
+use wsp_wire::types::init_job::{InitJob, InitPhase, InitRoad, InitRow, InitRowKind, LoginChoice, LoginState, SignInFinish};
 use wsp_wire::views::golden_image::GoldenStage;
 use wsp_wire::wire::capabilities::{InitSetup, WorkspaceSize};
-use crate::words::computer::Platform;
-use serde::Serialize;
 
 /// Every word of the steps that choose and build the image, drawn under a computer's Image card and, where a word is
 /// the host's, in the terminal too. Headlines are a step's title, tops the one sentence under it, keycaps the one
@@ -118,15 +122,15 @@ pub mod cloud_setup_words {
         pub const UNSET: &str = "not set";
         /// TS: (provider ) => `${providerKeyName(provider)} refused this key`
         pub fn refused(provider: &str) -> String {
-            todo!()
+            format!("{} refused this key", crate::place_word::provider_key_name(provider))
         }
         /// TS: (provider ) => `${providerKeyName(provider)} refused the saved key`
         pub fn refused_saved(provider: &str) -> String {
-            todo!()
+            format!("{} refused the saved key", crate::place_word::provider_key_name(provider))
         }
         /// TS: (provider ) => `${providerKeyName(provider)} could not be reached to check the key`
         pub fn unchecked(provider: &str) -> String {
-            todo!()
+            format!("{} could not be reached to check the key", crate::place_word::provider_key_name(provider))
         }
         pub const CHANGE_KEY: &str = "Change the key";
     }
@@ -210,11 +214,11 @@ pub mod host_sign_ins {
     pub const KEY: &str = "signed in with an API key";
     /// TS: (account ) => `signed in as ${account}`
     pub fn r#as(account: &str) -> String {
-        todo!()
+        format!("signed in as {account}")
     }
     /// TS: (command ) => `not signed in: run ${command}`
     pub fn missing(command: &str) -> String {
-        todo!()
+        format!("not signed in: run {command}")
     }
     pub const STOPPED: &str = "Nothing was booted. Run the line beside each sign-in that is not ready, on this computer, then run wsp init again; the recipe is kept.";
 }
@@ -251,12 +255,26 @@ pub mod host_sign_in_commands {
 // };
 /// `SIGN_IN_ANSWERS[choice].label(platform)`, word for word.
 pub fn sign_in_answer_label(choice: LoginChoice, platform: Platform) -> String {
-    todo!()
+    match choice {
+        LoginChoice::Copy => format!("copy from {}", this_computer(platform)),
+        LoginChoice::Machine => "sign in during the build".to_string(),
+        LoginChoice::Later => SIGN_IN_LATER.to_string(),
+        LoginChoice::Key => "API key".to_string(),
+        LoginChoice::Skip => "skip".to_string(),
+        LoginChoice::Token => "token from this computer".to_string(),
+    }
 }
 
 /// `SIGN_IN_ANSWERS[choice].short`, word for word.
 pub fn sign_in_answer_short(choice: LoginChoice) -> &'static str {
-    todo!()
+    match choice {
+        LoginChoice::Copy => "copy",
+        LoginChoice::Machine => "during the build",
+        LoginChoice::Later => "when you need it",
+        LoginChoice::Key => "API key",
+        LoginChoice::Skip => "skip",
+        LoginChoice::Token => "token",
+    }
 }
 
 /// One answer with its words, keys value then label.
@@ -271,14 +289,17 @@ pub struct SignInChoice {
 // export const signInChoices = (platform: "darwin" | "linux"): readonly { value: LoginChoice; label: string }[] => LOGIN_CHOICES.map(value => signInChoice(value, platform));
 /// In LOGIN_CHOICES' order: copy, machine, later, key, skip, token.
 pub fn sign_in_choices(platform: Platform) -> Vec<SignInChoice> {
-    todo!()
+    [LoginChoice::Copy, LoginChoice::Machine, LoginChoice::Later, LoginChoice::Key, LoginChoice::Skip, LoginChoice::Token]
+        .into_iter()
+        .map(|choice| sign_in_choice(choice, platform))
+        .collect()
 }
 
 /// One answer by its own name, so nothing depends on where it sits in the list.
 // init.ts:150
 // export const signInChoice = (value: LoginChoice, platform: "darwin" | "linux"): { value: LoginChoice; label: string } => ({ value, label: SIGN_IN_ANSWERS[value].label(platform) });
 pub fn sign_in_choice(value: LoginChoice, platform: Platform) -> SignInChoice {
-    todo!()
+    SignInChoice { value, label: sign_in_answer_label(value, platform) }
 }
 
 /// The state of a sign-in as a word, the one spelling the terminal's rows and the modal's rows print.
@@ -293,7 +314,14 @@ pub fn sign_in_choice(value: LoginChoice, platform: Platform) -> SignInChoice {
 // };
 /// `LOGIN_STATE_WORDS[state]`, word for word.
 pub fn login_state_word(state: LoginState) -> &'static str {
-    todo!()
+    match state {
+        LoginState::SignedIn => "signed in",
+        LoginState::NotSignedIn => "not signed in",
+        LoginState::Copied => "copied",
+        LoginState::NotVerified => "not verified",
+        LoginState::Skipped => "skipped",
+        LoginState::Deferred => SIGN_IN_DEFERRED_WORD,
+    }
 }
 
 /// The word for a job that waits on the person rather than the machine: the answers, or a sign-in's page.
@@ -331,7 +359,18 @@ const WAITING_FOR_YOU: &str = "waiting for you";
 //   }
 // }
 pub fn init_phase_word(phase: InitPhase) -> String {
-    todo!()
+    match phase {
+        InitPhase::Agent => "agent writing the recipe".to_string(),
+        InitPhase::Reading => "reading this computer".to_string(),
+        InitPhase::Answering => WAITING_FOR_YOU.to_string(),
+        InitPhase::Building => "building".to_string(),
+        InitPhase::SigningIn => "signing in".to_string(),
+        InitPhase::Sealing => "sealing".to_string(),
+        InitPhase::Finishing => "finishing".to_string(),
+        InitPhase::Done => "done".to_string(),
+        InitPhase::Failed => "failed".to_string(),
+        InitPhase::Cancelled => "cancelled".to_string(),
+    }
 }
 
 /// The words a build row's state is written in, one table for the host that sets them and the client that reads them;
@@ -399,7 +438,14 @@ pub mod init_row_states {
 // };
 /// `INIT_SIGN_IN_WORDS[login](platform)`.
 pub fn init_sign_in_word(login: LoginState, platform: Platform) -> String {
-    todo!()
+    match login {
+        LoginState::SignedIn => init_row_states::DONE.to_string(),
+        LoginState::NotSignedIn => "not signed in".to_string(),
+        LoginState::Copied => format!("copied from {}", this_computer(platform)),
+        LoginState::NotVerified => "not verified".to_string(),
+        LoginState::Skipped => init_row_states::SKIPPED.to_string(),
+        LoginState::Deferred => SIGN_IN_DEFERRED_WORD.to_string(),
+    }
 }
 
 /// A sign-in row's outcome as it travels: the name every client reads and, beside it, the word drawn for the
@@ -416,7 +462,7 @@ pub struct RowState {
 }
 
 pub fn init_sign_in_outcome(login: LoginState, platform: Platform) -> RowState {
-    todo!()
+    RowState { state: init_sign_in_word(login, platform), login: Some(login) }
 }
 
 /// Every build stage in plain words, the one table the app's rows and the terminal's lines read.
@@ -437,7 +483,21 @@ pub fn init_sign_in_outcome(login: LoginState, platform: Platform) -> RowState {
 // };
 /// `GOLDEN_STAGE_WORDS[stage]`, word for word; None for Failed, which has no row word.
 pub fn golden_stage_word(stage: GoldenStage) -> Option<&'static str> {
-    todo!()
+    match stage {
+        GoldenStage::Creating => Some("Creating the machine"),
+        GoldenStage::DeployingDaemon => Some("Installing the base tools"),
+        GoldenStage::ApplyingSetup => Some("Applying your setup"),
+        GoldenStage::UploadingFiles => Some("Copying your files"),
+        GoldenStage::InstallingHarness => Some("Installing agents"),
+        GoldenStage::InstallingTools => Some("Installing tools"),
+        GoldenStage::InstallingMcp => Some("Installing MCP servers"),
+        GoldenStage::Ready => Some("Checking the machine answers"),
+        GoldenStage::Snapshotting => Some("Taking the snapshot"),
+        GoldenStage::Promoting => Some("Saving the image"),
+        GoldenStage::SmokeForking => Some("Checking a fork boots"),
+        GoldenStage::Sealed => Some("Finishing"),
+        GoldenStage::Failed => None,
+    }
 }
 
 /// The stages the provider gives no progress for: the snapshot and the save go to their end with nothing to say in
@@ -446,25 +506,48 @@ pub fn golden_stage_word(stage: GoldenStage) -> Option<&'static str> {
 // export const GOLDEN_STAGE_TIMED: ReadonlySet<GoldenStage> = new Set<GoldenStage>(["snapshotting", "promoting"]);
 pub const GOLDEN_STAGE_TIMED: [GoldenStage; 2] = [GoldenStage::Snapshotting, GoldenStage::Promoting];
 
+/// A stage's wire word, the one the row id and the stage's frame both carry.
+fn stage_wire(stage: GoldenStage) -> &'static str {
+    match stage {
+        GoldenStage::Creating => "creating",
+        GoldenStage::DeployingDaemon => "deploying-daemon",
+        GoldenStage::ApplyingSetup => "applying-setup",
+        GoldenStage::UploadingFiles => "uploading-files",
+        GoldenStage::InstallingHarness => "installing-harness",
+        GoldenStage::InstallingTools => "installing-tools",
+        GoldenStage::InstallingMcp => "installing-mcp",
+        GoldenStage::Ready => "ready",
+        GoldenStage::Snapshotting => "snapshotting",
+        GoldenStage::Promoting => "promoting",
+        GoldenStage::SmokeForking => "smoke-forking",
+        GoldenStage::Sealed => "sealed",
+        GoldenStage::Failed => "failed",
+    }
+}
+
 /// A stage's row id, the one spelling the host writes and a client reads.
 // init.ts:264
 // export const initStageRowId = (stage: GoldenStage): string => `stage/${stage}`;
 pub fn init_stage_row_id(stage: GoldenStage) -> String {
-    todo!()
+    format!("stage/{}", stage_wire(stage))
 }
 
 /// Whether a row is one of the stages that count their own seconds.
 // init.ts:267
 // export const initRowTimed = (row: Pick<InitRow, "id">): boolean => [...GOLDEN_STAGE_TIMED].some(stage => row.id === initStageRowId(stage));
 pub fn init_row_timed(row: &InitRow) -> bool {
-    todo!()
+    GOLDEN_STAGE_TIMED.iter().any(|stage| row.id == init_stage_row_id(*stage))
 }
 
 /// A row's clock while it runs: whole seconds under a minute, then minutes and seconds.
 // init.ts:270
 // export const initElapsedLine = (ms: number): string => (ms < 60_000 ? `${Math.max(0, Math.floor(ms / 1_000))}s` : fmtDuration(ms));
 pub fn init_elapsed_line(ms: f64) -> String {
-    todo!()
+    if ms < 60_000.0 {
+        format!("{}s", number_string((ms / 1_000.0).floor().max(0.0)))
+    } else {
+        fmt_duration(ms, None)
+    }
 }
 
 /// The snapshot stage's first line, while the guest's dirty pages are written to its disk ahead of the copy.
@@ -477,14 +560,18 @@ pub const DISK_SYNC_LINE: &str = "syncing the disk";
 // export const diskUnsettledLine = (reading: { dirtyKb: number; writebackKb: number }): string =>
 //   `synced, Dirty ${fmtBytes(reading.dirtyKb * KIB)} and Writeback ${fmtBytes(reading.writebackKb * KIB)} remain; a writer is still running`;
 pub fn disk_unsettled_line(dirty_kb: f64, writeback_kb: f64) -> String {
-    todo!()
+    format!(
+        "synced, Dirty {} and Writeback {} remain; a writer is still running",
+        fmt_bytes(dirty_kb * 1024.0),
+        fmt_bytes(writeback_kb * 1024.0)
+    )
 }
 
 /// A snapshot refused because the guest's sync did not succeed, with the machine's own answer.
 // init.ts:281
 // export const diskSyncFailedLine = (answer: string): string => `the disk could not be synced (${answer}); nothing was snapshotted`;
 pub fn disk_sync_failed_line(answer: &str) -> String {
-    todo!()
+    format!("the disk could not be synced ({answer}); nothing was snapshotted")
 }
 
 /// The snapshot stage's one line: what is being snapshotted in words a person can use, never the snapshot's name,
@@ -492,7 +579,10 @@ pub fn disk_sync_failed_line(answer: &str) -> String {
 // init.ts:285
 // export const snapshotStageLine = (bytes: number | undefined): string => `snapshotting${bytes === undefined ? "" : ` about ${fmtBytes(bytes)}`}, usually under a minute`;
 pub fn snapshot_stage_line(bytes: Option<f64>) -> String {
-    todo!()
+    match bytes {
+        None => "snapshotting, usually under a minute".to_string(),
+        Some(bytes) => format!("snapshotting about {}, usually under a minute", fmt_bytes(bytes)),
+    }
 }
 
 /// The snapshot stage's line while the layer is written: the bytes so far, over what the machine had written once
@@ -501,7 +591,10 @@ pub fn snapshot_stage_line(bytes: Option<f64>) -> String {
 // export const snapshotProgressLine = (bytes: number, total: number | undefined): string =>
 //   total === undefined ? `snapshotting, ${fmtBytes(bytes)} written` : `snapshotting, ${fmtBytes(bytes)} of about ${fmtBytes(total)} written`;
 pub fn snapshot_progress_line(bytes: f64, total: Option<f64>) -> String {
-    todo!()
+    match total {
+        None => format!("snapshotting, {} written", fmt_bytes(bytes)),
+        Some(total) => format!("snapshotting, {} of about {} written", fmt_bytes(bytes), fmt_bytes(total)),
+    }
 }
 
 /// The save stage's one line.
@@ -518,14 +611,21 @@ pub const SAVING_IMAGE_LINE: &str = "saving the image";
 //   return row.code !== undefined || row.finish === "code" ? "waiting for the code" : "the page is open on this computer";
 // }
 pub fn init_sign_in_line(row: &InitRow) -> Option<String> {
-    todo!()
+    if row.state != SIGN_IN_OPEN_STATE {
+        return None;
+    }
+    if row.code.is_some() || matches!(row.finish, Some(SignInFinish::Code)) {
+        Some("waiting for the code".to_string())
+    } else {
+        Some("the page is open on this computer".to_string())
+    }
 }
 
 /// The id of the wsp tools screen's row for an agent, the one the app answers for it from the first launch's own answer.
 // init.ts:305
 // export const wspToolsRowId = (agent: string): string => `wsp-tools/${agent}`;
 pub fn wsp_tools_row_id(agent: &str) -> String {
-    todo!()
+    format!("wsp-tools/{agent}")
 }
 
 /// The name a first workspace takes when nobody names one: what the terminal falls back to and what the app's name
@@ -565,7 +665,7 @@ pub const MCP_ADDED_WORD: &str = init_row_states::MCP_ADDED;
 // init.ts:329
 // export const initRowUnrun = (state: string): boolean => ROW_UNRUN.has(state);
 pub fn init_row_unrun(state: &str) -> bool {
-    todo!()
+    [init_row_states::SKIPPED, init_row_states::NOT_MADE, init_row_states::STOPPED].contains(&state)
 }
 
 /// Whether a row is a failure to show as one: the stage that failed, and the sign-in or the stage it folds into whose
@@ -574,7 +674,7 @@ pub fn init_row_unrun(state: &str) -> bool {
 // init.ts:334
 // export const initRowFailed = (row: Pick<InitRow, "state" | "login">): boolean => row.state === INIT_ROW_STATES.failed || row.login === "not-signed-in";
 pub fn init_row_failed(row: &InitRow) -> bool {
-    todo!()
+    row.state == init_row_states::FAILED || row.login == Some(LoginState::NotSignedIn)
 }
 
 /// Whether a row has ended: what the progress count and a section's count read. A sign-in answers from its outcome,
@@ -582,7 +682,20 @@ pub fn init_row_failed(row: &InitRow) -> bool {
 // init.ts:338
 // export const initRowOver = (row: Pick<InitRow, "state" | "login">): boolean => row.login !== undefined || ROW_OVER.has(row.state);
 pub fn init_row_over(row: &InitRow) -> bool {
-    todo!()
+    row.login.is_some()
+        || [
+            init_row_states::DONE,
+            init_row_states::FAILED,
+            init_row_states::STOPPED,
+            init_row_states::FORKED,
+            init_row_states::IMPORTED,
+            init_row_states::KEY_SET,
+            init_row_states::MCP_ADDED,
+            init_row_states::SKIPPED,
+            init_row_states::NOT_MADE,
+            init_row_states::GONE,
+        ]
+        .contains(&row.state.as_str())
 }
 
 /// Where a stopped build was, from the stage that was running: one spelling for the terminal's stop line and the
@@ -590,7 +703,7 @@ pub fn init_row_over(row: &InitRow) -> bool {
 // init.ts:342
 // export const initStageWhile = (stage: string): string => `while ${lowerFirst(stage)}`;
 pub fn init_stage_while(stage: &str) -> String {
-    todo!()
+    format!("while {}", lower_first(stage))
 }
 
 /// The opening of every stop line, terminal and app alike: where the run was when it stopped. What follows it is
@@ -598,7 +711,7 @@ pub fn init_stage_while(stage: &str) -> String {
 // init.ts:346
 // export const initStoppedAt = (where: string): string => `Stopped ${where}.`;
 pub fn init_stopped_at(r#where: &str) -> String {
-    todo!()
+    format!("Stopped {}.", r#where)
 }
 
 /// What the app says after that opening when the provider would not take the kill: the terminal tells the person
@@ -619,7 +732,7 @@ pub const MACHINE_GONE_LINE: &str = "The machine is gone; nothing is billing.";
 // init.ts:360
 // export const machineLeftLine = (reason: string): string => `the machine could not be removed and bills on: ${reason}`;
 pub fn machine_left_line(reason: &str) -> String {
-    todo!()
+    format!("the machine could not be removed and bills on: {reason}")
 }
 
 /// What the sidebar's keycap says while a machine an earlier build left is still being removed: the one line that
@@ -648,7 +761,14 @@ pub const BUILD_NEEDS_FILE_FIX: &str = "Nothing was booted. An installed wsp car
 // init.ts:380
 // export const buildNeedsFileLine = (missing: string): string => `${missing}. ${BUILD_NEEDS_FILE_FIX}`;
 pub fn build_needs_file_line(missing: &str) -> String {
-    todo!()
+    format!("{missing}. {BUILD_NEEDS_FILE_FIX}")
+}
+
+/// The failures a provider client raises when the network is gone, not when the provider refused.
+fn is_offline(part: &str) -> bool {
+    let offline = Regex::new(r"^fetch failed$|(?-u:\b)(ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ENETDOWN|ENETUNREACH|EHOSTUNREACH)(?-u:\b)")
+        .expect("a fixed pattern");
+    offline.is_match(part)
 }
 
 /// The sentence a stopped build shows for what happened: this computer's own word when every part of the error is
@@ -661,7 +781,20 @@ pub fn build_needs_file_line(missing: &str) -> String {
 //   return parts.every(p => OFFLINE_FAILURE.test(p)) ? NETWORK_LOST_LINE : parts.join("; ");
 // }
 pub fn init_stopped_line(error: &str) -> String {
-    todo!()
+    let mut parts: Vec<&str> = Vec::new();
+    for part in error.split(';').map(js_trim).filter(|part| !part.is_empty()) {
+        if !parts.contains(&part) {
+            parts.push(part);
+        }
+    }
+    if parts.is_empty() {
+        return error.to_string();
+    }
+    if parts.iter().all(|part| is_offline(part)) {
+        NETWORK_LOST_LINE.to_string()
+    } else {
+        parts.join("; ")
+    }
 }
 
 /// The sentence a build that stopped on its own ends on: what stopped it, then what became of the machine it had
@@ -680,21 +813,26 @@ pub enum MachineEnd {
 }
 
 pub fn init_failed_line(error: &str, machine: Option<MachineEnd>) -> String {
-    todo!()
+    let said = init_stopped_line(error);
+    match machine {
+        None => said,
+        Some(MachineEnd::Gone) => format!("{said} {MACHINE_GONE_LINE}"),
+        Some(MachineEnd::Left) => format!("{said} {STOP_LEFT_MACHINE_LINE}"),
+    }
 }
 
 /// Whether the job's phase is one it ends on.
 // init.ts:401
 // export const initJobOver = (phase: InitPhase): boolean => phase === "done" || phase === "failed" || phase === "cancelled";
 pub fn init_job_over(phase: InitPhase) -> bool {
-    todo!()
+    matches!(phase, InitPhase::Done | InitPhase::Failed | InitPhase::Cancelled)
 }
 
 /// Whether the job is on the build: from the machine booting to the first workspace, the stretch the count is over.
 // init.ts:404
 // export const initJobBuilding = (phase: InitPhase): boolean => phase === "building" || phase === "signing-in" || phase === "sealing" || phase === "finishing";
 pub fn init_job_building(phase: InitPhase) -> bool {
-    todo!()
+    matches!(phase, InitPhase::Building | InitPhase::SigningIn | InitPhase::Sealing | InitPhase::Finishing)
 }
 
 /// Whether the job's step is the agent's own: the agent road while its thread writes the recipe, and a job that
@@ -704,7 +842,7 @@ pub fn init_job_building(phase: InitPhase) -> bool {
 // export const initAgentStep = (job: Pick<InitJob, "road" | "phase" | "screens">): boolean =>
 //   job.road === "agent" && (job.phase === "agent" || (initJobOver(job.phase) && job.screens.length === 0));
 pub fn init_agent_step(job: &InitJob) -> bool {
-    todo!()
+    matches!(job.road, InitRoad::Agent) && (matches!(job.phase, InitPhase::Agent) || (init_job_over(job.phase) && job.screens.is_empty()))
 }
 
 // The sentence a sign-in whose page is open makes: one spelling for the sidebar's line, the toast and a system
@@ -719,13 +857,21 @@ pub fn init_agent_step(job: &InitJob) -> bool {
 // export const pasteHereLine = (word: string, mint?: string): string =>
 //   mint === undefined ? `paste the ${word}; it stays on this computer` : `run ${mint} on this computer and paste the ${word} it prints; it stays there`;
 pub fn paste_here_line(word: &str, mint: Option<&str>) -> String {
-    todo!()
+    match mint {
+        None => format!("paste the {word}; it stays on this computer"),
+        Some(mint) => format!("run {mint} on this computer and paste the {word} it prints; it stays there"),
+    }
 }
 
 // The sign-in row whose page waits for the person, if one does.
 // init.ts:422
 // private in the TS: port it as a private helper
 // const openSignIn = (rows: InitJob["rows"]): InitJob["rows"][number] | undefined => rows.find(r => r.kind === "sign-in" && r.state === SIGN_IN_OPEN_STATE);
+
+/// The sign-in row whose page waits for the person, if one does.
+fn open_sign_in(rows: &[InitRow]) -> Option<&InitRow> {
+    rows.iter().find(|row| row.kind == InitRowKind::SignIn && row.state == SIGN_IN_OPEN_STATE)
+}
 
 /// What the job waits on the person for, or nothing: a sign-in whose page is open on the machine and nothing else
 /// today. Only a wait the person is not already looking at counts, so the screens they just opened are not one; the
@@ -737,21 +883,21 @@ pub fn paste_here_line(word: &str, mint: Option<&str>) -> String {
 //   return label === undefined ? undefined : signInTo(label);
 // }
 pub fn init_need_what(job: &InitJob) -> Option<String> {
-    todo!()
+    init_sign_in_waited_on(job).map(|label| format!("sign in to {label}"))
 }
 
 /// The sign-in the job waits on the person for, by its row's label, or nothing.
 // init.ts:434
 // export const initSignInWaitedOn = (job: Pick<InitJob, "rows">): string | undefined => openSignIn(job.rows)?.label;
 pub fn init_sign_in_waited_on(job: &InitJob) -> Option<String> {
-    todo!()
+    open_sign_in(&job.rows).map(|row| row.label.clone())
 }
 
 /// What a card that started the build says while that sign-in waits.
 // init.ts:437
 // export const signInWaitLine = (label: string): string => `Waiting for your sign-in to ${label}`;
 pub fn sign_in_wait_line(label: &str) -> String {
-    todo!()
+    format!("Waiting for your sign-in to {label}")
 }
 
 /// What the app says when it needs the person: the toast's opening and a system notification's title.
@@ -762,7 +908,7 @@ pub const NEEDS_YOU: &str = "wsp needs you";
 // init.ts:443
 // export const initNeedsYouLine = (what: string): string => `${NEEDS_YOU}: ${what}`;
 pub fn init_needs_you_line(what: &str) -> String {
-    todo!()
+    format!("{NEEDS_YOU}: {what}")
 }
 
 /// What a window or tab title leads with while a need stands, so a person reading only the title sees it.
@@ -777,7 +923,12 @@ pub const NEEDS_YOU_MARK: &str = "• ";
 //   return needed ? `${NEEDS_YOU_MARK}${plain}` : plain;
 // }
 pub fn title_with_need(title: &str, needed: bool) -> String {
-    todo!()
+    let plain = title.strip_prefix(NEEDS_YOU_MARK).unwrap_or(title);
+    if needed {
+        format!("{NEEDS_YOU_MARK}{plain}")
+    } else {
+        plain.to_string()
+    }
 }
 
 /// Whether a machine an earlier build left is still being removed: the row the host's sweep rides on whatever job
@@ -785,7 +936,7 @@ pub fn title_with_need(title: &str, needed: bool) -> String {
 // init.ts:457
 // export const initSweeping = (rows: readonly InitRow[]): boolean => rows.some(r => r.kind === "machine" && r.state === INIT_ROW_STATES.retrying);
 pub fn init_sweeping(rows: &[InitRow]) -> bool {
-    todo!()
+    rows.iter().any(|row| row.kind == InitRowKind::Machine && row.state == init_row_states::RETRYING)
 }
 
 /// The one line the collapsed sidebar row shows for a running job: the sign-in waited on while one is open, then a
@@ -800,7 +951,18 @@ pub fn init_sweeping(rows: &[InitRow]) -> bool {
 //   return initJobBuilding(job.phase) && job.progress.total > 0 ? `${word} ${job.progress.done}/${job.progress.total}` : word;
 // }
 pub fn init_progress_line(job: &InitJob) -> String {
-    todo!()
+    if let Some(open) = open_sign_in(&job.rows) {
+        return format!("sign in to {}", open.label);
+    }
+    if init_sweeping(&job.rows) {
+        return MACHINE_SWEEP_LINE.to_string();
+    }
+    let word = init_phase_word(job.phase);
+    if init_job_building(job.phase) && job.progress.total.as_f64() > 0.0 {
+        format!("{word} {}/{}", number_string(job.progress.done.as_f64()), number_string(job.progress.total.as_f64()))
+    } else {
+        word
+    }
 }
 
 /// The id of the stage row the build's sign-ins fold into.
@@ -821,6 +983,28 @@ pub const SIGN_IN_STAGE_ID: &str = "stage/sign-ins";
 //   if (signIns.every(r => r.state === INIT_ROW_STATES.skipped)) return { state: INIT_ROW_STATES.skipped };
 //   return { state: INIT_ROW_STATES.done };
 // }
+
+/// The state a folded sign-in stage stands at, and the outcome a run-out hands it.
+fn sign_in_stage_state(sign_ins: &[InitRow]) -> (String, Option<LoginState>) {
+    if sign_ins.iter().any(|row| row.state == SIGN_IN_OPEN_STATE) {
+        return (SIGN_IN_OPEN_STATE.to_string(), None);
+    }
+    if sign_ins.iter().any(|row| row.state == init_row_states::RUNNING) {
+        return (init_row_states::RUNNING.to_string(), None);
+    }
+    if !sign_ins.iter().all(init_row_over) {
+        let waiting = sign_ins.iter().all(|row| row.state == init_row_states::WAITING);
+        let state = if waiting { init_row_states::WAITING } else { init_row_states::RUNNING };
+        return (state.to_string(), None);
+    }
+    if let Some(ran_out) = sign_ins.iter().find(|row| init_row_failed(row)) {
+        return (ran_out.state.clone(), ran_out.login);
+    }
+    if sign_ins.iter().all(|row| row.state == init_row_states::SKIPPED) {
+        return (init_row_states::SKIPPED.to_string(), None);
+    }
+    (init_row_states::DONE.to_string(), None)
+}
 
 /// The build's list as the app draws it: stages only, in the job's order, the sign-ins folded into one stage row where
 /// the first of them sits, whose state is the sign-ins' own (waiting for you while a page waits on the person, running
@@ -851,7 +1035,39 @@ pub struct BuildRows {
 }
 
 pub fn init_build_rows(rows: &[InitRow]) -> BuildRows {
-    todo!()
+    let sign_ins: Vec<InitRow> = rows.iter().filter(|row| row.kind == InitRowKind::SignIn).cloned().collect();
+    let mut out = Vec::new();
+    let mut folded = false;
+    for row in rows {
+        if row.kind == InitRowKind::Agent {
+            continue;
+        }
+        if row.kind != InitRowKind::SignIn {
+            out.push(row.clone());
+            continue;
+        }
+        if folded {
+            continue;
+        }
+        folded = true;
+        let (state, login) = sign_in_stage_state(&sign_ins);
+        out.push(InitRow {
+            id: SIGN_IN_STAGE_ID.to_string(),
+            kind: InitRowKind::Stage,
+            tool: None,
+            label: cloud_setup_words::build::SIGNING_IN.to_string(),
+            state,
+            login,
+            detail: None,
+            page: None,
+            code: None,
+            finish: None,
+            ms: None,
+            since: None,
+            lines: None,
+        });
+    }
+    BuildRows { rows: out, sign_ins }
 }
 
 /// How many of the build's stages ended well, of all of them: the one count a build has, read by the line along the
@@ -874,7 +1090,11 @@ pub struct StageCount {
 }
 
 pub fn init_stage_count(rows: &[InitRow]) -> StageCount {
-    todo!()
+    let stages = || rows.iter().filter(|row| row.kind == InitRowKind::Stage);
+    StageCount {
+        done: stages().filter(|row| init_row_over(row) && !init_row_failed(row) && !init_row_unrun(&row.state)).count(),
+        total: stages().count(),
+    }
 }
 
 /// Where a step sits in the steps its run shows, over the title ("2/4"): the steps the person sees, the build or the
@@ -882,14 +1102,14 @@ pub fn init_stage_count(rows: &[InitRow]) -> StageCount {
 // init.ts:521
 // export const initStepCounter = (at: number, total: number): string => `${at}/${total}`;
 pub fn init_step_counter(at: f64, total: f64) -> String {
-    todo!()
+    format!("{}/{}", number_string(at), number_string(total))
 }
 
 /// The count as words: `3 of 12`.
 // init.ts:524
 // export const initStageCountLine = (count: { done: number; total: number }): string => `${count.done} of ${count.total}`;
 pub fn init_stage_count_line(count: &StageCount) -> String {
-    todo!()
+    format!("{} of {}", count.done, count.total)
 }
 
 /// The provider's own answer about a key: the status it replied with and the word it used, so a person reads whose
@@ -899,7 +1119,11 @@ pub fn init_stage_count_line(count: &StageCount) -> String {
 //   return said === "" ? String(status) : `${status} ${said}`;
 // }
 pub fn provider_said_line(status: f64, said: &str) -> String {
-    todo!()
+    if said.is_empty() {
+        number_string(status)
+    } else {
+        format!("{} {said}", number_string(status))
+    }
 }
 
 /// Under the keys field when the provider answered and refused the key typed there; `provider` is its id.
@@ -908,7 +1132,7 @@ pub fn provider_said_line(status: f64, said: &str) -> String {
 //   return `${CLOUD_SETUP_WORDS.keys.refused(provider)}: ${said}`;
 // }
 pub fn key_refused_line(said: &str, provider: &str) -> String {
-    todo!()
+    format!("{}: {said}", cloud_setup_words::keys::refused(provider))
 }
 
 /// The same for a key already saved, which is what the build reads before its first stage; `provider` is the id of
@@ -918,7 +1142,7 @@ pub fn key_refused_line(said: &str, provider: &str) -> String {
 //   return `${CLOUD_SETUP_WORDS.keys.refusedSaved(provider)}: ${said}`;
 // }
 pub fn saved_key_refused_line(said: &str, provider: &str) -> String {
-    todo!()
+    format!("{}: {said}", cloud_setup_words::keys::refused_saved(provider))
 }
 
 /// Either place when nothing came back about the key at all: what this computer saw instead, with Try again beside it.
@@ -927,7 +1151,7 @@ pub fn saved_key_refused_line(said: &str, provider: &str) -> String {
 //   return `${CLOUD_SETUP_WORDS.keys.unchecked(provider)}: ${said}`;
 // }
 pub fn key_unchecked_line(said: &str, provider: &str) -> String {
-    todo!()
+    format!("{}: {said}", cloud_setup_words::keys::unchecked(provider))
 }
 
 /// How a terminal run closes when the check stopped it before the first stage. The refusal itself is said above this
@@ -936,7 +1160,10 @@ pub fn key_unchecked_line(said: &str, provider: &str) -> String {
 // init.ts:551
 // export const savedKeyStoppedLine = (provider: string): string => `Save a key ${providerKeyName(provider)} takes and run wsp init again; nothing booted, and the recipe is kept.`;
 pub fn saved_key_stopped_line(provider: &str) -> String {
-    todo!()
+    format!(
+        "Save a key {} takes and run wsp init again; nothing booted, and the recipe is kept.",
+        crate::place_word::provider_key_name(provider)
+    )
 }
 
 /// What the machine the build boots costs, said once under the key screen's title from the backend's own rate.
@@ -945,7 +1172,7 @@ pub fn saved_key_stopped_line(provider: &str) -> String {
 //   return `A ${fmtSize(size)} workspace costs about $${rateUsdPerHour.toFixed(2)} an hour while it runs and naps when idle`;
 // }
 pub fn init_cost_line(size: &WorkspaceSize, rate_usd_per_hour: f64) -> String {
-    todo!()
+    format!("A {} workspace costs about ${} an hour while it runs and naps when idle", fmt_size(size, None), to_fixed(rate_usd_per_hour, 2))
 }
 
 /// The cloud setup as wsp setup prints it: which keys are held, the agents here with their tools, the price, and the
@@ -968,7 +1195,51 @@ pub fn init_cost_line(size: &WorkspaceSize, rate_usd_per_hour: f64) -> String {
 //   return lines;
 // }
 pub fn init_setup_lines(setup: &InitSetup) -> Vec<String> {
-    todo!()
+    let held = |yes: bool| if yes { cloud_setup_words::keys::SAVED } else { cloud_setup_words::keys::UNSET };
+    let agents = if setup.agents.is_empty() {
+        "none found".to_string()
+    } else {
+        setup
+            .agents
+            .iter()
+            .map(|agent| if agent.configured { format!("{} ({MCP_ADDED_WORD})", agent.name) } else { agent.name.clone() })
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let mut lines: Vec<String> = setup
+        .keys
+        .iter()
+        .map(|(provider, yes)| {
+            let name =
+                crate::place_word::provider_key_words(provider).map_or_else(|| provider.to_string(), |words| words.key_name.to_string());
+            format!("{name}: {}", held(*yes))
+        })
+        .collect();
+    lines.push(format!("Agents here: {agents}"));
+    if let Some(pricing) = &setup.pricing {
+        lines.push(init_cost_line(&pricing.size, pricing.rate_usd_per_hour.0));
+    }
+    let Some(job) = &setup.job else {
+        lines.push("No setup is running; the app's Image section starts one.".to_string());
+        return lines;
+    };
+    let road = match job.road {
+        InitRoad::Manual => "manual",
+        InitRoad::Agent => "agent",
+        InitRoad::Terminal => "terminal",
+    };
+    let error = job.error.as_ref().map_or(String::new(), |error| format!(" ({error})"));
+    lines.push(format!("Setup on the {road} road: {}{error}", init_progress_line(job)));
+    for row in &job.rows {
+        let page = row.page.as_ref().map_or(String::new(), |page| format!(" {page}"));
+        let code = row.code.as_ref().map_or(String::new(), |code| format!(" code {code}"));
+        let detail = row.detail.as_ref().map_or(String::new(), |detail| format!(" ({detail})"));
+        lines.push(format!("  {}: {}{page}{code}{detail}", row.label, row.state));
+    }
+    if let Some(workspace) = &job.workspace {
+        lines.push(format!("Workspace {} ({}) is up.", workspace.name, workspace.id));
+    }
+    lines
 }
 
 /// The first message of the thread the agent road opens on this computer: read this computer with recipe_scan, write
@@ -988,7 +1259,18 @@ pub fn init_setup_lines(setup: &InitSetup) -> Vec<String> {
 //   ].join(" ");
 // }
 pub fn init_agent_prompt(recipe_path: &str) -> String {
-    todo!()
+    let then = format!(
+        "Then call recipe once, with tick set to used, set for every row whose reason says it is worth changing, signin for every sign-in row at its recommended choice, and out set to {recipe_path}."
+    );
+    [
+        "Write the recipe for this person's wsp machine image from what their agents actually used on this computer.",
+        "Use the wsp tools recipe_scan and recipe, and nothing else: run no commands and read no files.",
+        "Call recipe_scan first and read every row's recommended value and its reason.",
+        then.as_str(),
+        "Ask them nothing: they review every row in the app once the file is written.",
+        "Reply with one line saying the recipe is written.",
+    ]
+    .join(" ")
 }
 
 /// What the agent step says when the thread's turn ended and no recipe arrived at the path the brief named: the
@@ -999,6 +1281,9 @@ pub fn init_agent_prompt(recipe_path: &str) -> String {
 //   return `the thread ended without writing ${recipePath}${reason === undefined || reason === "" ? "" : `: ${reason}`}`;
 // }
 pub fn init_agent_no_recipe_line(recipe_path: &str, reason: Option<&str>) -> String {
-    todo!()
+    let tail = match reason {
+        None | Some("") => String::new(),
+        Some(reason) => format!(": {reason}"),
+    };
+    format!("the thread ended without writing {recipe_path}{tail}")
 }
-

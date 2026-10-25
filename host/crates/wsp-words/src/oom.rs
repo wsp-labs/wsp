@@ -2,6 +2,10 @@
 //! Who the kernel takes first on a guest, for memory and for the cpu. Port of the functions of
 //! packages/protocol/src/oom.ts at a3b870a6e; its constants are wsp_wire::types::oom. See spec/shell_and_text.md.
 
+use wsp_wire::types::oom::WORK_OOM_SCORE_ADJ;
+
+use crate::js::number_string;
+
 // Who the kernel takes first on a guest, for memory and for the cpu. The
 // daemon goes last for the memory killer and first for the scheduler: a build
 // or a test run that outgrows the machine loses its own processes, not the link
@@ -35,7 +39,8 @@
 // }
 /// `adj` defaults to WORK_OOM_SCORE_ADJ (500).
 pub fn work_score_line(adj: Option<f64>) -> String {
-    todo!()
+    let adj = number_string(adj.unwrap_or(WORK_OOM_SCORE_ADJ as f64));
+    format!("{{ echo {adj} > /proc/self/oom_score_adj; }} 2>/dev/null; renice 0 $$ >/dev/null 2>&1")
 }
 
 /// A command as the daemon launches it: behind the work-score line and exec'd into, so the pid stays the command's
@@ -52,9 +57,11 @@ pub struct Argv {
 }
 
 pub fn work_argv(file: &str, args: &[impl AsRef<str>]) -> Argv {
-    todo!()
+    let script = format!("{}; exec \"$0\" \"$@\"", work_score_line(None));
+    let mut argv = vec!["-c".to_string(), script, file.to_string()];
+    argv.extend(args.iter().map(|a| a.as_ref().to_string()));
+    Argv { file: "/bin/sh".to_string(), args: argv }
 }
 
 // oom.ts:44
 // in wsp_wire::types::oom: DAEMON_MEMORY_MAX_PERCENT
-
