@@ -4,6 +4,7 @@
 //! spec/project.md.
 use indexmap::IndexMap;
 use serde_json::Value;
+use wsp_catalog::json_parse::parse_json;
 use wsp_catalog::roads::RoadName;
 use wsp_wire::wire::helpers::js_key_order;
 
@@ -35,7 +36,7 @@ fn strings(value: Option<&Value>) -> Vec<(String, String)> {
 /// The package.json's own findings: its manager, its engines, its scripts' programs and its dependencies. A text that
 /// is not JSON, or a root that is not an object, gives nothing.
 pub fn read(file: &ProjectFile) -> Vec<ProjectFinding> {
-    let Ok(Value::Object(pkg)) = serde_json::from_str::<Value>(&file.text) else {
+    let Ok(Value::Object(pkg)) = parse_json(&file.text) else {
         return Vec::new();
     };
     let mut out = Vec::new();

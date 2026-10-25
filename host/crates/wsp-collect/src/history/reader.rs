@@ -5,6 +5,7 @@
 use futures::future::LocalBoxFuture;
 use futures::stream::LocalBoxStream;
 use serde_json::Value;
+use wsp_catalog::json_parse::parse_json;
 use wsp_words::exit::HostError;
 
 use crate::host::{Host, StatKind};
@@ -74,9 +75,10 @@ pub fn is_record(v: &Value) -> bool {
     v.is_object()
 }
 
-/// `JSON.parse(text)`, or `None` where it throws.
+/// `JSON.parse(text)`, or `None` where it throws: read as JavaScript reads it, a lone surrogate escape, a number past
+/// f64 and nesting past 128 included.
 pub fn try_json(text: &str) -> Option<Value> {
-    serde_json::from_str(text).ok()
+    parse_json(text).ok()
 }
 
 /// A store's timestamp as ms epoch: a JSON string that is an RFC 3339 instant; `None` for anything else.

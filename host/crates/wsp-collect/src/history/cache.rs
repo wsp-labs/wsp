@@ -9,6 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use indexmap::IndexMap;
 use serde::Serialize;
 use serde_json::Value;
+use wsp_catalog::json_parse::parse_json;
 use wsp_words::exit::HostError;
 
 use crate::history::reader::PARSE_VERSION;
@@ -108,11 +109,7 @@ fn cache_entries(top: &Value) -> Option<IndexMap<String, CacheEntry>> {
 /// The file's entries, or none when there is no file, it cannot be read, or its shape is not version 1 with this
 /// PARSE_VERSION.
 pub fn read_cache_file(path: &std::path::Path) -> IndexMap<String, CacheEntry> {
-    std::fs::read_to_string(path)
-        .ok()
-        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-        .and_then(|top| cache_entries(&top))
-        .unwrap_or_default()
+    std::fs::read_to_string(path).ok().and_then(|text| parse_json(&text).ok()).and_then(|top| cache_entries(&top)).unwrap_or_default()
 }
 
 pub fn file_history_cache(path: impl Into<PathBuf>) -> FileHistoryCache {
