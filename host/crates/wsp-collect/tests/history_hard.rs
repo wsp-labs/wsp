@@ -667,6 +667,19 @@ mod w2_oracle {
         }
     }
 
+    /// The forms V8's legacy `Date.parse` fallback reads and the ISO grammar does not; the coordinator ruled them an
+    /// accepted difference (#2446, ruling on collect's spec pass, point 1): no agent writes one.
+    const LEGACY_DATE_FORMS: [&str; 8] = [
+        "2026-09-06 10:01:00Z",
+        "Sun, 06 Sep 2026 10:01:00 GMT",
+        "Sep 6 2026 10:01:00 UTC",
+        "2026-09-06 10:01:00",
+        "2026/09/06",
+        "Sep 6, 2026",
+        "6 Sep 2026",
+        "12",
+    ];
+
     /// Local-time cases (named `[local time, ...]`) ran at UTC in the oracle; they are checked only when this process
     /// runs at UTC too.
     #[test]
@@ -675,6 +688,9 @@ mod w2_oracle {
         let utc = std::env::var("TZ").map(|tz| tz == "UTC" || tz.is_empty()).unwrap_or(true);
         for case in cases(&f, "time_of") {
             if s(&case["name"]).starts_with("[local time") && !utc {
+                continue;
+            }
+            if case["args"][0].as_str().is_some_and(|v| LEGACY_DATE_FORMS.contains(&v)) {
                 continue;
             }
             let got = time_of(arg_opt(case, 0)).map(|n| json!(n)).unwrap_or(Value::Null);
