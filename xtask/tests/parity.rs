@@ -179,6 +179,7 @@ fn a_seeded_replay_that_breaks_says_its_seed_and_the_same_seed_draws_the_same_or
 fn ids_are_numbered_by_first_sight_and_the_run_s_own_facts_are_taken_out() {
     let mut facts = Facts::default();
     facts.add_folder("/tmp/wsp-parity-abc", "<tmp>");
+    facts.add("4321", "<port>");
     facts.add("lab-box", "<computer>");
     let replies = [
         json!({ "id": 1, "workspaceId": "ws_9f8e7d6c", "home": "/tmp/wsp-parity-abc/home", "at": 1_761_382_800_000_u64, "name": "lab-box" }),
@@ -198,6 +199,8 @@ fn ids_are_numbered_by_first_sight_and_the_run_s_own_facts_are_taken_out() {
             "table": "here  8      31 GB   163.1 GB   none\nup 502ms",
             "doctor": "local workspace  wsp-doctor-ywv1Rp (made for this run) and wsp-parity-harness stays at 127.0.0.1:32923",
             "stdout": "{\"diskFreeBytes\":1,\"name\":\"lab-box\"}\n{\"ok\":true}\n",
+            "text": "{\n  \"diskFreeBytes\": 2\n}",
+            "placeId": "p_59d14321ab",
         }),
     ];
     let got = canonical(&replies, &[json!({ "workspaceId": "ws_00000000" })], &facts);
@@ -222,6 +225,8 @@ fn ids_are_numbered_by_first_sight_and_the_run_s_own_facts_are_taken_out() {
                     "table": "here  8  <reading>  <reading>  none\nup <reading>",
                     "doctor": "local workspace  wsp-doctor-<temp> (made for this run) and wsp-parity-harness stays at 127.0.0.1:<port>",
                     "stdout": { "jsonLines": [{ "diskFreeBytes": "<machine>", "name": "<computer>" }, { "ok": true }] },
+                    "text": { "json": { "diskFreeBytes": "<machine>" } },
+                    "placeId": "<p-1>",
                 },
             ],
             "events": [{ "workspaceId": "<ws>" }],
