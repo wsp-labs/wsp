@@ -128,6 +128,15 @@ pub enum EngineError {
     /// no-provider-backend.ts:20. The refusal of every road on a host with no provider key; kind "noProvider".
     #[error("{line}")]
     NoProvider { line: String },
+    /// box-backend.ts:837. A size the plan does not sell; kind "invalid".
+    #[error("{message}")]
+    Invalid { message: String },
+    /// link-backend.ts:91. kind "absent", read by `is_place_absent`; carries no code.
+    #[error("{message}")]
+    PlaceAbsent { message: String },
+    /// ssh-backend.ts:211. A sentence the caller says whole.
+    #[error("{message}")]
+    MissingKnownHosts { message: String },
     /// Any other thrown Error: its message, and its `code` where it had one.
     #[error("{message}")]
     Other { message: String, code: Option<String> },
@@ -141,6 +150,39 @@ pub fn classify(status: u16, code: Option<&str>, error: Option<&str>, request_id
 }
 
 impl EngineError {
+    /// errors.ts:121 `new GuestUnusableError(machineId, provider, detail, status)`: the line is
+    /// `guest_unusable_line(provider, machine_id, detail)`.
+    pub fn guest_unusable(machine_id: &str, provider: &str, detail: &str, status: u16) -> Self {
+        todo!()
+    }
+    /// errors.ts:142 `new MachineUnreachableError(machineId, said, status, line)`.
+    pub fn machine_unreachable(machine_id: &str, said: &str, status: u16, line: &str) -> Self {
+        todo!()
+    }
+    /// errors.ts:157 `new ExecFailedError(machineId, said, status)`: the line is `exec_failed_line(said)`.
+    pub fn exec_failed(machine_id: &str, said: &str, status: u16) -> Self {
+        todo!()
+    }
+    /// errors.ts:166: the line is `stop_refused_line(said)`.
+    pub fn stop_refused(machine_id: &str, said: &str) -> Self {
+        todo!()
+    }
+    /// errors.ts:177: the line is `nap_refused_line(said)`.
+    pub fn nap_refused(machine_id: &str, said: &str) -> Self {
+        todo!()
+    }
+    /// errors.ts:41: the cause's message, and its kind, status, code and request id where it had them.
+    pub fn restore_unfinished(machine_id: &str, said: &EngineError) -> Self {
+        todo!()
+    }
+    /// errors.ts:55: as `restore_unfinished`.
+    pub fn machine_stopped(machine_id: &str, said: &EngineError) -> Self {
+        todo!()
+    }
+    /// errors.ts:299: the line is `machine_unreached_line(attempts, elapsed_ms)`.
+    pub fn unreached(attempts: u32, elapsed_ms: u64, cause: EngineError) -> Self {
+        todo!()
+    }
     /// The TS `kind` field where the error has one: a `Provider`'s kind, the kind a RestoreUnfinished or
     /// MachineStopped carried; "notFirstLife", "vaultTooLarge" and "exists" are kinds of their own and read `None` here.
     pub fn kind(&self) -> Option<ErrorKind> {
@@ -295,5 +337,12 @@ where
 
 /// errors.ts:335. A failure's sentence, with fetch's cause words after "fetch failed".
 pub fn failure_words(e: &EngineError) -> String {
+    todo!()
+}
+
+/// What a cancelled `AbortSignal` rejects with when it carries no reason of its own: node's AbortError DOMException,
+/// name "AbortError", message "This operation was aborted", no string code. Every road that ends on a caller's
+/// cancel answers this.
+pub fn aborted() -> EngineError {
     todo!()
 }

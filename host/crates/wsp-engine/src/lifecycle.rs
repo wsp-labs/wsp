@@ -82,7 +82,8 @@ pub struct WorkspaceInitial {
 pub struct Workspace {
     machine: MachineRef,
     hooks: WorkspaceHooks,
-    phase: WorkspacePhase,
+    /// Shared so a reader outside the workspace (a hook, the runtime's status) sees the phase while a wake runs.
+    phase: Arc<std::sync::Mutex<WorkspacePhase>>,
     first_life: bool,
     /// The routes minted per port, and the machine id they were minted under.
     preview_machine_id: String,
@@ -107,6 +108,11 @@ impl Workspace {
     /// lifecycle.ts:65.
     pub fn current_phase(&self) -> WorkspacePhase {
         todo!()
+    }
+
+    /// The phase as a cell other readers hold: it reads waking while a wake's check runs.
+    pub fn phase_cell(&self) -> Arc<std::sync::Mutex<WorkspacePhase>> {
+        self.phase.clone()
     }
 
     /// lifecycle.ts:69.

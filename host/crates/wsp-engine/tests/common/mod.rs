@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! What the provision slice's tests share: a machine whose every call is a closure the test hands in, and the box
+//! What the machines slice's tests share sits in the submodules (a fake Boat API, a clock, a warn recorder). What
+//! the provision slice's tests share: a machine whose every call is a closure the test hands in, and the box
 //! guest (packages/engine/test/box-guest.ts at a4033dc34), a computer somebody owns as a temp directory whose execs
 //! and runs are this computer's own bash.
 #![allow(dead_code)]
+pub mod fake_box;
+pub mod fake_clock;
+pub mod fake_machine;
+pub mod warn;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
