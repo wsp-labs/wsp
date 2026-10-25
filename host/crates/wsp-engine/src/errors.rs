@@ -128,6 +128,15 @@ pub enum EngineError {
     /// no-provider-backend.ts:20. The refusal of every road on a host with no provider key; kind "noProvider".
     #[error("{line}")]
     NoProvider { line: String },
+    /// box-backend.ts:837. A size the plan does not sell; kind "invalid".
+    #[error("{message}")]
+    Invalid { message: String },
+    /// link-backend.ts:91. kind "absent", read by `is_place_absent`; carries no code.
+    #[error("{message}")]
+    PlaceAbsent { message: String },
+    /// ssh-backend.ts:211. A sentence the caller says whole.
+    #[error("{message}")]
+    MissingKnownHosts { message: String },
     /// Any other thrown Error: its message, and its `code` where it had one.
     #[error("{message}")]
     Other { message: String, code: Option<String> },
@@ -295,5 +304,12 @@ where
 
 /// errors.ts:335. A failure's sentence, with fetch's cause words after "fetch failed".
 pub fn failure_words(e: &EngineError) -> String {
+    todo!()
+}
+
+/// What a cancelled `AbortSignal` rejects with when it carries no reason of its own: node's AbortError DOMException,
+/// name "AbortError", message "This operation was aborted", no string code. Every road that ends on a caller's
+/// cancel answers this.
+pub fn aborted() -> EngineError {
     todo!()
 }
