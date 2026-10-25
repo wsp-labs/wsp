@@ -98,7 +98,11 @@
    ],
    "textLength": 2048,
    "cut": 2049,
-   "tail": "zzz"
+   "tail": [
+    122,
+    122,
+    122
+   ]
   },
   "exact": {
    "keys": [
@@ -111,7 +115,11 @@
     "text"
    ],
    "textLength": 2048,
-   "tail": "zzz"
+   "tail": [
+    122,
+    122,
+    122
+   ]
   },
   "emoji": {
    "keys": [
@@ -126,7 +134,11 @@
    ],
    "textLength": 2048,
    "cut": 2053,
-   "tail": "zz\ud83d"
+   "tail": [
+    122,
+    122,
+    55357
+   ]
   },
   "patched": {
    "keys": [
@@ -177,7 +189,11 @@
      ]
     }
    ],
-   "tail": "ort"
+   "tail": [
+    111,
+    114,
+    116
+   ]
   },
   "textLong": {
    "keys": [
@@ -190,7 +206,11 @@
     "text"
    ],
    "textLength": 5000,
-   "tail": "zzz"
+   "tail": [
+    122,
+    122,
+    122
+   ]
   }
  },
  "eventJson": [
