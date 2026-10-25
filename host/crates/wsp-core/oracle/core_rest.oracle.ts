@@ -20,6 +20,7 @@ const adapters = await import(`${S}/adapters.ts`);
 const protocol = await import("@wsp/protocol");
 const store = await import(`${S}/store.ts`);
 const claudeAdapter = await import("@wsp/adapter-claude");
+const catalogPkg = await import("@wsp/catalog");
 
 const out = fileURLToPath(new URL("../tests/fixtures/core_rest/", import.meta.url));
 const write = (name: string, value: unknown): void => {
@@ -481,7 +482,6 @@ it("agent setups and adapters", () => {
     ["unknown", { X: "y" }, "aider", false],
     ["gemini", { GEMINI_API_KEY: "g" }, "gemini", false],
   ];
-  const signIns = protocol.CATALOG_AGENTS ?? undefined;
   const homes = ["/srv/x/../y/./claude", "relative/dir", "/", "/a//b/", "/it's here"];
   write("adapters_setups", {
     secrets: vaults.map(([name, vault, id, stands]) => ({ name, vault, id, stands, secrets: adapters.secretsOf(vault, id, stands), env: adapters.secretEnvOf(vault, id, stands) })),
@@ -492,7 +492,6 @@ it("agent setups and adapters", () => {
     agentSetups: setup.AGENT_SETUPS,
     keyOf: setup.keyOf("here", "claude"),
     realFolderScript: homes.map(p => [p, setup.realFolderScript(p)]),
-    signIns: signIns === undefined ? null : "present",
   });
 });
 
@@ -571,7 +570,7 @@ it("agent setups store and the protocol helpers it reads", async () => {
     configDirRefusal: dirs.map(([name, given, r]) => [name, given, r, protocol.configDirRefusal("Claude Code", given, r)]),
     noConfigDirLine: protocol.noConfigDirLine("Cursor"),
     notRun: notRun.map(([name, l, t, m, u]) => [name, err(protocol.notRunRefusal(l, t, m, u))]),
-    stateHomeEnv: ["claude", "codex", "opencode", "cursor"].map(a => [a, protocol.CATALOG_AGENTS?.find?.((r: { id: string }) => r.id === a)?.stateHomeEnv ?? null]),
+    stateHomeEnv: ["claude", "codex", "opencode", "cursor"].map(a => [a, catalogPkg.CATALOG_AGENTS.find((r: { id: string }) => r.id === a)?.stateHomeEnv ?? null]),
     steps,
     launchClaude,
     offClaude,

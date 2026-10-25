@@ -1,0 +1,3387 @@
+{
+ "catalogs": [
+  {
+   "source": "table",
+   "version": "--help 2.1.296, 2026-10-10",
+   "contextWindows": [
+    {
+     "value": "200k",
+     "label": "200k"
+    },
+    {
+     "value": "1m",
+     "label": "1M",
+     "isDefault": true
+    }
+   ],
+   "steers": false,
+   "renames": false,
+   "images": false,
+   "harness": "claude",
+   "label": "Claude Code",
+   "mcpServers": true,
+   "asides": true,
+   "movesAccess": true,
+   "steersImages": true,
+   "screenCommands": [
+    {
+     "name": "login",
+     "control": "sign-in"
+    },
+    {
+     "name": "logout",
+     "control": "sign-in"
+    },
+    {
+     "name": "model",
+     "control": "model"
+    },
+    {
+     "name": "permissions",
+     "control": "access"
+    },
+    {
+     "name": "config",
+     "control": "settings"
+    },
+    {
+     "name": "help",
+     "control": "docs"
+    }
+   ],
+   "smallModel": "claude-haiku-5-5",
+   "models": [
+    {
+     "value": "claude-opus-5-5",
+     "label": "Opus 5.5",
+     "isDefault": true,
+     "fast": true,
+     "efforts": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+     ],
+     "contextWindows": []
+    },
+    {
+     "value": "claude-fable-5-1",
+     "label": "Fable 5.1",
+     "efforts": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+     ],
+     "contextWindows": []
+    },
+    {
+     "value": "claude-sonnet-5-5",
+     "label": "Sonnet 5.5",
+     "efforts": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+     ],
+     "defaultEffort": "medium",
+     "contextWindows": []
+    },
+    {
+     "value": "claude-haiku-5-5",
+     "label": "Haiku 5.5",
+     "efforts": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+     ],
+     "defaultEffort": "medium",
+     "contextWindows": []
+    }
+   ],
+   "legacyModels": [
+    {
+     "value": "claude-opus-5",
+     "label": "Opus 5",
+     "fast": true,
+     "efforts": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+     ],
+     "defaultEffort": "high",
+     "contextWindows": [
+      "200k",
+      "1m"
+     ]
+    },
+    {
+     "value": "claude-opus-4-8",
+     "label": "Opus 4.8",
+     "fast": true,
+     "efforts": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+     ],
+     "defaultEffort": "high",
+     "contextWindows": [
+      "200k",
+      "1m"
+     ]
+    },
+    {
+     "value": "claude-opus-4-7",
+     "label": "Opus 4.7",
+     "fast": true,
+     "efforts": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+     ],
+     "defaultEffort": "xhigh",
+     "contextWindows": [
+      "200k",
+      "1m"
+     ]
+    },
+    {
+     "value": "claude-opus-4-6",
+     "label": "Opus 4.6",
+     "fast": true,
+     "efforts": [
+      "low",
+      "medium",
+      "high",
+      "max"
+     ],
+     "contextWindows": [
+      "200k",
+      "1m"
+     ]
+    },
+    {
+     "value": "claude-opus-4-5",
+     "label": "Opus 4.5",
+     "fast": true,
+     "efforts": [],
+     "contextWindows": [
+      "200k",
+      "1m"
+     ]
+    },
+    {
+     "value": "claude-fable-5",
+     "label": "Fable 5",
+     "efforts": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+     ],
+     "defaultEffort": "high",
+     "contextWindows": []
+    },
+    {
+     "value": "claude-sonnet-5",
+     "label": "Sonnet 5",
+     "efforts": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+     ],
+     "defaultEffort": "high",
+     "contextWindows": []
+    },
+    {
+     "value": "claude-sonnet-4-6",
+     "label": "Sonnet 4.6",
+     "efforts": [
+      "low",
+      "medium",
+      "high",
+      "max"
+     ],
+     "contextWindows": [
+      "200k",
+      "1m"
+     ]
+    },
+    {
+     "value": "claude-sonnet-4-5",
+     "label": "Sonnet 4.5",
+     "efforts": [],
+     "contextWindows": [
+      "200k",
+      "1m"
+     ]
+    },
+    {
+     "value": "claude-haiku-4-5-20251001",
+     "label": "Haiku 4.5",
+     "efforts": [],
+     "contextWindows": []
+    }
+   ],
+   "efforts": [
+    {
+     "value": "low",
+     "label": "Low"
+    },
+    {
+     "value": "medium",
+     "label": "Medium"
+    },
+    {
+     "value": "high",
+     "label": "High",
+     "isDefault": true
+    },
+    {
+     "value": "xhigh",
+     "label": "Extra high"
+    },
+    {
+     "value": "max",
+     "label": "Max"
+    }
+   ],
+   "access": {
+    "ask": "default",
+    "auto-edit": "acceptEdits",
+    "full": "bypassPermissions"
+   },
+   "bypassMode": "bypassPermissions",
+   "readOnlyMode": "dontAsk",
+   "permissionModes": [
+    {
+     "value": "default",
+     "label": "Default",
+     "description": "Asks in the chat about each action that needs permission"
+    },
+    {
+     "value": "acceptEdits",
+     "label": "Accept edits",
+     "description": "Edits files without asking; asks about commands that need permission"
+    },
+    {
+     "value": "bypassPermissions",
+     "label": "Bypass",
+     "description": "Runs every action without asking",
+     "isDefault": true
+    },
+    {
+     "value": "auto",
+     "label": "Auto",
+     "description": "The agent decides which actions to ask about; where the account has no such mode it asks as Default does"
+    },
+    {
+     "value": "manual",
+     "label": "Manual",
+     "description": "Asks before every action"
+    },
+    {
+     "value": "dontAsk",
+     "label": "Don't ask",
+     "description": "Refuses any action that needs permission, without asking"
+    }
+   ]
+  },
+  {
+   "source": "table",
+   "version": "app-server 0.153.0, 2026-09-07",
+   "contextWindows": [],
+   "steers": false,
+   "renames": false,
+   "images": false,
+   "harness": "codex",
+   "label": "Codex",
+   "mcpServers": true,
+   "asides": true,
+   "smallModel": "gpt-5.2",
+   "models": [
+    {
+     "value": "gpt-5.6-sol",
+     "label": "GPT-5.6-Sol",
+     "isDefault": true,
+     "fast": true,
+     "efforts": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max",
+      "ultra"
+     ],
+     "defaultEffort": "low"
+    },
+    {
+     "value": "gpt-5.6-terra",
+     "label": "GPT-5.6-Terra",
+     "fast": true,
+     "efforts": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max",
+      "ultra"
+     ],
+     "defaultEffort": "medium"
+    },
+    {
+     "value": "gpt-5.6-luna",
+     "label": "GPT-5.6-Luna",
+     "fast": true,
+     "efforts": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+     ],
+     "defaultEffort": "medium"
+    }
+   ],
+   "legacyListed": true,
+   "legacyModels": [
+    {
+     "value": "gpt-5.5",
+     "label": "GPT-5.5",
+     "fast": true,
+     "efforts": [
+      "low",
+      "medium",
+      "high",
+      "xhigh"
+     ],
+     "defaultEffort": "medium"
+    },
+    {
+     "value": "gpt-5.2",
+     "label": "GPT-5.2",
+     "efforts": [
+      "low",
+      "medium",
+      "high",
+      "xhigh"
+     ],
+     "defaultEffort": "medium"
+    }
+   ],
+   "efforts": [
+    {
+     "value": "low",
+     "label": "Low",
+     "isDefault": true
+    },
+    {
+     "value": "medium",
+     "label": "Medium"
+    },
+    {
+     "value": "high",
+     "label": "High"
+    },
+    {
+     "value": "xhigh",
+     "label": "Extra high"
+    },
+    {
+     "value": "max",
+     "label": "Max"
+    },
+    {
+     "value": "ultra",
+     "label": "Ultra"
+    }
+   ],
+   "access": {
+    "ask": "workspace-write",
+    "full": "danger-full-access",
+    "plan": "read-only"
+   },
+   "bypassMode": "danger-full-access",
+   "readOnlyToolsFree": true,
+   "readOnlyMode": "read-only",
+   "permissionModes": [
+    {
+     "value": "read-only",
+     "label": "Read only",
+     "description": "Reads only; edits no files and runs no command that writes"
+    },
+    {
+     "value": "workspace-write",
+     "label": "Workspace write",
+     "description": "Edits files and runs commands inside the working folder"
+    },
+    {
+     "value": "danger-full-access",
+     "label": "Full access",
+     "description": "Runs every action without asking, with no folder off limits",
+     "isDefault": true
+    }
+   ]
+  },
+  {
+   "source": "table",
+   "version": null,
+   "contextWindows": [],
+   "steers": false,
+   "renames": false,
+   "images": false,
+   "harness": "gemini",
+   "label": "Gemini CLI",
+   "models": [],
+   "efforts": [],
+   "bypassMode": "yolo",
+   "permissionModes": [
+    {
+     "value": "default",
+     "label": "Default",
+     "description": "Asks before every action"
+    },
+    {
+     "value": "auto_edit",
+     "label": "Auto edit",
+     "description": "Edits files without asking"
+    },
+    {
+     "value": "yolo",
+     "label": "Yolo",
+     "description": "Runs every action without asking",
+     "isDefault": true
+    }
+   ]
+  },
+  {
+   "source": "table",
+   "version": "run --help 1.18.18, 2026-09-27",
+   "contextWindows": [],
+   "steers": false,
+   "renames": false,
+   "images": false,
+   "harness": "opencode",
+   "label": "OpenCode",
+   "models": [],
+   "efforts": [],
+   "access": {
+    "full": "auto"
+   },
+   "bypassMode": "auto",
+   "permissionModes": [
+    {
+     "value": "auto",
+     "label": "Auto",
+     "description": "Runs every action without asking, save what its own settings deny: a headless run has nobody to ask",
+     "isDefault": true
+    }
+   ]
+  },
+  {
+   "source": "table",
+   "version": null,
+   "contextWindows": [],
+   "steers": false,
+   "renames": false,
+   "images": false,
+   "harness": "pi",
+   "label": "Pi",
+   "models": [],
+   "efforts": [
+    {
+     "value": "off",
+     "label": "Off"
+    },
+    {
+     "value": "minimal",
+     "label": "Minimal"
+    },
+    {
+     "value": "low",
+     "label": "Low"
+    },
+    {
+     "value": "medium",
+     "label": "Medium"
+    },
+    {
+     "value": "high",
+     "label": "High"
+    },
+    {
+     "value": "xhigh",
+     "label": "Extra high"
+    },
+    {
+     "value": "max",
+     "label": "Max"
+    }
+   ],
+   "permissionModes": []
+  },
+  {
+   "source": "table",
+   "version": null,
+   "contextWindows": [],
+   "steers": false,
+   "renames": false,
+   "images": false,
+   "harness": "hermes",
+   "label": "Hermes Agent",
+   "models": [],
+   "efforts": [
+    {
+     "value": "none",
+     "label": "None"
+    },
+    {
+     "value": "minimal",
+     "label": "Minimal"
+    },
+    {
+     "value": "low",
+     "label": "Low"
+    },
+    {
+     "value": "medium",
+     "label": "Medium"
+    },
+    {
+     "value": "high",
+     "label": "High"
+    },
+    {
+     "value": "xhigh",
+     "label": "Extra high"
+    },
+    {
+     "value": "max",
+     "label": "Max"
+    },
+    {
+     "value": "ultra",
+     "label": "Ultra"
+    }
+   ],
+   "bypassMode": "yolo",
+   "permissionModes": [
+    {
+     "value": "default",
+     "label": "Default",
+     "description": "Asks before a command that could do damage"
+    },
+    {
+     "value": "yolo",
+     "label": "Yolo",
+     "description": "Runs a command that could do damage without asking",
+     "isDefault": true
+    }
+   ]
+  },
+  {
+   "source": "table",
+   "version": "-h 2026.09.26-dd393fe, 2026-09-27",
+   "contextWindows": [],
+   "steers": false,
+   "renames": false,
+   "images": false,
+   "harness": "cursor",
+   "label": "Cursor",
+   "models": [],
+   "efforts": [],
+   "access": {
+    "full": "force",
+    "plan": "default"
+   },
+   "bypassMode": "force",
+   "permissionModes": [
+    {
+     "value": "default",
+     "label": "Default",
+     "description": "Proposes changes and runs no command; applies nothing"
+    },
+    {
+     "value": "force",
+     "label": "Force",
+     "description": "Edits files and runs every command without asking, save what its own settings deny",
+     "isDefault": true
+    }
+   ]
+  }
+ ],
+ "namedOnly": [
+  {
+   "value": "gpt-6-astra",
+   "label": "GPT-6-Astra"
+  }
+ ],
+ "unknown": null,
+ "probes": [
+  {
+   "name": "claude+probe",
+   "value": {
+    "source": "harness",
+    "version": "2.1.257",
+    "contextWindows": [
+     {
+      "value": "200k",
+      "label": "200k"
+     },
+     {
+      "value": "1m",
+      "label": "1M",
+      "isDefault": true
+     }
+    ],
+    "steers": false,
+    "renames": false,
+    "images": false,
+    "harness": "claude",
+    "label": "Claude Code",
+    "mcpServers": true,
+    "asides": true,
+    "movesAccess": true,
+    "steersImages": true,
+    "screenCommands": [
+     {
+      "name": "login",
+      "control": "sign-in"
+     },
+     {
+      "name": "logout",
+      "control": "sign-in"
+     },
+     {
+      "name": "model",
+      "control": "model"
+     },
+     {
+      "name": "permissions",
+      "control": "access"
+     },
+     {
+      "name": "config",
+      "control": "settings"
+     },
+     {
+      "name": "help",
+      "control": "docs"
+     }
+    ],
+    "smallModel": "claude-haiku-5-5",
+    "models": [
+     {
+      "value": "claude-opus-5-5",
+      "label": "Opus 5.5",
+      "description": "Opus 5.5 with 1M context",
+      "isDefault": true,
+      "efforts": [
+       "low",
+       "high"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ],
+      "fast": true
+     },
+     {
+      "value": "claude-haiku-4-5-20251001",
+      "label": "Haiku 4.5",
+      "efforts": [],
+      "contextWindows": []
+     },
+     {
+      "value": "claude-next-6",
+      "label": "Next",
+      "efforts": [
+       "low",
+       "turbo"
+      ],
+      "contextWindows": []
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "claude-opus-5",
+      "label": "Opus 5",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-8",
+      "label": "Opus 4.8",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-7",
+      "label": "Opus 4.7",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "xhigh",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-6",
+      "label": "Opus 4.6",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-5",
+      "label": "Opus 4.5",
+      "fast": true,
+      "efforts": [],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-fable-5",
+      "label": "Fable 5",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": []
+     },
+     {
+      "value": "claude-sonnet-5",
+      "label": "Sonnet 5",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": []
+     },
+     {
+      "value": "claude-sonnet-4-6",
+      "label": "Sonnet 4.6",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-sonnet-4-5",
+      "label": "Sonnet 4.5",
+      "efforts": [],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     }
+    ],
+    "efforts": [
+     {
+      "value": "low",
+      "label": "Low"
+     },
+     {
+      "value": "high",
+      "label": "High",
+      "isDefault": true
+     },
+     {
+      "value": "turbo",
+      "label": "Turbo"
+     }
+    ],
+    "access": {
+     "ask": "default",
+     "auto-edit": "acceptEdits",
+     "full": "bypassPermissions"
+    },
+    "bypassMode": "bypassPermissions",
+    "readOnlyMode": "dontAsk",
+    "permissionModes": [
+     {
+      "value": "default",
+      "label": "Default",
+      "description": "Asks in the chat about each action that needs permission"
+     },
+     {
+      "value": "acceptEdits",
+      "label": "Accept edits",
+      "description": "Edits files without asking; asks about commands that need permission"
+     },
+     {
+      "value": "yolo",
+      "label": "yolo"
+     }
+    ]
+   }
+  },
+  {
+   "name": "claude+probe, efforts low turbo",
+   "value": {
+    "source": "harness",
+    "version": "2.1.257",
+    "contextWindows": [
+     {
+      "value": "200k",
+      "label": "200k"
+     },
+     {
+      "value": "1m",
+      "label": "1M",
+      "isDefault": true
+     }
+    ],
+    "steers": false,
+    "renames": false,
+    "images": false,
+    "harness": "claude",
+    "label": "Claude Code",
+    "mcpServers": true,
+    "asides": true,
+    "movesAccess": true,
+    "steersImages": true,
+    "screenCommands": [
+     {
+      "name": "login",
+      "control": "sign-in"
+     },
+     {
+      "name": "logout",
+      "control": "sign-in"
+     },
+     {
+      "name": "model",
+      "control": "model"
+     },
+     {
+      "name": "permissions",
+      "control": "access"
+     },
+     {
+      "name": "config",
+      "control": "settings"
+     },
+     {
+      "name": "help",
+      "control": "docs"
+     }
+    ],
+    "smallModel": "claude-haiku-5-5",
+    "models": [
+     {
+      "value": "claude-opus-5-5",
+      "label": "Opus 5.5",
+      "description": "Opus 5.5 with 1M context",
+      "isDefault": true,
+      "efforts": [
+       "low",
+       "high"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ],
+      "fast": true
+     },
+     {
+      "value": "claude-haiku-4-5-20251001",
+      "label": "Haiku 4.5",
+      "efforts": [],
+      "contextWindows": []
+     },
+     {
+      "value": "claude-next-6",
+      "label": "Next",
+      "efforts": [
+       "low",
+       "turbo"
+      ],
+      "contextWindows": []
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "claude-opus-5",
+      "label": "Opus 5",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-8",
+      "label": "Opus 4.8",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-7",
+      "label": "Opus 4.7",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "xhigh",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-6",
+      "label": "Opus 4.6",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-5",
+      "label": "Opus 4.5",
+      "fast": true,
+      "efforts": [],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-fable-5",
+      "label": "Fable 5",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": []
+     },
+     {
+      "value": "claude-sonnet-5",
+      "label": "Sonnet 5",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": []
+     },
+     {
+      "value": "claude-sonnet-4-6",
+      "label": "Sonnet 4.6",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-sonnet-4-5",
+      "label": "Sonnet 4.5",
+      "efforts": [],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     }
+    ],
+    "efforts": [
+     {
+      "value": "low",
+      "label": "Low"
+     },
+     {
+      "value": "turbo",
+      "label": "Turbo"
+     }
+    ],
+    "access": {
+     "ask": "default",
+     "auto-edit": "acceptEdits",
+     "full": "bypassPermissions"
+    },
+    "bypassMode": "bypassPermissions",
+    "readOnlyMode": "dontAsk",
+    "permissionModes": [
+     {
+      "value": "default",
+      "label": "Default",
+      "description": "Asks in the chat about each action that needs permission"
+     },
+     {
+      "value": "acceptEdits",
+      "label": "Accept edits",
+      "description": "Edits files without asking; asks about commands that need permission"
+     },
+     {
+      "value": "yolo",
+      "label": "yolo"
+     }
+    ]
+   }
+  },
+  {
+   "name": "claude+probe+opus-4-8",
+   "value": {
+    "source": "harness",
+    "version": "2.1.257",
+    "contextWindows": [
+     {
+      "value": "200k",
+      "label": "200k"
+     },
+     {
+      "value": "1m",
+      "label": "1M",
+      "isDefault": true
+     }
+    ],
+    "steers": false,
+    "renames": false,
+    "images": false,
+    "harness": "claude",
+    "label": "Claude Code",
+    "mcpServers": true,
+    "asides": true,
+    "movesAccess": true,
+    "steersImages": true,
+    "screenCommands": [
+     {
+      "name": "login",
+      "control": "sign-in"
+     },
+     {
+      "name": "logout",
+      "control": "sign-in"
+     },
+     {
+      "name": "model",
+      "control": "model"
+     },
+     {
+      "name": "permissions",
+      "control": "access"
+     },
+     {
+      "name": "config",
+      "control": "settings"
+     },
+     {
+      "name": "help",
+      "control": "docs"
+     }
+    ],
+    "smallModel": "claude-haiku-5-5",
+    "models": [
+     {
+      "value": "claude-opus-5-5",
+      "label": "Opus 5.5",
+      "description": "Opus 5.5 with 1M context",
+      "isDefault": true,
+      "efforts": [
+       "low",
+       "high"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ],
+      "fast": true
+     },
+     {
+      "value": "claude-haiku-4-5-20251001",
+      "label": "Haiku 4.5",
+      "efforts": [],
+      "contextWindows": []
+     },
+     {
+      "value": "claude-next-6",
+      "label": "Next",
+      "efforts": [
+       "low",
+       "turbo"
+      ],
+      "contextWindows": []
+     },
+     {
+      "value": "claude-opus-4-8",
+      "label": "Opus 4.8",
+      "efforts": [
+       "low"
+      ],
+      "contextWindows": [],
+      "fast": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "claude-opus-5",
+      "label": "Opus 5",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-7",
+      "label": "Opus 4.7",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "xhigh",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-6",
+      "label": "Opus 4.6",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-5",
+      "label": "Opus 4.5",
+      "fast": true,
+      "efforts": [],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-fable-5",
+      "label": "Fable 5",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": []
+     },
+     {
+      "value": "claude-sonnet-5",
+      "label": "Sonnet 5",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": []
+     },
+     {
+      "value": "claude-sonnet-4-6",
+      "label": "Sonnet 4.6",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-sonnet-4-5",
+      "label": "Sonnet 4.5",
+      "efforts": [],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     }
+    ],
+    "efforts": [
+     {
+      "value": "low",
+      "label": "Low"
+     },
+     {
+      "value": "high",
+      "label": "High",
+      "isDefault": true
+     },
+     {
+      "value": "turbo",
+      "label": "Turbo"
+     }
+    ],
+    "access": {
+     "ask": "default",
+     "auto-edit": "acceptEdits",
+     "full": "bypassPermissions"
+    },
+    "bypassMode": "bypassPermissions",
+    "readOnlyMode": "dontAsk",
+    "permissionModes": [
+     {
+      "value": "default",
+      "label": "Default",
+      "description": "Asks in the chat about each action that needs permission"
+     },
+     {
+      "value": "acceptEdits",
+      "label": "Accept edits",
+      "description": "Edits files without asking; asks about commands that need permission"
+     },
+     {
+      "value": "yolo",
+      "label": "yolo"
+     }
+    ]
+   }
+  },
+  {
+   "name": "codex+codexProbe",
+   "value": {
+    "source": "harness",
+    "version": "0.153.0",
+    "contextWindows": [],
+    "steers": false,
+    "renames": false,
+    "images": false,
+    "harness": "codex",
+    "label": "Codex",
+    "mcpServers": true,
+    "asides": true,
+    "smallModel": "gpt-5.2",
+    "models": [
+     {
+      "value": "gpt-5.6-sol",
+      "label": "GPT-5.6-Sol",
+      "isDefault": true,
+      "efforts": [
+       "low",
+       "high"
+      ],
+      "defaultEffort": "low",
+      "contextWindows": [],
+      "fast": true
+     }
+    ],
+    "legacyListed": true,
+    "legacyModels": [
+     {
+      "value": "gpt-5.5",
+      "label": "GPT-5.5",
+      "efforts": [
+       "low",
+       "medium"
+      ],
+      "defaultEffort": "low",
+      "contextWindows": [],
+      "fast": true
+     }
+    ],
+    "efforts": [
+     {
+      "value": "low",
+      "label": "Low",
+      "isDefault": true
+     },
+     {
+      "value": "medium",
+      "label": "Medium"
+     },
+     {
+      "value": "high",
+      "label": "High"
+     }
+    ],
+    "access": {
+     "ask": "workspace-write",
+     "full": "danger-full-access",
+     "plan": "read-only"
+    },
+    "bypassMode": "danger-full-access",
+    "readOnlyToolsFree": true,
+    "readOnlyMode": "read-only",
+    "permissionModes": [
+     {
+      "value": "read-only",
+      "label": "Read only",
+      "description": "Reads only; edits no files and runs no command that writes"
+     }
+    ]
+   }
+  },
+  {
+   "name": "codex+codexProbe, default gpt-5.5",
+   "value": {
+    "source": "harness",
+    "version": "0.153.0",
+    "contextWindows": [],
+    "steers": false,
+    "renames": false,
+    "images": false,
+    "harness": "codex",
+    "label": "Codex",
+    "mcpServers": true,
+    "asides": true,
+    "smallModel": "gpt-5.2",
+    "models": [
+     {
+      "value": "gpt-5.6-sol",
+      "label": "GPT-5.6-Sol",
+      "efforts": [
+       "low",
+       "high"
+      ],
+      "defaultEffort": "low",
+      "contextWindows": [],
+      "fast": true
+     },
+     {
+      "value": "gpt-5.5",
+      "label": "GPT-5.5",
+      "isDefault": true,
+      "efforts": [
+       "low",
+       "medium"
+      ],
+      "defaultEffort": "low",
+      "contextWindows": [],
+      "fast": true
+     }
+    ],
+    "legacyListed": true,
+    "legacyModels": [],
+    "efforts": [
+     {
+      "value": "low",
+      "label": "Low",
+      "isDefault": true
+     },
+     {
+      "value": "medium",
+      "label": "Medium"
+     },
+     {
+      "value": "high",
+      "label": "High"
+     }
+    ],
+    "access": {
+     "ask": "workspace-write",
+     "full": "danger-full-access",
+     "plan": "read-only"
+    },
+    "bypassMode": "danger-full-access",
+    "readOnlyToolsFree": true,
+    "readOnlyMode": "read-only",
+    "permissionModes": [
+     {
+      "value": "read-only",
+      "label": "Read only",
+      "description": "Reads only; edits no files and runs no command that writes"
+     }
+    ]
+   }
+  },
+  {
+   "name": "claude+probe, no version",
+   "value": {
+    "source": "harness",
+    "version": null,
+    "contextWindows": [
+     {
+      "value": "200k",
+      "label": "200k"
+     },
+     {
+      "value": "1m",
+      "label": "1M",
+      "isDefault": true
+     }
+    ],
+    "steers": false,
+    "renames": false,
+    "images": false,
+    "harness": "claude",
+    "label": "Claude Code",
+    "mcpServers": true,
+    "asides": true,
+    "movesAccess": true,
+    "steersImages": true,
+    "screenCommands": [
+     {
+      "name": "login",
+      "control": "sign-in"
+     },
+     {
+      "name": "logout",
+      "control": "sign-in"
+     },
+     {
+      "name": "model",
+      "control": "model"
+     },
+     {
+      "name": "permissions",
+      "control": "access"
+     },
+     {
+      "name": "config",
+      "control": "settings"
+     },
+     {
+      "name": "help",
+      "control": "docs"
+     }
+    ],
+    "smallModel": "claude-haiku-5-5",
+    "models": [
+     {
+      "value": "claude-opus-5-5",
+      "label": "Opus 5.5",
+      "description": "Opus 5.5 with 1M context",
+      "isDefault": true,
+      "efforts": [
+       "low",
+       "high"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ],
+      "fast": true
+     },
+     {
+      "value": "claude-haiku-4-5-20251001",
+      "label": "Haiku 4.5",
+      "efforts": [],
+      "contextWindows": []
+     },
+     {
+      "value": "claude-next-6",
+      "label": "Next",
+      "efforts": [
+       "low",
+       "turbo"
+      ],
+      "contextWindows": []
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "claude-opus-5",
+      "label": "Opus 5",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-8",
+      "label": "Opus 4.8",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-7",
+      "label": "Opus 4.7",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "xhigh",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-6",
+      "label": "Opus 4.6",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-5",
+      "label": "Opus 4.5",
+      "fast": true,
+      "efforts": [],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-fable-5",
+      "label": "Fable 5",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": []
+     },
+     {
+      "value": "claude-sonnet-5",
+      "label": "Sonnet 5",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": []
+     },
+     {
+      "value": "claude-sonnet-4-6",
+      "label": "Sonnet 4.6",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-sonnet-4-5",
+      "label": "Sonnet 4.5",
+      "efforts": [],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     }
+    ],
+    "efforts": [
+     {
+      "value": "low",
+      "label": "Low"
+     },
+     {
+      "value": "high",
+      "label": "High",
+      "isDefault": true
+     },
+     {
+      "value": "turbo",
+      "label": "Turbo"
+     }
+    ],
+    "access": {
+     "ask": "default",
+     "auto-edit": "acceptEdits",
+     "full": "bypassPermissions"
+    },
+    "bypassMode": "bypassPermissions",
+    "readOnlyMode": "dontAsk",
+    "permissionModes": [
+     {
+      "value": "default",
+      "label": "Default",
+      "description": "Asks in the chat about each action that needs permission"
+     },
+     {
+      "value": "acceptEdits",
+      "label": "Accept edits",
+      "description": "Edits files without asking; asks about commands that need permission"
+     },
+     {
+      "value": "yolo",
+      "label": "yolo"
+     }
+    ]
+   }
+  },
+  {
+   "name": "codex+routed",
+   "value": {
+    "source": "harness",
+    "version": "2.1.257",
+    "contextWindows": [],
+    "steers": false,
+    "renames": false,
+    "images": false,
+    "harness": "codex",
+    "label": "Codex",
+    "mcpServers": true,
+    "asides": true,
+    "smallModel": "gpt-5.2",
+    "models": [
+     {
+      "value": "anthropic/claude-sonnet-4.5",
+      "label": "anthropic/claude-sonnet-4.5",
+      "isDefault": true,
+      "contextWindows": []
+     },
+     {
+      "value": "claude-opus-5-5",
+      "label": "Opus",
+      "description": "Opus 5.5 with 1M context",
+      "efforts": [
+       "low",
+       "high"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-haiku-4-5-20251001",
+      "label": "Haiku",
+      "efforts": [],
+      "contextWindows": []
+     },
+     {
+      "value": "claude-next-6",
+      "label": "Next",
+      "efforts": [
+       "low",
+       "turbo"
+      ],
+      "contextWindows": []
+     }
+    ],
+    "legacyListed": true,
+    "legacyModels": [],
+    "efforts": [
+     {
+      "value": "low",
+      "label": "Low",
+      "isDefault": true
+     },
+     {
+      "value": "high",
+      "label": "High"
+     },
+     {
+      "value": "turbo",
+      "label": "Turbo"
+     }
+    ],
+    "access": {
+     "ask": "workspace-write",
+     "full": "danger-full-access",
+     "plan": "read-only"
+    },
+    "bypassMode": "danger-full-access",
+    "readOnlyToolsFree": true,
+    "readOnlyMode": "read-only",
+    "permissionModes": [
+     {
+      "value": "default",
+      "label": "default"
+     },
+     {
+      "value": "acceptEdits",
+      "label": "acceptEdits"
+     },
+     {
+      "value": "yolo",
+      "label": "yolo"
+     }
+    ]
+   }
+  },
+  {
+   "name": "claude+perModel",
+   "value": {
+    "source": "harness",
+    "version": "2.1.257",
+    "contextWindows": [
+     {
+      "value": "200k",
+      "label": "200k"
+     },
+     {
+      "value": "1m",
+      "label": "1M",
+      "isDefault": true
+     }
+    ],
+    "steers": false,
+    "renames": false,
+    "images": false,
+    "harness": "claude",
+    "label": "Claude Code",
+    "mcpServers": true,
+    "asides": true,
+    "movesAccess": true,
+    "steersImages": true,
+    "screenCommands": [
+     {
+      "name": "login",
+      "control": "sign-in"
+     },
+     {
+      "name": "logout",
+      "control": "sign-in"
+     },
+     {
+      "name": "model",
+      "control": "model"
+     },
+     {
+      "name": "permissions",
+      "control": "access"
+     },
+     {
+      "name": "config",
+      "control": "settings"
+     },
+     {
+      "name": "help",
+      "control": "docs"
+     }
+    ],
+    "smallModel": "claude-haiku-5-5",
+    "models": [
+     {
+      "value": "claude-opus-5-5",
+      "label": "Opus 5.5",
+      "description": "Opus 5.5 with 1M context",
+      "isDefault": true,
+      "efforts": [
+       "low",
+       "high"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ],
+      "fast": true
+     },
+     {
+      "value": "claude-haiku-4-5-20251001",
+      "label": "Haiku 4.5",
+      "efforts": [],
+      "contextWindows": []
+     },
+     {
+      "value": "claude-next-6",
+      "label": "Next",
+      "efforts": [
+       "low",
+       "turbo"
+      ],
+      "defaultEffort": "turbo",
+      "contextWindows": []
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "claude-opus-5",
+      "label": "Opus 5",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-8",
+      "label": "Opus 4.8",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-7",
+      "label": "Opus 4.7",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "xhigh",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-6",
+      "label": "Opus 4.6",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-5",
+      "label": "Opus 4.5",
+      "fast": true,
+      "efforts": [],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-fable-5",
+      "label": "Fable 5",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": []
+     },
+     {
+      "value": "claude-sonnet-5",
+      "label": "Sonnet 5",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": []
+     },
+     {
+      "value": "claude-sonnet-4-6",
+      "label": "Sonnet 4.6",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-sonnet-4-5",
+      "label": "Sonnet 4.5",
+      "efforts": [],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     }
+    ],
+    "efforts": [
+     {
+      "value": "low",
+      "label": "Low"
+     },
+     {
+      "value": "high",
+      "label": "High",
+      "isDefault": true
+     },
+     {
+      "value": "turbo",
+      "label": "Turbo"
+     }
+    ],
+    "access": {
+     "ask": "default",
+     "auto-edit": "acceptEdits",
+     "full": "bypassPermissions"
+    },
+    "bypassMode": "bypassPermissions",
+    "readOnlyMode": "dontAsk",
+    "permissionModes": [
+     {
+      "value": "default",
+      "label": "Default",
+      "description": "Asks in the chat about each action that needs permission"
+     },
+     {
+      "value": "acceptEdits",
+      "label": "Accept edits",
+      "description": "Edits files without asking; asks about commands that need permission"
+     },
+     {
+      "value": "yolo",
+      "label": "yolo"
+     }
+    ]
+   }
+  },
+  {
+   "name": "codex+probe default turbo",
+   "value": {
+    "source": "harness",
+    "version": "2.1.257",
+    "contextWindows": [],
+    "steers": false,
+    "renames": false,
+    "images": false,
+    "harness": "codex",
+    "label": "Codex",
+    "mcpServers": true,
+    "asides": true,
+    "smallModel": "gpt-5.2",
+    "models": [
+     {
+      "value": "claude-opus-5-5",
+      "label": "Opus",
+      "description": "Opus 5.5 with 1M context",
+      "isDefault": true,
+      "efforts": [
+       "low",
+       "high"
+      ],
+      "defaultEffort": "turbo",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-haiku-4-5-20251001",
+      "label": "Haiku",
+      "efforts": [],
+      "contextWindows": []
+     },
+     {
+      "value": "claude-next-6",
+      "label": "Next",
+      "efforts": [
+       "low",
+       "turbo"
+      ],
+      "contextWindows": []
+     }
+    ],
+    "legacyListed": true,
+    "legacyModels": [],
+    "efforts": [
+     {
+      "value": "low",
+      "label": "Low"
+     },
+     {
+      "value": "high",
+      "label": "High"
+     },
+     {
+      "value": "turbo",
+      "label": "Turbo",
+      "isDefault": true
+     }
+    ],
+    "access": {
+     "ask": "workspace-write",
+     "full": "danger-full-access",
+     "plan": "read-only"
+    },
+    "bypassMode": "danger-full-access",
+    "readOnlyToolsFree": true,
+    "readOnlyMode": "read-only",
+    "permissionModes": [
+     {
+      "value": "default",
+      "label": "default"
+     },
+     {
+      "value": "acceptEdits",
+      "label": "acceptEdits"
+     },
+     {
+      "value": "yolo",
+      "label": "yolo"
+     }
+    ]
+   }
+  },
+  {
+   "name": "codex+probe",
+   "value": {
+    "source": "harness",
+    "version": "2.1.257",
+    "contextWindows": [],
+    "steers": false,
+    "renames": false,
+    "images": false,
+    "harness": "codex",
+    "label": "Codex",
+    "mcpServers": true,
+    "asides": true,
+    "smallModel": "gpt-5.2",
+    "models": [
+     {
+      "value": "claude-opus-5-5",
+      "label": "Opus",
+      "description": "Opus 5.5 with 1M context",
+      "isDefault": true,
+      "efforts": [
+       "low",
+       "high"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-haiku-4-5-20251001",
+      "label": "Haiku",
+      "efforts": [],
+      "contextWindows": []
+     },
+     {
+      "value": "claude-next-6",
+      "label": "Next",
+      "efforts": [
+       "low",
+       "turbo"
+      ],
+      "contextWindows": []
+     }
+    ],
+    "legacyListed": true,
+    "legacyModels": [],
+    "efforts": [
+     {
+      "value": "low",
+      "label": "Low",
+      "isDefault": true
+     },
+     {
+      "value": "high",
+      "label": "High"
+     },
+     {
+      "value": "turbo",
+      "label": "Turbo"
+     }
+    ],
+    "access": {
+     "ask": "workspace-write",
+     "full": "danger-full-access",
+     "plan": "read-only"
+    },
+    "bypassMode": "danger-full-access",
+    "readOnlyToolsFree": true,
+    "readOnlyMode": "read-only",
+    "permissionModes": [
+     {
+      "value": "default",
+      "label": "default"
+     },
+     {
+      "value": "acceptEdits",
+      "label": "acceptEdits"
+     },
+     {
+      "value": "yolo",
+      "label": "yolo"
+     }
+    ]
+   }
+  },
+  {
+   "name": "codex+probe default nope",
+   "value": {
+    "source": "harness",
+    "version": "2.1.257",
+    "contextWindows": [],
+    "steers": false,
+    "renames": false,
+    "images": false,
+    "harness": "codex",
+    "label": "Codex",
+    "mcpServers": true,
+    "asides": true,
+    "smallModel": "gpt-5.2",
+    "models": [
+     {
+      "value": "claude-opus-5-5",
+      "label": "Opus",
+      "description": "Opus 5.5 with 1M context",
+      "isDefault": true,
+      "efforts": [
+       "low",
+       "high"
+      ],
+      "defaultEffort": "nope",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-haiku-4-5-20251001",
+      "label": "Haiku",
+      "efforts": [],
+      "contextWindows": []
+     },
+     {
+      "value": "claude-next-6",
+      "label": "Next",
+      "efforts": [
+       "low",
+       "turbo"
+      ],
+      "contextWindows": []
+     }
+    ],
+    "legacyListed": true,
+    "legacyModels": [],
+    "efforts": [
+     {
+      "value": "low",
+      "label": "Low"
+     },
+     {
+      "value": "high",
+      "label": "High"
+     },
+     {
+      "value": "turbo",
+      "label": "Turbo"
+     }
+    ],
+    "access": {
+     "ask": "workspace-write",
+     "full": "danger-full-access",
+     "plan": "read-only"
+    },
+    "bypassMode": "danger-full-access",
+    "readOnlyToolsFree": true,
+    "readOnlyMode": "read-only",
+    "permissionModes": [
+     {
+      "value": "default",
+      "label": "default"
+     },
+     {
+      "value": "acceptEdits",
+      "label": "acceptEdits"
+     },
+     {
+      "value": "yolo",
+      "label": "yolo"
+     }
+    ]
+   }
+  },
+  {
+   "name": "claude flagged+probe",
+   "value": {
+    "source": "harness",
+    "version": "2.1.257",
+    "contextWindows": [
+     {
+      "value": "200k",
+      "label": "200k"
+     },
+     {
+      "value": "1m",
+      "label": "1M",
+      "isDefault": true
+     }
+    ],
+    "steers": true,
+    "renames": false,
+    "images": false,
+    "harness": "claude",
+    "label": "Claude Code",
+    "mcpServers": true,
+    "asides": true,
+    "movesAccess": true,
+    "steersImages": true,
+    "screenCommands": [
+     {
+      "name": "login",
+      "control": "sign-in"
+     },
+     {
+      "name": "logout",
+      "control": "sign-in"
+     },
+     {
+      "name": "model",
+      "control": "model"
+     },
+     {
+      "name": "permissions",
+      "control": "access"
+     },
+     {
+      "name": "config",
+      "control": "settings"
+     },
+     {
+      "name": "help",
+      "control": "docs"
+     }
+    ],
+    "smallModel": "claude-haiku-5-5",
+    "models": [
+     {
+      "value": "claude-opus-5-5",
+      "label": "Opus 5.5",
+      "description": "Opus 5.5 with 1M context",
+      "isDefault": true,
+      "efforts": [
+       "low",
+       "high"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ],
+      "fast": true
+     },
+     {
+      "value": "claude-haiku-4-5-20251001",
+      "label": "Haiku 4.5",
+      "efforts": [],
+      "contextWindows": []
+     },
+     {
+      "value": "claude-next-6",
+      "label": "Next",
+      "efforts": [
+       "low",
+       "turbo"
+      ],
+      "contextWindows": []
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "claude-opus-5",
+      "label": "Opus 5",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-8",
+      "label": "Opus 4.8",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-7",
+      "label": "Opus 4.7",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "xhigh",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-6",
+      "label": "Opus 4.6",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-5",
+      "label": "Opus 4.5",
+      "fast": true,
+      "efforts": [],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-fable-5",
+      "label": "Fable 5",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": []
+     },
+     {
+      "value": "claude-sonnet-5",
+      "label": "Sonnet 5",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": []
+     },
+     {
+      "value": "claude-sonnet-4-6",
+      "label": "Sonnet 4.6",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-sonnet-4-5",
+      "label": "Sonnet 4.5",
+      "efforts": [],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     }
+    ],
+    "efforts": [
+     {
+      "value": "low",
+      "label": "Low"
+     },
+     {
+      "value": "high",
+      "label": "High",
+      "isDefault": true
+     },
+     {
+      "value": "turbo",
+      "label": "Turbo"
+     }
+    ],
+    "access": {
+     "ask": "default",
+     "auto-edit": "acceptEdits",
+     "full": "bypassPermissions"
+    },
+    "bypassMode": "bypassPermissions",
+    "readOnlyMode": "dontAsk",
+    "permissionModes": [
+     {
+      "value": "default",
+      "label": "Default",
+      "description": "Asks in the chat about each action that needs permission"
+     },
+     {
+      "value": "acceptEdits",
+      "label": "Accept edits",
+      "description": "Edits files without asking; asks about commands that need permission"
+     },
+     {
+      "value": "yolo",
+      "label": "yolo"
+     }
+    ],
+    "isDefault": true
+   }
+  },
+  {
+   "name": "codex+astra",
+   "value": {
+    "source": "harness",
+    "version": "0.155.1",
+    "contextWindows": [],
+    "steers": false,
+    "renames": false,
+    "images": false,
+    "harness": "codex",
+    "label": "Codex",
+    "mcpServers": true,
+    "asides": true,
+    "smallModel": "gpt-5.2",
+    "models": [
+     {
+      "value": "gpt-6-astra",
+      "label": "GPT-6-Astra",
+      "isDefault": true,
+      "contextWindows": [],
+      "fast": true
+     }
+    ],
+    "legacyListed": true,
+    "legacyModels": [
+     {
+      "value": "gpt-5.2",
+      "label": "GPT-5.2",
+      "contextWindows": []
+     }
+    ],
+    "efforts": [],
+    "access": {
+     "ask": "workspace-write",
+     "full": "danger-full-access",
+     "plan": "read-only"
+    },
+    "bypassMode": "danger-full-access",
+    "readOnlyToolsFree": true,
+    "readOnlyMode": "read-only",
+    "permissionModes": [
+     {
+      "value": "read-only",
+      "label": "Read only",
+      "description": "Reads only; edits no files and runs no command that writes"
+     },
+     {
+      "value": "workspace-write",
+      "label": "Workspace write",
+      "description": "Edits files and runs commands inside the working folder"
+     },
+     {
+      "value": "danger-full-access",
+      "label": "Full access",
+      "description": "Runs every action without asking, with no folder off limits",
+      "isDefault": true
+     }
+    ]
+   }
+  },
+  {
+   "name": "claude+bare opus",
+   "value": {
+    "source": "harness",
+    "version": "2.1.283",
+    "contextWindows": [
+     {
+      "value": "200k",
+      "label": "200k"
+     },
+     {
+      "value": "1m",
+      "label": "1M",
+      "isDefault": true
+     }
+    ],
+    "steers": false,
+    "renames": false,
+    "images": false,
+    "harness": "claude",
+    "label": "Claude Code",
+    "mcpServers": true,
+    "asides": true,
+    "movesAccess": true,
+    "steersImages": true,
+    "screenCommands": [
+     {
+      "name": "login",
+      "control": "sign-in"
+     },
+     {
+      "name": "logout",
+      "control": "sign-in"
+     },
+     {
+      "name": "model",
+      "control": "model"
+     },
+     {
+      "name": "permissions",
+      "control": "access"
+     },
+     {
+      "name": "config",
+      "control": "settings"
+     },
+     {
+      "name": "help",
+      "control": "docs"
+     }
+    ],
+    "smallModel": "claude-haiku-5-5",
+    "models": [
+     {
+      "value": "claude-opus-5-5",
+      "label": "Opus 5.5",
+      "isDefault": true,
+      "contextWindows": [],
+      "fast": true
+     }
+    ],
+    "legacyModels": [
+     {
+      "value": "claude-opus-5",
+      "label": "Opus 5",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-8",
+      "label": "Opus 4.8",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-7",
+      "label": "Opus 4.7",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "xhigh",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-6",
+      "label": "Opus 4.6",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-5",
+      "label": "Opus 4.5",
+      "fast": true,
+      "efforts": [],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-fable-5",
+      "label": "Fable 5",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": []
+     },
+     {
+      "value": "claude-sonnet-5",
+      "label": "Sonnet 5",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": []
+     },
+     {
+      "value": "claude-sonnet-4-6",
+      "label": "Sonnet 4.6",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-sonnet-4-5",
+      "label": "Sonnet 4.5",
+      "efforts": [],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-haiku-4-5-20251001",
+      "label": "Haiku 4.5",
+      "efforts": [],
+      "contextWindows": []
+     }
+    ],
+    "efforts": [],
+    "access": {
+     "ask": "default",
+     "auto-edit": "acceptEdits",
+     "full": "bypassPermissions"
+    },
+    "bypassMode": "bypassPermissions",
+    "readOnlyMode": "dontAsk",
+    "permissionModes": []
+   }
+  },
+  {
+   "name": "claude+empty",
+   "value": {
+    "source": "harness",
+    "version": "9.9.9",
+    "contextWindows": [
+     {
+      "value": "200k",
+      "label": "200k"
+     },
+     {
+      "value": "1m",
+      "label": "1M",
+      "isDefault": true
+     }
+    ],
+    "steers": false,
+    "renames": false,
+    "images": false,
+    "harness": "claude",
+    "label": "Claude Code",
+    "mcpServers": true,
+    "asides": true,
+    "movesAccess": true,
+    "steersImages": true,
+    "screenCommands": [
+     {
+      "name": "login",
+      "control": "sign-in"
+     },
+     {
+      "name": "logout",
+      "control": "sign-in"
+     },
+     {
+      "name": "model",
+      "control": "model"
+     },
+     {
+      "name": "permissions",
+      "control": "access"
+     },
+     {
+      "name": "config",
+      "control": "settings"
+     },
+     {
+      "name": "help",
+      "control": "docs"
+     }
+    ],
+    "smallModel": "claude-haiku-5-5",
+    "models": [],
+    "legacyModels": [
+     {
+      "value": "claude-opus-5",
+      "label": "Opus 5",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-8",
+      "label": "Opus 4.8",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-7",
+      "label": "Opus 4.7",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "xhigh",
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-6",
+      "label": "Opus 4.6",
+      "fast": true,
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-opus-4-5",
+      "label": "Opus 4.5",
+      "fast": true,
+      "efforts": [],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-fable-5",
+      "label": "Fable 5",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": []
+     },
+     {
+      "value": "claude-sonnet-5",
+      "label": "Sonnet 5",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "defaultEffort": "high",
+      "contextWindows": []
+     },
+     {
+      "value": "claude-sonnet-4-6",
+      "label": "Sonnet 4.6",
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "max"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-sonnet-4-5",
+      "label": "Sonnet 4.5",
+      "efforts": [],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-haiku-4-5-20251001",
+      "label": "Haiku 4.5",
+      "efforts": [],
+      "contextWindows": []
+     }
+    ],
+    "efforts": [],
+    "access": {
+     "ask": "default",
+     "auto-edit": "acceptEdits",
+     "full": "bypassPermissions"
+    },
+    "bypassMode": "bypassPermissions",
+    "readOnlyMode": "dontAsk",
+    "permissionModes": []
+   }
+  },
+  {
+   "name": "pi+probe",
+   "value": {
+    "source": "harness",
+    "version": "2.1.257",
+    "contextWindows": [],
+    "steers": false,
+    "renames": false,
+    "images": false,
+    "harness": "pi",
+    "label": "Pi",
+    "models": [
+     {
+      "value": "claude-opus-5-5",
+      "label": "Opus",
+      "description": "Opus 5.5 with 1M context",
+      "isDefault": true,
+      "efforts": [
+       "low",
+       "high"
+      ],
+      "contextWindows": [
+       "200k",
+       "1m"
+      ]
+     },
+     {
+      "value": "claude-haiku-4-5-20251001",
+      "label": "Haiku",
+      "efforts": [],
+      "contextWindows": []
+     },
+     {
+      "value": "claude-next-6",
+      "label": "Next",
+      "efforts": [
+       "low",
+       "turbo"
+      ],
+      "contextWindows": []
+     }
+    ],
+    "efforts": [
+     {
+      "value": "low",
+      "label": "Low"
+     },
+     {
+      "value": "high",
+      "label": "High"
+     },
+     {
+      "value": "turbo",
+      "label": "Turbo"
+     }
+    ],
+    "permissionModes": [
+     {
+      "value": "default",
+      "label": "default"
+     },
+     {
+      "value": "acceptEdits",
+      "label": "acceptEdits"
+     },
+     {
+      "value": "yolo",
+      "label": "yolo"
+     }
+    ]
+   }
+  }
+ ],
+ "labels": [
+  [
+   "",
+   "Model not named"
+  ],
+  [
+   "claude-opus-5-5",
+   "Opus 5.5"
+  ],
+  [
+   "anthropic/claude-opus-5-5",
+   "Opus 5.5"
+  ],
+  [
+   "claude-sonnet-4-5-20250929",
+   "Sonnet 4.5"
+  ],
+  [
+   "claude-haiku-4-5",
+   "Haiku 4.5"
+  ],
+  [
+   "claude-haiku-4-5-20251001",
+   "Haiku 4.5"
+  ],
+  [
+   "gpt-5.5",
+   "GPT-5.5"
+  ],
+  [
+   "gpt-6-astra",
+   "GPT-6-Astra"
+  ],
+  [
+   "openrouter/gpt-6-astra",
+   "GPT-6-Astra"
+  ],
+  [
+   "gpt-4o-mini",
+   "Gpt 4o Mini"
+  ],
+  [
+   "claude-opus-4-1",
+   "Claude Opus 4.1"
+  ],
+  [
+   "claude-3-5-sonnet-20241022",
+   "Claude 3.5 Sonnet"
+  ],
+  [
+   "llama-3-70b",
+   "Llama 3 70b"
+  ],
+  [
+   "o3",
+   "O3"
+  ],
+  [
+   "gemini-2.5-pro",
+   "Gemini 2.5 Pro"
+  ],
+  [
+   "a--b",
+   "A B"
+  ],
+  [
+   "x/",
+   ""
+  ],
+  [
+   "/",
+   ""
+  ],
+  [
+   "-",
+   "-"
+  ],
+  [
+   "deepseek-v3.1",
+   "Deepseek V3.1"
+  ],
+  [
+   "qwen3-coder-30b-a3b",
+   "Qwen3 Coder 30b A3b"
+  ],
+  [
+   "mistral-large-2411",
+   "Mistral Large 2411"
+  ]
+ ],
+ "toolAsks": [
+  [
+   "claude",
+   null,
+   "never"
+  ],
+  [
+   "claude",
+   "bypassPermissions",
+   "never"
+  ],
+  [
+   "claude",
+   "default",
+   "every"
+  ],
+  [
+   "claude",
+   "acceptEdits",
+   "every"
+  ],
+  [
+   "codex",
+   "danger-full-access",
+   "never"
+  ],
+  [
+   "codex",
+   "workspace-write",
+   "unless-read-only"
+  ],
+  [
+   "codex",
+   "read-only",
+   "unless-read-only"
+  ],
+  [
+   "codex",
+   null,
+   "never"
+  ],
+  [
+   "opencode",
+   "auto",
+   "never"
+  ],
+  [
+   "opencode",
+   "other",
+   "every"
+  ],
+  [
+   null,
+   "default",
+   "every"
+  ],
+  [
+   null,
+   null,
+   "never"
+  ],
+  [
+   "nobody",
+   "default",
+   "every"
+  ],
+  [
+   "pi",
+   "x",
+   "every"
+  ],
+  [
+   "cursor",
+   "force",
+   "never"
+  ],
+  [
+   "cursor",
+   "default",
+   "every"
+  ],
+  [
+   "gemini",
+   "yolo",
+   "never"
+  ]
+ ],
+ "smallest": [
+  [
+   "claude",
+   "claude-haiku-5-5"
+  ],
+  [
+   "codex",
+   "gpt-5.2"
+  ],
+  [
+   "gemini",
+   null
+  ],
+  [
+   "none",
+   null
+  ],
+  [
+   "codex+codexProbe",
+   null
+  ]
+ ],
+ "notRun": [
+  [
+   "none",
+   null
+  ],
+  [
+   "codex lists, gpt-5.2",
+   "Codex 0.153.0 does not run GPT-5.2; it lists GPT-5.6-Sol (gpt-5.6-sol). Pick a model it lists."
+  ],
+  [
+   "codex lists, gpt-5.5",
+   null
+  ],
+  [
+   "codex lists, no model",
+   null
+  ],
+  [
+   "codex lists, unknown",
+   null
+  ],
+  [
+   "codex table, gpt-5.2",
+   null
+  ]
+ ]
+}
