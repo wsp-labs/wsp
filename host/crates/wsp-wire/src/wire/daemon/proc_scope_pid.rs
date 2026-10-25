@@ -213,7 +213,7 @@ impl Check for DaemonRequest {
                 for (key, value) in headers {
                     text_at_most(value, 8192).map_err(|e| e.under(key.as_str()).under("headers"))?;
                 }
-                refine(headers.len() <= 64, "at most 64 headers").map_err(|e| e.under("headers"))?;
+                refine(headers.keys().filter(|k| *k != "__proto__").count() <= 64, "at most 64 headers").map_err(|e| e.under("headers"))?;
                 text_at_most(body, EXEC_OUTPUT_MAX as usize).map_err(|e| e.under("body"))?;
                 if let Some(v) = timeout_ms {
                     num_above(v.as_f64(), 0.0).map_err(|e| e.under("timeoutMs"))?;

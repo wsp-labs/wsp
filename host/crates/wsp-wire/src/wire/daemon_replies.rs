@@ -1131,7 +1131,7 @@ impl Check for SshStartReply {
         };
         let mut out = Vec::new();
         keys::req_key_with::<JsInt>(obj, "port", &mut out, Self::rule_port);
-        keys::req_key_with::<String>(obj, "hostKey", &mut out, Self::rule_host_key);
+        crate::types::key_rules::req_key_all::<String>(obj, "hostKey", &mut out, Self::rules_host_key);
         Some(out)
     }
 
@@ -1152,11 +1152,11 @@ impl SshStartReply {
         num_at_most(x.as_f64(), 65535.0)?;
         Ok(())
     }
+    fn rules_host_key(x: &String) -> Vec<SchemaError> {
+        crate::types::key_rules::all([text_at_least(x, 1), text_at_most(x, SSH_KEY_MAX as usize), regex_check(is_ssh_host_key_line(x))])
+    }
     fn rule_host_key(x: &String) -> Result<(), SchemaError> {
-        text_at_least(x, 1)?;
-        text_at_most(x, SSH_KEY_MAX as usize)?;
-        regex_check(is_ssh_host_key_line(x))?;
-        Ok(())
+        crate::types::key_rules::first(Self::rules_host_key(x))
     }
 }
 

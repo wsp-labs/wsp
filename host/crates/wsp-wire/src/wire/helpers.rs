@@ -202,12 +202,9 @@ pub fn js_key_order(map: &mut IndexMap<String, Value>) {
 
 /// zod `.catch(undefined)` on an optional field: a value that does not read as T reads as absent rather than failing
 /// the frame. Absent and null read as absent too.
-pub fn or_none<'de, D: Deserializer<'de>, T: DeserializeOwned>(d: D) -> Result<Option<T>, D::Error> {
+pub fn or_none<'de, D: Deserializer<'de>, T: DeserializeOwned + Check>(d: D) -> Result<Option<T>, D::Error> {
     let value = Value::deserialize(d)?;
-    if value.is_null() {
-        return Ok(None);
-    }
-    Ok(T::deserialize(value).ok())
+    Ok(crate::types::check::read::<T>(&value).ok())
 }
 
 /// zod's z.literal on a string: any other word is `invalid_literal`, at the path of the caller's key.

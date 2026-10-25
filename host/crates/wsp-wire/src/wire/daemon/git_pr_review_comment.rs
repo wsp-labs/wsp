@@ -308,13 +308,13 @@ impl ProcRow for wsp_frames::ProcEntry {
 /// ProcEntry.kind as zod reads it: absent is None, a known word is that kind, null or anything else is Some(Other).
 pub fn proc_kind_or_other<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<ProcKind>, D::Error> {
     let word = Value::deserialize(d)?;
-    Ok(Some(serde_json::from_value(word).unwrap_or(ProcKind::Other)))
+    Ok(Some(crate::types::check::read::<ProcKind>(&word).unwrap_or(ProcKind::Other)))
 }
 
 /// ProcEntry.owner as zod reads it: `.optional().catch(undefined)`, so anything that is not a whole owner object reads as absent.
 pub fn owner_or_none<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<ProcOwner>, D::Error> {
     let value = Value::deserialize(d)?;
-    Ok(if value.is_object() { ProcOwner::deserialize(value).ok() } else { None })
+    Ok(crate::types::check::read::<ProcOwner>(&value).ok())
 }
 
 /// Reads one daemon request as zod's discriminated union on `op` reads it, so a refusal's first issue is zod's: a value

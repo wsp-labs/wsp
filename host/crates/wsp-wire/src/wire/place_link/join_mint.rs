@@ -342,7 +342,7 @@ pub fn door_port_moved_line(port: i64) -> String {
 //   return ok ? f : undefined;
 // }
 pub fn parse_place_file(text: &str) -> Option<PlaceFile> {
-    serde_json::from_value(serde_json::from_str::<Value>(text).ok()?).ok()
+    serde_json::from_value(crate::wire::json_text::parse_json(text)?).ok()
 }
 
 // place-link.ts:457
@@ -394,7 +394,8 @@ pub fn place_file_names(file: Option<&PlaceFile>, place_ids: &[String], host_pub
 // /** The text the file holds, which parsePlaceFile reads back. */
 // export const placeFileText = (file: PlaceFile): string => `${JSON.stringify(file, null, 2)}\n`;
 pub fn place_file_text(file: &PlaceFile) -> String {
-    format!("{}\n", serde_json::to_string_pretty(file).expect("a place file writes as JSON"))
+    let text = serde_json::to_string_pretty(file).expect("a place file writes as JSON");
+    format!("{}\n", crate::wire::json_text::restore_surrogates(&text))
 }
 
 // The shapes wsp-frames holds read every bound while deserializing, so each Check has nothing left to refuse.

@@ -111,3 +111,40 @@ pub fn record_opt<'de, D: Deserializer<'de>, K: Deserialize<'de> + Serialize + s
 ) -> Result<Option<IndexMap<K, V>>, D::Error> {
     record(d).map(Some)
 }
+
+/// A `z.record(z.string(), V)` as a type of its own: `__proto__` is read and not kept, and it writes as JavaScript writes an
+/// object (index-like keys first). `V` writes through its own `Serialize`, so a `Kept` value writes its numbers as JavaScript does.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Record<V>(pub IndexMap<String, V>);
+
+impl<V> Default for Record<V> {
+    fn default() -> Self {
+        Record(IndexMap::new())
+    }
+}
+
+impl<V: Serialize> Serialize for Record<V> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        crate::types::check::js_record(&self.0, s)
+    }
+}
+
+impl<'de, V: Deserialize<'de>> Deserialize<'de> for Record<V> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        record(d).map(Record)
+    }
+}
+
+impl<V: Check + Serialize> Check for Record<V> {
+    fn check(&self) -> Result<(), crate::types::SchemaError> {
+        self.0.check()
+    }
+
+    fn pass(value: &Value) -> Option<Vec<crate::types::SchemaError>> {
+        <IndexMap<String, V> as Check>::pass(value)
+    }
+
+    fn describe(path: &[Value]) -> Option<crate::types::check::Zod> {
+        <IndexMap<String, V> as Check>::describe(path)
+    }
+}

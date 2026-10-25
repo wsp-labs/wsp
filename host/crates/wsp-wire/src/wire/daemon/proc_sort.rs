@@ -367,6 +367,7 @@ pub enum DaemonRequest {
         rows: Option<JsNumber>,
         shell: Option<String>,
         cwd: Option<String>,
+        #[serde(default, serialize_with = "crate::types::check::js_record_opt", deserialize_with = "crate::types::kept::record_opt")]
         env: Option<IndexMap<String, String>>,
         run: Option<String>,
         machine_id: Option<String>,
@@ -589,7 +590,13 @@ pub enum DaemonRequest {
     #[serde(rename = "tunnel.close", rename_all = "camelCase")]
     TunnelClose { tunnel_id: String, id: ReqId },
     #[serde(rename = "stdio.open", rename_all = "camelCase")]
-    StdioOpen { stdio_id: String, cmd: String, env: Option<IndexMap<String, String>>, id: ReqId },
+    StdioOpen {
+        stdio_id: String,
+        cmd: String,
+        #[serde(default, serialize_with = "crate::types::check::js_record_opt", deserialize_with = "crate::types::kept::record_opt")]
+        env: Option<IndexMap<String, String>>,
+        id: ReqId,
+    },
     #[serde(rename = "stdio.write", rename_all = "camelCase")]
     StdioWrite { stdio_id: String, data: String, id: ReqId },
     #[serde(rename = "stdio.close", rename_all = "camelCase")]
@@ -597,6 +604,7 @@ pub enum DaemonRequest {
     #[serde(rename = "http.post", rename_all = "camelCase")]
     HttpPost {
         url: String,
+        #[serde(serialize_with = "crate::types::check::js_record", deserialize_with = "crate::types::kept::record")]
         headers: IndexMap<String, String>,
         body: String,
         bearer: Option<HttpBearer>,

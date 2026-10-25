@@ -337,7 +337,7 @@ pub enum MachineLinkRequest {
     #[serde(rename = "machine.list", rename_all = "camelCase")]
     MachineList {
         id: ReqId,
-        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+        #[serde(default, serialize_with = "crate::types::check::js_record_opt", deserialize_with = "crate::types::kept::record_opt")]
         labels: Option<IndexMap<String, String>>,
     },
     #[serde(rename = "machine.exec", rename_all = "camelCase")]
@@ -1109,8 +1109,8 @@ impl Check for BackendFacts {
         crate::types::keys::req_key::<BackendFactsPricing>(obj, "pricing", &mut out);
         crate::types::keys::opt_key::<BackendFactsLifecycle>(obj, "lifecycle", &mut out);
         crate::types::keys::opt_key::<BackendFactsBaseTemplates>(obj, "baseTemplates", &mut out);
-        crate::types::keys::opt_key_with::<String>(obj, "logins", &mut out, Self::rule_logins);
-        crate::types::keys::opt_key_with::<String>(obj, "projects", &mut out, Self::rule_projects);
+        crate::types::key_rules::opt_key_all::<String>(obj, "logins", &mut out, Self::rules_logins);
+        crate::types::key_rules::opt_key_all::<String>(obj, "projects", &mut out, Self::rules_projects);
         Some(out)
     }
 
@@ -1131,19 +1131,21 @@ impl Check for BackendFacts {
     }
 }
 impl BackendFacts {
-    fn rule_logins(x: &Option<String>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(logins) = x {
-            text_at_least(logins, 1)?;
-            refine(crate::wire::limits::is_plain_path(logins), "an absolute path on the computer")?;
-        }
-        Ok(())
+    fn rules_path(x: &Option<String>) -> Vec<crate::types::check::SchemaError> {
+        x.iter()
+            .flat_map(|path| {
+                crate::types::key_rules::all([
+                    text_at_least(path, 1),
+                    refine(crate::wire::limits::is_plain_path(path), "an absolute path on the computer"),
+                ])
+            })
+            .collect()
     }
-    fn rule_projects(x: &Option<String>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(projects) = x {
-            text_at_least(projects, 1)?;
-            refine(crate::wire::limits::is_plain_path(projects), "an absolute path on the computer")?;
-        }
-        Ok(())
+    fn rules_logins(x: &Option<String>) -> Vec<crate::types::check::SchemaError> {
+        Self::rules_path(x)
+    }
+    fn rules_projects(x: &Option<String>) -> Vec<crate::types::check::SchemaError> {
+        Self::rules_path(x)
     }
 }
 

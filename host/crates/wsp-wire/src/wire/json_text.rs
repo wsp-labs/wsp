@@ -1,112 +1,277 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! `JSON.parse` of a text nested deeper than serde_json reads: node has no depth limit and serde_json stops at 128.
+//! `JSON.parse` of a text, read the way node reads it: any nesting depth, a number past a double (`1e400`) is Infinity and
+//! so `null` once written, and a lone surrogate escape (`"\ud800"`) is a string. serde_json refuses the first at depth 128 and
+//! errors on the other two.
 
-use serde_json::Value;
+use serde_json::{Map, Number, Value};
 
 /// Containers nested past this depth are read as `null`, after their syntax is checked.
 const KEPT_DEPTH: usize = 100;
 
+/// A Rust `String` cannot hold a lone surrogate, so one is kept as this character followed by `MARK_BASE` plus its offset
+/// from U+D800, and a real occurrence of this character is kept doubled; `restore_surrogates` undoes both when a text is written.
+const ESC: char = '\u{10FFFF}';
+const MARK_BASE: u32 = 0xF0000;
+
+/// What `JSON.parse(text)` reads, or None where it throws.
 pub fn parse_json(text: &str) -> Option<Value> {
-    match serde_json::from_str::<Value>(text) {
-        Ok(value) => Some(value),
-        Err(e) if e.to_string().starts_with("recursion limit exceeded") => serde_json::from_str(&without_depth(text)?).ok(),
-        Err(_) => None,
+    let mut reader = Reader { b: text.as_bytes(), text, i: 0 };
+    let value = reader.document()?;
+    reader.white();
+    (reader.i == reader.b.len()).then_some(value)
+}
+
+/// A JSON text written from strings `parse_json` read, with each lone surrogate back as the escape `JSON.stringify` writes.
+pub fn restore_surrogates(text: &str) -> String {
+    if !text.contains(ESC) {
+        return text.to_string();
     }
-}
-
-#[derive(Clone, Copy, PartialEq)]
-enum Want {
-    Value,
-    ValueOrClose,
-    KeyOrClose,
-    Key,
-    Colon,
-    CommaOrClose,
-    End,
-}
-
-/// The text with every container below `KEPT_DEPTH` replaced by `null`, or None where the text is not JSON. The syntax
-/// is walked with a stack of its own, so no depth is too deep for it.
-fn without_depth(text: &str) -> Option<String> {
-    let bytes = text.as_bytes();
-    let mut out = String::new();
-    let mut stack: Vec<u8> = Vec::new();
-    let mut want = Want::Value;
-    let mut i = 0;
-    while i < bytes.len() {
-        let c = bytes[i];
-        if matches!(c, b' ' | b'\t' | b'\n' | b'\r') {
-            i += 1;
-            continue;
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match (c, chars.peek().copied()) {
+            (ESC, Some(ESC)) => {
+                chars.next();
+                out.push(ESC);
+            }
+            (ESC, Some(mark)) if (MARK_BASE..MARK_BASE + 0x800).contains(&(mark as u32)) => {
+                chars.next();
+                out.push_str(&format!("\\u{:04x}", 0xD800 + (mark as u32 - MARK_BASE)));
+            }
+            _ => out.push(c),
         }
-        let after_value = if stack.is_empty() { Want::End } else { Want::CommaOrClose };
-        let start = i;
-        let mut emit = stack.len() <= KEPT_DEPTH;
-        match (want, c) {
-            (Want::Value | Want::ValueOrClose, b'[' | b'{') => {
-                emit = false;
-                if stack.len() < KEPT_DEPTH {
-                    out.push(c as char);
-                } else if stack.len() == KEPT_DEPTH {
-                    out.push_str("null");
+    }
+    out
+}
+
+enum Frame {
+    Array(Vec<Value>),
+    Object(Map<String, Value>, Option<String>),
+}
+
+struct Reader<'a> {
+    b: &'a [u8],
+    text: &'a str,
+    i: usize,
+}
+
+impl Reader<'_> {
+    fn white(&mut self) {
+        while matches!(self.b.get(self.i), Some(b' ' | b'\t' | b'\n' | b'\r')) {
+            self.i += 1;
+        }
+    }
+
+    fn take(&mut self, byte: u8) -> Option<()> {
+        (self.b.get(self.i) == Some(&byte)).then(|| self.i += 1)
+    }
+
+    /// One value, read with a stack of its own so no depth is too deep; a container past `KEPT_DEPTH` is checked and read as null.
+    fn document(&mut self) -> Option<Value> {
+        let mut frames: Vec<Frame> = Vec::new();
+        let mut kinds: Vec<u8> = Vec::new();
+        loop {
+            self.white();
+            let mut done = match *self.b.get(self.i)? {
+                open @ (b'[' | b'{') => {
+                    self.i += 1;
+                    let built = kinds.len() < KEPT_DEPTH;
+                    kinds.push(open);
+                    if built {
+                        frames.push(if open == b'[' { Frame::Array(Vec::new()) } else { Frame::Object(Map::new(), None) });
+                    }
+                    self.white();
+                    if self.take(if open == b'[' { b']' } else { b'}' }).is_some() {
+                        kinds.pop();
+                        Some(close(built, &mut frames))
+                    } else {
+                        if open == b'{' {
+                            self.member_key(built.then(|| frames.last_mut()).flatten())?;
+                        }
+                        None
+                    }
                 }
-                want = if c == b'[' { Want::ValueOrClose } else { Want::KeyOrClose };
-                stack.push(c);
-            }
-            (Want::ValueOrClose, b']') | (Want::KeyOrClose, b'}') | (Want::CommaOrClose, b']' | b'}') => {
-                let open = if c == b']' { b'[' } else { b'{' };
-                if stack.pop() != Some(open) {
-                    return None;
+                b'"' => Some(Value::String(self.string()?)),
+                b'-' | b'0'..=b'9' => Some(self.number()?),
+                b't' => Some(self.word("true", Value::Bool(true))?),
+                b'f' => Some(self.word("false", Value::Bool(false))?),
+                b'n' => Some(self.word("null", Value::Null)?),
+                _ => return None,
+            };
+            while let Some(value) = done.take() {
+                let Some(&kind) = kinds.last() else { return Some(value) };
+                let built = kinds.len() <= KEPT_DEPTH;
+                if built {
+                    match frames.last_mut()? {
+                        Frame::Array(items) => items.push(value),
+                        Frame::Object(map, key) => {
+                            map.insert(key.take()?, value);
+                        }
+                    }
                 }
-                emit = stack.len() < KEPT_DEPTH;
-                want = if stack.is_empty() { Want::End } else { Want::CommaOrClose };
-            }
-            (Want::Value | Want::ValueOrClose, b'"') => {
-                i = string_end(bytes, i)?;
-                want = after_value;
-            }
-            (Want::KeyOrClose | Want::Key, b'"') => {
-                i = string_end(bytes, i)?;
-                want = Want::Colon;
-            }
-            (Want::Value | Want::ValueOrClose, b'-' | b'0'..=b'9') => {
-                while i < bytes.len() && matches!(bytes[i], b'0'..=b'9' | b'-' | b'+' | b'.' | b'e' | b'E') {
-                    i += 1;
+                self.white();
+                match *self.b.get(self.i)? {
+                    b',' => {
+                        self.i += 1;
+                        if kind == b'{' {
+                            self.white();
+                            self.member_key(built.then(|| frames.last_mut()).flatten())?;
+                        }
+                    }
+                    c if c == if kind == b'[' { b']' } else { b'}' } => {
+                        self.i += 1;
+                        kinds.pop();
+                        done = Some(close(built, &mut frames));
+                    }
+                    _ => return None,
                 }
-                serde_json::from_str::<serde_json::Number>(&text[start..i]).ok()?;
-                i -= 1;
-                want = after_value;
             }
-            (Want::Value | Want::ValueOrClose, b't' | b'f' | b'n') => {
-                let word = ["true", "false", "null"].into_iter().find(|w| text[i..].starts_with(w))?;
-                i += word.len() - 1;
-                want = after_value;
-            }
-            (Want::Colon, b':') => want = Want::Value,
-            (Want::CommaOrClose, b',') => want = if stack.last() == Some(&b'[') { Want::Value } else { Want::Key },
+        }
+    }
+
+    /// The `"key":` that opens an object member.
+    fn member_key(&mut self, frame: Option<&mut Frame>) -> Option<()> {
+        self.white();
+        if self.b.get(self.i) != Some(&b'"') {
+            return None;
+        }
+        let key = self.string()?;
+        self.white();
+        self.take(b':')?;
+        if let Some(Frame::Object(_, slot)) = frame {
+            *slot = Some(key);
+        }
+        Some(())
+    }
+
+    fn word(&mut self, word: &str, value: Value) -> Option<Value> {
+        self.text[self.i..].starts_with(word).then(|| {
+            self.i += word.len();
+            value
+        })
+    }
+
+    fn digits(&mut self) -> Option<()> {
+        let from = self.i;
+        while matches!(self.b.get(self.i), Some(b'0'..=b'9')) {
+            self.i += 1;
+        }
+        (self.i > from).then_some(())
+    }
+
+    fn number(&mut self) -> Option<Value> {
+        let start = self.i;
+        self.take(b'-');
+        match *self.b.get(self.i)? {
+            b'0' => self.i += 1,
+            b'1'..=b'9' => self.digits()?,
             _ => return None,
         }
-        if emit {
-            out.push_str(&text[start..=i]);
+        if self.take(b'.').is_some() {
+            self.digits()?;
         }
-        i += 1;
+        if matches!(self.b.get(self.i), Some(b'e' | b'E')) {
+            self.i += 1;
+            if matches!(self.b.get(self.i), Some(b'+' | b'-')) {
+                self.i += 1;
+            }
+            self.digits()?;
+        }
+        let text = &self.text[start..self.i];
+        if let Ok(n) = serde_json::from_str::<Number>(text) {
+            return Some(Value::Number(n));
+        }
+        Some(text.parse::<f64>().ok().and_then(Number::from_f64).map_or(Value::Null, Value::Number))
     }
-    (want == Want::End).then_some(out)
+
+    fn hex4(&mut self) -> Option<u32> {
+        let digits = self.text.get(self.i..self.i + 4)?;
+        if !digits.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return None;
+        }
+        self.i += 4;
+        u32::from_str_radix(digits, 16).ok()
+    }
+
+    /// The string whose opening quote is next.
+    fn string(&mut self) -> Option<String> {
+        self.i += 1;
+        let mut out = String::new();
+        let mut run = self.i;
+        loop {
+            match *self.b.get(self.i)? {
+                b'"' => {
+                    push_plain(&mut out, &self.text[run..self.i]);
+                    self.i += 1;
+                    return Some(out);
+                }
+                b'\\' => {
+                    push_plain(&mut out, &self.text[run..self.i]);
+                    self.i += 1;
+                    let escape = *self.b.get(self.i)?;
+                    self.i += 1;
+                    match escape {
+                        b'"' => out.push('"'),
+                        b'\\' => out.push('\\'),
+                        b'/' => out.push('/'),
+                        b'b' => out.push('\u{8}'),
+                        b'f' => out.push('\u{c}'),
+                        b'n' => out.push('\n'),
+                        b'r' => out.push('\r'),
+                        b't' => out.push('\t'),
+                        b'u' => {
+                            let unit = self.hex4()?;
+                            self.unit(&mut out, unit)?;
+                        }
+                        _ => return None,
+                    }
+                    run = self.i;
+                }
+                0..=0x1f => return None,
+                _ => self.i += 1,
+            }
+        }
+    }
+
+    /// A `\uXXXX` read: a surrogate pair is one character, a surrogate on its own is kept as `ESC` and its mark.
+    fn unit(&mut self, out: &mut String, unit: u32) -> Option<()> {
+        let mut low = None;
+        if (0xD800..0xDC00).contains(&unit) && self.text[self.i..].starts_with("\\u") {
+            let at = self.i;
+            self.i += 2;
+            match self.hex4() {
+                Some(next) if (0xDC00..0xE000).contains(&next) => low = Some(next),
+                _ => self.i = at,
+            }
+        }
+        match (low, char::from_u32(unit)) {
+            (Some(low), _) => out.push(char::from_u32(0x10000 + ((unit - 0xD800) << 10) + (low - 0xDC00))?),
+            (None, Some(c)) => out.push(c),
+            (None, None) => {
+                out.push(ESC);
+                out.push(char::from_u32(MARK_BASE + (unit - 0xD800))?);
+            }
+        }
+        Some(())
+    }
 }
 
-/// The index of the quote that ends the string opened at `open`, or None where it is not a JSON string.
-fn string_end(bytes: &[u8], open: usize) -> Option<usize> {
-    let mut j = open + 1;
-    loop {
-        match *bytes.get(j)? {
-            b'"' => return Some(j),
-            b'\\' => match *bytes.get(j + 1)? {
-                b'"' | b'\\' | b'/' | b'b' | b'f' | b'n' | b'r' | b't' => j += 2,
-                b'u' if bytes.get(j + 2..j + 6)?.iter().all(u8::is_ascii_hexdigit) => j += 6,
-                _ => return None,
-            },
-            0..=0x1f => return None,
-            _ => j += 1,
-        }
+fn push_plain(out: &mut String, text: &str) {
+    if text.contains(ESC) {
+        out.push_str(&text.replace(ESC, "\u{10FFFF}\u{10FFFF}"));
+    } else {
+        out.push_str(text);
+    }
+}
+
+/// The value a closed container is: what was built, or null for one past `KEPT_DEPTH`.
+fn close(built: bool, frames: &mut Vec<Frame>) -> Value {
+    if !built {
+        return Value::Null;
+    }
+    match frames.pop() {
+        Some(Frame::Array(items)) => Value::Array(items),
+        Some(Frame::Object(map, _)) => Value::Object(map),
+        None => Value::Null,
     }
 }

@@ -988,23 +988,6 @@ impl Check for PullRequestLabel {
     }
 }
 
-impl Check for PullRequestReviewRequest {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "name" => <String as Check>::describe(rest),
-                "team" => <bool as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
-
 impl Check for ReactionContent {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         crate::types::check::leaf(
