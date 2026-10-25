@@ -175,14 +175,14 @@ pub struct PreferencesStored {
         deserialize_with = "crate::types::check::present",
         serialize_with = "crate::types::check::js_record_opt"
     )]
-    pub agent_defaults: Option<IndexMap<String, AgentDefaults>>,
+    pub agent_defaults: Option<IndexMap<String, Fields<AgentDefaults>>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "crate::types::check::present",
         serialize_with = "crate::types::check::js_record_opt"
     )]
-    pub project_defaults: Option<IndexMap<String, ProjectOverrides>>,
+    pub project_defaults: Option<IndexMap<String, Fields<ProjectOverrides>>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub send_with: Option<SendKey>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -820,9 +820,9 @@ pub struct Preferences {
     #[serde(default = "default_preferences_code_font")]
     pub code_font: String,
     #[serde(default = "default_preferences_agent_defaults", serialize_with = "crate::types::check::js_record")]
-    pub agent_defaults: IndexMap<String, AgentDefaults>,
+    pub agent_defaults: IndexMap<String, Fields<AgentDefaults>>,
     #[serde(default = "default_preferences_project_defaults", serialize_with = "crate::types::check::js_record")]
-    pub project_defaults: IndexMap<String, ProjectOverrides>,
+    pub project_defaults: IndexMap<String, Fields<ProjectOverrides>>,
     #[serde(default = "default_preferences_send_with")]
     pub send_with: SendKey,
     #[serde(default = "default_preferences_mid_turn")]
@@ -1114,11 +1114,11 @@ fn default_preferences_code_font() -> String {
     from_json("\"\"")
 }
 
-fn default_preferences_agent_defaults() -> IndexMap<String, AgentDefaults> {
+fn default_preferences_agent_defaults() -> IndexMap<String, Fields<AgentDefaults>> {
     from_json("{}")
 }
 
-fn default_preferences_project_defaults() -> IndexMap<String, ProjectOverrides> {
+fn default_preferences_project_defaults() -> IndexMap<String, Fields<ProjectOverrides>> {
     from_json("{}")
 }
 
@@ -2072,7 +2072,7 @@ use std::collections::HashMap;
 
 use crate::types::env::{CLOUD_ENV, LABS_ENV};
 use crate::types::general_prefs::{general_defaults, patched_general, GeneralPatch, GeneralPreferences};
-use crate::types::thread_defaults::patched_fields;
+use crate::types::thread_defaults::Fields;
 
 // views/preferences.ts:65 at a3b870a6e
 // export const editorOpensHereLine = (name: string): string => `These files are on ${name}, so they open here.`;
@@ -2211,14 +2211,14 @@ fn per_key<V: Clone>(kept: &IndexMap<String, V>, moved: Option<&IndexMap<String,
 
 /// `fieldsById`: a null entry takes its id away, a field patch merges through `patched_fields`, and an id left with no
 /// field goes with it.
-fn fields_by_id<T, P>(kept: &IndexMap<String, T>, moved: Option<&IndexMap<String, Option<P>>>) -> IndexMap<String, T>
+fn fields_by_id<T, P>(kept: &IndexMap<String, Fields<T>>, moved: Option<&IndexMap<String, Option<P>>>) -> IndexMap<String, Fields<T>>
 where
     T: Clone + Serialize + serde::de::DeserializeOwned,
     P: Serialize,
 {
     let mut next = kept.clone();
     for (id, value) in moved.into_iter().flatten() {
-        match value.as_ref().and_then(|patch| patched_fields(next.get(id), patch)) {
+        match value.as_ref().and_then(|patch| Fields::patched(next.get(id), patch)) {
             Some(merged) => {
                 next.insert(id.clone(), merged);
             }

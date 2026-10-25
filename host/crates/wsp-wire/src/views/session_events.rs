@@ -1525,7 +1525,7 @@ pub fn turn_token_of(env: &HashMap<String, String>) -> Option<String> {
 
 // views/session-events.ts:665 at a3b870a6e
 // export const copiedFromOf = (e: SessionEvent): string | undefined => ("copiedFrom" in e ? e.copiedFrom : undefined);
-/// The `copiedFrom` of an event whose type carries that key, None for any other.
+/// The `copiedFrom` of an event, None where it has none or its type (`session.slate`) carries no such key.
 pub fn copied_from_of(e: &SessionEvent) -> Option<String> {
     match e {
         SessionEvent::SessionSubagentEvent(e) => e.copied_from.clone(),
@@ -1544,7 +1544,14 @@ pub fn copied_from_of(e: &SessionEvent) -> Option<String> {
         SessionEvent::SessionCappedEvent(e) => e.copied_from.clone(),
         SessionEvent::SessionUncappedEvent(e) => e.copied_from.clone(),
         SessionEvent::SessionRunEvent(e) => e.copied_from.clone(),
-        _ => None,
+        SessionEvent::SessionStartEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionDeltaEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionDoneEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionEndEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionSteerEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionNotifyEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionChangesEvent(e) => e.copied_from.clone(),
+        SessionEvent::SessionSlateEvent(_) => None,
     }
 }
 

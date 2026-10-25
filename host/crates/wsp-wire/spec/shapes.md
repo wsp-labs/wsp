@@ -60,16 +60,18 @@ The views the host sends and the records it keeps, as serde types. The implement
 
 ## Behaviour nobody wrote down
 
-- Struct order is the schema's, but a few TS writers build objects in another order: `recipePins`
-  (views/golden-image.ts:355) writes `id` first, while `SealedPin` declares it after the pin's keys; `effortsFor`
-  (harness-picks.ts:22) moves `isDefault` to an option's last key. The host's bytes differ there until a tape shows
-  which order reaches the wire (see Decisions).
+- Struct order is the schema's, but a few TS writers build objects in another order, and each is written as the TS
+  builds it: `recipePins` (views/golden-image.ts:355) writes `id` first, so `recipe_pins` returns `RecipePin`, not
+  `SealedPin`, which declares `id` after the pin's keys; `effortsFor` (harness-picks.ts:22) moves `isDefault` to an
+  option's last key, and `patchedFields` (thread-defaults.ts:48) keeps the kept keys first and puts a new key last.
+  A struct cannot hold either, so `efforts_for` returns `Fields<HarnessOption>` and the preferences' `agentDefaults` and
+  `projectDefaults` hold `Fields<AgentDefaults>` and `Fields<ProjectOverrides>` (`types/thread_defaults.rs`), each
+  keeping the order of its keys.
 
 ## Decisions
 
-1. Where construction order and schema order differ, the struct follows the schema except for `Preferences`, which
-   reaches the wire on every `preferences.*` op. The two other cases go to the harness's accepted list until a tape
-   shows them.
+1. Where construction order and schema order differ, the order is the TS builder's (see the behaviour above), not the
+   schema's, for `Preferences`, `recipe_pins` and `efforts_for`.
 2. Web-only exports (no file under `packages/*/src` uses them) are not ported: `appProcLine`, `bootLineOf`,
    `placeAddSheetWord`, `needsYouCount`, `withPushedRow`, `creationAwaits`, the harness screen-command helpers, the
    desktop bridge's Electron interfaces.

@@ -923,7 +923,10 @@ impl Check for FixResult {
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         if path.is_empty() {
-            return Some(crate::types::check::Zod::Union);
+            return Some(crate::types::check::Zod::Word("object"));
+        }
+        if path.len() == 1 && path[0].as_str() == Some("outcome") {
+            return Some(crate::types::check::Zod::Tags("outcome", &["steered", "queued", "started", "held", "updated"]));
         }
         <FixResultV0 as Check>::describe(path).or_else(|| <FixResultV1 as Check>::describe(path))
     }

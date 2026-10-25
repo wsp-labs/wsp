@@ -40,9 +40,10 @@ a patch lands by, which the host and a painting client share. What the host stor
    recipeLook and threadsShut: absent keeps the current (which may be absent); present applies rule 4 over the current
    or `{}`.
 6. agentDefaults and projectDefaults (`fieldsById`, :236): for each id in patch order, null removes it; a field patch
-   lands through `patched_fields` and an id left with no field is removed.
+   lands through `Fields::patched` and an id left with no field is removed.
 7. `patched_fields(kept, patch)` (thread-defaults.ts:48): the record's keys; each patch key null removes, absent keeps,
-   a value sets; None when no key is left. `patched_general`: each choice the patch names, else the current.
+   a value sets, a new key after the kept ones; None when no key is left. `Fields::patched` is the same on a
+   `Fields<T>`, which writes its keys in that order where a struct would write its own. `patched_general`: each choice the patch names, else the current.
 8. `labs_from_env` / `cloud_from_env`: the variable is exactly `"1"` (no trim, no `true`).
 
 ## Edge cases
