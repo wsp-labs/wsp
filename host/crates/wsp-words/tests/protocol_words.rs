@@ -36,7 +36,6 @@ fn place(v: Value) -> wsp_wire::views::place::PlaceView {
 mod a_copy_of_the_image_beside_the_record {
     use super::*;
     use wsp_words::words::image::*;
-    use wsp_words::words::init::NETWORK_LOST_LINE;
     use wsp_words::words::places::{place_workspaces_parts, WorkspacesParts};
 
     #[test]
@@ -80,7 +79,7 @@ mod a_copy_of_the_image_beside_the_record {
         assert_eq!(copy_building_line(GoldenStage::UploadingFiles), "copying your image: copying your files");
         assert_eq!(copy_stopped_line(Some("no room today")), "the build stopped: no room today");
         assert_eq!(copy_stopped_line(None), "the build stopped");
-        assert_eq!(copy_stopped_line(Some("fetch failed")), format!("the build stopped: {NETWORK_LOST_LINE}"));
+        assert_eq!(copy_stopped_line(Some("fetch failed")), "the build stopped: This computer lost its network");
         let boxed = place(
             json!({ "id": "p_1", "kind": "computer", "name": "box", "default": false, "takesForks": true, "build": copy_building_line(GoldenStage::Creating) }),
         );
@@ -795,13 +794,6 @@ mod bringing_work_back {
             "theirs is on default, and a thread on hetzner cannot work there yet; ask the person"
         );
         // A switch that is off on a computer, over a folder there holding none of its own, is turned on where it is held.
-        assert_eq!(
-            agents_off_computer_refusal("t_1234567890", "my box", SpawnAct::ThreadNew),
-            format!(
-                "thread t_123456 may not {}, since agents on my box are off; turn them on with wsp computers set 'my box' --spawn on",
-                SpawnAct::ThreadNew.words()
-            )
-        );
         // Bringing work back is one of the acts a thread may ask for, and it is named in the table like the rest.
         assert!(SPAWN_ACTS_ALLOWED.contains(&SpawnAct::BringBack));
         assert_eq!(SpawnAct::BringBack.words(), "bring its work back");

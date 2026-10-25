@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The End's plan for a thread's processes, the lines and refusal of processes left running, and the lines an ended agent's thread says. Port of the functions of packages/protocol/src/views/activity.ts that wsp-wire left to this crate, at
-//! a3b870a6e; that file's shapes are wsp-wire's. See spec/views_activity.md.
+//! the cut (383708c78); that file's shapes are wsp-wire's. See spec/views_activity.md.
 
 use indexmap::IndexSet;
 use serde_json::Value;
@@ -120,6 +120,9 @@ pub fn end_plan(
             return Err(refusal(&not_started_line(whole), NOT_STARTED_FIX, Some(Kind::Usage)));
         }
         if (p.started_at as f64 - started_at).abs() > SAME_START_MS as f64 {
+            if crate::js_date::time_value(p.started_at as f64).is_none() || crate::js_date::time_value(started_at).is_none() {
+                return Err(HostError::new("Invalid time value"));
+            }
             return Err(refusal(&end_reused_line(whole, p, started_at as i64), END_AGAIN_FIX, Some(Kind::NotFound)));
         }
         if let Some(agent) = agent_scope_of(placed, read, k) {
@@ -143,7 +146,11 @@ pub fn end_plan(
         }
         let mut targets = Vec::new();
         let mut stack = vec![p.clone()];
+        let mut seen = std::collections::HashSet::new();
         while let Some(q) = stack.pop() {
+            if !seen.insert(q.pid) {
+                return Err(HostError::new("Maximum call stack size exceeded"));
+            }
             if let Some(under) = agent_scope_of(placed, read, q.pid) {
                 return Err(refusal(&agent_under_line(pid, under), &agent_end_fix(under), Some(Kind::Usage)));
             }

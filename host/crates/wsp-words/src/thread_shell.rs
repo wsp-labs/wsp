@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The startup files that put a thread's own folder first on PATH in every shell a turn starts. Port of
-//! packages/protocol/src/thread-shell.ts at a3b870a6e. See spec/shell_and_text.md.
+//! packages/protocol/src/thread-shell.ts at the cut (383708c78). See spec/shell_and_text.md.
 
 use indexmap::IndexMap;
 use wsp_wire::types::shell_quote::shell_quote;

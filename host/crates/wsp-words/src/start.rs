@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Starting a thread on a GitHub issue or pull request, and the review a thread posts back: the links it reads, the prompts it hands the agent and the lines it prints. Port of the functions of packages/protocol/src/start.ts at
-//! a3b870a6e; its shapes and flat constants are wsp_wire::types::start. See spec/start.md.
+//! the cut (383708c78); its shapes and flat constants are wsp_wire::types::start. See spec/start.md.
 
-use wsp_wire::types::start::GithubLink;
+use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::start::ReviewBlock;
 use wsp_wire::types::start::ReviewBlockVerdict;
 use wsp_wire::types::start::ReviewDraft;
 use wsp_wire::types::start::WorkspaceFrom;
 use wsp_wire::types::start::WorkspaceFromKind;
 use wsp_wire::types::start::{GitPrDiffReply, IssueRead};
+use wsp_wire::types::start::{GithubComLit, GithubLink, GithubLinkKind};
 
 use regex::Regex;
 
 use crate::js::{is_js_whitespace, js_trim, js_trim_end, number_string, utf16};
 use crate::quote::{fence_for, one_line};
+pub use crate::v8_json::parse_json;
 
 // start.ts:9
 // private in the TS: port it as a private helper
@@ -54,13 +56,15 @@ pub fn github_link_of(text: &str) -> Option<GithubLink> {
     let link = Regex::new(&format!(r"^https?://(?:www\.)?github\.com/([A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)/([A-Za-z0-9._-]+)/(issues|pull)/([0-9]+)(?:[/?#][^{JS_SPACE}]*)?$")).unwrap();
     let c = link.captures(line)?;
     let (owner, name, path, digits) = (&c[1], &c[2], &c[3], &c[4]);
-    let kind = if path == "issues" { "issue" } else { "pull_request" };
+    let kind = if path == "issues" { GithubLinkKind::Issue } else { GithubLinkKind::PullRequest };
     let number: f64 = digits.parse().ok()?;
-    let url = format!("https://github.com/{owner}/{name}/{path}/{digits}");
-    serde_json::from_value(
-        serde_json::json!({ "host": "github.com", "repo": format!("{owner}/{name}"), "kind": kind, "number": number, "url": url }),
-    )
-    .ok()
+    Some(GithubLink {
+        host: GithubComLit,
+        repo: format!("{owner}/{name}"),
+        kind,
+        number: JsInt(JsNumber(number)),
+        url: format!("https://github.com/{owner}/{name}/{path}/{digits}"),
+    })
 }
 
 /// The `owner/repo` an https or ssh remote of a known host names, or nothing where the remote names no path; a
@@ -219,268 +223,6 @@ fn head_within(text: &str, max: usize) -> (String, bool) {
     (head.trim_end_matches('\u{fffd}').to_string(), true)
 }
 
-/// A JSON text as V8's JSON.parse reads it, by UTF-16 unit, so its positions and its messages are V8's.
-struct JsonReader {
-    src: Vec<u16>,
-    at: usize,
-}
-
-/// The whole texts V8 names as not valid JSON in full, whatever token failed.
-const JSON_SPECIAL_TEXTS: [&str; 4] = ["NaN", "Infinity", "undefined", "[object Object]"];
-
-fn parse_json(text: &str) -> Result<serde_json::Value, String> {
-    let mut reader = JsonReader { src: text.encode_utf16().collect(), at: 0 };
-    reader.skip_space();
-    let value = reader.value()?;
-    reader.skip_space();
-    if reader.at < reader.src.len() {
-        return Err(reader.located("Unexpected non-whitespace character after JSON", reader.at));
-    }
-    Ok(value)
-}
-
-impl JsonReader {
-    fn unit(&self, at: usize) -> Option<u16> {
-        self.src.get(at).copied()
-    }
-
-    fn is(&self, at: usize, c: char) -> bool {
-        self.unit(at) == Some(c as u16)
-    }
-
-    fn is_digit(&self, at: usize) -> bool {
-        matches!(self.unit(at), Some(0x30..=0x39))
-    }
-
-    fn text(&self, from: usize, to: usize) -> String {
-        let end = to.min(self.src.len());
-        String::from_utf16_lossy(&self.src[from.min(end)..end])
-    }
-
-    fn skip_space(&mut self) {
-        while matches!(self.unit(self.at), Some(0x20 | 0x09 | 0x0A | 0x0D)) {
-            self.at += 1;
-        }
-    }
-
-    fn located(&self, prefix: &str, at: usize) -> String {
-        let before = &self.src[..at.min(self.src.len())];
-        let line = 1 + before.iter().filter(|&&u| u == 0x0A).count();
-        let column = match before.iter().rposition(|&u| u == 0x0A) {
-            Some(newline) => at - newline,
-            None => at + 1,
-        };
-        format!("{prefix} at position {at} (line {line} column {column})")
-    }
-
-    fn unexpected(&self, at: usize, expected: Option<&str>) -> String {
-        if let Some(prefix) = expected {
-            return self.located(prefix, at);
-        }
-        let Some(unit) = self.unit(at) else {
-            return "Unexpected end of JSON input".to_string();
-        };
-        match unit {
-            0x22 => return self.located("Unexpected string in JSON", at),
-            0x2D | 0x30..=0x39 => return self.located("Unexpected number in JSON", at),
-            _ => {}
-        }
-        let token = String::from_utf16_lossy(&[unit]);
-        let source = self.text(0, self.src.len());
-        let n = self.src.len();
-        if JSON_SPECIAL_TEXTS.contains(&source.as_str()) {
-            format!("\"{source}\" is not valid JSON")
-        } else if n < 21 {
-            format!("Unexpected token '{token}', \"{source}\" is not valid JSON")
-        } else if at < 10 {
-            format!("Unexpected token '{token}', \"{}\"... is not valid JSON", self.text(0, at + 10))
-        } else if at < n - 10 {
-            format!("Unexpected token '{token}', ...\"{}\"... is not valid JSON", self.text(at - 10, at + 10))
-        } else {
-            format!("Unexpected token '{token}', ...\"{}\" is not valid JSON", self.text(at - 10, n))
-        }
-    }
-
-    fn value(&mut self) -> Result<serde_json::Value, String> {
-        match self.unit(self.at) {
-            Some(0x7B) => self.object(),
-            Some(0x5B) => self.array(),
-            Some(0x22) => self.string().map(serde_json::Value::String),
-            Some(0x2D | 0x30..=0x39) => self.number(),
-            Some(0x74) => self.literal("true", serde_json::Value::Bool(true)),
-            Some(0x66) => self.literal("false", serde_json::Value::Bool(false)),
-            Some(0x6E) => self.literal("null", serde_json::Value::Null),
-            _ => Err(self.unexpected(self.at, None)),
-        }
-    }
-
-    fn literal(&mut self, word: &str, value: serde_json::Value) -> Result<serde_json::Value, String> {
-        for (k, c) in word.bytes().enumerate() {
-            if self.unit(self.at + k) != Some(c as u16) {
-                return Err(self.unexpected(self.at + k, None));
-            }
-        }
-        self.at += word.len();
-        Ok(value)
-    }
-
-    fn string(&mut self) -> Result<String, String> {
-        self.at += 1;
-        let mut out: Vec<u16> = Vec::new();
-        loop {
-            let Some(unit) = self.unit(self.at) else {
-                return Err(self.located("Unterminated string in JSON", self.at));
-            };
-            match unit {
-                0x22 => {
-                    self.at += 1;
-                    return Ok(String::from_utf16_lossy(&out));
-                }
-                0x5C => {
-                    let escape_at = self.at + 1;
-                    let Some(escape) = self.unit(escape_at) else {
-                        return Err(self.unexpected(escape_at, None));
-                    };
-                    if escape == 0x75 {
-                        let mut code = 0u16;
-                        for k in 1..=4 {
-                            let digit = self.unit(escape_at + k).and_then(|u| char::from_u32(u as u32)).and_then(|c| c.to_digit(16));
-                            match digit {
-                                Some(d) => code = code * 16 + d as u16,
-                                None => return Err(self.located("Bad Unicode escape in JSON", escape_at + k)),
-                            }
-                        }
-                        out.push(code);
-                        self.at = escape_at + 5;
-                    } else {
-                        let decoded = match escape {
-                            0x22 | 0x5C | 0x2F => escape,
-                            0x62 => 0x08,
-                            0x66 => 0x0C,
-                            0x6E => 0x0A,
-                            0x72 => 0x0D,
-                            0x74 => 0x09,
-                            _ => return Err(self.located("Bad escaped character in JSON", escape_at)),
-                        };
-                        out.push(decoded);
-                        self.at = escape_at + 1;
-                    }
-                }
-                0x00..=0x1F => return Err(self.located("Bad control character in string literal in JSON", self.at)),
-                _ => {
-                    out.push(unit);
-                    self.at += 1;
-                }
-            }
-        }
-    }
-
-    fn number(&mut self) -> Result<serde_json::Value, String> {
-        let start = self.at;
-        if self.is(self.at, '-') {
-            self.at += 1;
-            if !self.is_digit(self.at) {
-                return Err(self.located("No number after minus sign in JSON", self.at));
-            }
-        }
-        if self.is(self.at, '0') {
-            self.at += 1;
-            if self.is_digit(self.at) {
-                return Err(self.located("Unexpected number in JSON", self.at));
-            }
-        } else {
-            while self.is_digit(self.at) {
-                self.at += 1;
-            }
-        }
-        if self.is(self.at, '.') {
-            self.at += 1;
-            if !self.is_digit(self.at) {
-                return Err(self.located("Unterminated fractional number in JSON", self.at));
-            }
-            while self.is_digit(self.at) {
-                self.at += 1;
-            }
-        }
-        if self.is(self.at, 'e') || self.is(self.at, 'E') {
-            self.at += 1;
-            if self.is(self.at, '+') || self.is(self.at, '-') {
-                self.at += 1;
-            }
-            if !self.is_digit(self.at) {
-                return Err(self.located("Exponent part is missing a number in JSON", self.at));
-            }
-            while self.is_digit(self.at) {
-                self.at += 1;
-            }
-        }
-        let value: serde_json::Value = serde_json::from_str(&self.text(start, self.at)).map_err(|e| e.to_string())?;
-        Ok(match value.as_f64() {
-            Some(f) if f.fract() == 0.0 && f.abs() <= 9_007_199_254_740_991.0 => serde_json::Value::from(f as i64),
-            _ => value,
-        })
-    }
-
-    fn object(&mut self) -> Result<serde_json::Value, String> {
-        self.at += 1;
-        let mut map = serde_json::Map::new();
-        self.skip_space();
-        if self.is(self.at, '}') {
-            self.at += 1;
-            return Ok(serde_json::Value::Object(map));
-        }
-        let mut expected = "Expected property name or '}' in JSON";
-        loop {
-            if !self.is(self.at, '"') {
-                return Err(self.unexpected(self.at, Some(expected)));
-            }
-            let key = self.string()?;
-            self.skip_space();
-            if !self.is(self.at, ':') {
-                return Err(self.unexpected(self.at, Some("Expected ':' after property name in JSON")));
-            }
-            self.at += 1;
-            self.skip_space();
-            let value = self.value()?;
-            map.insert(key, value);
-            self.skip_space();
-            if self.is(self.at, ',') {
-                self.at += 1;
-                self.skip_space();
-                expected = "Expected double-quoted property name in JSON";
-            } else if self.is(self.at, '}') {
-                self.at += 1;
-                return Ok(serde_json::Value::Object(map));
-            } else {
-                return Err(self.unexpected(self.at, Some("Expected ',' or '}' after property value in JSON")));
-            }
-        }
-    }
-
-    fn array(&mut self) -> Result<serde_json::Value, String> {
-        self.at += 1;
-        let mut items = Vec::new();
-        self.skip_space();
-        if self.is(self.at, ']') {
-            self.at += 1;
-            return Ok(serde_json::Value::Array(items));
-        }
-        loop {
-            items.push(self.value()?);
-            self.skip_space();
-            if self.is(self.at, ',') {
-                self.at += 1;
-                self.skip_space();
-            } else if self.is(self.at, ']') {
-                self.at += 1;
-                return Ok(serde_json::Value::Array(items));
-            } else {
-                return Err(self.unexpected(self.at, Some("Expected ',' or ']' after array element in JSON")));
-            }
-        }
-    }
-}
-
 /// What a thread started from an issue or a pull request opens with: the title, the body, each comment as its author
 /// wrote it, the link, and what to do with it. An issue's thread is asked to have its pull request close the issue; a
 /// pull request's is asked to carry on its branch, which bring back pushes to.
@@ -559,9 +301,7 @@ pub fn from_task_prompt(from: &WorkspaceFrom, read: &IssueRead) -> String {
 //   return trimmed === "" ? `Closes #${issue}` : `${trimmed}\n\nCloses #${issue}`;
 // }
 pub fn with_closes(body: &str, issue: f64) -> String {
-    let closes =
-        Regex::new(&format!(r"(?-u:\b)(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?) #{}(?-u:\b)", regex::escape(&number_string(issue))))
-            .unwrap();
+    let closes = Regex::new(&format!(r"(?-u:\b)(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?) #{}(?-u:\b)", number_string(issue))).unwrap();
     if closes.is_match(&body.to_ascii_lowercase()) {
         return body.to_string();
     }

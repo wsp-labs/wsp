@@ -8,7 +8,6 @@ use std::cmp::Ordering;
 use std::sync::OnceLock;
 
 use icu_collator::CollatorBorrowed;
-use wsp_wire::types::JsNumber;
 
 /// Text counted, cut and ordered in UTF-16 code units, as a JavaScript string is (rules 8.1 to 8.5, 8.8).
 pub mod utf16 {
@@ -122,6 +121,83 @@ pub mod utf16 {
     pub fn cmp(a: &str, b: &str) -> Ordering {
         a.encode_utf16().cmp(b.encode_utf16())
     }
+}
+
+/// `n.toString(16)` for a whole number: the exact hex digits of the double, `-` in front of a negative one, and no
+/// padding. A value past 2^64 is its mantissa's digits and the zeros its exponent holds.
+pub fn to_string_radix_16(n: f64) -> String {
+    if n.is_nan() {
+        return "NaN".into();
+    }
+    if n.is_infinite() {
+        return if n > 0.0 { "Infinity" } else { "-Infinity" }.into();
+    }
+    let sign = if n < 0.0 { "-" } else { "" };
+    let magnitude = n.abs().trunc();
+    let digits = if magnitude < 18_446_744_073_709_551_616.0 {
+        format!("{:x}", magnitude as u64)
+    } else {
+        let bits = magnitude.to_bits();
+        let exponent = ((bits >> 52) & 0x7ff) as i64 - 1075;
+        let mantissa = (bits & ((1 << 52) - 1)) | (1 << 52);
+        format!("{:x}{}", mantissa << (exponent % 4), "0".repeat((exponent / 4) as usize))
+    };
+    format!("{sign}{digits}")
+}
+
+/// The twelve keys a plain JavaScript object holds without being given them, those of `Object.prototype`: a lookup in a
+/// table written as an object literal finds a value for any of them where a Rust `match` finds none.
+const OBJECT_PROTOTYPE_KEYS: [&str; 12] = [
+    "constructor",
+    "__defineGetter__",
+    "__defineSetter__",
+    "hasOwnProperty",
+    "__lookupGetter__",
+    "__lookupSetter__",
+    "isPrototypeOf",
+    "propertyIsEnumerable",
+    "toString",
+    "valueOf",
+    "__proto__",
+    "toLocaleString",
+];
+
+/// Whether `key` is one `Object.prototype` gives every plain object.
+pub fn is_object_prototype_key(key: &str) -> bool {
+    OBJECT_PROTOTYPE_KEYS.contains(&key)
+}
+
+/// What `String(table[key])` reads where `key` is one of `Object.prototype`'s and the table holds no row of its own: the
+/// inherited function's source (`function Object() { [native code] }` for `constructor`, `function toString() ...` for
+/// the rest) and `[object Object]` for `__proto__`. None for any other key.
+pub fn inherited_text(key: &str) -> Option<String> {
+    match key {
+        "__proto__" => Some("[object Object]".to_string()),
+        "constructor" => Some("function Object() { [native code] }".to_string()),
+        _ if is_object_prototype_key(key) => Some(format!("function {key}() {{ [native code] }}")),
+        _ => None,
+    }
+}
+
+/// `Object.keys(object)` order: the keys that read as array indexes (`0`, `7`, `10`, never `01` or `-1`) first, in
+/// ascending number, then every other key in the order it was added. A Rust map keeps insertion order alone.
+pub fn js_key_order<'a, V>(entries: impl IntoIterator<Item = (&'a String, V)>) -> Vec<(&'a String, V)> {
+    let mut indexes: Vec<(u32, (&'a String, V))> = Vec::new();
+    let mut rest: Vec<(&'a String, V)> = Vec::new();
+    for (key, value) in entries {
+        match array_index(key) {
+            Some(index) => indexes.push((index, (key, value))),
+            None => rest.push((key, value)),
+        }
+    }
+    indexes.sort_by_key(|(index, _)| *index);
+    indexes.into_iter().map(|(_, entry)| entry).chain(rest).collect()
+}
+
+/// The array index a property key reads as: a canonical decimal under 2^32 - 1.
+fn array_index(key: &str) -> Option<u32> {
+    let canonical = key == "0" || (!key.starts_with('0') && !key.is_empty() && key.bytes().all(|b| b.is_ascii_digit()));
+    canonical.then(|| key.parse::<u32>().ok()).flatten().filter(|index| *index != u32::MAX)
 }
 
 /// The set `is_js_whitespace` names, as the inside of a regex class: what JavaScript's `\s` matches and Rust's does not.
@@ -269,17 +345,84 @@ pub fn to_fixed(x: f64, digits: u32) -> String {
     }
 }
 
+/// The shortest digits that read back as the positive finite `x`, and where the decimal point sits: `x` is `0.DIGITS`
+/// times ten to the point. Where two candidates of that length are equally near `x`, the even last digit is the one
+/// JavaScript writes, and Rust's `{:e}` takes the upper.
+fn shortest(x: f64) -> (String, i32) {
+    let sci = format!("{x:e}");
+    let (mantissa, exp) = sci.split_once('e').expect("{:e} writes an exponent");
+    let mut digits: String = mantissa.chars().filter(|c| *c != '.').collect();
+    let mut point = exp.parse::<i32>().expect("an exponent") + 1;
+    let k = digits.len();
+    // Only a spelling of 16 or 17 digits has two candidates inside the span of numbers that read back as `x`.
+    if k >= 16 {
+        let exact: String =
+            format!("{:.*e}", k + 30, x).split_once('e').map(|(m, _)| m.chars().filter(|c| *c != '.').collect()).unwrap_or_default();
+        if exact.as_bytes().get(k) == Some(&b'5') && exact[k + 1..].bytes().all(|b| b == b'0') {
+            let lower = &exact[..k];
+            let (upper, carried) = increment_digits(lower);
+            let take_lower = (lower.as_bytes()[k - 1] - b'0').is_multiple_of(2);
+            let (candidate, candidate_point) = if take_lower { (lower.to_string(), point) } else { (upper, point + i32::from(carried)) };
+            let candidate = candidate.trim_end_matches('0').to_string();
+            let text = format!("0.{candidate}e{candidate_point}");
+            if text.parse::<f64>() == Ok(x) {
+                digits = candidate;
+                point = candidate_point;
+            }
+        }
+    }
+    (digits, point)
+}
+
+/// The decimal digits one unit higher, and whether that added a digit in front.
+fn increment_digits(digits: &str) -> (String, bool) {
+    let mut bytes = digits.as_bytes().to_vec();
+    for byte in bytes.iter_mut().rev() {
+        if *byte == b'9' {
+            *byte = b'0';
+        } else {
+            *byte += 1;
+            return (String::from_utf8(bytes).expect("digits"), false);
+        }
+    }
+    bytes.insert(0, b'1');
+    (String::from_utf8(bytes).expect("digits"), true)
+}
+
 /// `String(x)`, a template literal's `${x}` and `JSON.stringify`'s number: the shortest digits that read back as
 /// `x`, an integral value with no ".0", exponent form from 1e21 up and below 1e-6 (`1e+21`, `1e-7`), negative zero
-/// as "0", "NaN", "Infinity", "-Infinity" (rule 8.11). Rule 4.25 names one such formatter in `wsp-wire`; until that
-/// crate's lands this is it, and at the merge one of the two re-exports the other.
+/// as "0", "NaN", "Infinity", "-Infinity" (rule 8.11). Rule 4.25 names one such formatter in `wsp-wire`; this one
+/// writes the same text and takes the even digit where two spellings are equally near.
 pub fn number_string(x: f64) -> String {
     if x.is_nan() {
-        "NaN".into()
-    } else if x.is_infinite() {
-        if x > 0.0 { "Infinity" } else { "-Infinity" }.into()
+        return "NaN".into();
+    }
+    if x.is_infinite() {
+        return if x > 0.0 { "Infinity" } else { "-Infinity" }.into();
+    }
+    if x == 0.0 {
+        return "0".into();
+    }
+    let (digits, point) = shortest(x.abs());
+    let k = digits.len() as i32;
+    let body = if k <= point && point <= 21 {
+        format!("{digits}{}", "0".repeat((point - k) as usize))
+    } else if 0 < point && point <= 21 {
+        format!("{}.{}", &digits[..point as usize], &digits[point as usize..])
+    } else if -6 < point && point <= 0 {
+        format!("0.{}{digits}", "0".repeat((-point) as usize))
     } else {
-        JsNumber(x).js_string()
+        let e = point - 1;
+        let sign = if e < 0 { "-" } else { "+" };
+        match digits.len() {
+            1 => format!("{digits}e{sign}{}", e.abs()),
+            _ => format!("{}.{}e{sign}{}", &digits[..1], &digits[1..], e.abs()),
+        }
+    };
+    if x < 0.0 {
+        format!("-{body}")
+    } else {
+        body
     }
 }
 
@@ -301,7 +444,7 @@ pub fn to_number(text: &str) -> f64 {
             if digits.is_empty() || !digits.chars().all(|c| c.is_digit(radix)) {
                 return f64::NAN;
             }
-            return digits.chars().fold(0.0, |n, c| n * radix as f64 + c.to_digit(radix).expect("checked above") as f64);
+            return power_of_two_radix_value(digits, radix);
         }
     }
     if is_decimal_literal(t) {
@@ -309,6 +452,29 @@ pub fn to_number(text: &str) -> f64 {
     } else {
         f64::NAN
     }
+}
+
+/// The integer `digits` writes in a radix of 2, 8 or 16, rounded once to the nearest double (ties to even), as JavaScript
+/// reads a `0x`, `0o` or `0b` literal: folding digit by digit in an `f64` would round at every step past 2^53.
+fn power_of_two_radix_value(digits: &str, radix: u32) -> f64 {
+    let width = radix.trailing_zeros() as usize;
+    let mut bits: Vec<u8> = Vec::with_capacity(digits.len() * width);
+    for c in digits.chars() {
+        let d = c.to_digit(radix).expect("checked above");
+        bits.extend((0..width).rev().map(|i| ((d >> i) & 1) as u8));
+    }
+    let start = bits.iter().position(|b| *b == 1).unwrap_or(bits.len());
+    let bits = &bits[start..];
+    if bits.len() <= 53 {
+        return bits.iter().fold(0.0, |n, b| n * 2.0 + f64::from(*b));
+    }
+    let mut mantissa = bits[..53].iter().fold(0u64, |n, b| n * 2 + u64::from(*b));
+    let round = bits[53] == 1;
+    let sticky = bits[54..].contains(&1);
+    if round && (sticky || mantissa % 2 == 1) {
+        mantissa += 1;
+    }
+    mantissa as f64 * 2f64.powi((bits.len() - 53) as i32)
 }
 
 /// A signed decimal with an optional fraction and exponent, as JavaScript's `Number` reads one.
@@ -366,10 +532,10 @@ fn group(int: &str, grouping: Grouping) -> String {
 
 /// The integer and fraction digits of `x`'s shortest decimal, the digits `String(x)` would print.
 fn shortest_digits(x: f64) -> (String, String) {
-    let sci = format!("{x:e}");
-    let (mantissa, exp) = sci.split_once('e').expect("{:e} writes an exponent");
-    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
-    let point = exp.parse::<i64>().expect("an exponent") + 1;
+    if x == 0.0 {
+        return ("0".into(), String::new());
+    }
+    let (digits, point) = shortest(x);
     if point <= 0 {
         ("0".into(), format!("{}{digits}", "0".repeat((-point) as usize)))
     } else if point as usize >= digits.len() {
@@ -413,8 +579,12 @@ pub fn locale_number(x: f64, grouping: Grouping, min_fraction: u32, max_fraction
 /// that is integral and within 2^53 is written as an integer (`1`, not `1.0`; -0 as `0`), so `serde_json::Value`
 /// equality and the text both match the TS host's; every other value as a float.
 pub fn serialize_f64<S: serde::Serializer>(x: &f64, serializer: S) -> Result<S::Ok, S::Error> {
+    use serde::Serialize;
     if x.is_finite() && x.fract() == 0.0 && x.abs() <= 9007199254740992.0 {
         serializer.serialize_i64(*x as i64)
+    } else if x.is_finite() {
+        // The text itself, since serde_json writes 3e-6 and 1e21 where JavaScript writes 0.000003 and 1e+21.
+        serde_json::value::RawValue::from_string(number_string(*x)).map_err(serde::ser::Error::custom)?.serialize(serializer)
     } else {
         serializer.serialize_f64(*x)
     }

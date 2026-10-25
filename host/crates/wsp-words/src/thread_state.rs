@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The one vocabulary for a thread's state, read off the rows the runtime writes, and when a read thread settles.
-//! Port of packages/protocol/src/thread-state.ts at a3b870a6e. See spec/thread_state.md.
+//! Port of packages/protocol/src/thread-state.ts at the cut (383708c78). See spec/thread_state.md.
 
 use wsp_wire::views::session::{SessionStatus, SubagentState, ThreadView};
 use wsp_wire::views::session_events::SessionPermissionEvent;

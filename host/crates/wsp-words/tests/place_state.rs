@@ -123,7 +123,7 @@ mod threads_at_once {
         no_sizes.as_object_mut().unwrap().remove("sizes");
         assert_eq!(
             refusal(no_sizes, json!({ "size": { "cpu": 2, "memMb": 4096 } }), &[]).as_deref(),
-            Some("Solari takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep, not size")
+            Some("Solari takes machines at once, spend per day, delete after, nap after, turn limit, machines under a root thread and levels deep, not size")
         );
         let empty_sizes = over(solari, json!({ "sizes": [] }));
         let said = refusal(empty_sizes, json!({ "size": { "cpu": 2, "memMb": 4096 } }), &[]).unwrap();
@@ -143,16 +143,16 @@ mod threads_at_once {
         use PlaceSettingWord::*;
         assert_eq!(
             refusal(json!({ "id": "p_1", "kind": "computer", "name": "spoo" }), json!({ "machines": 2 }), &[]).as_deref(),
-            Some("spoo takes threads at once, turn limit, agents may start agents and levels deep, not machines at once")
+            Some("spoo takes threads at once, turn limit, machines under a root thread and levels deep, not machines at once")
         );
         assert_eq!(
             refusal(json!({ "id": "solari", "kind": "provider", "name": "solari", "takesForks": true }), json!({ "threads": 2 }), &[]).as_deref(),
-            Some("Solari takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once")
+            Some("Solari takes machines at once, spend per day, delete after, nap after, turn limit, machines under a root thread and levels deep, not threads at once")
         );
         assert_eq!(
             refusal(json!({ "id": HERE_PLACE_ID, "kind": "computer", "name": "mac", "takesForks": false }), json!({ "napMs": null }), &[])
                 .as_deref(),
-            Some("mac takes threads at once, turn limit, agents may start agents and levels deep, not nap after")
+            Some("mac takes threads at once, turn limit, machines under a root thread and levels deep, not nap after")
         );
         assert_eq!(
             refusal(json!({ "id": "p_1", "kind": "computer", "name": "spoo", "takesForks": true }), json!({ "napMs": null }), &[]),
@@ -160,7 +160,7 @@ mod threads_at_once {
         );
         assert_eq!(
             refusal(json!({ "id": "p_1", "kind": "computer", "name": "spoo", "takesForks": false }), json!({}), &[Spend]).as_deref(),
-            Some("spoo takes threads at once, turn limit, agents may start agents and levels deep, not spend per day")
+            Some("spoo takes threads at once, turn limit, machines under a root thread and levels deep, not spend per day")
         );
         assert_eq!(refusal(json!({ "id": "p_1", "kind": "computer", "name": "spoo" }), json!({ "threads": 1 }), &[]), None);
         assert_eq!(
@@ -174,16 +174,16 @@ mod threads_at_once {
         assert_eq!(refusal(json!({ "id": "p_1", "kind": "computer", "name": "spoo" }), json!({}), &[Threads]), None);
         assert_eq!(
             refusal(json!({ "id": "p_1", "kind": "computer", "name": "spoo", "takesForks": true }), json!({}), &[]).as_deref(),
-            Some("nothing to set on spoo: it takes threads at once, nap after, turn limit, agents may start agents, levels deep, a new name and a new ssh login")
+            Some("nothing to set on spoo: it takes threads at once, nap after, turn limit, machines under a root thread, levels deep, a new name and a new ssh login")
         );
         assert_eq!(
             refusal(json!({ "id": HERE_PLACE_ID, "kind": "computer", "name": "mac", "takesForks": false }), json!({}), &[]).as_deref(),
-            Some("nothing to set on mac: it takes threads at once, turn limit, agents may start agents and levels deep")
+            Some("nothing to set on mac: it takes threads at once, turn limit, machines under a root thread and levels deep")
         );
         // The TS passes { machines: undefined }, which is a set with no key.
         assert_eq!(
             refusal(json!({ "id": "solari", "kind": "provider", "name": "solari", "takesForks": true }), json!({}), &[]).as_deref(),
-            Some("nothing to set on Solari: it takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep")
+            Some("nothing to set on Solari: it takes machines at once, spend per day, delete after, nap after, turn limit, machines under a root thread and levels deep")
         );
         assert_eq!(
             refusal(json!({ "id": "p_1", "kind": "computer", "name": "spoo" }), json!({ "threads": 2 }), &[Threads]).as_deref(),
@@ -244,15 +244,15 @@ mod what_a_places_settings_read_as_in_a_line {
         let agents_on = serde_json::to_value(AGENTS_ON).unwrap();
         assert_eq!(
             line(over(spoo(), json!({ "capDefault": { "threads": 2 }, "spawn": agents_on, "spawnDefault": agents_on }))),
-            "spoo: 2 threads at once (the default), agents may spawn: up to 3 machines (the default), 2 levels deep (the default)"
+            "spoo: 2 threads at once (the default), up to 3 machines under a root thread (the default), 2 levels deep (the default)"
         );
-        let agents_off = over(agents_on.clone(), json!({ "spawn": false }));
+        let agents_five = over(agents_on.clone(), json!({ "maxMachines": 5 }));
         assert_eq!(
             line(over(
                 spoo(),
-                json!({ "capDefault": { "threads": 2 }, "spawn": agents_off, "spawnDefault": agents_on, "settings": { "spawn": { "spawn": false } } })
+                json!({ "capDefault": { "threads": 2 }, "spawn": agents_five, "spawnDefault": agents_on, "settings": { "spawn": { "maxMachines": 5 } } })
             )),
-            "spoo: 2 threads at once (the default), agents may not spawn (on, up to 3 by default), 2 levels deep (the default)"
+            "spoo: 2 threads at once (the default), up to 5 machines under a root thread (3 by default), 2 levels deep (the default)"
         );
     }
 }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The refusal of a thread operation on a thread that is not there. Port of the functions of packages/protocol/src/wire/runtime.ts that wsp-wire left to this crate, at
-//! a3b870a6e; that file's shapes are wsp-wire's. See spec/wire_runtime.md.
+//! the cut (383708c78); that file's shapes are wsp-wire's. See spec/wire_runtime.md.
 
 /// The one sentence a thread's own token is refused an op with. It names the op rather than guessing why a caller
 /// wanted it: the reasons are on the acts, and this is the door saying the op is not a thread's at all. What a thread
