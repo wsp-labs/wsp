@@ -121,7 +121,7 @@ Oracle: `tests/fixtures/roads/ssh_dial.json`, `ssh_carried.json` (the TS's own a
 
 ## Pins (wave 2)
 
-Scenes in `oracle/roads_scenes.oracle.ts`, replayed by `tests/roads_scenes.rs::<name>` against
+Scenes in `oracle/roads_scenes.oracle.ts`, replayed by `tests/ssh_dial_scenes.rs::<name>` against
 `tests/fixtures/scenes/roads.json`: each step is one write to the fake child's pipe (or its exit), with a pause
 after it, and `up` and `ended` must say what the TS said.
 

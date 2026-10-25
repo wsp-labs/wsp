@@ -75,7 +75,7 @@ kill the session's whole group; the unusable, stopped and missing paths leave th
 
 ## Pins (wave 2)
 
-Scenes in `oracle/roads_scenes.oracle.ts` (`runs`), replayed by `tests/roads_scenes.rs::<name>`: every command sent
+Scenes in `oracle/roads_scenes.oracle.ts` (`runs`), replayed by `tests/exec_run_scenes.rs::<name>`: every command sent
 (the base masked), every line handed to `on_line`, and the answer, as the TS made them. Poll pace 1 ms, deadline
 60,000 unless a line says.
 

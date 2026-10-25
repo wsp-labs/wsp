@@ -2,7 +2,7 @@
 // BoxBackend and BoxMachine run against a scripted Boat API and a clock whose sleeps cost nothing, scene by scene,
 // recording every request (method, path, query in order, headers, the body's exact bytes), every sleep, every warn
 // line and the answer or the error's words. tests/fixtures/scenes/box.json holds each scene's script and what the TS
-// did; tests/box_scenes.rs replays the script on the Rust backend and compares. Random bytes are pinned to ab and
+// did; tests/box_machine_scenes.rs and tests/box_fleet_scenes.rs replay the script on the Rust backend. Random bytes are pinned to ab and
 // Math.random to 0, which the Rust FakeClock's draw matches. Run from the repository root:
 //   pnpm exec vitest run --config host/crates/wsp-engine/oracle/vitest.config.ts --minWorkers=1 --maxWorkers=1 box_scenes.oracle.ts
 import { mkdirSync, writeFileSync } from "node:fs";

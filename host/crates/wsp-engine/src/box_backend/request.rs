@@ -147,7 +147,7 @@ pub fn road_words(e: &EngineError) -> String {
 }
 
 /// box-backend.ts:487. A refusal as the error it is thrown as: `EngineError::Provider` whose message is the
-/// refusal's, or `"<kind> (<status>)"` where that is empty.
+/// refusal's, kept even when empty (the TS's fallback words are dead).
 pub fn fail(e: WspError) -> EngineError {
     todo!()
 }

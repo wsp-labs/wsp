@@ -84,7 +84,7 @@ the failure (a kill does it).
 
 ## Pins (wave 2)
 
-Scenes as in box_machine.md's pins, replayed by `tests/box_scenes.rs::<name>`.
+Scenes as in box_machine.md's pins, replayed by `tests/box_fleet_scenes.rs::<name>`.
 
 - B-F1 `request()` asks a gateway status again on its own backoff (500 x 2^attempt, the draw 0), and a road that
   never left (ENOTFOUND) again on the road backoff with its `try N of 3` warn; only what reaches `post_create` counts

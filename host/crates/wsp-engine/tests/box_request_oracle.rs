@@ -73,6 +73,12 @@ fn the_request_limit_waits_the_seconds_boat_names_never_past_its_minute() {
     assert_eq!(request_limit_wait_ms(&serde_json::Value::Null), 60_000);
     // The top of the body wins over the envelope's details.
     assert_eq!(request_limit_wait_ms(&json!({ "retryAfter": 3, "error": { "details": { "retryAfter": 9 } } })), 3000);
+    // `??`: only a null or absent top value falls through to the details, so a top "7", 0 or -3 waits the minute
+    // even with 9 below (B-R2).
+    assert_eq!(request_limit_wait_ms(&json!({ "retryAfter": "7", "error": { "details": { "retryAfter": 9 } } })), 60_000);
+    assert_eq!(request_limit_wait_ms(&json!({ "retryAfter": 0, "error": { "details": { "retryAfter": 9 } } })), 60_000);
+    assert_eq!(request_limit_wait_ms(&json!({ "retryAfter": null, "error": { "details": { "retryAfter": 9 } } })), 9000);
+    assert_eq!(request_limit_wait_ms(&json!({ "retryAfter": 0.5 })), 500);
 }
 
 #[test]
@@ -108,13 +114,14 @@ fn road_words_say_the_gateway_status_or_the_systems_code() {
 }
 
 #[test]
-fn fail_keeps_every_field_and_says_the_kind_and_status_where_the_message_is_empty() {
+fn fail_keeps_every_field_and_an_empty_message_stays_empty() {
     let w = refusal(500, Some("x"), "");
     match fail(w.clone()) {
         EngineError::Provider(got) => assert_eq!(got, w),
         other => panic!("{other:?}"),
     }
-    assert_eq!(fail(w).to_string(), "unknown (500)");
+    // Object.assign copies the refusal's own empty message over the fallback, so the words stay empty (B-R1).
+    assert_eq!(fail(w).to_string(), "");
     assert_eq!(fail(refusal(404, None, "gone")).to_string(), "gone");
 }
 
