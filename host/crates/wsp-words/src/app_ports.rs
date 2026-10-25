@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The port and address the host listens on, read off its flags, and the lines a port already taken says. Port of the functions of packages/protocol/src/app-ports.ts at
-//! a3b870a6e; its shapes and flat constants are wsp_wire::types::app_ports. See spec/app_ports.md.
+//! the cut (383708c78); its shapes and flat constants are wsp_wire::types::app_ports. See spec/app_ports.md.
 
 use serde::Serialize;
 use url::Url;
@@ -35,45 +35,6 @@ fn starts_with_ci(text: &str, prefix: &str) -> bool {
 /// The scheme before "://", lower-cased, when the text has one.
 fn scheme_of(text: &str) -> Option<String> {
     text.find("://").map(|at| text[..at].to_ascii_lowercase())
-}
-
-/// `Number(text)`: JavaScript's string to number, with white space trimmed, "" as 0, hex, octal and binary prefixes, and
-/// NaN for anything else.
-fn js_number(text: &str) -> f64 {
-    let t = js_trim(text);
-    if t.is_empty() {
-        return 0.0;
-    }
-    for (prefix, radix) in [("0x", 16), ("0X", 16), ("0o", 8), ("0O", 8), ("0b", 2), ("0B", 2)] {
-        if let Some(digits) = t.strip_prefix(prefix) {
-            let plain = digits.bytes().all(|b| b.is_ascii_alphanumeric());
-            return match u64::from_str_radix(digits, radix) {
-                Ok(n) if plain => n as f64,
-                _ => f64::NAN,
-            };
-        }
-    }
-    let (negative, unsigned) = match t.as_bytes()[0] {
-        b'-' => (true, &t[1..]),
-        b'+' => (false, &t[1..]),
-        _ => (false, t),
-    };
-    if unsigned == "Infinity" {
-        return if negative { f64::NEG_INFINITY } else { f64::INFINITY };
-    }
-    let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
-    let (mantissa, exponent) = unsigned.split_at(unsigned.find(['e', 'E']).unwrap_or(unsigned.len()));
-    let mantissa_ok = match mantissa.split_once('.') {
-        Some((whole, fraction)) => {
-            (whole.is_empty() || digits(whole)) && (fraction.is_empty() || digits(fraction)) && (digits(whole) || digits(fraction))
-        }
-        None => digits(mantissa),
-    };
-    let exponent_ok = exponent.is_empty() || digits(exponent[1..].trim_start_matches(['+', '-']));
-    if !mantissa_ok || !exponent_ok {
-        return f64::NAN;
-    }
-    t.parse::<f64>().unwrap_or(f64::NAN)
 }
 
 /// The hostname of a host as URL gives it: the host with its port taken off, brackets kept for an IPv6 literal.
@@ -338,7 +299,7 @@ pub struct ListenAsked {
 /// `port` and `listen` are the flags as typed.
 pub fn ports_asked(port: Option<&str>, listen: Option<&str>) -> ListenAsked {
     ListenAsked {
-        port: port.map_or(DEFAULT_PORT as f64, js_number),
+        port: port.map_or(DEFAULT_PORT as f64, crate::js::to_number),
         named: port.is_some(),
         address: listen.filter(|l| !l.is_empty()).unwrap_or(LOOPBACK).to_string(),
     }
@@ -407,15 +368,4 @@ pub fn ports_picked_line(ports: &AppPorts, taken: f64, holder: Option<&PortHolde
 // }
 pub fn port_instead_line(ports: &AppPorts) -> String {
     format!("Nothing was booted. The next free port is {0}: wsp up --port {0}. Or stop what holds the one you named.", ports.port)
-}
-
-/// Which state file a run sets up and the flag that starts a fresh one instead: a run on a file that already
-/// carries a sealed golden offers the upgrade rather than a first setup, so a showcase or a second account is one
-/// flag rather than a surprise. Said before anything is read, and again in every refusal that stops the run.
-// app-ports.ts:198
-// export function stateFileLine(statePath: string): string {
-//   return `Setting up ${statePath}; --state <path> starts a fresh setup instead.`;
-// }
-pub fn state_file_line(state_path: &str) -> String {
-    format!("Setting up {state_path}; --state <path> starts a fresh setup instead.")
 }

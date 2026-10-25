@@ -62,9 +62,9 @@ pub const PLACE_ROOT_SHELLS: [&str; 2] = ["bash", "sh"];
 // }
 pub fn place_root_shell_refusal(address: &str, shell: &str) -> String {
     let startup = match shell {
-        "zsh" => Some("~/.zshenv"),
-        "fish" => Some("config.fish"),
-        _ => None,
+        "zsh" => Some("~/.zshenv".to_string()),
+        "fish" => Some("config.fish".to_string()),
+        other => crate::js::inherited_text(other),
     };
     let why = match startup {
         None => format!("{shell} is not a shell wsp has read as opening no file of that computer's, and root's home there is the one every workspace on it writes, so a file read under it would run as root"),

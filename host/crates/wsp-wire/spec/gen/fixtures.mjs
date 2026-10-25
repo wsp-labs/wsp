@@ -167,7 +167,7 @@ const tagOf = (s, name) => {
 };
 
 // Types whose Rust struct follows the order the TS code writes (gen.mjs ORDER), not zod's: compared as values.
-const ANY_ORDER = new Set(["views/preferences:Preferences", "views/preferences:PreferencesChangedEvent", "views/preferences:PreferencesStored"]);
+const ANY_ORDER = new Set(["views/preferences:Preferences", "views/preferences:PreferencesChangedEvent", "views/preferences:PreferencesStored", "views/harness:HarnessCatalog"]);
 
 const SERDE_LEVEL = new Set(["invalid_type", "unrecognized_keys", "invalid_enum_value", "invalid_literal", "invalid_union_discriminator", "invalid_union"]);
 

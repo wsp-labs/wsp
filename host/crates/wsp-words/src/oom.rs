@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Who the kernel takes first on a guest, for memory and for the cpu. Port of the functions of
-//! packages/protocol/src/oom.ts at a3b870a6e; its constants are wsp_wire::types::oom. See spec/shell_and_text.md.
+//! packages/protocol/src/oom.ts at the cut (383708c78); its constants are wsp_wire::types::oom. See spec/shell_and_text.md.
 
 use wsp_wire::types::oom::WORK_OOM_SCORE_ADJ;
 

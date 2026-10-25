@@ -18,7 +18,7 @@ and upgrade, harness.ts:287). `home` and `login_stands` are called with an agent
 maps; `vault` is empty, not absent, where the host wired no vault. `brokered`, `codex_broker`, `project_key` and
 `launch` are absent everywhere but where their comment says. No behaviour of its own, so no test.
 
-`HarnessAdapterFactory` is `Arc<dyn Fn(HarnessAdapterContext) -> Arc<dyn HarnessAdapter>>`, one per agent id in
+`HarnessAdapterFactory` is `Arc<dyn Fn(HarnessAdapterContext) -> Result<Arc<dyn HarnessAdapter>, HostError>>` (the TS's factories throw), one per agent id in
 `RuntimeOptions::adapters`. `StartPicksAsked` (harness.ts:290) is a plain struct.
 
 ## The login environments (harness.ts:78-101)

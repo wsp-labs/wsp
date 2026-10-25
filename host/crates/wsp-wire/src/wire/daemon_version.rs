@@ -23,7 +23,8 @@ pub struct KilledAlone {
 pub const DAEMON_VERSION: i64 = wsp_frames::numbers::DAEMON_VERSION as i64;
 pub const DAEMON_CONTENT_SHA: &str = "ca5c18addf281365b4a68a189d212dda48f405176d2707db0bbe9f421f463120";
 pub const DAEMON_ROOTS_PATH: &str = "/root/.wsp/roots";
-pub const STATE_SHAPE: i64 = 2;
+/// The shape of the fresh schema the Rust store writes; the TS host's own is 2 (daemon-version.ts:742).
+pub const STATE_SHAPE: i64 = 3;
 pub const STDIO_DAEMON_VERSION: i64 = 154;
 pub const HTTP_POST_DAEMON_VERSION: i64 = 155;
 pub const PIPE_DAEMON_VERSION: i64 = 159;
@@ -51,11 +52,11 @@ impl Check for StateShape {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("shape") { None => out.push(crate::types::check::missing::<Self>("shape")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("shape"))), } } }
-        match obj.get("wsp") { None => out.push(crate::types::check::missing::<Self>("wsp")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wsp"))), } } }
-        match obj.get("daemon") { None => out.push(crate::types::check::missing::<Self>("daemon")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("daemon"))), } } }
-        match obj.get("bin") { None => out.push(crate::types::check::missing::<Self>("bin")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("bin"))), } } }
-        match obj.get("at") { None => out.push(crate::types::check::missing::<Self>("at")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } } }
+        crate::types::keys::req_key::<JsInt>(obj, "shape", &mut out);
+        crate::types::keys::req_key::<String>(obj, "wsp", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "daemon", &mut out);
+        crate::types::keys::req_key::<String>(obj, "bin", &mut out);
+        crate::types::keys::req_key::<String>(obj, "at", &mut out);
         Some(out)
     }
 

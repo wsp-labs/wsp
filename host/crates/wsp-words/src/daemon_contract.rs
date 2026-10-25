@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The words and numbers the daemon and the host agree on: the lines a computer's checks print and the scripts they run. Port of the functions of packages/protocol/src/daemon-contract.ts at
-//! a3b870a6e; its shapes and flat constants are wsp_wire::types::daemon_contract. See spec/daemon_contract.md.
+//! the cut (383708c78); its shapes and flat constants are wsp_wire::types::daemon_contract. See spec/daemon_contract.md.
 
 use wsp_wire::types::daemon_contract::{DAEMON_AUTH_DEADLINE_PASSED, PLACE_LOGIN_LINKED};
 

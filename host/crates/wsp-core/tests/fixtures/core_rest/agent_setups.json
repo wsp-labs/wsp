@@ -1,0 +1,887 @@
+{
+ "patched": [
+  {
+   "name": "empty over nothing",
+   "kept": null,
+   "set": {},
+   "out": null
+  },
+  {
+   "name": "on false",
+   "kept": null,
+   "set": {
+    "on": false
+   },
+   "out": {
+    "on": false
+   }
+  },
+  {
+   "name": "on true clears",
+   "kept": {
+    "on": false,
+    "program": "/p"
+   },
+   "set": {
+    "on": true
+   },
+   "out": {
+    "program": "/p"
+   }
+  },
+  {
+   "name": "program null clears",
+   "kept": {
+    "program": "/opt/claude",
+    "configDir": "/root/c",
+    "args": [
+     "--x"
+    ],
+    "env": {
+     "A": "1",
+     "B": "2"
+    }
+   },
+   "set": {
+    "program": null
+   },
+   "out": {
+    "configDir": "/root/c",
+    "args": [
+     "--x"
+    ],
+    "env": {
+     "A": "1",
+     "B": "2"
+    }
+   }
+  },
+  {
+   "name": "env set and drop",
+   "kept": {
+    "program": "/opt/claude",
+    "configDir": "/root/c",
+    "args": [
+     "--x"
+    ],
+    "env": {
+     "A": "1",
+     "B": "2"
+    }
+   },
+   "set": {
+    "env": {
+     "A": null,
+     "C": "3"
+    }
+   },
+   "out": {
+    "program": "/opt/claude",
+    "configDir": "/root/c",
+    "args": [
+     "--x"
+    ],
+    "env": {
+     "B": "2",
+     "C": "3"
+    }
+   }
+  },
+  {
+   "name": "env drop all",
+   "kept": {
+    "env": {
+     "A": "1"
+    }
+   },
+   "set": {
+    "env": {
+     "A": null
+    }
+   },
+   "out": null
+  },
+  {
+   "name": "config and args",
+   "kept": null,
+   "set": {
+    "configDir": "/root/c",
+    "args": [
+     "-v",
+     "x"
+    ]
+   },
+   "out": {
+    "configDir": "/root/c",
+    "args": [
+     "-v",
+     "x"
+    ]
+   }
+  },
+  {
+   "name": "args null",
+   "kept": {
+    "program": "/opt/claude",
+    "configDir": "/root/c",
+    "args": [
+     "--x"
+    ],
+    "env": {
+     "A": "1",
+     "B": "2"
+    }
+   },
+   "set": {
+    "args": null,
+    "configDir": null,
+    "program": null,
+    "env": {
+     "A": null,
+     "B": null
+    }
+   },
+   "out": null
+  },
+  {
+   "name": "keep all",
+   "kept": {
+    "program": "/opt/claude",
+    "configDir": "/root/c",
+    "args": [
+     "--x"
+    ],
+    "env": {
+     "A": "1",
+     "B": "2"
+    }
+   },
+   "set": {},
+   "out": {
+    "program": "/opt/claude",
+    "configDir": "/root/c",
+    "args": [
+     "--x"
+    ],
+    "env": {
+     "A": "1",
+     "B": "2"
+    }
+   }
+  },
+  {
+   "name": "order",
+   "kept": {
+    "env": {
+     "Z": "z"
+    },
+    "args": [
+     "a"
+    ],
+    "configDir": "/c",
+    "program": "/p",
+    "on": false
+   },
+   "set": {
+    "env": {
+     "A": "a"
+    }
+   },
+   "out": {
+    "on": false,
+    "program": "/p",
+    "configDir": "/c",
+    "args": [
+     "a"
+    ],
+    "env": {
+     "Z": "z",
+     "A": "a"
+    }
+   }
+  }
+ ],
+ "envRefusal": [
+  [
+   "FOO",
+   "claude",
+   true,
+   null
+  ],
+  [
+   "FOO",
+   "codex",
+   false,
+   null
+  ],
+  [
+   "wsp_token",
+   "claude",
+   true,
+   "wsp_token is wsp's own, so an agent's setup does not set it"
+  ],
+  [
+   "wsp_token",
+   "codex",
+   false,
+   "wsp_token is wsp's own, so an agent's setup does not set it"
+  ],
+  [
+   "WSP_X",
+   "claude",
+   true,
+   "WSP_X is wsp's own, so an agent's setup does not set it"
+  ],
+  [
+   "WSP_X",
+   "codex",
+   false,
+   "WSP_X is wsp's own, so an agent's setup does not set it"
+  ],
+  [
+   "PATH",
+   "claude",
+   true,
+   "PATH decides how Claude Code starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "PATH",
+   "codex",
+   false,
+   "PATH decides how Codex starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "path",
+   "claude",
+   true,
+   "path decides how Claude Code starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "path",
+   "codex",
+   false,
+   "path decides how Codex starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "Home",
+   "claude",
+   true,
+   "Home decides how Claude Code starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "Home",
+   "codex",
+   false,
+   "Home decides how Codex starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "LD_PRELOAD",
+   "claude",
+   true,
+   "LD_PRELOAD decides how Claude Code starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "LD_PRELOAD",
+   "codex",
+   false,
+   "LD_PRELOAD decides how Codex starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "ld_library_path",
+   "claude",
+   true,
+   "ld_library_path decides how Claude Code starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "ld_library_path",
+   "codex",
+   false,
+   "ld_library_path decides how Codex starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "DYLD_X",
+   "claude",
+   true,
+   "DYLD_X decides how Claude Code starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "DYLD_X",
+   "codex",
+   false,
+   "DYLD_X decides how Codex starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "NODE_OPTIONS",
+   "claude",
+   true,
+   "NODE_OPTIONS decides how Claude Code starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "NODE_OPTIONS",
+   "codex",
+   false,
+   "NODE_OPTIONS decides how Codex starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "GIT_SSH_COMMAND",
+   "claude",
+   true,
+   "GIT_SSH_COMMAND decides how Claude Code starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "GIT_SSH_COMMAND",
+   "codex",
+   false,
+   "GIT_SSH_COMMAND decides how Codex starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "CLAUDE_CODE_USE_BEDROCK",
+   "claude",
+   true,
+   "CLAUDE_CODE_USE_BEDROCK never reaches Claude Code: its launch drops every variable of that kind"
+  ],
+  [
+   "CLAUDE_CODE_USE_BEDROCK",
+   "codex",
+   false,
+   null
+  ],
+  [
+   "CLAUDECODE",
+   "claude",
+   true,
+   "CLAUDECODE never reaches Claude Code: its launch drops every variable of that kind"
+  ],
+  [
+   "CLAUDECODE",
+   "codex",
+   false,
+   null
+  ],
+  [
+   "FORCE_CODE_TERMINAL",
+   "claude",
+   true,
+   "FORCE_CODE_TERMINAL never reaches Claude Code: its launch drops every variable of that kind"
+  ],
+  [
+   "FORCE_CODE_TERMINAL",
+   "codex",
+   false,
+   null
+  ],
+  [
+   "claude_code_x",
+   "claude",
+   true,
+   null
+  ],
+  [
+   "claude_code_x",
+   "codex",
+   false,
+   null
+  ],
+  [
+   "ANTHROPIC_API_KEY",
+   "claude",
+   true,
+   null
+  ],
+  [
+   "ANTHROPIC_API_KEY",
+   "codex",
+   false,
+   null
+  ],
+  [
+   "IFS",
+   "claude",
+   true,
+   "IFS decides how Claude Code starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "IFS",
+   "codex",
+   false,
+   "IFS decides how Codex starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "ENV",
+   "claude",
+   true,
+   "ENV decides how Claude Code starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "ENV",
+   "codex",
+   false,
+   "ENV decides how Codex starts or what it loads, so an agent's setup does not set it"
+  ],
+  [
+   "ENVIRONMENT",
+   "claude",
+   true,
+   null
+  ],
+  [
+   "ENVIRONMENT",
+   "codex",
+   false,
+   null
+  ]
+ ],
+ "configDirRefusal": [
+  [
+   "home",
+   "~",
+   {
+    "folder": "/home/dev",
+    "home": "/home/dev",
+    "kept": [
+     "/home/dev/.wsp"
+    ]
+   },
+   "Claude Code's config folder cannot be the home folder itself; name a folder under it"
+  ],
+  [
+   "home slash",
+   "~/",
+   {
+    "folder": "/home/dev/",
+    "home": "/home/dev//",
+    "kept": [
+     "/home/dev/.wsp"
+    ]
+   },
+   "Claude Code's config folder cannot be the home folder itself; name a folder under it"
+  ],
+  [
+   "under",
+   "/home/dev/c",
+   {
+    "folder": "/home/dev/c",
+    "home": "/home/dev",
+    "kept": [
+     "/home/dev/.wsp"
+    ]
+   },
+   null
+  ],
+  [
+   "outside",
+   "/etc/c",
+   {
+    "folder": "/etc/c",
+    "home": "/home/dev",
+    "kept": [
+     "/home/dev/.wsp"
+    ]
+   },
+   "Claude Code's config folder has to be under the home folder /home/dev, and /etc/c is not"
+  ],
+  [
+   "prefix sibling",
+   "/home/devil/c",
+   {
+    "folder": "/home/devil/c",
+    "home": "/home/dev",
+    "kept": [
+     "/home/dev/.wsp"
+    ]
+   },
+   "Claude Code's config folder has to be under the home folder /home/dev, and /home/devil/c is not"
+  ],
+  [
+   "kept",
+   "/home/dev/.wsp/x",
+   {
+    "folder": "/home/dev/.wsp/x",
+    "home": "/home/dev",
+    "kept": [
+     "/home/dev/.wsp"
+    ]
+   },
+   "/home/dev/.wsp/x is inside wsp's own folder, so it is no agent's config folder"
+  ],
+  [
+   "kept itself",
+   "/home/dev/.wsp",
+   {
+    "folder": "/home/dev/.wsp/",
+    "home": "/home/dev",
+    "kept": [
+     "/home/dev/.wsp"
+    ]
+   },
+   "/home/dev/.wsp is inside wsp's own folder, so it is no agent's config folder"
+  ],
+  [
+   "kept prefix sibling",
+   "/home/dev/.wspx",
+   {
+    "folder": "/home/dev/.wspx",
+    "home": "/home/dev",
+    "kept": [
+     "/home/dev/.wsp"
+    ]
+   },
+   null
+  ],
+  [
+   "kept slash",
+   "/home/dev/.wsp/y",
+   {
+    "folder": "/home/dev/.wsp/y",
+    "home": "/home/dev",
+    "kept": [
+     "/home/dev/.wsp///"
+    ]
+   },
+   "/home/dev/.wsp/y is inside wsp's own folder, so it is no agent's config folder"
+  ]
+ ],
+ "noConfigDirLine": "Cursor takes no config folder of its own, so there is nothing to point at one",
+ "notRun": [
+  [
+   "table lists",
+   null
+  ],
+  [
+   "older binary",
+   {
+    "message": "Codex 0.150.0 does not run GPT-5.6-Sol; a newer Codex does. Update it with npm i -g @openai/codex, or pick a model it lists.",
+    "fix": "Update it with npm i -g @openai/codex, or pick a model it lists.",
+    "kind": "usage"
+   }
+  ],
+  [
+   "older, no update",
+   {
+    "message": "Codex 0.150.0 does not run GPT-5.6-Sol; it lists GPT-5.5 (gpt-5.5). Pick a model it lists.",
+    "fix": "Pick a model it lists.",
+    "kind": "usage"
+   }
+  ],
+  [
+   "newer binary",
+   {
+    "message": "Codex 0.160.0 does not run GPT-5.2; it lists GPT-6 (gpt-6), GPT-6-MINI (gpt-6-mini). Pick a model it lists.",
+    "fix": "Pick a model it lists.",
+    "kind": "usage"
+   }
+  ],
+  [
+   "listed",
+   null
+  ],
+  [
+   "unknown model",
+   null
+  ],
+  [
+   "no version",
+   null
+  ],
+  [
+   "no model",
+   null
+  ],
+  [
+   "no table",
+   null
+  ],
+  [
+   "same version",
+   {
+    "message": "Codex 0.153.0 does not run GPT-5.2; it lists GPT-6 (gpt-6). Pick a model it lists.",
+    "fix": "Pick a model it lists.",
+    "kind": "usage"
+   }
+  ],
+  [
+   "prerelease",
+   {
+    "message": "Codex 0.153.0-alpha.1 does not run GPT-5.2; a newer Codex does. Update it with u, or pick a model it lists.",
+    "fix": "Update it with u, or pick a model it lists.",
+    "kind": "usage"
+   }
+  ],
+  [
+   "unreadable pin",
+   {
+    "message": "Codex 0.1.0 does not run GPT-5.2; it lists GPT-6 (gpt-6). Pick a model it lists.",
+    "fix": "Pick a model it lists.",
+    "kind": "usage"
+   }
+  ]
+ ],
+ "stateHomeEnv": [
+  [
+   "claude",
+   "CLAUDE_CONFIG_DIR"
+  ],
+  [
+   "codex",
+   "CODEX_HOME"
+  ],
+  [
+   "opencode",
+   null
+  ],
+  [
+   "cursor",
+   null
+  ]
+ ],
+ "steps": [
+  {
+   "name": "set env",
+   "out": {
+    "ok": {
+     "env": {
+      "FOO": "bar"
+     }
+    }
+   },
+   "doc": {
+    "env": {
+     "FOO": "bar"
+    }
+   },
+   "keys": [
+    "here:claude"
+   ]
+  },
+  {
+   "name": "refused env",
+   "out": {
+    "err": "PATH decides how Claude Code starts or what it loads, so an agent's setup does not set it",
+    "kind": "usage"
+   },
+   "doc": {
+    "env": {
+     "FOO": "bar"
+    }
+   },
+   "keys": [
+    "here:claude"
+   ]
+  },
+  {
+   "name": "refused dropped",
+   "out": {
+    "err": "CLAUDE_CODE_USE_BEDROCK never reaches Claude Code: its launch drops every variable of that kind",
+    "kind": "usage"
+   },
+   "doc": {
+    "env": {
+     "FOO": "bar"
+    }
+   },
+   "keys": [
+    "here:claude"
+   ]
+  },
+  {
+   "name": "relative dir",
+   "out": {
+    "err": "Claude Code's config folder must be an absolute path, and got rel/c",
+    "kind": "usage"
+   },
+   "doc": {
+    "env": {
+     "FOO": "bar"
+    }
+   },
+   "keys": [
+    "here:claude"
+   ]
+  },
+  {
+   "name": "dir through link",
+   "out": {
+    "ok": {
+     "configDir": "/home/dev/real",
+     "env": {
+      "FOO": "bar"
+     }
+    }
+   },
+   "doc": {
+    "configDir": "/home/dev/real",
+    "env": {
+     "FOO": "bar"
+    }
+   },
+   "keys": [
+    "here:claude"
+   ]
+  },
+  {
+   "name": "dir is home",
+   "out": {
+    "err": "Claude Code's config folder cannot be the home folder itself; name a folder under it",
+    "kind": "usage"
+   },
+   "doc": {
+    "configDir": "/home/dev/real",
+    "env": {
+     "FOO": "bar"
+    }
+   },
+   "keys": [
+    "here:claude"
+   ]
+  },
+  {
+   "name": "program and args",
+   "out": {
+    "ok": {
+     "program": "/opt/claude",
+     "configDir": "/home/dev/real",
+     "args": [
+      "--verbose"
+     ],
+     "env": {
+      "FOO": "bar"
+     }
+    }
+   },
+   "doc": {
+    "program": "/opt/claude",
+    "configDir": "/home/dev/real",
+    "args": [
+     "--verbose"
+    ],
+    "env": {
+     "FOO": "bar"
+    }
+   },
+   "keys": [
+    "here:claude"
+   ]
+  },
+  {
+   "name": "off",
+   "out": {
+    "ok": {
+     "on": false,
+     "program": "/opt/claude",
+     "configDir": "/home/dev/real",
+     "args": [
+      "--verbose"
+     ],
+     "env": {
+      "FOO": "bar"
+     }
+    }
+   },
+   "doc": {
+    "on": false,
+    "program": "/opt/claude",
+    "configDir": "/home/dev/real",
+    "args": [
+     "--verbose"
+    ],
+    "env": {
+     "FOO": "bar"
+    }
+   },
+   "keys": [
+    "here:claude"
+   ]
+  },
+  {
+   "name": "codex dir refused",
+   "out": {
+    "ok": {
+     "configDir": "/home/dev/cx"
+    }
+   },
+   "doc": {
+    "on": false,
+    "program": "/opt/claude",
+    "configDir": "/home/dev/real",
+    "args": [
+     "--verbose"
+    ],
+    "env": {
+     "FOO": "bar"
+    }
+   },
+   "keys": [
+    "here:claude",
+    "here:codex"
+   ]
+  },
+  {
+   "name": "cursor no dir",
+   "out": {
+    "err": "Cursor takes no config folder of its own, so there is nothing to point at one",
+    "kind": "usage"
+   },
+   "doc": {
+    "on": false,
+    "program": "/opt/claude",
+    "configDir": "/home/dev/real",
+    "args": [
+     "--verbose"
+    ],
+    "env": {
+     "FOO": "bar"
+    }
+   },
+   "keys": [
+    "here:claude",
+    "here:codex"
+   ]
+  },
+  {
+   "name": "back to nothing",
+   "out": {
+    "ok": null
+   },
+   "doc": null,
+   "keys": [
+    "here:codex"
+   ]
+  }
+ ],
+ "launchClaude": {
+  "configDir": "/home/dev/real",
+  "env": {
+   "FOO": "bar",
+   "CLAUDE_CONFIG_DIR": "/home/dev/real"
+  },
+  "launch": {
+   "program": "/opt/claude",
+   "args": [
+    "--verbose"
+   ]
+  }
+ },
+ "offClaude": true,
+ "afterLoad": {
+  "get": {
+   "configDir": "/root/cfg",
+   "env": {
+    "PATH": "/kept/before",
+    "GOOD": "1",
+    "CLAUDECODE": "1"
+   }
+  },
+  "launch": {
+   "configDir": "/root/cfg",
+   "env": {
+    "GOOD": "1",
+    "CLAUDE_CONFIG_DIR": "/root/cfg"
+   }
+  },
+  "codexLaunch": {
+   "env": {}
+  },
+  "off": false,
+  "none": null
+ }
+}

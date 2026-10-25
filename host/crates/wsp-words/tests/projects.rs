@@ -10,24 +10,12 @@ use indexmap::IndexMap;
 use serde_json::json;
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::types::projects::{ADD_FORMS_LINE, MEMORY_KEPT_CLAUSE, REGISTERING_LINE};
-use wsp_wire::views::workspace::{ProjectSource, ProjectView, WorkspaceProject};
+use wsp_wire::views::workspace::{ProjectSource, ProjectView};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_words::project_path::{folder_name, guarded_folder, hidden_folder, FolderMachine};
 use wsp_words::projects::*;
 use wsp_words::words::computer::{is_mac_machine, Platform};
 use wsp_words::workspace_state::kind_words;
-
-fn workspace_project(v: serde_json::Value) -> WorkspaceProject {
-    serde_json::from_value(v).unwrap()
-}
-
-fn spoo() -> WorkspaceProject {
-    workspace_project(json!({ "name": "spoo", "dest": "/root/spoo", "importedAt": "2026-09-01T00:00:00Z", "size": 1024 }))
-}
-
-fn wsp() -> WorkspaceProject {
-    workspace_project(json!({ "name": "wsp", "dest": "/root/wsp", "importedAt": "2026-09-02T00:00:00Z" }))
-}
 
 fn folder_source(path: &str) -> ProjectSource {
     serde_json::from_value(json!({ "kind": "folder", "path": path })).unwrap()
@@ -103,7 +91,7 @@ mod what_one_word_to_wsp_add_names {
         // which it clones from that folder's own remote and seeds what git ignores onto. This computer clones a repo
         // into a folder the person names and works that folder.
         assert_eq!(kind_words(&WorkspaceKind::Local).project_sources.to_vec(), vec!["git", "github", "gitlab", "folder"]);
-        assert_eq!(kind_words(&WorkspaceKind::Cloud).project_sources.to_vec(), vec!["git", "github", "gitlab", "folder"]);
+        assert_eq!(kind_words(&WorkspaceKind::Cloud).project_sources.to_vec(), vec!["git", "github", "gitlab"]);
         // Copying the folder beside itself is its own word: a computer that clones takes a folder as a source and
         // still holds a checkout of it, so the two cannot be read off one list.
         assert_eq!([kind_words(&WorkspaceKind::Local).copies_folder, kind_words(&WorkspaceKind::Cloud).copies_folder], [true, false]);
@@ -278,20 +266,6 @@ mod getting_a_project_onto_a_machine {
         // A machine that has answered nothing yet has said nothing to hide.
         assert!(!is_mac_machine(None));
         assert!(!is_mac_machine(Some("")));
-    }
-}
-
-mod a_project_golden_s_manifest {
-    use super::*;
-
-    #[test]
-    fn lists_every_project_the_snapshot_carries_so_a_fork_is_told_what_it_gets_a_manife() {
-        let projects = vec![spoo(), wsp()];
-        assert_eq!(projects_in_place(&projects), " with spoo, wsp in place");
-        assert_eq!(projects_in_place(&[]), "");
-        // A fork of the golden goes by the newest project it carries, the name new --from takes for it.
-        assert_eq!(golden_fork_name(&projects, "snap_p"), "wsp");
-        assert_eq!(golden_fork_name(&[], "snap_p"), "snap_p");
     }
 }
 

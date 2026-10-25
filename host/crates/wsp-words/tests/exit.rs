@@ -279,3 +279,27 @@ mod the_host_key_an_installer_error_carries {
         assert_eq!(err_with_kind("no key", "host-key").offered_host_key(), None);
     }
 }
+
+mod the_code_and_the_status_an_error_carries {
+    use super::*;
+
+    #[test]
+    fn ride_the_error_beside_its_kind_and_reach_no_reply() {
+        // create.ts:156 and golden.ts:635: Object.assign(new Error(line), { kind: "concurrency", status: refusal.status }); machines.ts:88 reads a
+        // numeric status. A Node system error carries `code` (ENOENT, EADDRINUSE).
+        let e = HostError {
+            status: Some(429.0),
+            code: Some("EADDRINUSE".to_string()),
+            ..err_with_kind("the provider asked for time", "concurrency")
+        };
+        assert_eq!((e.status, e.code.as_deref()), (Some(429.0), Some("EADDRINUSE")));
+        assert_eq!((HostError::new("plain").status, HostError::new("plain").code), (None, None));
+        // The failure object (exit.ts:57) names neither, and the exit class is still the kind's.
+        assert_eq!(verb_failure(&e).error, "the provider asked for time");
+        assert_eq!(
+            serde_json::to_value(verb_failure(&e)).unwrap().as_object().unwrap().keys().collect::<Vec<_>>(),
+            ["error", "class", "exit"]
+        );
+        assert_eq!(exit_class_of(&e), ExitClass::Provider);
+    }
+}

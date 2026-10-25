@@ -293,7 +293,7 @@ mod what_a_join_carrying_the_app_s_own_ask_may_send {
     fn takes_the_word_for_how_a_computer_copies_a_project_and_a_report_from_one_that_sa() {
         for copies in ["reflink", "snapshot", "plain"] {
             let r: PlaceReport = reads(with(report(), "copies", json!(copies)));
-            assert_eq!(serde_json::to_value(&r.copies).unwrap(), json!(copies), "{copies}");
+            assert_eq!(serde_json::to_value(r.copies).unwrap(), json!(copies), "{copies}");
         }
         // A computer that runs no workspaces has no copy to describe, and a word nothing makes is not one.
         let none: PlaceReport = reads(report());

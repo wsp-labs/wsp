@@ -61,7 +61,8 @@ mod toolchains {
 
     #[test]
     fn each_toolchain_manager_row() {
-        let cases: Vec<(&str, Vec<(&str, u64)>, Vec<&str>, &str, &str, Vec<&str>)> = vec![
+        type ManagerCase<'a> = (&'a str, Vec<(&'a str, u64)>, Vec<&'a str>, &'a str, &'a str, Vec<&'a str>);
+        let cases: Vec<ManagerCase> = vec![
             ("pyenv", vec![("~/.pyenv/version", 6)], vec![], "toolchains/pyenv", "pyenv (global python)", vec!["~/.pyenv/version"]),
             (
                 "uv",

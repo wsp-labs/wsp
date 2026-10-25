@@ -126,7 +126,8 @@ pub enum DaemonEvent {
     #[serde(rename = "guest.message", rename_all = "camelCase")]
     GuestMessage {
         session: String,
-        message: Value,
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::kept::present")]
+        message: Option<crate::types::kept::Kept>,
         #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         machine_id: Option<String>,
     },
@@ -165,12 +166,14 @@ impl Check for DaemonEvent {
         let serde_json::Value::Object(obj) = value else {
             return Some(vec![crate::types::check::not_object(value)]);
         };
-        let Some(tag) = obj.get("type") else { return Some(vec![crate::types::check::missing::<Self>("type")]); };
+        let Some(tag) = obj.get("type") else {
+            return Some(vec![crate::types::check::missing::<Self>("type")]);
+        };
         match tag.as_str() {
             Some("daemon.hello") => {
                 let mut out = Vec::new();
-                match obj.get("root") { None => out.push(crate::types::check::required::<String>("root")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("root"))), } } }
-                match obj.get("version") { None => out.push(crate::types::check::required::<JsInt>("version")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("version"))), } } }
+                crate::types::keys::req_key::<String>(obj, "root", &mut out);
+                crate::types::keys::req_key::<JsInt>(obj, "version", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -178,8 +181,8 @@ impl Check for DaemonEvent {
             }
             Some("pty.data") => {
                 let mut out = Vec::new();
-                match obj.get("ptyId") { None => out.push(crate::types::check::required::<String>("ptyId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ptyId"))), } } }
-                match obj.get("data") { None => out.push(crate::types::check::required::<String>("data")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("data"))), } } }
+                crate::types::keys::req_key::<String>(obj, "ptyId", &mut out);
+                crate::types::keys::req_key::<String>(obj, "data", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -187,9 +190,9 @@ impl Check for DaemonEvent {
             }
             Some("pty.exit") => {
                 let mut out = Vec::new();
-                match obj.get("ptyId") { None => out.push(crate::types::check::required::<String>("ptyId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ptyId"))), } } }
-                match obj.get("exitCode") { None => out.push(crate::types::check::required::<JsNumber>("exitCode")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("exitCode"))), } } }
-                if let Some(v) = obj.get("signal") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signal"))), } }
+                crate::types::keys::req_key::<String>(obj, "ptyId", &mut out);
+                crate::types::keys::req_key::<JsNumber>(obj, "exitCode", &mut out);
+                crate::types::keys::opt_key::<JsNumber>(obj, "signal", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -197,11 +200,11 @@ impl Check for DaemonEvent {
             }
             Some("port.open") => {
                 let mut out = Vec::new();
-                match obj.get("port") { None => out.push(crate::types::check::required::<JsNumber>("port")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("port"))), } } }
-                if let Some(v) = obj.get("pid") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pid"))), } }
-                if let Some(v) = obj.get("process") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("process"))), } }
-                if let Some(v) = obj.get("loopback") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("loopback"))), } }
-                if let Some(v) = obj.get("watch") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("watch"))), } }
+                crate::types::keys::req_key::<JsNumber>(obj, "port", &mut out);
+                crate::types::keys::opt_key::<JsNumber>(obj, "pid", &mut out);
+                crate::types::keys::opt_key::<String>(obj, "process", &mut out);
+                crate::types::keys::opt_key::<bool>(obj, "loopback", &mut out);
+                crate::types::keys::opt_key::<String>(obj, "watch", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -209,14 +212,14 @@ impl Check for DaemonEvent {
             }
             Some("port.close") => {
                 let mut out = Vec::new();
-                match obj.get("port") { None => out.push(crate::types::check::required::<JsNumber>("port")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("port"))), } } }
-                if let Some(v) = obj.get("pid") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pid"))), } }
-                if let Some(v) = obj.get("process") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("process"))), } }
-                if let Some(v) = obj.get("command") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("command"))), } }
-                if let Some(v) = obj.get("exited") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("exited"))), } }
-                if let Some(v) = obj.get("left") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("left"))), } }
-                if let Some(v) = obj.get("at") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } }
-                if let Some(v) = obj.get("watch") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("watch"))), } }
+                crate::types::keys::req_key::<JsNumber>(obj, "port", &mut out);
+                crate::types::keys::opt_key::<JsNumber>(obj, "pid", &mut out);
+                crate::types::keys::opt_key::<String>(obj, "process", &mut out);
+                crate::types::keys::opt_key::<String>(obj, "command", &mut out);
+                crate::types::keys::opt_key::<bool>(obj, "exited", &mut out);
+                crate::types::keys::opt_key::<bool>(obj, "left", &mut out);
+                crate::types::keys::opt_key::<String>(obj, "at", &mut out);
+                crate::types::keys::opt_key::<String>(obj, "watch", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -224,8 +227,8 @@ impl Check for DaemonEvent {
             }
             Some("inbox.file") => {
                 let mut out = Vec::new();
-                match obj.get("path") { None => out.push(crate::types::check::required::<String>("path")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("path"))), } } }
-                match obj.get("bytes") { None => out.push(crate::types::check::required::<JsNumber>("bytes")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("bytes"))), } } }
+                crate::types::keys::req_key::<String>(obj, "path", &mut out);
+                crate::types::keys::req_key::<JsNumber>(obj, "bytes", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -233,10 +236,10 @@ impl Check for DaemonEvent {
             }
             Some("pty.mode") => {
                 let mut out = Vec::new();
-                match obj.get("ptyId") { None => out.push(crate::types::check::required::<String>("ptyId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ptyId"))), } } }
-                match obj.get("mode") { None => out.push(crate::types::check::required::<PtyModeMode>("mode")), Some(v) => { match crate::types::check::read::<PtyModeMode>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("mode"))), } } }
-                match obj.get("echo") { None => out.push(crate::types::check::required::<bool>("echo")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("echo"))), } } }
-                match obj.get("foreground") { None => out.push(crate::types::check::required::<String>("foreground")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("foreground"))), } } }
+                crate::types::keys::req_key::<String>(obj, "ptyId", &mut out);
+                crate::types::keys::req_key::<PtyModeMode>(obj, "mode", &mut out);
+                crate::types::keys::req_key::<bool>(obj, "echo", &mut out);
+                crate::types::keys::req_key::<String>(obj, "foreground", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -244,16 +247,13 @@ impl Check for DaemonEvent {
             }
             Some("browser.open") => {
                 let mut out = Vec::new();
-                match obj.get("url") { None => out.push(crate::types::check::required::<String>("url")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("url"))), } } }
-                if let Some(v) = obj.get("port") { match crate::types::check::read_present::<RelayPort>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("port"))), } }
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::wire::daemon_checks::req_rules::<String>(obj, "url", &mut out, crate::wire::daemon_checks::http_url);
+                crate::types::keys::opt_key::<RelayPort>(obj, "port", &mut out);
                 Some(out)
             }
             Some("callback.port") => {
                 let mut out = Vec::new();
-                match obj.get("port") { None => out.push(crate::types::check::required::<RelayPort>("port")), Some(v) => { match crate::types::check::read::<RelayPort>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("port"))), } } }
+                crate::types::keys::req_key::<RelayPort>(obj, "port", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -261,9 +261,9 @@ impl Check for DaemonEvent {
             }
             Some("tunnel.data") => {
                 let mut out = Vec::new();
-                match obj.get("tunnelId") { None => out.push(crate::types::check::required::<String>("tunnelId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("tunnelId"))), } } }
-                match obj.get("data") { None => out.push(crate::types::check::required::<String>("data")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("data"))), } } }
-                if let Some(v) = obj.get("machineId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("machineId"))), } }
+                crate::types::keys::req_key::<String>(obj, "tunnelId", &mut out);
+                crate::types::keys::req_key::<String>(obj, "data", &mut out);
+                crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -271,8 +271,8 @@ impl Check for DaemonEvent {
             }
             Some("tunnel.end") => {
                 let mut out = Vec::new();
-                match obj.get("tunnelId") { None => out.push(crate::types::check::required::<String>("tunnelId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("tunnelId"))), } } }
-                if let Some(v) = obj.get("machineId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("machineId"))), } }
+                crate::types::keys::req_key::<String>(obj, "tunnelId", &mut out);
+                crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -280,8 +280,8 @@ impl Check for DaemonEvent {
             }
             Some("stdio.out") => {
                 let mut out = Vec::new();
-                match obj.get("stdioId") { None => out.push(crate::types::check::required::<String>("stdioId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("stdioId"))), } } }
-                match obj.get("data") { None => out.push(crate::types::check::required::<String>("data")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("data"))), } } }
+                crate::types::keys::req_key::<String>(obj, "stdioId", &mut out);
+                crate::types::keys::req_key::<String>(obj, "data", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -289,8 +289,8 @@ impl Check for DaemonEvent {
             }
             Some("stdio.err") => {
                 let mut out = Vec::new();
-                match obj.get("stdioId") { None => out.push(crate::types::check::required::<String>("stdioId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("stdioId"))), } } }
-                match obj.get("data") { None => out.push(crate::types::check::required::<String>("data")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("data"))), } } }
+                crate::types::keys::req_key::<String>(obj, "stdioId", &mut out);
+                crate::types::keys::req_key::<String>(obj, "data", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -298,8 +298,8 @@ impl Check for DaemonEvent {
             }
             Some("stdio.exit") => {
                 let mut out = Vec::new();
-                match obj.get("stdioId") { None => out.push(crate::types::check::required::<String>("stdioId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("stdioId"))), } } }
-                if let Some(v) = obj.get("code") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("code"))), } }
+                crate::types::keys::req_key::<String>(obj, "stdioId", &mut out);
+                crate::types::keys::opt_key::<JsInt>(obj, "code", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -307,25 +307,37 @@ impl Check for DaemonEvent {
             }
             Some("localhost.url") => {
                 let mut out = Vec::new();
-                match obj.get("port") { None => out.push(crate::types::check::required::<RelayPort>("port")), Some(v) => { match crate::types::check::read::<RelayPort>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("port"))), } } }
+                crate::types::keys::req_key::<RelayPort>(obj, "port", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
                 Some(out)
             }
-            Some("sys.sample") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<SysSample>(&serde_json::Value::Object(body))) }
-            Some("proc.snapshot") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<ProcSnapshot>(&serde_json::Value::Object(body))) }
-            Some("proc.changes") => { let mut body = obj.clone(); body.shift_remove("type"); Some(crate::types::check::issues_of::<ProcChanges>(&serde_json::Value::Object(body))) }
+            Some("sys.sample") => {
+                let mut body = obj.clone();
+                body.shift_remove("type");
+                Some(crate::types::check::issues_of::<SysSample>(&serde_json::Value::Object(body)))
+            }
+            Some("proc.snapshot") => {
+                let mut body = obj.clone();
+                body.shift_remove("type");
+                Some(crate::types::check::issues_of::<ProcSnapshot>(&serde_json::Value::Object(body)))
+            }
+            Some("proc.changes") => {
+                let mut body = obj.clone();
+                body.shift_remove("type");
+                Some(crate::types::check::issues_of::<ProcChanges>(&serde_json::Value::Object(body)))
+            }
             Some("guest.opened") => {
                 let mut out = Vec::new();
-                match obj.get("session") { None => out.push(crate::types::check::required::<String>("session")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("session"))), } } }
-                match obj.get("life") { None => out.push(crate::types::check::required::<String>("life")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("life"))), } } }
-                match obj.get("kind") { None => out.push(crate::types::check::required::<GuestKind>("kind")), Some(v) => { match crate::types::check::read::<GuestKind>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("kind"))), } } }
-                match obj.get("token") { None => out.push(crate::types::check::required::<String>("token")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("token"))), } } }
-                if let Some(v) = obj.get("turnToken") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("turnToken"))), } }
-                match obj.get("argv") { None => out.push(crate::types::check::required::<Vec<String>>("argv")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("argv"))), } } }
-                match obj.get("cwd") { None => out.push(crate::types::check::required::<String>("cwd")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cwd"))), } } }
-                if let Some(v) = obj.get("machineId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("machineId"))), } }
+                crate::types::keys::req_key::<String>(obj, "session", &mut out);
+                crate::types::keys::req_key::<String>(obj, "life", &mut out);
+                crate::types::keys::req_key::<GuestKind>(obj, "kind", &mut out);
+                crate::types::keys::req_key::<String>(obj, "token", &mut out);
+                crate::types::keys::opt_key::<String>(obj, "turnToken", &mut out);
+                crate::types::keys::req_key::<Vec<String>>(obj, "argv", &mut out);
+                crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
+                crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -333,19 +345,16 @@ impl Check for DaemonEvent {
             }
             Some("guest.message") => {
                 let mut out = Vec::new();
-                match obj.get("session") { None => out.push(crate::types::check::required::<String>("session")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("session"))), } } }
-                match obj.get("message") { None => out.push(crate::types::check::required::<Value>("message")), Some(v) => { match crate::types::check::read::<Value>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("message"))), } } }
-                if let Some(v) = obj.get("machineId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("machineId"))), } }
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::req_key::<String>(obj, "session", &mut out);
+                crate::types::keys::any_key::<Value>(obj, "message", &mut out);
+                crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
                 Some(out)
             }
             Some("guest.closed") => {
                 let mut out = Vec::new();
-                match obj.get("session") { None => out.push(crate::types::check::required::<String>("session")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("session"))), } } }
-                if let Some(v) = obj.get("error") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("error"))), } }
-                if let Some(v) = obj.get("machineId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("machineId"))), } }
+                crate::types::keys::req_key::<String>(obj, "session", &mut out);
+                crate::types::keys::opt_key::<String>(obj, "error", &mut out);
+                crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -354,7 +363,6 @@ impl Check for DaemonEvent {
             _ => Some(vec![crate::types::check::unknown_tag::<Self>("type", tag)]),
         }
     }
-
 }
 
 // Refinements on the variants of the unions above, each an issue when it fails:

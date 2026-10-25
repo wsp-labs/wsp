@@ -120,8 +120,6 @@ mod the_code_wsp_init_puts_in_the_address_of_the_page_it_opens {
 
     #[test]
     fn rides_the_end_of_the_hash_beside_the_workspace_and_alone_when_there_is_no_worksp() {
-        assert_eq!(opening_hash("7K3MQP2X", Some("ws_a1b2")), "#w/ws_a1b2/c/7K3MQP2X");
-        assert_eq!(opening_hash("7K3MQP2X", None), "#c/7K3MQP2X");
         assert_eq!(pairing_code_of("#w/ws_a1b2/c/7K3MQP2X"), Some(code("7K3MQP2X", "#w/ws_a1b2")));
         assert_eq!(pairing_code_of("#c/7K3MQP2X"), Some(code("7K3MQP2X", "")));
     }

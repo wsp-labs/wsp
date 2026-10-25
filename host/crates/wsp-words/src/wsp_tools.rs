@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The wsp tools an agent calls from inside its own turn, and which thread a call still in flight is behind. Port of
-//! the functions of packages/protocol/src/wsp-tools.ts at a3b870a6e (its constants, SLATE_BRIEF among them, are
+//! the functions of packages/protocol/src/wsp-tools.ts at the cut (383708c78) (its constants, SLATE_BRIEF among them, are
 //! wsp_wire::types::wsp_tools). See spec/thread_state.md.
 
 use wsp_wire::views::harness::McpServerSpec;
@@ -131,7 +131,7 @@ pub fn threads_followed(tool_name: &str, input: &str) -> Option<Followed> {
         _ => return None,
     };
     // A JSON array is an object to JavaScript's typeof, so it parses and names no field.
-    let args = match serde_json::from_str::<serde_json::Value>(input).ok()? {
+    let args = match crate::v8_json::parse_json_lax(input)? {
         serde_json::Value::Object(args) => Some(args),
         serde_json::Value::Array(_) => None,
         _ => return None,

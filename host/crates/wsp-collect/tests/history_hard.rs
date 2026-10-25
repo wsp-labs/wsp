@@ -2,6 +2,7 @@
 //! The history readers, the parser and the cache against what the TS answered for the same inputs
 //! (tests/fixtures/oracle/{commands,reader,tally,history-cache}.json, written by oracle/rest.oracle.ts), and the
 //! cache's restart and rewrite rules. spec/history_commands.md, history_readers.md and history_store.md.
+#![allow(clippy::result_large_err, clippy::type_complexity)] // HostError is 192 bytes; the gate traces return tuples
 mod common;
 
 use std::cell::RefCell;
@@ -386,7 +387,18 @@ mod workers {
     use wsp_words::exit::HostError;
 
     fn error(message: &str) -> HostError {
-        HostError { message: message.to_string(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: vec![] }
+        HostError {
+            message: message.to_string(),
+            fix: None,
+            kind: None,
+            errors: None,
+            warnings: None,
+            left: None,
+            host_key: None,
+            code: None,
+            status: None,
+            marks: vec![],
+        }
     }
 
     /// Each file's read waits on its own gate; the gate's message, when there is one, is the read's error.
@@ -398,8 +410,10 @@ mod workers {
 
     impl HistoryReader for Gated {
         fn files<'a>(&'a self, _host: &'a Host, _root: &'a str) -> LocalBoxFuture<'a, Vec<HistoryFile>> {
-            async move { self.stamps.iter().enumerate().map(|(i, stamp)| HistoryFile { path: format!("/f{i}"), stamp: stamp.clone() }).collect() }
-                .boxed_local()
+            async move {
+                self.stamps.iter().enumerate().map(|(i, stamp)| HistoryFile { path: format!("/f{i}"), stamp: stamp.clone() }).collect()
+            }
+            .boxed_local()
         }
 
         fn read<'a>(&'a self, _host: &'a Host, _root: &'a str, file: &'a str) -> LocalBoxStream<'a, Result<Call, HostError>> {
@@ -607,7 +621,11 @@ mod w2_oracle {
     }
 
     fn call_of(v: &Value) -> Call {
-        let kind = if v["kind"] == "shell" { CallKind::Shell { line: s(&v["line"]).into() } } else { CallKind::Other { name: s(&v["name"]).into() } };
+        let kind = if v["kind"] == "shell" {
+            CallKind::Shell { line: s(&v["line"]).into() }
+        } else {
+            CallKind::Other { name: s(&v["name"]).into() }
+        };
         Call { session: s(&v["session"]).into(), folder: v["folder"].as_str().map(str::to_string), at: v["at"].as_f64(), kind }
     }
 
@@ -634,7 +652,9 @@ mod w2_oracle {
     }
 
     fn usage_json(u: &Usage) -> Value {
-        let m = |m: &IndexMap<String, Count>| Value::Array(m.iter().map(|(k, c)| json!([k, { "sessions": c.sessions, "calls": c.calls }])).collect());
+        let m = |m: &IndexMap<String, Count>| {
+            Value::Array(m.iter().map(|(k, c)| json!([k, { "sessions": c.sessions, "calls": c.calls }])).collect())
+        };
         json!({ "sessions": u.sessions, "calls": u.calls, "commands": m(&u.commands), "installs": m(&u.installs), "tools": m(&u.tools) })
     }
 
@@ -667,6 +687,19 @@ mod w2_oracle {
         }
     }
 
+    /// The forms V8's legacy `Date.parse` fallback reads and the ISO grammar does not; the coordinator ruled them an
+    /// accepted difference (#2446, ruling on collect's spec pass, point 1): no agent writes one.
+    const LEGACY_DATE_FORMS: [&str; 8] = [
+        "2026-09-06 10:01:00Z",
+        "Sun, 06 Sep 2026 10:01:00 GMT",
+        "Sep 6 2026 10:01:00 UTC",
+        "2026-09-06 10:01:00",
+        "2026/09/06",
+        "Sep 6, 2026",
+        "6 Sep 2026",
+        "12",
+    ];
+
     /// Local-time cases (named `[local time, ...]`) ran at UTC in the oracle; they are checked only when this process
     /// runs at UTC too.
     #[test]
@@ -675,6 +708,9 @@ mod w2_oracle {
         let utc = std::env::var("TZ").map(|tz| tz == "UTC" || tz.is_empty()).unwrap_or(true);
         for case in cases(&f, "time_of") {
             if s(&case["name"]).starts_with("[local time") && !utc {
+                continue;
+            }
+            if case["args"][0].as_str().is_some_and(|v| LEGACY_DATE_FORMS.contains(&v)) {
                 continue;
             }
             let got = time_of(arg_opt(case, 0)).map(|n| json!(n)).unwrap_or(Value::Null);
@@ -687,15 +723,28 @@ mod w2_oracle {
             assert_eq!(json!(claude_session(s(&case["args"][0]))), case["out"], "{}", case["name"]);
         }
         for case in cases(&f, "claude_call") {
-            let got = claude_call(s(&case["args"][0]), s(&case["args"][1]), arg_opt(case, 2), opt_s(arg_opt(case, 3)), arg_opt(case, 4).and_then(Value::as_f64));
+            let got = claude_call(
+                s(&case["args"][0]),
+                s(&case["args"][1]),
+                arg_opt(case, 2),
+                opt_s(arg_opt(case, 3)),
+                arg_opt(case, 4).and_then(Value::as_f64),
+            );
             assert_same(&call_json(&got), &case["out"], s(&case["name"]));
         }
         for case in cases(&f, "codex_call") {
-            let got = codex_call(s(&case["args"][0]), s(&case["args"][1]), arg_opt(case, 2), opt_s(arg_opt(case, 3)), arg_opt(case, 4).and_then(Value::as_f64));
+            let got = codex_call(
+                s(&case["args"][0]),
+                s(&case["args"][1]),
+                arg_opt(case, 2),
+                opt_s(arg_opt(case, 3)),
+                arg_opt(case, 4).and_then(Value::as_f64),
+            );
             assert_same(&call_json(&got), &case["out"], s(&case["name"]));
         }
         for case in cases(&f, "hermes_calls") {
-            let got: Vec<Value> = hermes_calls(s(&case["args"][0]), arg_opt(case, 1), opt_s(arg_opt(case, 2))).iter().map(call_json).collect();
+            let got: Vec<Value> =
+                hermes_calls(s(&case["args"][0]), arg_opt(case, 1), opt_s(arg_opt(case, 2))).iter().map(call_json).collect();
             assert_same(&Value::Array(got), &case["out"], s(&case["name"]));
         }
         for case in cases(&f, "holder") {
@@ -709,7 +758,8 @@ mod w2_oracle {
         let f = w2("history_readers");
         for case in cases(&f, "stamp_of") {
             let h = host(&case["laptop"]);
-            let got = block_on(stamp_of(&h, s(&case["args"][0]))).map(|f| json!({ "path": f.path, "stamp": f.stamp })).unwrap_or(Value::Null);
+            let got =
+                block_on(stamp_of(&h, s(&case["args"][0]))).map(|f| json!({ "path": f.path, "stamp": f.stamp })).unwrap_or(Value::Null);
             assert_eq!(got, case["out"], "{}", case["name"]);
         }
         for (key, format) in [("claude_reader_files", "claude"), ("codex_reader_files", "codex"), ("hermes_reader_files", "hermes")] {
@@ -753,7 +803,8 @@ mod w2_oracle {
     fn tally_functions_answer_what_the_ts_answered() {
         let f = w2("history_store");
         for case in cases(&f, "reduce_calls") {
-            let calls: Vec<Result<Call, wsp_words::exit::HostError>> = case["args"][0].as_array().unwrap().iter().map(|c| Ok(call_of(c))).collect();
+            let calls: Vec<Result<Call, wsp_words::exit::HostError>> =
+                case["args"][0].as_array().unwrap().iter().map(|c| Ok(call_of(c))).collect();
             let got = block_on(reduce_calls(futures::stream::iter(calls).boxed_local())).map_err(|e| e.message).unwrap();
             assert_same(&buckets_json(&got), &case["out"], s(&case["name"]));
         }
@@ -827,7 +878,8 @@ mod w2_oracle {
                 let p = dir.replace("<dir>", &self.root);
                 assert_eq!(std::path::Path::new(&p).is_dir(), exists.as_bool().unwrap(), "{what}: folder {p}");
             }
-            let tmp: Vec<_> = std::fs::read_dir(&self.root).unwrap().flatten().filter(|e| e.file_name().to_string_lossy().ends_with(".tmp")).collect();
+            let tmp: Vec<_> =
+                std::fs::read_dir(&self.root).unwrap().flatten().filter(|e| e.file_name().to_string_lossy().ends_with(".tmp")).collect();
             assert!(tmp.is_empty(), "{what}: a temp file left behind");
         }
     }
@@ -867,7 +919,8 @@ mod w2_oracle {
             let on_agent = |a: &wsp_collect::history::AgentHistory| {
                 told.borrow_mut().push(format!("{} {}", a.agent, serde_json::to_value(a.state).unwrap().as_str().unwrap()))
             };
-            let on_progress = |p: wsp_collect::history::HistoryProgress| progress.borrow_mut().push(format!("{} {}/{}", p.agent, p.read, p.files));
+            let on_progress =
+                |p: wsp_collect::history::HistoryProgress| progress.borrow_mut().push(format!("{} {}/{}", p.agent, p.read, p.files));
             let cc = case.get("cache").map(CacheCase::new);
             let cache = cc.as_ref().map(|c| file_history_cache(&c.path));
             let opts = HistoryOptions {

@@ -1,0 +1,564 @@
+{
+ "kinds": [
+  "box",
+  "provider",
+  "mac"
+ ],
+ "unknown": {
+  "err": "no project landing road for moon"
+ },
+ "path": [
+  [
+   "box folder",
+   "/srv/legacy"
+  ],
+  [
+   "box git",
+   "/home/dev//lab"
+  ],
+  [
+   "box no computer",
+   {
+    "err": "hetzner answered no login to run the add as, so nothing can be cloned there"
+   }
+  ],
+  [
+   "provider git",
+   "/root/lab"
+  ],
+  [
+   "provider folder",
+   "/srv/legacy"
+  ],
+  [
+   "mac folder",
+   "/srv/legacy"
+  ],
+  [
+   "mac github",
+   {
+    "err": "lab is a repo, and that computer holds no checkout of its own to put one in"
+   }
+  ]
+ ],
+ "places": [
+  [
+   "box",
+   {
+    "memoryDir": "/home/dev/.claude-cfg/projects/-root-lab/memory"
+   }
+  ],
+  [
+   "provider",
+   {
+    "memoryDir": "/root/.claude-cfg/projects/-root-lab/memory"
+   }
+  ],
+  [
+   "mac folder",
+   {
+    "checkout": "/srv/legacy",
+    "memoryDir": "/Users/dev/.claude/projects/-srv-legacy/memory"
+   }
+  ],
+  [
+   "mac git",
+   {
+    "checkout": "/Users/dev/lab",
+    "memoryDir": "/Users/dev/.claude/projects/-Users-dev-lab/memory"
+   }
+  ]
+ ],
+ "landsAtAdd": [
+  true,
+  false,
+  false
+ ],
+ "refusal": [
+  null,
+  null,
+  null
+ ],
+ "remove": [
+  "spoo-ts is no longer a project on hetzner; its folder /root/spoo-ts stays there as it is",
+  "spoo-ts is no longer a project on hetzner; nothing of it was held there",
+  "spoo-ts is no longer a project here; its code is where it was"
+ ],
+ "binds": [
+  [],
+  [],
+  []
+ ],
+ "optional": [
+  [
+   "box",
+   true,
+   true,
+   true
+  ],
+  [
+   "provider",
+   false,
+   false,
+   false
+  ],
+  [
+   "mac",
+   false,
+   false,
+   false
+  ]
+ ],
+ "branch": [
+  [
+   "provider base",
+   {
+    "branch": "dev",
+    "folder": false
+   }
+  ],
+  [
+   "provider default",
+   {
+    "branch": "main",
+    "folder": false
+   }
+  ],
+  [
+   "mac here",
+   {
+    "branch": "main",
+    "folder": true
+   }
+  ],
+  [
+   "mac detached",
+   {
+    "branch": null,
+    "folder": true
+   }
+  ],
+  [
+   "box main",
+   {
+    "branch": "main",
+    "folder": true
+   }
+  ],
+  [
+   "box detached",
+   {
+    "branch": null,
+    "folder": true
+   }
+  ],
+  [
+   "box empty",
+   {
+    "branch": null,
+    "folder": true
+   }
+  ],
+  [
+   "box throws",
+   {
+    "branch": null,
+    "folder": true
+   }
+  ],
+  [
+   "box no computer",
+   {
+    "branch": null,
+    "folder": true
+   }
+  ]
+ ],
+ "folderStands": [
+  [
+   0,
+   {
+    "ok": true
+   }
+  ],
+  [
+   1,
+   {
+    "ok": false
+   }
+  ],
+  [
+   2,
+   {
+    "err": "test: broke"
+   }
+  ]
+ ],
+ "folderStandsCmd": [
+  {
+   "cmd": "test -e '/srv/it'\\''s'",
+   "timeoutMs": 120000
+  }
+ ],
+ "seedInto": {
+  "ran": [
+   {
+    "cmd": "tar -xzf '/home/dev/.wsp/put/seed-pr_1.tgz' -C '/srv/legacy' --skip-old-files --exclude='.wsp-seed' || { rc=$?; rm -f '/home/dev/.wsp/put/seed-pr_1.tgz'; exit $rc; }\nrm -f '/home/dev/.wsp/put/seed-pr_1.tgz'",
+    "timeoutMs": 120000
+   }
+  ],
+  "land": [
+   {
+    "path": "/home/dev/.wsp/put/seed-pr_1.tgz",
+    "bytes": "tar"
+   }
+  ],
+  "fails": {
+   "err": "tar: broke"
+  }
+ },
+ "unsaved": [
+  [
+   "no checkout",
+   null
+  ],
+  [
+   "checkout",
+   "web at /root/web-2 holds 1 commit not pushed",
+   [
+    {
+     "cmd": "[ -d '/root/web-2' ] || { echo wsp-no-checkout; exit 0; }\ncommand -v git >/dev/null 2>&1 || exit 1\n[ -L '/root/web-2'/.git ] && [ ! -e '/root/web-2'/.git ] && exit 1\nif [ -e '/root/web-2'/.git ] || [ -L '/root/web-2'/.git ]; then git -c safe.directory='*' -c core.fsmonitor=false --no-optional-locks -C '/root/web-2' rev-parse --git-dir >/dev/null 2>&1 || exit 1;\nelse git -c safe.directory='*' -c core.fsmonitor=false --no-optional-locks -C '/root/web-2' rev-parse --git-dir >/dev/null 2>&1 || { echo wsp-no-checkout; exit 0; }; fi\ntrees=$(git -c safe.directory='*' -c core.fsmonitor=false --no-optional-locks -C '/root/web-2' worktree list --porcelain) || exit 1\nheads=$(printf '%s\\n' \"$trees\" | sed -n 's/^HEAD //p' | grep -v '^0*$')\nahead=$(git -c safe.directory='*' -c core.fsmonitor=false --no-optional-locks -C '/root/web-2' rev-list --count --branches $heads --not --remotes '--glob=refs/wsp/seeded/*') || exit 1\nchanged=0\ntree=\nwhile IFS= read -r line; do\n  case $line in\n    \"worktree \"*) tree=${line#worktree } ;;\n    bare) tree= ;;\n    \"\")\n      if [ -n \"$tree\" ] && [ -d \"$tree\" ]; then\n        said=$(git -c safe.directory='*' -c core.fsmonitor=false --no-optional-locks -C \"$tree\" status --porcelain -- ':(top,exclude).pnpm-store') || exit 1\n        [ -z \"$said\" ] || changed=$((changed + $(printf '%s\\n' \"$said\" | wc -l)))\n      fi\n      tree= ;;\n  esac\ndone <<WSP_TREES\n$trees\n\nWSP_TREES\nstashed=$(git -c safe.directory='*' -c core.fsmonitor=false --no-optional-locks -C '/root/web-2' stash list) || exit 1\nstashes=0\n[ -z \"$stashed\" ] || stashes=$(($(printf '%s\\n' \"$stashed\" | wc -l)))\necho \"$ahead $changed $stashes\"",
+     "timeoutMs": 120000
+    }
+   ]
+  ]
+ ],
+ "land": {
+  "folderNoSeed": {
+   "out": {
+    "ok": {
+     "git": {
+      "top": "/srv/legacy"
+     }
+    }
+   },
+   "ran": []
+  },
+  "providerLand": {},
+  "macLand": {},
+  "plain": {
+   "out": {
+    "ok": {
+     "installed": {
+      "row": "node",
+      "command": "npm ci",
+      "at": "2026-10-25T10:00:00.000Z",
+      "seconds": 0
+     },
+     "path": "/root/spoo-ts",
+     "memoryKey": "-root-spoo-ts",
+     "memoryDir": "/root/.claude-cfg/projects/-root-spoo-ts/memory",
+     "git": {
+      "top": "/root/spoo-ts"
+     }
+    }
+   },
+   "ran": [
+    {
+     "cmd": "for n in '' -2 -3 -4 -5 -6 -7 -8 -9 -10 -11 -12 -13 -14 -15 -16 -17 -18 -19 -20 -21 -22 -23 -24 -25 -26 -27 -28 -29 -30 -31 -32 -33 -34 -35 -36 -37 -38 -39 -40 -41 -42 -43 -44 -45 -46 -47 -48 -49 -50 -51 -52 -53 -54 -55 -56 -57 -58 -59 -60 -61 -62 -63 -64 -65 -66 -67 -68 -69 -70 -71 -72 -73 -74 -75 -76 -77 -78 -79 -80 -81 -82 -83 -84 -85 -86 -87 -88 -89 -90 -91 -92 -93 -94 -95 -96 -97 -98 -99; do mkdir '/root/spoo-ts'\"$n\" 2>/dev/null && { printf '%s\\n' '/root/spoo-ts'\"$n\"; exit 0; }; done; echo 'every name from spoo-ts to spoo-ts-99 is taken in /root' >&2; exit 1",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "set -e\nmkdir -p '/root'\ngit clone -- https://github.com/acme/lab.git /root/spoo-ts",
+     "timeoutMs": 600000
+    },
+    {
+     "cmd": "ls -A '/root/spoo-ts'",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "mkdir -p '/root/.wsp/install-logs' && cd '/root/spoo-ts' && npm ci >> '/root/.wsp/install-logs/pr_1.log' 2>&1",
+     "timeoutMs": 1800000
+    }
+   ],
+   "reports": [
+    [
+     "cloning",
+     "Cloning https://github.com/acme/lab.git into /root/spoo-ts."
+    ],
+    [
+     "installing",
+     "npm ci in /root/spoo-ts."
+    ]
+   ]
+  },
+  "vault": {
+   "out": {
+    "ok": {
+     "installed": {
+      "row": "node, rust",
+      "command": "pnpm install --frozen-lockfile --store-dir '/root/spoo-ts-2/.pnpm-store'; cargo fetch --locked",
+      "at": "2026-10-25T10:00:00.000Z",
+      "seconds": 0
+     },
+     "path": "/root/spoo-ts-2",
+     "memoryKey": "-root-spoo-ts-2",
+     "memoryDir": "/root/.claude-cfg/projects/-root-spoo-ts-2/memory",
+     "git": {
+      "top": "/root/spoo-ts-2"
+     }
+    }
+   },
+   "ran": [
+    {
+     "cmd": "for n in '' -2 -3 -4 -5 -6 -7 -8 -9 -10 -11 -12 -13 -14 -15 -16 -17 -18 -19 -20 -21 -22 -23 -24 -25 -26 -27 -28 -29 -30 -31 -32 -33 -34 -35 -36 -37 -38 -39 -40 -41 -42 -43 -44 -45 -46 -47 -48 -49 -50 -51 -52 -53 -54 -55 -56 -57 -58 -59 -60 -61 -62 -63 -64 -65 -66 -67 -68 -69 -70 -71 -72 -73 -74 -75 -76 -77 -78 -79 -80 -81 -82 -83 -84 -85 -86 -87 -88 -89 -90 -91 -92 -93 -94 -95 -96 -97 -98 -99; do mkdir '/root/spoo-ts'\"$n\" 2>/dev/null && { printf '%s\\n' '/root/spoo-ts'\"$n\"; exit 0; }; done; echo 'every name from spoo-ts to spoo-ts-99 is taken in /root' >&2; exit 1",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "while IFS= read -r -d '' wsp_kv; do export \"$wsp_kv\"; done; unset wsp_kv\nset -e\ncommand -v gh >/dev/null 2>&1 || { echo 'hetzner has no gh signed in, and a github repo is cloned there through it; sign gh in on that computer'\\''s image, or give the repo'\\''s https url' >&2; exit 1; }\nmkdir -p '/root'\ngh repo clone acme/lab /root/spoo-ts-2",
+     "timeoutMs": 600000,
+     "stdin": "GH_TOKEN=gho_x\u0000"
+    },
+    {
+     "cmd": "ls -A '/root/spoo-ts-2'",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "mkdir -p '/root/.wsp/install-logs' && cd '/root/spoo-ts-2' && pnpm install --frozen-lockfile --store-dir '/root/spoo-ts-2/.pnpm-store' >> '/root/.wsp/install-logs/pr_1.log' 2>&1",
+     "timeoutMs": 1800000
+    },
+    {
+     "cmd": "mkdir -p '/root/.wsp/install-logs' && cd '/root/spoo-ts-2' && cargo fetch --locked >> '/root/.wsp/install-logs/pr_1.log' 2>&1",
+     "timeoutMs": 1800000
+    }
+   ],
+   "reports": [
+    [
+     "cloning",
+     "Cloning https://github.com/acme/lab.git into /root/spoo-ts-2."
+    ],
+    [
+     "installing",
+     "pnpm install --frozen-lockfile --store-dir '/root/spoo-ts-2/.pnpm-store' in /root/spoo-ts-2."
+    ],
+    [
+     "installing",
+     "cargo fetch --locked in /root/spoo-ts-2."
+    ]
+   ]
+  },
+  "seeded": {
+   "out": {
+    "ok": {
+     "seeded": {
+      "files": 1,
+      "bytes": 12,
+      "memory": "kept",
+      "memoryFiles": 3,
+      "commits": 2,
+      "at": "2026-10-25T10:00:00.000Z"
+     },
+     "path": "/root/spoo-ts",
+     "memoryKey": "-root-spoo-ts",
+     "memoryDir": "/root/.claude-cfg/projects/-root-spoo-ts/memory",
+     "git": {
+      "top": "/root/spoo-ts"
+     }
+    }
+   },
+   "ran": [
+    {
+     "cmd": "for n in '' -2 -3 -4 -5 -6 -7 -8 -9 -10 -11 -12 -13 -14 -15 -16 -17 -18 -19 -20 -21 -22 -23 -24 -25 -26 -27 -28 -29 -30 -31 -32 -33 -34 -35 -36 -37 -38 -39 -40 -41 -42 -43 -44 -45 -46 -47 -48 -49 -50 -51 -52 -53 -54 -55 -56 -57 -58 -59 -60 -61 -62 -63 -64 -65 -66 -67 -68 -69 -70 -71 -72 -73 -74 -75 -76 -77 -78 -79 -80 -81 -82 -83 -84 -85 -86 -87 -88 -89 -90 -91 -92 -93 -94 -95 -96 -97 -98 -99; do mkdir '/root/spoo-ts'\"$n\" 2>/dev/null && { printf '%s\\n' '/root/spoo-ts'\"$n\"; exit 0; }; done; echo 'every name from spoo-ts to spoo-ts-99 is taken in /root' >&2; exit 1",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "set -e\nmkdir -p '/root'\ngit clone -- https://github.com/acme/lab.git /root/spoo-ts\ntar -xzf '/root/.wsp/put/seed-pr_1.tgz' -C '/root/spoo-ts'",
+     "timeoutMs": 600000
+    },
+    {
+     "cmd": "git -C /root/spoo-ts symbolic-ref --short HEAD",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "set -e\ngit -C /root/spoo-ts -c user.name=wsp -c user.email=wsp@localhost checkout -B refactor/x abc123\ngit -C /root/spoo-ts -c user.name=wsp -c user.email=wsp@localhost am --3way /root/spoo-ts/.wsp-seed/commits.patch\ngit -C /root/spoo-ts -c user.name=wsp -c user.email=wsp@localhost update-ref refs/wsp/seeded/refactor/x HEAD\ngit -C /root/spoo-ts -c user.name=wsp -c user.email=wsp@localhost checkout main\ngit -C /root/spoo-ts -c user.name=wsp -c user.email=wsp@localhost rev-list --count abc123..refactor/x",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "set -e\nrmdir '/root/.claude-cfg/projects/-root-spoo-ts/memory' 2>/dev/null || true\nif [ -e '/root/.claude-cfg/projects/-root-spoo-ts/memory' ]; then\n  echo 'wsp-memory-kept'\nelse\n  mkdir -p '/root/.claude-cfg/projects/-root-spoo-ts'\n  mv '/root/spoo-ts/.wsp-seed/memory' '/root/.claude-cfg/projects/-root-spoo-ts/memory'\nfi\nrm -rf '/root/spoo-ts/.wsp-seed' '/root/.wsp/put/seed-pr_1.tgz'",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "ls -A '/root/spoo-ts'",
+     "timeoutMs": 120000
+    }
+   ],
+   "reports": [
+    [
+     "cloning",
+     "Cloning https://github.com/acme/lab.git into /root/spoo-ts."
+    ],
+    [
+     "seeding",
+     "Seeding 1 file (12 B), Claude Code memory (3 files, 20 B), 2 commits the remote does not have, from /Users/dev/web."
+    ],
+    [
+     "seeding",
+     "2 commits landed"
+    ],
+    [
+     "seeding",
+     "hetzner already keeps this project's memory where its agent reads it, so what the agent has kept there stays and the memory from your folder was not landed over it"
+    ]
+   ],
+   "land": [
+    {
+     "path": "/root/.wsp/put/seed-pr_1.tgz",
+     "bytes": "seed archive"
+    }
+   ]
+  },
+  "refused": {
+   "out": {
+    "ok": {
+     "seeded": {
+      "files": 0,
+      "bytes": 0,
+      "memory": "none",
+      "commits": 0,
+      "at": "2026-10-25T10:00:00.000Z"
+     },
+     "notice": "the 2 commits on refactor/x did not land on hetzner: error: patch failed; the checkout is on dev",
+     "path": "/root/spoo-ts",
+     "memoryKey": "-root-spoo-ts",
+     "memoryDir": "/root/.claude-cfg/projects/-root-spoo-ts/memory",
+     "git": {
+      "top": "/root/spoo-ts"
+     }
+    }
+   },
+   "ran": [
+    {
+     "cmd": "for n in '' -2 -3 -4 -5 -6 -7 -8 -9 -10 -11 -12 -13 -14 -15 -16 -17 -18 -19 -20 -21 -22 -23 -24 -25 -26 -27 -28 -29 -30 -31 -32 -33 -34 -35 -36 -37 -38 -39 -40 -41 -42 -43 -44 -45 -46 -47 -48 -49 -50 -51 -52 -53 -54 -55 -56 -57 -58 -59 -60 -61 -62 -63 -64 -65 -66 -67 -68 -69 -70 -71 -72 -73 -74 -75 -76 -77 -78 -79 -80 -81 -82 -83 -84 -85 -86 -87 -88 -89 -90 -91 -92 -93 -94 -95 -96 -97 -98 -99; do mkdir '/root/spoo-ts'\"$n\" 2>/dev/null && { printf '%s\\n' '/root/spoo-ts'\"$n\"; exit 0; }; done; echo 'every name from spoo-ts to spoo-ts-99 is taken in /root' >&2; exit 1",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "set -e\nmkdir -p '/root'\ngit clone --branch dev -- https://github.com/acme/lab.git /root/spoo-ts\ntar -xzf '/root/.wsp/put/seed-pr_1.tgz' -C '/root/spoo-ts'",
+     "timeoutMs": 600000
+    },
+    {
+     "cmd": "git -C /root/spoo-ts symbolic-ref --short HEAD",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "set -e\ngit -C /root/spoo-ts -c user.name=wsp -c user.email=wsp@localhost checkout -B refactor/x abc123\ngit -C /root/spoo-ts -c user.name=wsp -c user.email=wsp@localhost am --3way /root/spoo-ts/.wsp-seed/commits.patch\ngit -C /root/spoo-ts -c user.name=wsp -c user.email=wsp@localhost update-ref refs/wsp/seeded/refactor/x HEAD\ngit -C /root/spoo-ts -c user.name=wsp -c user.email=wsp@localhost checkout dev\ngit -C /root/spoo-ts -c user.name=wsp -c user.email=wsp@localhost rev-list --count abc123..refactor/x",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "git -C /root/spoo-ts -c user.name=wsp -c user.email=wsp@localhost am --abort\ngit -C /root/spoo-ts -c user.name=wsp -c user.email=wsp@localhost checkout -f dev\ngit -C /root/spoo-ts -c user.name=wsp -c user.email=wsp@localhost reset --hard origin/dev\ngit -C /root/spoo-ts -c user.name=wsp -c user.email=wsp@localhost branch -D refactor/x",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "set -e\nrm -rf '/root/spoo-ts/.wsp-seed' '/root/.wsp/put/seed-pr_1.tgz'",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "ls -A '/root/spoo-ts'",
+     "timeoutMs": 120000
+    }
+   ],
+   "reports": [
+    [
+     "cloning",
+     "Cloning https://github.com/acme/lab.git into /root/spoo-ts."
+    ],
+    [
+     "seeding",
+     "Seeding 0 files, 2 commits the remote does not have, from /Users/dev/web."
+    ],
+    [
+     "seeding",
+     "the 2 commits on refactor/x did not land on hetzner: error: patch failed; the checkout is on dev"
+    ]
+   ]
+  },
+  "cloneFailed": {
+   "out": {
+    "err": "fatal: repository not found"
+   },
+   "ran": [
+    {
+     "cmd": "for n in '' -2 -3 -4 -5 -6 -7 -8 -9 -10 -11 -12 -13 -14 -15 -16 -17 -18 -19 -20 -21 -22 -23 -24 -25 -26 -27 -28 -29 -30 -31 -32 -33 -34 -35 -36 -37 -38 -39 -40 -41 -42 -43 -44 -45 -46 -47 -48 -49 -50 -51 -52 -53 -54 -55 -56 -57 -58 -59 -60 -61 -62 -63 -64 -65 -66 -67 -68 -69 -70 -71 -72 -73 -74 -75 -76 -77 -78 -79 -80 -81 -82 -83 -84 -85 -86 -87 -88 -89 -90 -91 -92 -93 -94 -95 -96 -97 -98 -99; do mkdir '/root/spoo-ts'\"$n\" 2>/dev/null && { printf '%s\\n' '/root/spoo-ts'\"$n\"; exit 0; }; done; echo 'every name from spoo-ts to spoo-ts-99 is taken in /root' >&2; exit 1",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "set -e\nmkdir -p '/root'\ngit clone -- https://github.com/acme/lab.git /root/spoo-ts",
+     "timeoutMs": 600000
+    },
+    {
+     "cmd": "rm -rf -- '/root/spoo-ts'",
+     "timeoutMs": 120000
+    }
+   ]
+  },
+  "installFailed": {
+   "out": {
+    "err": "npm ci in /root/spoo-ts: npm ERR! nope; its whole output is /root/.wsp/install-logs/pr_1.log on p"
+   },
+   "ran": [
+    {
+     "cmd": "for n in '' -2 -3 -4 -5 -6 -7 -8 -9 -10 -11 -12 -13 -14 -15 -16 -17 -18 -19 -20 -21 -22 -23 -24 -25 -26 -27 -28 -29 -30 -31 -32 -33 -34 -35 -36 -37 -38 -39 -40 -41 -42 -43 -44 -45 -46 -47 -48 -49 -50 -51 -52 -53 -54 -55 -56 -57 -58 -59 -60 -61 -62 -63 -64 -65 -66 -67 -68 -69 -70 -71 -72 -73 -74 -75 -76 -77 -78 -79 -80 -81 -82 -83 -84 -85 -86 -87 -88 -89 -90 -91 -92 -93 -94 -95 -96 -97 -98 -99; do mkdir '/root/spoo-ts'\"$n\" 2>/dev/null && { printf '%s\\n' '/root/spoo-ts'\"$n\"; exit 0; }; done; echo 'every name from spoo-ts to spoo-ts-99 is taken in /root' >&2; exit 1",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "set -e\nmkdir -p '/root'\ngit clone -- https://github.com/acme/lab.git /root/spoo-ts",
+     "timeoutMs": 600000
+    },
+    {
+     "cmd": "ls -A '/root/spoo-ts'",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "mkdir -p '/root/.wsp/install-logs' && cd '/root/spoo-ts' && npm ci >> '/root/.wsp/install-logs/pr_1.log' 2>&1",
+     "timeoutMs": 1800000
+    },
+    {
+     "cmd": "rm -rf -- '/root/spoo-ts'",
+     "timeoutMs": 120000
+    }
+   ]
+  },
+  "noFolder": {
+   "out": {
+    "err": "every name from spoo-ts to spoo-ts-99 is taken in /root"
+   },
+   "ran": [
+    {
+     "cmd": "for n in '' -2 -3 -4 -5 -6 -7 -8 -9 -10 -11 -12 -13 -14 -15 -16 -17 -18 -19 -20 -21 -22 -23 -24 -25 -26 -27 -28 -29 -30 -31 -32 -33 -34 -35 -36 -37 -38 -39 -40 -41 -42 -43 -44 -45 -46 -47 -48 -49 -50 -51 -52 -53 -54 -55 -56 -57 -58 -59 -60 -61 -62 -63 -64 -65 -66 -67 -68 -69 -70 -71 -72 -73 -74 -75 -76 -77 -78 -79 -80 -81 -82 -83 -84 -85 -86 -87 -88 -89 -90 -91 -92 -93 -94 -95 -96 -97 -98 -99; do mkdir '/root/spoo-ts'\"$n\" 2>/dev/null && { printf '%s\\n' '/root/spoo-ts'\"$n\"; exit 0; }; done; echo 'every name from spoo-ts to spoo-ts-99 is taken in /root' >&2; exit 1",
+     "timeoutMs": 120000
+    }
+   ]
+  },
+  "sweepFailed": {
+   "out": {
+    "err": "the clone exited 1"
+   },
+   "ran": [
+    {
+     "cmd": "for n in '' -2 -3 -4 -5 -6 -7 -8 -9 -10 -11 -12 -13 -14 -15 -16 -17 -18 -19 -20 -21 -22 -23 -24 -25 -26 -27 -28 -29 -30 -31 -32 -33 -34 -35 -36 -37 -38 -39 -40 -41 -42 -43 -44 -45 -46 -47 -48 -49 -50 -51 -52 -53 -54 -55 -56 -57 -58 -59 -60 -61 -62 -63 -64 -65 -66 -67 -68 -69 -70 -71 -72 -73 -74 -75 -76 -77 -78 -79 -80 -81 -82 -83 -84 -85 -86 -87 -88 -89 -90 -91 -92 -93 -94 -95 -96 -97 -98 -99; do mkdir '/root/spoo-ts'\"$n\" 2>/dev/null && { printf '%s\\n' '/root/spoo-ts'\"$n\"; exit 0; }; done; echo 'every name from spoo-ts to spoo-ts-99 is taken in /root' >&2; exit 1",
+     "timeoutMs": 120000
+    },
+    {
+     "cmd": "set -e\nmkdir -p '/root'\ngit clone -- https://github.com/acme/lab.git /root/spoo-ts",
+     "timeoutMs": 600000
+    },
+    {
+     "cmd": "rm -rf -- '/root/spoo-ts'",
+     "timeoutMs": 120000
+    }
+   ]
+  },
+  "noComputer": {
+   "err": "hetzner answered no login to run the add as, so nothing can be cloned there"
+  }
+ }
+}

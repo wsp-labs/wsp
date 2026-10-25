@@ -9,11 +9,16 @@ description = "The host's wire: the frames clients and computers send it, the vi
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip", "raw_value"] }
 indexmap = { version = "2", features = ["serde"] }
 serde_path_to_error = "0.1"
 serde_with = { version = "3", default-features = false, features = ["macros"] }
 url = "2"
-icu_collator = "2"
-icu_locale_core = "2"
+icu_collator = { version = "~2.4.0", default-features = false }
+icu_collections = { version = "~2.4.0", default-features = false }
+icu_locale_core = "~2.4.0"
+icu_locale_fallback = { version = "~2.4.0", default-features = false, features = ["compiled_data"] }
+icu_normalizer = { version = "~2.4.0", default-features = false, features = ["utf8_iter", "utf16_iter"] }
+icu_provider = { version = "~2.4.0", default-features = false, features = ["baked"] }
+zerovec = { version = "0.11", default-features = false }
 wsp-frames = { path = "../../../daemon/crates/wsp-frames" }

@@ -184,7 +184,7 @@ mod toml_lines {
     #[test]
     fn every_string_on_a_line_is_read_basic_ones_decoded() {
         for case in text()["toml"]["strings"].as_array().unwrap() {
-            same(s(&case["text"]), json(toml_strings(s(&case["text"]))), &case["out"]);
+            same(s(&case["text"]), json(toml_strings(s(&case["text"])).unwrap()), &case["out"]);
         }
         for case in text()["toml"]["openArray"].as_array().unwrap() {
             same(s(&case["value"]), json(toml_open_array(s(&case["value"]))), &case["out"]);
@@ -195,7 +195,7 @@ mod toml_lines {
     fn a_rewrite_touches_only_the_strings_it_changes_and_leaves_the_comment() {
         for case in text()["toml"]["rewrite"].as_array().unwrap() {
             let (from, to) = (s(&case["from"]).to_string(), s(&case["to"]).to_string());
-            let out = rewrite_toml_line(s(&case["line"]), &|v: &str| if v == from { to.clone() } else { v.to_string() });
+            let out = rewrite_toml_line(s(&case["line"]), &|v: &str| if v == from { to.clone() } else { v.to_string() }).unwrap();
             assert_eq!(out, s(&case["out"]), "{}", case["line"]);
         }
     }

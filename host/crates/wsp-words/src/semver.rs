@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The one version order: which half of a launch is behind, and the tag below a tag. Port of
-//! packages/protocol/src/semver.mjs at a3b870a6e. See spec/semver.md.
+//! packages/protocol/src/semver.mjs at the cut (383708c78). See spec/semver.md.
 
 use std::cmp::Ordering;
 

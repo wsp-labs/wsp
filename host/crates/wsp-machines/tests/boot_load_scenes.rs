@@ -17,7 +17,9 @@ use wsp_core::types::internal::{BuilderLife, BuilderRecord};
 use wsp_core::types::pending::Sighting;
 use wsp_core::types::wiring::FoundMachine;
 use wsp_machines::machines::boot::load::{Asked, LoadReads};
-use wsp_machines::machines::boot::HeldBuilder;
+use wsp_core::types::internal::LiveBuilder;
+use wsp_core::types::pending::Builder as EngineBuilder;
+use wsp_wire::views::golden_image::MachineKind;
 use wsp_words::words::thread::GoneSeenBy;
 
 use common::T0;
@@ -31,14 +33,27 @@ fn builder(id: &str, o: Value) -> Value {
     b
 }
 
-fn held_builder(record: Value, life: BuilderLife, sealable: bool) -> HeldBuilder {
+fn held_builder(record: Value, life: BuilderLife, sealable: bool) -> wsp_machines::images::BuilderRef {
     let mut record = record;
     if record.get("size").is_none() {
         record["size"] = json!({"cpu": 1, "memMb": 1});
     }
     let id = record["id"].as_str().unwrap().to_string();
     let record: BuilderRecord = serde_json::from_value(record).expect("builder record");
-    HeldBuilder { record, machine: FakeMachine::plain(&id), sealable, life }
+    let builder = EngineBuilder {
+        machine: FakeMachine::plain(&id),
+        kind: MachineKind::Sandbox,
+        base_template: record.base_template.clone(),
+        setup_sha: record.setup_sha.clone(),
+        created_at: record.created_at.clone(),
+        first_life: record.first_life,
+        size: record.size.clone(),
+        import: None,
+        parent_snapshot_id: None,
+        base: None,
+        retired: None,
+    };
+    std::rc::Rc::new(std::cell::RefCell::new(LiveBuilder { record, builder, sealable, life, reach: None, recipe: None }))
 }
 
 /// The builders the scene's oracle left, in map order: id, life, and the sealable, firstLife and size it recorded.
@@ -49,6 +64,7 @@ fn assert_builders(scene: &Value, w: &World) {
     let want_ids: Vec<&str> = want.iter().map(|b| b["id"].as_str().unwrap()).collect();
     assert_eq!(ids, want_ids, "scene {:?}: the builders held", scene["name"]);
     for (b, (_, got)) in want.iter().zip(held.iter()) {
+        let got = got.borrow();
         let id = &b["id"];
         let life = match got.life {
             BuilderLife::Own => "own",

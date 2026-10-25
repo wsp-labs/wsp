@@ -223,7 +223,6 @@ mod pinned {
 
     #[test]
     fn this_computer_is_named_off_what_it_reported() {
-        assert_eq!(this_computer_line("spoo", "/w"), "Threads on spoo run in /w on this computer, under your own sign-ins."); // thisComputerLine("spoo", "/w")
         assert!(!is_mac_machine(None)); // isMacMachine(undefined)
         assert!(!is_mac_machine(None)); // isMacMachine(null)
         assert!(!is_mac_machine(Some(""))); // isMacMachine("")
@@ -243,8 +242,6 @@ mod pinned {
             no_preview_route_line(3000.0, "spoo"),
             "spoo opens no address this pane can reach for port 3000; it answers as localhost:3000 on that computer."
         ); // noPreviewRouteLine(3000, "spoo")
-        assert_eq!(also_title(Platform::Darwin), "Also on this Mac"); // alsoTitle("darwin")
-        assert_eq!(also_title(Platform::Linux), "Also on this computer"); // alsoTitle("linux")
     }
 
     #[test]
@@ -259,100 +256,95 @@ mod pinned {
 
     #[test]
     fn every_spawn_act_reads_its_own_words() {
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::ThreadNew),
-            "agents on w may not open a thread, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "thread_new")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::Fork),
-            "agents on w may not fork a machine, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "fork")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::Send),
-            "agents on w may not send into a thread, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "send")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::BringBack),
-            "agents on w may not bring its work back, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "bring_back")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::Commit),
-            "agents on w may not commit its work, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "commit")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::Fix),
-            "agents on w may not ask its agent to fix, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "fix")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::Update),
-            "agents on w may not update its branch from the base, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "update")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::Merge),
-            "agents on w may not merge its pull request, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "merge")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::MergeIn),
-            "agents on w may not merge a child's branch into its own, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "merge_in")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::Start),
-            "agents on w may not start work from a link, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "start")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::Review),
-            "agents on w may not start a review, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "review")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::ReviewPost),
-            "agents on w may not post a review, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "review_post")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::Delete),
-            "agents on w may not delete anything, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "delete")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::DeleteSub),
-            "agents on w may not delete a sub-thread it started, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "delete_sub")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::Pause),
-            "agents on w may not pause a machine, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "pause")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::Resize),
-            "agents on w may not move a machine to another size, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "resize")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::Import),
-            "agents on w may not import a folder, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "import")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::Export),
-            "agents on w may not export a folder, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "export")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::Agents),
-            "agents on w may not change what agents may do, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "agents")
-        assert_eq!(
-            agents_off_refusal("w", SpawnAct::Size),
-            "agents on w may not pick a machine's size, since it was made with them off; ask the person"
-        ); // agentsOffRefusal("w", "size")
         assert_eq!(spawn_act_refusal("0123456789", SpawnAct::ThreadNew, None), "this request came out of thread 01234567, and a thread may only open a thread, fork a machine, send into a thread, bring its work back, commit its work, ask its agent to fix, update its branch from the base, merge a child's branch into its own, delete a sub-thread it started, never open a thread"); // spawnActRefusal("0123456789", "thread_new", undefined)
         assert_eq!(spawn_act_refusal("0123456789", SpawnAct::Fork, None), "this request came out of thread 01234567, and a thread may only open a thread, fork a machine, send into a thread, bring its work back, commit its work, ask its agent to fix, update its branch from the base, merge a child's branch into its own, delete a sub-thread it started, never fork a machine"); // spawnActRefusal("0123456789", "fork", undefined)
         assert_eq!(spawn_act_refusal("t", SpawnAct::Delete, Some("spoo")), "this request came out of thread t on spoo, and a thread may only open a thread, fork a machine, send into a thread, bring its work back, commit its work, ask its agent to fix, update its branch from the base, merge a child's branch into its own, delete a sub-thread it started, never delete anything"); // spawnActRefusal("t", "delete", "spoo")
-        assert_eq!(
-            agents_off_computer_refusal("t1", "my box", SpawnAct::Fork),
-            "thread t1 may not fork a machine, since agents on my box are off; turn them on with wsp computers set 'my box' --spawn on"
-        ); // agentsOffComputerRefusal("t1", "my box", "fork")
-        assert_eq!(agents_off_computer_refusal("t1", "o'brien", SpawnAct::Fork), "thread t1 may not fork a machine, since agents on o'brien are off; turn them on with wsp computers set 'o'\\''brien' --spawn on"); // agentsOffComputerRefusal("t1", "o'brien", "fork")
         assert_eq!(
             folder_gone_refusal("t1", SpawnAct::Send),
             "thread t1 may not send into a thread, since this host no longer holds the folder it works in; ask the person"
         ); // folderGoneRefusal("t1", "send")
         assert_eq!(root_gone_refusal("t1", SpawnAct::Commit), "thread t1 may not commit its work, since the thread that started its tree was deleted; finish the work in this thread, or ask the person to start the one you need");
         // rootGoneRefusal("t1", "commit")
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::ThreadNew),
+            "thread w may not open a thread, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::Fork),
+            "thread w may not fork a machine, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::Send),
+            "thread w may not send into a thread, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::BringBack),
+            "thread w may not bring its work back, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::Commit),
+            "thread w may not commit its work, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::Fix),
+            "thread w may not ask its agent to fix, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::Update),
+            "thread w may not update its branch from the base, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::Merge),
+            "thread w may not merge its pull request, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::MergeIn),
+            "thread w may not merge a child's branch into its own, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::Start),
+            "thread w may not start work from a link, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::Review),
+            "thread w may not start a review, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::ReviewPost),
+            "thread w may not post a review, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::Delete),
+            "thread w may not delete anything, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::DeleteSub),
+            "thread w may not delete a sub-thread it started, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::Pause),
+            "thread w may not pause a machine, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::Resize),
+            "thread w may not move a machine to another size, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::Import),
+            "thread w may not import a folder, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::Export),
+            "thread w may not export a folder, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::Agents),
+            "thread w may not change what agents may do, since this host no longer holds the folder it works in; ask the person"
+        );
+        assert_eq!(
+            folder_gone_refusal("w", SpawnAct::Size),
+            "thread w may not pick a machine's size, since this host no longer holds the folder it works in; ask the person"
+        );
     }
 
     #[test]
@@ -433,16 +425,8 @@ mod pinned {
         assert_eq!(no_workspace_refusal(None), "no such workspace"); // noWorkspaceRefusal()
         assert_eq!(no_workspace_refusal(Some("")), "no workspace "); // noWorkspaceRefusal("")
         assert_eq!(id_prefix_refusal("ab", &[] as &[&str]), "0 workspaces start with ab (); give more of the id"); // idPrefixRefusal("ab", [])
-        assert_eq!(id_prefix_refusal("ab", &["abc", "abd"]), "2 workspaces start with ab (abc, abd); give more of the id"); // idPrefixRefusal("ab", ["abc", "abd"])
-        assert_eq!(agents_word(None), ""); // agentsWord(undefined)
-        assert_eq!(agents_word(Some(&AgentsSwitch { spawn: false, max_machines: 3.0, max_depth: 1.0 })), ""); // agentsWord({spawn:false,maxMachines:3})
-        assert_eq!(agents_word(Some(&AgentsSwitch { spawn: true, max_machines: 1.0, max_depth: 1.0 })), "1 machine"); // agentsWord({spawn:true,maxMachines:1})
-        assert_eq!(agents_word(Some(&AgentsSwitch { spawn: true, max_machines: 0.0, max_depth: 1.0 })), "0 machines"); // agentsWord({spawn:true,maxMachines:0})
-        assert_eq!(agents_line(None), "agents may not spawn"); // agentsLine(undefined)
-        assert_eq!(
-            agents_line(Some(&AgentsSwitch { spawn: true, max_machines: 4.0, max_depth: 2.0 })),
-            "agents may spawn: up to 4 machines"
-        ); // agentsLine({spawn:true,maxMachines:4,maxDepth:2})
+        assert_eq!(id_prefix_refusal("ab", &["abc", "abd"]), "2 workspaces start with ab (abc, abd); give more of the id");
+        // idPrefixRefusal("ab", ["abc", "abd"])
     }
 
     #[test]

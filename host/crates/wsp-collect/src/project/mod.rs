@@ -4,8 +4,11 @@
 pub mod reader;
 pub mod readers;
 
-use crate::host::Host;
-use crate::project::reader::{ProjectFile, ProjectReader};
+use indexmap::IndexMap;
+use wsp_catalog::catalog::{catalog_tool_for, catalog_tool_for_dependency};
+
+use crate::host::{Host, StatKind};
+use crate::project::reader::{ProjectFile, ProjectReader, Reads};
 use crate::project::readers::{marker, package_json, toolchain_pins, workflows};
 
 /// The readers in the order their files speak plainest; the first one to name a tool writes its row's line.
@@ -34,68 +37,68 @@ pub struct ProjectScan {
 }
 
 /// The paths one entry of a reader's list stands for.
-// project/index.ts:37
-// /** The paths one entry of a reader's list stands for: every file directly under a folder named with a trailing
-//  * slash, the same file in every folder under a `*` segment, else the entry itself. */
-// async function pathsOf(host: Host, dir: string, entry: string): Promise<string[]> {
-//   if (entry.endsWith("/")) return (await host.fs.list(`${dir}/${entry.slice(0, -1)}`)).map(name => `${entry}${name}`);
-//   const star = entry.indexOf("/*/");
-//   if (star < 0) return [entry];
-//   const head = entry.slice(0, star);
-//   return (await host.fs.list(`${dir}/${head}`)).map(name => `${head}/${name}${entry.slice(star + 2)}`);
-// }
 pub async fn paths_of(host: &Host, dir: &str, entry: &str) -> Vec<String> {
-    todo!()
+    if let Some(folder) = entry.strip_suffix('/') {
+        return host.fs.list(&format!("{dir}/{folder}")).await.into_iter().map(|name| format!("{entry}{name}")).collect();
+    }
+    let Some(star) = entry.find("/*/") else {
+        return vec![entry.to_string()];
+    };
+    let head = &entry[..star];
+    let rest = &entry[star + 2..];
+    host.fs.list(&format!("{dir}/{head}")).await.into_iter().map(|name| format!("{head}/{name}{rest}")).collect()
 }
 
 /// The files under `dir` a reader asked for that are there, in the order it asked.
-// project/index.ts:47
-// /** The files under `dir` a reader asked for that are there, in the order it asked; a reader that reads nothing out
-//  * of them is told they are there and handed no bytes. */
-// async function filesFor(host: Host, dir: string, reader: ProjectReader): Promise<ProjectFile[]> {
-//   const out: ProjectFile[] = [];
-//   for (const entry of reader.files) {
-//     for (const path of await pathsOf(host, dir, entry)) {
-//       const at = `${dir}/${path}`;
-//       if (reader.reads === "presence") {
-//         if ((await host.fs.stat(at))?.kind === "file") out.push({ path, text: "" });
-//         continue;
-//       }
-//       const text = await host.fs.readText(at);
-//       if (text !== undefined) out.push({ path, text });
-//     }
-//   }
-//   return out;
-// }
 pub async fn files_for(host: &Host, dir: &str, reader: &ProjectReader) -> Vec<ProjectFile> {
-    todo!()
+    let mut out = Vec::new();
+    for entry in reader.files {
+        for path in paths_of(host, dir, entry).await {
+            let at = format!("{dir}/{path}");
+            if reader.reads == Reads::Presence {
+                if host.fs.stat(&at).await.is_some_and(|s| s.kind == StatKind::File) {
+                    out.push(ProjectFile { path, text: String::new() });
+                }
+                continue;
+            }
+            if let Some(text) = host.fs.read_text(&at).await {
+                out.push(ProjectFile { path, text });
+            }
+        }
+    }
+    out
 }
 
 /// Every reader over one project folder, its findings named against the catalog.
-// project/index.ts:65
-// /** Every reader over one project folder, its findings named against the catalog. What a why line carries is what the
-//  * repo's own manifests name a tool with: a tool's name, a pinned version, a version range, the manifest's own file
-//  * name. No other value of a file is read, and a credential never is; the recipe this writes into stays on this
-//  * computer, which is not the promise the collector's other readers make about a machine. */
-// export async function scanProject(host: Host, folder: string): Promise<ProjectScan> {
-//   const dir = folder.replace(/\/+$/, "");
-//   const rows = new Map<string, ProjectNeed>();
-//   const candidates = new Map<string, ProjectNeed>();
-//   for (const reader of PROJECT_READERS) {
-//     for (const file of await filesFor(host, dir, reader)) {
-//       for (const finding of reader.read(file)) {
-//         const entry = finding.installs !== undefined ? catalogToolForDependency(finding.installs, finding.name) : catalogToolFor(finding.name);
-//         if (entry !== undefined) {
-//           if (!rows.has(entry.id)) rows.set(entry.id, { id: entry.id, name: entry.name, why: finding.why });
-//           continue;
-//         }
-//         if (finding.catalogOnly === true) continue;
-//         if (!candidates.has(finding.name)) candidates.set(finding.name, { id: finding.name, name: finding.label, why: finding.why });
-//       }
-//     }
-//   }
-//   return { dir, rows: [...rows.values()], candidates: [...candidates.values()] };
-// }
 pub async fn scan_project(host: &Host, folder: &str) -> ProjectScan {
-    todo!()
+    let dir = folder.trim_end_matches('/');
+    let mut rows: IndexMap<String, ProjectNeed> = IndexMap::new();
+    let mut candidates: IndexMap<String, ProjectNeed> = IndexMap::new();
+    for reader in PROJECT_READERS {
+        for file in files_for(host, dir, &reader).await {
+            for finding in (reader.read)(&file) {
+                let entry = match finding.installs {
+                    Some(road) => catalog_tool_for_dependency(road, &finding.name),
+                    None => catalog_tool_for(&finding.name),
+                };
+                if let Some(entry) = entry {
+                    rows.entry(entry.id.clone()).or_insert_with(|| ProjectNeed {
+                        id: entry.id.clone(),
+                        name: entry.name.clone(),
+                        why: finding.why.clone(),
+                    });
+                    continue;
+                }
+                if finding.catalog_only {
+                    continue;
+                }
+                candidates.entry(finding.name.clone()).or_insert_with(|| ProjectNeed {
+                    id: finding.name.clone(),
+                    name: finding.label.clone(),
+                    why: finding.why.clone(),
+                });
+            }
+        }
+    }
+    ProjectScan { dir: dir.to_string(), rows: rows.into_values().collect(), candidates: candidates.into_values().collect() }
 }

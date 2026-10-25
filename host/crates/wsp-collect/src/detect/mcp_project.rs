@@ -2,11 +2,17 @@
 //! The servers a project carries to another computer: of those a turn in its folder gets, the ones its checkout does
 //! not bring along. Port of packages/collect/src/detect/mcp-project.ts at a3b870a6e; the spec is
 //! spec/detect_turn_servers.md.
-use wsp_catalog::catalog::AgentEntry;
-use wsp_catalog::mcp_launch::{Checkout, TurnServer};
+use std::collections::HashSet;
 
-use crate::host::Host;
-use crate::manifest::ManifestEntry;
+use wsp_catalog::catalog::AgentEntry;
+use wsp_catalog::mcp::{McpServer, McpServerScope, McpTransport};
+use wsp_catalog::mcp_launch::{launch_server_road, Checkout, TurnScope, TurnServer};
+
+use crate::detect::mcp::{mcp_remote_tokens, mcp_server_row};
+use crate::detect::mcp_args::home_paths;
+use crate::detect::turn_servers::{read_checkout, read_turn_servers, TurnRead};
+use crate::host::{tilde, Host, RunOptions};
+use crate::manifest::{ManifestEntry, RowDefault};
 
 /// mcp-project.ts:14.
 #[derive(Debug, Clone, PartialEq)]
@@ -19,13 +25,44 @@ pub struct ProjectServer {
 /// Why a server of the folder stays here though a turn there reads it.
 pub const SWITCHED_OFF_HERE: &str = "switched off for this folder here";
 
-// detect/mcp-project.ts:25
-// /** Why a project's server stays here: its command or a path it runs against sits in the home outside the project, and
-//  * nothing carries it, so it is not on that computer. */
-// export const outsideProjectLine = (paths: readonly string[]): string =>
-//   `runs against ${paths.join(", ")}, outside the project, which nothing carries to that computer`;
+/// Node's `path.posix.normalize` for an absolute path: empty and `.` segments go, `..` steps back.
+fn normalize(path: &str) -> Vec<&str> {
+    let mut parts: Vec<&str> = Vec::new();
+    for seg in path.split('/') {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                parts.pop();
+            }
+            other => parts.push(other),
+        }
+    }
+    parts
+}
+
+/// `path.posix.join(a, b)` for absolute paths.
+fn join(a: &str, b: &str) -> String {
+    format!("/{}", normalize(&format!("{a}/{b}")).join("/"))
+}
+
+/// `path.posix.relative(from, to)` for absolute paths.
+fn relative(from: &str, to: &str) -> String {
+    let a = normalize(from);
+    let b = normalize(to);
+    let common = a.iter().zip(&b).take_while(|(x, y)| x == y).count();
+    let mut parts: Vec<&str> = vec![".."; a.len() - common];
+    parts.extend(&b[common..]);
+    parts.join("/")
+}
+
+fn inside(path: &str, folder: &str) -> bool {
+    path.starts_with(&format!("{}/", folder.trim_end_matches('/')))
+}
+
+/// Why a project's server stays here: its command or a path it runs against sits in the home outside the project, and
+/// nothing carries it, so it is not on that computer.
 pub fn outside_project_line(paths: &[String]) -> String {
-    todo!()
+    format!("runs against {}, outside the project, which nothing carries to that computer", paths.join(", "))
 }
 
 /// The TS options object `{ agents, keep? }`.
@@ -46,57 +83,98 @@ pub struct ProjectMcp {
     pub checkout: Checkout,
 }
 
-// detect/mcp-project.ts:23
-// const inside = (path: string, folder: string): boolean => path.startsWith(`${folder.replace(/\/+$/, "")}/`);
-// detect/mcp-project.ts:30
-// /** The home paths a server runs against, its command among them, that sit outside the checkout `top`: what would not
-//  * be on the computer the project goes to. ~/.local/bin is left out, since a command there is found there by name. */
-// function outsidePaths(server: TurnServer["server"], home: string, top: string): string[] {
-//   const t = server.transport;
-//   if (t.kind === "http") return [];
-//   const command = t.command.startsWith("~/") ? `${home}${t.command.slice(1)}` : t.command;
-//   const ran = command.startsWith(`${home}/`) && !command.startsWith(`${home}/.local/bin/`) ? [tilde(home, command)] : [];
-//   const at = (p: string): string => (p.startsWith("~/") ? `${home}${p.slice(1)}` : p);
-//   return [...new Set([...ran, ...homePaths(server, home)])].filter(p => !inside(at(p), top) && at(p) !== top);
-// }
-//
-// /** The files of `files` inside the checkout `top` that it brings along: tracked by git, or among the untracked files
-//  * the project keeps, which `keep` names from `folder`. */
-// async function travelling(host: Host, folder: string, top: string, files: readonly string[], keep: readonly string[]): Promise<Set<string>> {
-//   const rel = files.filter(f => inside(f, top)).map(f => posix.relative(top, f));
-//   if (rel.length === 0) return new Set();
-//   const tracked = (await host.exec.run("git", ["-C", top, "ls-files", "--", ...rel])) ?? "";
-//   const kept = new Set([...tracked.split("\n").filter(l => l !== ""), ...rel.filter(r => keep.includes(posix.relative(folder, posix.join(top, r))))]);
-//   return new Set([...kept].map(r => posix.join(top, r)));
-// }
-//
-// /** The servers a turn of each agent in `folder` gets that the folder's checkout does not bring along, one per name as
-//  * the agent reads them, each with the scan's row: only an agent whose servers wsp knows where to carry. A server the
-//  * folder switches off, or one that runs against a home path outside the project, is a row that stays here. `read` names each agent that reads a project file in the folder at
-//  * all, carried or not, which for Codex is one whose own file trusts it; `checkout` is the folder's. */
-// export async function detectProjectMcp(host: Host, folder: string, o: { agents: readonly McpAgent[]; keep?: readonly string[] }): Promise<{ servers: ProjectServer[]; read: string[]; checkout: Checkout }> {
-//   const tokens = await mcpRemoteTokens(host);
-//   const checkout = await readCheckout(host, folder);
-//   const out: ProjectServer[] = [];
-//   const read: string[] = [];
-//   for (const agent of o.agents) {
-//     if (LAUNCH_SERVER_ROADS[agent.id] === undefined) continue;
-//     const servers = (await readTurnServers(host, agent, folder, { checkout })).filter(s => s.scope !== "user");
-//     if (servers.some(s => s.scope === "project")) read.push(agent.id);
-//     const brought = await travelling(host, folder, checkout.top ?? folder, [...new Set(servers.filter(s => s.scope === "project").map(s => s.file))], o.keep ?? []);
-//     const seen = new Set<string>();
-//     for (const turn of servers) {
-//       if (seen.has(turn.server.name)) continue;
-//       seen.add(turn.server.name);
-//       if (turn.scope === "project" && brought.has(turn.file)) continue;
-//       const row = await mcpServerRow(host, agent, { ...turn.server, scope: "user" }, tokens);
-//       const outside = outsidePaths(turn.server, host.home, checkout.top ?? folder);
-//       const reason = turn.server.disabled === true ? SWITCHED_OFF_HERE : outside.length > 0 ? outsideProjectLine(outside) : undefined;
-//       out.push({ agent, turn, row: reason === undefined ? row : { ...row, default: "skip", reason } });
-//     }
-//   }
-//   return { servers: out, read, checkout };
-// }
+/// The home paths a server runs against, its command among them, that sit outside the checkout `top`: what would not
+/// be on the computer the project goes to. ~/.local/bin is left out, since a command there is found there by name.
+fn outside_paths(server: &McpServer, home: &str, top: &str) -> Vec<String> {
+    let McpTransport::Stdio { command, .. } = &server.transport else {
+        return Vec::new();
+    };
+    let at = |p: &str| match p.strip_prefix("~/") {
+        Some(rest) => format!("{home}/{rest}"),
+        None => p.to_string(),
+    };
+    let command = at(command.as_str());
+    let mut candidates: Vec<String> = Vec::new();
+    if command.starts_with(&format!("{home}/")) && !command.starts_with(&format!("{home}/.local/bin/")) {
+        candidates.push(tilde(home, &command));
+    }
+    for p in home_paths(server, home) {
+        if !candidates.contains(&p) {
+            candidates.push(p);
+        }
+    }
+    candidates.into_iter().filter(|p| !inside(&at(p.as_str()), top) && at(p.as_str()) != top).collect()
+}
+
+/// The files of `files` inside the checkout `top` that it brings along: tracked by git, or among the untracked files
+/// the project keeps, which `keep` names from `folder`.
+async fn travelling(host: &Host, folder: &str, top: &str, files: &[String], keep: &[String]) -> HashSet<String> {
+    let rel: Vec<String> = files.iter().filter(|f| inside(f, top)).map(|f| relative(top, f)).collect();
+    if rel.is_empty() {
+        return HashSet::new();
+    }
+    let mut args: Vec<String> = vec!["-C".into(), top.into(), "ls-files".into(), "--".into()];
+    args.extend(rel.iter().cloned());
+    let tracked = host.exec.run("git", &args, RunOptions::default()).await.unwrap_or_default();
+    let mut kept: Vec<String> = tracked.split('\n').filter(|l| !l.is_empty()).map(String::from).collect();
+    kept.extend(rel.iter().filter(|r| keep.contains(&relative(folder, &join(top, r)))).cloned());
+    kept.iter().map(|r| join(top, r)).collect()
+}
+
+/// The servers a turn of each agent in `folder` gets that the folder's checkout does not bring along, one per name as
+/// the agent reads them, each with the scan's row: only an agent whose servers wsp knows where to carry. A server the
+/// folder switches off, or one that runs against a home path outside the project, is a row that stays here. `read` names each agent that reads a project file in the folder at
+/// all, carried or not, which for Codex is one whose own file trusts it; `checkout` is the folder's.
 pub async fn detect_project_mcp(host: &Host, folder: &str, o: &ProjectMcpOptions) -> ProjectMcp {
-    todo!()
+    let tokens = mcp_remote_tokens(host).await;
+    let checkout = read_checkout(host, folder).await;
+    let top = checkout.top.clone().unwrap_or_else(|| folder.to_string());
+    let mut servers = Vec::new();
+    let mut read = Vec::new();
+    for agent in &o.agents {
+        if launch_server_road(&agent.id).is_none() {
+            continue;
+        }
+        let turns: Vec<TurnServer> = read_turn_servers(host, agent, folder, TurnRead { checkout: Some(checkout.clone()), own: false })
+            .await
+            .into_iter()
+            .filter(|s| s.scope != TurnScope::User)
+            .collect();
+        if turns.iter().any(|s| s.scope == TurnScope::Project) {
+            read.push(agent.id.clone());
+        }
+        let mut project_files: Vec<String> = Vec::new();
+        for s in turns.iter().filter(|s| s.scope == TurnScope::Project) {
+            if !project_files.contains(&s.file) {
+                project_files.push(s.file.clone());
+            }
+        }
+        let brought = travelling(host, folder, &top, &project_files, &o.keep).await;
+        let mut seen: HashSet<String> = HashSet::new();
+        for turn in turns {
+            if !seen.insert(turn.server.name.clone()) {
+                continue;
+            }
+            if turn.scope == TurnScope::Project && brought.contains(&turn.file) {
+                continue;
+            }
+            let mut as_user = turn.server.clone();
+            as_user.scope = McpServerScope::User;
+            let row = mcp_server_row(host, agent, &as_user, &tokens).await;
+            let outside = outside_paths(&turn.server, &host.home, &top);
+            let reason = if turn.server.disabled == Some(true) {
+                Some(SWITCHED_OFF_HERE.to_string())
+            } else if !outside.is_empty() {
+                Some(outside_project_line(&outside))
+            } else {
+                None
+            };
+            let row = match reason {
+                Some(reason) => ManifestEntry { default: RowDefault::Skip, reason: Some(reason), ..row },
+                None => row,
+            };
+            servers.push(ProjectServer { agent, turn, row });
+        }
+    }
+    ProjectMcp { servers, read, checkout }
 }

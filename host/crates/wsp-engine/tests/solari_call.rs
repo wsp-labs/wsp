@@ -133,6 +133,7 @@ fn declares_the_measured_solari_capability_truth() {
         kept: false,
         copies: true,
         own_network: true,
+        sizes_last: true,
         sizes: vec![MachineSizeOffer { cpu: JsNumber(2.0), mem_mb: JsNumber(4096.0), rate_usd_per_hour: JsNumber(rate), name: None }],
     };
     assert_eq!(got, expected);

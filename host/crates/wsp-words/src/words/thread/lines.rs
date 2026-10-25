@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Port of packages/protocol/src/words/thread.ts:1-445 at a3b870a6e: a cut turn, a harness that ended early, the host's
+//! Port of packages/protocol/src/words/thread.ts:1-445 at the cut (383708c78): a cut turn, a harness that ended early, the host's
 //! validator refusal, machine, disk and resize lines, the words every door quotes about turns, and the two-halves
 //! refusal line with redaction. Each TS statement stands as a comment above its stub. See spec/thread_lines.md.
 
@@ -182,7 +182,7 @@ pub struct HarnessEnded {
 //   return named.length === 0 ? "the host would not read this line" : `the host would not read ${named.join(" and ")} on this line`;
 // }
 pub fn validator_refusal(error: &str) -> Option<String> {
-    let issues: serde_json::Value = serde_json::from_str(error).ok()?;
+    let issues = crate::v8_json::parse_json_lax(error)?;
     let issues = issues.as_array().filter(|rows| !rows.is_empty())?;
     let rows: Vec<(&str, &Vec<serde_json::Value>)> =
         issues.iter().map(|row| Some((row.get("code")?.as_str()?, row.get("path")?.as_array()?))).collect::<Option<_>>()?;
@@ -190,7 +190,7 @@ pub fn validator_refusal(error: &str) -> Option<String> {
     if rows.iter().any(|(code, _)| *code == "invalid_union_discriminator") && fields.iter().all(|field| *field == "op") {
         return Some("the host does not serve this line; it runs another version of wsp, restart it with wsp restart".to_string());
     }
-    let mut named: Vec<&str> = Vec::new();
+    let mut named: Vec<String> = Vec::new();
     for word in fields.iter().filter_map(|field| request_word(field)) {
         if !named.contains(&word) {
             named.push(word);
@@ -914,20 +914,22 @@ pub fn unknown_agent_line(id: &str, known: &[impl AsRef<str>]) -> String {
 // }
 pub fn no_adapter_line(harness: &str, agents: &[impl AsRef<str>]) -> String {
     let agents: Vec<&str> = agents.iter().map(|agent| agent.as_ref()).collect();
-    let on_host = if agents.is_empty() { "none".to_string() } else { agents.join(", ") };
+    let joined = agents.join(", ");
+    let on_host = if joined.is_empty() { "none".to_string() } else { joined };
     format!("no adapter registered for harness \"{harness}\"; agents on this host: {on_host}")
 }
 
-/// The words a request field is read as in a refusal, or nothing for a field no line names on its own.
-fn request_word(field: &str) -> Option<&'static str> {
+/// The words a request field is read as in a refusal, or nothing for a field no line names on its own. The TS table is a
+/// plain object, so a field named like a key `Object.prototype` holds reads as that key's inherited value.
+fn request_word(field: &str) -> Option<String> {
     match field {
-        "threadId" | "sessionId" => Some("the thread"),
-        "argv" => Some("the command"),
-        "prompt" => Some("the message"),
-        "cwd" => Some("--cwd"),
-        "model" => Some("--model"),
-        "effort" => Some("--effort"),
-        "permissionMode" => Some("--access"),
-        _ => None,
+        "threadId" | "sessionId" => Some("the thread".to_string()),
+        "argv" => Some("the command".to_string()),
+        "prompt" => Some("the message".to_string()),
+        "cwd" => Some("--cwd".to_string()),
+        "model" => Some("--model".to_string()),
+        "effort" => Some("--effort".to_string()),
+        "permissionMode" => Some("--access".to_string()),
+        other => crate::js::inherited_text(other),
     }
 }

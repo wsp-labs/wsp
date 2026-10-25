@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! What an import asks about a project's secret files and how a row says each one. Port of the functions of packages/protocol/src/project-import.ts at
-//! a3b870a6e; its shapes and flat constants are wsp_wire::types::project_import. See spec/project_import.md.
+//! the cut (383708c78); its shapes and flat constants are wsp_wire::types::project_import. See spec/project_import.md.
 
 use wsp_wire::types::project_import::ProjectImportRequest;
 use wsp_wire::views::project_bundle::ProjectAgent;

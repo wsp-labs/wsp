@@ -1617,7 +1617,7 @@ mod cost {
     }
 
     pub fn split(model: &str, input: u64, output: u64, cached: u64, cache_write: u64, reasoning: u64, cost: Option<f64>) -> TurnResultModelsItem {
-        TurnResultModelsItem { model: model.to_string(), tokens: UsageTokens { input, output, cached, cache_write, reasoning }, cost_usd: cost.map(n) }
+        TurnResultModelsItem { model: model.to_string(), tokens: UsageTokens { input: n(input as f64), output: n(output as f64), cached: n(cached as f64), cache_write: n(cache_write as f64), reasoning: n(reasoning as f64) }, cost_usd: cost.map(n) }
     }
 }
 
@@ -1846,7 +1846,7 @@ async fn a_turn_whose_cli_made_a_call_it_never_printed_keeps_its_cost_and_split_
     let models = ran.done.models.clone().expect("a split by model");
     assert_eq!(models.len(), 1);
     assert_eq!(models[0].model, "claude-haiku-4-5-20251001");
-    assert_eq!(models[0].tokens, UsageTokens { input: 82_084, output: 346, cached: 54_174, cache_write: 27_679, reasoning: 162 });
+    assert_eq!(models[0].tokens, UsageTokens { input: 82_084.into(), output: 346.into(), cached: 54_174.into(), cache_write: 27_679.into(), reasoning: 162.into() });
     close(models[0].cost_usd, 0.04197715, 9);
     let tokens = ran.done.tokens.expect("tokens");
     assert_eq!((tokens.input, tokens.output), (n(82_084.0), n(346.0)));
@@ -1871,7 +1871,7 @@ async fn a_turn_the_cli_woke_for_its_background_work_counts_every_token_since_it
     let tokens = ran.done.tokens.expect("tokens");
     assert_eq!((tokens.input, tokens.output, tokens.cached, tokens.cache_write), (n(116_031.0), n(1_825.0), Some(n(97_898.0)), Some(n(18_105.0))));
     let split = &models[0].tokens;
-    assert_eq!((tokens.input, tokens.output, tokens.cached, tokens.cache_write), (n(split.input as f64), n(split.output as f64), Some(n(split.cached as f64)), Some(n(split.cache_write as f64))));
+    assert_eq!((tokens.input, tokens.output, tokens.cached, tokens.cache_write), (split.input, split.output, Some(split.cached), Some(split.cache_write)));
 }
 
 // TS: adapter.test.ts:2281

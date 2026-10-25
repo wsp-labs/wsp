@@ -7,29 +7,10 @@ use crate::types::check::{Check, SchemaError};
 use crate::types::js_number::JsInt;
 use crate::types::js_number::JsNumber;
 
+pub use crate::types::frames_replies::GitStartOnReply;
+
 /// TS: packages/protocol/src/tree.ts:149 at a3b870a6e.
 pub const FIX_CHECK_OR_CHILD: &str = "name a failed check or a child to merge, not both";
-
-/// TS: packages/protocol/src/tree.ts:12 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::GitStartOnReply;
-
-impl Check for GitStartOnReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "branch" => <String as Check>::describe(rest),
-                "oid" => <String as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
 
 /// TS: packages/protocol/src/tree.ts:17 at a3b870a6e.
 /// How far a head is from a base on the git host: whether it is pushed, and the counts and the host's word when it is.
@@ -47,8 +28,12 @@ pub struct GitBranchCompareReply {
 
 impl Check for GitBranchCompareReply {
     fn check(&self) -> Result<(), SchemaError> {
-        if let Some(v) = self.ahead_by { crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("aheadBy"))?; }
-        if let Some(v) = self.behind_by { crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("behindBy"))?; }
+        if let Some(v) = self.ahead_by {
+            crate::types::check::num_at_least(v.0 .0, 0.0).map_err(|e| e.under("aheadBy"))?;
+        }
+        if let Some(v) = self.behind_by {
+            crate::types::check::num_at_least(v.0 .0, 0.0).map_err(|e| e.under("behindBy"))?;
+        }
         Ok(())
     }
 
@@ -57,10 +42,10 @@ impl Check for GitBranchCompareReply {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("pushed") { None => out.push(crate::types::check::missing::<Self>("pushed")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pushed"))), } } }
-        if let Some(v) = obj.get("aheadBy") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_ahead_by(&x) { out.push(e.under("aheadBy")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("aheadBy"))), } }
-        if let Some(v) = obj.get("behindBy") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_behind_by(&x) { out.push(e.under("behindBy")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("behindBy"))), } }
-        if let Some(v) = obj.get("status") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("status"))), } }
+        crate::types::keys::req_key::<bool>(obj, "pushed", &mut out);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "aheadBy", &mut out, Self::rule_ahead_by);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "behindBy", &mut out, Self::rule_behind_by);
+        crate::types::keys::opt_key::<String>(obj, "status", &mut out);
         Some(out)
     }
 
@@ -79,11 +64,15 @@ impl Check for GitBranchCompareReply {
 }
 impl GitBranchCompareReply {
     fn rule_ahead_by(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) { crate::types::check::num_at_least(v.0.0, 0.0)?; }
+        if let Some(v) = *x {
+            crate::types::check::num_at_least(v.0 .0, 0.0)?;
+        }
         Ok(())
     }
     fn rule_behind_by(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) { crate::types::check::num_at_least(v.0.0, 0.0)?; }
+        if let Some(v) = *x {
+            crate::types::check::num_at_least(v.0 .0, 0.0)?;
+        }
         Ok(())
     }
 }
@@ -105,7 +94,7 @@ pub struct GitMergeInReply {
 impl Check for GitMergeInReply {
     /// Rules: commits: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.commits.0.0, 0.0).map_err(|e| e.under("commits"))?;
+        crate::types::check::num_at_least(self.commits.0 .0, 0.0).map_err(|e| e.under("commits"))?;
         Ok(())
     }
 
@@ -114,12 +103,12 @@ impl Check for GitMergeInReply {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("branch") { None => out.push(crate::types::check::missing::<Self>("branch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } } }
-        match obj.get("merged") { None => out.push(crate::types::check::missing::<Self>("merged")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("merged"))), } } }
-        match obj.get("commits") { None => out.push(crate::types::check::missing::<Self>("commits")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_commits(&x) { out.push(e.under("commits")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("commits"))), } } }
-        if let Some(v) = obj.get("oid") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("oid"))), } }
-        if let Some(v) = obj.get("head") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("head"))), } }
-        match obj.get("conflicts") { None => out.push(crate::types::check::missing::<Self>("conflicts")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("conflicts"))), } } }
+        crate::types::keys::req_key::<String>(obj, "branch", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "merged", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "commits", &mut out, Self::rule_commits);
+        crate::types::keys::opt_key::<String>(obj, "oid", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "head", &mut out);
+        crate::types::keys::req_key::<Vec<String>>(obj, "conflicts", &mut out);
         Some(out)
     }
 
@@ -140,7 +129,7 @@ impl Check for GitMergeInReply {
 }
 impl GitMergeInReply {
     fn rule_commits(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -164,9 +153,9 @@ impl Check for TreeRecordMerged {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("oid") { None => out.push(crate::types::check::missing::<Self>("oid")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("oid"))), } } }
-        match obj.get("at") { None => out.push(crate::types::check::missing::<Self>("at")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } } }
-        if let Some(v) = obj.get("head") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("head"))), } }
+        crate::types::keys::req_key::<String>(obj, "oid", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "at", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "head", &mut out);
         Some(out)
     }
 
@@ -207,9 +196,9 @@ impl Check for TreeRecord {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("merged") { match crate::types::check::read_present::<TreeRecordMerged>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("merged"))), } }
-        if let Some(v) = obj.get("conflicts") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("conflicts"))), } }
-        if let Some(v) = obj.get("pushRefused") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pushRefused"))), } }
+        crate::types::keys::opt_key::<TreeRecordMerged>(obj, "merged", &mut out);
+        crate::types::keys::opt_key::<Vec<String>>(obj, "conflicts", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "pushRefused", &mut out);
         Some(out)
     }
 
@@ -253,10 +242,10 @@ impl Check for TreeChild {
     fn check(&self) -> Result<(), SchemaError> {
         self.merged.check().map_err(|e| e.under("merged"))?;
         if let Some(v) = self.ahead_of_lead {
-            crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("aheadOfLead"))?;
+            crate::types::check::num_at_least(v.0 .0, 0.0).map_err(|e| e.under("aheadOfLead"))?;
         }
         if let Some(v) = self.behind_lead {
-            crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("behindLead"))?;
+            crate::types::check::num_at_least(v.0 .0, 0.0).map_err(|e| e.under("behindLead"))?;
         }
         Ok(())
     }
@@ -266,15 +255,15 @@ impl Check for TreeChild {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("merged") { match crate::types::check::read_present::<TreeRecordMerged>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("merged"))), } }
-        if let Some(v) = obj.get("conflicts") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("conflicts"))), } }
-        if let Some(v) = obj.get("pushRefused") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pushRefused"))), } }
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        if let Some(v) = obj.get("threadId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } }
-        match obj.get("branch") { None => out.push(crate::types::check::missing::<Self>("branch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } } }
-        if let Some(v) = obj.get("pushed") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pushed"))), } }
-        if let Some(v) = obj.get("aheadOfLead") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_ahead_of_lead(&x) { out.push(e.under("aheadOfLead")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("aheadOfLead"))), } }
-        if let Some(v) = obj.get("behindLead") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_behind_lead(&x) { out.push(e.under("behindLead")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("behindLead"))), } }
+        crate::types::keys::opt_key::<TreeRecordMerged>(obj, "merged", &mut out);
+        crate::types::keys::opt_key::<Vec<String>>(obj, "conflicts", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "pushRefused", &mut out);
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "branch", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "pushed", &mut out);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "aheadOfLead", &mut out, Self::rule_ahead_of_lead);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "behindLead", &mut out, Self::rule_behind_lead);
         Some(out)
     }
 
@@ -298,14 +287,14 @@ impl Check for TreeChild {
 }
 impl TreeChild {
     fn rule_ahead_of_lead(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
-            crate::types::check::num_at_least(v.0.0, 0.0)?;
+        if let Some(v) = *x {
+            crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
     }
     fn rule_behind_lead(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
-            crate::types::check::num_at_least(v.0.0, 0.0)?;
+        if let Some(v) = *x {
+            crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
     }
@@ -332,9 +321,9 @@ impl Check for TreeFact {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("leadBranch") { None => out.push(crate::types::check::missing::<Self>("leadBranch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("leadBranch"))), } } }
-        match obj.get("children") { None => out.push(crate::types::check::missing::<Self>("children")), Some(v) => { match crate::types::check::read::<Vec<TreeChild>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("children"))), } } }
-        match obj.get("readAt") { None => out.push(crate::types::check::missing::<Self>("readAt")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("readAt"))), } } }
+        crate::types::keys::req_key::<String>(obj, "leadBranch", &mut out);
+        crate::types::keys::req_key::<Vec<TreeChild>>(obj, "children", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "readAt", &mut out);
         Some(out)
     }
 
@@ -368,9 +357,9 @@ pub struct MergeInResult {
 impl Check for MergeInResult {
     /// Rules: commits: >= 0; unpushed: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.commits.0.0, 0.0).map_err(|e| e.under("commits"))?;
+        crate::types::check::num_at_least(self.commits.0 .0, 0.0).map_err(|e| e.under("commits"))?;
         if let Some(v) = self.unpushed {
-            crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("unpushed"))?;
+            crate::types::check::num_at_least(v.0 .0, 0.0).map_err(|e| e.under("unpushed"))?;
         }
         Ok(())
     }
@@ -380,13 +369,13 @@ impl Check for MergeInResult {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("lead") { None => out.push(crate::types::check::missing::<Self>("lead")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("lead"))), } } }
-        match obj.get("child") { None => out.push(crate::types::check::missing::<Self>("child")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("child"))), } } }
-        match obj.get("branch") { None => out.push(crate::types::check::missing::<Self>("branch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } } }
-        match obj.get("merged") { None => out.push(crate::types::check::missing::<Self>("merged")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("merged"))), } } }
-        match obj.get("commits") { None => out.push(crate::types::check::missing::<Self>("commits")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_commits(&x) { out.push(e.under("commits")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("commits"))), } } }
-        match obj.get("conflicts") { None => out.push(crate::types::check::missing::<Self>("conflicts")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("conflicts"))), } } }
-        if let Some(v) = obj.get("unpushed") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_unpushed(&x) { out.push(e.under("unpushed")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("unpushed"))), } }
+        crate::types::keys::req_key::<String>(obj, "lead", &mut out);
+        crate::types::keys::req_key::<String>(obj, "child", &mut out);
+        crate::types::keys::req_key::<String>(obj, "branch", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "merged", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "commits", &mut out, Self::rule_commits);
+        crate::types::keys::req_key::<Vec<String>>(obj, "conflicts", &mut out);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "unpushed", &mut out, Self::rule_unpushed);
         Some(out)
     }
 
@@ -408,12 +397,12 @@ impl Check for MergeInResult {
 }
 impl MergeInResult {
     fn rule_commits(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
     }
     fn rule_unpushed(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = (*x) {
-            crate::types::check::num_at_least(v.0.0, 0.0)?;
+        if let Some(v) = *x {
+            crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
     }
