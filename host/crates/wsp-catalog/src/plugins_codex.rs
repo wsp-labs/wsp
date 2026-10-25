@@ -9,6 +9,7 @@ use wsp_wire::types::agents_report::PluginMissing;
 use wsp_wire::types::agents_report::PluginScope;
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_words::agents_report::config_changed_refusal;
+use wsp_words::exit::HostError;
 
 use crate::json_parse::parse_json;
 use crate::jsonc::js_stringify;
@@ -406,7 +407,7 @@ pub async fn read_codex_plugins(io: &impl PluginIo) -> PluginsFound {
 
 /// The switch (plugins-codex.ts:421): the app server's `config/value/write` on `plugins.<id>.enabled`, checked against
 /// the config version the read named.
-pub async fn turn_codex(io: &impl PluginIo, plugin: &FoundPlugin, on: bool, read: &PluginsFound) -> Option<String> {
+pub async fn turn_codex(io: &impl PluginIo, plugin: &FoundPlugin, on: bool, read: &PluginsFound) -> Result<Option<String>, HostError> {
     let mut params = Map::new();
     params.insert("keyPath".to_string(), Value::String(format!("plugins.{}.enabled", plugin.id)));
     params.insert("value".to_string(), Value::Bool(on));
@@ -418,7 +419,7 @@ pub async fn turn_codex(io: &impl PluginIo, plugin: &FoundPlugin, on: bool, read
     let said = ask(io, &[initialize_request(INIT), write]).await;
     let answers = answers_of(said.as_deref().unwrap_or(""));
     if result_of(&answers, LIST).and_then(|r| r.get("status")) == Some(&Value::String("ok".to_string())) {
-        return None;
+        return Ok(None);
     }
     let error = match answers.get(&LIST) {
         Some(ServerAnswer::Error { message, data, .. }) => Some((message.as_str(), data.as_ref())),
@@ -427,11 +428,11 @@ pub async fn turn_codex(io: &impl PluginIo, plugin: &FoundPlugin, on: bool, read
     let conflict = error.and_then(|(_, data)| data).and_then(|d| d.get("config_write_error_code")).and_then(Value::as_str)
         == Some("configVersionConflict");
     if conflict {
-        return Some(config_changed_refusal(read.file.as_deref().unwrap_or("config.toml")));
+        return Ok(Some(config_changed_refusal(read.file.as_deref().unwrap_or("config.toml"))));
     }
     let said = match error {
         Some((message, _)) => message.strip_suffix('.').unwrap_or(message).to_string(),
         None => "Codex's app server did not answer".to_string(),
     };
-    Some(format!("{said}, so nothing was switched."))
+    Ok(Some(format!("{said}, so nothing was switched.")))
 }

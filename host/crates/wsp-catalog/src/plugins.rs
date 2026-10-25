@@ -166,8 +166,9 @@ impl PluginShelf {
         }
     }
 
-    /// One plugin turned on or off for the login; the sentence where it did not take, `None` where it did.
-    pub async fn turn(self, io: &impl PluginIo, plugin: &FoundPlugin, on: bool, read: &PluginsFound) -> Option<String> {
+    /// One plugin turned on or off for the login: `Ok(None)` where it took, the TS's returned `refused` sentence as
+    /// `Ok(Some)`, and the error a failed write threw, with its kind, as `Err`.
+    pub async fn turn(self, io: &impl PluginIo, plugin: &FoundPlugin, on: bool, read: &PluginsFound) -> Result<Option<String>, HostError> {
         match self {
             PluginShelf::Claude => turn_claude(io, plugin, on).await,
             PluginShelf::Codex => turn_codex(io, plugin, on, read).await,
@@ -805,18 +806,15 @@ pub async fn read_claude(io: &impl PluginIo, projects: &[PluginProject]) -> Plug
 }
 
 /// The switch (plugins-claude.ts:281): the store's settings get `enabledPlugins[id]` set, inside the store's base.
-/// A refused write answers its sentence, the one the TS throws.
-pub async fn turn_claude(io: &impl PluginIo, plugin: &FoundPlugin, on: bool) -> Option<String> {
+/// A write that fails answers the error `edit` threw, kind and all.
+pub async fn turn_claude(io: &impl PluginIo, plugin: &FoundPlugin, on: bool) -> Result<Option<String>, HostError> {
     if !io.can_edit() {
-        return Some(format!("{} was not switched: this road writes no settings file.", plugin.id));
+        return Ok(Some(format!("{} was not switched: this road writes no settings file.", plugin.id)));
     }
     let (home, store) = (io.home(), io.store());
     let file = in_store(CLAUDE_STATE, SETTINGS, home, store);
     let base = store_base(&in_store(CLAUDE_STATE, "~/.claude", home, store), home);
     let edit = vec![(vec![PathSeg::Key("enabledPlugins".to_string()), PathSeg::Key(plugin.id.clone())], Some(Value::Bool(on)))];
     let change = move |text: Option<&str>| -> Result<String, HostError> { edit_json(text.unwrap_or("{}"), &edit) };
-    match io.edit(&file, &base, &change).await {
-        Ok(()) => None,
-        Err(e) => Some(e.message),
-    }
+    io.edit(&file, &base, &change).await.map(|()| None)
 }
