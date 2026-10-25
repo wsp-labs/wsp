@@ -8,11 +8,12 @@ use serde_json::{json, Map, Value};
 use wsp_catalog::base_image::BASE_IMAGE_COMMANDS;
 use wsp_catalog::linux_casks::{linux_casks, CURSOR, GCLOUD, KUBECTL};
 use wsp_catalog::mac_paths::{MAC_BIN_DIRS, MAC_BREW, MAC_ONLY};
-use wsp_catalog::pending::{ToolPin, TOOL_PREFIX};
 use wsp_catalog::release_pins::{pinned_release, RELEASE_PINS};
 use wsp_catalog::road_modules::*;
 use wsp_catalog::road_release::{asset_install, release_install, ASSET_ARCH_AARCH64, ASSET_ARCH_X86_64, ASSET_SKIPPED};
 use wsp_catalog::roads::*;
+use wsp_wire::types::daemon_contract::TOOL_PREFIX;
+use wsp_wire::views::golden_image::ToolPin;
 
 fn constants() -> Map<String, Value> {
     let mut m = Map::new();
@@ -124,7 +125,9 @@ mod constants_and_scripts {
         same("gcloud", json(&*GCLOUD), &w["casks"][0]);
         same("kubectl", json(&*KUBECTL), &w["casks"][1]);
         same("cursor", json(&*CURSOR), &w["cursorCask"]);
-        let pins: Value = Value::Object(RELEASE_PINS.iter().map(|(repo, p)| (repo.clone(), json!({ "tag": p.tag, "assets": json(&p.assets) }))).collect());
+        let pins: Value = Value::Object(
+            RELEASE_PINS.iter().map(|(repo, p)| (repo.clone(), json!({ "tag": p.tag, "assets": json(&p.assets) }))).collect(),
+        );
         same("releasePins", pins.clone(), &w["releasePins"]);
         let order: Vec<&String> = RELEASE_PINS.keys().collect();
         let want: Vec<&String> = w["releasePins"].as_object().unwrap().keys().collect();
@@ -187,7 +190,7 @@ mod constants_and_scripts {
 
     #[test]
     fn a_pin_stands_while_the_version_is_its_tag_or_none_and_goes_once_it_moved() {
-        let pin = ToolPin { tag: "1.0".into(), ..Default::default() };
+        let pin = ToolPin { tag: "1.0".into(), sha256: None, arch: None, latest: None };
         assert_eq!(pin_state_of(None, None), PinState::None);
         assert_eq!(pin_state_of(Some("1.0"), None), PinState::None);
         assert_eq!(pin_state_of(None, Some(&pin)), PinState::Same);
@@ -250,12 +253,21 @@ mod modules {
             same(&format!("{label} present"), opt(m.present(&road, bin)), &case["present"]);
             same(&format!("{label} check"), opt(m.check(&road, bin)), &case["check"]);
             same(&format!("{label} shown"), opt(m.shown(&road, bin)), &case["shown"]);
-            same(&format!("{label} install"), json!({ "own": installed(m.install(&road, bin, None)), "prefix": installed(m.install(&road, bin, Some(&prefix))) }), &case["install"]);
-            same(&format!("{label} uninstall"), json!({ "own": uninstalled(m.uninstall(&road, bin, None)), "prefix": uninstalled(m.uninstall(&road, bin, Some(&prefix))) }), &case["uninstall"]);
+            same(
+                &format!("{label} install"),
+                json!({ "own": installed(m.install(&road, bin, None)), "prefix": installed(m.install(&road, bin, Some(&prefix))) }),
+                &case["install"],
+            );
+            same(
+                &format!("{label} uninstall"),
+                json!({ "own": uninstalled(m.uninstall(&road, bin, None)), "prefix": uninstalled(m.uninstall(&road, bin, Some(&prefix))) }),
+                &case["uninstall"],
+            );
             same(&format!("{label} names"), json(m.names(&road)), &case["names"]);
             same(&format!("{label} roadBin"), opt(m.bin(&road)), &case["roadBin"]);
             same(&format!("{label} at"), opt(m.at(&road, "9.9.9")), &case["at"]);
-            let read = m.installed(&road, bin, None).map(|own| json!({ "own": own, "prefix": m.installed(&road, bin, Some(&prefix)).unwrap() }));
+            let read =
+                m.installed(&road, bin, None).map(|own| json!({ "own": own, "prefix": m.installed(&road, bin, Some(&prefix)).unwrap() }));
             same(&format!("{label} installed"), opt(read), &case["installed"]);
             same(&format!("{label} fixesVersion"), json(fixes_version(&road)), &case["fixesVersion"]);
             same(&format!("{label} versionOf"), opt(version_of(&road)), &case["versionOf"]);
@@ -271,7 +283,12 @@ mod modules {
             ToolRow { name: "tool".into(), version: None, paths: vec![], label: "tool".into() },
             ToolRow { name: "tool".into(), version: Some("1.2.3".into()), paths: vec![], label: "tool 1.2.3".into() },
             ToolRow { name: "gopls".into(), version: None, paths: vec!["golang.org/x/tools/gopls@v0.16.1".into()], label: "gopls".into() },
-            ToolRow { name: "gopls".into(), version: Some("v0.17.0".into()), paths: vec!["golang.org/x/tools/gopls@v0.16.1".into()], label: "gopls".into() },
+            ToolRow {
+                name: "gopls".into(),
+                version: Some("v0.17.0".into()),
+                paths: vec!["golang.org/x/tools/gopls@v0.16.1".into()],
+                label: "gopls".into(),
+            },
             ToolRow { name: "old".into(), version: None, paths: vec![], label: "old (example.com/old@v1.0.0)".into() },
             ToolRow { name: "bad".into(), version: None, paths: vec!["@v1".into()], label: "bad".into() },
             ToolRow { name: "bad".into(), version: None, paths: vec!["example.com/x@".into()], label: "bad".into() },
@@ -287,7 +304,8 @@ mod modules {
     #[test]
     fn a_rows_own_bin_folders_move_with_their_manager_under_a_prefix() {
         let w = fixture("road_modules.json")["homeBins"].clone();
-        let bins: Vec<String> = [CARGO_BIN, LOCAL_BIN, "/opt/x/bin", HOME_BIN, "/root/.local/share/pnpm"].iter().map(|x| x.to_string()).collect();
+        let bins: Vec<String> =
+            [CARGO_BIN, LOCAL_BIN, "/opt/x/bin", HOME_BIN, "/root/.local/share/pnpm"].iter().map(|x| x.to_string()).collect();
         same("own", json(home_bins(&bins, &install_homes(None))), &w["own"]);
         same("prefix", json(home_bins(&bins, &install_homes(Some(TOOL_PREFIX)))), &w["prefix"]);
     }
@@ -296,16 +314,38 @@ mod modules {
     fn the_release_scripts_are_the_ts_text_for_every_shape_of_assets_and_pin() {
         let w = fixture("road_modules.json")["releaseLines"].clone();
         let sha = |c: char| c.to_string().repeat(64);
-        let both: wsp_catalog::roads::ReleaseAssets = serde_json::from_value(json!({ "x86_64": { "name": "a b.tar.gz", "sha256": sha('1') }, "aarch64": { "name": "c.zip", "sha256": sha('2') } })).unwrap();
-        let half: wsp_catalog::roads::ReleaseAssets = serde_json::from_value(json!({ "aarch64": { "name": "b-arm64", "sha256": sha('2') } })).unwrap();
+        let both: wsp_catalog::roads::ReleaseAssets = serde_json::from_value(
+            json!({ "x86_64": { "name": "a b.tar.gz", "sha256": sha('1') }, "aarch64": { "name": "c.zip", "sha256": sha('2') } }),
+        )
+        .unwrap();
+        let half: wsp_catalog::roads::ReleaseAssets =
+            serde_json::from_value(json!({ "aarch64": { "name": "b-arm64", "sha256": sha('2') } })).unwrap();
         let none = wsp_catalog::roads::ReleaseAssets::default();
         same("assetComplete", json(asset_install("gh", "cli/cli", "v2", &both, None)), &w["assetComplete"]);
         same("assetHalfGo", json(asset_install("b", "a/b", "v1", &half, Some("github.com/a/b/cmd/other"))), &w["assetHalfGo"]);
         same("assetNone", json(asset_install("b", "a/b", "v1", &none, None)), &w["assetNone"]);
-        let pin = |arch: Option<&str>, sum: bool| -> ToolPin { serde_json::from_value(json!({ "tag": "v1" })).map(|mut p: ToolPin| { if sum { p.sha256 = Some(sha('f')); } p.arch = arch.map(|a| serde_json::from_value(json!(a)).unwrap()); p }).unwrap() };
+        let pin = |arch: Option<&str>, sum: bool| -> ToolPin {
+            serde_json::from_value(json!({ "tag": "v1" }))
+                .map(|mut p: ToolPin| {
+                    if sum {
+                        p.sha256 = Some(sha('f'));
+                    }
+                    p.arch = arch.map(|a| serde_json::from_value(json!(a)).unwrap());
+                    p
+                })
+                .unwrap()
+        };
         same("releaseNoPin", json(release_install("b", "a/b", "v1", None, None)), &w["releaseNoPin"]);
-        same("releasePinNoArch", json(release_install("b", "a/b", "v1", Some(&pin(None, true)), Some("github.com/a/b@v0.9.0"))), &w["releasePinNoArch"]);
-        same("releasePinArch", json(release_install("b", "a/b", "v1", Some(&pin(Some("x86_64"), true)), Some("github.com/a/b"))), &w["releasePinArch"]);
+        same(
+            "releasePinNoArch",
+            json(release_install("b", "a/b", "v1", Some(&pin(None, true)), Some("github.com/a/b@v0.9.0"))),
+            &w["releasePinNoArch"],
+        );
+        same(
+            "releasePinArch",
+            json(release_install("b", "a/b", "v1", Some(&pin(Some("x86_64"), true)), Some("github.com/a/b"))),
+            &w["releasePinArch"],
+        );
         same("releasePinNoSum", json(release_install("b", "a/b", "v1", Some(&pin(None, false)), None)), &w["releasePinNoSum"]);
     }
 }

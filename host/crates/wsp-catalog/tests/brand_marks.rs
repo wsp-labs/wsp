@@ -5,23 +5,76 @@ use std::collections::HashSet;
 use regex::Regex;
 use wsp_catalog::catalog::catalog_tools;
 use wsp_catalog::marks::{brand_marks, server_mark, tool_mark};
-use wsp_catalog::pending::McpRowTransport;
+use wsp_wire::types::agents_report::{McpRowTransport, McpRowTransportHttp, McpRowTransportStdio};
 
 // The CLIs that draw the neutral terminal glyph on purpose: no mark is registered for them yet.
 const TERMINAL_GLYPH: [&str; 58] = [
-    "curl", "pnpm", "uv", "python", "git", "jq", "ripgrep", "build-essential", "fd", "sqlite3", "wget", "zip", "xz", "rsync",
-    "agent-browser", "docker", "go", "rust", "java", "maven", "gradle", "bun", "yarn", "ruff", "black", "mypy", "pyright",
-    "pytest", "prettier", "eslint", "typescript", "gcloud", "kubectl", "aws", "vercel", "netlify", "fly", "supabase",
-    "railway", "doppler", "op", "ffmpeg", "yq", "git-lfs", "tmux", "ruby", "php", "postgresql-client", "redis-tools",
-    "golangci-lint", "mise", "git-delta", "shellcheck", "swift", "elixir", "bazel", "llvm", "playwright",
+    "curl",
+    "pnpm",
+    "uv",
+    "python",
+    "git",
+    "jq",
+    "ripgrep",
+    "build-essential",
+    "fd",
+    "sqlite3",
+    "wget",
+    "zip",
+    "xz",
+    "rsync",
+    "agent-browser",
+    "docker",
+    "go",
+    "rust",
+    "java",
+    "maven",
+    "gradle",
+    "bun",
+    "yarn",
+    "ruff",
+    "black",
+    "mypy",
+    "pyright",
+    "pytest",
+    "prettier",
+    "eslint",
+    "typescript",
+    "gcloud",
+    "kubectl",
+    "aws",
+    "vercel",
+    "netlify",
+    "fly",
+    "supabase",
+    "railway",
+    "doppler",
+    "op",
+    "ffmpeg",
+    "yq",
+    "git-lfs",
+    "tmux",
+    "ruby",
+    "php",
+    "postgresql-client",
+    "redis-tools",
+    "golangci-lint",
+    "mise",
+    "git-delta",
+    "shellcheck",
+    "swift",
+    "elixir",
+    "bazel",
+    "llvm",
+    "playwright",
 ];
 
 fn http(host: &str) -> McpRowTransport {
-    McpRowTransport::Http { host: host.to_string() }
+    McpRowTransport::Http(McpRowTransportHttp { host: host.to_string() })
 }
 
 fn stdio(line: &str) -> McpRowTransport {
-    McpRowTransport::Stdio { line: line.to_string() }
+    McpRowTransport::Stdio(McpRowTransportStdio { line: line.to_string() })
 }
 
 fn server_id(transport: &McpRowTransport) -> Option<String> {
@@ -78,7 +131,10 @@ mod brand_marks {
     #[test]
     fn a_command_server_takes_the_mark_of_the_package_it_runs_or_of_an_address_on_its_l() {
         assert_eq!(server_id(&stdio("npx -y @modelcontextprotocol/server-github")).as_deref(), Some("github"));
-        assert_eq!(server_id(&stdio("docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server")).as_deref(), Some("github"));
+        assert_eq!(
+            server_id(&stdio("docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server")).as_deref(),
+            Some("github")
+        );
         assert_eq!(server_id(&stdio("npx -y @cloudflare/mcp-server-cloudflare@0.4.1 run")).as_deref(), Some("cloudflare"));
         assert_eq!(server_id(&stdio("npx -y mcp-remote https://mcp.linear.app/sse")).as_deref(), Some("linear"));
         assert_eq!(server_id(&stdio("npx -y mcp-remote HTTPS://mcp.linear.app/sse")).as_deref(), Some("linear"));

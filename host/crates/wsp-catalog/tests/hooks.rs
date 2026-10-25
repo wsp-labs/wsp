@@ -132,10 +132,22 @@ mod claude_code_s_hooks {
         });
         let out = claude(&text(&before));
         let after: Value = serde_json::from_str(&out.text).unwrap();
-        assert_eq!(after, json!({"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "/root/.claude-cfg/hooks/remind"}]}]}}));
-        assert_eq!(out.left, vec!["/opt/homebrew/bin/terminal-notifier".to_string(), "~/.claude/hooks/gone".to_string(), format!("{HOME}/.claude/hooks/gone")]);
+        assert_eq!(
+            after,
+            json!({"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "/root/.claude-cfg/hooks/remind"}]}]}})
+        );
+        assert_eq!(
+            out.left,
+            vec![
+                "/opt/homebrew/bin/terminal-notifier".to_string(),
+                "~/.claude/hooks/gone".to_string(),
+                format!("{HOME}/.claude/hooks/gone")
+            ]
+        );
         assert_eq!(out.carried, vec![carried(&format!("{HOME}/.claude/hooks/remind"), "/root/.claude-cfg/hooks/remind")]);
-        let only = claude(&text(&json!({"model": "opus", "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "~/.claude/hooks/gone"}]}]}})));
+        let only = claude(&text(
+            &json!({"model": "opus", "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "~/.claude/hooks/gone"}]}]}}),
+        ));
         assert_eq!(only.text, "{\n  \"model\": \"opus\"\n}\n");
         assert_eq!(only.left, strings(&["~/.claude/hooks/gone"]));
     }
@@ -176,7 +188,10 @@ mod claude_code_s_hooks {
                 "/root/.codync/notify.sh",
             ])
         );
-        assert_eq!(out.left, strings(&["/opt/homebrew/bin/terminal-notifier", "/Applications/Say.app/Contents/MacOS/say", "/Users/other/bin/ping"]));
+        assert_eq!(
+            out.left,
+            strings(&["/opt/homebrew/bin/terminal-notifier", "/Applications/Say.app/Contents/MacOS/say", "/Users/other/bin/ping"])
+        );
         assert_eq!(
             *asked.borrow(),
             vec![
@@ -272,7 +287,10 @@ mod claude_code_s_hooks {
         for c in ["// my settings", "// the big one", "/* on start */", "// reminds me", "// the end"] {
             assert!(out.text.contains(c), "{c}");
         }
-        assert_eq!(parse_jsonc(&out.text).unwrap(), json!({"model": "opus", "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "/root/.claude-cfg/hooks/remind"}]}]}}));
+        assert_eq!(
+            parse_jsonc(&out.text).unwrap(),
+            json!({"model": "opus", "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "/root/.claude-cfg/hooks/remind"}]}]}})
+        );
         assert_eq!(out.left, strings(&["~/.claude/hooks/gone", "~/.claude/hooks/gone"]));
         assert_eq!(out.carried, vec![carried(&format!("{HOME}/.claude/hooks/remind"), "/root/.claude-cfg/hooks/remind")]);
     }
@@ -305,7 +323,8 @@ mod codex_s_notify {
         format!("model = \"gpt-5.5\"\n{notify}\n\n[projects.\"{HOME}\"]\ntrust_level = \"trusted\"\n\n[tui]\npet = \"fireball\"\n")
     }
 
-    const WITHOUT_NOTIFY: &str = "model = \"gpt-5.5\"\n\n[projects.\"/Users/dev\"]\ntrust_level = \"trusted\"\n\n[tui]\npet = \"fireball\"\n";
+    const WITHOUT_NOTIFY: &str =
+        "model = \"gpt-5.5\"\n\n[projects.\"/Users/dev\"]\ntrust_level = \"trusted\"\n\n[tui]\npet = \"fireball\"\n";
 
     #[test]
     fn takes_out_a_notify_whose_program_is_neither_on_the_image_nor_a_bare_command_name() {
@@ -326,7 +345,9 @@ mod codex_s_notify {
 
     #[test]
     fn leaves_a_notify_the_machine_can_run_a_bare_command_name_and_a_notify_key_under_a() {
-        for notify in ["notify = [\"/usr/bin/notify-send\", \"turn-ended\"]", "notify = [\"notify-send\"]", "notify = []", "notify = \"/bin/echo\""] {
+        for notify in
+            ["notify = [\"/usr/bin/notify-send\", \"turn-ended\"]", "notify = [\"notify-send\"]", "notify = []", "notify = \"/bin/echo\""]
+        {
             let text = config(notify);
             assert_eq!(codex(&text), untouched(&text), "{notify}");
         }
@@ -348,7 +369,11 @@ mod codex_s_notify {
         assert_eq!(*asked.borrow(), vec![format!("{HOME}/.codex/notify.py")]);
         // The same shape written with ~, with a flag before the script, and with the interpreter by a path the image has.
         let script = Regex::new(r#""[^"]*notify\.py""#).unwrap();
-        for notify in ["notify = [\"python3\", \"-u\", \"~/.codex/notify.py\"]", "notify = [\"/usr/bin/python3\", \"~/.codex/notify.py\"]", "notify = [\"node\", \"$HOME/.codex/notify.py\"]"] {
+        for notify in [
+            "notify = [\"python3\", \"-u\", \"~/.codex/notify.py\"]",
+            "notify = [\"/usr/bin/python3\", \"~/.codex/notify.py\"]",
+            "notify = [\"node\", \"$HOME/.codex/notify.py\"]",
+        ] {
             let one = codex(&config(notify));
             let rewritten = script.replace(notify, "\"/root/.codex/notify.py\"");
             assert_eq!(one.text, config(&rewritten), "{notify}");

@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use futures::future::{BoxFuture, FutureExt};
+use futures::future::{LocalBoxFuture, FutureExt};
 use indexmap::IndexMap;
 use regex::Regex;
 use serde_json::{json, Map, Value};
@@ -63,7 +63,7 @@ fn agent_message(id: &str, text: &str) -> String {
 }
 
 /// A server that opens the thread and starts the turn, then prints what the case hands it.
-fn scripted(rest: Vec<String>, hang: bool) -> impl Fn(&[String]) -> Wire + Send + Sync + 'static {
+fn scripted(rest: Vec<String>, hang: bool) -> impl Fn(&[String]) -> Wire + 'static {
     let mut lines = opened(THREAD_ID);
     lines.push(turn_started());
     lines.extend(rest);
@@ -71,7 +71,7 @@ fn scripted(rest: Vec<String>, hang: bool) -> impl Fn(&[String]) -> Wire + Send 
 }
 
 /// A launcher whose server answers what wsp writes through `on_write`.
-fn answering(on_write: impl Fn(&Value, &Wire) + Send + Sync + 'static) -> Launch {
+fn answering(on_write: impl Fn(&Value, &Wire) + 'static) -> Launch {
     let on_write: OnWrite = Arc::new(on_write);
     launcher(scripted_server(WireOpts { on_write: Some(on_write), ..Default::default() }))
 }
@@ -134,7 +134,7 @@ mod a_side_question_on_a_codex_thread {
 
     const FORK: &str = "01a0e2d0-0000-7000-8000-000000000001";
 
-    fn forking(on_turn: impl Fn(&Wire) + Send + Sync + 'static, hang: bool) -> Launch {
+    fn forking(on_turn: impl Fn(&Wire) + 'static, hang: bool) -> Launch {
         let on_write: OnWrite = Arc::new(move |message, w| {
             let name = method(message);
             // 0.155.1 refuses an ephemeral fork that would hand back the thread's whole history, in these words.
@@ -166,6 +166,10 @@ mod a_side_question_on_a_codex_thread {
 
     #[tokio::test]
     async fn forks_the_thread_ephemeral_and_read_only_on_its_own_server_asks_the_question_on() {
+        tokio::task::LocalSet::new().run_until(forks_the_thread_ephemeral_and_read_only_on_its_own_server_asks_the_question_on_body()).await
+    }
+
+    async fn forks_the_thread_ephemeral_and_read_only_on_its_own_server_asks_the_question_on_body() {
         let launch = forking(
             |w| {
                 w.push(&[
@@ -207,6 +211,10 @@ mod a_side_question_on_a_codex_thread {
 
     #[tokio::test]
     async fn refuses_every_approval_the_fork_asks_for_so_a_side_question_never_runs_anything() {
+        tokio::task::LocalSet::new().run_until(refuses_every_approval_the_fork_asks_for_so_a_side_question_never_runs_anything_body()).await
+    }
+
+    async fn refuses_every_approval_the_fork_asks_for_so_a_side_question_never_runs_anything_body() {
         let launch = forking(
             |w| {
                 w.push(&[
@@ -225,6 +233,10 @@ mod a_side_question_on_a_codex_thread {
 
     #[tokio::test]
     async fn ends_a_fork_that_answers_nothing_for_the_whole_wall_with_its_tree_and_says_so() {
+        tokio::task::LocalSet::new().run_until(ends_a_fork_that_answers_nothing_for_the_whole_wall_with_its_tree_and_says_so_body()).await
+    }
+
+    async fn ends_a_fork_that_answers_nothing_for_the_whole_wall_with_its_tree_and_says_so_body() {
         let launch = forking(|_| {}, true);
         let adapter = create_codex_adapter(CodexAdapterDeps { aside_wall_ms: Some(20), interrupt_grace_ms: Some(10), ..CodexAdapterDeps::new(launch.factory(), "/root/.codex", LOGIN) }).unwrap();
         let err = adapter.aside(AsideQuestion { session: THREAD_ID.into(), question: "still there?".into(), ..Default::default() }).await.unwrap_err();
@@ -234,6 +246,10 @@ mod a_side_question_on_a_codex_thread {
 
     #[tokio::test]
     async fn a_turn_is_held_to_no_wall_of_the_side_questions() {
+        tokio::task::LocalSet::new().run_until(a_turn_is_held_to_no_wall_of_the_side_questions_body()).await
+    }
+
+    async fn a_turn_is_held_to_no_wall_of_the_side_questions_body() {
         let launch = launcher(scripted(vec![], true));
         let adapter = create_codex_adapter(CodexAdapterDeps { aside_wall_ms: Some(20), interrupt_grace_ms: Some(10), ..CodexAdapterDeps::new(launch.factory(), "/root/.codex", LOGIN) }).unwrap();
         let session = adapter.start(HarnessStartOptions { prompt: "x".into(), on_event: Some(no_events()), ..Default::default() }).unwrap();
@@ -244,6 +260,10 @@ mod a_side_question_on_a_codex_thread {
 
     #[tokio::test]
     async fn rejects_in_the_servers_words_when_the_fork_fails_and_in_the_sign_in_line_when_it() {
+        tokio::task::LocalSet::new().run_until(rejects_in_the_servers_words_when_the_fork_fails_and_in_the_sign_in_line_when_it_body()).await
+    }
+
+    async fn rejects_in_the_servers_words_when_the_fork_fails_and_in_the_sign_in_line_when_it_body() {
         let refused = answering(|m, w| {
             if method(m) == "thread/fork" {
                 w.push1(json!({"error":{"code":-32600,"message":"no rollout found for thread id"},"id":"wsp-thread"}).to_string());
@@ -267,6 +287,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
     #[tokio::test]
     async fn cuts_the_threads_history_before_a_turn_on_its_own_short_server_run_resuming_the() {
+        tokio::task::LocalSet::new().run_until(cuts_the_threads_history_before_a_turn_on_its_own_short_server_run_resuming_the_body()).await
+    }
+
+    async fn cuts_the_threads_history_before_a_turn_on_its_own_short_server_run_resuming_the_body() {
         let launch = answering(|m, w| {
             if method(m) == "thread/resume" {
                 w.push(&[json!({"id":"wsp-initialize","result":{}}).to_string(), json!({"id":"wsp-thread","result":{"thread":{"id":THREAD_ID},"model":"gpt-5.6-sol"}}).to_string()]);
@@ -349,6 +373,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
     #[tokio::test]
     async fn rejects_in_the_servers_words_when_it_will_not_cut_so_the_rewind_is_refused_whole() {
+        tokio::task::LocalSet::new().run_until(rejects_in_the_servers_words_when_it_will_not_cut_so_the_rewind_is_refused_whole_body()).await
+    }
+
+    async fn rejects_in_the_servers_words_when_it_will_not_cut_so_the_rewind_is_refused_whole_body() {
         let launch = history(History {
             mode: Some("paginated"),
             revert: Some(json!({"error":{"code":-32603,"message":format!("timed out shutting down thread {THREAD_ID} before revert")},"id":"wsp-revert"}).to_string()),
@@ -360,6 +388,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
     #[tokio::test]
     async fn without_the_turns_id_finds_the_boundary_by_count_in_the_threads_turns_newest_fir() {
+        tokio::task::LocalSet::new().run_until(without_the_turns_id_finds_the_boundary_by_count_in_the_threads_turns_newest_fir_body()).await
+    }
+
+    async fn without_the_turns_id_finds_the_boundary_by_count_in_the_threads_turns_newest_fir_body() {
         let launch = history(History { mode: Some("paginated"), turns: NEWEST_FIRST.to_vec(), page_size: Some(2), ..Default::default() });
         let reverted = adapter_over(&launch).revert(revert_turns(vec![done("a"), done("b"), done("c")])).await.unwrap();
         assert_eq!(reverted, Reverted::Cut);
@@ -375,6 +407,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
     #[tokio::test]
     async fn counts_only_the_cut_turns_the_server_opened_not_one_refused_for_a_sign_in_nor_on() {
+        tokio::task::LocalSet::new().run_until(counts_only_the_cut_turns_the_server_opened_not_one_refused_for_a_sign_in_nor_on_body()).await
+    }
+
+    async fn counts_only_the_cut_turns_the_server_opened_not_one_refused_for_a_sign_in_nor_on_body() {
         let launch = history(History { mode: Some("paginated"), turns: NEWEST_FIRST.to_vec(), ..Default::default() });
         let refused = refused_for_sign_in();
         let unopened = TurnResult { error: Some("codex could not open the thread: no rollout found for thread id 01a0".into()), ..result_of(TurnStatus::Failed) };
@@ -394,6 +430,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
     #[tokio::test]
     async fn counts_a_cut_turn_that_kept_the_servers_own_id_as_opened_whatever_its_result_say() {
+        tokio::task::LocalSet::new().run_until(counts_a_cut_turn_that_kept_the_servers_own_id_as_opened_whatever_its_result_say_body()).await
+    }
+
+    async fn counts_a_cut_turn_that_kept_the_servers_own_id_as_opened_whatever_its_result_say_body() {
         let launch = history(History { mode: Some("paginated"), turns: NEWEST_FIRST.to_vec(), ..Default::default() });
         let refused = refused_for_sign_in();
         adapter_over(&launch)
@@ -410,6 +450,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
     #[tokio::test]
     async fn refuses_when_the_server_lists_fewer_turns_than_the_rewind_would_cut_and_cuts_not() {
+        tokio::task::LocalSet::new().run_until(refuses_when_the_server_lists_fewer_turns_than_the_rewind_would_cut_and_cuts_not_body()).await
+    }
+
+    async fn refuses_when_the_server_lists_fewer_turns_than_the_rewind_would_cut_and_cuts_not_body() {
         let launch = history(History { mode: Some("paginated"), turns: vec!["t2", "t1"], page_size: Some(1), ..Default::default() });
         let err = adapter_over(&launch).revert(revert_turns(vec![done("a"), done("b"), done("c")])).await.unwrap_err();
         assert!(err.contains(CODEX_FEWER_TURNS), "{err}");
@@ -419,6 +463,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
     #[tokio::test]
     async fn refuses_a_server_that_hands_back_a_page_it_already_gave_before_asking_any_cut() {
+        tokio::task::LocalSet::new().run_until(refuses_a_server_that_hands_back_a_page_it_already_gave_before_asking_any_cut_body()).await
+    }
+
+    async fn refuses_a_server_that_hands_back_a_page_it_already_gave_before_asking_any_cut_body() {
         let launch = history(History { mode: Some("paginated"), turns: NEWEST_FIRST.to_vec(), page_size: Some(1), repeat_cursor: true, ..Default::default() });
         let err = adapter_over(&launch).revert(revert_turns(vec![done("a"), done("b"), done("c")])).await.unwrap_err();
         assert!(err.contains("codex could not list the thread's turns: it handed back a page it already gave"), "{err}");
@@ -427,6 +475,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
     #[tokio::test]
     async fn a_thread_an_older_codex_made_answers_kept_by_its_history_mode_before_any_request() {
+        tokio::task::LocalSet::new().run_until(a_thread_an_older_codex_made_answers_kept_by_its_history_mode_before_any_request_body()).await
+    }
+
+    async fn a_thread_an_older_codex_made_answers_kept_by_its_history_mode_before_any_request_body() {
         let legacy = history(History { mode: Some("legacy"), turns: NEWEST_FIRST.to_vec(), ..Default::default() });
         let reverted = adapter_over(&legacy).revert(revert_before(TURN_ID)).await.unwrap();
         assert_eq!(reverted, Reverted::Kept(CODEX_LEGACY_HISTORY.to_string()));
@@ -454,6 +506,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
         #[tokio::test]
         async fn forks_the_thread_through_the_turn_on_the_starts_own_server_run_in_the_forks_fold() {
+            tokio::task::LocalSet::new().run_until(forks_the_thread_through_the_turn_on_the_starts_own_server_run_in_the_forks_fold_body()).await
+        }
+
+        async fn forks_the_thread_through_the_turn_on_the_starts_own_server_run_in_the_forks_fold_body() {
             let mut lines = opened(FORK_ID);
             lines.push(on_fork(turn_started()));
             lines.push(on_fork(agent_message("m1", "ALPHA, BETA")));
@@ -503,6 +559,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
         #[tokio::test]
         async fn fails_the_turn_in_the_servers_words_where_it_will_not_fork_naming_nothing_it_nev() {
+            tokio::task::LocalSet::new().run_until(fails_the_turn_in_the_servers_words_where_it_will_not_fork_naming_nothing_it_nev_body()).await
+        }
+
+        async fn fails_the_turn_in_the_servers_words_where_it_will_not_fork_naming_nothing_it_nev_body() {
             let refused = answering(|m, w| {
                 if method(m) == "thread/fork" {
                     w.push1(json!({"id":"wsp-thread","error":{"code":-32600,"message":"turn not found: t8"}}).to_string());
@@ -520,6 +580,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
         #[tokio::test]
         async fn finds_a_turn_by_its_id_among_the_threads_turns_on_a_run_that_loads_no_thread_acr() {
+            tokio::task::LocalSet::new().run_until(finds_a_turn_by_its_id_among_the_threads_turns_on_a_run_that_loads_no_thread_acr_body()).await
+        }
+
+        async fn finds_a_turn_by_its_id_among_the_threads_turns_on_a_run_that_loads_no_thread_acr_body() {
             let launch = history(History { turns: NEWEST_FIRST.to_vec(), page_size: Some(2), ..Default::default() });
             let found = adapter_over(&launch).fork_session(THREAD_ID, ForkTurn::Anchor("t6".into())).await.unwrap();
             assert_eq!(found, (THREAD_ID.to_string(), "t6".to_string()));
@@ -534,6 +598,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
         #[tokio::test]
         async fn finds_a_turn_that_named_no_anchor_by_counting_back_past_the_turns_after_it_that() {
+            tokio::task::LocalSet::new().run_until(finds_a_turn_that_named_no_anchor_by_counting_back_past_the_turns_after_it_that_body()).await
+        }
+
+        async fn finds_a_turn_that_named_no_anchor_by_counting_back_past_the_turns_after_it_that_body() {
             let launch = history(History { turns: NEWEST_FIRST.to_vec(), ..Default::default() });
             let refused = refused_for_sign_in();
             let found = adapter_over(&launch)
@@ -548,6 +616,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
         #[tokio::test]
         async fn refuses_a_turn_the_server_does_not_list_and_a_count_past_the_turns_it_lists_befo() {
+            tokio::task::LocalSet::new().run_until(refuses_a_turn_the_server_does_not_list_and_a_count_past_the_turns_it_lists_befo_body()).await
+        }
+
+        async fn refuses_a_turn_the_server_does_not_list_and_a_count_past_the_turns_it_lists_befo_body() {
             let listing = history(History { turns: NEWEST_FIRST.to_vec(), page_size: Some(2), ..Default::default() });
             let err = adapter_over(&listing).fork_session(THREAD_ID, ForkTurn::Anchor("t1".into())).await.unwrap_err();
             assert!(err.contains(&codex_no_turn_line("t1")), "{err}");
@@ -558,6 +630,10 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
         #[tokio::test]
         async fn forks_a_thread_an_older_codex_made_at_its_anchor_as_given_where_the_server_will() {
+            tokio::task::LocalSet::new().run_until(forks_a_thread_an_older_codex_made_at_its_anchor_as_given_where_the_server_will_body()).await
+        }
+
+        async fn forks_a_thread_an_older_codex_made_at_its_anchor_as_given_where_the_server_will_body() {
             let legacy = answering(|m, w| {
                 if method(m) == "thread/turns/list" {
                     w.push1(json!({"id": m["id"], "error": {"code": -32600, "message": "thread/turns/list only supports paginated threads"}}).to_string());
@@ -585,6 +661,10 @@ mod a_codex_thread_picked_up_from_outside_wsp {
 
     #[tokio::test]
     async fn runs_a_copy_on_thread_fork_written_to_disk_as_a_thread_of_its_own_and_turns_on_t() {
+        tokio::task::LocalSet::new().run_until(runs_a_copy_on_thread_fork_written_to_disk_as_a_thread_of_its_own_and_turns_on_t_body()).await
+    }
+
+    async fn runs_a_copy_on_thread_fork_written_to_disk_as_a_thread_of_its_own_and_turns_on_t_body() {
         let launch = answering(|m, w| {
             if method(m) == "thread/fork" {
                 w.push(&opened(COPY_ID));
@@ -621,6 +701,10 @@ mod a_codex_thread_picked_up_from_outside_wsp {
 
     #[tokio::test]
     async fn fails_a_turn_whose_thread_another_process_writes_in_two_halves_and_sends_no_turn() {
+        tokio::task::LocalSet::new().run_until(fails_a_turn_whose_thread_another_process_writes_in_two_halves_and_sends_no_turn_body()).await
+    }
+
+    async fn fails_a_turn_whose_thread_another_process_writes_in_two_halves_and_sends_no_turn_body() {
         let launch = answering(|m, w| {
             if method(m) == "thread/resume" {
                 w.push1(json!({"error":{"code":-32600,"message":format!("thread {THREAD_ID} already has an active writer")},"id":"wsp-thread"}).to_string());
@@ -641,6 +725,10 @@ mod a_codex_thread_picked_up_from_outside_wsp {
 
     #[tokio::test]
     async fn lets_go_of_the_thread_when_a_kept_servers_turn_ends_and_opens_it_again_on_that_s() {
+        tokio::task::LocalSet::new().run_until(lets_go_of_the_thread_when_a_kept_servers_turn_ends_and_opens_it_again_on_that_s_body()).await
+    }
+
+    async fn lets_go_of_the_thread_when_a_kept_servers_turn_ends_and_opens_it_again_on_that_s_body() {
         let launch = answering(|m, w| {
             if method(m) == "thread/start" {
                 w.push(&opened(THREAD_ID));
@@ -672,6 +760,10 @@ mod a_codex_thread_picked_up_from_outside_wsp {
 
     #[tokio::test]
     async fn lets_go_of_a_forks_own_thread_when_a_kept_servers_turn_ends_and_opens_that_threa() {
+        tokio::task::LocalSet::new().run_until(lets_go_of_a_forks_own_thread_when_a_kept_servers_turn_ends_and_opens_that_threa_body()).await
+    }
+
+    async fn lets_go_of_a_forks_own_thread_when_a_kept_servers_turn_ends_and_opens_that_threa_body() {
         let launch = answering(|m, w| {
             if method(m) == "thread/fork" {
                 w.push(&opened(FORK_ID));
@@ -707,6 +799,10 @@ mod a_codex_turn_that_does_not_complete {
 
     #[tokio::test]
     async fn a_resume_whose_rollout_is_gone_starts_a_new_thread_handed_the_thread_so_far_as_c() {
+        tokio::task::LocalSet::new().run_until(a_resume_whose_rollout_is_gone_starts_a_new_thread_handed_the_thread_so_far_as_c_body()).await
+    }
+
+    async fn a_resume_whose_rollout_is_gone_starts_a_new_thread_handed_the_thread_so_far_as_c_body() {
         const FRESH: &str = "01a0e2c1-5d10-7b42-9a6e-0000000000f5";
         // The first server has no rollout for the thread, as 0.162.1 answers one; the second opens a new thread and answers.
         let launch = answering(|m, w| {
@@ -733,7 +829,7 @@ mod a_codex_turn_that_does_not_complete {
                 resume: Some(THREAD_ID.into()),
                 seed: Some(Arc::new(move || {
                     let seed = handed.clone();
-                    async move { Ok(seed) }.boxed()
+                    async move { Ok(seed) }.boxed_local()
                 })),
                 on_event: Some(events.on_event()),
                 ..Default::default()
@@ -797,7 +893,7 @@ mod a_probe_on_a_machine_whose_chatgpt_sign_in_the_host_holds {
     fn reading(answer: Result<Option<Value>, String>) -> AccountModels {
         Arc::new(move |_version: String| {
             let answer = answer.clone();
-            async move { answer }.boxed()
+            async move { answer }.boxed_local()
         })
     }
 
@@ -809,7 +905,7 @@ mod a_probe_on_a_machine_whose_chatgpt_sign_in_the_host_holds {
     fn printing(stdout: String) -> Arc<dyn HarnessExec> {
         Arc::new(move |_command: &str, _env: Option<&Env>| {
             let stdout = stdout.clone();
-            async move { Ok::<String, ExecFailure>(stdout) }.boxed()
+            async move { Ok::<String, ExecFailure>(stdout) }.boxed_local()
         })
     }
 
@@ -834,11 +930,15 @@ mod a_probe_on_a_machine_whose_chatgpt_sign_in_the_host_holds {
 
     #[tokio::test]
     async fn lists_the_accounts_own_models_read_through_the_host_for_the_binarys_version_in_c() {
+        tokio::task::LocalSet::new().run_until(lists_the_accounts_own_models_read_through_the_host_for_the_binarys_version_in_c_body()).await
+    }
+
+    async fn lists_the_accounts_own_models_read_through_the_host_for_the_binarys_version_in_c_body() {
         let asked = Arc::new(Mutex::new(Vec::<String>::new()));
         let seen = asked.clone();
         let models: AccountModels = Arc::new(move |version: String| {
             seen.lock().unwrap().push(version);
-            async { Ok(Some(account())) }.boxed()
+            async { Ok(Some(account())) }.boxed_local()
         });
         let probe = lists_of(probe_on(Some(chatgpt(Some(models)))).await);
         assert_eq!(*asked.lock().unwrap(), vec!["0.153.0".to_string()]);
@@ -859,6 +959,10 @@ mod a_probe_on_a_machine_whose_chatgpt_sign_in_the_host_holds {
 
     #[tokio::test]
     async fn keeps_the_binarys_own_list_where_the_hosts_read_fails_answers_nothing_or_holds_n() {
+        tokio::task::LocalSet::new().run_until(keeps_the_binarys_own_list_where_the_hosts_read_fails_answers_nothing_or_holds_n_body()).await
+    }
+
+    async fn keeps_the_binarys_own_list_where_the_hosts_read_fails_answers_nothing_or_holds_n_body() {
         let reads: Vec<Result<Option<Value>, String>> = vec![
             Err("chatgpt.com unreachable".into()),
             Ok(None),
@@ -878,6 +982,10 @@ mod a_probe_on_a_machine_whose_chatgpt_sign_in_the_host_holds {
 
     #[tokio::test]
     async fn asks_the_host_nothing_on_an_api_key_with_no_read_handed_or_where_the_binary_prin() {
+        tokio::task::LocalSet::new().run_until(asks_the_host_nothing_on_an_api_key_with_no_read_handed_or_where_the_binary_prin_body()).await
+    }
+
+    async fn asks_the_host_nothing_on_an_api_key_with_no_read_handed_or_where_the_binary_prin_body() {
         let on_key = slugs(&lists_of(probe_on(Some(CodexBroker { mode: BrokerMode::Apikey, providers: None })).await));
         let no_read = slugs(&lists_of(probe_on(Some(chatgpt(None))).await));
         let own = own_slugs();
@@ -887,7 +995,7 @@ mod a_probe_on_a_machine_whose_chatgpt_sign_in_the_host_holds {
         let counted = asked.clone();
         let models: AccountModels = Arc::new(move |_version: String| {
             *counted.lock().unwrap() += 1;
-            async { Ok(Some(account())) }.boxed()
+            async { Ok(Some(account())) }.boxed_local()
         });
         let adapter = adapter_with(Some(chatgpt(Some(models))));
         let server_lines: Vec<String> = real().split(SEP).nth(2).unwrap().split('\n').filter(|l| l.starts_with('{')).map(String::from).collect();
@@ -898,11 +1006,15 @@ mod a_probe_on_a_machine_whose_chatgpt_sign_in_the_host_holds {
 
     #[tokio::test]
     async fn offers_the_accounts_models_without_the_binary_read_for_wsps_npm_pin_only_where_t() {
+        tokio::task::LocalSet::new().run_until(offers_the_accounts_models_without_the_binary_read_for_wsps_npm_pin_only_where_t_body()).await
+    }
+
+    async fn offers_the_accounts_models_without_the_binary_read_for_wsps_npm_pin_only_where_t_body() {
         let asked = Arc::new(Mutex::new(Vec::<String>::new()));
         let seen = asked.clone();
         let models: AccountModels = Arc::new(move |version: String| {
             seen.lock().unwrap().push(version);
-            async { Ok(Some(account())) }.boxed()
+            async { Ok(Some(account())) }.boxed_local()
         });
         let held = adapter_with(Some(chatgpt(Some(models))));
         let offered = held.account_models(None).expect("no account models").await.expect("no models");
@@ -1001,6 +1113,10 @@ mod a_brokered_codex_launch_adapter_cases {
 
     #[tokio::test]
     async fn a_revert_or_a_forks_turn_lookup_reads_no_login_not_even_the_one_the_last_turn_le() {
+        tokio::task::LocalSet::new().run_until(a_revert_or_a_forks_turn_lookup_reads_no_login_not_even_the_one_the_last_turn_le_body()).await
+    }
+
+    async fn a_revert_or_a_forks_turn_lookup_reads_no_login_not_even_the_one_the_last_turn_le_body() {
         // Neither asks a model, and the runtime hands a revert no turn token, so on the last turn's dead login codex's
         // startup calls reached the door with no thread.
         let token_env = [(HOST_TOKEN_ENV, TOKEN)];
@@ -1036,6 +1152,10 @@ mod a_brokered_codex_launch_adapter_cases {
 
     #[tokio::test]
     async fn a_revert_or_a_forks_turn_lookup_names_no_model_address_at_the_door_its_providers() {
+        tokio::task::LocalSet::new().run_until(a_revert_or_a_forks_turn_lookup_names_no_model_address_at_the_door_its_providers_body()).await
+    }
+
+    async fn a_revert_or_a_forks_turn_lookup_names_no_model_address_at_the_door_its_providers_body() {
         // A thread/resume starts a session, and codex opens the provider's Responses websocket at every session start,
         // login or not: a revert's two reached the door with no token.
         let acme: Map<String, Value> = match json!({"base_url": "https://gw.acme.dev/v1", "supports_websockets": true, "experimental_bearer_token": "acme-real"}) {
@@ -1075,6 +1195,10 @@ mod a_brokered_codex_launch_adapter_cases {
 
     #[tokio::test]
     async fn the_adapter_hands_a_title_its_brokered_word_and_the_turns_own_environment() {
+        tokio::task::LocalSet::new().run_until(the_adapter_hands_a_title_its_brokered_word_and_the_turns_own_environment_body()).await
+    }
+
+    async fn the_adapter_hands_a_title_its_brokered_word_and_the_turns_own_environment_body() {
         let asked: Arc<Mutex<Vec<(String, Option<Env>)>>> = Arc::default();
         let launch = launcher(scripted_server(WireOpts::default()));
         let adapter = create_codex_adapter(CodexAdapterDeps {
@@ -1086,7 +1210,7 @@ mod a_brokered_codex_launch_adapter_cases {
         let record = asked.clone();
         let exec: Arc<dyn HarnessExec> = Arc::new(move |command: &str, env: Option<&Env>| {
             record.lock().unwrap().push((command.to_string(), env.cloned()));
-            async { Ok::<String, ExecFailure>(String::new()) }.boxed()
+            async { Ok::<String, ExecFailure>(String::new()) }.boxed_local()
         });
         let _ = adapter.title_for(TitleTurn { opening: "hi".into(), reply: Some("hello".into()), model: None }, exec).await;
         let asked = asked.lock().unwrap();
@@ -1104,6 +1228,10 @@ mod the_title_codex_makes_for_a_thread {
 
     #[tokio::test]
     async fn runs_under_the_sessions_own_codex_home_which_a_guest_exec_would_not_carry_read_o() {
+        tokio::task::LocalSet::new().run_until(runs_under_the_sessions_own_codex_home_which_a_guest_exec_would_not_carry_read_o_body()).await
+    }
+
+    async fn runs_under_the_sessions_own_codex_home_which_a_guest_exec_would_not_carry_read_o_body() {
         let asked: Arc<Mutex<Vec<(String, Option<Env>)>>> = Arc::default();
         let launch = launcher(scripted_server(WireOpts::default()));
         let base: IndexMap<String, Option<String>> = [("PATH", "/bin"), ("GATEWAY_TOKEN", "tok-x")].into_iter().map(|(k, v)| (k.to_string(), Some(v.to_string()))).collect();
@@ -1111,7 +1239,7 @@ mod the_title_codex_makes_for_a_thread {
         let record = asked.clone();
         let exec: Arc<dyn HarnessExec> = Arc::new(move |command: &str, env: Option<&Env>| {
             record.lock().unwrap().push((command.to_string(), env.cloned()));
-            async { Ok::<String, ExecFailure>(String::new()) }.boxed()
+            async { Ok::<String, ExecFailure>(String::new()) }.boxed_local()
         });
         codex.probe_catalog(exec.clone()).await.unwrap();
         codex.title_for(TitleTurn { opening: "name it".into(), reply: None, model: None }, exec.clone()).await.unwrap();
@@ -1138,6 +1266,10 @@ mod what_the_machine_holds_for_a_session_codex_would_not_resume {
 
     #[tokio::test]
     async fn is_what_the_adapters_own_reading_answers_through_the_exec_it_is_handed() {
+        tokio::task::LocalSet::new().run_until(is_what_the_adapters_own_reading_answers_through_the_exec_it_is_handed_body()).await
+    }
+
+    async fn is_what_the_adapters_own_reading_answers_through_the_exec_it_is_handed_body() {
         let named = format!("{DAY}/rollout-2026-10-16T01-19-52-{THREAD}.jsonl");
         let home = TempDir::new("wsp-codex-held-");
         let schema = "create table threads (id text primary key, rollout_path text not null, title text not null, history_mode text not null default 'legacy');";
@@ -1148,11 +1280,180 @@ mod what_the_machine_holds_for_a_session_codex_would_not_resume {
         let codex = create_codex_adapter(CodexAdapterDeps { base_env: Some(base), ..CodexAdapterDeps::new(launch.factory(), home.s(), "codex login") }).unwrap();
         let exec: Arc<dyn HarnessExec> = Arc::new(|command: &str, _env: Option<&Env>| {
             let ran = run_shell("bash", command, &plain_env(), "");
-            let out: BoxFuture<'static, Result<String, ExecFailure>> = async move { Ok(ran.stdout) }.boxed();
+            let out: LocalBoxFuture<'static, Result<String, ExecFailure>> = async move { Ok(ran.stdout) }.boxed_local();
             out
         });
         let line = codex.session_held(THREAD, exec).await.unwrap();
         let shape = Regex::new(r#"; rollout files: none; index row: state_5\.sqlite .*"mode":"paginated"\}, the file it names is missing$"#).unwrap();
         assert!(shape.is_match(&line), "{line}");
+    }
+}
+
+/// Rules CA1 to CA6 of spec/codex_adapter.md, "Rules added for the port", each value printed by the TS at 65f6b89c7.
+mod rules_added {
+    use super::*;
+    use wsp_adapters::codex::adapter::AttachedSession;
+    use wsp_adapters::port::{AdapterAttachOptions, AnswerOutcome, PermissionAnswer, PermissionOutcome, SteerOutcome, TaskStop, TurnImage, PERMISSION_ALLOW};
+
+    fn image(path: Option<&str>) -> TurnImage {
+        TurnImage { media_type: "image/png".into(), bytes: String::new(), path: path.map(String::from) }
+    }
+
+    fn refusal(adapter: &CodexAdapter, o: HarnessStartOptions) -> String {
+        match adapter.start(HarnessStartOptions { prompt: "go".into(), on_event: Some(no_events()), ..o }) {
+            Ok(_) => panic!("the start was taken"),
+            Err(e) => e.to_string(),
+        }
+    }
+
+    #[test]
+    fn a_start_refuses_in_one_order_before_anything_launches() {
+        // CA1; adapter.ts:1262-1277: the context window, each image in order, the permission mode, then fork with resume.
+        let launch = launcher(scripted(vec![], false));
+        let a = adapter_over(&launch);
+        let fork = Some(("s".to_string(), "t".to_string()));
+        let all = HarnessStartOptions { context_window: Some(String::new()), images: vec![image(Some("rel")), image(None)], permission_mode: Some("bogus".into()), resume: Some(THREAD_ID.into()), fork: fork.clone(), ..Default::default() };
+        assert_eq!(refusal(&a, all), "codex takes no context window");
+        let bad_first = HarnessStartOptions { images: vec![image(Some("rel")), image(None)], permission_mode: Some("bogus".into()), resume: Some(THREAD_ID.into()), fork: fork.clone(), ..Default::default() };
+        assert_eq!(refusal(&a, bad_first), r#"an image path must be one absolute path on the machine, got "rel""#);
+        assert_eq!(refusal(&a, HarnessStartOptions { images: vec![image(None), image(Some("rel"))], ..Default::default() }), "codex reads images off the machine's disk; this one has no path on it");
+        let mode = HarnessStartOptions { permission_mode: Some(String::new()), resume: Some(THREAD_ID.into()), fork: fork.clone(), ..Default::default() };
+        assert_eq!(refusal(&a, mode), r#"permissionMode must be one of read-only, workspace-write, danger-full-access, got """#);
+        assert_eq!(refusal(&a, HarnessStartOptions { resume: Some(THREAD_ID.into()), copy: true, fork, ..Default::default() }), "a codex start forks a thread or resumes one, never both");
+        assert_eq!(launch.wire_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn an_empty_resume_is_a_resume_under_the_empty_id() {
+        // CA2; adapter.ts:1268 (`resume ?? randomUUID()`), no slug check.
+        let launch = answering(|m, w| match method(m) {
+            "thread/resume" => w.push(&opened(THREAD_ID)),
+            "turn/start" => w.push(&[turn_started(), completed("completed")]),
+            _ => {}
+        });
+        let a = adapter_over(&launch);
+        let session = a.start(HarnessStartOptions { prompt: "go".into(), resume: Some(String::new()), on_event: Some(no_events()), ..Default::default() }).unwrap();
+        let _ = session.finished().await;
+        assert_eq!(session.local_id(), "");
+        assert_eq!(find_method(&launch.wire(0), "thread/resume"), json!({"id":"wsp-thread","method":"thread/resume","params":{"threadId":"","excludeTurns":true,"sandbox":"danger-full-access","approvalPolicy":"never"}}));
+        assert_eq!(a.sessions().keys().cloned().collect::<Vec<_>>(), vec![String::new()]);
+    }
+
+    #[tokio::test]
+    async fn a_kept_server_s_next_turn_joins_the_registry_under_the_thread_id_beside_the_first() {
+        // CA3; adapter.ts:1229-1255 (`nextOn` follows with the thread id as its local id), 1225.
+        let launch = answering(|m, w| match method(m) {
+            "thread/start" | "thread/resume" => w.push(&opened(THREAD_ID)),
+            "turn/start" => w.push(&[turn_started(), agent_message("m1", "ok"), completed("completed")]),
+            _ => {}
+        });
+        let a = create_codex_adapter(CodexAdapterDeps { result_exit_ms: Some(10), interrupt_grace_ms: Some(10), ..CodexAdapterDeps::new(launch.factory(), "/root/.codex", LOGIN) }).unwrap();
+        let first = a.start(HarnessStartOptions { prompt: "go".into(), keep: true, on_event: Some(no_events()), ..Default::default() }).unwrap();
+        let _ = first.finished().await;
+        let kept = first.kept().expect("the server is kept");
+        let next = (kept.next)(KeptTurn { prompt: "again".into(), images: vec![], after: None, on_event: no_events() }).unwrap();
+        let _ = next.finished().await;
+        assert_eq!(a.sessions().keys().cloned().collect::<Vec<_>>(), vec![first.local_id(), THREAD_ID.to_string()]);
+        assert_eq!(next.local_id(), THREAD_ID);
+        assert_eq!(launch.wire_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_lost_session_whose_second_launch_is_refused_fails_in_its_words_under_the_new_launch_s_id() {
+        // CA4; lost-session.ts:66-96. Only the second launch's end reaches the caller; the registry holds the first
+        // launch's local id (the resume) and the second launch's own fresh id.
+        let launch = answering(|m, w| match method(m) {
+            "thread/resume" => w.push(&[opened(THREAD_ID)[0].clone(), format!(r#"{{"error":{{"code":-32600,"message":"no rollout found for thread id {THREAD_ID}"}},"id":"wsp-thread"}}"#)]),
+            "thread/start" => w.push(&[opened(THREAD_ID)[0].clone(), r#"{"error":{"code":-32600,"message":"boom on second"},"id":"wsp-thread"}"#.to_string()]),
+            _ => {}
+        });
+        let a = adapter_over(&launch);
+        let events = Events::default();
+        let session = a
+            .start(HarnessStartOptions {
+                prompt: "what?".into(),
+                resume: Some(THREAD_ID.into()),
+                seed: Some(Arc::new(|| async { Ok("person: hi".to_string()) }.boxed_local())),
+                on_event: Some(events.on_event()),
+                ..Default::default()
+            })
+            .unwrap();
+        let words = "codex could not open the thread: boom on second";
+        assert_eq!(session.finished().await, TurnResult { error: Some(words.into()), ..result_of(TurnStatus::Failed) });
+        assert_eq!(events.kinds(), ["turn.done", "session.end"]);
+        let second = match &events.all()[1] {
+            AdapterEvent::SessionEnd { session_id, exit_code: Some(0), saw_result: true, .. } => session_id.clone(),
+            other => panic!("{other:?}"),
+        };
+        assert_ne!(second, THREAD_ID);
+        assert_eq!(launch.wire_count(), 2);
+        assert_eq!(session.local_id(), THREAD_ID);
+        let keys: Vec<String> = a.sessions().keys().cloned().collect();
+        assert_eq!(keys, vec![THREAD_ID.to_string(), second]);
+    }
+
+    #[tokio::test]
+    async fn a_revert_by_count_pages_at_most_100_at_a_time_and_a_count_of_none_writes_nothing_past_the_resume() {
+        // CA5; turn-pages.ts:44-88.
+        let ids: Vec<String> = (0..250).map(|i| format!("r{i}")).collect();
+        let launch = answering(move |m, w| match method(m) {
+            "thread/resume" => w.push1(json!({"id":"wsp-thread","result":{"thread":{"id":THREAD_ID,"turns":[]},"model":"gpt-5.6-sol"}}).to_string()),
+            "thread/turns/list" => {
+                let from = m["params"]["cursor"].as_str().map(|c| c.parse::<usize>().unwrap()).unwrap_or(0);
+                let limit = m["params"]["limit"].as_u64().unwrap() as usize;
+                let data: Vec<Value> = ids.iter().skip(from).take(limit).map(|id| json!({"id": id, "items": [], "status": "completed"})).collect();
+                let next = if from + limit < ids.len() { json!((from + limit).to_string()) } else { Value::Null };
+                w.push1(json!({"id": m["id"], "result": {"data": data, "nextCursor": next}}).to_string());
+            }
+            "thread/revert" => w.push1(json!({"id":"wsp-revert","result":{"thread":{"id":THREAD_ID,"turns":[]}}}).to_string()),
+            _ => {}
+        });
+        let reverted = adapter_over(&launch).revert(RevertAsk { session: THREAD_ID.into(), cwd: None, at: RevertAt::Turns((0..250).map(|_| done("x")).collect()) }).await.unwrap();
+        assert_eq!(reverted, Reverted::Cut);
+        let w = launch.wire(0);
+        let limits: Vec<Value> = w.written_method("thread/turns/list").into_iter().map(|m| m["params"]["limit"].clone()).collect();
+        assert_eq!(limits, [json!(100), json!(100), json!(50)]);
+        assert_eq!(find_method(&w, "thread/revert"), json!({"id":"wsp-revert","method":"thread/revert","params":{"threadId":THREAD_ID,"beforeTurnId":"r249"}}));
+
+        let zero = answering(|m, w| {
+            if method(m) == "thread/resume" {
+                w.push1(json!({"id":"wsp-thread","result":{"thread":{"id":THREAD_ID,"turns":[]}}}).to_string());
+            }
+        });
+        assert_eq!(adapter_over(&zero).revert(RevertAsk { session: THREAD_ID.into(), cwd: None, at: RevertAt::Turns(vec![]) }).await, Ok(Reverted::Cut));
+        let methods: Vec<String> = zero.wire(0).written().iter().map(|m| method(m).to_string()).collect();
+        assert_eq!(methods, ["initialize", "initialized", "thread/resume"]);
+    }
+
+    #[tokio::test]
+    async fn an_attached_run_that_never_spoke_answers_every_method_as_not_running_and_a_stop_tears_it_down_alone() {
+        // CA6; adapter.ts:1397-1413 with follow's methods before any line.
+        let launch = launcher(scripted(vec![], false));
+        let quiet = wire(WireOpts::default());
+        let stream = quiet.stream();
+        launch.set_attach(move |_, _| {
+            let stream = stream.clone();
+            async move { Ok(wsp_adapters::port::Attached::Stream(stream)) }.boxed_local()
+        });
+        let a = create_codex_adapter(CodexAdapterDeps { steer_join_ms: Some(5), ..CodexAdapterDeps::new(launch.factory(), "/root/.codex", LOGIN) }).unwrap();
+        let events = Events::default();
+        let attached = a
+            .attach(AdapterAttachOptions { run: "/tmp/wsp-run/cd34".into(), session_id: "SESS-1".into(), started_at: 77.0, model: None, cwd: None, prompt: None, effort: None, from: None, steered: None, on_event: events.on_event() })
+            .expect("the factory attaches")
+            .await
+            .unwrap();
+        let AttachedSession::Session(session) = attached else { panic!("gone") };
+        assert_eq!(session.thread_id(), "SESS-1");
+        assert_eq!(session.steer("x".into()).await, SteerOutcome::NotRunning);
+        let allow = PermissionAnswer { option_id: PERMISSION_ALLOW.into(), outcome: PermissionOutcome::Allowed, deny_message: String::new(), reason: None };
+        assert_eq!(session.answer("1".into(), allow).await, Ok(AnswerOutcome::Gone));
+        assert_eq!(session.stop_task("k".into()).await, TaskStop::NotRunning);
+        assert!(session.kept().is_none());
+        session.interrupt().await;
+        assert_eq!(session.finished().await, result_of(TurnStatus::Interrupted));
+        assert_eq!(events.kinds(), ["turn.done", "session.end"]);
+        assert!(matches!(&events.all()[1], AdapterEvent::SessionEnd { session_id, exit_code: Some(0), saw_result: false, .. } if session_id == "SESS-1"));
+        assert!(quiet.written().is_empty());
+        assert_eq!(quiet.order(), ["teardown"]);
     }
 }

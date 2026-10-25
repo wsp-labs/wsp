@@ -41,6 +41,10 @@ fn init(capabilities: &[&str]) -> String {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_attached_turn_tells_a_kept_steer_unread() {
+    tokio::task::LocalSet::new().run_until(an_attached_turn_tells_a_kept_steer_unread_body()).await
+}
+
+async fn an_attached_turn_tells_a_kept_steer_unread_body() {
     let taken = vec![user_message_line("first", SID, &[], None), user_message_line("steer one", SID, &[], Some("s1"))];
     let exec = manual_attaching(taken);
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
@@ -76,6 +80,10 @@ async fn an_attached_turn_tells_a_kept_steer_unread() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_prompt_answered_from_inside_on_event_closes_once() {
+    tokio::task::LocalSet::new().run_until(a_prompt_answered_from_inside_on_event_closes_once_body()).await
+}
+
+async fn a_prompt_answered_from_inside_on_event_closes_once_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
     let held: Arc<OnceLock<ClaudeSession>> = Default::default();
@@ -87,7 +95,7 @@ async fn a_prompt_answered_from_inside_on_event_closes_once() {
             let _ = (session.claude_session_id(), session.tells_unread(), session.kept().is_some());
             if let AdapterEvent::PermissionAsk { ask, .. } = &event {
                 let (session, ask_id) = (session.clone(), ask.ask_id.clone());
-                tokio::spawn(async move {
+                tokio::task::spawn_local(async move {
                     let answer = PermissionAnswer { option_id: PERMISSION_ALLOW.into(), outcome: PermissionOutcome::Allowed, deny_message: String::new(), reason: None };
                     let first = session.answer(&ask_id, answer.clone()).await;
                     let second = session.answer(&ask_id, answer).await;
@@ -112,6 +120,10 @@ async fn a_prompt_answered_from_inside_on_event_closes_once() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_transport_failure_rides_session_end() {
+    tokio::task::LocalSet::new().run_until(a_transport_failure_rides_session_end_body()).await
+}
+
+async fn a_transport_failure_rides_session_end_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
     let (events, on_event) = collect();

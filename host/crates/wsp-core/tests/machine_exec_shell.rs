@@ -117,49 +117,51 @@ fn resolved() -> Settle {
     Box::pin(async { Ok(()) })
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn the_shell_text_is_the_ts_text_byte_for_byte() {
-    // A launch with an input and an environment, a write, a held line, rest, the next turn, a close, a TERM, then the
-    // idle cut ends it.
-    {
-        let (rec, machine) = recorder();
-        let f = machine_exec_stream(machine, MachineExecOptions { poll_ms: Some(1), run_dir: Some("/r".into()), idle_ms: Some(2.0), deadline_ms: Some(1e9), ..Default::default() }, None);
-        let env = [("A", "x y"), ("BAD-KEY", "z")].iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
-        let s = f.launch("claude -p 'hi'", Launch { env, input: Some(vec!["seed".into()]), ..Default::default() });
-        s.write("more".into()).await.unwrap();
-        s.write_after("late".into(), resolved());
-        support::sleep_ms(50).await;
-        s.rest();
-        s.next_turn();
-        s.close_input();
-        s.teardown();
-        drain(&*s, &rec.calls).await;
-        support::sleep_ms(50).await;
-        let got: BTreeSet<String> = rec.calls.lock().unwrap().iter().map(|c| norm(c)).collect();
-        assert_eq!(got, expected("launchedWithInput"));
-    }
-    // An attach with input, one without, and a sweep naming another run.
-    {
-        let (rec, machine) = recorder();
-        let f = machine_exec_stream(machine, MachineExecOptions { poll_ms: Some(1), run_dir: Some("/r".into()), ..Default::default() }, None);
-        let _ = f.attach("/r/bbbbbbbbbbbb", AttachRunOptions { input: true, started_at: 0.0, from: None }).unwrap().await.unwrap();
-        let _ = f.attach("/r/bbbbbbbbbbbb", AttachRunOptions { input: false, started_at: 0.0, from: None }).unwrap().await.unwrap();
-        let _ = f.sweep(&["/r/cccccccccccc".to_string()]).unwrap().await.unwrap();
-        let got: BTreeSet<String> = rec.calls.lock().unwrap().iter().map(|c| norm(c)).collect();
-        assert_eq!(got, expected("attachAndSweep"));
-    }
-    // A held seed that comes due at once, then a kill.
-    {
-        let (rec, machine) = recorder();
-        let f = machine_exec_stream(machine, MachineExecOptions { poll_ms: Some(1), run_dir: Some("/r".into()), ..Default::default() }, None);
-        let s = f.launch("echo hi", Launch { input: Some(vec!["seed".into()]), input_after: Some(resolved()), ..Default::default() });
-        support::sleep_ms(30).await;
-        s.kill();
-        drain(&*s, &rec.calls).await;
-        support::sleep_ms(50).await;
-        let got: BTreeSet<String> = rec.calls.lock().unwrap().iter().map(|c| norm(c)).collect();
-        assert_eq!(got, expected("heldSeedKilled"));
-    }
+#[test]
+fn the_shell_text_is_the_ts_text_byte_for_byte() {
+    support::run_local(async {
+        // A launch with an input and an environment, a write, a held line, rest, the next turn, a close, a TERM, then the
+        // idle cut ends it.
+        {
+            let (rec, machine) = recorder();
+            let f = machine_exec_stream(machine, MachineExecOptions { poll_ms: Some(1), run_dir: Some("/r".into()), idle_ms: Some(2.0), deadline_ms: Some(1e9), ..Default::default() }, None);
+            let env = [("A", "x y"), ("BAD-KEY", "z")].iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+            let s = f.launch("claude -p 'hi'", Launch { env, input: Some(vec!["seed".into()]), ..Default::default() });
+            s.write("more".into()).await.unwrap();
+            s.write_after("late".into(), resolved());
+            support::sleep_ms(50).await;
+            s.rest();
+            s.next_turn();
+            s.close_input();
+            s.teardown();
+            drain(&*s, &rec.calls).await;
+            support::sleep_ms(50).await;
+            let got: BTreeSet<String> = rec.calls.lock().unwrap().iter().map(|c| norm(c)).collect();
+            assert_eq!(got, expected("launchedWithInput"));
+        }
+        // An attach with input, one without, and a sweep naming another run.
+        {
+            let (rec, machine) = recorder();
+            let f = machine_exec_stream(machine, MachineExecOptions { poll_ms: Some(1), run_dir: Some("/r".into()), ..Default::default() }, None);
+            let _ = f.attach("/r/bbbbbbbbbbbb", AttachRunOptions { input: true, started_at: 0.0, from: None }).unwrap().await.unwrap();
+            let _ = f.attach("/r/bbbbbbbbbbbb", AttachRunOptions { input: false, started_at: 0.0, from: None }).unwrap().await.unwrap();
+            let _ = f.sweep(&["/r/cccccccccccc".to_string()]).unwrap().await.unwrap();
+            let got: BTreeSet<String> = rec.calls.lock().unwrap().iter().map(|c| norm(c)).collect();
+            assert_eq!(got, expected("attachAndSweep"));
+        }
+        // A held seed that comes due at once, then a kill.
+        {
+            let (rec, machine) = recorder();
+            let f = machine_exec_stream(machine, MachineExecOptions { poll_ms: Some(1), run_dir: Some("/r".into()), ..Default::default() }, None);
+            let s = f.launch("echo hi", Launch { input: Some(vec!["seed".into()]), input_after: Some(resolved()), ..Default::default() });
+            support::sleep_ms(30).await;
+            s.kill();
+            drain(&*s, &rec.calls).await;
+            support::sleep_ms(50).await;
+            let got: BTreeSet<String> = rec.calls.lock().unwrap().iter().map(|c| norm(c)).collect();
+            assert_eq!(got, expected("heldSeedKilled"));
+        }
+    });
 }
 
 #[test]

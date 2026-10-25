@@ -10,8 +10,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use claude_exec::{FakeStream, StreamOpts};
-use futures::future::{BoxFuture, FutureExt};
-use futures::stream::{BoxStream, StreamExt};
+use futures::future::{LocalBoxFuture, FutureExt};
+use futures::stream::{LocalBoxStream, StreamExt};
 use wsp_adapters::pending::{lost_session_prompt, LOST_SESSION_NOTE};
 use wsp_adapters::port::*;
 use wsp_wire::types::js_number::JsNumber;
@@ -29,7 +29,7 @@ struct Turned {
 }
 
 impl ExecStream for Turned {
-    fn lines(&self) -> BoxStream<'static, Result<String, ExecFailure>> {
+    fn lines(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>> {
         self.inner.lines()
     }
     fn run(&self) -> Option<String> {
@@ -41,7 +41,7 @@ impl ExecStream for Turned {
     fn kill(&self) {
         self.inner.kill()
     }
-    fn write(&self, line: String) -> BoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
+    fn write(&self, line: String) -> LocalBoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
         self.inner.write(line)
     }
     fn close_input(&self) {
@@ -62,7 +62,7 @@ impl ExecStream for Turned {
     }
 }
 
-async fn next_line(lines: &mut BoxStream<'static, Result<String, ExecFailure>>) -> Option<String> {
+async fn next_line(lines: &mut LocalBoxStream<'static, Result<String, ExecFailure>>) -> Option<String> {
     tokio::time::timeout(Duration::from_secs(2), lines.next()).await.expect("a line or the end within 2 s").map(|l| l.expect("no failure"))
 }
 
@@ -83,6 +83,10 @@ fn the_launch_words_are_the_ts_ones() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn end_run_kills_only_what_outlives_the_grace() {
+    tokio::task::LocalSet::new().run_until(end_run_kills_only_what_outlives_the_grace_body()).await
+}
+
+async fn end_run_kills_only_what_outlives_the_grace_body() {
     let order: Arc<Mutex<Vec<String>>> = Default::default();
     let held = FakeStream::manual(StreamOpts { slow_teardown: true, ..Default::default() }, order.clone(), Default::default());
     end_run(held.as_ref(), 20).await;
@@ -96,9 +100,13 @@ async fn end_run_kills_only_what_outlives_the_grace() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn end_after_result_leaves_a_run_that_goes_on_its_own() {
+    tokio::task::LocalSet::new().run_until(end_after_result_leaves_a_run_that_goes_on_its_own_body()).await
+}
+
+async fn end_after_result_leaves_a_run_that_goes_on_its_own_body() {
     let (going, order) = manual();
     let ender = going.clone();
-    tokio::spawn(async move {
+    tokio::task::spawn_local(async move {
         tokio::time::sleep(Duration::from_millis(10)).await;
         ender.end(Some(0));
     });
@@ -112,9 +120,13 @@ async fn end_after_result_leaves_a_run_that_goes_on_its_own() {
 
 #[tokio::test]
 async fn settles_within_reads_a_rejection_as_settled() {
-    assert!(settles_within(async { Err::<(), &str>("no") }.boxed(), 50).await);
-    assert!(settles_within(async { 1 }.boxed(), 50).await);
-    let never = futures::future::pending::<()>().boxed();
+    tokio::task::LocalSet::new().run_until(settles_within_reads_a_rejection_as_settled_body()).await
+}
+
+async fn settles_within_reads_a_rejection_as_settled_body() {
+    assert!(settles_within(async { Err::<(), &str>("no") }.boxed_local(), 50).await);
+    assert!(settles_within(async { 1 }.boxed_local(), 50).await);
+    let never = futures::future::pending::<()>().boxed_local();
     let started = std::time::Instant::now();
     assert!(!settles_within(never, 30).await);
     assert!(started.elapsed() >= Duration::from_millis(30));
@@ -122,6 +134,10 @@ async fn settles_within_reads_a_rejection_as_settled() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_kept_run_hands_each_turn_its_own_lines() {
+    tokio::task::LocalSet::new().run_until(a_kept_run_hands_each_turn_its_own_lines_body()).await
+}
+
+async fn a_kept_run_hands_each_turn_its_own_lines_body() {
     let (inner, order) = manual();
     let stream: Arc<dyn ExecStream> = Arc::new(Turned { inner: inner.clone(), bytes: AtomicU64::new(0) });
     let between: Arc<Mutex<Vec<String>>> = Default::default();
@@ -153,6 +169,10 @@ async fn a_kept_run_hands_each_turn_its_own_lines() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_closed_view_rests_the_process_and_takes_no_write() {
+    tokio::task::LocalSet::new().run_until(a_closed_view_rests_the_process_and_takes_no_write_body()).await
+}
+
+async fn a_closed_view_rests_the_process_and_takes_no_write_body() {
     let (inner, order) = manual();
     let kept = keep_run(inner.clone(), None);
     let (view, _) = kept.turn();
@@ -170,6 +190,10 @@ async fn a_closed_view_rests_the_process_and_takes_no_write() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_released_view_ends_with_the_process() {
+    tokio::task::LocalSet::new().run_until(a_released_view_ends_with_the_process_body()).await
+}
+
+async fn a_released_view_ends_with_the_process_body() {
     let (inner, order) = manual();
     let kept = keep_run(inner.clone(), None);
     let (view, _) = kept.turn();
@@ -188,6 +212,10 @@ async fn a_released_view_ends_with_the_process() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_view_after_the_end_ends_at_once() {
+    tokio::task::LocalSet::new().run_until(a_view_after_the_end_ends_at_once_body()).await
+}
+
+async fn a_view_after_the_end_ends_at_once_body() {
     let (inner, _) = manual();
     let kept = keep_run(inner.clone(), None);
     inner.fail(ExecFailure { kind: ExecFailureKind::NoAnswer, message: "the machine went away".into() });
@@ -232,7 +260,7 @@ fn end(id: &str) -> AdapterEvent {
 const LOST: &str = "No conversation found with session ID: old-1";
 
 /// Each launch plays one script of events synchronously, then finishes with that script's result.
-fn launcher(scripts: Vec<(Vec<AdapterEvent>, TurnResult)>, calls: Arc<Mutex<Vec<(String, Option<String>)>>>) -> impl Fn(String, Option<String>, OnEvent) -> Result<Arc<FakeTurn>, AdapterError> + Send + Sync + 'static {
+fn launcher(scripts: Vec<(Vec<AdapterEvent>, TurnResult)>, calls: Arc<Mutex<Vec<(String, Option<String>)>>>) -> impl Fn(String, Option<String>, OnEvent) -> Result<Arc<FakeTurn>, AdapterError> + 'static {
     let scripts = Arc::new(Mutex::new(scripts.into_iter()));
     move |prompt, resume, on_event| {
         calls.lock().unwrap().push((prompt, resume));
@@ -240,12 +268,16 @@ fn launcher(scripts: Vec<(Vec<AdapterEvent>, TurnResult)>, calls: Arc<Mutex<Vec<
         for e in events {
             on_event(e);
         }
-        Ok(Arc::new(FakeTurn { finished: async move { result }.boxed().shared() }))
+        Ok(Arc::new(FakeTurn { finished: async move { result }.boxed_local().shared() }))
     }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_lost_session_starts_again_seeded_and_says_so() {
+    tokio::task::LocalSet::new().run_until(a_lost_session_starts_again_seeded_and_says_so_body()).await
+}
+
+async fn a_lost_session_starts_again_seeded_and_says_so_body() {
     let (events, on_event) = claude_exec::collect();
     let calls: Arc<Mutex<Vec<(String, Option<String>)>>> = Default::default();
     let lost = result(Some(LOST), None);
@@ -254,7 +286,7 @@ async fn a_lost_session_starts_again_seeded_and_says_so() {
         vec![(vec![start("old-1"), done("old-1", lost.clone()), end("old-1")], lost), (vec![start("new-2"), done("new-2", answer.clone()), end("new-2")], answer.clone())],
         calls.clone(),
     );
-    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { Ok("the thread so far".to_string()) }.boxed()), on_event };
+    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { Ok("the thread so far".to_string()) }.boxed_local()), on_event };
     let after = start_after_loss(options, LOST.into(), launch).expect("the first launch starts");
     assert_eq!(after.finished.clone().await, answer);
     assert_eq!(*calls.lock().unwrap(), vec![("go on".to_string(), Some("old-1".to_string())), (lost_session_prompt("the thread so far", "go on"), None)]);
@@ -265,11 +297,15 @@ async fn a_lost_session_starts_again_seeded_and_says_so() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_session_still_held_runs_as_one_launch() {
+    tokio::task::LocalSet::new().run_until(a_session_still_held_runs_as_one_launch_body()).await
+}
+
+async fn a_session_still_held_runs_as_one_launch_body() {
     let (events, on_event) = claude_exec::collect();
     let calls: Arc<Mutex<Vec<(String, Option<String>)>>> = Default::default();
     let other_failure = result(Some("No conversation found with session ID: someone-else"), None);
     let launch = launcher(vec![(vec![start("old-1"), done("old-1", other_failure.clone()), end("old-1")], other_failure.clone())], calls.clone());
-    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { panic!("never asked for a seed") }.boxed()), on_event };
+    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { panic!("never asked for a seed") }.boxed_local()), on_event };
     let after = start_after_loss(options, LOST.into(), launch).expect("starts");
     assert_eq!(after.finished.clone().await, other_failure, "only the exact sentence for this session is a loss");
     assert_eq!(calls.lock().unwrap().len(), 1);
@@ -293,6 +329,10 @@ fn failed(error: &str) -> TurnResult {
 // input from then on, and the run is never up again.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_release_holds_for_every_view_after_it() {
+    tokio::task::LocalSet::new().run_until(a_release_holds_for_every_view_after_it_body()).await
+}
+
+async fn a_release_holds_for_every_view_after_it_body() {
     let (inner, order) = manual();
     let stream: Arc<dyn ExecStream> = Arc::new(Turned { inner: inner.clone(), bytes: AtomicU64::new(0) });
     let kept = keep_run(stream, None);
@@ -309,6 +349,10 @@ async fn a_release_holds_for_every_view_after_it() {
 // newer view stays open and takes writes.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_cut_view_closing_rests_the_process_and_leaves_the_open_one() {
+    tokio::task::LocalSet::new().run_until(a_cut_view_closing_rests_the_process_and_leaves_the_open_one_body()).await
+}
+
+async fn a_cut_view_closing_rests_the_process_and_leaves_the_open_one_body() {
     let (inner, order) = manual();
     let stream: Arc<dyn ExecStream> = Arc::new(Turned { inner: inner.clone(), bytes: AtomicU64::new(0) });
     let kept = keep_run(stream, None);
@@ -326,6 +370,10 @@ async fn a_cut_view_closing_rests_the_process_and_leaves_the_open_one() {
 // close closes the input again.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn closing_a_lingering_kept_process_kills_it_past_the_grace() {
+    tokio::task::LocalSet::new().run_until(closing_a_lingering_kept_process_kills_it_past_the_grace_body()).await
+}
+
+async fn closing_a_lingering_kept_process_kills_it_past_the_grace_body() {
     let order: Arc<Mutex<Vec<String>>> = Default::default();
     let inner = FakeStream::manual(StreamOpts { slow_teardown: true, ..Default::default() }, order.clone(), Default::default());
     let kept = keep_run(inner.clone(), None);
@@ -341,11 +389,15 @@ async fn closing_a_lingering_kept_process_kills_it_past_the_grace() {
 // seed's words; no second launch is made and `now` stays the first.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_refused_seed_fails_the_turn_with_its_words() {
+    tokio::task::LocalSet::new().run_until(a_refused_seed_fails_the_turn_with_its_words_body()).await
+}
+
+async fn a_refused_seed_fails_the_turn_with_its_words_body() {
     let (events, on_event) = claude_exec::collect();
     let calls: Arc<Mutex<Vec<(String, Option<String>)>>> = Default::default();
     let lost = result(Some(LOST), None);
     let launch = launcher(vec![(vec![start("old-1"), done("old-1", lost.clone()), end("old-1")], lost)], calls.clone());
-    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { Err("seed broke".to_string()) }.boxed()), on_event };
+    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { Err("seed broke".to_string()) }.boxed_local()), on_event };
     let after = start_after_loss(options, LOST.into(), launch).expect("the first launch starts");
     assert_eq!(after.finished.clone().await, failed("seed broke"));
     assert_eq!(calls.lock().unwrap().len(), 1);
@@ -357,6 +409,10 @@ async fn a_refused_seed_fails_the_turn_with_its_words() {
 // launch's words, by the same ruling; nothing more is emitted.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_refused_second_launch_fails_the_turn_with_its_words() {
+    tokio::task::LocalSet::new().run_until(a_refused_second_launch_fails_the_turn_with_its_words_body()).await
+}
+
+async fn a_refused_second_launch_fails_the_turn_with_its_words_body() {
     let (events, on_event) = claude_exec::collect();
     let lost = result(Some(LOST), None);
     let first = lost.clone();
@@ -370,9 +426,9 @@ async fn a_refused_second_launch_fails_the_turn_with_its_words() {
             on_event(e);
         }
         let r = first.clone();
-        Ok(Arc::new(FakeTurn { finished: async move { r }.boxed().shared() }))
+        Ok(Arc::new(FakeTurn { finished: async move { r }.boxed_local().shared() }))
     };
-    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { Ok("so far".to_string()) }.boxed()), on_event };
+    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { Ok("so far".to_string()) }.boxed_local()), on_event };
     let after = start_after_loss(options, LOST.into(), launch).expect("the first launch starts");
     assert_eq!(after.finished.clone().await, failed("no machine"));
     assert_eq!(made.load(Ordering::SeqCst), 2);
@@ -384,11 +440,15 @@ async fn a_refused_second_launch_fails_the_turn_with_its_words() {
 // own, and the seed is never asked.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_loss_is_read_off_the_event_and_never_off_the_result() {
+    tokio::task::LocalSet::new().run_until(a_loss_is_read_off_the_event_and_never_off_the_result_body()).await
+}
+
+async fn a_loss_is_read_off_the_event_and_never_off_the_result_body() {
     let (events, on_event) = claude_exec::collect();
     let calls: Arc<Mutex<Vec<(String, Option<String>)>>> = Default::default();
     let lost = result(Some(LOST), None);
     let launch = launcher(vec![(vec![start("old-1"), end("old-1")], lost.clone())], calls.clone());
-    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { panic!("never asked for a seed") }.boxed()), on_event };
+    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { panic!("never asked for a seed") }.boxed_local()), on_event };
     let after = start_after_loss(options, LOST.into(), launch).expect("starts");
     assert_eq!(after.finished.clone().await, lost);
     assert_eq!(calls.lock().unwrap().len(), 1);
@@ -398,12 +458,16 @@ async fn a_loss_is_read_off_the_event_and_never_off_the_result() {
 // Rule P8: a second launch that never says session.start gets no note.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn no_note_without_the_new_sessions_start() {
+    tokio::task::LocalSet::new().run_until(no_note_without_the_new_sessions_start_body()).await
+}
+
+async fn no_note_without_the_new_sessions_start_body() {
     let (events, on_event) = claude_exec::collect();
     let calls: Arc<Mutex<Vec<(String, Option<String>)>>> = Default::default();
     let lost = result(Some(LOST), None);
     let cut = result(Some("cut"), None);
     let launch = launcher(vec![(vec![start("old-1"), done("old-1", lost.clone()), end("old-1")], lost), (vec![done("new-2", cut.clone()), end("new-2")], cut.clone())], calls.clone());
-    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { Ok("so far".to_string()) }.boxed()), on_event };
+    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { Ok("so far".to_string()) }.boxed_local()), on_event };
     let after = start_after_loss(options, LOST.into(), launch).expect("starts");
     assert_eq!(after.finished.clone().await, cut);
     assert_eq!(*events.lock().unwrap(), vec![start("old-1"), done("new-2", cut), end("new-2")]);

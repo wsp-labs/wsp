@@ -32,7 +32,22 @@ mod the_row_a_path_git_ignores_lands_on {
 
     #[test]
     fn reads_every_file_of_values_and_every_key_as_secret_before_any_configuration_row() {
-        for path in [".env", ".env.production", "apps/web/.npmrc", ".envrc", ".pypirc", "certs/local.pem", "certs/local.key", "prod.tfvars", "infra/stage.auto.tfvars", "app/release.keystore", "app/upload.jks", "config/master.key", "config/credentials/production.key", "certs/client.p12"] {
+        for path in [
+            ".env",
+            ".env.production",
+            "apps/web/.npmrc",
+            ".envrc",
+            ".pypirc",
+            "certs/local.pem",
+            "certs/local.key",
+            "prod.tfvars",
+            "infra/stage.auto.tfvars",
+            "app/release.keystore",
+            "app/upload.jks",
+            "config/master.key",
+            "config/credentials/production.key",
+            "certs/client.p12",
+        ] {
             assert_eq!(kind_of(path, false), Some(SeedKind::Secret), "{path}");
         }
         for path in ["certs/local.crt", "local.properties", ".claude/settings.local.json", "app/local_settings.py"] {
