@@ -7,7 +7,6 @@
 import { useEffect, useState } from "react";
 import { HERE_PLACE_ID, isLocalWorkspace, type AbsentComputer, type AgentsTarget } from "@wsp/protocol";
 import { useAbsentComputer, useStore, useWorkspace } from "../../protocol/store.js";
-import { openImageRecipe } from "../../settings/openAt.js";
 import { hereName, placeName, placeOf } from "../../settings/places.js";
 import { useSettingsStore } from "../../settings/settingsStore.js";
 import { openPanelTerminalWith } from "../../shell/shellCommands.js";
@@ -81,7 +80,6 @@ export function AgentsSurface({ workspaceId }: { workspaceId: string }) {
           where,
           ...(where === "box" && cloud !== undefined ? { computer: cloud } : {}),
           heldWhy: absent?.away ?? null,
-          ...(where === "fork" && placeId !== undefined ? { editImage: () => openImageRecipe(placeId) } : {}),
           ...(tools === undefined ? {} : { tools }),
           ...(acts === undefined ? {} : { acts }),
           ...(skills === undefined ? {} : { skills }),

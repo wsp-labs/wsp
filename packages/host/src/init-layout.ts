@@ -49,18 +49,6 @@ export const padCells = (text: string, width: number, align: Align = "left"): st
   return align === "right" ? `${pad}${text}` : `${text}${pad}`;
 };
 
-/** A line of program output as one terminal row would leave it: each carriage-return segment overprints the one before
- * from the first cell, a CRLF ends the row the same way, escape sequences and other control characters take no cell,
- * a tab or a lone newline is one space. Cells are code points, so a glyph is kept or replaced whole, never torn. */
-export function plainLine(text: string): string {
-  let row: string[] = [];
-  for (const seg of stripVTControlCharacters(text).replace(/\r\n/g, "\r").replace(/[\t\n\v\f]/g, " ").replace(/[\x00-\x08\x0e-\x1f\x7f-\x9f]/g, "").split("\r")) {
-    const cells = Array.from(seg);
-    row = [...cells, ...row.slice(cells.length)];
-  }
-  return row.join("");
-}
-
 export type Align = "left" | "right";
 
 /** Rows of cells padded so each column lines up, two spaces between columns, nothing after the last cell. */
@@ -237,22 +225,6 @@ export async function passwordPrompt(o: PromptOptions): Promise<string | symbol>
     render() {
       const body = this.state === "submit" || this.state === "cancel" ? (this.masked === "" ? [] : [styleText(this.state === "submit" ? "dim" : ["strikethrough", "dim"], this.masked)]) : [this.userInputWithCursor];
       return promptFrame(this.state, o, body, ENTER_KEYS);
-    },
-  });
-  // An untouched prompt settles to "" before it resolves; the undefined in clack's type never comes back.
-  return (await prompt.prompt()) as string | symbol;
-}
-
-/** A line typed in the frame; an empty answer is the answer, so a question nothing has to answer takes one keypress. */
-export async function textPrompt(o: PromptOptions & { placeholder?: string }): Promise<string | symbol> {
-  const prompt = new TextPrompt({
-    ...streamsOf(o),
-    ...(o.placeholder !== undefined ? { placeholder: o.placeholder } : {}),
-    render() {
-      const typed = this.value === undefined ? "" : String(this.value);
-      if (this.state === "submit") return promptFrame(this.state, o, typed === "" ? [] : [dim(typed)], ENTER_KEYS);
-      if (this.state === "cancel") return promptFrame(this.state, o, typed === "" ? [] : [styleText(["strikethrough", "dim"], typed)], ENTER_KEYS);
-      return promptFrame(this.state, o, [typed === "" && o.placeholder !== undefined ? dim(o.placeholder) : this.userInputWithCursor], ENTER_KEYS);
     },
   });
   // An untouched prompt settles to "" before it resolves; the undefined in clack's type never comes back.

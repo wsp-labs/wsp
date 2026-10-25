@@ -71,22 +71,6 @@ function decrypt(key: Buffer, nonce: Buffer, aad: Buffer, body: Buffer): Buffer 
   }
 }
 
-/** scrypt then AES-256-GCM: the export a person keeps and types a passphrase for. */
-export const passphraseCipher: VaultCipher<string> = {
-  seal(plain, image, passphrase) {
-    const salt = randomBytes(SALT_BYTES);
-    const nonce = randomBytes(NONCE_BYTES);
-    const key = scryptSync(passphrase, salt, KEY_BYTES, SCRYPT);
-    return packed({ format: "wsp-vault-1", cipher: "aes-256-gcm", to: "passphrase", salt: b64(salt), nonce: b64(nonce), image }, aad => encrypt(key, nonce, aad, plain));
-  },
-  open(sealed, passphrase) {
-    const { header, aad, body } = unpacked(sealed);
-    if (header.to !== "passphrase") throw new Error("this vault was sealed to a place's key, not to a passphrase");
-    const key = scryptSync(passphrase, unb64(header.salt), KEY_BYTES, SCRYPT);
-    return { image: header.image, plain: decrypt(key, unb64(header.nonce), aad, body) };
-  },
-};
-
 /** Which side of the place's keypair a call holds: the sender seals to the public key, the place opens with its private one. */
 export type VaultKey = { publicKey: KeyObject } | { privateKey: KeyObject };
 

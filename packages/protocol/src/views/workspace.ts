@@ -225,8 +225,6 @@ export const ProjectView = z.object({
     .optional(),
   /** What the install ran and how long it took, once; absent where no catalog row named an install for this repo. */
   installed: z.object({ row: z.string(), command: z.string(), at: z.string(), seconds: z.number() }).optional(),
-  /** On a provider computer: the project image every workspace of this project forks from. */
-  image: z.object({ snapshotId: z.string(), builtAt: z.string(), lockfileSha: z.string().optional() }).optional(),
   /** The branch a new workspace starts on; absent is the remote's default branch, read at the clone. */
   base: z.string().optional(),
   /** On this computer, the repo the folder sits in: its top folder, which is the folder itself or a folder above it
@@ -299,11 +297,9 @@ export const roadOf = (caller: Caller | undefined): WorkspaceOrigin | undefined 
 /** The thread a caller is, when it is one. */
 export const scopeOf = (caller: Caller | undefined): ThreadScope | undefined => (typeof caller === "string" ? undefined : caller?.by);
 
-/** What a workspace lets the agents inside it do to this host. Absent on the record reads AGENTS_ON: a thread the
- * person starts may start threads and machines under the caps, and only a switch the person turned off refuses. */
+/** The caps on what the agents inside a workspace may start. Absent on the record reads AGENTS_ON: a thread the
+ * person starts may start threads and machines under these caps. */
 export const WorkspaceAgents = z.object({
-  /** Whether a thread on this workspace may open threads and fork machines; every turn carries its token either way. */
-  spawn: z.boolean(),
   /** How many machines may stand at once under one root thread, counted off the records. */
   maxMachines: z.number().int().min(0),
   /** How deep the tree under a root thread may go: 1 is the root's own children and no further. */
@@ -444,9 +440,8 @@ type WorktreeRemovalHeld = Held<Same<z.infer<typeof WorktreeRemoval>, WorktreeRe
 export const WorktreeMade = WorktreeReport.pick({ path: true, branch: true, made: true });
 export type WorktreeMade = z.infer<typeof WorktreeMade>;
 
-/** The switch a patch leaves on the record, the one rule both roads that set one read: every key the patch does not
- * name keeps what the record holds, so turning it off and on again does not throw the caps away, and a workspace
- * that never had one starts from the default. */
+/** The caps a patch leaves on the record, the one rule both roads that set them read: every key the patch does not
+ * name keeps what the record holds, and a workspace that never had caps starts from the default. */
 export function agentsFrom(held: WorkspaceAgents | undefined, patch: Partial<WorkspaceAgents>): WorkspaceAgents {
   return { ...(held ?? AGENTS_ON), ...patch };
 }

@@ -53,9 +53,6 @@ export interface SignInFlow {
   openWords?: string;
 }
 
-/** The line the relay logs for a page it did not open, while a pty is on screen. */
-export const OPEN_LINE = "press o on the link above to open it here";
-
 /** Where a code from a sign-in's page reaches the tool waiting for it on the machine. The hand-off opens one writer
  * per login while its command runs, and a submit from the app types the code into that login's own pty, the way the
  * person would at the machine's terminal. Nothing is kept here: a code passes through and is gone. */
@@ -78,73 +75,9 @@ export class SignInCodes {
   }
 }
 
-export interface HostHooks {
-  /** Whether a sign-in page the machine asks for may open here without a click: one open per o the person pressed,
-   * and never the page o itself opened. A declined page that names a callback port is kept for the next o. */
-  autoOpen(targetId: string, url: string, port?: number): boolean;
-  /** The line for a page the relay did not open: while a pty is on screen for the builder it says what to press here,
-   * or that the page is the one o already opened; otherwise the relay's own words. */
-  openLine(workspace: string, hostname: string, url: string): string;
-  /** A host line to show; true when the sign-in stage took it (a pty is on screen), false to print it as usual. */
-  onLine(line: string): boolean;
-}
-
-/** The host relay's hooks over the flow, for the builder's pages. */
-export function flowHooks(flow: SignInFlow, builder: { id: string; name: string }): HostHooks {
-  // The relay names the builder's link this way; the line hook only gets the name.
-  const target = `${builder.name} (builder)`;
-  return {
-    autoOpen: (id, url, port) => {
-      if (id !== builder.id || url === flow.openedUrl) return false;
-      if (flow.armed) {
-        flow.armed = false;
-        return true;
-      }
-      if (flow.show === undefined) return false;
-      if (port !== undefined) flow.callbackUrl = url;
-      flow.onPage?.(url, port);
-      return false;
-    },
-    openLine: (workspace, hostname, url) => {
-      if (workspace !== target || flow.show === undefined) return `${workspace}: a sign-in page for ${hostname} is ready; open it from the app`;
-      return `${workspace}: ${url === flow.openedUrl ? "that page is already open here" : (flow.openWords ?? OPEN_LINE)}`;
-    },
-    onLine: line => {
-      if (flow.show === undefined) return false;
-      flow.show(line);
-      return true;
-    },
-  };
-}
-
 export interface BuilderLink {
   link: PtyLink;
   close(): void;
-}
-
-/** One daemon socket to the builder, its events fanned out to whoever asks. */
-export async function builderLink(rt: Runtime, builder: GoldenBuilderView, connect: (o: ConnectOptions) => Promise<DaemonSocket> = connectDaemonSocket): Promise<BuilderLink> {
-  const reach = await rt.golden.builderReach(builder.id);
-  if (reach.daemonToken === undefined) throw new Error("the machine has no daemon token yet");
-  const fns = new Set<(e: Record<string, unknown>) => void>();
-  const sock = await connect({
-    url: reach.url,
-    token: reach.daemonToken,
-    onEvent: e => {
-      for (const f of fns) f(e);
-    },
-  });
-  return {
-    link: {
-      op: (op, extra) => sock.op(op, extra),
-      onEvent: fn => {
-        fns.add(fn);
-        return () => fns.delete(fn);
-      },
-      closed: sock.closed,
-    },
-    close: () => sock.close(),
-  };
 }
 
 export interface SignInStageOptions {
@@ -370,34 +303,4 @@ export async function signInStage(o: SignInStageOptions): Promise<LoginOutcome[]
 /** The first word of a command past its NAME=value prefixes: the tool the shell could not find. */
 export function toolOf(command: string): string {
   return command.split(" ").find(w => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w)) ?? command;
-}
-
-/** Adds what the sign-in and secrets steps came to to the import result file, the golden's notes; creates it when
- * nothing was imported. replaced says the file was there but could not be read, so the caller can say so. */
-export function noteOutcomes(path: string, outcomes: Record<string, unknown>): { replaced: boolean } {
-  let existing: Record<string, unknown> = {};
-  let replaced = false;
-  if (existsSync(path)) {
-    try {
-      const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
-      if (typeof parsed === "object" && parsed !== null) existing = parsed as Record<string, unknown>;
-      else replaced = true;
-    } catch {
-      replaced = true;
-    }
-  }
-  writeFileSync(path, `${JSON.stringify({ ...existing, ...outcomes }, null, 2)}\n`);
-  return { replaced };
-}
-
-/** The logins the stage owns, each carrying its answer: those to sign in on the machine, those left to first use
- * (settled where they stand, so the build reports them without running anything), and those whose files went along
- * (a copy answer on a ticked row) for the check. */
-export function stageLogins(manifest: { entries: readonly ManifestEntry[] }, choices: ReadonlyMap<string, string>, ticks: ReadonlySet<string>): ManifestEntry[] {
-  return manifest.entries.flatMap((e): ManifestEntry[] => {
-    if (e.rung !== "logins") return [];
-    const choice = choices.get(e.id);
-    if (choice === "machine" || choice === "later") return [{ ...e, choice }];
-    return choice === "copy" && ticks.has(e.id) ? [{ ...e, choice }] : [];
-  });
 }

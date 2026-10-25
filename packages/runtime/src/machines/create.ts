@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomUUID } from "node:crypto";
 import { killUntilGone, type Machine, type WspError } from "@wsp/engine";
-import { type ProjectView, type WorkspaceKind, type WorkspaceView, type WorkspaceCreatingEvent, ThreadScope, agentsFrom, imageCarriesCheckout, copyFirstLine, namesSize, BLANK_NAME_REFUSAL, CREATE_READY, machineCapRefusal, nameDeletingRefusal, nameTakenRefusal, offeredSize, refusalLine, runsInFolder, SIZE_PICK_FIX, sizeGotLine, sizeRefusal, sizeWord, startingLine } from "@wsp/protocol";
+import { type ProjectView, type WorkspaceKind, type WorkspaceView, type WorkspaceCreatingEvent, ThreadScope, agentsFrom, copyFirstLine, namesSize, BLANK_NAME_REFUSAL, CREATE_READY, machineCapRefusal, nameDeletingRefusal, nameTakenRefusal, offeredSize, refusalLine, runsInFolder, SIZE_PICK_FIX, sizeGotLine, sizeRefusal, sizeWord, startingLine } from "@wsp/protocol";
 import { projectLanding } from "../project-landing.js";
 import { brokeredStart, namedOfRecord } from "../projects/branch-of-record.js";
 import { type CreatedWorkspace, type CreateWorkspaceOptions, type WorkspaceRecord, type LiveWorkspace, type StageReport, until } from "../types/wiring.js";
@@ -41,23 +41,21 @@ export function createArea(ctx: RuntimeContext): CreateArea {
     const binds = road.workspaceBinds(ctx.projectHeld(project.id));
     // A project whose checkout the add left on that computer: this workspace takes its own copy of it, mounted at
     // the path the project has inside, so the seed and the install the add paid for are there and nothing is
-    // cloned again. A project the computer keeps in an image carries it in the image instead. On a computer that
-    // clones at the add, a project with no checkout was refused above by that road's own refusal; a project at a
-    // provider has neither, and cloneProject clones it inside the fork.
+    // cloned again. On a computer that clones at the add, a project with no checkout was refused above by that
+    // road's own refusal; a project at a provider has none, and cloneProject clones it inside the fork.
     const copy = project.checkout === undefined ? undefined : { from: project.checkout, at: project.path };
     // A computer that keeps no image is forked from none: the workspace is a copy of that computer itself, so no
     // image is read, no copy of one is built there ahead of the fork, and the record names none the way a copy of
     // a folder here does.
     const fromImage = ctx.keepsImages(at);
-    // What this workspace forks: the image the add built for this project where it built one, since that image
-    // already holds the clone and its dependencies; else, at a place that is not the image's own, that place's
-    // current copy of the image, built there first when it holds none, and everywhere else the snapshot asked for.
-    const golden = fromImage ? await ctx.copyForFork(o.golden ?? project.image?.snapshotId ?? (await ctx.imageHead()), placeId, (where, rate) => report("fork-requested", copyFirstLine(where, o.name, rate))) : "";
+    // What this workspace forks: the snapshot a caller named, else the head of the image; at a place that is not the
+    // image's own, that place's current copy of the image, built there first when it holds none.
+    const golden = fromImage ? await ctx.copyForFork(o.golden ?? (await ctx.imageHead()), placeId, (where, rate) => report("fork-requested", copyFirstLine(where, o.name, rate))) : "";
     const inherited = fromImage ? (await ctx.imageOf(golden)).version?.size : undefined;
     // Where the host keeps the machine's credentials, the branch its pushes may land on, named before the first write.
     const brokered = brokeredStart(ctx, road.kind === "provider");
-    // A checkout the image holds starts where it stands, which only the machine can say; a fork starts from its parent.
-    const carried = childBase === undefined && (project.image !== undefined || project.checkout !== undefined || (fromImage && imageCarriesCheckout((await ctx.imageOf(golden)).projects, project.path)));
+    // A checkout the computer copied in starts where it stands, which only the machine can say; a fork starts from its parent.
+    const carried = childBase === undefined && project.checkout !== undefined;
     const branchOfRecord = brokered ? (o.branchOfRecord ?? (await namedOfRecord(ctx, { remote: project.remote, name: o.name, project: project.name, on: ctx.placeName(placeId ?? places.wired), base: childBase ?? project.base, carried }))) : undefined;
     // The clone's token is scoped to a thread: the one asking, else the one the person's create is made to open, whose
     // id is picked here for the first thread opened on it to take.
@@ -74,7 +72,6 @@ export function createArea(ctx: RuntimeContext): CreateArea {
       spec: {
         ...(o.envs !== undefined ? { envs: o.envs } : {}),
         ...(o.labels !== undefined ? { labels: o.labels } : {}),
-        ...(o.engine === true ? { engine: true } : {}),
         // What this project's own computer mounts into every workspace of it: its memory folder on a computer that
         // holds one, nothing where the project's memory rides the image. Kept on the record, so a wake mounts what
         // the create mounted.
@@ -96,8 +93,8 @@ export function createArea(ctx: RuntimeContext): CreateArea {
       // have moved on or gone to sleep; nothing reads the parent's machine for it again.
       ...((childBase ?? project.base) !== undefined ? { base: childBase ?? project.base } : {}),
       ...(branchOfRecord !== undefined ? { branchOfRecord } : {}),
-      // A fork a thread asked for stores no switch of its own: it carries the tree it belongs to, and the switch is
-      // read off that tree's root wherever it is asked for, so one workspace holds the answer for the whole tree.
+      // A fork a thread asked for stores no caps of its own: it carries the tree it belongs to, and the caps are
+      // read off that tree's root wherever they are asked for, so one workspace holds the answer for the whole tree.
       ...(spawned === undefined && o.agents !== undefined ? { agents: agentsFrom(ctx.spawnAt(placeId ?? places.wired), o.agents) } : {}),
     };
     // Only an asked size is checked: the golden's own is what it was built at, whatever the provider offers today.

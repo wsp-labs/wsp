@@ -6,8 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { ROOT, sourceFiles } from "../../protocol/test/source-files.js";
-import { describeDiff, diffRecipes, isEmptyDiff } from "../src/golden-diff.js";
-import { withRecordedPins } from "../src/golden-tools.js";
+import { diffRecipes } from "../src/golden-diff.js";
 import { CATALOG_AGENTS, CLAUDE_CODE, CLAUDE_INSTALL, LOCAL_BIN, ROAD_MODULES, ROAD_STEPS, baseNote, catalogEntry as catalogEntryOf, installLine, parseJsonc } from "@wsp/catalog";
 import {
   rowRoad,
@@ -1372,36 +1371,6 @@ describe("catalog rows", () => {
 });
 
 describe("tap formulae on the release road", () => {
-  it("a tap row on the road identifies by the road the plan installs by, with its pin: sealed with the recorded pin it diffs to nothing against the recipe that carries it", () => {
-    const table: BrewTable = new Map([["zingzy/tap/diskbloom", { name: "diskbloom", fullName: "zingzy/tap/diskbloom", deps: [], macosOnly: false, source: { repo: "Zingzy/diskbloom", tag: "v0.1.0" } }]]);
-    const id = "tools/brew/zingzy/tap/diskbloom";
-    const tap = (over: Partial<RecipeEntry> = {}) => row({ rung: "tools", id, label: "diskbloom", linux: "unknown", ...over });
-    const pin = { tag: "v0.1.0", sha256: "a".repeat(64), arch: "x86_64" as const };
-    // The plan installs the row from its release with the check; the tick says the same road and carries the same pin.
-    expect(toolInstallsFor([tap({ pin })], table).installs.at(-1)!.cmd).toContain('[ "$sum" = ');
-    // The tick's version is the release the road installs at: the Mac's tag, which a Homebrew row does not carry itself.
-    const pinned = recipeDigest([tap({ pin })], [], [], table).ticks[0]!;
-    expect(pinned).toEqual({ id, version: "v0.1.0", road: "release", installer: expect.stringMatching(/^[0-9a-f]{64}$/), pin });
-    // A first run of the same row: the same road and lines, no pin yet.
-    const first = recipeDigest([tap()], [], [], table);
-    expect(first.ticks[0]).toEqual({ id, version: "v0.1.0", road: "release", installer: pinned.installer });
-    // The seal stamps what the install read back; the recipe that then carries it is no change, and the words say nothing.
-    const sealed = withRecordedPins(first, [{ id, outcome: "installed", pin }]);
-    expect(sealed.ticks[0]).toEqual(pinned);
-    expect(isEmptyDiff(diffRecipes(sealed, recipeDigest([tap({ pin })], [], [], table)))).toBe(true);
-    expect(describeDiff(diffRecipes(sealed, recipeDigest([tap({ pin })], [], [], table)))).toEqual([]);
-    // A pin is what a build recorded, not what the recipe asks: the same row with none is no change either.
-    expect(describeDiff(diffRecipes(sealed, first))).toEqual([]);
-    // The Mac's tap moving on is a move, both releases named: the tick installs at the new tag, no pin standing yet.
-    const moved: BrewTable = new Map([["zingzy/tap/diskbloom", { ...table.get("zingzy/tap/diskbloom")!, source: { repo: "Zingzy/diskbloom", tag: "v0.2.0" } }]]);
-    expect(recipeDigest([tap({ pin })], [], [], moved).ticks[0]).toEqual({ id, version: "v0.2.0", road: "release", installer: expect.stringMatching(/^[0-9a-f]{64}$/) });
-    expect(describeDiff(diffRecipes(sealed, recipeDigest([tap({ pin })], [], [], moved)))).toEqual(["update 1 tool: diskbloom (v0.1.0 to v0.2.0)"]);
-    // Without this Mac's Homebrew read, no release is known: the plan sets the row aside and the tick reads it as the formula it names.
-    expect(toolInstallsFor([tap({ pin })]).skipped.map(s => s.note)).toEqual(["no Linux bottle known"]);
-    expect(recipeDigest([tap({ pin })], [], [], new Map()).ticks[0]).toEqual({ id, road: "brew", installer: expect.stringMatching(/^[0-9a-f]{64}$/) });
-    // One resolver: the plan's step for the row is the road the digest read.
-    expect(rowRoad(tap({ pin }), table)).toEqual({ road: { road: "release", repo: "Zingzy/diskbloom", version: "v0.1.0", pin, go: "github.com/Zingzy/diskbloom@v0.1.0" }, bin: "diskbloom" });
-  });
 
   it("a tap formula on the road names its binary too", () => {
     const table: BrewTable = new Map([["zingzy/tap/diskbloom", { name: "diskbloom", fullName: "zingzy/tap/diskbloom", deps: [], macosOnly: false, source: { repo: "Zingzy/diskbloom", tag: "v0.1.0" } }]]);

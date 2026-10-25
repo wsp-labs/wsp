@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { InitDraft, InitJob, InitScreen, InitScreenId, MachineSizeOffer, PlaceCapacity, WorkspaceSize } from "../index.js";
+import type { MachineSizeOffer, PlaceCapacity, WorkspaceSize } from "../index.js";
 import { plural } from "./base.js";
 export const KIB = 1024;
 const MIB = KIB * 1024;
@@ -51,39 +51,10 @@ export const UNKNOWN_SIZE = "size unknown";
 /** How often the agents ran a tool here, the one number a usage row shows. */
 export const fmtCalls = (n: number): string => `${n.toLocaleString("en-US")} ${n === 1 ? "call" : "calls"}`;
 
-/** The tally under a screen's card, first half: the count of rows on the image, so a view can colour the estimate after it on its own. The
- * noun is the screen's plural ("agents", "tools"), or a word that does not count ("more") kept as it is. */
-export const initTallyCount = (count: number, noun: string): string => `${noun.endsWith("s") ? plural(count, noun.replace(/s$/, "")) : `${count} ${noun}`} on the image`;
 /** Two byte counts against each other, each under the byte rule ("4.9 GB of 20 GB"): the tally's running estimate
  * against the disk and the machine tab's memory and disk rows, each read in the tone the share earns; the first count
  * alone where there is no total. */
 export const fmtBytesOfTotal = (used: number, total?: number): string => (total === undefined ? fmtBytes(used) : `${fmtBytes(used)} of ${fmtBytes(total)}`);
-
-/** How many rows of a screen are on the image with these ticks and the bytes they come to: a locked row is on, a row
- * that takes an answer is not counted, and a row nothing measured adds nothing. */
-export function initTallyOf(screen: Pick<InitScreen, "items">, ticks: ReadonlySet<string>): { count: number; bytes: number } {
-  let count = 0;
-  let bytes = 0;
-  for (const item of screen.items) {
-    if (item.choices !== undefined) continue;
-    if (!(item.lock === "on" || ticks.has(item.id))) continue;
-    count += 1;
-    if (typeof item.size === "number") bytes += item.size;
-  }
-  return { count, bytes };
-}
-
-/** The ticks of a screen as they stand: the draft kept on its step where the person left one, else what the host last
- * answered. The one rule for what a screen opens on and for what the estimate counts. */
-export const initTicksOf = (screen: Pick<InitScreen, "ticks">, kept?: Pick<InitDraft, "ticks">): ReadonlySet<string> => new Set(kept?.ticks ?? screen.ticks);
-
-/** The running estimate of the image in bytes: what the disk holds before any tick plus every screen's ticked rows as
- * they stand, drafts over answers. The one number every step's tally, the meter and Continue's refusal read. A client
- * passes the draft it holds and the host has not echoed yet, so a tick moves the number before the round trip. */
-export function initImageBytes(job: Pick<InitJob, "disk" | "screens" | "drafts">, current?: { at: string; ticks: Iterable<string> }): number {
-  const fixed = job.disk?.fixed ?? 0;
-  return job.screens.reduce((sum, s) => sum + initTallyOf(s, current !== undefined && current.at === s.id ? new Set(current.ticks) : initTicksOf(s, job.drafts?.find(d => d.at === s.id))).bytes, fixed);
-}
 
 /** The tone a size is read in, by weight, the one table every size cell reads: a gigabyte and over is the danger
  * tone, 200 MB and over the warning tone, 50 MB and over the yellow tone, anything under muted. */
@@ -97,13 +68,6 @@ export function sizeTone(bytes: number): SizeTone {
   return SIZE_TONES.find(([from]) => bytes >= from)?.[1] ?? "muted";
 }
 
-/** The screens where a person is choosing weight, whose size cells wear the weight tone. The agents screen's sizes
- * are muted: the agents are what the person came for, not a place to be warned off. */
-const WEIGHED_SCREENS: ReadonlySet<InitScreenId> = new Set<InitScreenId>(["tools", "also"]);
-/** The tone a row's size cell wears on a screen: the weight table where the screen weighs, muted elsewhere and where
- * nothing measured the row. */
-export const initSizeTone = (screen: Pick<InitScreen, "id">, bytes: number | null): SizeTone => (bytes === null || !WEIGHED_SCREENS.has(screen.id) ? "muted" : sizeTone(bytes));
-
 /** The tone of the disk meter and the tally's estimate by the share the estimate takes of the disk: muted under 70
  * percent, the warning tone from 70, the danger tone from 90 and when over. */
 export function diskTone(used: number, total: number): "muted" | "warning" | "danger" {
@@ -111,13 +75,6 @@ export function diskTone(used: number, total: number): "muted" | "warning" | "da
   if (share >= 0.9) return "danger";
   return share >= 0.7 ? "warning" : "muted";
 }
-
-/** The disk meter's tooltip: what the image holds against the machine's disk, and by how much it is over once it is;
- * the overshoot is said here and in Continue's refusal, nowhere else. */
-export const initDiskLine = (used: number, total: number): string => `about ${fmtBytes(used)} of ${fmtBytes(total)} on the image${used > total ? `, ${initDiskOverLine(used - total)}` : ""}`;
-
-/** The primary's refusal once the ticks pass the disk, and the tail of the meter's tooltip. */
-export const initDiskOverLine = (over: number): string => `over by ${fmtBytes(over)}`;
 
 /** Memory in GB as the size table names it: whole when whole, else one decimal; a size spec, not a byte count. */
 const memGb = (memMb: number): number => Number((memMb / 1024).toFixed(1));

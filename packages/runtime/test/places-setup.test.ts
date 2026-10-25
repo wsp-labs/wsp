@@ -239,7 +239,6 @@ function provisioner(
   const picked: RecipeFile[] = [];
   const rows = { ...ROWS, ...o.rows };
   const wired: PlaceProvisioner = {
-    plan: async () => ({ noRecipe: "/nowhere/recipe.json" }),
     setup: async picks => {
       picked.push(picks);
       return o.plan ?? PLAN;

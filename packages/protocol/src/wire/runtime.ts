@@ -4,7 +4,7 @@ import { z } from "zod";
 import { AgentsTarget, McpScope, PluginAsk, ServerAdd, ServerAsk } from "../agents-report.js";
 import { Attachment } from "../attachments.js";
 import { threadAt } from "../format.js";
-import { InitRoad, InitScreenId, SIGN_IN_CODE_MAX } from "../init-job.js";
+import { SIGN_IN_CODE_MAX } from "../setup.js";
 import { ReadingsRange, UsageRange, UsageSplit } from "../usage.js";
 import { ResumeAsk } from "../conversations.js";
 import { AccessChoice, AgentSetupSet } from "../thread-defaults.js";
@@ -20,7 +20,7 @@ import { ForkSource, SessionOrigin, SessionView, ThreadMarks } from "../views/se
 import { RunStep } from "../views/session-events.js";
 import { TerminalScheme } from "../views/project-bundle.js";
 import { EditorId, HISTORY_PAGE_MAX, PreferencesPatch } from "../views/preferences.js";
-import { IMAGE_PASSPHRASE_MIN, MachineKind } from "../views/golden-image.js";
+import { MachineKind } from "../views/golden-image.js";
 import { PlaceSettingsAsk, PlaceSettingWord, PlaceSetupStep, SudoPassword } from "../views/place.js";
 import { AppProcList } from "../views/app-procs.js";
 import { ActivityEnded, ProcessesAsk } from "../views/activity.js";
@@ -106,7 +106,7 @@ const RuntimeOp = z.discriminatedUnion("op", [
    * running either way. */
   z.object({ id: reqId, op: z.literal("places.dial"), placeId: z.string() }),
   /** Sets what a person may set on one place: threads at once on a computer, machines at once and spend per day on
-   * a cloud, the nap after on any place that forks, and the agents switch its workspaces inherit. A key left out
+   * a cloud, the nap after on any place that forks, and the agent caps its workspaces inherit. A key left out
    * keeps what stands, a word under `reset` takes that setting back to its default, and a key the place's kind does
    * not take is refused. `name` renames a computer the person added, `ssh` gives it a new login once that login is
    * read as the same computer, and `recipe` is what places.follow takes; this computer and a cloud take none of the
@@ -217,10 +217,6 @@ const RuntimeOp = z.discriminatedUnion("op", [
   z.object({
     id: reqId,
     op: z.literal("workspaces.create"),
-    /** A project image by snapshot id; absent takes the head of the project's computer's own image. A create a
-     * thread asked for names none and is refused where it does: it takes the image its own workspace's project
-     * runs, which is the only image a thread reaches. */
-    golden: z.string().optional(),
     /** The project this workspace is made for, by id or by name. Its computer is where the workspace lands. Beside
      * `sub` the project is the asking thread's own, read off its token: empty or that project's id or name, any
      * other refused. */
@@ -241,8 +237,6 @@ const RuntimeOp = z.discriminatedUnion("op", [
      * another computer. A create a thread asked for names a workspace of its own tree here or none, and with none is
      * a child of the thread's own workspace; either way it sits under that thread. */
     parent: z.string().optional(),
-    /** The workspace gets the place's container engine through the fenced socket; absent takes the image's recipe. */
-    engine: z.boolean().optional(),
     /** A sub-thread of the asking thread on the cloud `on` names: a machine of its own forked from the image, at
      * `size` or the cloud's own size, starting from the lead's pushed branch or the remote's ref `from` names, whose
      * thread pushes `branch` or wsp/<slug>. The project is the asking thread's;
@@ -410,16 +404,6 @@ const RuntimeOp = z.discriminatedUnion("op", [
    * store and workspace.deleted follows, once twelve reads in a row find the machine gone; nothing is asked of the
    * machine. Refused with the reason (kind "conflict") while any read still finds it: pause it or delete it at the provider first. */
   z.object({ id: reqId, op: z.literal("workspaces.forget"), workspaceId: z.string() }),
-  /** Snapshots the workspace's disk as a project golden and replies with { projectGolden }. Refused when the workspace
-   * is not running, holds no project, or its machine is not first-life (kind "notFirstLife"). The guest freezes for
-   * about three seconds and keeps its first life. */
-  z.object({ id: reqId, op: z.literal("workspaces.snapshot"), workspaceId: z.string() }),
-  /** Replies with { projectGoldens: ProjectGolden[] }, every project golden this runtime took, newest last. */
-  z.object({ id: reqId, op: z.literal("projectGoldens.list") }),
-  /** Deletes a project golden's snapshot at the provider of the place its record names and replies with a
-   * ProjectGoldenRemoved once the listing no longer holds it; the record leaves last. Refused while any workspace
-   * stands on it, whatever its phase (kind "conflict"), and for an id no project golden holds (kind "not-found"). */
-  z.object({ id: reqId, op: z.literal("projectGoldens.remove"), snapshotId: z.string() }),
   /** A person acted in the workspace through a road the runtime cannot see (typed into
    * a terminal over the browser's daemon link); the idle countdown starts over. */
   z.object({ id: reqId, op: z.literal("workspaces.touch"), workspaceId: z.string() }),
@@ -863,47 +847,15 @@ const RuntimeOp = z.discriminatedUnion("op", [
    * command or config writer puts it, and the row as a read after it gives it. Refused for a plugin the report does
    * not list, a missing one, and one a project's settings switch. */
   z.object({ id: reqId, op: z.literal("plugins.toggle"), target: AgentsTarget, ...PluginAsk.shape, on: z.boolean() }),
-  /** Replies with { setup: InitSetup }: the cloud setup as the modal opens on it, the init job included when one runs.
-   * `on` prices the build at that place instead of the default one, by the name or id wsp places lists; once the
-   * image stands, every build is priced at the image's own place whatever `on` says. */
+  /** Replies with { setup: InitSetup }: the cloud setup as the modal opens on it. `on` prices the build at that place
+   * instead of the default one, by the name or id wsp places lists; once the image stands, every build is priced at
+   * the image's own place whatever `on` says. */
   z.object({ id: reqId, op: z.literal("init.get"), on: z.string().optional() }),
-  /** Saves keys into the wsp home's .env on the computer running the host: the provider key, put to that provider
-   * before anything is written and saved under the variable its own module reads, and an agent's API key by the
-   * sign-in row it answers, saved under the variable that agent's sign-in declares. `provider` is the word
-   * WSP_PROVIDER holds for the provider the key belongs to, and naming one picks it; absent, the key goes to the
-   * provider this host already forks on. Replies with { setup: InitSetup }, which says a key is held and never says
-   * what it is. */
-  z.object({ id: reqId, op: z.literal("init.keys"), provider: z.string().max(64).optional(), key: z.string().optional(), rows: z.record(z.string()).optional() }),
-  /** Starts the init job on the road named, an agent's harness on the agent road; replies with { job: InitJob } and
-   * every change after rides init.job events. One job runs at a time; a second start while one runs is refused. The
-   * terminal road takes its answers from the recipe beside the state, which wsp init wrote from its own screens, and
-   * is refused when there is none there. */
-  z.object({ id: reqId, op: z.literal("init.start"), road: InitRoad, harness: z.string().optional(), on: z.string().optional() }),
-  /** Answers one screen: the rows ticked, the answers chosen; replies with { job: InitJob }, its screens recomputed
-   * and its step moved to the next. */
-  z.object({ id: reqId, op: z.literal("init.answer"), screen: InitScreenId, ticks: z.array(z.string()).optional(), answers: z.record(z.string()).optional() }),
-  /** Moves the job to a screen the person went back to, so a setup shut there reopens there; replies with { job: InitJob }. */
-  z.object({ id: reqId, op: z.literal("init.step"), at: z.number().int().nonnegative() }),
-  /** Keeps what a step has ticked, picked or typed and not sent, so a setup shut mid-step reopens on it; replies
-   * with { job: InitJob }. `at` is a screen's id or the build question's own step; a step the job does not have is
-   * refused. An empty draft is an answer of its own: a step whose every tick was taken off comes back with none on. */
-  z.object({ id: reqId, op: z.literal("init.draft"), at: z.string().min(1).max(64), ticks: z.array(z.string()).optional(), answers: z.record(z.string()).optional() }),
-  /** Runs a sign-in that ran out or failed again on the machine while the build goes on; replies with { job: InitJob }. */
-  z.object({ id: reqId, op: z.literal("init.retry"), tool: z.string() }),
-  /** Writes the recipe as answered and starts the build; replies with { job: InitJob } at once, the build riding on.
-   * `yes` skips the sign-ins on the machine, as wsp init --yes does: a caller that asked for no waiting gets none.
-   * `on` is the place the image is built on, by the name or id wsp places lists; absent takes the default place.
-   * `on` is read for the first build alone: once the image stands, every build goes to the image's own place, so
-   * no caller can move it.
-   * `rebuild` seals the next version from a fresh machine rather than from the image plus the changes, which is the
-   * question a run at a terminal is asked; absent takes whichever road the changes call for. */
-  z.object({ id: reqId, op: z.literal("init.build"), firstWorkspace: z.string().optional(), importFolder: z.string().optional(), yes: z.boolean().optional(), on: z.string().optional(), rebuild: z.boolean().optional() }),
-  /** Types the code a sign-in's page handed back into the tool waiting for it on the machine, as the person would at
-   * that terminal; replies with { job: InitJob }. The code is never logged, kept or carried on the view. Refused when
-   * no sign-in for that tool is waiting for one. */
-  z.object({ id: reqId, op: z.literal("init.signInCode"), tool: z.string(), code: z.string().min(1).max(SIGN_IN_CODE_MAX) }),
-  /** Stops the job where it is: a thread interrupted, a builder killed; replies with { job: InitJob }. */
-  z.object({ id: reqId, op: z.literal("init.cancel") }),
+  /** Saves the provider key into the wsp home's .env on the computer running the host: put to that provider before
+   * anything is written and saved under the variable its own module reads. `provider` is the word WSP_PROVIDER holds
+   * for the provider the key belongs to, and naming one picks it; absent, the key goes to the provider this host
+   * already forks on. Replies with { setup: InitSetup }, which says a key is held and never says what it is. */
+  z.object({ id: reqId, op: z.literal("init.keys"), provider: z.string().max(64).optional(), key: z.string().optional() }),
   /** Replies with { preferences: Preferences }: the record on this host's state, the defaults until a client set something. */
   z.object({ id: reqId, op: z.literal("preferences.get") }),
   /** Lands the patch on the record, keeps it, pushes preferences.changed to every socket and replies with
@@ -1012,9 +964,6 @@ const RuntimeOp = z.discriminatedUnion("op", [
    * this host forks on, when the place builds no copy at all, when no record exists, when the record was sealed
    * without the recipe it was built from, and when the record holds no vault and `force` is not set. */
   z.object({ id: reqId, op: z.literal("image.build"), place: z.string().min(1), name: z.string().optional(), force: z.boolean().optional() }),
-  /** Writes the record and the vault, sealed to the passphrase, to `dest` on this computer. Replies with
-   * { exported: SealedImageExport }. The passphrase is never logged and never kept. */
-  z.object({ id: reqId, op: z.literal("image.export"), dest: z.string().min(1), passphrase: z.string().min(IMAGE_PASSPHRASE_MIN).max(256), name: z.string().optional() }),
   // A thread's slate: the window's ops and the slate verbs' (packages/protocol/src/slate/wire.ts).
   ...slateOps(),
 ]);
@@ -1170,7 +1119,6 @@ export const DEVICE_OPS: readonly string[] = [
   "workspaces.look",
   "workspaces.delete",
   "workspaces.forget",
-  "workspaces.snapshot",
   "workspaces.touch",
   "workspaces.portReach",
   "workspaces.portProbe",
@@ -1192,8 +1140,6 @@ export const DEVICE_OPS: readonly string[] = [
   // A project's image is part of its look, kept beside preferences, which a paired computer reads and writes too.
   "projects.icon",
   "projects.icons",
-  "projectGoldens.list",
-  "projectGoldens.remove",
   "sys.subscribe",
   "sys.unsubscribe",
   "harnesses.list",

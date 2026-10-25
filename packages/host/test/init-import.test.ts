@@ -14,9 +14,8 @@ import { NODE_RELEASES, diffRecipes, planFiles, rowsToApply, type PlannedFile, t
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CLAUDE_INSTALL, GOLDEN_SMOKE, GUEST_HOME, MCP_SERVERS_JSON } from "@wsp/catalog";
 import { withRefused } from "../../runtime/test/fs-refusal.js";
-import { digestOf, importFor, importResultPath, keychainLogins, keychainReader, packPlan, readSecrets, statOf, type SecretReader } from "../src/init-import.js";
+import { digestOf, importFor, packPlan, readSecrets, statOf, type SecretReader } from "../src/init-import.js";
 import { serverVault, type ServerVault } from "../src/env-keys.js";
-import { deltaFor } from "../src/init-upgrade.js";
 import { serversActs } from "../src/servers-acts.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
@@ -344,72 +343,6 @@ describe("packPlan", () => {
     }
   });
 
-  it("readSecrets asks the reader once per Keychain item, and for gh only for the login it is in use as here, and turns a failed read into a refusal that carries security's reason", async () => {
-    const home = laptop();
-    const rows = [
-      row({ rung: "logins", id: "logins/gh", paths: ["~/.config/gh/hosts.yml", "Keychain: gh:github.com"], choice: "copy" }),
-      row({ rung: "logins", id: "logins/codex", paths: ["~/.codex/auth.json"], choice: "machine" }),
-      row({ rung: "logins", id: "logins/gh2", paths: ["~/.config/gh/hosts.yml"], choice: "copy" }),
-    ];
-    const wanted = keychainLogins(rows, "darwin", home);
-    // hosts.yml lists other and Zingzy and marks Zingzy the user in use: the second account's item is never asked
-    // for, so macOS raises one dialog for the login that travels and none for the one that stays.
-    // gh2 carries hosts.yml alone, so nothing is read from the Keychain for it.
-    expect(wanted.map(s => [s.id, s.service, s.account])).toEqual([["logins/gh", "gh:github.com", "Zingzy"]]);
-    expect(keychainLogins(rows, "linux", home)).toEqual([]);
-    const secrets = reader({ "gh:github.com (other)": "gho_fake_other", "gh:github.com (Zingzy)": "gho_fake_token" });
-    const read = await readSecrets(wanted, secrets);
-    expect(secrets.reads).toEqual([["gh:github.com", "Zingzy"]]);
-    expect([...read.values]).toEqual([["gh:github.com (Zingzy)", "gho_fake_token"]]);
-    expect(read.refused).toEqual([]);
-    // Both accounts, as the plan holds them, for the reads below: one item read of two is a drop, none is a refusal.
-    const both = planFiles(rows, { home, stat: statOf, read: abs => readFileSync(abs, "utf8"), platform: "darwin" }).secrets.filter(s => s.service === "gh:github.com");
-    expect(both.map(s => s.account)).toEqual(["other", "Zingzy"]);
-    // An account with no item of its own is dropped from a row another account of which was read; the row is not refused.
-    const partial = await readSecrets(both, reader({ "gh:github.com (Zingzy)": "gho_fake_token" }));
-    expect([...partial.values.keys()]).toEqual(["gh:github.com (Zingzy)"]);
-    expect(partial.refused).toEqual([]);
-    expect(partial.dropped).toEqual([{ id: "logins/gh", service: "gh:github.com", account: "other", left: "other left behind: no token in the Keychain", reason: "security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain." }]);
-    // With no account read the row is refused once, the reason naming every account.
-    const none = await readSecrets(both, reader({}));
-    expect(none.dropped).toEqual([]);
-    expect(none.refused).toEqual([
-      {
-        id: "logins/gh",
-        service: "gh:github.com",
-        reason: "other: security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.; Zingzy: security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.",
-      },
-    ]);
-  });
-
-  it("a Claude login plans no read at all: neither its Keychain item nor its helper travels, and the settings.json that does loses its helper line", async () => {
-    const home = laptop();
-    mkdirSync(join(home, ".claude"), { recursive: true });
-    writeFileSync(join(home, ".claude", "settings.json"), CLAUDE_SETTINGS);
-    const rows = [
-      row({ rung: "agents", id: "agents/claude", paths: ["~/.claude/settings.json"] }),
-      row({ rung: "logins", id: "logins/claude", paths: ["Keychain: Claude Code-credentials", "Helper: ~/.claude/settings.json"], choice: "copy" }),
-    ];
-    // Nothing of this login is read on this computer, on either platform: macOS raises no dialog and the helper
-    // never runs, since a key it printed would outrank the vault's token inside the CLI on every turn.
-    expect(keychainLogins(rows, "darwin", home)).toEqual([]);
-    expect(keychainLogins(rows, "linux", home)).toEqual([]);
-    const plan = planFiles(rows, { home, stat: statOf, read: abs => readFileSync(abs, "utf8"), platform: "darwin", rewrites: [[".claude/", ".claude-cfg/"]] });
-    expect(plan.secrets).toEqual([]);
-    const note = "claude setup-token on this computer holds this login as a token; nothing of it travels";
-    expect(plan.skipped).toEqual([
-      { id: "logins/claude", path: "Keychain: Claude Code-credentials", note },
-      { id: "logins/claude", path: "Helper: ~/.claude/settings.json", note },
-    ]);
-    const packed = await packPlan(plan, { secrets: new Map(), home });
-    expect(packed.skipped).toEqual([{ id: "agents/claude", path: "~/.claude/settings.json", note: "apiKeyHelper left out of the copy: the command runs on this computer only" }]);
-    const dir = extract(packed.tar);
-    // The config travels, with no helper line in it; no key file and no credential lands beside it.
-    expect(readFileSync(join(dir, ".claude-cfg", "settings.json"), "utf8")).toBe('{\n  "model": "opus"\n}\n');
-    expect(listTar(packed.tar).some(e => e.path.includes("anthropic-api-key"))).toBe(false);
-    expect(listTar(packed.tar).some(e => e.path.includes(".credentials.json"))).toBe(false);
-  });
-
   it("a copied settings.json whose helper did not travel loses the helper line, with a note, since a helper that fails on the machine is what every request would use", async () => {
     const home = laptop();
     mkdirSync(join(home, ".claude"), { recursive: true });
@@ -567,25 +500,6 @@ describe("packPlan", () => {
     expect(importFor([row({ rung: "agents", id: "agents/claude", paths: ["~/.claude/settings.json"] })], { home, secrets: new Map(), platform: "darwin" }).plugins?.seed?.plugins.map(p => p.label)).toEqual(["x@acme"]);
   });
 
-  it("an image sealed without the seed reads changed and its update builds it, and a provider's builder never fetches an address holding a secret", async () => {
-    const home = laptop();
-    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
-    const login = ["ghp", "TESTONLYfake000000000000000000000000"].join("_");
-    writeFileSync(join(home, ".claude", "plugins", "known_marketplaces.json"), JSON.stringify({ acme: { source: { source: "github", repo: "acme/plugins" } }, priv: { source: { source: "git", url: `https://x-access-token:${login}@github.com/acme/priv.git` } }, raw: { source: { source: "url", url: "https://git.example.com/m.json?private_token=plain0value0here" } }, user: { source: { source: "git", url: "git+https://plain0value0here@git.example.com/acme/p.git" } } }));
-    writeFileSync(join(home, ".claude", "settings.json"), JSON.stringify({ enabledPlugins: { "x@acme": true, "y@priv": true, "z@raw": true, "w@user": true } }));
-    const claude = row({ rung: "agents", id: "agents/claude", paths: ["~/.claude/settings.json"] });
-    const opts = { home, secrets: new Map<string, string>(), platform: "darwin" as const };
-    const imp = importFor([claude], opts);
-    expect(imp.plugins?.seed?.plugins.map(p => p.label)).toEqual(["x@acme", "y@priv", "z@raw", "w@user"]);
-    const cloud = importFor([claude], { ...opts, cloud: true });
-    expect(cloud.plugins?.seed?.plugins.map(p => p.label)).toEqual(["x@acme"]);
-    expect(cloud.plugins?.seed?.plugins.some(p => p.cmd.includes(login) || p.cmd.includes("plain0value0here"))).toBe(false);
-    const sealed = { ...imp.recipe!, files: imp.recipe!.files.filter(f => f.dest !== ".claude-plugin-seed") };
-    const diff = diffRecipes(sealed, imp.recipe!);
-    expect(diff.files).toEqual([{ id: "agents/claude", dest: ".claude-plugin-seed", change: "added" }]);
-    expect(deltaFor(diff, imp, [claude], rows => importFor(rows, opts)).import.plugins?.seed?.plugins.map(p => p.label)).toEqual(["x@acme", "y@priv", "z@raw", "w@user"]);
-  });
-
   it("a marketplace's headers and its address's secrets stay on this computer on a provider's image, and an image sealed holding them reads changed", async () => {
     const home = laptop();
     mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
@@ -729,21 +643,6 @@ describe("packPlan", () => {
     const gone = await packPlan(plan, { secrets: new Map(), home });
     expect(readFileSync(join(extract(gone.tar), ".codex", "config.toml"), "utf8")).toBe(onImage(withoutNotify));
     expect(gone.leftBehind).toEqual([{ id: "agents/codex", path: "~/.codex/config.toml", note: "hook left behind: ~/.codex/gone.py" }]);
-  });
-
-  it("a failed read is reported by its exit status alone: a command line, which may carry a value, never reaches the reason", async () => {
-    const home = laptop();
-    const wanted = keychainLogins([row({ rung: "logins", id: "logins/gh", paths: ["~/.config/gh/hosts.yml", "Keychain: gh:github.com"], choice: "copy" })], "darwin", home);
-    const shell: SecretReader = {
-      read: async () => {
-        throw new Error("Command failed: security find-generic-password -s gh:github.com -w\nsecurity: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.\n");
-      },
-      run: async () => {
-        throw new Error("nothing runs a command for a secret any more");
-      },
-    };
-    const refused = await readSecrets(wanted, shell);
-    expect(refused.refused.map(r => r.reason)).toEqual(["Zingzy: security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain."]);
   });
 
   it("the gh copy carries the login it is in use as here alone: the other account leaves the copied hosts file and is noted, and a planned secret it was not given is noted instead of failing", async () => {
@@ -915,34 +814,6 @@ describe("packPlan: a value servers.env holds goes back to its reference", () =>
     expect(vaulted).toEqual([{ ACME_TOKEN: V }]);
     expect(readFileSync(join(home, ".claude.json"), "utf8")).toBe(claude);
     expect(readFileSync(join(home, ".codex", "config.toml"), "utf8")).toBe(codex);
-  });
-});
-
-describe("the ticket's own flow: a server added here with --env, then copied", () => {
-  it("writes the reference for Claude Code, Gemini CLI and OpenCode, keeps the value in this computer's files and in servers.env, and Codex's file stays here", async () => {
-    const home = laptop();
-    const statePath = join(home, ".wsp", "state.json");
-    mkdirSync(dirname(statePath), { recursive: true });
-    const V = "sk_TESTONLY_flow";
-    const acts = serversActs({ here: () => ({ ...nodeHost(), home }), vault: serverVault(statePath) });
-    const server = { name: "acme", command: "acme-mcp", args: ["--token=${ACME_TOKEN}"], env: { ACME_TOKEN: V } };
-    for (const agent of ["claude", "gemini", "opencode", "codex"]) await acts.add({ kind: "here" }, { agent, ...server });
-    const files = { claude: ".claude.json", gemini: ".gemini/settings.json", opencode: ".config/opencode/opencode.json", codex: ".codex/config.toml" };
-    for (const rel of Object.values(files)) expect(readFileSync(join(home, rel), "utf8"), rel).toContain(`--token=${V}`);
-    expect(serverVault(statePath).held()).toEqual({ ACME_TOKEN: V });
-    const plan = planFiles(
-      Object.entries(files).map(([id, rel]) => row({ rung: "agents", id: `agents/${id}`, paths: [`~/${rel}`] })),
-      { home, stat: statOf, platform: "darwin" },
-    );
-    const packed = await packPlan(plan, { secrets: new Map(), home, vault: serverVault(statePath) });
-    const at = extract(packed.tar);
-    const copied = (rel: string): string => readFileSync(join(at, rel), "utf8");
-    for (const rel of [files.claude, files.gemini, files.opencode]) expect(copied(rel), rel).not.toContain(V);
-    expect(copied(files.claude)).toContain('"--token=${ACME_TOKEN}"');
-    expect(copied(files.gemini)).toContain('"--token=${ACME_TOKEN}"');
-    expect(copied(files.opencode)).toContain('"--token={env:ACME_TOKEN}"');
-    expect(listTar(packed.tar).map(e => e.path)).not.toContain(files.codex);
-    expect(packed.skipped).toContainEqual({ id: "agents/codex", path: `~/${files.codex}`, note: "left out of the copy: its MCP servers could not be written by name (acme passes the value of ACME_TOKEN in the --token argument, and Codex reads no variable there, so the file stays on this computer)" });
   });
 });
 
@@ -1198,8 +1069,8 @@ describe("packPlan: command guard", () => {
     const dir = extract(none.tar);
     const zshrc = readFileSync(join(dir, ".zshrc"), "utf8");
     const guard = (name: string): string => `${name}() { if (unset -f ${name}; command -v ${name}) >/dev/null 2>&1; then unset -f ${name}; ${name} "$@"; else return 127; fi; }`;
-    expect(zshrc).toBe([GUARD_BEGIN, guard("starship"), guard("eza"), guard("diskbloom"), guard("zoxide"), "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: starship, eza, diskbloom, zoxide. Tick them in wsp init to install them.", GUARD_END, "", RC].join("\n"));
-    expect(readFileSync(join(dir, ".bashrc"), "utf8")).toBe([GUARD_BEGIN, guard("starship"), "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: starship. Tick them in wsp init to install them.", GUARD_END, "", 'eval "$(starship init bash)"', ""].join("\n"));
+    expect(zshrc).toBe([GUARD_BEGIN, guard("starship"), guard("eza"), guard("diskbloom"), guard("zoxide"), "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: starship, eza, diskbloom, zoxide.", GUARD_END, "", RC].join("\n"));
+    expect(readFileSync(join(dir, ".bashrc"), "utf8")).toBe([GUARD_BEGIN, guard("starship"), "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: starship.", GUARD_END, "", 'eval "$(starship init bash)"', ""].join("\n"));
     // The guard decides at call time: a tool the rc itself puts on PATH after the block runs, the missing ones are silent.
     mkdirSync(join(dir, "tools"));
     stub(join(dir, "tools"), "zoxide");
@@ -1246,36 +1117,6 @@ describe("statOf", () => {
     expect(statOf(join(home, "link"))).toMatchObject({ kind: "file", mode: 0o644, realpath: join(home, ".gitconfig") });
     expect(statOf(join(home, "dangling"))).toEqual({ kind: "dangling", target: join(home, "missing") });
     expect(statOf(join(home, "absent"))).toBeUndefined();
-  });
-});
-
-describe("keychainReader", () => {
-  it("is the security command with the service and -w, the account before -w when the item is filed per user, built but never run in tests", () => {
-    const r = keychainReader();
-    expect(r.command("Claude Code-credentials")).toEqual({ file: "security", args: ["find-generic-password", "-s", "Claude Code-credentials", "-w"] });
-    expect(r.command("gh:github.com", "Zingzy")).toEqual({ file: "security", args: ["find-generic-password", "-s", "gh:github.com", "-a", "Zingzy", "-w"] });
-  });
-
-  it("unwraps the go-keyring form gh stores its token in (74 characters for a 40-character token) and passes any other value through as read", async () => {
-    const token = "gho_xfakefakefakefakefakefakefakefakefak";
-    expect(token).toHaveLength(40);
-    const wrapped = `go-keyring-base64:${Buffer.from(token).toString("base64")}`;
-    expect(wrapped).toHaveLength(74);
-    const claude = '{"claudeAiOauth":{"accessToken":"sk-ant-x"}}';
-    const ran: string[][] = [];
-    const r = keychainReader(async (file, args) => {
-      ran.push([file, ...args]);
-      return { stdout: `${args[2] === "gh:github.com" ? wrapped : claude}\n` };
-    });
-    await expect(r.read("gh:github.com", "Zingzy")).resolves.toBe(token);
-    await expect(r.read("Claude Code-credentials")).resolves.toBe(claude);
-    // A helper line runs under sh the way Claude Code runs it, its trailing newline dropped.
-    await expect(r.run(HELPER)).resolves.toBe(claude);
-    expect(ran).toEqual([
-      ["security", "find-generic-password", "-s", "gh:github.com", "-a", "Zingzy", "-w"],
-      ["security", "find-generic-password", "-s", "Claude Code-credentials", "-w"],
-      ["/bin/sh", "-c", HELPER],
-    ]);
   });
 });
 
@@ -1593,20 +1434,4 @@ describe("importFor", () => {
     expect(hosts).toContain("        other:\n            oauth_token: gho_o1\n        Zingzy:\n            oauth_token: gho_two\n");
   });
 
-  it("the plan carries the skips it made itself, and the results go next to the recipe", async () => {
-    const home = laptop();
-    const results: unknown[] = [];
-    const onResult = (r: unknown) => void results.push(r);
-    const imp = importFor([row({ rung: "tools", id: "tools/brew/zingzy/tap/diskbloom", label: "zingzy/tap/diskbloom", linux: "unknown" })], {
-      home,
-      secrets: new Map(),
-      platform: "darwin",
-      onResult,
-    });
-    expect(imp.files).toBeUndefined();
-    expect(imp.node).toBeUndefined();
-    expect(imp.skippedTools).toEqual([{ id: "tools/brew/zingzy/tap/diskbloom", label: "zingzy/tap/diskbloom", note: "no Linux bottle known" }]);
-    expect(imp.onResult).toBe(onResult);
-    expect(importResultPath("/x/state.json")).toBe("/x/golden-import.json");
-  });
 });

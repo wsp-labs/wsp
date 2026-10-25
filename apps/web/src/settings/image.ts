@@ -24,38 +24,23 @@ export const IMAGE_WORDS = {
   state: {
     nothing: "Not built yet",
     notHere: "Not here yet",
-    building: "Building your image here",
     reading: "Reading the image",
     copying: "Copying your image here",
     stale: "An older copy here",
     ready: "Ready",
   },
-  chooseAndBuild: "Choose what goes on your image and build it here.",
-  buildHere: "Build your image here",
-  /** Said under the card while the image builds, holding every press that would start another build. */
-  buildingOn: (computer: string): string => `Your image is building on ${computer}.`,
-  /** The row under the state that says what the image holds, and the press that opens its recipe. */
+  noImage: "No image yet.",
+  /** The row under the state that says what the image holds. */
   holds: "On your image",
-  holdsEdit: "Edit",
   noRecipe: (version: number): string => `v${version} was sealed before what goes on it was kept.`,
-  /** The recipe's own words, where they are not the setup's: its close, the step after every screen is answered,
-   * and where a build goes when that is not this computer. */
-  close: "Close",
-  build: "Build",
-  readyHeadline: "Ready to build",
-  buildsHere: (computer: string): string => `Your image is built on ${computer}.`,
-  buildsHome: (home: string, version: number): string => `Your image lives on ${home}, so v${version} is built there. Copy it here once it is sealed.`,
   copyComes: (version: number): string => `v${version} comes with your sign-ins. Nothing is asked again.`,
   copyAsks: (version: number): string => `v${version} holds no sign-ins, so each is asked again here.`,
   copyHere: "Copy your image here",
   copyAnyway: "Copy anyway",
   tryAgain: "Try again",
-  steps: (done: number, total: number): string => `${done} of ${total} steps done`,
   startTask: "New thread here",
   /** Said under the card while New thread here is held: a thread goes where its project lands, and none lands here. */
   startHeld: (computer: string): string => `No project lands its threads on ${computer} yet.`,
-  /** A build's one line on a page's IMAGE row: the stage it is on, then how far it has come. */
-  stepNow: (stage: string | undefined, done: number, total: number): string => (stage === undefined ? `${done} of ${total} steps done` : `${stage}, ${done} of ${total}`),
 } as const;
 
 /** Whether a ready card offers New thread here: a cloud met through a lead's sub-threads alone takes no thread

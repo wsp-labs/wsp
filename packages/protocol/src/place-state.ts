@@ -4,7 +4,7 @@
 // fold its own live rows through the same function, so the two cannot count
 // one computer two ways. One rule per kind of place, so a third kind is one
 // entry in the table below.
-import { agentsLine, fmtCost, fmtDuration, fmtLimit, fmtSize, plural, refusalLine, SIZE_PICK_FIX, sizeOffer, sizeRefusal, sizeWord, SPEND_LIMIT_LINE } from "./format.js";
+import { fmtCost, fmtDuration, fmtLimit, fmtSize, plural, refusalLine, SIZE_PICK_FIX, sizeOffer, sizeRefusal, sizeWord, SPEND_LIMIT_LINE } from "./format.js";
 import type { CloudCap, PlaceCap, PlaceCapSet, PlaceKind, PlaceSettings, PlaceSettingsAsk, PlaceSettingWord, PlaceView, SessionUncappedEvent, ThreadCapWait, ThreadView, WorkspaceAgents, WorkspaceSize, WorkspaceView } from "./index.js";
 import { HERE_PLACE_ID, placeSaid } from "./place-word.js";
 import { isLocalWorkspace, workspaceState } from "./workspace-state.js";
@@ -45,10 +45,10 @@ export const threadsAtOnce = (s: WorkspaceSize): number => Math.max(1, Math.min(
 
 export const CLOUD_CAP_DEFAULT: CloudCap = { machines: 3, spendPerDayUsd: 10 };
 
-/** What a workspace's switch reads as when neither it nor its place sets one, and what it takes when a person names
+/** What a workspace's caps read as when neither it nor its place sets any, and what it takes when a person names
  * no numbers. Three machines is what one root thread's builders need and few enough that a runaway is a bill a
  * person notices, and two levels let a lead hand work to a sub-lead; threads at once and the machines cap bound cost. */
-export const AGENTS_ON: WorkspaceAgents = { spawn: true, maxMachines: 3, maxDepth: 2 };
+export const AGENTS_ON: WorkspaceAgents = { maxMachines: 3, maxDepth: 2 };
 
 /** How long a quiet workspace runs before it naps until the person sets another window. */
 export const NAP_AFTER_MS = 20 * 60_000;
@@ -104,7 +104,7 @@ type SettingView = Pick<PlaceView, "cap" | "capDefault" | "napMs" | "napDefault"
 /** What a row says a setting runs at: the whole phrase, and the figure alone that a default beside it takes. */
 type SettingSaid = { long: string; short: string };
 
-/** Every setting a person can make on a place: the key it is stored under (and for a part of the agents switch, the
+/** Every setting a person can make on a place: the key it is stored under (and for a part of the agents caps, the
  * parts of it), the words a refusal names it by, and what a row says it runs at now or by default. */
 const SETTINGS: Record<PlaceSettingWord, { key: keyof PlaceSettings; parts?: readonly (keyof WorkspaceAgents)[]; words: string; reads(place: SettingView, fallback: boolean): SettingSaid | undefined }> = {
   threads: { key: "threads", words: "threads at once", reads: (p, fallback) => atOnce(capNumber(fallback ? p.capDefault : p.cap, "threads"), "thread") },
@@ -152,14 +152,13 @@ const SETTINGS: Record<PlaceSettingWord, { key: keyof PlaceSettings; parts?: rea
       return ms === null ? { long: "no turn limit", short: "off" } : { long: `stops a turn at ${fmtLimit(ms)}`, short: fmtLimit(ms) };
     },
   },
-  spawn: {
+  "max-machines": {
     key: "spawn",
-    parts: ["spawn", "maxMachines"],
-    words: "agents may start agents",
+    parts: ["maxMachines"],
+    words: "machines under a root thread",
     reads: (p, fallback) => {
-      const agents = fallback ? p.spawnDefault : p.spawn;
-      if (agents === undefined) return undefined;
-      return { long: agentsLine(agents), short: agents.spawn ? `on, up to ${agents.maxMachines}` : "off" };
+      const machines = (fallback ? p.spawnDefault : p.spawn)?.maxMachines;
+      return machines === undefined ? undefined : { long: `up to ${plural(machines, "machine")} under a root thread`, short: String(machines) };
     },
   },
   "max-depth": {
@@ -177,14 +176,14 @@ function atOnce(n: number | undefined, noun: string): SettingSaid | undefined {
   return n === undefined ? undefined : { long: `${plural(n, noun)} at once`, short: String(n) };
 }
 
-/** Whether settings, held or asked for, name one setting: its key, or any of its parts of the agents switch. */
+/** Whether settings, held or asked for, name one setting: its key, or any of its parts of the agents caps. */
 export function placeSettingNamed(settings: PlaceSettings, word: PlaceSettingWord): boolean {
   const { key, parts } = SETTINGS[word];
   return parts === undefined ? settings[key] !== undefined : parts.some(part => settings.spawn?.[part] !== undefined);
 }
 
-/** Settings with one setting taken back to its default: its key dropped, or its parts of the agents switch, and the
- * switch with them once nothing of it is left. */
+/** Settings with one setting taken back to its default: its key dropped, or its parts of the agents caps, and the
+ * caps with them once nothing of them is left. */
 export function placeSettingDropped(settings: PlaceSettings, word: PlaceSettingWord): PlaceSettings {
   const { key, parts } = SETTINGS[word];
   const kept = Object.fromEntries(Object.entries(settings).filter(([k]) => k !== key)) as PlaceSettings;
@@ -212,7 +211,7 @@ interface PlaceCapRule {
 
 const PLACE_CAPS: Record<PlaceKind, PlaceCapRule> = {
   computer: {
-    keys: ["threads", "nap", "turn-limit", "spawn", "max-depth"],
+    keys: ["threads", "nap", "turn-limit", "max-machines", "max-depth"],
     turnLimit: null,
     capOf: (place, set) => {
       const threads = set.threads ?? (place.shape === undefined ? undefined : threadsAtOnce(place.shape));
@@ -227,7 +226,7 @@ const PLACE_CAPS: Record<PlaceKind, PlaceCapRule> = {
     },
   },
   provider: {
-    keys: ["machines", "spend", "size", "delete-after", "nap", "turn-limit", "spawn", "max-depth"],
+    keys: ["machines", "spend", "size", "delete-after", "nap", "turn-limit", "max-machines", "max-depth"],
     turnLimit: TURN_WALL_MS,
     capOf: (_place, set) => ({ machines: set.machines ?? CLOUD_CAP_DEFAULT.machines, spendPerDayUsd: set.spendPerDayUsd ?? CLOUD_CAP_DEFAULT.spendPerDayUsd }),
     atOnce: cap => ("machines" in cap ? cap.machines : 0),

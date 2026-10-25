@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpath
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cloneIntoFileLine, cloneIntoNeeded, cloneIntoTakenLine, cloneUrlRefusal, INTO_TAKES_A_REPO_LINE, noComputerForSourceLine, HERE_PLACE_ID, NO_IMAGE_FOR_SEED, noRemoteLine, copyTakesNone, idPrefixRefusal, noWorkspaceRefusal, projectInUseRefusal, sameSourceRefusal, seedChoiceNeeded, type AdapterEvent, type Caller, type EventUnion, type SeedPlan, type TurnResult } from "@wsp/protocol";
+import { cloneIntoFileLine, cloneIntoNeeded, cloneIntoTakenLine, cloneUrlRefusal, INTO_TAKES_A_REPO_LINE, noComputerForSourceLine, HERE_PLACE_ID, noRemoteLine, copyTakesNone, idPrefixRefusal, noWorkspaceRefusal, projectInUseRefusal, sameSourceRefusal, seedChoiceNeeded, type AdapterEvent, type Caller, type EventUnion, type SeedPlan, type TurnResult } from "@wsp/protocol";
 import { createRuntime, NO_SEED_WIRING, type HarnessAdapterFactory, type HarnessStartOptions, type Runtime, type SeedWiring } from "../src/runtime.js";
 import { memoryStore } from "../src/store.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
@@ -256,14 +256,6 @@ describe("recording a project", () => {
     rmSync(folder, { recursive: true, force: true });
   });
 
-  it("a folder seeding a computer this host has sealed no image for is refused: the seed has nowhere to land", async () => {
-    const folder = tempRepo();
-    const plan = seedPlanFor(folder);
-    const { rt } = withLocal(stubBackend(), { plan: async () => plan, pack: async () => ({ tar: Buffer.from("x"), files: 1, bytes: 1, commits: 0, left: [] }) });
-    await expect(rt.projects.add({ source: folder, on: "default", seed: { files: [], memory: false, commits: false } })).rejects.toThrow(NO_IMAGE_FOR_SEED);
-    rmSync(folder, { recursive: true, force: true });
-  });
-
   it("a folder with no remote cannot seed a computer that clones: there is nothing for it to clone", async () => {
     const folder = tempRepo();
     const plan = { ...seedPlanFor(folder), remote: null };
@@ -396,18 +388,17 @@ describe("a workspace of a project", () => {
     expect((await backend.list()).map(m => m.id)).toEqual([kept[0]!.machineId]);
   });
 
-  it("takes none of the words a fork takes: the folder is the workspace, so from, size and engine are refused in one sentence", async () => {
+  it("takes none of the words a fork takes: the folder is the workspace, so from and size are refused in one sentence", async () => {
     const { rt } = withLocal();
     const folder = tempRepo();
     const project = await rt.projects.add({ source: folder });
     for (const [asked, word] of [
       [{ golden: "snap_g" }, "--from"],
       [{ cpu: 2, memMb: 4096 }, "--size"],
-      [{ engine: true }, "--engine"],
     ] as const) {
       await expect(rt.workspaces.create({ project: project.id, name: "work", ...asked })).rejects.toThrow(copyTakesNone(project.name, [word]));
     }
-    // Nothing was recorded by any of the three: the refusal comes before the record.
+    // Nothing was recorded by either: the refusal comes before the record.
     expect(await rt.workspaces.list()).toEqual([]);
     rmSync(folder, { recursive: true, force: true });
   });

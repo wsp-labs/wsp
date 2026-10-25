@@ -2,7 +2,7 @@
 // The wsp skill for agents on this computer: one file in the repo, read as
 // text at build time, that names every verb and tool and gives the MCP server
 // its instructions.
-import { CLOUD_CAP_DEFAULT, CLOUD_ENV, DELETE_AFTER_MS, RUN_BLOCK_WORDS, thisComputerLine } from "@wsp/protocol";
+import { CLOUD_CAP_DEFAULT, CLOUD_ENV, DELETE_AFTER_MS, RUN_BLOCK_WORDS } from "@wsp/protocol";
 import { BOX_CLASSES } from "@wsp/engine";
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
@@ -285,20 +285,6 @@ describe("the wsp skill", () => {
     expect(rules).toContain(`\`${stillRunningLine(1)}\``);
   });
 
-  it("tells an agent how to add a tool the catalog does not carry, and what not to add", () => {
-    const section = wspSkill().slice(wspSkill().indexOf("## Tools the catalog does not carry"), wspSkill().indexOf("## Rules learned the hard way"));
-    expect(section).toContain("--add <id>=<install command>");
-    expect(section).toContain("--add-check <id>=<command>");
-    // The example is the line an agent copies: both flags in the form the verb takes.
-    expect(section).toContain('wsp recipe --add just="brew install just" --add-check just="just --version"');
-    expect(section).toContain("command -v <id>");
-    // The guardrails: evidence before a row, a manager's own form, and no sign-in for these.
-    expect(section).toContain("Add only what the person's own history or their repository files show in use");
-    expect(section).toMatch(/brew install x.*npm install -g x.*uv tool install x.*apt-get install -y x/s);
-    expect(section).toContain("pipes a download into a shell is refused");
-    expect(section).toContain("There is no sign-in for these rows");
-  });
-
   it("says where a thread on this computer starts, and its example asks nothing of a folder it may not be in", () => {
     const section = wspSkill().slice(wspSkill().indexOf("### run"), wspSkill().indexOf("### send"));
     expect(section).toContain("wsp run --agent codex \"Say in one line which folder you are in");
@@ -325,41 +311,8 @@ describe("the wsp skill", () => {
     expect(wspSkill()).not.toContain("\u2014");
   });
 
-  it("walks an agent from nothing to the first thread: the health check, the three states, the init it runs and the sign-in lines it hands over", () => {
+  it("keeps the host the agent's own job and the keys the person's", () => {
     const setup = wspSkill().slice(wspSkill().indexOf(SETUP_HEADING), wspSkill().indexOf("## Verbs and tools"));
-    expect(setup).toContain("wsp --version");
-    expect(setup).toContain("wsp threads --json");
-    expect(setup).toContain("starting the host for <path>; its log is <path>, and wsp down stops it");
-    expect(setup).toContain("no host answered for <path> within 20.0s");
-    expect(setup).toContain(thisComputerLine("<name>", "<folder>"));
-    expect(setup).toContain("wsp init --recipe ~/.wsp/recipe.json");
-    expect(setup).toContain("--non-interactive --json > /tmp/wsp-init.jsonl");
-    expect(setup).toContain('{"event":"sign-in","tool":"gh","label":"GitHub CLI login","browserUrl":"https://github.com/login/device","code":"8F4A-C21B","nextCommand":"open \'https://github.com/login/device\'","waitSeconds":960}');
-    expect(setup).toContain('{"event":"sign-in-result","tool":"gh","label":"GitHub CLI login","state":"signed-in"}');
-    expect(setup).toContain("Hand that line to the person as it comes");
-    if (CLOUD_ON) {
-      expect(setup).toContain("Solari API key: no terminal to ask on; set SOLARI_API_KEY in the environment, ./.env, or ~/.wsp/.env.");
-      expect(setup).toContain("SOLARI_API_KEY=");
-      expect(setup).toContain("wsp snapshot first");
-    }
-    expect(setup).toContain("Do not ask them to paste a key into this conversation");
-    for (const step of ["wsp recipe scan", "wsp recipe --tick used", "--set <id>=on|off", "--add <id>=", `--signin <id>=${LOGIN_CHOICES.join("|")}`, "--project <folder>", ...(CLOUD_ON ? ["wsp wake first"] : []), "wsp run <project>"]) expect(setup, step).toContain(step);
-    // Eight steps, since nothing in the walkthrough starts or restarts a host by hand any more.
-    expect(setup.split("\n").filter(l => /^\d+\. /.test(l))).toHaveLength(8);
-  });
-
-  it("mints the recipe from what their agents used, puts the heavy rows to the person, and keeps the host the agent's own job", () => {
-    const setup = wspSkill().slice(wspSkill().indexOf(SETUP_HEADING), wspSkill().indexOf("## Verbs and tools"));
-    expect(setup).toContain("why it is there");
-    expect(setup).toContain("its download size");
-    expect(setup).toContain("an agent with no thread adapter stays off");
-    expect(setup).toContain("one multiple-choice question");
-    expect(setup).toContain("over 300 MB");
-    // Nothing is written before everything is read, and the person answers before the init line goes over.
-    expect(setup.indexOf("wsp recipe scan")).toBeLessThan(setup.indexOf("wsp recipe --tick used"));
-    expect(setup.indexOf("--tick used")).toBeLessThan(setup.indexOf("nohup wsp init --recipe ~/.wsp/recipe.json --non-interactive --json"));
-    // The wizard the init line opens, named as the plan names it, so the person knows what is coming.
-    for (const screen of ["Agents, Tools, Also on this computer, Sign-ins, wsp for your agents on this computer, and Build"]) expect(setup).toContain(screen);
     // A key written after the host started is read by the next host, so the one step that writes one says how.
     expect(setup.slice(setup.indexOf("\n2. "), setup.indexOf("\n3. "))).toContain("wsp down");
     expect(setup).toContain("Starting the host is neither: any command that needs one starts it");
@@ -382,10 +335,6 @@ describe("the wsp skill", () => {
       const body = lines.slice(at, next === -1 ? undefined : at + 1 + next);
       expect(body.filter(l => /^ *Expect: /.test(l)), line.slice(0, 40)).toHaveLength(1);
     }
-    // A serving host is not a sealed image: init serves for the whole wizard, so only one step tells them apart.
-    const five = setup.slice(setup.indexOf("\n5. "), setup.indexOf("\n6. "));
-    expect(five).toContain("which is the seal");
-    expect(five).toContain("step 6 is what tells a sealed image from an init still running");
     expect(setup).toContain("Every step below ends in an `Expect:` line");
     expect(setup).toContain("say what to run next inside their own agent");
     expect(setup).toContain("In Claude Code the skill is then `/wsp`");
@@ -415,12 +364,12 @@ describe("the wsp skill", () => {
     expect(instructions()).not.toContain("## ");
   });
 
-  it("the rules for running work on a machine are fourteen lines stated as facts about machines, twelve with no cloud, and the instructions carry the first two and the background one", () => {
+  it("the rules for running work on a machine are thirteen lines stated as facts about machines, twelve with no cloud, and the instructions carry the first two and the background one", () => {
     const from = wspSkill().indexOf(`\n${RULES_HEADING}\n`);
     expect(from, RULES_HEADING).toBeGreaterThan(-1);
     const section = wspSkill().slice(from, wspSkill().indexOf("\n## ", from + 1));
     const rules = section.split("\n").filter(line => line.startsWith("- "));
-    expect(rules).toHaveLength(CLOUD_ON ? 14 : 12);
+    expect(rules).toHaveLength(CLOUD_ON ? 13 : 12);
     // A command meant for the person closes the section, in the one sentence the launch context quotes too.
     expect(rules.at(-1)).toBe(`- ${RUN_BLOCK_WORDS}.`);
     // The two roads to a child's end open the section: which one holds is the first thing a caller has to decide.
@@ -446,11 +395,8 @@ describe("the wsp skill", () => {
     if (CLOUD_ON) {
       expect(section).toContain("Fork a cloud machine for builds that run beside each other");
       expect(section).toContain("anything that should not touch this computer");
-      expect(section).toContain("`wsp snapshot <workspace>`");
-      expect(section).toContain("every later machine of that project starts with the install already there");
       expect(section).toContain("`wsp pause <workspace>`");
     } else {
-      expect(section).not.toContain("wsp snapshot");
       expect(section).not.toContain("--from");
     }
     expect(section).toContain("on 2 vCPU and 4 GB one thread runs tests or a build at a time");

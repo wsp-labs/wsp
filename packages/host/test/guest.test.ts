@@ -232,7 +232,7 @@ describe("a guest session on the host", () => {
       // the person's computer, and a fork's agent asking about "this computer" means the machine it is on.
       const served = VERBS.filter(hasTool).filter(v => readsHere(v) === undefined);
       expect(names).toEqual(served.map(v => toolName(v.name)).sort());
-      expect(VERBS.filter(hasTool).filter(v => readsHere(v) !== undefined).map(v => v.name)).toEqual(["recipe scan", "recipe", "terminal config"]);
+      expect(VERBS.filter(hasTool).filter(v => readsHere(v) !== undefined).map(v => v.name)).toEqual(["terminal config"]);
     });
 
     it("tells the server of a thread another thread started that it has no slate, and a lead's that it has one", async () => {
@@ -327,28 +327,17 @@ describe("a guest session on the host", () => {
       // The line the confirm review ran: --json is lifted off before the verb is looked for, and a wall that read
       // the first word as typed saw a dash and let the rest through, which printed the person's own Ghostty config.
       expect(guestRefusal(["--json", "terminal", "config"])).toBe(guestPersonsComputerLine("terminal config"));
-      expect(guestRefusal(["--json", "recipe", "scan"])).toBe(guestPersonsComputerLine("recipe scan"));
-      expect(guestRefusal(["--json", "init", "--yes"])).toBe(guestPersonsComputerLine("init"));
       expect(guestRefusal(["--json", "up"])).toBe(guestPersonsComputerLine("up"));
       // A shared flag in front of a verb this road does serve is still that verb.
       expect(guestRefusal(["--json", "threads"])).toBeUndefined();
       // And a line carrying the help flag prints a page and runs nothing, whatever word follows it.
-      expect(guestRefusal(["--json", "init", "--help"])).toBeUndefined();
-      expect(guestRefusal(["-h", "recipe"])).toBeUndefined();
+      expect(guestRefusal(["--json", "up", "--help"])).toBeUndefined();
+      expect(guestRefusal(["-h", "terminal"])).toBeUndefined();
 
       const token = await tokenOn(workspaceId);
-      door.event(link, opened({ token, argv: ["--json", "recipe", "scan"] }));
+      door.event(link, opened({ token, argv: ["--json", "terminal", "config"] }));
       await settled(() => exitCode() !== undefined);
-      expect(errText()).toContain(guestPersonsComputerLine("recipe scan"));
-      expect(exitCode()).toBe(1);
-      expect(outText()).toBe("");
-    });
-
-    it("refuses a line that would start a build on the person's computer, however the flags are ordered", async () => {
-      const token = await tokenOn(workspaceId);
-      door.event(link, opened({ token, argv: ["--json", "init", "--yes"] }));
-      await settled(() => exitCode() !== undefined);
-      expect(errText()).toContain(guestPersonsComputerLine("init"));
+      expect(errText()).toContain(guestPersonsComputerLine("terminal config"));
       expect(exitCode()).toBe(1);
       expect(outText()).toBe("");
     });
@@ -361,12 +350,10 @@ describe("a guest session on the host", () => {
       expect(guestRefusal(["thread", "read", "t1"])).toBeUndefined();
       // A line carrying the help flag prints a page and runs nothing, whichever word it names, so it passes; the
       // same word without it is the line that would run on the person's computer.
-      expect(guestRefusal(["init", "--help"])).toBeUndefined();
-      expect(guestRefusal(["init"])).toBe(guestPersonsComputerLine("init"));
+      expect(guestRefusal(["up", "--help"])).toBeUndefined();
+      expect(guestRefusal(["up"])).toBe(guestPersonsComputerLine("up"));
       expect(guestRefusal(["--help", "agent"])).toBeUndefined();
       // A verb that reads the computer the process runs on: from inside a machine that is the person's computer.
-      expect(guestRefusal(["recipe", "--tick", "used"])).toBe(guestPersonsComputerLine("recipe"));
-      expect(guestRefusal(["recipe", "scan"])).toBe(guestPersonsComputerLine("recipe scan"));
       expect(guestRefusal(["terminal", "config"])).toBe(guestPersonsComputerLine("terminal config"));
       expect(guestRefusal(["not-a-verb"])).toBe(guestPersonsComputerLine("not-a-verb"));
       // From `--` on the words belong to the command the line runs in the workspace, where --host is not ours.
