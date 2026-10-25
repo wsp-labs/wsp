@@ -395,6 +395,8 @@ mod workers {
             warnings: None,
             left: None,
             host_key: None,
+            code: None,
+            status: None,
             marks: vec![],
         }
     }

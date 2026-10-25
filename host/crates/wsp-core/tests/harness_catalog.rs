@@ -134,6 +134,10 @@ fn default_effort_of(catalog: &HarnessCatalog, m: &HarnessModel) -> Option<Strin
     marked_default(&efforts_for(catalog, Some(m))).map(|o| o.value.clone())
 }
 
+fn plain(options: Vec<wsp_wire::types::thread_defaults::Fields<HarnessOption>>) -> Vec<HarnessOption> {
+    options.into_iter().map(wsp_wire::types::thread_defaults::Fields::into_inner).collect()
+}
+
 fn values(options: &[HarnessOption]) -> Vec<String> {
     options.iter().map(|o| o.value.clone()).collect()
 }
@@ -434,7 +438,7 @@ fn the_default_effort_of_a_pick_is_the_picked_models_own() {
     assert_eq!(shown(&codex, Some("gpt-5.6-terra")), s("medium"));
     assert_eq!(shown(&codex, Some("gpt-5.6-sol")), s("low"));
     let marked: Vec<String> =
-        efforts_for(&codex, model_of(&codex, Some("gpt-5.5")).as_ref()).into_iter().filter(|o| o.is_default == Some(true)).map(|o| o.value).collect();
+        efforts_for(&codex, model_of(&codex, Some("gpt-5.5")).as_ref()).into_iter().filter(|o| o.is_default == Some(true)).map(|o| o.value.clone()).collect();
     assert_eq!(marked, ["medium"]);
 }
 
@@ -461,7 +465,7 @@ fn the_default_effort_is_the_catalogs_mark_for_a_model_that_names_none_and_for_n
 fn marks_nothing_when_the_model_names_a_default_its_own_list_does_not_carry() {
     let odd_model = HarnessModel { efforts: strs(&["low", "high"]), default_effort: s("medium"), ..model("gpt-5.5", "GPT-5.5") };
     let odd = HarnessCatalog { models: vec![odd_model.clone()], ..table("codex") };
-    let efforts = efforts_for(&odd, Some(&odd_model));
+    let efforts = plain(efforts_for(&odd, Some(&odd_model)));
     assert_eq!(values(&efforts), ["low", "high"]);
     assert!(!efforts.iter().any(|o| o.is_default == Some(true)));
 }
@@ -840,11 +844,11 @@ fn catalog_from_probe_a_model_whose_efforts_the_binary_did_not_name_keeps_none_o
         HarnessModel { is_default: Some(true), context_windows: strs(&[]), ..model("anthropic/claude-sonnet-4.5", "anthropic/claude-sonnet-4.5") }
     );
     assert_eq!(catalog.models[0].efforts, None);
-    assert_eq!(values(&efforts_for(&catalog, Some(&catalog.models[0]))), ["low", "high", "turbo"]);
+    assert_eq!(values(&plain(efforts_for(&catalog, Some(&catalog.models[0])))), ["low", "high", "turbo"]);
     assert_eq!(start(&catalog, picks(None, Some("turbo"), None), true), picks(Some("anthropic/claude-sonnet-4.5"), Some("turbo"), None));
     assert!(refusal(&catalog, picks(None, Some("off"), None), true).contains("effort \"off\" is not one codex takes"));
     let haiku = catalog.models.iter().find(|m| m.value == "claude-haiku-4-5-20251001").unwrap();
-    assert_eq!(efforts_for(&catalog, Some(haiku)), vec![]);
+    assert_eq!(efforts_for(&catalog, Some(haiku)), Vec::<HarnessOption>::new());
 }
 
 // TS: harness-catalog.test.ts:507

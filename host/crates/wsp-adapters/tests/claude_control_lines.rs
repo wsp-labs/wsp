@@ -11,7 +11,7 @@ use wsp_adapters::claude::permissions::{control_line, interrupt_line, ControlLin
 use wsp_adapters::claude::steers::Steers;
 use wsp_adapters::pending::NO_REPORT_LINE;
 use wsp_adapters::port::{AdapterEvent, DeltaKind, PermissionAsk, PermissionOption, SubagentState, TurnDelta};
-use wsp_wire::types::pending_wire::PermissionEffect;
+use wsp_wire::wire::helpers::PermissionEffect;
 
 fn obj(v: Value) -> Obj {
     v.as_object().cloned().expect("an object")

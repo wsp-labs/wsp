@@ -355,6 +355,7 @@ impl MachineBackend for FakeBox {
             kept: false,
             copies: true,
             own_network: true,
+            sizes_last: true,
             sizes: Vec::new(),
         }
     }

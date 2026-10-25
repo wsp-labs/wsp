@@ -97,6 +97,7 @@ fn caps(preview_urls: bool, snapshot_listing: bool) -> Capabilities {
         kept: false,
         copies: false,
         own_network: false,
+        sizes_last: false,
     }
 }
 

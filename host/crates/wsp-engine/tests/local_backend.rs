@@ -73,6 +73,7 @@ async fn every_capability_a_provider_fork_has_and_a_computer_does_not_is_false()
             kept: true,
             copies: true,
             own_network: false,
+            sizes_last: false,
         }
     );
     assert_eq!(backend.pricing().rate_usd_per_hour(Size { cpu: 2.0, mem_mb: 4096.0 }), 0.0);

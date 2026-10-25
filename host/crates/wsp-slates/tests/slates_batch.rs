@@ -225,7 +225,7 @@ fn a_run_that_starts_again_keeps_its_last_result_marked_refreshing_across_a_rest
         let done = wait_for(&s, 10_000, |v| value(v, "probe")["out"] == json!("run 2\n")).await;
         assert!(value(&done, "probe").get("refreshing").is_none());
 
-        let pushed: Vec<Value> = host.pushes().iter().filter_map(|p| p.values.get("$probe").filter(|r| r["state"] == json!("running")).cloned()).collect();
+        let pushed: Vec<Value> = host.pushes().iter().filter_map(|p| p.values.0.get("$probe").map(|k| &k.0).filter(|r| r["state"] == json!("running")).cloned()).collect();
         assert!(pushed[0].get("out").is_none() && pushed[0].get("refreshing").is_none());
         assert!(pushed.len() > 1);
         for r in &pushed[1..] {

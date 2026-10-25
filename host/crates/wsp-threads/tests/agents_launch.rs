@@ -441,11 +441,11 @@ fn default_agent_of_skips_an_agent_turned_off() {
         prefs.default_agent = Some("codex".to_string());
         assert_eq!(area.default_agent_of(&prefs, Some(&e)), "codex");
         let project: ProjectOverrides = serde_json::from_value(json!({ "agent": "claude" })).expect("overrides");
-        prefs.project_defaults.insert("p1".to_string(), project);
+        prefs.project_defaults.insert("p1".to_string(), wsp_wire::types::thread_defaults::Fields::new(project));
         assert_eq!(area.default_agent_of(&prefs, Some(&e)), "claude");
         let other: ProjectOverrides = serde_json::from_value(json!({ "agent": "codex" })).expect("overrides");
         prefs.default_agent = Some("claude".to_string());
-        prefs.project_defaults.insert("p1".to_string(), other);
+        prefs.project_defaults.insert("p1".to_string(), wsp_wire::types::thread_defaults::Fields::new(other));
         assert_eq!(area.default_agent_of(&prefs, Some(&e)), "codex", "a project whose default agent is Codex runs Codex");
 
         // An agent turned off on that computer is skipped, wherever the default names it, and the default moves on.
@@ -500,7 +500,7 @@ fn defaults_on_marks_the_lists_for_what_a_new_thread_starts_on() {
 
     // The agent's defaults mark what a new thread starts on.
     let mut prefs = default_preferences();
-    prefs.agent_defaults.insert("claude".to_string(), agent_defaults(json!({ "model": "claude-sonnet-5-5", "effort": "low", "access": "ask" })));
+    prefs.agent_defaults.insert("claude".to_string(), wsp_wire::types::thread_defaults::Fields::new(agent_defaults(json!({ "model": "claude-sonnet-5-5", "effort": "low", "access": "ask" }))));
     let shaped = json_of(&AgentsArea::defaults_on(&claude_table(), &prefs, None).catalog);
     assert_eq!(marked(&shaped["models"]), Some("claude-sonnet-5-5".to_string()));
     assert_eq!(marked(&shaped["efforts"]), Some("low".to_string()));
@@ -522,7 +522,7 @@ fn marked(list: &Value) -> Option<String> {
 #[test]
 fn defaults_on_hides_and_adds_the_persons_models_and_hands_the_agents_own_lists_beside() {
     let mut prefs = default_preferences();
-    prefs.agent_defaults.insert("claude".to_string(), agent_defaults(json!({ "models": { "hide": ["claude-opus-5-5"], "custom": ["claude-opus-6-preview"] } })));
+    prefs.agent_defaults.insert("claude".to_string(), wsp_wire::types::thread_defaults::Fields::new(agent_defaults(json!({ "models": { "hide": ["claude-opus-5-5"], "custom": ["claude-opus-6-preview"] } }))));
     let c = json_of(&AgentsArea::defaults_on(&claude_table(), &prefs, None).catalog);
     let models: Vec<String> = c["models"].as_array().expect("models").iter().map(|m| m["value"].as_str().expect("a value").to_string()).collect();
     assert!(!models.contains(&"claude-opus-5-5".to_string()), "a hidden model leaves the picker");
@@ -538,7 +538,7 @@ fn defaults_on_hides_and_adds_the_persons_models_and_hands_the_agents_own_lists_
 fn defaults_on_carries_what_an_open_list_cannot_mark() {
     let open = table("opencode", "OpenCode", json!({ "permissionModes": [{ "value": "auto", "label": "Auto" }] }));
     let mut prefs = default_preferences();
-    prefs.agent_defaults.insert("opencode".to_string(), agent_defaults(json!({ "model": "anthropic/claude-sonnet-5", "effort": "high" })));
+    prefs.agent_defaults.insert("opencode".to_string(), wsp_wire::types::thread_defaults::Fields::new(agent_defaults(json!({ "model": "anthropic/claude-sonnet-5", "effort": "high" }))));
     let got = AgentsArea::defaults_on(&open, &prefs, None);
     assert_eq!(got.open_model.as_deref(), Some("anthropic/claude-sonnet-5"));
     assert_eq!(got.open_effort.as_deref(), Some("high"));

@@ -9,6 +9,7 @@ description = "The host's words: every sentence a person reads, the refusal and 
 
 [dependencies]
 wsp-wire = { path = "../wsp-wire" }
+wsp-frames = { path = "../../../daemon/crates/wsp-frames" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
 indexmap = { version = "2", features = ["serde"] }

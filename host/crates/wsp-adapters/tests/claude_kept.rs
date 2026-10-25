@@ -47,7 +47,7 @@ fn completed(input: u64, cost: f64) -> TurnResult {
         cost_usd: Some(n(cost)),
         tokens: Some(TurnTokens { input: n(input as f64), output: n((input / 2) as f64), cached: Some(n(0.0)), cache_write: Some(n(0.0)), reasoning: Some(n(0.0)), context: Some(n(15.0)), window: Some(n(200_000.0)) }),
         model: Some("claude-x".into()),
-        models: Some(vec![TurnResultModelsItem { model: "claude-x".into(), tokens: UsageTokens { input, output: input / 2, cached: 0, cache_write: 0, reasoning: 0 }, cost_usd: Some(n(cost)) }]),
+        models: Some(vec![TurnResultModelsItem { model: "claude-x".into(), tokens: UsageTokens { input: JsNumber(input as f64), output: JsNumber((input / 2) as f64), cached: 0.into(), cache_write: 0.into(), reasoning: 0.into() }, cost_usd: Some(n(cost)) }]),
         text: Some("ok".into()),
         error: None,
         unreached: None,

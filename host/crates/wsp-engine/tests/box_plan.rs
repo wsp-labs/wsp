@@ -65,6 +65,7 @@ async fn says_what_a_box_can_and_cannot_do() {
         // network and published ports of its own.
         copies: true,
         own_network: true,
+        sizes_last: true,
         sizes: vec![
             offer("small", 2.0, 4096.0, 0.018),
             offer("default", 4.0, 8192.0, 0.036),

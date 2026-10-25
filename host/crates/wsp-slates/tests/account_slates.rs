@@ -906,7 +906,7 @@ fn a_nap_reaches_the_slates() {
 fn parse_hash_reply_reads_the_daemons_reply() {
     // slates.ts:66: the reply parsed as FsHashReply.
     let read = parse_hash_reply(json!({ "files": { "a.sh": "0123456789abcdef0123" }, "outside": ["/x"] })).unwrap();
-    assert_eq!(read.outside, vec!["/x".to_string()]);
+    assert_eq!(read.outside, vec!["/x".to_string()].into());
     assert!(parse_hash_reply(json!({ "nope": 1 })).is_err());
 }
 
