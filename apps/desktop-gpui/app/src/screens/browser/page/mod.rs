@@ -149,8 +149,37 @@ impl Page {
             return Err(why.to_owned());
         }
         let dir = cx.try_global::<DataDir>().cloned().ok_or("no folder is set for the pages' data")?;
-        let (tx, mut rx) = mpsc::unbounded::<Raw>();
+        let (tx, rx) = mpsc::unbounded::<Raw>();
         let native = native::Native::new(url, dir, tx, window, cx)?;
+        Ok(Page::holding(native, rx, url, zoom, window, cx))
+    }
+
+    /// A slate frame's page: `shell` given as text to a web view of its own that keeps nothing and goes nowhere, on
+    /// `ground` where the platform draws no web view clear. Hidden until its slot is drawn. `trusted_types` false asks
+    /// for an engine without them, which only the frame check does.
+    pub fn sealed(
+        shell: &str,
+        ground: gpui_kit::Rgba,
+        trusted_types: bool,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Result<Entity<Page>, String> {
+        if let Road::SystemBrowser(why) = road(window) {
+            return Err(why.to_owned());
+        }
+        let (tx, rx) = mpsc::unbounded::<Raw>();
+        let native = native::Native::sealed(shell, ground, trusted_types, tx, window, cx)?;
+        Ok(Page::holding(native, rx, "", 1., window, cx))
+    }
+
+    fn holding(
+        native: native::Native,
+        mut rx: mpsc::UnboundedReceiver<Raw>,
+        url: &str,
+        zoom: f32,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Entity<Page> {
         let handle = Window::window_handle(window);
         let (scale, window_zoom) = (window.scale_factor(), window.zoom());
         let page = cx.new(|cx: &mut Context<Page>| {
@@ -189,15 +218,20 @@ impl Page {
             }
         });
         page.update(cx, |p, _| p.on(|n| n.set_zoom(zoom, scale, window_zoom)));
-        Ok(page)
+        page
     }
 
     /// The slot the pane leaves for the page: white, as a page's ground is, so a corner a cut leaves square reads as
     /// the page. A press replayed from the page lands here and focuses the pane.
     pub fn slot(page: &Entity<Page>, cx: &App) -> impl IntoElement {
+        Page::slot_on(page, gpui_kit::white(), cx)
+    }
+
+    /// The same slot on `ground`: a slate frame's is the panel's own.
+    pub fn slot_on(page: &Entity<Page>, ground: gpui_kit::Hsla, cx: &App) -> impl IntoElement {
         let hitbox = page.read(cx).hitbox.clone();
         let this = page.downgrade();
-        div().id("page-slot").track_focus(&page.read(cx).focus).flex_1().min_h_0().bg(gpui_kit::white()).child(
+        div().id("page-slot").track_focus(&page.read(cx).focus).flex_1().min_h_0().bg(ground).child(
             canvas(
                 move |bounds, window, _| {
                     let inserted = window.insert_hitbox(bounds, HitboxBehavior::Normal);
@@ -519,10 +553,33 @@ pub fn stays(url: &str) -> bool {
     super::words::window_road(url) != super::words::WindowRoad::Ask
 }
 
+/// Where a slate frame's web view may go: the shell it was given and the frames the seal makes under it, never an
+/// address. WebKit names the text it was given and a srcdoc frame about:blank and about:srcdoc.
+pub fn sealed_stays(url: &str) -> bool {
+    matches!(url, "about:blank" | "about:srcdoc")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use gpui_kit::{point, px, size};
+
+    #[test]
+    fn a_sealed_page_goes_nowhere_but_its_own_shell_and_frames() {
+        for url in ["about:blank", "about:srcdoc"] {
+            assert!(sealed_stays(url), "{url}");
+        }
+        for url in [
+            "http://127.0.0.1:4400/",
+            "https://acme.test/",
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "about:blankx",
+            "data:text/html,<p>x</p>",
+        ] {
+            assert!(!sealed_stays(url), "{url}");
+        }
+    }
 
     #[test]
     fn device_edges_meet_at_a_fractional_scale() {

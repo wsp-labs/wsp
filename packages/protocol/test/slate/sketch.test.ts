@@ -98,7 +98,7 @@ describe("the sketch", () => {
 
 describe("the catalog", () => {
   it("keeps the index under its budget and its example valid", () => {
-    expect(slateTokens(slateCatalog())).toBeLessThan(SLATE_LIMITS.catalogIndexTokens);
+    expect(slateTokens(slateCatalog(undefined, { look: true }))).toBeLessThan(SLATE_LIMITS.catalogIndexTokens);
     for (const said of ["short labels, no emoji.", "in sentence case, never bold text.", "Show a run's json fields, never its raw out; times through date(), time() or ago()."]) expect(slateCatalog(), said).toContain(said);
     expect(slateCatalog()).toContain("One in a file stays there for the run to read, never you.");
     expect(slateCatalog()).not.toMatch(/Zingzy|repos\/[a-z]+\/wsp/i);
@@ -142,6 +142,8 @@ describe("the catalog", () => {
     // A guessed name answers the index too, which small models never asked for by name.
     expect(slateCatalog("dashboards")).toMatch(/^dashboards is not in the catalog\. .* The whole index:\n\nSlate kit wsp\/2/s);
     expect(slateCatalog("dashboards")).toContain(slateCatalog());
+    expect(slateCatalog("dashboards", { look: true })).toContain(slateCatalog(undefined, { look: true }));
+    expect(slateCatalog("dashboards", { look: true })).not.toContain(slateCatalog());
     expect(slateCatalog("runs")).toContain("once: a start while it still runs is skipped; without once it stops and starts again.");
     expect(slateCatalog("runs")).toContain("at the write for an every= run, at the first press or <when> for the rest. Until then it reads held; allowing it starts it at once.");
     expect(slateCatalog()).toContain("bigger: resend the whole slate with if_version.");

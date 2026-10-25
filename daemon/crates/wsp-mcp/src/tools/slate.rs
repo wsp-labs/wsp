@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! `slate_catalog`, `slate_write`, `slate_state` and `slate_read`: each forwards its arguments to one host op and
 //! answers the op's text, so the compiler, the validator, the sketch and the catalog live on the host alone.
+//! `slate_look` answers the picture the app on the host's computer drew, and its size under it.
 
 use std::fmt;
 use std::sync::Arc;
@@ -12,6 +13,7 @@ use serde_json::value::RawValue;
 use serde_json::{Map, Value};
 
 use super::named::thread_of;
+use super::said::js_number;
 use super::{input, turn_token_env, Answer, Refused, Tool};
 use crate::client::Client;
 use crate::failure::Failure;
@@ -33,7 +35,13 @@ pub const STATE: Tool = Tool {
     call: |host, args| Box::pin(state(host, args)),
 };
 /// The slate's tools by name, which a server for a thread with no slate leaves off.
-pub const NAMES: [&str; 4] = [CATALOG.name, WRITE.name, STATE.name, READ.name];
+pub const NAMES: [&str; 5] = [CATALOG.name, WRITE.name, STATE.name, READ.name, LOOK.name];
+
+pub const LOOK: Tool = Tool {
+    name: "slate_look",
+    listed: include_str!(concat!(env!("OUT_DIR"), "/record/tools/slate_look.json")),
+    call: |host, args| Box::pin(look(host, args)),
+};
 
 pub const READ: Tool = Tool {
     name: "slate_read",
@@ -82,6 +90,29 @@ pub struct StateIn {
     pub start: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub if_version: Option<i64>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+pub struct LookIn {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thread: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<i64>,
+}
+
+/// What a look drew, as the host answers it, each number as the host wrote it; the picture rides as the content's
+/// image and leaves the rest.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Drawn {
+    #[serde(skip_serializing)]
+    pub png: String,
+    pub width: serde_json::Number,
+    pub height: serde_json::Number,
+    pub scale: serde_json::Number,
+    pub theme: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub whole: Option<serde_json::Number>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -221,6 +252,30 @@ async fn read(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     answered(&client, "slates.read", asked).await
 }
 
+async fn look(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
+    let LookIn { thread, width } = input("slate_look", arguments)?;
+    let client = host.client().await?;
+    let mut asked = target(&host, &client, thread).await?;
+    put(&mut asked, "width", width);
+    let drawn = client.request::<Drawn>("slates.look", asked).await?;
+    let words = crate::record::words();
+    let height = js_number(drawn.height.as_f64().unwrap_or_default());
+    let mut text = words
+        .slate_look
+        .replace("{width}", &js_number(drawn.width.as_f64().unwrap_or_default()))
+        .replace("{height}", &height)
+        .replace("{scale}", &js_number(drawn.scale.as_f64().unwrap_or_default()))
+        .replace("{theme}", &drawn.theme);
+    if let Some(whole) = &drawn.whole {
+        text = format!(
+            "{text} {}",
+            words.slate_look_cut.replace("{height}", &height).replace("{whole}", &js_number(whole.as_f64().unwrap_or_default()))
+        );
+    }
+    let image = Some(drawn.png.clone());
+    Ok(Answer { image, ..Answer::text(text, &drawn) })
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::held::to_the_record;
@@ -271,16 +326,39 @@ mod tests {
     }
 
     /// Each answer passes through whole, so what is held is the shape the host's answer is read as.
+    #[derive(schemars::JsonSchema)]
+    #[allow(dead_code)]
+    struct Looked {
+        width: f64,
+        height: f64,
+        scale: f64,
+        theme: String,
+        whole: Option<f64>,
+        path: Option<String>,
+    }
+
+    #[test]
+    fn a_look_answers_its_picture_first_and_its_size_beside_it() {
+        let drawn: Drawn =
+            serde_json::from_str(r#"{"id":3,"ok":true,"png":"iVBORw0KGgo=","width":400,"height":812,"scale":2,"theme":"graphite"}"#)
+                .unwrap();
+        assert_eq!(drawn.png, "iVBORw0KGgo=");
+        assert_eq!(serde_json::to_string(&drawn).unwrap(), r#"{"width":400,"height":812,"scale":2,"theme":"graphite"}"#);
+        let cut: Drawn = serde_json::from_str(r#"{"png":"x","width":540,"height":2000,"scale":1,"theme":"paper","whole":9000}"#).unwrap();
+        assert_eq!(serde_json::to_string(&cut).unwrap(), r#"{"width":540,"height":2000,"scale":1,"theme":"paper","whole":9000}"#);
+    }
+
     #[test]
     fn its_structs_are_the_recorded_schemas() {
         to_the_record::<CatalogIn, Catalog>(CATALOG.listed);
         to_the_record::<WriteIn, Wrote>(WRITE.listed);
         to_the_record::<StateIn, Stated>(STATE.listed);
         to_the_record::<ReadIn, Read>(READ.listed);
+        to_the_record::<LookIn, Looked>(LOOK.listed);
     }
 
     #[test]
-    fn the_four_entries_fit_the_budget_of_4400_characters() {
+    fn the_five_entries_fit_the_budget_of_5200_characters() {
         for cloud in [false, true] {
             let total: usize = TOOLS
                 .iter()
@@ -292,7 +370,7 @@ mod tests {
                     serde_json::to_string(&entry).unwrap().chars().count()
                 })
                 .sum();
-            assert!(total < 4400, "the slate tools list {total} characters with the cloud {}", if cloud { "on" } else { "off" });
+            assert!(total < 5200, "the slate tools list {total} characters with the cloud {}", if cloud { "on" } else { "off" });
         }
     }
 

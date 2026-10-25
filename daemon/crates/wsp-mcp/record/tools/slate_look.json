@@ -1,0 +1,114 @@
+{
+  "cloudOff": {
+    "name": "slate_look",
+    "description": "A picture of this thread's slate as the person sees it, in their theme and panel width. Look once after a frame or a big change, not each patch.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "thread": {
+          "type": "string",
+          "description": "another thread's id"
+        },
+        "width": {
+          "type": "integer",
+          "description": "280 to 1600 px, else the panel's"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        },
+        "scale": {
+          "type": "number"
+        },
+        "theme": {
+          "type": "string"
+        },
+        "whole": {
+          "type": "number"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "width",
+        "height",
+        "scale",
+        "theme"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": true
+    }
+  },
+  "cloudOn": {
+    "name": "slate_look",
+    "description": "A picture of this thread's slate as the person sees it, in their theme and panel width. Look once after a frame or a big change, not each patch.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "thread": {
+          "type": "string",
+          "description": "another thread's id"
+        },
+        "width": {
+          "type": "integer",
+          "description": "280 to 1600 px, else the panel's"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        },
+        "scale": {
+          "type": "number"
+        },
+        "theme": {
+          "type": "string"
+        },
+        "whole": {
+          "type": "number"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "width",
+        "height",
+        "scale",
+        "theme"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": true
+    }
+  }
+}

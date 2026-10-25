@@ -7,6 +7,7 @@
 
 mod acts;
 pub mod consent;
+pub mod frame_check;
 pub mod model;
 pub mod pieces;
 mod view;
