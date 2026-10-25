@@ -22,11 +22,11 @@
         "content": [
           {
             "type": "text",
-            "text": "no thread thread-7f3a9c21e4b5"
+            "text": "no thread thread-<id-1>"
           }
         ],
         "structuredContent": {
-          "error": "no thread thread-7f3a9c21e4b5",
+          "error": "no thread thread-<id-1>",
           "class": "usage",
           "exit": 3
         },
