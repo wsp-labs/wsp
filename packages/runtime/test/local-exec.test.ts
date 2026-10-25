@@ -656,6 +656,27 @@ describe("a real turn's process group", () => {
     expect(await Promise.all([collect(kept.lines), collect(dropped.lines)])).toEqual([["seed", "late"], ["seed"]]);
   }, 20_000);
 
+  it("a wait already refused while an earlier line is still held drops its line and leaves no unhandled rejection", async () => {
+    const unhandled: unknown[] = [];
+    const note = (reason: unknown): void => void unhandled.push(reason);
+    process.on("unhandledRejection", note);
+    try {
+      const stream = ended(localExecStream({ root, runDir })("cat", { env: {}, input: ["seed"] }));
+      let due: () => void = () => {};
+      stream.writeAfter!("first", new Promise<void>(resolve => (due = resolve)));
+      stream.writeAfter!("never", Promise.reject(new Error("stopped")));
+      await new Promise(resolve => setTimeout(resolve, 100));
+      expect(unhandled).toEqual([]);
+      due();
+      await vi.waitUntil(() => readFileSync(`${stream.run!}.in`, "utf8") === "seed\nfirst\n", { timeout: 5_000 });
+      stream.closeInput();
+      expect(await collect(stream.lines)).toEqual(["seed", "first"]);
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", note);
+    }
+  }, 20_000);
+
   it("a line held after the seed with the same words as one the child already read reaches it again, and a write meanwhile goes after it", async () => {
     const stream = ended(localExecStream({ root, runDir })("cat", { env: {}, input: ["seed"] }));
     stream.writeAfter!("yes", Promise.resolve());
