@@ -8,12 +8,13 @@ state survives anything but the books the caller holds for one turn.
 ## fields (fields.ts)
 
 - `rec`: an object only. Array, null, string, number, bool and absence are `None` (fields.ts:5).
-- `string`: any JSON string, `""` included. `num`: any JSON number (fields.ts:15 rejects NaN and infinities, which
-  JSON cannot carry). `str_arr`: an array's string items in order, every other item dropped; `Some(vec![])` for an
+- `string`: any JSON string, `""` included. `num`: any finite JSON number (fields.ts:15). `JSON.parse` reads `1e999` as
+  Infinity, so in the TS such a line parses and that field reads as absent; serde_json refuses the line. The CLI cannot
+  write one (`JSON.stringify(Infinity)` is `null`), so the port drops such a line as not JSON: an accepted difference. `str_arr`: an array's string items in order, every other item dropped; `Some(vec![])` for an
   array of none, `None` for anything not an array (fields.ts:19).
 - `harness_of(init)`: `slash_commands` (str_arr), `permissionMode` (string), `agents` (str_arr). `None` only where all
   three are absent; an empty array is present (fields.ts:23-33).
-- `parse_line(raw)`: trim; must start with `{`; must parse; must be an object; its `type` must be a string. Anything
+- `parse_line(raw)`: trim as JS does (rule R1); must start with `{`; must parse; must be an object; its `type` must be a string. Anything
   else is `None`, never an error (fields.ts:35-46). A line `{"type":1}` is `None`.
 
 ## tokens (tokens.ts)
@@ -26,17 +27,22 @@ state survives anything but the books the caller holds for one turn.
 - `plus_tokens(None, b) = b` unchanged, context and window included. Otherwise input and output add; each of cached,
   cacheWrite, reasoning is present where either side has it, absent sides counting 0; context and window are dropped
   (tokens.ts:25-29).
-- `usage_of`: every count present, absent ones 0 (tokens.ts:32). UsageTokens holds u64: the counts are whole tokens.
+- `usage_of`: every count present, absent ones 0 (tokens.ts:32). UsageTokens holds u64: the CLI writes whole token
+  counts, and the TS passing a fractional or negative one through is not ported (a count below 0 reads 0, a fraction
+  is cut).
 
 ## limits (limits.ts)
 
 - Kinds (limits.ts:8): five_hour→session, seven_day→week, seven_day_opus→week_opus, seven_day_sonnet→week_sonnet,
-  seven_day_overage_included→overage, overage→overage. Any other type name adds no window.
+  seven_day_overage_included→overage, overage→overage. Any other type name adds no window. The TS indexes a plain
+  object, so `constructor` or `toString` find an inherited member there; the port reads them as no kind and no status
+  (an after-port line, not copied).
 - Status (limits.ts:16): allowed→ok, allowed_warning→warning, rejected→reached; any other word leaves `status` off.
 - `limit_of(None) = None`. Windows come from `unifiedWindows` in its key order, then the top-level reading named by
   `rateLimitType` (the info object itself). A window needs a numeric `utilization`; the first window of each kind wins
   and later ones of that kind are dropped (so `overage` after `seven_day_overage_included` is dropped).
-  `usedPercent = round(utilization * 1000) / 10` with JS `Math.round` (halves round up: 0.12345 → 12.3, 1.5 → 150),
+  `usedPercent = round(utilization * 1000) / 10` with JS `Math.round`, whose halves go towards +infinity, negative ones
+  included (`f64::round` takes -1.5 to -2, JS to -1; rule R3),
   `resetsAt = resetsAt * 1000` where numeric. No window read is `None`. `account`, `plan`, `keyed` are never set here.
 - `note_rejected(None)` does nothing. Type key is `rateLimitType` or `""`. Overage counts where `isUsingOverage ===
   true` or `overageStatus` is `allowed` or `allowed_warning`. Not rejected, or overage: remove the key. Rejected with
@@ -68,7 +74,8 @@ state survives anything but the books the caller holds for one turn.
   slash dropped unless it is `/`. Answers it where it differs from `current`.
 - Write and Edit: `file_path` absolute, normalized; its folder (posix dirname). `None` where the folder is
   `harness_cwd` or not within it (`within`: equal, or starts with `folder/`; under `/` everything is within), and
-  where the shell left `harness_cwd` and the folder is within `current`. Any other tool: `None`.
+  where the shell left `harness_cwd` and the folder is within `current`. Any other tool: `None`. `current` and
+  `harness_cwd` are compared as given, never normalized (rule R7).
 
 ## plans (plans.ts)
 
@@ -89,7 +96,8 @@ state survives anything but the books the caller holds for one turn.
 
 - `note_child_call`: needs `message.id` (string) and `message.usage` (object), else nothing. The call's tokens are
   `usage_of(usage_tokens(usage))` with output raised to the largest output this message id has shown for this task.
-  `totals[task]` moves by (call - held) per field, so a message seen three times counts once at its largest output.
+  `totals[task]` moves by (call - held) per field. Only output keeps the largest seen; input, cached and cacheWrite are
+  the newest line's (rule R6).
   Map orders: first-seen.
 - `note_progress`: only `type: "system"` with subtype task_progress or task_notification, a string task_id, an object
   `usage`, and a task the caller says is a subagent. `said[task] = {toolUses: usage.tool_uses?, durationMs:
@@ -97,6 +105,22 @@ state survives anything but the books the caller holds for one turn.
 - `subagent_spent`: `None` where neither totals nor said has the task; else `{tokens?, toolUses?, durationMs?}`.
 - `subagent_spent_at_end`: `None` where subagent_spent is; else its value with durationMs taken from the end line's
   `usage.duration_ms` only, dropped where the end line has none (a kill).
+
+## Rules added for the port (numbered; each value printed by the TS at a3b870a6e)
+
+- **R1.** `parse_line` trims as JS `String.prototype.trim` does: U+FEFF and the Unicode spaces go, U+0085 stays. Every
+  trim in this crate that stands for a JS `trim()` uses that set, never `str::trim`.
+- **R2.** A lone surrogate escape (`\ud800` with no pair) parses in the TS; a Rust string cannot hold it, so it reads
+  as U+FFFD and the line still reads. A forced difference: a CLI that cuts a string inside a pair writes one.
+- **R3.** `usedPercent` for 0.285, 0.1235, 0.0005, 0.07, 0.29, 1.005, 0.12349, -0.0015 is 28.5, 12.4, 0.1, 7, 29, 100.5,
+  12.3, -0.1.
+- **R4.** `note_rejected`: a key removed and set again goes to the end; a type that is no string is `""`; only
+  `isUsingOverage: true` itself is overage; a `resetsAt` that is no number is `None`.
+- **R5.** `with_limit` replaces a limit already on the result; resets of 0 or below count (max of 0 and -5 is 0).
+- **R6.** A child call seen again: input, cached, cacheWrite the newest line's; output the largest.
+- **R7.** The cd forms, read off the TS: `cd /a//b/./c/` → `/a/b/c`; `cd ''`, `cd /a | ls`, `cd -- /a`, `cd /a #x` →
+  None; `cd /a&&ls` → `/a`; `cd /` and `cd /a/..` → `/`.
+- **R8.** TodoWrite keeps duplicate steps; a content or status that is no string reads `""` and pending.
 
 ## Rules against tests
 
@@ -119,3 +143,11 @@ state survives anything but the books the caller holds for one turn.
 | TodoWrite empty list is Steps([]) | `claude_reading::todo_write_reads_its_list_whole` |
 | spend counts a message once at its largest output | `claude_reading::child_calls_count_once_at_the_largest_output` |
 | spend at end drops progress duration | `claude_reading::spend_at_end_takes_the_run_time_from_the_end_line_alone` |
+| R1 | `claude_reading::parse_line_trims_as_javascript_does` |
+| R2 | `claude_reading::parse_line_reads_a_lone_surrogate_as_the_replacement_character` |
+| R3 | `claude_reading::used_percent_rounds_as_javascript_does` |
+| R4 | `claude_reading::note_rejected_moves_a_stop_set_again_to_the_end` |
+| R5 | `claude_reading::with_limit_replaces_the_limit_and_counts_a_zero_reset` |
+| R6 | `claude_reading::a_child_call_seen_again_keeps_the_newest_counts_but_the_largest_output` |
+| R7 | `claude_reading::a_cd_moves_the_shell_only_on_the_forms_the_ts_reads` |
+| R8 | `claude_reading::todo_write_keeps_duplicates_and_reads_odd_entries_as_blank_pending_steps` |

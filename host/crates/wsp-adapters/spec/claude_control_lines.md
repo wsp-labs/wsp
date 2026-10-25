@@ -8,13 +8,20 @@ TS at a3b870a6e: `packages/adapter-claude/src/{permissions,steers,handback}.ts` 
 ## Written lines are exact bytes
 
 Every `*_line` is `JSON.stringify` of the TS literal: keys in the literal's order, no spaces, `/` not escaped, non-ASCII
-as is. serde_json with `preserve_order` writes the same for these shapes. Lines (permissions.ts):
+as is. serde_json with `preserve_order` writes the same for the literals. A value parsed from text and written again
+(`ask.input`, `updatedInput`) is written as `JSON.stringify` writes it: keys that read as array indexes first in
+ascending order (wsp-wire's `js_key_order`, at every depth), numbers as `JsNumber::js_string`. The CLI's own lines
+already hold that order, so this bites only on text a person or the runtime wrote. Lines (permissions.ts):
 - `control_answer_line` (:122): `{"type":"control_response","response":{"subtype":"success","request_id":<askId>,"response":R}}`
   where R is `{"behavior":"deny","message":<denyMessage>}` for a deny option; for a mode option
   `{"behavior":"allow","updatedInput":I,"updatedPermissions":[{"type":"setMode","mode":<option.mode>,"destination":"session"}]}`;
   otherwise `{"behavior":"allow","updatedInput":I}`. I is `question_answer_input(...)` for an answer option where it
   gives one, else `JSON.parse(ask.input)`, and `{}` where that parses to null. An id `picked_options` does not resolve
   is `Err("<optionId> is not an option on this permission prompt")`. Only the first picked option decides the effect.
+  A mode option with no mode writes no `mode` key (rule C2). `ask.input` that is not JSON is an `Err` too (the TS
+  throws a SyntaxError; its words are not ported).
+- `control_allow_line(ask)` (:139) is `control_answer_line(ask, "allow", "")`; on a question, which offers no allow,
+  it is that `Err` (rule C3).
 - `set_mode_line` (:156) `{"type":"control_request","request_id":..,"request":{"subtype":"set_permission_mode","mode":..}}`.
 - `stop_task_line` (:164) `{..,"request":{"subtype":"stop_task","task_id":..}}`.
 - `interrupt_line` (:171) `{..,"request":{"subtype":"interrupt"}}`, with `,"cancel_queued":true` inside the request only
@@ -42,15 +49,17 @@ as is. serde_json with `preserve_order` writes the same for these shapes. Lines 
 - `read(event)`: an init line (type system, subtype init) ORs in `reports` from capability `msg_lifecycle_v1` and
   `cancels_queued` from `interrupt_cancel_queued_v1`, and answers false. A `command_lifecycle` line sets `reports`
   true and answers true whatever it names. For a known uuid: `queued` changes nothing; `started` marks it started;
-  any other state (completed, cancelled, a new word) removes it and, where it had not started, records it dropped.
+  any other state (completed, cancelled, a new word, a number, none at all) removes it and, where it had not started,
+  records it dropped. Drops are recorded in order and never deduplicated (rule C5).
   Unknown uuids change nothing.
 - `open = reports && any steer left`; `working = any steer started` (reports not needed).
 - `settle()`: the first call fixes the unread list as `dropped ++ not started` where reports, else `[]`; later calls
-  keep that list. Answers `reports && any not-started steer remains` on every call (not fixed).
+  keep that list, a report that comes later notwithstanding (rule C6). Answers `reports && any not-started steer remains` on every call (not fixed).
 - `tell_unread`: the first call emits `turn.unread{sessionId, ids}` where ids is the fixed list (or, unfixed, the list
   computed now) and non-empty; every later call emits nothing.
-- `steered_ids(taken)`: walk lines in order; skip any that does not parse as an object or whose type is not "user";
-  a user line with no string uuid clears the list; one with a uuid appends it unless present.
+- `steered_ids(taken)`: walk lines in order; skip any that does not parse as an object or whose type is not "user"
+  (case-sensitive); a user line with no string uuid (absent, null, a number) clears the list; one with a uuid appends
+  it unless present, `""` included (rule C7).
 
 ## HandbackBook (handback.ts)
 
@@ -68,14 +77,31 @@ as is. serde_json with `preserve_order` writes the same for these shapes. Lines 
 - `later_end`: a notification for a task already in notified.
 - `task_ended`: system lines only. task_notification reads `status`; task_updated reads `patch.status` and counts only
   `killed`. Map: completed→done, failed→failed, stopped and killed→stopped, else failed. Summary on a notification:
-  no handback key → `summary`; with handback → the report's warning, else its text, else NO_REPORT_LINE. An empty
-  summary is dropped.
+  no handback key → `summary`; with handback (`null` counts as present) → the report's warning where it has a string
+  one (a blank warning gives `""`, then dropped), else its text, else NO_REPORT_LINE. An empty summary is dropped. A
+  notification with no string status, or a task_updated with no patch, is `None`; the status words are case-sensitive
+  (rule C8).
 - `end_answer`: only a notification with tool_use_id and task_id of a known subagent; it marks notified. With a
   handback key: answer is the report (warning, blank line, text where warned) or NO_REPORT_LINE; with none and a
   backgrounded call ending completed or failed: answer is `summary` or `""`; otherwise `[]` (notified still marked).
   Records `answered[call]`. Deltas: with handback and no report, a note `NO_REPORT_LINE` under the call; with a report,
   a text delta of the report under the call unless last_text for the call trims equal to it; then always the
   tool_result `{text: answer, toolUseId: call, isError: status == "failed"}`.
+
+## Rules added for the port (numbered; each value printed by the TS at a3b870a6e)
+
+- **C1.** `updatedInput` for an input of `0`, `false`, `""`, `[]`, `null` is `0`, `false`, `""`, `[]`, `{}`.
+- **C2.** A mode option with no mode: `"updatedPermissions":[{"type":"setMode","destination":"session"}]`.
+- **C3.** `control_allow_line` on a question: `Err("allow is not an option on this permission prompt")`.
+- **C4.** `control_line` keeps `""` ids (`toolUseId`, `agent_id`) and drops ids that are no strings; a description
+  that is no string is no detail; a mode suggestion needs `type: "setMode"` and a string mode (`""` gives
+  `{id: "mode:", label: "", effect: mode, mode: ""}`), first of each mode only.
+- **C5.** Drops: `a` (no state), `b` (state 5), `c` ("weird"), `a` again after a re-add, then `d` still open: told
+  `[a, b, c, a, d]`.
+- **C6.** A settle before any report tells nothing, ever.
+- **C7.** `steered_ids`: `["", "a", ""]` gives `["", "a"]`; `[a, null, b, 5, c]` gives `[c]`.
+- **C8.** `task_ended`: a kill is stopped with no summary; `Completed` is failed; no status is `None`; `handback: null`
+  is NO_REPORT_LINE; a warning `""` gives no summary, a warning `W` gives `W`.
 
 ## Rules against tests
 
@@ -93,3 +119,11 @@ as is. serde_json with `preserve_order` writes the same for these shapes. Lines 
 | framed report unframed; refused hand-back drawn | `claude_control_lines::a_framed_report_is_unframed_and_a_refused_handback_drawn` |
 | task_ended word map and empty summary | `claude_control_lines::task_ended_maps_every_word_and_drops_an_empty_summary` |
 | end_answer once per report, note with no report | `claude_control_lines::end_answer_says_a_report_once_and_none_in_words` |
+| C1 | `claude_control_lines::an_answer_hands_back_any_parsed_input_but_null` |
+| C2 | `claude_control_lines::a_mode_option_with_no_mode_writes_no_mode_key` |
+| C3 | `claude_control_lines::allowing_a_question_unasked_is_refused` |
+| C4 | `claude_control_lines::an_ask_keeps_empty_ids_and_reads_only_string_mode_suggestions` |
+| C5 | `claude_control_lines::every_drop_is_told_in_order_and_never_deduped` |
+| C6 | `claude_control_lines::a_settle_before_any_report_tells_nothing_ever` |
+| C7 | `claude_control_lines::steered_ids_keep_the_empty_id_and_clear_on_a_line_with_no_string_uuid` |
+| C8 | `claude_control_lines::a_task_end_reads_each_word_exactly` |
