@@ -4,7 +4,8 @@
 use serde::Serialize;
 
 use crate::catalog::AgentMark;
-use crate::pending::{EditorId, McpRowTransport};
+use wsp_wire::views::preferences::EditorId;
+use wsp_wire::types::agents_report::McpRowTransport;
 
 /// marks/mark.ts:5.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

@@ -137,7 +137,7 @@ impl LaunchServerRoad {
     }
 
     /// The user file with each list joined into the folder's entry; `None` for Codex (mcp-launch.ts:226).
-    pub fn switches_put(self, text: Option<&str>, folder: &str, switches: &FolderSwitches) -> Option<Result<String, crate::pending::HostError>> {
+    pub fn switches_put(self, text: Option<&str>, folder: &str, switches: &FolderSwitches) -> Option<Result<String, wsp_words::exit::HostError>> {
         todo!()
     }
 

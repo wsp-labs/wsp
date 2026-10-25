@@ -92,8 +92,8 @@ pub static APT_UPDATE: LazyLock<String> = LazyLock::new(|| todo!());
 
 pub const HOMEBREW_TAG: &str = "6.0.21";
 pub const HOMEBREW_COMMIT: &str = "560147012b9678b42ef5e83b690f0895552d1366";
-pub const LINUXBREW_HOME: &str = crate::pending::HOMEBREW_HOME;
-pub const BREW_PREFIX: &str = crate::pending::HOMEBREW_PREFIX;
+pub const LINUXBREW_HOME: &str = wsp_wire::types::daemon_contract::HOMEBREW_HOME;
+pub const BREW_PREFIX: &str = wsp_wire::types::daemon_contract::HOMEBREW_PREFIX;
 pub static BREW_REPO: LazyLock<String> = LazyLock::new(|| todo!());
 pub static BREW_ENV: LazyLock<String> = LazyLock::new(|| todo!());
 pub static BREW: LazyLock<String> = LazyLock::new(|| todo!());

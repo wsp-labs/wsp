@@ -9,7 +9,10 @@ use crate::context::AgentContext;
 use crate::hooks::HookCarry;
 use crate::mcp_config::McpConfig;
 use crate::mcp_login::ServerSignInRoad;
-use crate::pending::{HostError, PageReach, Platform, SignInWay};
+use wsp_words::exit::HostError;
+use wsp_wire::types::agents_report::PageReach;
+use wsp_words::words::computer::Platform;
+use wsp_words::views::place_setup_words::SignInWay;
 use crate::plugins::PluginShelf;
 use crate::road_modules::InstallHomes;
 use crate::roads::{InstallRoad, RoadName};
@@ -419,13 +422,13 @@ pub fn node_at_least(floor: &str) -> String {
 }
 
 /// A road below the pin, for a computer whose Node is older than `node`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Below {
     pub node: String,
     pub road: InstallRoad,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct AtPin {
     pub road: InstallRoad,
     #[serde(skip_serializing_if = "Option::is_none")]

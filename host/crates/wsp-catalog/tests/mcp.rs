@@ -9,7 +9,7 @@ use wsp_catalog::mcp::{
     MergeOutcome, CODEX_TOML, GEMINI_SETTINGS_JSON, MCP_SERVERS_JSON, OPENCODE_JSON,
 };
 use wsp_catalog::mcp_travelled::FromTo;
-use wsp_catalog::pending::HostError;
+use wsp_words::exit::HostError;
 
 const HOME: &str = "/Users/dev";
 

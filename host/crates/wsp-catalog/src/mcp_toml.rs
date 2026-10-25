@@ -4,7 +4,7 @@
 use indexmap::IndexMap;
 
 use crate::mcp::{McpEditScope, McpEdited, McpMergeScope, McpMerged, McpServer, McpTransport, RewriteString};
-use crate::pending::HostError;
+use wsp_words::exit::HostError;
 
 /// A line without its trailing comment: `#` outside quotes ends it (mcp.ts:1263).
 pub fn uncomment_toml(line: &str) -> String {

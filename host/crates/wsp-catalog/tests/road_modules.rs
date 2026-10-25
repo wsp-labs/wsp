@@ -8,7 +8,8 @@ use indexmap::IndexMap;
 
 use wsp_catalog::catalog::catalog_tool_for;
 use wsp_catalog::linux_casks::{CaskSums, LinuxCask};
-use wsp_catalog::pending::{PNPM_HOME, TOOL_PREFIX};
+use wsp_wire::types::daemon_contract::PNPM_HOME;
+use wsp_wire::types::daemon_contract::TOOL_PREFIX;
 use wsp_catalog::road_modules::{as_linuxbrew, install_env, install_homes, road_module, road_module_named, InstallHomes, APT_BIN, BREW_PREFIX, CARGO_BIN, FROM_A_READABLE_DIR, INSTALL_HOMES};
 use wsp_catalog::roads::{InstallRoad, PackageRoad, RoadName, GUEST_HOME, HOME_BIN, LOCAL_BIN, ROADS};
 

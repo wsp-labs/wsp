@@ -7,7 +7,7 @@ use std::sync::LazyLock;
 use serde::{Deserialize, Serialize};
 
 use crate::linux_casks::LinuxCask;
-use crate::pending::ToolPin;
+use wsp_wire::views::golden_image::ToolPin;
 
 pub const MIB: u64 = 1024 * 1024;
 
@@ -53,7 +53,7 @@ pub struct ReleaseAssets {
 }
 
 /// A package manager's global (roads.ts:58).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageRoad {
     pub package: String,
@@ -64,7 +64,7 @@ pub struct PackageRoad {
 }
 
 /// roads.ts:65.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "road", rename_all = "lowercase")]
 pub enum InstallRoad {
     Brew {
@@ -198,7 +198,7 @@ pub fn version_of(road: &InstallRoad) -> Option<String> {
 
 pub const GUEST_HOME: &str = "/root";
 pub const HOME_BIN: &str = "/root/.local/bin";
-pub const LOCAL_BIN: &str = crate::pending::TOOL_LINKS_DIR;
+pub const LOCAL_BIN: &str = wsp_wire::types::daemon_contract::TOOL_LINKS_DIR;
 pub const APT_ENV: &str = "export DEBIAN_FRONTEND=noninteractive";
 pub const CLAUDE_CONFIG_REL: &str = ".claude-cfg";
 pub const GUEST_REWRITES: [(&str, &str); 2] = [(".claude/", ".claude-cfg/"), (".claude.json", ".claude-cfg/.claude.json")];

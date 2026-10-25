@@ -3,7 +3,7 @@
 //! JavaScript writes it. Port of packages/catalog/src/jsonc.ts at a3b870a6e; the spec is spec/jsonc.md.
 use serde_json::{Map, Value};
 
-use crate::pending::HostError;
+use wsp_words::exit::HostError;
 
 /// A JSON object as the catalog reads one: keys in the order the text names them first.
 pub type JsonObject = Map<String, Value>;

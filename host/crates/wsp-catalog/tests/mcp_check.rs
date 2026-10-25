@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use wsp_catalog::catalog::mcp_agents;
 use wsp_catalog::mcp_check::{McpCheck, McpCheckWord};
-use wsp_catalog::pending::McpAuth;
+use wsp_wire::types::agents_report::McpAuth;
 
 const CLAUDE: McpCheck = McpCheck::Claude;
 const CODEX: McpCheck = McpCheck::Codex;

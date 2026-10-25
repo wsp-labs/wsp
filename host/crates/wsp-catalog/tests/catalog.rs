@@ -20,7 +20,15 @@ use wsp_catalog::catalog::{
 use wsp_catalog::catalog_data::agent_modules;
 use wsp_catalog::git_hosts::{runs_threads, THREAD_AGENTS};
 use wsp_catalog::linux_casks::{linux_casks, CURSOR, GCLOUD, KUBECTL};
-use wsp_catalog::pending::{pin_mismatch_line, AgentSignInKind, Arch, Platform, ToolPin, HOMEBREW_HOME, HOMEBREW_PREFIX, PNPM_HOME, TOOL_PREFIX};
+use wsp_words::words::image::pin_mismatch_line;
+use wsp_wire::types::agents_report::AgentSignInKind;
+use wsp_wire::views::golden_image::ToolPinArch as Arch;
+use wsp_words::words::computer::Platform;
+use wsp_wire::views::golden_image::ToolPin;
+use wsp_wire::types::daemon_contract::HOMEBREW_HOME;
+use wsp_wire::types::daemon_contract::HOMEBREW_PREFIX;
+use wsp_wire::types::daemon_contract::PNPM_HOME;
+use wsp_wire::types::daemon_contract::TOOL_PREFIX;
 use wsp_catalog::release_pins::RELEASE_PINS;
 use wsp_catalog::road_modules::{
     fixes_version, install_homes, reads_row_road, road_module, road_module_named, road_step, RoadNote, ToolRow, APT_INDEX, APT_UPDATE, BREW_ENV, BREW_PREFIX, CURL_NET, HOMEBREW_STEP,
@@ -166,11 +174,11 @@ fn s(text: &str) -> Option<String> {
 }
 
 fn pin_of(tag: &str, sha256: &str) -> ToolPin {
-    ToolPin { tag: tag.to_string(), sha256: Some(sha256.to_string()), ..Default::default() }
+    ToolPin { tag: tag.to_string(), sha256: Some(sha256.to_string()), arch: None, latest: None }
 }
 
 fn tag_pin(tag: &str) -> ToolPin {
-    ToolPin { tag: tag.to_string(), ..Default::default() }
+    ToolPin { tag: tag.to_string(), sha256: None, arch: None, latest: None }
 }
 
 fn package_road(package: &str, version: Option<&str>, pin: Option<ToolPin>) -> PackageRoad {
@@ -517,7 +525,7 @@ mod catalog {
                 "d".repeat(64)
             )
         );
-        let armed = ToolPin { arch: Some(Arch::X86_64), ..pin.clone() };
+        let armed = ToolPin { arch: Some(Arch::X8664), ..pin.clone() };
         let release = install(&release_road("cli/cli", None, Some(armed.clone())), "gh").unwrap();
         assert!(release.contains("tag='v2.86.0'"));
         assert!(release.contains(&format!("if [ \"$arch\" = 'x86_64' ]; then {}; fi", pin_check_line("$asset", "$tag", &sum))));
@@ -920,7 +928,7 @@ mod catalog {
         };
         let recorded = |arch: Option<Arch>, sha256: &str| ToolPin { tag: "v0.4.1".to_string(), sha256: Some(sha256.to_string()), arch, latest: None };
         // An x86_64 builder's sum on an arm machine: the arm file is never held to it, and its own sum and arch are printed for the record.
-        let other = run("aarch64", recorded(Some(Arch::X86_64), &"c".repeat(64)));
+        let other = run("aarch64", recorded(Some(Arch::X8664), &"c".repeat(64)));
         assert_eq!(stderr_of(&other), "");
         assert_eq!(other.status.code(), Some(0));
         assert!(stdout_of(&other).contains(&format!("WSP_ROAD release spoo_0.4.1_linux_arm64 {sum} v0.4.1 aarch64")));
