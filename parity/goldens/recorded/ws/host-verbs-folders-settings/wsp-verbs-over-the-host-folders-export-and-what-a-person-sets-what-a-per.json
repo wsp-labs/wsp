@@ -15,16 +15,23 @@
           "kind": "computer",
           "name": "<computer>",
           "default": true,
-          "os": "<machine>",
-          "shape": "<machine>",
-          "diskFreeBytes": "<machine>",
+          "os": "Linux 7.0.0-1014-aws",
+          "shape": {
+            "cpu": 16,
+            "memMb": 31744
+          },
+          "diskFreeBytes": "<moving>",
           "engine": "none",
           "home": "<tmp>/home",
           "present": true,
           "takesForks": false,
           "buildsImages": false,
-          "cap": "<machine>",
-          "capDefault": "<machine>",
+          "cap": {
+            "threads": 16
+          },
+          "capDefault": {
+            "threads": 16
+          },
           "turnLimitMs": null,
           "turnLimitDefault": null,
           "spawn": {
@@ -51,16 +58,23 @@
         "kind": "computer",
         "name": "<computer>",
         "default": true,
-        "os": "<machine>",
-        "shape": "<machine>",
-        "diskFreeBytes": "<machine>",
+        "os": "Linux 7.0.0-1014-aws",
+        "shape": {
+          "cpu": 16,
+          "memMb": 31744
+        },
+        "diskFreeBytes": "<moving>",
         "engine": "none",
         "home": "<tmp>/home",
         "present": true,
         "takesForks": false,
         "buildsImages": false,
-        "cap": "<machine>",
-        "capDefault": "<machine>",
+        "cap": {
+          "threads": 1
+        },
+        "capDefault": {
+          "threads": 16
+        },
         "settings": {
           "threads": 1
         },

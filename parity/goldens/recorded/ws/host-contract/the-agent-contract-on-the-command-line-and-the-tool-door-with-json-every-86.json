@@ -9,30 +9,22 @@
     {
       "id": 2,
       "ok": true,
-      "sessions": []
-    },
-    {
-      "id": 3,
-      "ok": false,
-      "error": "no such workspace: <ws-1>",
-      "kind": "not-found"
-    },
-    {
-      "id": 4,
-      "ok": false,
-      "error": "no such workspace: <ws-1>",
-      "kind": "not-found"
-    },
-    {
-      "id": 5,
-      "ok": false,
-      "error": "no such workspace: <ws-1>",
-      "kind": "not-found"
-    },
-    {
-      "id": 6,
-      "ok": true,
-      "sessions": []
+      "agent": {
+        "id": "claude",
+        "name": "Claude Code",
+        "installed": true,
+        "version": "2.1.296",
+        "pinned": "2.1.296",
+        "road": "own",
+        "path": "/usr/bin/claude",
+        "signIn": "none",
+        "signInRoad": "token",
+        "wspTools": false,
+        "setup": {
+          "on": true,
+          "envNames": []
+        }
+      }
     }
   ],
   "events": []

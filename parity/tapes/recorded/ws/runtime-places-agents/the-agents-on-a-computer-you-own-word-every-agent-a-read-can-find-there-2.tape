@@ -2,4 +2,4 @@
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"target":{"placeId":"p_00000001"},"id":2,"op":"agents.read"}}
-{"out":{"id":2,"ok":true,"report":{"target":{"placeId":"p_00000001"},"home":"/home/maya","user":"maya","readAt":"2026-10-25T15:21:33.213Z","agents":[],"skills":[],"servers":[],"refused":[],"reach":"none"}}}
+{"out":{"id":2,"ok":true,"report":{"target":{"placeId":"p_00000001"},"home":"/home/maya","user":"maya","readAt":"2026-10-25T17:47:15.555Z","agents":[],"skills":[],"servers":[],"refused":[],"reach":"none"}}}

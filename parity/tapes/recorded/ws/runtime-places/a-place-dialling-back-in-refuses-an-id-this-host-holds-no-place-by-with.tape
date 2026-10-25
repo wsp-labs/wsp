@@ -1,3 +1,3 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/places.test.ts > a place dialling back in > refuses an id this host holds no place by, with its own key over the sentence it refused with","outs":"recorded"}}
-{"in":{"placeId":"p_00000001","nonce":"n7qfPuS7ntbqDrGzNzSg/07jOicWY2c+fixVgjQ2G8c=","id":1,"op":"place.auth"}}
-{"out":{"id":1,"ok":false,"error":"this host holds no place by that id; join it with a code from wsp add","kind":"auth","hostPublicKey":"MCowBQYDK2VwAyEAcLAfJaSRPcNfmuJwhG+RnAeav2pWQBXizYbHNOOMOaI=","signature":"xYQnqKEqpW/huPf5QKVyqloMAofXinnzhlLbugQT/VOb7DBT8HzfmoRluF+t/1XV7X1yJvzpOpu4UtihGKgdBQ=="}}
+{"in":{"placeId":"p_00000001","nonce":"kwIgrr2Pj/ZNsIX1fye4O7fxqyoAaNBLd0d0j6nq0eI=","id":1,"op":"place.auth"}}
+{"out":{"id":1,"ok":false,"error":"this host holds no place by that id; join it with a code from wsp add","kind":"auth","hostPublicKey":"MCowBQYDK2VwAyEAgDFh9l+d1zxTuNtK4KQ3JDdvr9mrcKCa4+1IIMBFzas=","signature":"Ac3C7dpTs1MMxgMWgTmIMu1PW3EIqxn+Rd3tajZ0nQygOsw4m873i+/CEPIBfRulsehJ47R3W5v8+5e3FihiAw=="}}

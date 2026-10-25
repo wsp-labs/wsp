@@ -1,5 +1,5 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/serve.test.ts > the key a native client pins before it sends anything > refuses a place's own handshake on a socket that already agreed a key, so one key stands per socket","outs":"recorded"}}
-{"in":{"nonce":"98tkTLNy6hhhDRWpUfk4eX5ovZJ1AFj+sM19JQT9tww=","ephemeral":"LZp0MQJQaNfbtM8PV/YeHcS3VrjCojsJpkVEWU26h1c=","id":1,"op":"seal.open"}}
-{"out":{"id":1,"ok":true,"nonce":"Co7ppH6tl/q3TQOx0oAmaTDRnIZsdV44N7xD8JSPBQM=","hostPublicKey":"MCowBQYDK2VwAyEAyY9OdwCzwpds32yWBcn3Kkku9fa8zsc+3ASYqUc2U5E=","signature":"aNKn1FTtuZYb/bncOU/iEw7X00GatkR7NUFuJz1bRZ6PwR+mb++xaoMG4imviJd72Bc0c5euBGiEWI/F+ZnVCg==","ephemeral":"lsDWZfXHd5MnBH/Gt5MqAdFSiL0ABxthya5UIykhK1I="}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEACjjWBMTkd+EovLAxtCtkTvF0l2hgGt/gxXrpctpBMeM=","nonce":"ATk72AMNWyRDMeWZsM+5Lr/DapcOFt4RzN8SWRnQ/AE=","ephemeral":"oMLpWcJ8xFtS+O0CwrLM7Rkjkx7SWVCh4a6QDb/6rzw=","id":2,"op":"place.join"}}
+{"in":{"nonce":"L3EVyn0IwkQgTEIHSF4n1ma7z0YyLRhT+8MfauL67yo=","ephemeral":"65l27gzsMTdd6wQ1Q34fhporwwckQZwJUw2bySWYAAU=","id":1,"op":"seal.open"}}
+{"out":{"id":1,"ok":true,"nonce":"OPb4S8CINmK3GQU5D5qwstUqg3+l1wozbZ1biudxk20=","hostPublicKey":"MCowBQYDK2VwAyEAf6hNOogSoFivJIXdmOE6SfCVvaauLDP+FEpei/VC5lw=","signature":"GO4XRLQkPRzZF0NmM1bgfcQp/K2bUiP76Xyi9FYlW2HL7PXEbz5zhSSlImV9Fg9P3tsgyD85Qi/0ey0NAr01Bw==","ephemeral":"pOue+YP2kcvWXZxOH2nTFYms40a5V1rIj5A+on1LYX4="}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEAGGMCLqCeJqwkGncOtPZcB0iXafkrSlAbzdNXaK7za2g=","nonce":"SMLI2LAWUQI+cmJqr3DyT0E43G31mCmLkakcQtt6AY4=","ephemeral":"LDKwUyQZBW0aaVcuXwFz+lmFHVBUyEfuADhOJn62Xko=","id":2,"op":"place.join"}}
 {"out":{"id":2,"ok":false,"error":"unauthorized","kind":"auth"}}

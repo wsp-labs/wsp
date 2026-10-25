@@ -8,8 +8,8 @@
     },
     {
       "id": 2,
-      "ok": true,
-      "file": "~/.codex/config.toml"
+      "ok": false,
+      "error": "no MCP server called local is in Claude Code's config there; wsp servers lists them"
     }
   ],
   "events": []

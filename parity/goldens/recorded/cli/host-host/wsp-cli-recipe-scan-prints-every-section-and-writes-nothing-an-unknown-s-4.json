@@ -192,7 +192,7 @@
                 "heavy": true,
                 "recommended": {
                   "value": "on",
-                  "why": "always on the image; <reading> on the machine, worth a question"
+                  "why": "always on the image; 469 MB on the machine, worth a question"
                 }
               },
               {
@@ -1125,7 +1125,7 @@
                 "heavy": true,
                 "recommended": {
                   "value": "on",
-                  "why": "always on the image; <reading> on the machine, worth a question"
+                  "why": "always on the image; 469 MB on the machine, worth a question"
                 }
               }
             ],
@@ -1166,9 +1166,19 @@
                       "size": 174080
                     },
                     {
+                      "id": "apt/gperf",
+                      "install": "export DEBIAN_FRONTEND=noninteractive; apt-get install -y -qq gperf",
+                      "size": 262144
+                    },
+                    {
                       "id": "apt/linux-base",
                       "install": "export DEBIAN_FRONTEND=noninteractive; apt-get install -y -qq linux-base",
                       "size": 353280
+                    },
+                    {
+                      "id": "apt/musl-tools",
+                      "install": "export DEBIAN_FRONTEND=noninteractive; apt-get install -y -qq musl-tools",
+                      "size": 60416
                     },
                     {
                       "id": "apt/python3-babel",

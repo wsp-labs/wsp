@@ -2,17 +2,25 @@
   "replies": [
     {
       "id": 1,
-      "ok": true,
-      "version": "<version>",
-      "road": "up"
+      "ok": false,
+      "error": "unauthorized",
+      "kind": "auth"
     },
     {
-      "id": 2,
-      "ok": true,
-      "code": "<code>",
-      "expiresAt": "<time>",
-      "hostKey": "<id-1>"
+      "parity": "no reply",
+      "id": "2"
+    },
+    {
+      "parity": "no reply",
+      "id": "3"
     }
   ],
-  "events": []
+  "events": [
+    {
+      "close": {
+        "code": 4401,
+        "reason": "unauthorized"
+      }
+    }
+  ]
 }

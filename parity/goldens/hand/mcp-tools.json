@@ -22,7 +22,7 @@
         "tools": [
           {
             "name": "computers",
-            "description": "Every computer this host holds, which is the whole of where work can run: the computer the app runs on and each box joined to it. A row carries what that computer last reported (cores, memory, free disk, the engine it has for a project's own containers) and whether it is connected right now. Every row carries its cap, threads at once on a computer (the number the person set, else one thread per <reading> of memory up to twice its cores), and running, every thread running there now on a computer; a row whose running meets its cap is full. A row whose copy of the image is building says which stage it is at, and one whose last build stopped says why. A project lives on a computer: on the computer the app runs on its threads run in the project's folder, and on a box they run on a machine forked from the image with the project inside. pending holds every add that has not reached Set up: how far it got, what was chosen for it, and why it stopped where one did. A thread's own token is answered Boat once it is added, where run with on starts a sub-thread, and from a folder the computers its projects are on, with no pending and no road.",
+            "description": "Every computer this host holds, which is the whole of where work can run: the computer the app runs on and each box joined to it. A row carries what that computer last reported (cores, memory, free disk, the engine it has for a project's own containers) and whether it is connected right now. Every row carries its cap, threads at once on a computer (the number the person set, else one thread per 2 GB of memory up to twice its cores), and running, every thread running there now on a computer; a row whose running meets its cap is full. A row whose copy of the image is building says which stage it is at, and one whose last build stopped says why. A project lives on a computer: on the computer the app runs on its threads run in the project's folder, and on a box they run on a machine forked from the image with the project inside. pending holds every add that has not reached Set up: how far it got, what was chosen for it, and why it stopped where one did. A thread's own token is answered Boat once it is added, where run with on starts a sub-thread, and from a folder the computers its projects are on, with no pending and no road.",
             "inputSchema": {
               "$schema": "http://json-schema.org/draft-07/schema#",
               "type": "object",
@@ -71,9 +71,26 @@
                       "default": {
                         "type": "boolean"
                       },
-                      "os": "<machine>",
-                      "shape": "<machine>",
-                      "diskFreeBytes": "<machine>",
+                      "os": {
+                        "type": "string"
+                      },
+                      "shape": {
+                        "type": "object",
+                        "properties": {
+                          "cpu": {
+                            "type": "number"
+                          },
+                          "memMb": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "cpu",
+                          "memMb"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "diskFreeBytes": "<moving>",
                       "engine": {
                         "type": "string",
                         "enum": [
@@ -747,8 +764,44 @@
                         ],
                         "additionalProperties": false
                       },
-                      "cap": "<machine>",
-                      "capDefault": "<machine>",
+                      "cap": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "threads": {
+                                "type": "integer",
+                                "minimum": 1
+                              }
+                            },
+                            "required": [
+                              "threads"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "machines": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "spendPerDayUsd": {
+                                "type": "number",
+                                "minimum": 0
+                              }
+                            },
+                            "required": [
+                              "machines",
+                              "spendPerDayUsd"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "capDefault": {
+                        "$ref": "#/properties/computers/items/properties/cap"
+                      },
                       "settings": {
                         "type": "object",
                         "properties": {
@@ -1103,7 +1156,7 @@
           },
           {
             "name": "computers_set",
-            "description": "Sets what the person may set on one computer and answers its row as it now reads, the same row computers lists: name, what a computer the person added is called from now, in every listing and wherever a computer is named, its id, its projects and its machines staying as they are, refused for the computer the app runs on and for a name another computer answers to; ssh, the login user@host the host reaches it by over ssh from now, for an update or a remove while its link is down and for the forward it dials back through, saved only once the computer that login reaches reads as this same one, its place file naming this computer and this host; threads, how many threads may run there at once, a new one waiting past it, except a turn a thread there follows to its end, not detached, which runs in that thread's slot (one per <reading> of that computer's memory up to twice its cores until it is set); nap, the minutes a machine there with no window of its own runs with no turn and no work before it naps and stops costing anything, waking on the next message (20 until it is set, 0 never naps it), which every machine there counts again from now and which the computer the app runs on does not take, since its threads run in folders; turn_limit, the hours one turn there may run before it is stopped, a send carrying it on from where it stopped (none on a computer the person owns until it is set, 0 is none), read at each turn's start; spawn, max_machines and max_depth, what the agents there may ask of this host where the folder or the machine they run in holds no switch of its own (on, up to 3 machines and 2 levels deep, until it is set), read at every ask so one made before the change follows it; machines and spend on a cloud, how many machines may run there at once and the dollars a day it may spend before it starts no new machine (3 and $10 until they are set); size on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as <cpu>x<memGb>, one of the sizes that cloud's row lists (the size its provider builds at until it is set); delete_after on a cloud, the minutes a finished sub-thread's machine stays before it is deleted, read at each finish, 0 deleting it once it is done (30 until it is set). A setting left out keeps what stands, and each word under reset takes that setting back to its default. The row carries cap, what runs there now, capDefault, what it reads by default, and settings, what the person set. A setting the computer's kind does not take, and a call that sets nothing, are refused in one line.",
+            "description": "Sets what the person may set on one computer and answers its row as it now reads, the same row computers lists: name, what a computer the person added is called from now, in every listing and wherever a computer is named, its id, its projects and its machines staying as they are, refused for the computer the app runs on and for a name another computer answers to; ssh, the login user@host the host reaches it by over ssh from now, for an update or a remove while its link is down and for the forward it dials back through, saved only once the computer that login reaches reads as this same one, its place file naming this computer and this host; threads, how many threads may run there at once, a new one waiting past it, except a turn a thread there follows to its end, not detached, which runs in that thread's slot (one per 2 GB of that computer's memory up to twice its cores until it is set); nap, the minutes a machine there with no window of its own runs with no turn and no work before it naps and stops costing anything, waking on the next message (20 until it is set, 0 never naps it), which every machine there counts again from now and which the computer the app runs on does not take, since its threads run in folders; turn_limit, the hours one turn there may run before it is stopped, a send carrying it on from where it stopped (none on a computer the person owns until it is set, 0 is none), read at each turn's start; spawn, max_machines and max_depth, what the agents there may ask of this host where the folder or the machine they run in holds no switch of its own (on, up to 3 machines and 2 levels deep, until it is set), read at every ask so one made before the change follows it; machines and spend on a cloud, how many machines may run there at once and the dollars a day it may spend before it starts no new machine (3 and $10 until they are set); size on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as <cpu>x<memGb>, one of the sizes that cloud's row lists (the size its provider builds at until it is set); delete_after on a cloud, the minutes a finished sub-thread's machine stays before it is deleted, read at each finish, 0 deleting it once it is done (30 until it is set). A setting left out keeps what stands, and each word under reset takes that setting back to its default. The row carries cap, what runs there now, capDefault, what it reads by default, and settings, what the person set. A setting the computer's kind does not take, and a call that sets nothing, are refused in one line.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -1245,9 +1298,26 @@
                     "default": {
                       "type": "boolean"
                     },
-                    "os": "<machine>",
-                    "shape": "<machine>",
-                    "diskFreeBytes": "<machine>",
+                    "os": {
+                      "type": "string"
+                    },
+                    "shape": {
+                      "type": "object",
+                      "properties": {
+                        "cpu": {
+                          "type": "number"
+                        },
+                        "memMb": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "cpu",
+                        "memMb"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "diskFreeBytes": "<moving>",
                     "engine": {
                       "type": "string",
                       "enum": [
@@ -1921,8 +1991,44 @@
                       ],
                       "additionalProperties": false
                     },
-                    "cap": "<machine>",
-                    "capDefault": "<machine>",
+                    "cap": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "threads": {
+                              "type": "integer",
+                              "minimum": 1
+                            }
+                          },
+                          "required": [
+                            "threads"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "machines": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "spendPerDayUsd": {
+                              "type": "number",
+                              "minimum": 0
+                            }
+                          },
+                          "required": [
+                            "machines",
+                            "spendPerDayUsd"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "capDefault": {
+                      "$ref": "#/properties/computer/properties/cap"
+                    },
                     "settings": {
                       "type": "object",
                       "properties": {
@@ -2268,9 +2374,26 @@
                     "default": {
                       "type": "boolean"
                     },
-                    "os": "<machine>",
-                    "shape": "<machine>",
-                    "diskFreeBytes": "<machine>",
+                    "os": {
+                      "type": "string"
+                    },
+                    "shape": {
+                      "type": "object",
+                      "properties": {
+                        "cpu": {
+                          "type": "number"
+                        },
+                        "memMb": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "cpu",
+                        "memMb"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "diskFreeBytes": "<moving>",
                     "engine": {
                       "type": "string",
                       "enum": [
@@ -2944,8 +3067,44 @@
                       ],
                       "additionalProperties": false
                     },
-                    "cap": "<machine>",
-                    "capDefault": "<machine>",
+                    "cap": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "threads": {
+                              "type": "integer",
+                              "minimum": 1
+                            }
+                          },
+                          "required": [
+                            "threads"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "machines": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "spendPerDayUsd": {
+                              "type": "number",
+                              "minimum": 0
+                            }
+                          },
+                          "required": [
+                            "machines",
+                            "spendPerDayUsd"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "capDefault": {
+                      "$ref": "#/properties/computer/properties/cap"
+                    },
                     "settings": {
                       "type": "object",
                       "properties": {
@@ -5310,7 +5469,7 @@
           },
           {
             "name": "skills_show",
-            "description": "A skill's SKILL.md as text, its first <reading> and the whole file's size: a skill on skills.sh by its <owner>/<repo>/<skill>, read by the host with nothing installed, or a skill already on one computer or where a thread runs by its name. Nothing in it runs.",
+            "description": "A skill's SKILL.md as text, its first 64 KB and the whole file's size: a skill on skills.sh by its <owner>/<repo>/<skill>, read by the host with nothing installed, or a skill already on one computer or where a thread runs by its name. Nothing in it runs.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -5367,7 +5526,7 @@
           },
           {
             "name": "skills_add",
-            "description": "Installs one skill off skills.sh on one computer or where a thread runs, as the login it was added with: its files land once in ~/.agents/skills/<name> (the project's .agents/skills with project, from a thread), and each agent named that does not read that folder gets a link to it or a copy in its own skills folder; with no agent named, every agent whose own folder's home is there gets it. The download is checked whole before anything lands: every path plain and inside the skill, at most 200 files, <reading> each and <reading> in all, a SKILL.md at its root; every file lands 0644 and nothing in the skill runs. A skill already there is refused rather than written over.",
+            "description": "Installs one skill off skills.sh on one computer or where a thread runs, as the login it was added with: its files land once in ~/.agents/skills/<name> (the project's .agents/skills with project, from a thread), and each agent named that does not read that folder gets a link to it or a copy in its own skills folder; with no agent named, every agent whose own folder's home is there gets it. The download is checked whole before anything lands: every path plain and inside the skill, at most 200 files, 1 MB each and 5 MB in all, a SKILL.md at its root; every file lands 0644 and nothing in the skill runs. A skill already there is refused rather than written over.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -9180,12 +9339,8 @@
                       "failure": {
                         "type": "string"
                       },
-                      "pid": {
-                        "type": "integer"
-                      },
-                      "agentPid": {
-                        "type": "integer"
-                      },
+                      "pid": "<moving>",
+                      "agentPid": "<moving>",
                       "readAt": {
                         "type": "number"
                       },
@@ -11707,7 +11862,7 @@
           },
           {
             "name": "resize",
-            "description": "Moves the machine a thread runs on to another size its provider sells, as a stop and then a resume at that size, and returns its record once it runs again. On Boat small and default share a <reading> root disk and a move to large grows it to <reading> with the files kept; xlarge's was never measured. Refused while a turn runs on it, since the stop would end it, and on a provider that changes no machine's size; a machine already at that size comes back unchanged. A thread's own token is refused: the bigger size is the person's spend.",
+            "description": "Moves the machine a thread runs on to another size its provider sells, as a stop and then a resume at that size, and returns its record once it runs again. On Boat small and default share a 75 GB root disk and a move to large grows it to 160 GB with the files kept; xlarge's was never measured. Refused while a turn runs on it, since the stop would end it, and on a provider that changes no machine's size; a machine already at that size comes back unchanged. A thread's own token is refused: the bigger size is the person's spend.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -12953,17 +13108,13 @@
                   "items": {
                     "type": "object",
                     "properties": {
-                      "pid": {
-                        "type": "integer"
-                      },
+                      "pid": "<moving>",
                       "ended": {
                         "type": "array",
                         "items": {
                           "type": "object",
                           "properties": {
-                            "pid": {
-                              "type": "integer"
-                            },
+                            "pid": "<moving>",
                             "ppid": {
                               "type": "integer"
                             },
@@ -13150,7 +13301,7 @@
                   "items": {
                     "type": "string"
                   },
-                  "description": "paths on this computer, absolute or relative to the folder wsp runs in, of files to send with the message, at most 5. An image (PNG, JPEG, GIF or WebP, up to <reading>) goes to the agent as an image; any other file, up to <reading>, lands in the folder the thread works in, under .wsp-files where git lists none of it, and the message names its path. The host reads each file and sends its bytes, so the machine never reaches back for this computer’s files; an image to an agent that reads none is refused naming that agent."
+                  "description": "paths on this computer, absolute or relative to the folder wsp runs in, of files to send with the message, at most 5. An image (PNG, JPEG, GIF or WebP, up to 10 MB) goes to the agent as an image; any other file, up to 10 MB, lands in the folder the thread works in, under .wsp-files where git lists none of it, and the message names its path. The host reads each file and sends its bytes, so the machine never reaches back for this computer’s files; an image to an agent that reads none is refused naming that agent."
                 },
                 "resume": {
                   "type": "string",
@@ -13541,7 +13692,7 @@
           },
           {
             "name": "thread_head",
-            "description": "The thread's head (by id, or a prefix of it): facts, the thread as threads lists it with the model, effort and context window its latest turn runs on and turnId while a turn runs; events, as many of the thread's newest transcript events as fit in <reading>, oldest first, each tool result past <reading> cut with cut set to its whole length; pos, the newest position the transcript has issued, which every event carries as its own pos; and total, how many events of the thread the transcript holds. It is the cheap look at a thread: read the whole conversation with thread_read. Nothing on a machine is touched and the thread is not marked read.",
+            "description": "The thread's head (by id, or a prefix of it): facts, the thread as threads lists it with the model, effort and context window its latest turn runs on and turnId while a turn runs; events, as many of the thread's newest transcript events as fit in 64 KB, oldest first, each tool result past 2 KB cut with cut set to its whole length; pos, the newest position the transcript has issued, which every event carries as its own pos; and total, how many events of the thread the transcript holds. It is the cheap look at a thread: read the whole conversation with thread_read. Nothing on a machine is touched and the thread is not marked read.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -14045,12 +14196,8 @@
                     "failure": {
                       "type": "string"
                     },
-                    "pid": {
-                      "type": "integer"
-                    },
-                    "agentPid": {
-                      "type": "integer"
-                    },
+                    "pid": "<moving>",
+                    "agentPid": "<moving>",
                     "readAt": {
                       "type": "number"
                     },
@@ -15993,17 +16140,13 @@
                   "items": {
                     "type": "object",
                     "properties": {
-                      "pid": {
-                        "type": "integer"
-                      },
+                      "pid": "<moving>",
                       "ended": {
                         "type": "array",
                         "items": {
                           "type": "object",
                           "properties": {
-                            "pid": {
-                              "type": "integer"
-                            },
+                            "pid": "<moving>",
                             "ppid": {
                               "type": "integer"
                             },
@@ -16510,7 +16653,7 @@
                   "items": {
                     "type": "string"
                   },
-                  "description": "paths on this computer, absolute or relative to the folder wsp runs in, of files to send with the message, at most 5. An image (PNG, JPEG, GIF or WebP, up to <reading>) goes to the agent as an image; any other file, up to <reading>, lands in the folder the thread works in, under .wsp-files where git lists none of it, and the message names its path. The host reads each file and sends its bytes, so the machine never reaches back for this computer’s files; an image to an agent that reads none is refused naming that agent."
+                  "description": "paths on this computer, absolute or relative to the folder wsp runs in, of files to send with the message, at most 5. An image (PNG, JPEG, GIF or WebP, up to 10 MB) goes to the agent as an image; any other file, up to 10 MB, lands in the folder the thread works in, under .wsp-files where git lists none of it, and the message names its path. The host reads each file and sends its bytes, so the machine never reaches back for this computer’s files; an image to an agent that reads none is refused naming that agent."
                 },
                 "detach": {
                   "type": "boolean",
@@ -17830,9 +17973,7 @@
                         "items": {
                           "type": "object",
                           "properties": {
-                            "pid": {
-                              "type": "integer"
-                            },
+                            "pid": "<moving>",
                             "ppid": {
                               "type": "integer"
                             },
@@ -17931,15 +18072,11 @@
           },
           {
             "name": "activity_end",
-            "description": "Ends one process on this computer and every process under it, by its pid and the startedAt activity listed it with: TERM to each, then KILL to whatever of them is still there after <reading>, each only while it is still the process listed. Never a process group. Refused, with nothing signalled: a pid no longer running, a process wsp did not start (one activity does not list), a pid that names another process now (read activity again), an agent from its turn's process down to the agent's binary, or a process with one under it, which only the thread's stop ends, and wsp's own processes. A thread's kept agent, the one it keeps warm for its next turn, is freed through its thread instead. A thread ends only what it and the threads under it run. The answer lists each process ended, those KILL went to and any still running after it.",
+            "description": "Ends one process on this computer and every process under it, by its pid and the startedAt activity listed it with: TERM to each, then KILL to whatever of them is still there after 2 s, each only while it is still the process listed. Never a process group. Refused, with nothing signalled: a pid no longer running, a process wsp did not start (one activity does not list), a pid that names another process now (read activity again), an agent from its turn's process down to the agent's binary, or a process with one under it, which only the thread's stop ends, and wsp's own processes. A thread's kept agent, the one it keeps warm for its next turn, is freed through its thread instead. A thread ends only what it and the threads under it run. The answer lists each process ended, those KILL went to and any still running after it.",
             "inputSchema": {
               "type": "object",
               "properties": {
-                "pid": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "description": "the process's pid, as activity lists it"
-                },
+                "pid": "<moving>",
                 "started": {
                   "type": "number",
                   "description": "the start activity listed it with, its startedAt in epoch milliseconds"
@@ -17965,17 +18102,13 @@
             "outputSchema": {
               "type": "object",
               "properties": {
-                "pid": {
-                  "type": "integer"
-                },
+                "pid": "<moving>",
                 "ended": {
                   "type": "array",
                   "items": {
                     "type": "object",
                     "properties": {
-                      "pid": {
-                        "type": "integer"
-                      },
+                      "pid": "<moving>",
                       "ppid": {
                         "type": "integer"
                       },

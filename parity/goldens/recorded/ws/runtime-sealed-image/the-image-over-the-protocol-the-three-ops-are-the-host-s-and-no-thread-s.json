@@ -18,21 +18,8 @@
     {
       "id": 3,
       "ok": false,
-      "error": {
-        "json": [
-          {
-            "code": "<code>",
-            "minimum": 12,
-            "type": "string",
-            "inclusive": true,
-            "exact": false,
-            "message": "String must contain at least 12 character(s)",
-            "path": [
-              "passphrase"
-            ]
-          }
-        ]
-      }
+      "error": "this host owns no image named default yet; wsp init seals one",
+      "kind": "conflict"
     }
   ],
   "events": []

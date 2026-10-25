@@ -12,7 +12,7 @@
       "error": {
         "json": [
           {
-            "code": "<code>",
+            "code": "invalid_type",
             "expected": "string",
             "received": "number",
             "path": [
@@ -20,7 +20,8 @@
             ],
             "message": "Expected string, received number"
           }
-        ]
+        ],
+        "layout": "indented"
       }
     }
   ],

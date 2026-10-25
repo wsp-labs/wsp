@@ -6,4 +6,4 @@
 {"in":{"id":3,"op":"host.folders"}}
 {"out":{"id":3,"ok":true,"listing":{"dir":"/Users/dev","roots":["/Users/dev"],"folders":[],"hidden":0}}}
 {"in":{"purpose":"connect","id":4,"op":"ticket.issue"}}
-{"out":{"id":4,"ok":true,"ticket":"<redacted>","expiresAt":1792942131584}}
+{"out":{"id":4,"ok":true,"ticket":"<redacted-1>","expiresAt":1792950875386}}

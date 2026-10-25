@@ -9,7 +9,25 @@
     {
       "id": 2,
       "ok": true,
-      "recipes": []
+      "sessions": []
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "no such workspace: <ws-1>",
+      "kind": "not-found"
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "no such workspace: <ws-1>",
+      "kind": "not-found"
+    },
+    {
+      "id": 5,
+      "ok": false,
+      "error": "no such workspace: <ws-1>",
+      "kind": "not-found"
     }
   ],
   "events": []

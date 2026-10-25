@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/thread-cap.test.ts > a computer's threads at once, with a turn a running thread follows run in that thread's slot > runs a lead's child on the lead's own computer in the lead's slot, so a lead that waits on its child is never stuck behind itself","outs":"recorded"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/thread-cap.test.ts > a computer's threads at once, with a turn a running thread follows run in that thread's slot > runs a lead's child on the lead's own computer in the lead's slot, so a lead that waits on its child is never stuck behind itself","outs":"recorded","computer":"ip-172-31-35-82"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"placeId":"here","threads":1,"id":2,"op":"places.set"}}

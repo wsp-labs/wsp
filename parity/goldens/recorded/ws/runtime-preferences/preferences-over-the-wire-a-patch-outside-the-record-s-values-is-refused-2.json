@@ -12,7 +12,7 @@
       "error": {
         "json": [
           {
-            "code": "<code>",
+            "code": "too_small",
             "minimum": 0,
             "type": "number",
             "inclusive": false,
@@ -23,7 +23,8 @@
               "sidebarWidth"
             ]
           }
-        ]
+        ],
+        "layout": "indented"
       }
     }
   ],

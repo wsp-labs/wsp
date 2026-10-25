@@ -32,7 +32,7 @@
     {
       "id": 6,
       "ok": false,
-      "error": "no thread 00000000",
+      "error": "no thread <id-1>",
       "kind": "not-found"
     }
   ],

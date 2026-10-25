@@ -9,7 +9,7 @@
 {"in":{"id":4,"op":"init.build"}}
 {"out":{"id":4,"ok":true,"job":{"id":"init_1","road":"terminal","keys":{"solari":true},"step":0,"stoppable":true,"screens":[],"progress":{"done":0,"total":1},"log":[],"phase":"answering","rows":[]}}}
 {"out":{"type":"init.job","job":{"id":"init_1","road":"terminal","keys":{"solari":true},"step":0,"stoppable":true,"screens":[],"progress":{"done":0,"total":1},"log":[],"phase":"signing-in","rows":[{"id":"sign-in/gh","kind":"sign-in","tool":"gh","label":"GitHub CLI login","state":"waiting for you","page":"https://github.com/login/device","finish":"code"}]}}}
-{"in":{"tool":"gh","code":"<redacted>","id":5,"op":"init.signInCode"}}
+{"in":{"tool":"gh","code":"<redacted-1>","id":5,"op":"init.signInCode"}}
 {"out":{"id":5,"ok":true,"job":{"id":"init_1","road":"terminal","keys":{"solari":true},"step":0,"stoppable":true,"screens":[],"progress":{"done":0,"total":1},"log":[],"phase":"signing-in","rows":[{"id":"sign-in/gh","kind":"sign-in","tool":"gh","label":"GitHub CLI login","state":"waiting for you","page":"https://github.com/login/device","finish":"code"}]}}}
 {"in":{"id":6,"op":"init.cancel"}}
 {"out":{"type":"init.job","job":{"id":"init_1","road":"terminal","keys":{"solari":true},"step":0,"stoppable":true,"screens":[],"progress":{"done":0,"total":1},"log":[],"phase":"cancelled","rows":[{"id":"sign-in/gh","kind":"sign-in","tool":"gh","label":"GitHub CLI login","state":"waiting for you","page":"https://github.com/login/device","finish":"code"}],"error":"You stopped the build"}}}

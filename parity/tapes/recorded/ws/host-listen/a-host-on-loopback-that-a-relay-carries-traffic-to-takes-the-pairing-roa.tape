@@ -2,4 +2,4 @@
 {"in":{"id":1,"op":"auth","token":"<host-token>"}}
 {"out":{"id":1,"ok":true,"version":"0.3.8","road":"init"}}
 {"in":{"id":2,"op":"pair.issue"}}
-{"out":{"id":2,"ok":true,"code":"<redacted>","expiresAt":1792942371099}}
+{"out":{"id":2,"ok":true,"code":"<redacted-1>","expiresAt":1792951114230}}

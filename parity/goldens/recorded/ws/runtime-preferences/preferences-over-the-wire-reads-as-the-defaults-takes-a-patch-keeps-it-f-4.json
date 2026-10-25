@@ -13,9 +13,11 @@
         "theme": "system",
         "lightTheme": "paper",
         "darkTheme": "graphite",
-        "sidebarMode": "list",
+        "sidebarMode": "spaces",
         "terminalSize": "app",
-        "terminalZoom": {},
+        "terminalZoom": {
+          "ws_b": -1
+        },
         "access": {},
         "projectLook": {},
         "projectIcon": {},

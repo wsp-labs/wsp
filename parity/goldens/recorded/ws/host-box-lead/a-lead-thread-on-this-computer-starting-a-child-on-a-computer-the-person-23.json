@@ -2,32 +2,23 @@
   "replies": [
     {
       "id": 1,
-      "ok": false,
-      "error": "unauthorized",
-      "kind": "auth"
+      "ok": true,
+      "placeId": "<p-1>",
+      "hostPublicKey": "<id-1>",
+      "nonce": "<id-2>",
+      "signature": "<the host's key signed this>",
+      "ephemeral": "<id-3>",
+      "hostName": "<computer>"
     },
     {
       "parity": "no reply",
       "id": "2"
-    },
-    {
-      "parity": "no reply",
-      "id": "3"
-    },
-    {
-      "parity": "no reply",
-      "id": "4"
-    },
-    {
-      "parity": "no reply",
-      "id": "5"
-    },
-    {
-      "parity": "no reply",
-      "id": "6"
     }
   ],
   "events": [
+    {
+      "binary": 61
+    },
     {
       "close": {
         "code": 4401,

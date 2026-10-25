@@ -11,7 +11,7 @@
               "access": "ask",
               "models": {
                 "hide": [
-                  "claude-haiku-4-5-20251001"
+                  "claude-haiku-4-5-<id-1>"
                 ]
               }
             }

@@ -253,7 +253,7 @@
               ]
             },
             {
-              "value": "claude-haiku-4-5-20251001",
+              "value": "claude-haiku-4-5-<id-1>",
               "label": "Haiku 4.5",
               "efforts": [],
               "contextWindows": []
@@ -775,7 +775,7 @@
               ]
             },
             {
-              "value": "claude-haiku-4-5-20251001",
+              "value": "claude-haiku-4-5-<id-1>",
               "label": "Haiku 4.5",
               "efforts": [],
               "contextWindows": []
@@ -1291,7 +1291,7 @@
               ]
             },
             {
-              "value": "claude-haiku-4-5-20251001",
+              "value": "claude-haiku-4-5-<id-1>",
               "label": "Haiku 4.5",
               "efforts": [],
               "contextWindows": []
@@ -1807,7 +1807,7 @@
               ]
             },
             {
-              "value": "claude-haiku-4-5-20251001",
+              "value": "claude-haiku-4-5-<id-1>",
               "label": "Haiku 4.5",
               "efforts": [],
               "contextWindows": []

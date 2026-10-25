@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/places-settings.test.ts > a place's turn limit > is what a turn's reader runs under, read at the turn's launch, and a turn it stops says so and how to go on","outs":"recorded"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/places-settings.test.ts > a place's turn limit > is what a turn's reader runs under, read at the turn's launch, and a turn it stops says so and how to go on","outs":"recorded","computer":"ip-172-31-35-82"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"placeId":"here","turnLimitMs":7200000,"id":2,"op":"places.set"}}

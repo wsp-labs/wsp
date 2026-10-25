@@ -4,4 +4,4 @@
 {"in":{"id":2,"op":"cost.spend"}}
 {"out":{"id":2,"ok":true,"places":[]}}
 {"in":{"purpose":"relay","id":3,"op":"ticket.issue"}}
-{"out":{"id":3,"ok":true,"ticket":"<redacted>","expiresAt":1792941899818}}
+{"out":{"id":3,"ok":true,"ticket":"<redacted-1>","expiresAt":1792950630714}}

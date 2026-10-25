@@ -3,7 +3,7 @@
     {
       "exit": 3,
       "stdout": "",
-      "stderr": "fatal: unable to access 'https://github.com/spoo-me/spoo.me/': Could not resolve host: github.com\n"
+      "stderr": "fatal: could not create leading directories of '/Users/zingzy/code/spoo.me': Read-only file system\n"
     }
   ],
   "events": []

@@ -46,7 +46,7 @@
         "json": [
           {
             "received": "app",
-            "code": "<code>",
+            "code": "invalid_enum_value",
             "options": [
               "person",
               "cli",
@@ -57,7 +57,8 @@
             ],
             "message": "Invalid enum value. Expected 'person' | 'cli' | 'agent', received 'app'"
           }
-        ]
+        ],
+        "layout": "indented"
       }
     }
   ],

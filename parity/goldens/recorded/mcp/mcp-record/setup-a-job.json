@@ -48,7 +48,8 @@
                   "buildRefusal": "no place here runs workspaces, so there is nowhere to build your image; join a computer that runs them with wsp add, or save a provider key",
                   "job": null
                 }
-              }
+              },
+              "layout": "indented"
             }
           }
         ],

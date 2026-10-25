@@ -12,7 +12,7 @@
       "error": {
         "json": [
           {
-            "code": "<code>",
+            "code": "unrecognized_keys",
             "keys": [
               "projectIcon"
             ],
@@ -21,7 +21,8 @@
             ],
             "message": "Unrecognized key(s) in object: 'projectIcon'"
           }
-        ]
+        ],
+        "layout": "indented"
       }
     }
   ],

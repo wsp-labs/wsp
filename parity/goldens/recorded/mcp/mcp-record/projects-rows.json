@@ -26,7 +26,8 @@
               "json": {
                 "projects": [],
                 "defaults": {}
-              }
+              },
+              "layout": "indented"
             }
           }
         ],

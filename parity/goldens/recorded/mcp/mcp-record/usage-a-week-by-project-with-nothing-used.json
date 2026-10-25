@@ -31,39 +31,40 @@
                   "rows": [],
                   "series": [
                     {
-                      "t": "<time>",
+                      "t": "<day-1>",
                       "tokens": 0
                     },
                     {
-                      "t": "<time>",
+                      "t": "<day-2>",
                       "tokens": 0
                     },
                     {
-                      "t": "<time>",
+                      "t": "<day-3>",
                       "tokens": 0
                     },
                     {
-                      "t": "<time>",
+                      "t": "<day-4>",
                       "tokens": 0
                     },
                     {
-                      "t": "<time>",
+                      "t": "<day-5>",
                       "tokens": 0
                     },
                     {
-                      "t": "<time>",
+                      "t": "<day-6>",
                       "tokens": 0
                     },
                     {
-                      "t": "<time>",
+                      "t": "<day>",
                       "tokens": 0
                     }
                   ],
                   "lines": [],
-                  "since": "<time>",
-                  "until": "<time>"
+                  "since": "<day-1>",
+                  "until": "<day+1>"
                 }
-              }
+              },
+              "layout": "indented"
             }
           }
         ],
@@ -75,37 +76,37 @@
             "rows": [],
             "series": [
               {
-                "t": "<time>",
+                "t": "<day-1>",
                 "tokens": 0
               },
               {
-                "t": "<time>",
+                "t": "<day-2>",
                 "tokens": 0
               },
               {
-                "t": "<time>",
+                "t": "<day-3>",
                 "tokens": 0
               },
               {
-                "t": "<time>",
+                "t": "<day-4>",
                 "tokens": 0
               },
               {
-                "t": "<time>",
+                "t": "<day-5>",
                 "tokens": 0
               },
               {
-                "t": "<time>",
+                "t": "<day-6>",
                 "tokens": 0
               },
               {
-                "t": "<time>",
+                "t": "<day>",
                 "tokens": 0
               }
             ],
             "lines": [],
-            "since": "<time>",
-            "until": "<time>"
+            "since": "<day-1>",
+            "until": "<day+1>"
           }
         }
       },

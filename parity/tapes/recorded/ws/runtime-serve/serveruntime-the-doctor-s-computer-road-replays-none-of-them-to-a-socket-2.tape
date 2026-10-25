@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/serve.test.ts > serveRuntime the doctor's computer road > replays none of them to a socket that subscribed after the road had spoken","outs":"recorded"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/serve.test.ts > serveRuntime the doctor's computer road > replays none of them to a socket that subscribed after the road had spoken","outs":"recorded","computer":"ip-172-31-35-82"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"id":2,"op":"events.subscribe"}}

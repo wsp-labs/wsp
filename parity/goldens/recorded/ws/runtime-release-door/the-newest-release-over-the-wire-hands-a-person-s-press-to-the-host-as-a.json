@@ -11,7 +11,7 @@
       "ok": true,
       "release": {
         "state": "off",
-        "shape": "<machine>",
+        "shape": "up",
         "restartRefusal": "Ctrl-C the terminal running wsp up and run it again."
       }
     }

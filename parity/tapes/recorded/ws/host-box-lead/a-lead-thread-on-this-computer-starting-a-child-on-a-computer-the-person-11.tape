@@ -1,5 +1,9 @@
-{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there acts on a thread on its lead's cloud machine by its words alone: no stop, no rename, no send that waits or carries a file, and that turn runs on","outs":"recorded"}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEAbhyjcgsucXKUXmf3sEXG/pLQ7CJB2DYnMp5zetZbLQY=","nonce":"hKc4cBc0uZ9noSZz+yDXp30Bm5YSJxs0V+djVMyBU7k=","ephemeral":"bdyJK2D5HEHeZfN7jhsty104SSCHs/xxC/T9R13L2BI=","id":1,"op":"place.join"}}
-{"out":{"id":1,"ok":true,"placeId":"p_00000001","hostPublicKey":"MCowBQYDK2VwAyEARjtOOEg5L3Mq9K5UuNSZrYdtvpdWyEp+l4T9q0rvL40=","nonce":"LfOOqHPdL/BzpEl0VOXsr7uGiErQ0BRR6KqPtdWW6GQ=","signature":"fSWtr4fotoJcxY8RVkIyMem5HxQSCOoycxY1z3t+j0h/BUUgc5Uf1CtasI8pSIi4/XEo3KW1focgrBu/Hu8bAw==","ephemeral":"t0sSM/OwJzdNVl2/bwMIQj08iBAR3CByhLZZEjyd+CU=","hostName":"zingzys-mac"}}
-{"in":{"signature":"TXNKxhYhT2I5wF5dfRpOEbf4J8dBBXhqDco8XhmJ35NzZPRhguCVOEzMONP3qONzkQJGiCEo0TDm1sIFZHcgBw==","report":{"name":"hetzner","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/root","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":17,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"code":"<redacted>","id":2,"op":"place.prove"}}
-{"out":{"id":2,"ok":true}}
+{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there naming a cloud project of its repository, or a cloud machine its lead forked, is told to ask its lead, from the command line","outs":"recorded"}}
+{"in":{"token":"<redacted-1>","id":1,"op":"auth"}}
+{"out":{"id":1,"ok":true}}
+{"in":{"ref":"lab-cloud","id":2,"op":"projects.resolve"}}
+{"out":{"id":2,"ok":false,"error":"a thread on hetzner cannot start one on default yet; ask thread dc9b0197, your lead, with wsp send dc9b0197 \"<message>\", or name a project on hetzner","kind":"usage"}}
+{"in":{"id":3,"op":"projects.list"}}
+{"out":{"id":3,"ok":true,"projects":[{"id":"pr_00000001","name":"lab-box","computer":"p_00000002","source":{"kind":"git","url":"https://github.com/acme/lab"},"path":"/root/lab-box","remote":"https://github.com/acme/lab","defaultBranch":"main","memoryKey":"-root-lab-box","memoryDir":"/root/.claude-cfg/projects/-root-lab-box/memory","createdAt":"2026-10-25T17:48:33.319Z","git":{"top":"/root/lab-box"}}]}}
+{"in":{"ref":"lab-cloud","id":4,"op":"projects.resolve"}}
+{"out":{"id":4,"ok":false,"error":"a thread on hetzner cannot start one on default yet; ask thread dc9b0197, your lead, with wsp send dc9b0197 \"<message>\", or name a project on hetzner","kind":"usage"}}

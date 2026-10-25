@@ -9,7 +9,88 @@
     {
       "id": 2,
       "ok": true,
-      "file": "~/.codex/config.toml"
+      "preferences": {
+        "theme": "system",
+        "lightTheme": "paper",
+        "darkTheme": "graphite",
+        "sidebarMode": "list",
+        "terminalSize": "app",
+        "terminalZoom": {},
+        "access": {},
+        "projectLook": {},
+        "projectIcon": {},
+        "computerLook": {},
+        "serverIcons": true,
+        "agentVersions": true,
+        "usageLogs": true,
+        "productUsage": true,
+        "keepAwake": true,
+        "transparency": true,
+        "projectOrder": [],
+        "keybindings": {},
+        "appFont": "",
+        "codeFont": "",
+        "agentDefaults": {},
+        "projectDefaults": {},
+        "sendWith": "enter",
+        "midTurn": "queue",
+        "notifyNeeds": "notify-sound",
+        "notifyDone": "notify",
+        "planAlerts": true,
+        "settleAfter": "2h",
+        "askDelete": true,
+        "onQuit": "ask",
+        "newThreadIn": "current",
+        "labs": false
+      }
+    },
+    {
+      "id": 3,
+      "ok": true,
+      "preferences": {
+        "theme": "system",
+        "lightTheme": "paper",
+        "darkTheme": "graphite",
+        "sidebarMode": "list",
+        "terminalSize": "app",
+        "terminalZoom": {},
+        "access": {},
+        "projectLook": {},
+        "projectIcon": {},
+        "computerLook": {},
+        "serverIcons": true,
+        "agentVersions": true,
+        "usageLogs": true,
+        "productUsage": true,
+        "keepAwake": true,
+        "transparency": true,
+        "projectOrder": [],
+        "keybindings": {},
+        "appFont": "",
+        "codeFont": "",
+        "agentDefaults": {
+          "claude": {
+            "model": "claude-sonnet-5",
+            "access": "ask",
+            "models": {
+              "hide": [
+                "claude-haiku-4-5-<id-1>"
+              ]
+            }
+          }
+        },
+        "projectDefaults": {},
+        "sendWith": "enter",
+        "midTurn": "queue",
+        "notifyNeeds": "notify-sound",
+        "notifyDone": "notify",
+        "planAlerts": true,
+        "settleAfter": "2h",
+        "askDelete": true,
+        "onQuit": "ask",
+        "newThreadIn": "current",
+        "labs": false
+      }
     }
   ],
   "events": []

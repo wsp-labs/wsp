@@ -8,37 +8,9 @@
     },
     {
       "id": 2,
-      "ok": true,
-      "sessions": []
-    },
-    {
-      "id": 3,
       "ok": false,
-      "error": "no such workspace: <ws-1>",
-      "kind": "not-found"
-    },
-    {
-      "id": 4,
-      "ok": false,
-      "error": "no such workspace: <ws-1>",
-      "kind": "not-found"
-    },
-    {
-      "id": 5,
-      "ok": false,
-      "error": "no such workspace: <ws-1>",
-      "kind": "not-found"
-    },
-    {
-      "id": 6,
-      "ok": false,
-      "error": "no such workspace: <ws-1>",
-      "kind": "not-found"
-    },
-    {
-      "id": 7,
-      "ok": true,
-      "sessions": []
+      "error": "There is no skill named memo there.",
+      "kind": "usage"
     }
   ],
   "events": []

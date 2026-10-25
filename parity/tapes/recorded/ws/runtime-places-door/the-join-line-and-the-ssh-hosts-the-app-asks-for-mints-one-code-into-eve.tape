@@ -2,4 +2,4 @@
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"id":2,"op":"places.mint"}}
-{"out":{"id":2,"ok":true,"joins":[{"url":"http://192.168.1.20:4420","line":"wsp join http://192.168.1.20:4420 --code G8F3-23VB.SHA256:PyP/r/8HHy1UrlrSivgKNHiXBfEOXaAOn6LA9MS3mNQ"},{"url":"https://p_00000001.usewsp.com","line":"wsp join https://p_00000001.usewsp.com --code G8F3-23VB.SHA256:PyP/r/8HHy1UrlrSivgKNHiXBfEOXaAOn6LA9MS3mNQ","note":"when the host is linked to your relay"}],"expiresAt":"2026-09-24T10:10:00.000Z"}}
+{"out":{"id":2,"ok":true,"joins":[{"url":"http://192.168.1.20:4420","line":"wsp join http://192.168.1.20:4420 --code <redacted-1>"},{"url":"https://p_00000001.usewsp.com","line":"wsp join https://p_00000001.usewsp.com --code <redacted-1>","note":"when the host is linked to your relay"}],"expiresAt":"2026-09-24T10:10:00.000Z"}}

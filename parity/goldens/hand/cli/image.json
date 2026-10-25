@@ -1,0 +1,18 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": {
+        "jsonLines": [
+          {
+            "image": null,
+            "copies": [],
+            "projects": []
+          }
+        ]
+      },
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

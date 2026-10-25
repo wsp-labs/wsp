@@ -10,13 +10,13 @@
       "id": 2,
       "ok": true,
       "preferences": {
-        "theme": "system",
+        "theme": "light",
         "lightTheme": "paper",
         "darkTheme": "graphite",
-        "sidebarMode": "spaces",
+        "sidebarMode": "list",
         "terminalSize": "app",
         "terminalZoom": {
-          "ws_b": -1
+          "ws_a": 2
         },
         "access": {},
         "projectLook": {},
@@ -43,7 +43,8 @@
         "askDelete": true,
         "onQuit": "ask",
         "newThreadIn": "current",
-        "labs": false
+        "labs": false,
+        "sidebarWidth": 312
       }
     }
   ],

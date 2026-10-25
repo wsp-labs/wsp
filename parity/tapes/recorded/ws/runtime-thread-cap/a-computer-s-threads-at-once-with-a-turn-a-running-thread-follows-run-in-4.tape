@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/thread-cap.test.ts > a computer's threads at once, with a turn a running thread follows run in that thread's slot > says the wait again in the transcript when the count it waits on moves","outs":"recorded"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/thread-cap.test.ts > a computer's threads at once, with a turn a running thread follows run in that thread's slot > says the wait again in the transcript when the count it waits on moves","outs":"recorded","computer":"ip-172-31-35-82"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"placeId":"here","threads":1,"id":2,"op":"places.set"}}

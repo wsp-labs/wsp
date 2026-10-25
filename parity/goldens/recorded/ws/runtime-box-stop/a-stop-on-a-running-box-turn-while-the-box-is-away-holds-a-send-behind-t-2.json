@@ -2,13 +2,11 @@
   "replies": [
     {
       "id": 1,
-      "ok": true,
-      "placeId": "<p-1>",
+      "ok": false,
+      "error": "this host holds no place by that id; join it with a code from wsp add",
+      "kind": "auth",
       "hostPublicKey": "<id-1>",
-      "nonce": "<id-2>",
-      "signature": "<id-3>",
-      "ephemeral": "<id-4>",
-      "hostName": "<computer>"
+      "signature": "<id-2>"
     },
     {
       "parity": "no reply",
@@ -16,9 +14,6 @@
     }
   ],
   "events": [
-    {
-      "binary": 61
-    },
     {
       "close": {
         "code": 4401,

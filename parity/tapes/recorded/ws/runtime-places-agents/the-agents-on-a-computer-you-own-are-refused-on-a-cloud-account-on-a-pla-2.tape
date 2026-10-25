@@ -6,4 +6,4 @@
 {"in":{"target":{"placeId":"pl_nobody"},"id":3,"op":"agents.read"}}
 {"out":{"id":3,"ok":false,"error":"no place named pl_nobody; you have zingzys-mac, srv, Solari","kind":"usage"}}
 {"in":{"purpose":"connect","id":4,"op":"ticket.issue"}}
-{"out":{"id":4,"ok":true,"ticket":"<redacted>","expiresAt":1792941993440}}
+{"out":{"id":4,"ok":true,"ticket":"<redacted-1>","expiresAt":1792950735775}}

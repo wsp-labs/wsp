@@ -8,15 +8,8 @@
     },
     {
       "id": 2,
-      "ok": true,
-      "listing": {
-        "dir": "<tmp>/home",
-        "roots": [
-          "<tmp>/home"
-        ],
-        "folders": [],
-        "hidden": 1
-      }
+      "ok": false,
+      "error": "skills.sh did not answer: fetch failed"
     }
   ],
   "events": []

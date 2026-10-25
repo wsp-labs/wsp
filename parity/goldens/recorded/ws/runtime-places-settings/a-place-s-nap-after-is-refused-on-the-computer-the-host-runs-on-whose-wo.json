@@ -18,7 +18,7 @@
       "error": {
         "json": [
           {
-            "code": "<code>",
+            "code": "too_small",
             "minimum": 60000,
             "type": "number",
             "inclusive": true,
@@ -28,7 +28,8 @@
               "napMs"
             ]
           }
-        ]
+        ],
+        "layout": "indented"
       }
     }
   ],

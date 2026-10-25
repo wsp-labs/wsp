@@ -13,7 +13,7 @@
         "id": "codex",
         "name": "Codex",
         "installed": true,
-        "version": "<version>",
+        "version": "0.155.1",
         "pinned": "0.155.1",
         "road": "own",
         "path": "/usr/bin/codex",

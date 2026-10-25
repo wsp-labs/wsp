@@ -13,7 +13,7 @@
         "json": [
           {
             "received": "sepia",
-            "code": "<code>",
+            "code": "invalid_enum_value",
             "options": [
               "system",
               "light",
@@ -25,7 +25,8 @@
             ],
             "message": "Invalid enum value. Expected 'system' | 'light' | 'dark', received 'sepia'"
           }
-        ]
+        ],
+        "layout": "indented"
       }
     }
   ],

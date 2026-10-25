@@ -14,15 +14,15 @@
     {
       "id": 3,
       "ok": true,
-      "code": "<code>",
-      "expiresAt": "<time>",
+      "code": "<code-1>",
+      "expiresAt": "<time+10m>",
       "hostKey": "<id-1>"
     },
     {
       "id": 4,
       "ok": true,
       "ticket": "<id-2>",
-      "expiresAt": "<time>"
+      "expiresAt": "<time+5m>"
     }
   ],
   "events": []
