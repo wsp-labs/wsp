@@ -203,6 +203,19 @@ mod signing {
     }
 
     #[test]
+    fn signs_a_crlf_pem_as_node_does() {
+        let v = signing_vectors();
+        let host = node_base64(&v.host_transcript);
+        let whole = v.private_key_pem.replace('\n', "\r\n");
+        let markers = v.private_key_pem.replace("KEY-----\n", "KEY-----\r\n");
+        for pem in [&whole, &markers] {
+            let sig = sign_place_bytes(pem, &host).unwrap();
+            assert_eq!(sig, v.host_signature);
+            assert!(verify_place_bytes(&v.public_key, &host, &sig));
+        }
+    }
+
+    #[test]
     fn signs_with_a_pem_node_wrote() {
         let v = signing_vectors();
         let sig = sign_place_bytes(&v.private_key_pem, b"hello").unwrap();
