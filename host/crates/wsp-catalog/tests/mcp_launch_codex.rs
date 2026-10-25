@@ -38,7 +38,8 @@ struct Added {
 /// The file `wsp servers add --agent codex --header Authorization=...` leaves on another computer, what it hands the
 /// vault, and the values the vault hands a launch back.
 fn added(url: &str) -> Added {
-    let transport = McpTransport::Http { url: url.to_string(), headers: IndexMap::from([("Authorization".to_string(), format!("Bearer {TOKEN}"))]) };
+    let transport =
+        McpTransport::Http { url: url.to_string(), headers: IndexMap::from([("Authorization".to_string(), format!("Bearer {TOKEN}"))]) };
     let placed = CODEX_TOML.place(None, "acme", &transport).unwrap();
     let named = CODEX_TOML.refer(&placed, None, &[], &IndexSet::new()).unwrap();
     let mut stored: IndexMap<String, String> = IndexMap::new();
@@ -69,7 +70,8 @@ mod a_codex_server_added_with_a_bearer_token_on_a_computer_whose_launch_hands_it
 
     #[test]
     fn is_read_back_from_the_vault_under_the_name_codex_reads_beside_the_token_every_ot() {
-        let record = |pairs: &[(&str, &str)]| -> IndexMap<String, String> { pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect() };
+        let record =
+            |pairs: &[(&str, &str)]| -> IndexMap<String, String> { pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect() };
         assert_eq!(
             server_values_of(&record(&[("WSP_MCP_ACME_AUTHORIZATION", TOKEN), ("X_AUTHORIZATION", "x")])),
             record(&[
@@ -206,7 +208,10 @@ mod a_codex_server_added_with_a_bearer_token_on_a_computer_whose_launch_hands_it
         std::fs::create_dir(dir.path().join(".codex")).unwrap();
         std::fs::create_dir(&folder).unwrap();
         std::fs::write(dir.path().join(".codex").join("config.toml"), &text).unwrap();
-        let config = codex_launch_config(&LaunchConfigs { user: Some(own(&text)), projects: None, folder: folder.to_string_lossy().to_string(), key: None }, &values);
+        let config = codex_launch_config(
+            &LaunchConfigs { user: Some(own(&text)), projects: None, folder: folder.to_string_lossy().to_string(), key: None },
+            &values,
+        );
 
         let path = std::env::join_paths(path_dirs()).unwrap();
         let mut child = Command::new(&codex)
@@ -238,7 +243,9 @@ mod a_codex_server_added_with_a_bearer_token_on_a_computer_whose_launch_hands_it
             writeln!(stdin, "{full}").unwrap();
             stdin.flush().unwrap();
         };
-        send(json!({ "id": 1, "method": "initialize", "params": { "clientInfo": { "name": "wsp-test", "version": "0" }, "capabilities": { "experimentalApi": true } } }));
+        send(
+            json!({ "id": 1, "method": "initialize", "params": { "clientInfo": { "name": "wsp-test", "version": "0" }, "capabilities": { "experimentalApi": true } } }),
+        );
         let deadline = Instant::now() + Duration::from_secs(30);
         let (status, error) = loop {
             let left = deadline.saturating_duration_since(Instant::now());
@@ -248,7 +255,10 @@ mod a_codex_server_added_with_a_bearer_token_on_a_computer_whose_launch_hands_it
                 send(json!({ "id": 2, "method": "thread/start", "params": { "cwd": folder.to_string_lossy(), "config": config } }));
             } else if m["id"] == json!(2) && m.get("error").is_some() {
                 panic!("{}", m["error"]);
-            } else if m["method"] == json!("mcpServer/startupStatus/updated") && m["params"]["name"] == json!("acme") && m["params"]["status"] != json!("starting") {
+            } else if m["method"] == json!("mcpServer/startupStatus/updated")
+                && m["params"]["name"] == json!("acme")
+                && m["params"]["status"] != json!("starting")
+            {
                 break (m["params"]["status"].as_str().unwrap().to_string(), m["params"]["error"].as_str().map(str::to_string));
             }
         };

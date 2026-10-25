@@ -2,7 +2,32 @@
 //! The catalog's rows: the eleven agent modules of packages/catalog/src/agents/*.ts and the tool rows of
 //! packages/catalog/src/catalog.ts:239-312, at a3b870a6e. Data, copied by script from the oracle fixture
 //! tests/fixtures/catalog.json, never typed by hand; the spec is spec/catalog.md.
-use crate::catalog::{AgentEntry, Size, ToolEntry};
+use indexmap::IndexMap;
+
+use crate::bwrap_apparmor::BWRAP_APPARMOR;
+use crate::catalog::{
+    AgentAbout, AgentEntry, AgentMark, AptNeed, Brings, EntryKind, Evidence, HistoryFormat, Ink, LatestSource, Major, ProjectState,
+    RoadEvidence, SessionHistory, Size, SizeMethod, StateStatus, ToolEntry, ToolHook, UsageLog,
+};
+use crate::context::AgentContext;
+use crate::hooks::HookCarry;
+use crate::linux_casks::{CURSOR, GCLOUD, KUBECTL};
+use crate::mcp::McpFormat;
+use crate::mcp_check::McpCheck;
+use crate::mcp_config::{HeadlessKey, McpConfig, TrustRead};
+use crate::mcp_login::McpLogin;
+use crate::mcp_oauth::McpOAuthStore;
+use crate::plugins::PluginShelf;
+use crate::release_pins::pinned_release;
+use crate::road_modules::{APT_BIN, APT_INDEX, CARGO_BIN};
+use crate::roads::{
+    node_install_script, node_release, InstallRoad, PackageRoad, RoadName, CLAUDE_CODE, CLAUDE_INSTALL, DOCKER_INSTALL, FD_INSTALL, HERMES,
+    HERMES_INSTALL, LOCAL_BIN, OP_INSTALL, PLAYWRIGHT_INSTALL, PLAYWRIGHT_VERSION, PYTHON_INSTALL, RUSTUP_INSTALL, SWIFT, SWIFT_INSTALL,
+    UV_INSTALL, YARN_INSTALL,
+};
+use crate::signin::no_sign_in;
+use crate::signin_rows::sign_in_row;
+use crate::skills::{BundledSkills, Lands, PluginRoad, PluginSkills, SkillRoot, SkillRoots};
 
 /// agents/entry.ts:6.
 pub const AGENTS_MD: &str = "AGENTS.md";
@@ -11,20 +36,757 @@ pub const SET_UP_WSP: &str = "set up wsp for me";
 
 /// `mib` MiB as df read them on 2026-09-05 (agents/entry.ts:13).
 pub fn df_size(mib: u64) -> Size {
-    todo!()
+    Size::Measured { bytes: mib * crate::roads::MIB, on: "2026-09-05".into(), method: SizeMethod::Df }
 }
 
 /// agents/entry.ts:20.
 pub fn not_measured() -> Size {
-    todo!()
+    Size::Unmeasured { unmeasured: "no machine has installed it yet, so nothing read its bytes".into() }
+}
+
+fn pinned(repo: &str, go: Option<&str>) -> InstallRoad {
+    pinned_release(repo, go).expect("the release pins table names every repo a catalog row pins")
+}
+
+fn node_22_script() -> String {
+    node_install_script(22, &node_release(22).expect("Node 22 is pinned"))
 }
 
 /// claude, codex, gemini, opencode, pi, hermes, crush, qwen, goose, amp, cursor (agents/index.ts:46).
 pub fn agent_modules() -> Vec<AgentEntry> {
-    todo!()
+    vec![claude(), codex(), gemini(), opencode(), pi(), hermes(), crush(), qwen(), goose(), amp(), cursor()]
 }
 
 /// The tool rows in catalog order, curl first (catalog.ts:239).
+#[rustfmt::skip]
 pub fn tool_rows() -> Vec<ToolEntry> {
-    todo!()
+    vec![
+        ToolEntry { id: "curl".into(), name: "curl".into(), kind: EntryKind::Tool, bin: "curl".into(), install_road: InstallRoad::Apt { packages: vec!["curl".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 87, images: 4, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 15748096, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: true, floor: true, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "node".into(), name: "Node 22 with npm".into(), kind: EntryKind::Tool, bin: "node".into(), install_road: InstallRoad::Script { script: node_22_script(), version: None, pin: None, bins: Some(vec![LOCAL_BIN.to_string()]) }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 73, images: 5, road: RoadEvidence::Measured, note: None }, size: Size::Measured { bytes: 208449536, on: "2026-09-07".into(), method: SizeMethod::Unpacked }, default_on: true, floor: false, after: Some("curl".into()), brings: Some(vec![Brings { bin: "npm".into(), version: "npm --version".into() }]), covers: Some(vec!["node@22".into(), "nodejs".into()]), depends: None, major: Some(Major { name: "Node".into(), version: "22".into() }), hook: None, pin_node: None },
+        ToolEntry { id: "pnpm".into(), name: "pnpm".into(), kind: EntryKind::Tool, bin: "pnpm".into(), install_road: InstallRoad::Npm { package: PackageRoad { package: "pnpm".into(), version: Some("11.9.0".into()), pin: None }, ignore_scripts: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 36, images: 3, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 20357120, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: true, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: Some("22.13".into()) },
+        ToolEntry { id: "uv".into(), name: "uv".into(), kind: EntryKind::Tool, bin: "uv".into(), install_road: InstallRoad::Script { script: UV_INSTALL.clone(), version: None, pin: None, bins: Some(vec![LOCAL_BIN.to_string()]) }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 46, images: 3, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 49660896, on: "2026-09-07".into(), method: SizeMethod::Unpacked }, default_on: true, floor: true, after: Some("curl".into()), brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "python".into(), name: "Python 3.12".into(), kind: EntryKind::Tool, bin: "python3".into(), install_road: InstallRoad::Script { script: PYTHON_INSTALL.clone(), version: None, pin: None, bins: Some(vec![LOCAL_BIN.to_string()]) }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 107, images: 4, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 108105728, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: true, floor: true, after: Some("uv".into()), brings: None, covers: Some(vec!["python@3.12".into()]), depends: None, major: Some(Major { name: "Python".into(), version: "3.12".into() }), hook: None, pin_node: None },
+        ToolEntry { id: "git".into(), name: "git".into(), kind: EntryKind::Tool, bin: "git".into(), install_road: InstallRoad::Apt { packages: vec!["git".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 118, images: 5, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 123789312, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: true, floor: true, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "jq".into(), name: "jq".into(), kind: EntryKind::Tool, bin: "jq".into(), install_road: InstallRoad::Apt { packages: vec!["jq".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 17, images: 5, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 1170432, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: true, floor: true, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "ripgrep".into(), name: "ripgrep".into(), kind: EntryKind::Tool, bin: "rg".into(), install_road: InstallRoad::Apt { packages: vec!["ripgrep".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 10, images: 4, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 4666368, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: true, floor: true, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "build-essential".into(), name: "C toolchain with cmake and ninja".into(), kind: EntryKind::Tool, bin: "cc".into(), install_road: InstallRoad::Apt { packages: vec!["build-essential".into(), "cmake".into(), "ninja-build".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 15, images: 4, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 491381760, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: true, floor: true, after: None, brings: Some(vec![Brings { bin: "cmake".into(), version: "cmake --version".into() }, Brings { bin: "ninja".into(), version: "ninja --version".into() }]), covers: Some(vec!["gcc".into(), "g++".into(), "make".into()]), depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "fd".into(), name: "fd".into(), kind: EntryKind::Tool, bin: "fd".into(), install_road: InstallRoad::Script { script: FD_INSTALL.clone(), version: None, pin: None, bins: Some(vec![LOCAL_BIN.to_string()]) }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 1, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 3024896, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: true, floor: true, after: Some(APT_INDEX.into()), brings: None, covers: Some(vec!["fd-find".into(), "fdfind".into()]), depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "sqlite3".into(), name: "sqlite3".into(), kind: EntryKind::Tool, bin: "sqlite3".into(), install_road: InstallRoad::Apt { packages: vec!["sqlite3".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 5, images: 1, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 2845696, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: true, floor: true, after: None, brings: None, covers: Some(vec!["sqlite".into()]), depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "wget".into(), name: "wget".into(), kind: EntryKind::Tool, bin: "wget".into(), install_road: InstallRoad::Apt { packages: vec!["wget".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 12990464, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: true, floor: true, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "zip".into(), name: "zip and unzip".into(), kind: EntryKind::Tool, bin: "zip".into(), install_road: InstallRoad::Apt { packages: vec!["zip".into(), "unzip".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 7, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 1019904, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: true, floor: true, after: None, brings: Some(vec![Brings { bin: "unzip".into(), version: "unzip -v".into() }]), covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "xz".into(), name: "xz".into(), kind: EntryKind::Tool, bin: "xz".into(), install_road: InstallRoad::Apt { packages: vec!["xz-utils".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 1255424, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: true, floor: true, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "rsync".into(), name: "rsync".into(), kind: EntryKind::Tool, bin: "rsync".into(), install_road: InstallRoad::Apt { packages: vec!["rsync".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 2, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 7237632, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: true, floor: true, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "gh".into(), name: "GitHub CLI".into(), kind: EntryKind::Tool, bin: "gh".into(), install_road: pinned("cli/cli", Some("github.com/cli/cli/v2/cmd/gh")), node: None, sign_in: sign_in_row("gh").clone(), config_paths: vec![], volatile: None, source: Evidence { sessions: 100, images: 3, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 42188962, on: "2026-09-07".into(), method: SizeMethod::Unpacked }, default_on: true, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "agent-browser".into(), name: "agent-browser".into(), kind: EntryKind::Tool, bin: "agent-browser".into(), install_road: InstallRoad::Npm { package: PackageRoad { package: "agent-browser".into(), version: Some("0.31.1".into()), pin: None }, ignore_scripts: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 45, images: 0, road: RoadEvidence::Unmeasured, note: Some("sessions counted on one Mac only; on by default for this user until a second data point".into()) }, size: Size::Measured { bytes: 81702912, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: true, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "docker".into(), name: "Docker engine and compose".into(), kind: EntryKind::Tool, bin: "docker".into(), install_road: InstallRoad::Script { script: DOCKER_INSTALL.clone(), version: None, pin: None, bins: Some(vec![APT_BIN.to_string()]) }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 30, images: 3, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 541765632, on: "2026-09-07".into(), method: SizeMethod::Df }, default_on: false, floor: false, after: Some(APT_INDEX.into()), brings: Some(vec![Brings { bin: "docker compose".into(), version: "docker compose version".into() }]), covers: Some(vec!["docker-compose".into()]), depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "go".into(), name: "Go".into(), kind: EntryKind::Tool, bin: "go".into(), install_road: InstallRoad::Brew { formula: "go".into(), pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 9, images: 4, road: RoadEvidence::Measured, note: None }, size: Size::Measured { bytes: 250752891, on: "2026-09-07".into(), method: SizeMethod::Brew }, default_on: false, floor: false, after: None, brings: None, covers: Some(vec!["golang".into()]), depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "rust".into(), name: "Rust with cargo".into(), kind: EntryKind::Tool, bin: "cargo".into(), install_road: InstallRoad::Script { script: RUSTUP_INSTALL.clone(), version: None, pin: None, bins: Some(vec![CARGO_BIN.to_string()]) }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 4, images: 3, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 1595346944, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: None, brings: None, covers: Some(vec!["rustup".into(), "rustup-init".into()]), depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "java".into(), name: "Java 21".into(), kind: EntryKind::Tool, bin: "java".into(), install_road: InstallRoad::Brew { formula: "openjdk@21".into(), pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 4, road: RoadEvidence::Measured, note: None }, size: Size::Measured { bytes: 613280230, on: "2026-09-07".into(), method: SizeMethod::Brew }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "maven".into(), name: "Maven".into(), kind: EntryKind::Tool, bin: "mvn".into(), install_road: InstallRoad::Brew { formula: "maven".into(), pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 4, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 677043395, on: "2026-09-07".into(), method: SizeMethod::Brew }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "gradle".into(), name: "Gradle".into(), kind: EntryKind::Tool, bin: "gradle".into(), install_road: InstallRoad::Brew { formula: "gradle".into(), pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 4, road: RoadEvidence::Measured, note: None }, size: Size::Measured { bytes: 885977407, on: "2026-09-07".into(), method: SizeMethod::Brew }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "bun".into(), name: "Bun".into(), kind: EntryKind::Tool, bin: "bun".into(), install_road: InstallRoad::Npm { package: PackageRoad { package: "bun".into(), version: None, pin: None }, ignore_scripts: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 5, images: 3, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 79572992, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: None, brings: Some(vec![Brings { bin: "bunx".into(), version: "bunx --version".into() }]), covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "yarn".into(), name: "Yarn".into(), kind: EntryKind::Tool, bin: "yarn".into(), install_road: InstallRoad::Script { script: YARN_INSTALL.clone(), version: None, pin: None, bins: Some(vec![LOCAL_BIN.to_string()]) }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 4, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 3813376, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: Some("node".into()), brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "ruff".into(), name: "ruff".into(), kind: EntryKind::Tool, bin: "ruff".into(), install_road: InstallRoad::Uv(PackageRoad { package: "ruff".into(), version: None, pin: None }), node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 3, images: 3, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 24584192, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "black".into(), name: "black".into(), kind: EntryKind::Tool, bin: "black".into(), install_road: InstallRoad::Uv(PackageRoad { package: "black".into(), version: None, pin: None }), node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 3, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 8527872, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "mypy".into(), name: "mypy".into(), kind: EntryKind::Tool, bin: "mypy".into(), install_road: InstallRoad::Uv(PackageRoad { package: "mypy".into(), version: None, pin: None }), node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 1, images: 3, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 59564032, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "pyright".into(), name: "pyright".into(), kind: EntryKind::Tool, bin: "pyright".into(), install_road: InstallRoad::Uv(PackageRoad { package: "pyright".into(), version: None, pin: None }), node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 40140800, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "pytest".into(), name: "pytest".into(), kind: EntryKind::Tool, bin: "pytest".into(), install_road: InstallRoad::Uv(PackageRoad { package: "pytest".into(), version: None, pin: None }), node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 1, images: 3, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 7266304, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "prettier".into(), name: "Prettier".into(), kind: EntryKind::Tool, bin: "prettier".into(), install_road: InstallRoad::Npm { package: PackageRoad { package: "prettier".into(), version: None, pin: None }, ignore_scripts: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 3, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 10113024, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "eslint".into(), name: "ESLint".into(), kind: EntryKind::Tool, bin: "eslint".into(), install_road: InstallRoad::Npm { package: PackageRoad { package: "eslint".into(), version: None, pin: None }, ignore_scripts: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 1, images: 3, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 15249408, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "typescript".into(), name: "TypeScript".into(), kind: EntryKind::Tool, bin: "tsc".into(), install_road: InstallRoad::Npm { package: PackageRoad { package: "typescript".into(), version: None, pin: None }, ignore_scripts: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 8, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 32022528, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "wrangler".into(), name: "Cloudflare Wrangler".into(), kind: EntryKind::Tool, bin: "wrangler".into(), install_road: InstallRoad::Npm { package: PackageRoad { package: "wrangler".into(), version: None, pin: None }, ignore_scripts: None }, node: None, sign_in: sign_in_row("wrangler").clone(), config_paths: vec![], volatile: None, source: Evidence { sessions: 3, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 251080704, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: None, brings: None, covers: Some(vec!["cloudflare-wrangler".into()]), depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "cloudflared".into(), name: "cloudflared".into(), kind: EntryKind::Tool, bin: "cloudflared".into(), install_road: pinned("cloudflare/cloudflared", Some("github.com/cloudflare/cloudflared/cmd/cloudflared")), node: None, sign_in: sign_in_row("cloudflared").clone(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 42455400, on: "2026-09-07".into(), method: SizeMethod::Unpacked }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "gcloud".into(), name: "Google Cloud CLI".into(), kind: EntryKind::Tool, bin: "gcloud".into(), install_road: InstallRoad::Vendor { cask: GCLOUD.clone(), version: Some(GCLOUD.version.clone()), pin: None }, node: None, sign_in: sign_in_row("gcloud").clone(), config_paths: vec![], volatile: None, source: Evidence { sessions: 4, images: 0, road: RoadEvidence::Measured, note: None }, size: Size::Measured { bytes: 475987968, on: "2026-09-07".into(), method: SizeMethod::Unpacked }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "kubectl".into(), name: "kubectl".into(), kind: EntryKind::Tool, bin: "kubectl".into(), install_road: InstallRoad::Vendor { cask: KUBECTL.clone(), version: Some(KUBECTL.version.clone()), pin: None }, node: None, sign_in: sign_in_row("kubectl").clone(), config_paths: vec![], volatile: None, source: Evidence { sessions: 1, images: 1, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 61886626, on: "2026-09-07".into(), method: SizeMethod::Unpacked }, default_on: false, floor: false, after: None, brings: None, covers: Some(vec!["kubernetes-cli".into()]), depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "aws".into(), name: "AWS CLI".into(), kind: EntryKind::Tool, bin: "aws".into(), install_road: InstallRoad::Brew { formula: "awscli".into(), pin: None }, node: None, sign_in: sign_in_row("aws").clone(), config_paths: vec![], volatile: None, source: Evidence { sessions: 1, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 319703017, on: "2026-09-07".into(), method: SizeMethod::Brew }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "vercel".into(), name: "Vercel CLI".into(), kind: EntryKind::Tool, bin: "vercel".into(), install_road: InstallRoad::Npm { package: PackageRoad { package: "vercel".into(), version: None, pin: None }, ignore_scripts: None }, node: None, sign_in: sign_in_row("vercel").clone(), config_paths: vec![], volatile: None, source: Evidence { sessions: 1, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 338280448, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "netlify".into(), name: "Netlify CLI".into(), kind: EntryKind::Tool, bin: "netlify".into(), install_road: InstallRoad::Npm { package: PackageRoad { package: "netlify-cli".into(), version: None, pin: None }, ignore_scripts: None }, node: None, sign_in: sign_in_row("netlify").clone(), config_paths: vec![], volatile: None, source: Evidence { sessions: 1, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 377982976, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "fly".into(), name: "flyctl".into(), kind: EntryKind::Tool, bin: "fly".into(), install_road: pinned("superfly/flyctl", Some("github.com/superfly/flyctl")), node: None, sign_in: sign_in_row("fly").clone(), config_paths: vec![], volatile: None, source: Evidence { sessions: 1, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 113168894, on: "2026-09-07".into(), method: SizeMethod::Unpacked }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "supabase".into(), name: "Supabase CLI".into(), kind: EntryKind::Tool, bin: "supabase".into(), install_road: pinned("supabase/cli", None), node: None, sign_in: sign_in_row("supabase").clone(), config_paths: vec![], volatile: None, source: Evidence { sessions: 1, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 96900296, on: "2026-09-07".into(), method: SizeMethod::Unpacked }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "railway".into(), name: "Railway CLI".into(), kind: EntryKind::Tool, bin: "railway".into(), install_road: InstallRoad::Npm { package: PackageRoad { package: "@railway/cli".into(), version: None, pin: None }, ignore_scripts: None }, node: None, sign_in: sign_in_row("railway").clone(), config_paths: vec![], volatile: None, source: Evidence { sessions: 1, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 28459008, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "doppler".into(), name: "Doppler CLI".into(), kind: EntryKind::Tool, bin: "doppler".into(), install_road: pinned("DopplerHQ/cli", Some("github.com/DopplerHQ/cli")), node: None, sign_in: sign_in_row("doppler").clone(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 12550328, on: "2026-09-07".into(), method: SizeMethod::Unpacked }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "op".into(), name: "1Password CLI".into(), kind: EntryKind::Tool, bin: "op".into(), install_road: InstallRoad::Script { script: OP_INSTALL.clone(), version: None, pin: None, bins: None }, node: None, sign_in: sign_in_row("op").clone(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 42950840, on: "2026-09-07".into(), method: SizeMethod::Unpacked }, default_on: false, floor: false, after: None, brings: None, covers: Some(vec!["1password-cli".into()]), depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "ffmpeg".into(), name: "ffmpeg".into(), kind: EntryKind::Tool, bin: "ffmpeg".into(), install_road: InstallRoad::Apt { packages: vec!["ffmpeg".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 512696320, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "yq".into(), name: "yq".into(), kind: EntryKind::Tool, bin: "yq".into(), install_road: pinned("mikefarah/yq", Some("github.com/mikefarah/yq/v4")), node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 3, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 14180512, on: "2026-09-07".into(), method: SizeMethod::Unpacked }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "git-lfs".into(), name: "Git LFS".into(), kind: EntryKind::Tool, bin: "git-lfs".into(), install_road: InstallRoad::Apt { packages: vec!["git-lfs".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 2, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 11213824, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: Some(ToolHook { on: "git lfs install --system".into(), off: "git lfs uninstall --system".into() }), pin_node: None },
+        ToolEntry { id: "tmux".into(), name: "tmux".into(), kind: EntryKind::Tool, bin: "tmux".into(), install_road: InstallRoad::Apt { packages: vec!["tmux".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 3, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 1492992, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "ruby".into(), name: "Ruby 3.1 with bundler".into(), kind: EntryKind::Tool, bin: "ruby".into(), install_road: InstallRoad::Apt { packages: vec!["ruby".into(), "ruby-dev".into(), "ruby-bundler".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 3, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 67206144, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: false, floor: false, after: None, brings: Some(vec![Brings { bin: "bundle".into(), version: "bundle --version".into() }, Brings { bin: "gem".into(), version: "gem --version".into() }]), covers: Some(vec!["bundler".into()]), depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "php".into(), name: "PHP 8.2 with Composer".into(), kind: EntryKind::Tool, bin: "php".into(), install_road: InstallRoad::Apt { packages: vec!["php-cli".into(), "composer".into(), "php-mbstring".into(), "php-xml".into(), "php-curl".into(), "php-zip".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 3, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 33120256, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: false, floor: false, after: None, brings: Some(vec![Brings { bin: "composer".into(), version: "composer --version".into() }]), covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "postgresql-client".into(), name: "PostgreSQL client".into(), kind: EntryKind::Tool, bin: "psql".into(), install_road: InstallRoad::Apt { packages: vec!["postgresql-client".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 1, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 9606144, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: false, floor: false, after: None, brings: Some(vec![Brings { bin: "pg_dump".into(), version: "pg_dump --version".into() }]), covers: Some(vec!["postgresql".into()]), depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "redis-tools".into(), name: "Redis tools".into(), kind: EntryKind::Tool, bin: "redis-cli".into(), install_road: InstallRoad::Apt { packages: vec!["redis-tools".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 3, images: 1, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 6909952, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: false, floor: false, after: None, brings: None, covers: Some(vec!["redis".into()]), depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "golangci-lint".into(), name: "golangci-lint".into(), kind: EntryKind::Tool, bin: "golangci-lint".into(), install_road: pinned("golangci/golangci-lint", Some("github.com/golangci/golangci-lint/v2/cmd/golangci-lint")), node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 2, images: 2, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 41300128, on: "2026-09-07".into(), method: SizeMethod::Unpacked }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "mise".into(), name: "mise".into(), kind: EntryKind::Tool, bin: "mise".into(), install_road: pinned("jdx/mise", None), node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 1, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 119660224, on: "2026-09-07".into(), method: SizeMethod::Unpacked }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "git-delta".into(), name: "git-delta".into(), kind: EntryKind::Tool, bin: "delta".into(), install_road: pinned("dandavison/delta", None), node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 7151152, on: "2026-09-07".into(), method: SizeMethod::Unpacked }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "shellcheck".into(), name: "ShellCheck".into(), kind: EntryKind::Tool, bin: "shellcheck".into(), install_road: InstallRoad::Apt { packages: vec!["shellcheck".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 4, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 19442688, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: false, floor: false, after: None, brings: None, covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "swift".into(), name: "Swift 6.3".into(), kind: EntryKind::Tool, bin: "swift".into(), install_road: InstallRoad::Script { script: SWIFT_INSTALL.clone(), version: Some(SWIFT.version.to_string()), pin: None, bins: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 1, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 3562135552, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: Some(APT_INDEX.into()), brings: Some(vec![Brings { bin: "swiftc".into(), version: "swiftc --version".into() }]), covers: None, depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "elixir".into(), name: "Elixir 1.14 with Erlang".into(), kind: EntryKind::Tool, bin: "elixir".into(), install_road: InstallRoad::Apt { packages: vec!["elixir".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 1, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 33395712, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: false, floor: false, after: None, brings: Some(vec![Brings { bin: "mix".into(), version: "mix --version".into() }, Brings { bin: "erl".into(), version: "erl +V".into() }]), covers: Some(vec!["erlang".into()]), depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "bazel".into(), name: "Bazel via bazelisk".into(), kind: EntryKind::Tool, bin: "bazel".into(), install_road: pinned("bazelbuild/bazelisk", Some("github.com/bazelbuild/bazelisk")), node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 1, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 72921088, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: None, brings: None, covers: Some(vec!["bazelisk".into()]), depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "llvm".into(), name: "clang, clang-format, clang-tidy".into(), kind: EntryKind::Tool, bin: "clang".into(), install_road: InstallRoad::Apt { packages: vec!["clang".into(), "clang-format".into(), "clang-tidy".into()], pin: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 2, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 750848000, on: "2026-09-07".into(), method: SizeMethod::Apt }, default_on: false, floor: false, after: None, brings: Some(vec![Brings { bin: "clang-format".into(), version: "clang-format --version".into() }, Brings { bin: "clang-tidy".into(), version: "clang-tidy --version".into() }]), covers: Some(vec!["llvm".into()]), depends: None, major: None, hook: None, pin_node: None },
+        ToolEntry { id: "playwright".into(), name: "Chromium for Playwright".into(), kind: EntryKind::Tool, bin: "playwright".into(), install_road: InstallRoad::Script { script: PLAYWRIGHT_INSTALL.clone(), version: Some(PLAYWRIGHT_VERSION.to_string()), pin: None, bins: None }, node: None, sign_in: no_sign_in(), config_paths: vec![], volatile: None, source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Unmeasured, note: None }, size: Size::Measured { bytes: 1015808000, on: "2026-09-07".into(), method: SizeMethod::Du }, default_on: false, floor: false, after: Some("node".into()), brings: None, covers: Some(vec!["chromium".into()]), depends: Some(IndexMap::from([(RoadName::Npm, vec!["playwright".into(), "@playwright/test".into(), "playwright-core".into()])])), major: None, hook: None, pin_node: None },
+    ]
+}
+
+fn claude() -> AgentEntry {
+    AgentEntry {
+        id: "claude".into(),
+        name: "Claude Code".into(),
+        kind: EntryKind::Agent,
+        bin: "claude".into(),
+        install_road: InstallRoad::Script { script: CLAUDE_INSTALL.clone(), version: Some(CLAUDE_CODE.version.to_string()), pin: None, bins: Some(vec![LOCAL_BIN.to_string()]) },
+        node: None,
+        sign_in: sign_in_row("claude").clone(),
+        config_paths: vec!["~/.claude/settings.json".into(), "~/.claude/CLAUDE.md".into(), "~/.claude/skills".into(), "~/.claude/agents".into(), "~/.claude/commands".into(), "~/.claude.json".into()],
+        volatile: Some(vec!["~/.claude.json".into()]),
+        source: Evidence { sessions: 149, images: 1, road: RoadEvidence::Measured, note: None },
+        size: df_size(208),
+        about: AgentAbout {
+            creator: "Anthropic".into(),
+            description: "Anthropic's coding agent for the terminal. It reads the codebase, edits files, runs commands and handles git.".into(),
+            homepage: Some("https://code.claude.com/docs/en/overview".into()),
+            repo: Some("https://github.com/anthropics/claude-code".into()),
+            license: "proprietary".into(),
+        },
+        mark: Some(AgentMark {
+            svg: "<svg viewBox=\"0 0 256 257\"><path d=\"m50.228 170.321 50.357-28.257.843-2.463-.843-1.361h-2.462l-8.426-.518-28.775-.778-24.952-1.037-24.175-1.296-6.092-1.297L0 125.796l.583-3.759 5.12-3.434 7.324.648 16.202 1.101 24.304 1.685 17.629 1.037 26.118 2.722h4.148l.583-1.685-1.426-1.037-1.101-1.037-25.147-17.045-27.22-18.017-14.258-10.37-7.713-5.25-3.888-4.925-1.685-10.758 7-7.713 9.397.649 2.398.648 9.527 7.323 20.35 15.75L94.817 91.9l3.889 3.24 1.555-1.102.195-.777-1.75-2.917-14.453-26.118-15.425-26.572-6.87-11.018-1.814-6.61c-.648-2.723-1.102-4.991-1.102-7.778l7.972-10.823L71.42 0 82.05 1.426l4.472 3.888 6.61 15.101 10.694 23.786 16.591 32.34 4.861 9.592 2.592 8.879.973 2.722h1.685v-1.556l1.36-18.211 2.528-22.36 2.463-28.776.843-8.1 4.018-9.722 7.971-5.25 6.222 2.981 5.12 7.324-.713 4.73-3.046 19.768-5.962 30.98-3.889 20.739h2.268l2.593-2.593 10.499-13.934 17.628-22.036 7.778-8.749 9.073-9.657 5.833-4.601h11.018l8.1 12.055-3.628 12.443-11.342 14.388-9.398 12.184-13.48 18.147-8.426 14.518.778 1.166 2.01-.194 30.46-6.481 16.462-2.982 19.637-3.37 8.88 4.148.971 4.213-3.5 8.62-20.998 5.184-24.628 4.926-36.682 8.685-.454.324.519.648 16.526 1.555 7.065.389h17.304l32.21 2.398 8.426 5.574 5.055 6.805-.843 5.184-12.962 6.611-17.498-4.148-40.83-9.721-14-3.5h-1.944v1.167l11.666 11.406 21.387 19.314 26.767 24.887 1.36 6.157-3.434 4.86-3.63-.518-23.526-17.693-9.073-7.972-20.545-17.304h-1.36v1.814l4.73 6.935 25.017 37.59 1.296 11.536-1.814 3.76-6.481 2.268-7.13-1.297-14.647-20.544-15.1-23.138-12.185-20.739-1.49.843-7.194 77.448-3.37 3.953-7.778 2.981-6.48-4.925-3.436-7.972 3.435-15.749 4.148-20.544 3.37-16.333 3.046-20.285 1.815-6.74-.13-.454-1.49.194-15.295 20.999-23.267 31.433-18.406 19.702-4.407 1.75-7.648-3.954.713-7.064 4.277-6.286 25.47-32.405 15.36-20.092 9.917-11.6-.065-1.686h-.583L44.07 198.125l-12.055 1.555-5.185-4.86.648-7.972 2.463-2.593 20.35-13.999-.064.065Z\"/></svg>".into(),
+            inks: Some(vec![Ink { light: "#c4643f".into(), dark: "#d97757".into() }]),
+            source: "https://github.com/pingdotgg/t3code/blob/be7796d/apps/web/src/components/Icons.tsx".into(),
+            license: "MIT".into(),
+        }),
+        latest: Some(LatestSource::Text { url: "https://downloads.claude.ai/claude-code-releases/latest".into() }),
+        update_line: Some("claude update".into()),
+        state_home: ".claude".into(),
+        guest_state_home: Some("/root/.claude-cfg".into()),
+        state_home_env: Some("CLAUDE_CONFIG_DIR".into()),
+        project_key_env: Some("CLAUDE_CODE_PROJECT_DIR_NAME".into()),
+        project_state: vec![
+            ProjectState { state: "session transcripts".into(), location: "projects/KEY/SESSIONID.jsonl and projects/KEY/SESSIONID/".into(), key: "the resolved path with every character outside A-Z a-z 0-9 replaced by a dash".into(), path_fields: vec!["cwd on every message line".into()], move_: "rename the KEY directory; rewriting cwd is optional".into(), status: StateStatus::Measured },
+            ProjectState { state: "auto memory".into(), location: "projects/KEY/memory/".into(), key: "the same KEY".into(), path_fields: vec![], move_: "comes along with the directory rename".into(), status: StateStatus::Measured },
+            ProjectState { state: "per-project settings".into(), location: "~/.claude.json, the projects object".into(), key: "the plain resolved path as the JSON key".into(), path_fields: vec!["the key".into()], move_: "rename the key".into(), status: StateStatus::Inferred },
+            ProjectState { state: "prompt history".into(), location: "history.jsonl".into(), key: "one line per prompt".into(), path_fields: vec!["project".into()], move_: "rewrite the field".into(), status: StateStatus::Inferred },
+        ],
+        history: Some(SessionHistory { format: HistoryFormat::ClaudeJsonl, root: "~/.claude/projects".into() }),
+        prints_limits: Some(true),
+        plan_brand: Some("Claude".into()),
+        usage_log: None,
+        mcp: Some(McpConfig { format: McpFormat::McpServersJson, files: vec!["~/.claude.json".into()], project_files: Some(vec![".mcp.json".into()]), scope: "user scope and your home folder".into(), http_auth: Some("its sign-in is kept with the Claude Code login".into()), check: Some(McpCheck::Claude), login: Some(McpLogin::Claude), oauth: Some(McpOAuthStore::Claude), headless: None, trusts: None }),
+        context: Some(AgentContext::Claude),
+        hooks: Some(HookCarry::Claude),
+        skill_roots: SkillRoots { user: vec![SkillRoot { dir: "~/.claude/skills".into(), lands: Lands::Link }], project: vec![SkillRoot { dir: ".claude/skills".into(), lands: Lands::Link }] },
+        plugin_skills: Some(PluginSkills { index: "~/.claude/plugins/installed_plugins.json".into() }),
+        bundled_skills: None,
+        plugins: Some(PluginRoad::Claude),
+        plugin_shelf: Some(PluginShelf::Claude),
+        project_docs: vec![AGENTS_MD.into(), "CLAUDE.md".into()],
+        first_move: "/wsp set up wsp for me".into(),
+        apt_needs: None,
+        setup_needs: None,
+        background_road: Some("run_in_background on the Bash tool".into()),
+    }
+}
+
+fn codex() -> AgentEntry {
+    AgentEntry {
+        id: "codex".into(),
+        name: "Codex".into(),
+        kind: EntryKind::Agent,
+        bin: "codex".into(),
+        install_road: InstallRoad::Npm { package: PackageRoad { package: "@openai/codex".into(), version: Some("0.155.1".into()), pin: None }, ignore_scripts: None },
+        node: Some(16),
+        sign_in: sign_in_row("codex").clone(),
+        config_paths: vec!["~/.codex/config.toml".into(), "~/.codex/AGENTS.md".into(), "~/.codex/prompts".into(), "~/.codex/skills".into()],
+        volatile: None,
+        source: Evidence { sessions: 5, images: 1, road: RoadEvidence::Measured, note: None },
+        size: df_size(455),
+        about: AgentAbout {
+            creator: "OpenAI".into(),
+            description: "OpenAI's coding agent that runs locally in the terminal.".into(),
+            homepage: Some("https://developers.openai.com/codex".into()),
+            repo: Some("https://github.com/openai/codex".into()),
+            license: "Apache-2.0".into(),
+        },
+        mark: Some(AgentMark {
+            svg: "<svg viewBox=\"0 0 256 260\"><path d=\"M239.184 106.203a64.716 64.716 0 0 0-5.576-53.103C219.452 28.459 191 15.784 163.213 21.74A65.586 65.586 0 0 0 52.096 45.22a64.716 64.716 0 0 0-43.23 31.36c-14.31 24.602-11.061 55.634 8.033 76.74a64.665 64.665 0 0 0 5.525 53.102c14.174 24.65 42.644 37.324 70.446 31.36a64.72 64.72 0 0 0 48.754 21.744c28.481.025 53.714-18.361 62.414-45.481a64.767 64.767 0 0 0 43.229-31.36c14.137-24.558 10.875-55.423-8.083-76.483Zm-97.56 136.338a48.397 48.397 0 0 1-31.105-11.255l1.535-.87 51.67-29.825a8.595 8.595 0 0 0 4.247-7.367v-72.85l21.845 12.636c.218.111.37.32.409.563v60.367c-.056 26.818-21.783 48.545-48.601 48.601Zm-104.466-44.61a48.345 48.345 0 0 1-5.781-32.589l1.534.921 51.722 29.826a8.339 8.339 0 0 0 8.441 0l63.181-36.425v25.221a.87.87 0 0 1-.358.665l-52.335 30.184c-23.257 13.398-52.97 5.431-66.404-17.803ZM23.549 85.38a48.499 48.499 0 0 1 25.58-21.333v61.39a8.288 8.288 0 0 0 4.195 7.316l62.874 36.272-21.845 12.636a.819.819 0 0 1-.767 0L41.353 151.53c-23.211-13.454-31.171-43.144-17.804-66.405v.256Zm179.466 41.695-63.08-36.63L161.73 77.86a.819.819 0 0 1 .768 0l52.233 30.184a48.6 48.6 0 0 1-7.316 87.635v-61.391a8.544 8.544 0 0 0-4.4-7.213Zm21.742-32.69-1.535-.922-51.619-30.081a8.39 8.39 0 0 0-8.492 0L99.98 99.808V74.587a.716.716 0 0 1 .307-.665l52.233-30.133a48.652 48.652 0 0 1 72.236 50.391v.205ZM88.061 139.097l-21.845-12.585a.87.87 0 0 1-.41-.614V65.685a48.652 48.652 0 0 1 79.757-37.346l-1.535.87-51.67 29.825a8.595 8.595 0 0 0-4.246 7.367l-.051 72.697Zm11.868-25.58 28.138-16.217 28.188 16.218v32.434l-28.086 16.218-28.188-16.218-.052-32.434Z\"/></svg>".into(),
+            inks: None,
+            source: "https://github.com/pingdotgg/t3code/blob/57a66608b/apps/web/src/components/Icons.tsx".into(),
+            license: "MIT".into(),
+        }),
+        latest: Some(LatestSource::Npm { package: "@openai/codex".into() }),
+        update_line: Some("npm i -g @openai/codex@latest".into()),
+        state_home: ".codex".into(),
+        guest_state_home: None,
+        state_home_env: Some("CODEX_HOME".into()),
+        project_key_env: None,
+        project_state: vec![
+            ProjectState { state: "rollout transcript".into(), location: "sessions/YYYY/MM/DD/rollout-TIMESTAMP-THREADID.jsonl".into(), key: "by date and thread id, not by path".into(), path_fields: vec!["cwd in the session_meta payload and on per-turn lines".into()], move_: "rewrite cwd".into(), status: StateStatus::Measured },
+            ProjectState { state: "thread index".into(), location: "state_5.sqlite, table threads".into(), key: "one row per thread id".into(), path_fields: vec!["cwd".into(), "rollout_path".into()], move_: "update threads set cwd; rollout_path changes only if CODEX_HOME itself moves".into(), status: StateStatus::Measured },
+            ProjectState { state: "trust".into(), location: "config.toml, table [projects.\"PATH\"]".into(), key: "the quoted resolved path as the TOML table name".into(), path_fields: vec!["the table name".into()], move_: "rename the table".into(), status: StateStatus::Inferred },
+            ProjectState { state: "memories".into(), location: "memories/rollout_summaries/*.md and memories/MEMORY.md".into(), key: "global files".into(), path_fields: vec!["cwd: and path: lines in each summary".into(), "applies_to: cwd=PATH lines in MEMORY.md".into()], move_: "rewrite if memories should follow the project".into(), status: StateStatus::Inferred },
+        ],
+        history: Some(SessionHistory { format: HistoryFormat::CodexRollout, root: "~/.codex/sessions".into() }),
+        prints_limits: Some(true),
+        plan_brand: Some("ChatGPT".into()),
+        usage_log: None,
+        mcp: Some(McpConfig { format: McpFormat::CodexToml, files: vec!["~/.codex/config.toml".into()], project_files: Some(vec![".codex/config.toml".into()]), scope: "user scope".into(), http_auth: None, check: Some(McpCheck::Codex), login: Some(McpLogin::Codex), oauth: None, headless: Some(vec![HeadlessKey { key: "mcp_oauth_credentials_store".into(), value: "\"file\"".into() }]), trusts: Some(TrustRead::Codex) }),
+        context: Some(AgentContext::Codex),
+        hooks: Some(HookCarry::Codex),
+        skill_roots: SkillRoots { user: vec![SkillRoot { dir: "~/.codex/skills".into(), lands: Lands::Copy }, SkillRoot { dir: "~/.agents/skills".into(), lands: Lands::Copy }], project: vec![SkillRoot { dir: ".agents/skills".into(), lands: Lands::Copy }] },
+        plugin_skills: None,
+        bundled_skills: None,
+        plugins: None,
+        plugin_shelf: Some(PluginShelf::Codex),
+        project_docs: vec![AGENTS_MD.into()],
+        first_move: SET_UP_WSP.into(),
+        apt_needs: Some(vec![AptNeed { package: "bubblewrap".into(), command: "bwrap".into() }]),
+        setup_needs: Some(vec![BWRAP_APPARMOR.clone()]),
+        background_road: None,
+    }
+}
+
+fn gemini() -> AgentEntry {
+    AgentEntry {
+        id: "gemini".into(),
+        name: "Gemini CLI".into(),
+        kind: EntryKind::Agent,
+        bin: "gemini".into(),
+        install_road: InstallRoad::Npm { package: PackageRoad { package: "@google/gemini-cli".into(), version: Some("0.58.0".into()), pin: None }, ignore_scripts: None },
+        node: Some(20),
+        sign_in: sign_in_row("gemini").clone(),
+        config_paths: vec!["~/.gemini/settings.json".into(), "~/.gemini/GEMINI.md".into(), "~/.gemini/commands".into()],
+        volatile: None,
+        source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Measured, note: None },
+        size: df_size(189),
+        about: AgentAbout {
+            creator: "Google".into(),
+            description: "An open source agent that brings Gemini into the terminal.".into(),
+            homepage: Some("https://geminicli.com".into()),
+            repo: Some("https://github.com/google-gemini/gemini-cli".into()),
+            license: "Apache-2.0".into(),
+        },
+        mark: Some(AgentMark {
+            svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z\" fill=\"#3186FF\"/><path d=\"M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z\" fill=\"url(#a)\"/><path d=\"M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z\" fill=\"url(#b)\"/><path d=\"M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z\" fill=\"url(#c)\"/><defs><linearGradient gradientUnits=\"userSpaceOnUse\" id=\"a\" x1=\"7\" x2=\"11\" y1=\"15.5\" y2=\"12\"><stop stop-color=\"#08B962\"/><stop offset=\"1\" stop-color=\"#08B962\" stop-opacity=\"0\"/></linearGradient><linearGradient gradientUnits=\"userSpaceOnUse\" id=\"b\" x1=\"8\" x2=\"11.5\" y1=\"5.5\" y2=\"11\"><stop stop-color=\"#F94543\"/><stop offset=\"1\" stop-color=\"#F94543\" stop-opacity=\"0\"/></linearGradient><linearGradient gradientUnits=\"userSpaceOnUse\" id=\"c\" x1=\"3.5\" x2=\"17.5\" y1=\"13.5\" y2=\"12\"><stop stop-color=\"#FABC12\"/><stop offset=\".46\" stop-color=\"#FABC12\" stop-opacity=\"0\"/></linearGradient></defs></svg>".into(),
+            inks: None,
+            source: "https://github.com/lobehub/lobe-icons/blob/329f378cbd1a88f45b60cd096b9111ce16f3ea39/src/Gemini/components/Color.tsx".into(),
+            license: "MIT".into(),
+        }),
+        latest: Some(LatestSource::Npm { package: "@google/gemini-cli".into() }),
+        update_line: None,
+        state_home: ".gemini".into(),
+        guest_state_home: None,
+        state_home_env: None,
+        project_key_env: None,
+        project_state: vec![
+            ProjectState { state: "project registry".into(), location: "projects.json".into(), key: "{\"projects\": {\"PATH\": \"SLUG\"}}; SLUG is the folder basename, deduplicated".into(), path_fields: vec!["the key".into()], move_: "rewrite the key, keep the slug".into(), status: StateStatus::Measured },
+            ProjectState { state: "project temp dir".into(), location: "tmp/SLUG/ with chats/, logs/ and .project_root".into(), key: "the slug from the registry".into(), path_fields: vec![".project_root".into()], move_: "rewrite .project_root".into(), status: StateStatus::Measured },
+            ProjectState { state: "shell history".into(), location: "history/SLUG/ with .project_root".into(), key: "the same slug".into(), path_fields: vec![".project_root".into()], move_: "rewrite .project_root".into(), status: StateStatus::Measured },
+            ProjectState { state: "chat files".into(), location: "tmp/SLUG/chats/session-TIMESTAMP-ID8.jsonl".into(), key: "by slug directory".into(), path_fields: vec!["projectHash in the header line, the sha256 hex of the resolved path".into(), "the workspace path as text in the first user message".into()], move_: "optional; neither listing nor resume checks it".into(), status: StateStatus::Measured },
+            ProjectState { state: "trust".into(), location: "trustedFolders.json".into(), key: "the resolved path to a trust level".into(), path_fields: vec!["the key".into()], move_: "rewrite the key".into(), status: StateStatus::Inferred },
+        ],
+        history: None,
+        prints_limits: None,
+        plan_brand: None,
+        usage_log: None,
+        mcp: Some(McpConfig { format: McpFormat::GeminiSettingsJson, files: vec!["~/.gemini/settings.json".into()], project_files: Some(vec![".gemini/settings.json".into()]), scope: "user scope".into(), http_auth: None, check: None, login: Some(McpLogin::Gemini), oauth: None, headless: None, trusts: None }),
+        context: Some(AgentContext::Gemini),
+        hooks: None,
+        skill_roots: SkillRoots { user: vec![SkillRoot { dir: "~/.gemini/skills".into(), lands: Lands::Copy }], project: vec![SkillRoot { dir: ".gemini/skills".into(), lands: Lands::Copy }] },
+        plugin_skills: None,
+        bundled_skills: None,
+        plugins: None,
+        plugin_shelf: None,
+        project_docs: vec![AGENTS_MD.into()],
+        first_move: SET_UP_WSP.into(),
+        apt_needs: None,
+        setup_needs: None,
+        background_road: None,
+    }
+}
+
+fn opencode() -> AgentEntry {
+    AgentEntry {
+        id: "opencode".into(),
+        name: "OpenCode".into(),
+        kind: EntryKind::Agent,
+        bin: "opencode".into(),
+        install_road: InstallRoad::Npm {
+            package: PackageRoad { package: "opencode-ai".into(), version: Some("1.18.27".into()), pin: None },
+            ignore_scripts: None,
+        },
+        node: None,
+        sign_in: sign_in_row("opencode").clone(),
+        config_paths: vec![
+            "~/.config/opencode/opencode.json".into(),
+            "~/.config/opencode/opencode.jsonc".into(),
+            "~/.config/opencode/AGENTS.md".into(),
+            "~/.config/opencode/package.json".into(),
+            "~/.config/opencode/agents".into(),
+            "~/.config/opencode/commands".into(),
+            "~/.config/opencode/plugins".into(),
+            "~/.config/opencode/skills".into(),
+            "~/.config/opencode/themes".into(),
+        ],
+        volatile: None,
+        source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Measured, note: None },
+        size: df_size(673),
+        about: AgentAbout {
+            creator: "Anomaly".into(),
+            description: "The open source coding agent for the terminal.".into(),
+            homepage: Some("https://opencode.ai".into()),
+            repo: Some("https://github.com/anomalyco/opencode".into()),
+            license: "MIT".into(),
+        },
+        mark: Some(AgentMark {
+            svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M22 24H2V0h20zM17 4.8H7v14.4h10z\"/></svg>".into(),
+            inks: None,
+            source: "https://github.com/simple-icons/simple-icons/blob/develop/icons/opencode.svg".into(),
+            license: "CC0-1.0".into(),
+        }),
+        latest: Some(LatestSource::Npm { package: "opencode-ai".into() }),
+        update_line: Some("opencode upgrade".into()),
+        state_home: ".local/share/opencode".into(),
+        guest_state_home: None,
+        state_home_env: None,
+        project_key_env: None,
+        project_state: vec![
+            ProjectState {
+                state: "project".into(),
+                location: "opencode.db, table project".into(),
+                key: "id is the git root commit hash; \"global\" for folders outside git".into(),
+                path_fields: vec!["worktree".into(), "sandboxes".into()],
+                move_: "update project set worktree, clear sandboxes".into(),
+                status: StateStatus::Measured,
+            },
+            ProjectState {
+                state: "project directories".into(),
+                location: "table project_directory".into(),
+                key: "(project_id, directory)".into(),
+                path_fields: vec!["directory".into()],
+                move_: "update the row".into(),
+                status: StateStatus::Measured,
+            },
+            ProjectState {
+                state: "sessions".into(),
+                location: "table session".into(),
+                key: "id ses_..., project_id".into(),
+                path_fields: vec!["directory".into()],
+                move_: "update session set directory".into(),
+                status: StateStatus::Measured,
+            },
+        ],
+        history: None,
+        prints_limits: None,
+        plan_brand: None,
+        usage_log: Some(UsageLog { format: "opencode-sqlite".into(), root: "~/.local/share/opencode/opencode.db".into() }),
+        mcp: Some(McpConfig {
+            format: McpFormat::OpencodeJson,
+            files: vec!["~/.config/opencode/opencode.json".into(), "~/.config/opencode/opencode.jsonc".into()],
+            project_files: Some(vec!["opencode.json".into(), "opencode.jsonc".into()]),
+            scope: "user scope".into(),
+            http_auth: None,
+            check: None,
+            login: Some(McpLogin::Opencode),
+            oauth: None,
+            headless: None,
+            trusts: None,
+        }),
+        context: Some(AgentContext::Opencode),
+        hooks: None,
+        skill_roots: SkillRoots {
+            user: vec![
+                SkillRoot { dir: "~/.config/opencode/skills".into(), lands: Lands::Copy },
+                SkillRoot { dir: "~/.claude/skills".into(), lands: Lands::Link },
+                SkillRoot { dir: "~/.agents/skills".into(), lands: Lands::Copy },
+            ],
+            project: vec![
+                SkillRoot { dir: ".opencode/skills".into(), lands: Lands::Copy },
+                SkillRoot { dir: ".claude/skills".into(), lands: Lands::Link },
+                SkillRoot { dir: ".agents/skills".into(), lands: Lands::Copy },
+            ],
+        },
+        plugin_skills: None,
+        bundled_skills: None,
+        plugins: None,
+        plugin_shelf: None,
+        project_docs: vec![AGENTS_MD.into()],
+        first_move: SET_UP_WSP.into(),
+        apt_needs: None,
+        setup_needs: None,
+        background_road: None,
+    }
+}
+
+fn pi() -> AgentEntry {
+    AgentEntry {
+        id: "pi".into(),
+        name: "Pi".into(),
+        kind: EntryKind::Agent,
+        bin: "pi".into(),
+        install_road: InstallRoad::Npm { package: PackageRoad { package: "@earendil-works/pi-coding-agent".into(), version: Some("0.84.4".into()), pin: None }, ignore_scripts: Some(true) },
+        node: Some(22),
+        sign_in: sign_in_row("pi").clone(),
+        config_paths: vec!["~/.pi/agent/settings.json".into(), "~/.pi/agent/keybindings.json".into(), "~/.pi/agent/AGENTS.md".into(), "~/.pi/agent/SYSTEM.md".into(), "~/.pi/agent/APPEND_SYSTEM.md".into(), "~/.pi/agent/prompts".into(), "~/.pi/agent/skills".into(), "~/.pi/agent/extensions".into(), "~/.pi/agent/themes".into()],
+        volatile: None,
+        source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Measured, note: None },
+        size: df_size(165),
+        about: AgentAbout {
+            creator: "Earendil Works".into(),
+            description: "A small coding agent for the terminal with read, bash, edit and write tools and saved sessions.".into(),
+            homepage: None,
+            repo: Some("https://github.com/earendil-works/pi".into()),
+            license: "MIT".into(),
+        },
+        mark: Some(AgentMark {
+            svg: "<svg viewBox=\"0 0 800 800\"><path d=\"M165.29 165.29H517.36V400H400V282.65H165.29Z\"/><path fill=\"var(--ink-1)\" d=\"M165.29 282.65H282.65V400H400V517.36H282.65V634.72H165.29Z\"/><path fill=\"var(--ink-2)\" d=\"M517.36 400H634.72V634.72H517.36Z\"/></svg>".into(),
+            inks: Some(vec![Ink { light: "#c76b5e".into(), dark: "#f09082".into() }, Ink { light: "#408eb2".into(), dark: "#4d9abf".into() }, Ink { light: "#b07f00".into(), dark: "#f1be58".into() }]),
+            source: "https://pi.dev/logo.svg (etag 83ce9b96de956e389a65386b733922a1, read 2026-09-25)".into(),
+            license: "MIT".into(),
+        }),
+        latest: Some(LatestSource::Npm { package: "@earendil-works/pi-coding-agent".into() }),
+        update_line: None,
+        state_home: ".pi/agent".into(),
+        guest_state_home: None,
+        state_home_env: None,
+        project_key_env: None,
+        project_state: vec![
+            ProjectState { state: "sessions".into(), location: "sessions/KEY/TIMESTAMP_SESSIONID.jsonl".into(), key: "two dashes, the resolved path without its leading slash with every slash, backslash and colon replaced by a dash, two dashes; dots and underscores kept".into(), path_fields: vec!["cwd in the header line".into()], move_: "rename the KEY directory; rewriting cwd is optional".into(), status: StateStatus::Measured },
+            ProjectState { state: "trust".into(), location: "trust.json".into(), key: "the resolved path to true; a parent folder covers its children".into(), path_fields: vec!["the key".into()], move_: "rewrite the key".into(), status: StateStatus::Inferred },
+        ],
+        history: None,
+        prints_limits: None,
+        plan_brand: None,
+        usage_log: None,
+        mcp: None,
+        context: Some(AgentContext::Pi),
+        hooks: None,
+        skill_roots: SkillRoots { user: vec![SkillRoot { dir: "~/.pi/agent/skills".into(), lands: Lands::Link }, SkillRoot { dir: "~/.agents/skills".into(), lands: Lands::Copy }], project: vec![SkillRoot { dir: ".pi/skills".into(), lands: Lands::Copy }, SkillRoot { dir: ".agents/skills".into(), lands: Lands::Copy }] },
+        plugin_skills: None,
+        bundled_skills: None,
+        plugins: None,
+        plugin_shelf: None,
+        project_docs: vec![AGENTS_MD.into()],
+        first_move: SET_UP_WSP.into(),
+        apt_needs: None,
+        setup_needs: None,
+        background_road: None,
+    }
+}
+
+fn hermes() -> AgentEntry {
+    AgentEntry {
+        id: "hermes".into(),
+        name: "Hermes Agent".into(),
+        kind: EntryKind::Agent,
+        bin: "hermes".into(),
+        install_road: InstallRoad::Script { script: HERMES_INSTALL.clone(), version: Some(HERMES.tag.to_string()), pin: None, bins: None },
+        node: None,
+        sign_in: sign_in_row("hermes").clone(),
+        config_paths: vec!["~/.hermes/config.yaml".into(), "~/.hermes/SOUL.md".into(), "~/.hermes/memories".into(), "~/.hermes/skills".into(), "~/.hermes/cron".into(), "~/.hermes/hooks".into()],
+        volatile: None,
+        source: Evidence { sessions: 1, images: 0, road: RoadEvidence::Measured, note: None },
+        size: df_size(484),
+        about: AgentAbout {
+            creator: "Nous Research".into(),
+            description: "Nous Research's agent that keeps memories and skills and grows with use.".into(),
+            homepage: Some("https://hermes-agent.nousresearch.com".into()),
+            repo: Some("https://github.com/NousResearch/hermes-agent".into()),
+            license: "MIT".into(),
+        },
+        mark: Some(AgentMark {
+            svg: "<svg viewBox=\"0 0 24 24\"><g fill-rule=\"evenodd\"><path d=\"M5.938 12.835c.127-.039.285.02.373.143.028.038.036.092.046.14.003.014-.02.033-.04.05-.124-.098-.24-.194-.354-.291-.011-.01-.016-.027-.025-.042zM8.396 9.412c.195-.032.39-.06.588-.05a.54.54 0 01.148.026c.202.071.402.147.601.224.028.01.05.036.075.055l-.013.027a9.203 9.203 0 01-.26-.089c-.115-.038-.213-.077-.315-.098-.25-.05-.25-.046-.292-.014l.574.144c.275.139.55.276.823.417.042.022.09.057.107.098.026.06.063.076.117.072.066-.006.132-.017.213-.027l-.04.086c.051.08.142.02.216.064-.074.13-.247.09-.334.199l.061.074-.12.087c0 .106-.038.168-.306.243l.026.085-.196.042.07.124h-.25l-.007.137c-.081-.01-.161-.018-.244-.027l-.053.123c-.027-.008-.052-.011-.073-.023-.067-.038-.128-.056-.195.006-.019.017-.063.014-.093.008-.026-.006-.05-.029-.07-.042-.11.095-.11.095-.208.003-.057.046-.12.074-.186.011-.063.027-.123-.02-.178-.014-.07.007-.097-.035-.133-.07l-.13.033c-.013-.236-.194-.19-.34-.203.005-.072.05-.092.095-.094a.474.474 0 01.159.022c.164.05.32.12.496.138.203.021.405.029.601-.015.265-.059.52-.149.707-.365.049-.056.083-.127.117-.195.019-.038.02-.084-.02-.116a1.397 1.397 0 00-.382-.217c.024.12-.031.182-.115.221 0 .014-.004.025 0 .03.08.115.084.16-.007.267a1.39 1.39 0 01-.218.211.477.477 0 01-.641-.05 1.36 1.36 0 01-.133-.152c-.078-.107-.076-.108-.033-.236-.165-.08-.128-.226-.104-.364.008-.05.028-.096.049-.163-.04.014-.067.017-.087.032a.897.897 0 00-.316.357c-.007.016-.01.034-.02.047-.012.015-.034.038-.045.035-.02-.006-.037-.027-.05-.045-.008-.012-.007-.032-.012-.057h-.126l.053-.172a14.82 14.82 0 00-.039-.049l.11-.284c-.06.026-.091.044-.124.051-.03.007-.064 0-.095 0 0-.031-.01-.07.004-.092.149-.22.305-.428.593-.476z\"/><path d=\"M8.06 10.788c-.003-.038-.004-.075.037-.062.016.006.034.048.028.067-.01.04-.038.032-.064-.005z\"/><path clip-rule=\"evenodd\" d=\"M11.981.009c.226-.012.453-.011.679 0 .247.01.495.024.74.062.401.064.798.157 1.19.273.463.138.92.299 1.356.511a7.31 7.31 0 012.948 2.642c.292.469.536.963.739 1.479.219.556.446 1.11.623 1.683.204.654.329 1.326.458 1.997.097.504.182 1.01.29 1.511.156.722.329 1.44.494 2.16.186.812.4 1.615.63 2.415.102.355.193.713.282 1.072.11.436.202.876.254 1.323.031.278.066.557.073.837a7.56 7.56 0 01-.017.88c-.037.413-.1.818-.226 1.212a5.017 5.017 0 01-.915 1.649l-.13.156.018.023c.043-.023.088-.041.127-.068.2-.138.373-.307.531-.49.4-.46.721-.973.975-1.529a3.59 3.59 0 00.325-1.72c-.024-.424-.097-.834-.3-1.213-.013-.027-.015-.06-.03-.121.05.035.082.048.101.072.107.13.22.258.315.398.33.494.46 1.052.486 1.64a3.75 3.75 0 01-.47 1.97c-.36.655-.887 1.14-1.526 1.506-.193.111-.394.21-.595.308-.157.078-.248.211-.318.365a.522.522 0 00-.033.406.359.359 0 01.013.139c-.005.077-.077.155-.14.162-.054.006-.125-.043-.15-.116a1.206 1.206 0 01-.06-.233c-.04-.314-.155-.6-.308-.87a3.906 3.906 0 00-.73-.91 2.129 2.129 0 00-.897-.524 4.093 4.093 0 00-.692-.131c-.075-.008-.15-.04-.22.01.18.06.363.11.538.18.434.173.82.43 1.18.728.308.255.58.543.794.884.098.155.186.315.227.496.027.123.042.25.067.375.013.062-.002.109-.053.144-.047.033-.122.034-.163-.01a.455.455 0 01-.08-.14c-.03-.073-.038-.159-.078-.225a7.314 7.314 0 00-1.423-1.664c-.16-.137-.329-.26-.537-.323-.376-.114-.753-.203-1.15-.154-.213.025-.427.032-.64.053a1.6 1.6 0 00-.736.278 5.14 5.14 0 00-.834.72c-.329.342-.642.699-.955 1.055-.136.155-.264.319-.314.531a5.227 5.227 0 00-.012.051.096.096 0 01-.09.076h-.31c-.046 0-.082-.048-.072-.094.023-.108.045-.216.07-.324.075-.325.19-.635.368-.917.024-.039.04-.088.104-.08l.01.049.027.077c.28-.435.571-.834.996-1.135.283-.204.584-.378.89-.55a.196.196 0 00-.098-.002c-.162.043-.325.084-.485.134-.402.124-.764.33-1.11.566-.147.1-.298.193-.414.333a7.314 7.314 0 00-1.07 1.767.845.845 0 00-.04.12.075.075 0 01-.072.056h-.494c-.04 0-.062-.051-.036-.082.123-.14.246-.282.377-.415.275-.281.58-.532.777-.884.027-.048.063-.09.095-.135.238-.333.54-.607.818-.902.082-.086.175-.16.26-.24.029-.027.053-.057.079-.085l-.018-.025-.135.041c-.034.017-.07.031-.102.05-.248.144-.494.292-.743.433-.408.23-.825.439-1.209.711-.281.2-.591.358-.889.533-.02.012-.044.015-.08.028-.015-.135.143-.201.108-.336-.033.014-.064.02-.085.038-.111.096-.227.19-.328.296-.148.157-.284.325-.425.488-.125.143-.25.286-.373.431A.153.153 0 019.89 24H8.762a.316.316 0 00.016-.042c.028-.09.085-.172.083-.28-.091-.018-.162.001-.212.077a4.45 4.45 0 00-.136.215c-.01.016-.024.03-.042.03h-.093c-.019 0-.029-.022-.017-.037.071-.088.14-.178.209-.268.001-.002-.006-.012-.012-.024-.014.004-.03.006-.045.013-.176.09-.352.181-.527.274a.363.363 0 01-.168.042H5.202c-.026 0-.039-.036-.019-.053.21-.178.402-.374.558-.605.335-.496.538-1.047.667-1.629.004-.02-.003-.043-.006-.091-.037.048-.059.072-.076.1a1.943 1.943 0 01-.334.415c-.28.258-.59.448-.983.464-.297.012-.588 0-.865-.127-.46-.21-.722-.57-.794-1.072-.025-.17-.017-.171-.182-.219A3.513 3.513 0 011.97 20.6a2.286 2.286 0 01-.808-1.13 3.569 3.569 0 01-.16-1.245c.002-.034.016-.067.024-.1.032.023.046.043.05.066.033.153.059.308.096.46.086.355.257.664.516.92.258.256.571.419.91.532.358.118.717.138 1.07-.016a1.89 1.89 0 00.621-.452c.328-.348.533-.76.648-1.223.009-.034.005-.071.007-.11-.015.006-.026.006-.03.011-.031.05-.064.1-.093.152-.284.502-.679.887-1.196 1.135-.351.17-.718.255-1.11.159a1.607 1.607 0 01-.971-.64 2.006 2.006 0 01-.368-.924 2.903 2.903 0 01.02-.886c.05-.439.466-1.17.742-1.271-.02.063-.035.112-.053.16-.043.116-.097.227-.13.345a1.901 1.901 0 00-.05.82c.033.212.09.416.204.6.147.236.346.407.62.465.11.023.225.014.338.018a.576.576 0 00.386-.131c.164-.128.282-.292.366-.481.168-.375.24-.777.309-1.179.05-.296.093-.594.133-.893.039-.281.071-.563.104-.845.026-.232.048-.464.074-.696.024-.228.052-.455.076-.683.024-.227.047-.455.069-.683.013-.14.022-.28.034-.42l.037-.417c.022-.25.041-.5.065-.748.008-.082-.02-.132-.09-.177a2.46 2.46 0 01-.492-.418c-.1-.109-.188-.228-.282-.342-.035-.042-.056-.097-.116-.118a2.084 2.084 0 00.275.597c.06.092.131.176.196.265.063.086.182.115.234.226-.028.003-.046.01-.06.006a4.74 4.74 0 01-.22-.057 2.71 2.71 0 01-1.287-.819c-.435-.487-.656-1.076-.71-1.723a5.206 5.206 0 01.014-1.06c.072-.602.22-1.186.45-1.745.155-.376.338-.741.526-1.102.205-.393.466-.75.765-1.076.512-.559 1.104-1.024 1.726-1.448.717-.49 1.478-.898 2.277-1.233C8.244.828 8.767.632 9.31.494c.655-.166 1.31-.33 1.982-.415.229-.03.458-.058.688-.07zm-1.847 22.82c-.07.06-.147.111-.207.18-.238.27-.464.549-.668.869l-.044.108a.177.177 0 00.093-.057c.174-.19.351-.378.519-.574.104-.122.195-.255.288-.386.024-.034.03-.08.046-.12l-.027-.02zm1.65-3.695a5.51 5.51 0 00-.653.593l-.37.386a.963.963 0 01-.377.25 1.372 1.372 0 01-.467.09c-.044 0-.087.006-.151.012.028.058.043.097.064.131.15.242.301.482.45.724.136.22.276.438.399.666.068.125.105.267.156.404.077.027.14-.018.202-.048.29-.135.579-.274.867-.412.213-.101.437-.186.636-.31.347-.215.68-.455 1.018-.685.015-.01.026-.028.042-.046-.023-.019-.038-.037-.056-.044-.287-.111-.527-.3-.77-.482a5.319 5.319 0 01-.506-.42 1.757 1.757 0 01-.41-.653c-.019-.049-.045-.095-.075-.156zm-5.847.264c-.06.096-.097.194-.132.293a3.38 3.38 0 01-.555 1.01c-.2.25-.455.412-.762.493-.23.06-.464.076-.7.07-.048-.002-.097.002-.158.005.016.04.021.066.035.085.1.145.23.246.4.295.157.046.316.034.498.023.181-.037.343-.115.485-.234.238-.199.402-.454.536-.732.175-.363.264-.751.342-1.144.01-.053.008-.11.011-.164zm14.945-4.586c.008.029.016.057.027.107.024.155.051.31.072.464.03.219.067.437.078.657.017.344.027.689-.014 1.033-.037.315-.063.633-.116.946a6.153 6.153 0 01-.46 1.518c-.008.018-.01.039-.02.082.047-.03.077-.042.098-.064.085-.083.17-.167.248-.255.271-.305.458-.66.596-1.043.18-.498.228-1.011.145-1.531-.103-.65-.33-1.263-.597-1.881a9.055 9.055 0 00-.024-.055l-.033.022zM5.797 8.29a.26.26 0 00.018.153c.124.251.25.501.379.75.025.049.066.09.03.163-.284.06-.578.119-.88.255.059.038.097.06.132.087.042.032.112.058.09.12-.01.033-.075.048-.117.072.017.01.043.021.067.036.166.102.33.207.447.368.138.192.229.404.188.644-.079.469-.306.85-.69 1.132-.054.04-.106.083-.161.122a.243.243 0 00-.103.245.77.77 0 00.055.195c.083.196.22.35.375.492.083.076.159.164.222.257a.37.37 0 01.025.377c-.023.05-.05.099-.076.148-.03.06-.028.111.022.162.041.042.08.089.112.138.038.058.078.079.147.05a.486.486 0 01.333-.006c.16.046.302.126.444.21.13.077.264.149.4.219.067.035.14.05.219.026.071-.022.124.01.145.076.02.064-.003.108-.074.139-.07.03-.137.063-.209.088-.1.035-.201.073-.314.077-.013-.107.11-.088.127-.159-.206-.126-.643-.145-.801-.034.063.112.035.21-.096.313-.13-.1-.025-.202.002-.3a.209.209 0 00-.249.17c-.015.101.067.216.178.224.108.007.218-.005.326-.012.06-.005.12-.027.199 0-.103.123-.248.127-.357.19.002.05.07.086.019.131-.053.048-.095-.001-.132-.03-.08-.063-.16-.126-.231-.197a.474.474 0 01-.157-.311.52.52 0 00-.043-.172c-.032-.074-.032-.137.033-.19-.018-.03-.028-.053-.045-.072a1.222 1.222 0 01-.196-.369c-.053-.137-.046-.264.048-.381.024-.03.05-.06.064-.095a.664.664 0 00.047-.168c.017-.165-.064-.287-.182-.387-.186-.156-.36-.322-.46-.551-.005-.011-.024-.017-.037-.026-.011.017-.024.027-.025.038-.019.185-.045.37-.052.557-.014.377.058.743.162 1.104.118.41.289.798.488 1.173.267.502.537 1.002.812 1.5.055.098.13.189.208.27.198.202.452.272.724.273.202 0 .404-.006.605-.026.295-.03.59-.073.884-.113.183-.025.365-.057.548-.08.21-.026.38.073.522.21.16.156.305.327.447.5.22.265.397.56.554.867.05.098.07.1.147.03.13-.121.26-.242.394-.36.067-.059.088-.12.067-.213a3.535 3.535 0 01-.085-.796c.002-.157.006-.314.018-.471.015-.224.03-.45.06-.672a59.114 59.114 0 01.362-2.298c.087-.493.182-.984.268-1.477.06-.347.118-.694.162-1.043.034-.273.055-.55.063-.825.011-.332.003-.665.002-.998 0-.077.004-.155-.01-.23-.028-.142-.01-.155-.162-.19a5.826 5.826 0 00-.607-.107c-.146-.018-.207-.053-.221-.19-.006-.049-.025-.098-.041-.146-.009-.025-.024-.048-.046-.09l-.025.264c-.009.096-.029.116-.127.115-.055 0-.11-.008-.164-.008-.476 0-.952-.008-1.426.032-.095.008-.173-.015-.226-.103-.04-.066-.088-.126-.134-.186-.063-.084-.086-.093-.182-.06-.195.068-.388.138-.582.21a2.71 2.71 0 00-.675.394.986.986 0 01-.323.168c-.033.01-.07.008-.127.013.02-.066.024-.114.047-.15.064-.105.135-.205.205-.306.023-.033.049-.063.073-.095l-.015-.023-.201.037c-.146.04-.296.07-.437.122-.148.053-.266.023-.386-.072a3.623 3.623 0 01-.733-.786l-.093-.132zm8.592 8.963l-.147.09c-.22.134-.44.266-.659.402-.093.058-.184.12-.27.188-.085.07-.124.161-.072.272.047.1.093.2.147.294.047.08.124.138.213.147.11.01.228.012.336-.012.217-.05.372-.205.528-.357a.291.291 0 00.087-.308c-.046-.18-.079-.365-.118-.547-.011-.052-.027-.103-.045-.169zm-.257-2.409c-.12.291-.205.597-.325.91-.151.433-.294.87-.435 1.323.036-.01.054-.01.067-.018.261-.16.522-.324.785-.484.054-.033.071-.078.065-.138-.012-.13-.024-.262-.034-.393l-.068-.886c-.008-.103-.02-.206-.029-.31-.009 0-.017-.002-.026-.004zm3.081-8.13l.099.285c.08.231.159.463.24.714l.58 1.952c.187.63.372 1.262.558 1.893.114.382.235.762.343 1.146.072.257.126.519.186.799.044.206.087.413.127.64.034.106.023.226.077.325l.025-.006-.068-.362c-.038-.206-.077-.412-.113-.638-.015-.07-.029-.141-.046-.211-.095-.396-.177-.796-.29-1.187-.196-.685-.413-1.364-.618-2.046-.165-.549-.322-1.1-.488-1.648-.069-.227-.15-.45-.226-.695l-.117-.336c-.037-.107-.075-.216-.115-.322-.04-.106-.084-.21-.127-.314a7.558 7.558 0 01-.027.01zM6.225 14.304c-.063-.001-.115.014-.134.083a.35.35 0 00.41.012 4.533 4.533 0 00-.276-.095zM5.23 11.98c-.026-.027-.057-.048-.075.002-.012.032-.007.07-.01.113.082-.037.082-.037.085-.115zm.062-1.189a.135.135 0 00-.088.056.197.197 0 00-.025.11c.005.152.01.306.026.457a.751.751 0 00.066.218c.061.136.157.167.288.101.055-.027.06-.054.025-.11a4.52 4.52 0 01-.129-.211c-.015-.068-.066-.131-.033-.207.04-.09-.076-.116-.074-.19V10.874c-.003-.038-.006-.087-.056-.083zm-.017-.968a.867.867 0 00-.467.127c-.076.045-.084.07-.05.158.034.087.07.173.115.254.064.117.09.125.21.077a.657.657 0 01.336-.053c.202.022.357.136.504.264l.092.077c.007-.006.014-.013.022-.018-.019-.105-.035-.226-.149-.264-.157-.053-.324-.075-.508-.117l-.24-.005c.24-.169.452-.044.687.009-.063-.115-.153-.147-.23-.193-.082-.05-.17-.092-.25-.144-.06-.037-.12-.08-.072-.172zm10.233.325c-.23-.01-.427.08-.608.211-.034.026-.06.065-.105.117.087.026.15.046.232.065.044-.015.088-.03.13-.046.306-.114.61-.115.904.031.126.063.237.04.366-.005-.02-.031-.03-.054-.045-.071a.986.986 0 00-.448-.273c-.14-.044-.284-.024-.426-.03zM7.99 6.483a.308.308 0 00.002.133c.08.321.156.643.242.962.104.387.27.75.456 1.103.02.037.061.08.098.087a.404.404 0 00.253-.051l-.472-.84c-.23-.448-.405-.92-.579-1.394zM10.397.497c-.2-.008-.405.004-.603.034-.236.035-.47.087-.7.152-.287.08-.569.18-.852.273-.04.013-.074.038-.11.058.028.014.05.018.07.014.287-.068.58-.085.873-.09.134-.002.269.009.402.025.19.024.382.048.57.09.456.104.874.3 1.265.556.464.306.888.66 1.257 1.078.205.232.395.475.56.739.17.274.315.561.449.856.273.601.456 1.232.6 1.876.04.173.07.348.1.524.017.104.065.167.17.19.122.028.2.105.22.251-.003.102-.06.174-.129.24a1.065 1.065 0 00-.268.358.164.164 0 00.083-.039c.08-.086.162-.172.235-.265a.56.56 0 00.13-.333c.009-.05.022-.1.024-.15.007-.124-.017-.15-.143-.168-.025-.004-.049-.014-.073-.015-.082-.007-.125-.063-.137-.131-.033-.198-.004-.355.247-.408.086-.018.174-.03.26-.042.158-.023.315-.053.473-.067.14-.012.19.033.226.167.008.029.018.057.021.087.019.179-.008.225-.141.288-.027.013-.055.024-.078.042a.148.148 0 00-.051.067c-.039.144.073.382.206.445l.673.32c.023.011.05.015.075.023l.018-.026c-.015-.008-.032-.013-.044-.024a2.27 2.27 0 00-.544-.32 4.898 4.898 0 00-.173-.075.203.203 0 01-.126-.191c-.003-.085.045-.154.128-.187l.059-.025c.099-.044.118-.076.112-.187a.384.384 0 00-.008-.063c-.067-.294-.123-.59-.205-.88a9.478 9.478 0 00-.826-2.036 7.465 7.465 0 00-1.39-1.805 4.536 4.536 0 00-1.177-.824 3.656 3.656 0 00-1.016-.328 6.155 6.155 0 00-.712-.074zm6.719 5.955c.01.014.018.028.038.034l-.022-.044-.016.01zM4.103 3.917a.062.062 0 01-.03.012.455.455 0 01-.04.039c-.01.01-.02.02-.045.04l-.363.354c-.088.085-.17.178-.266.253-.284.22-.425.53-.544.855a.132.132 0 00-.007.071c.013.055.033.108.052.168l.074.026c-.017.056-.03.105-.047.152-.058.164-.118.327-.175.491-.005.015.008.036.019.077.08-.175.158-.33.225-.489.228-.544.484-1.074.819-1.561.09-.133.182-.266.283-.401.004-.006.007-.013.022-.03.001-.016.003-.032.015-.04l.008-.017zm12.976 2.408a.023.023 0 01.009.019.073.073 0 00-.006.01.188.188 0 00.007.02l.018.022c.002-.007.007-.016.005-.021-.003-.01-.012-.018-.02-.038a1.331 1.331 0 01-.013-.012zM4.199 4.48c-.003.004-.008.008-.027.014-.005.013-.011.025-.031.047a2.085 2.085 0 01-.124.167c-.048.07-.116.055-.181.041-.134-.028-.228.016-.287.143-.089.187-.187.37-.273.56-.049.108-.11.216-.118.36.081.003.154.007.228.008h.228a2.563 2.563 0 01-.079.264c-.01.052-.022.103-.033.155l.02.004c.018-.046.037-.092.067-.153.066-.142.13-.285.2-.426.02-.04.034-.1.116-.092 0 .043.004.084 0 .124-.005.045-.017.09-.028.143.141.043.086.174.115.269.102-.022.104-.195.248-.144v.205l.017.002.439-1.059c-.13 0-.246-.02-.358.033-.024.011-.058-.001-.108-.004.075-.15.139-.278.211-.417a.128.128 0 01.025-.036c0-.015-.001-.03.008-.038l.006-.02c-.005.006-.01.011-.028.017-.004.012-.009.024-.026.045a.085.085 0 01-.032.033c-.123.157-.09.164-.258.106-.079-.027-.078-.028-.047-.144.028-.046.056-.093.098-.15 0-.016-.001-.032.007-.042L4.2 4.48zm2.073-.67c-.003.006-.007.011-.027.016-.094.125-.194.246-.28.377-.155.238-.301.481-.451.723-.14.224-.345.368-.575.481-.017.008-.04.006-.079.011.012-.059.016-.109.033-.153a6.076 6.076 0 01.229-.518l-.007-.02a.138.138 0 01-.035.025c-.028.05-.055.1-.093.164-.26.424-.443.817-.442.95.024.004.048.011.073.013.177.013.188.007.26-.165.03-.07.077-.12.147-.15l.175-.07c.044-.018.085-.057.146-.032.003.05-.01.11.014.145.042.062.044.125.047.193.002.049.017.098.026.147.029-.034.039-.065.05-.097.142-.39.277-.782.428-1.17.1-.256.22-.504.33-.756.013-.03.013-.067.03-.092V3.81zm3.987-.34c0 .045.01.084.021.123.042.16.094.318.124.48.024.133.023.27.028.406 0 .033-.019.067-.032.11-.094-.058-.047-.158-.106-.215h-.125c-.015.072-.01.152-.046.2-.066.085-.155.154-.236.227-.043.038-.078.018-.103-.025l-.046-.087c-.065.035-.117.069-.172.093-.116.051-.235.095-.35.147-.085.038-.09.053-.07.147.014.075.034.148.047.223.013.072.05.109.123.124.233.05.462.115.657.265.058-.102.058-.102.168-.151.03-.014.06-.03.092-.042.08-.03.115-.017.15.06.023.048.041.098.066.158.06-.14-.042-.267.017-.416.157.18.24.39.375.567a.235.235 0 00.022-.098c.002-.124 0-.247.002-.371 0-.034.013-.067.02-.1l.032-.003c.11.155.13.354.226.52a3.036 3.036 0 00-.01-.392c-.004-.045 0-.074.05-.088.08.036.116.14.215.158-.03-.275-.423-1.137-.798-1.635-.114-.127-.2-.28-.34-.386zm-2.667.696c-.019.034-.03.05-.037.067-.061.185-.125.37-.18.556-.031.105-.087.169-.195.19-.09.019-.178.052-.268.073-.038.009-.089.015-.118-.003-.024-.016-.025-.069-.036-.106-.064.076-.082.087-.17.047-.133-.062-.262-.135-.393-.201-.048-.025-.093-.063-.17-.03-.043.12-.091.25-.137.382-.099.28-.087.242.095.453.046.048.102.03.154.023.054-.009.106-.03.16-.036.13-.013.26-.08.367-.015.204-.064.387-.122.571-.178.05-.015.089.005.114.054.022.042.034.093.082.121.038-.056-.013-.128.063-.178l.14.241-.042-1.46zm.278.358c-.096-.01-.107.01-.11.108-.002.038-.003.078.002.115.03.2.099.386.174.57.002.006.012.01.022.015l.078-.05c.052.036.081.088.153.088.205-.002.41.014.616.012.099-.001.158.042.205.12.018.03.024.077.088.066l-.08-.394c-.05-.195-.085-.395-.172-.589-.057.057-.114.068-.18.046a.72.72 0 00-.135-.028c-.22-.028-.44-.059-.66-.08zm10.254-1.727c.089.163.155.316.139.491-.016.168.026.342-.044.516-.047-.033-.088-.082-.112-.075-.117.035-.164-.057-.227-.115a4.772 4.772 0 01-.286-.29l-.104-.113a4.856 4.856 0 01-.023.019c.035.046.07.093.11.156.04.064.084.127.122.193.034.058.065.118.031.205-.082-.01-.164-.019-.246-.032-.06-.01-.101 0-.124.07-.031.098-.037.096-.15.09.02.042.036.08.057.116.041.074.03.138-.03.196-.06.06-.118.122-.178.181a.175.175 0 01-.185.046c-.222-.061-.447-.113-.67-.174-.032-.009-.063-.04-.086-.068-.03-.04-.052-.087-.08-.13-.044-.07-.09-.138-.136-.207a.18.18 0 00-.014.105c.012.127.03.253.035.38.005.1-.024.12-.121.104-.104-.017-.206-.04-.31-.058-.064-.012-.131-.028-.202.03l.081.208c.09 0 .166-.01.237.002a.819.819 0 01.458.251c.078.083.154.168.241.26l.018-.005c-.004-.006-.008-.013-.01-.04.014-.056-.062-.118.018-.178.031.03.064.057.088.09.058.078.111.159.169.257l.089.141.024-.013a2093.819 2093.819 0 01-.427-.934c.055.007.083.007.108.016.193.07.385.142.577.216.074.028.147.06.219.094.062.028.112.018.157-.033.05-.056.102-.112.154-.167.05-.051.095-.046.132.014.016.025.026.053.04.08.071.138.143.277.217.433l.159.308.025-.011c-.044-.106-.07-.218-.138-.334-.057-.182-.168-.346-.206-.545.136.034.362.326.567.732l.057.074.018-.011a1.563 1.563 0 01-.052-.127c-.046-.145-.097-.29-.136-.436-.022-.083-.036-.173.022-.26l.109.058-.026-.207.027-.016c.022.02.05.036.065.06.073.108.143.22.215.33.01.016.029.029.043.043-.036-.217-.2-.38-.229-.626l.155.112c.014-.166.012-.319.042-.465.032-.158-.023-.297-.063-.445.024.004.036.006.055.025.092.124.183.249.277.371.02.027.05.047.069.087l.04.063.019-.015a.293.293 0 01-.053-.082 27.922 27.922 0 01-.332-.49c-.221-.311-.363-.467-.485-.521zm-6.57.327c-.003.161.092.275.069.415l-.368.087c.09.139.032.237-.052.331-.05.057-.092.122-.143.178-.037.04-.046.078-.018.126l.16.275c.029.048.072.066.128.064.076-.003.152 0 .228-.001.116-.003.216.022.275.137.006.014.02.024.044.052.004-.059-.003-.098.01-.13.016-.04.04-.099.072-.108.084-.023.173-.024.26-.03.013-.001.027.018.04.029l.071.065c.019-.11-.082-.198-.024-.31l.126.04c-.026-.123-.07-.245-.071-.366 0-.123.051-.243.115-.36.107.062.16.156.234.253.183.265.36.533.494.834.165-.078.27.068.407.088-.003-.106-.133-.441-.197-.492a.142.142 0 00-.102-.028c-.06.011-.119.039-.191.063-.025-.039-.056-.078-.077-.122a3.936 3.936 0 00-.473-.783c-.076-.094-.16-.182-.228-.26l-.391.285c-.049.035-.094.03-.132-.017l-.169-.207c-.025-.03-.053-.059-.097-.108z\"/></g></svg>".into(),
+            inks: None,
+            source: "https://github.com/lobehub/lobe-icons/blob/329f378cbd1a88f45b60cd096b9111ce16f3ea39/src/HermesAgent/components/Mono.tsx".into(),
+            license: "MIT".into(),
+        }),
+        latest: None,
+        update_line: None,
+        state_home: ".hermes".into(),
+        guest_state_home: None,
+        state_home_env: None,
+        project_key_env: None,
+        project_state: vec![
+            ProjectState { state: "sessions".into(), location: "state.db, table sessions".into(), key: "id like 20260906_033144_55e3e2".into(), path_fields: vec!["cwd".into(), "git_repo_root".into()], move_: "update sessions set cwd and git_repo_root".into(), status: StateStatus::Measured },
+            ProjectState { state: "projects registry".into(), location: "projects.db: projects.primary_path, project_folders.path, discovered_repos.root".into(), key: "resolved path columns".into(), path_fields: vec!["primary_path".into(), "path".into(), "root".into()], move_: "update the rows".into(), status: StateStatus::Inferred },
+        ],
+        history: Some(SessionHistory { format: HistoryFormat::HermesSqlite, root: "~/.hermes/state.db".into() }),
+        prints_limits: None,
+        plan_brand: None,
+        usage_log: None,
+        mcp: None,
+        context: Some(AgentContext::Hermes),
+        hooks: None,
+        skill_roots: SkillRoots { user: vec![SkillRoot { dir: "~/.hermes/skills".into(), lands: Lands::Link }], project: vec![] },
+        plugin_skills: None,
+        bundled_skills: Some(BundledSkills::Hermes),
+        plugins: None,
+        plugin_shelf: None,
+        project_docs: vec![AGENTS_MD.into()],
+        first_move: SET_UP_WSP.into(),
+        apt_needs: None,
+        setup_needs: None,
+        background_road: None,
+    }
+}
+
+fn crush() -> AgentEntry {
+    AgentEntry {
+        id: "crush".into(),
+        name: "Crush".into(),
+        kind: EntryKind::Agent,
+        bin: "crush".into(),
+        install_road: pinned("charmbracelet/crush", None),
+        node: None,
+        sign_in: no_sign_in(),
+        config_paths: vec![],
+        volatile: None,
+        source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Unmeasured, note: None },
+        size: Size::Measured { bytes: 86818976, on: "2026-09-26".into(), method: SizeMethod::Unpacked },
+        about: AgentAbout {
+            creator: "Charm".into(),
+            description: "Charm's coding agent for the terminal. It works with the model of your choice and your own servers, language servers and skills.".into(),
+            homepage: Some("https://charm.sh/crush".into()),
+            repo: Some("https://github.com/charmbracelet/crush".into()),
+            license: "FSL-1.1-MIT".into(),
+        },
+        mark: None,
+        latest: Some(LatestSource::Github { repo: "charmbracelet/crush".into() }),
+        update_line: None,
+        state_home: ".local/share/crush".into(),
+        guest_state_home: None,
+        state_home_env: None,
+        project_key_env: None,
+        project_state: vec![
+        ],
+        history: None,
+        prints_limits: None,
+        plan_brand: None,
+        usage_log: None,
+        mcp: None,
+        context: None,
+        hooks: None,
+        skill_roots: SkillRoots { user: vec![SkillRoot { dir: "~/.config/crush/skills".into(), lands: Lands::Copy }, SkillRoot { dir: "~/.config/agents/skills".into(), lands: Lands::Copy }, SkillRoot { dir: "~/.agents/skills".into(), lands: Lands::Copy }, SkillRoot { dir: "~/.claude/skills".into(), lands: Lands::Link }], project: vec![SkillRoot { dir: ".crush/skills".into(), lands: Lands::Copy }, SkillRoot { dir: ".agents/skills".into(), lands: Lands::Copy }, SkillRoot { dir: ".claude/skills".into(), lands: Lands::Link }, SkillRoot { dir: ".cursor/skills".into(), lands: Lands::Copy }] },
+        plugin_skills: None,
+        bundled_skills: None,
+        plugins: None,
+        plugin_shelf: None,
+        project_docs: vec![AGENTS_MD.into()],
+        first_move: SET_UP_WSP.into(),
+        apt_needs: None,
+        setup_needs: None,
+        background_road: None,
+    }
+}
+
+fn qwen() -> AgentEntry {
+    AgentEntry {
+        id: "qwen".into(),
+        name: "Qwen Code".into(),
+        kind: EntryKind::Agent,
+        bin: "qwen".into(),
+        install_road: InstallRoad::Npm { package: PackageRoad { package: "@qwen-code/qwen-code".into(), version: Some("0.24.5".into()), pin: None }, ignore_scripts: Some(true) },
+        node: Some(22),
+        sign_in: no_sign_in(),
+        config_paths: vec![],
+        volatile: None,
+        source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Unmeasured, note: None },
+        size: not_measured(),
+        about: AgentAbout {
+            creator: "Qwen team, Alibaba".into(),
+            description: "An open source coding agent for the terminal from the Qwen team.".into(),
+            homepage: Some("https://qwenlm.github.io/qwen-code-docs/en/users/overview".into()),
+            repo: Some("https://github.com/QwenLM/qwen-code".into()),
+            license: "Apache-2.0".into(),
+        },
+        mark: Some(AgentMark {
+            svg: "<svg viewBox=\"0 0 141.38 140\"><path fill=\"currentColor\" d=\"m140.93 85-16.35-28.33-1.93-3.34 8.66-15a3.323 3.323 0 0 0 0-3.34l-9.62-16.67c-.3-.51-.72-.93-1.22-1.22s-1.07-.45-1.67-.45H82.23l-8.66-15a3.33 3.33 0 0 0-2.89-1.67H51.43c-.59 0-1.17.16-1.66.45-.5.29-.92.71-1.22 1.22L32.19 29.98l-1.92 3.33H12.96c-.59 0-1.17.16-1.66.45-.5.29-.93.71-1.22 1.22L.45 51.66a3.323 3.323 0 0 0 0 3.34l18.28 31.67-8.66 15a3.32 3.32 0 0 0 0 3.34l9.62 16.67c.3.51.72.93 1.22 1.22s1.07.45 1.67.45h36.56l8.66 15a3.35 3.35 0 0 0 2.89 1.67h19.25a3.34 3.34 0 0 0 2.89-1.67l18.28-31.67h17.32c.6 0 1.17-.16 1.67-.45s.92-.71 1.22-1.22l9.62-16.67a3.323 3.323 0 0 0 0-3.34ZM51.44 3.33 61.07 20l-9.63 16.66h76.98l-9.62 16.66H45.67l-11.54-20zM57.21 120H22.58l9.63-16.67h19.25l-38.5-66.67h19.25l9.62 16.67L68.78 100l-11.55 20Zm61.59-33.34-9.62-16.67-38.49 66.67-9.63-16.67 9.63-16.66 26.94-46.67h23.1l17.32 30z\"/></svg>".into(),
+            inks: Some(vec![Ink { light: "#6d44e8".into(), dark: "#8b6cf0".into() }]),
+            source: "https://github.com/QwenLM/qwen-code/blob/c3a4058a0c7207de7b421e9da0622a9ec890dbad/packages/vscode-ide-companion/assets/sidebar-icon.svg".into(),
+            license: "Apache-2.0".into(),
+        }),
+        latest: Some(LatestSource::Npm { package: "@qwen-code/qwen-code".into() }),
+        update_line: None,
+        state_home: ".qwen".into(),
+        guest_state_home: None,
+        state_home_env: None,
+        project_key_env: None,
+        project_state: vec![
+        ],
+        history: None,
+        prints_limits: None,
+        plan_brand: None,
+        usage_log: None,
+        mcp: None,
+        context: None,
+        hooks: None,
+        skill_roots: SkillRoots { user: vec![SkillRoot { dir: "~/.qwen/skills".into(), lands: Lands::Copy }], project: vec![SkillRoot { dir: ".qwen/skills".into(), lands: Lands::Copy }] },
+        plugin_skills: None,
+        bundled_skills: None,
+        plugins: None,
+        plugin_shelf: None,
+        project_docs: vec![AGENTS_MD.into()],
+        first_move: SET_UP_WSP.into(),
+        apt_needs: None,
+        setup_needs: None,
+        background_road: None,
+    }
+}
+
+fn goose() -> AgentEntry {
+    AgentEntry {
+        id: "goose".into(),
+        name: "Goose".into(),
+        kind: EntryKind::Agent,
+        bin: "goose".into(),
+        install_road: pinned("aaif-goose/goose", None),
+        node: None,
+        sign_in: no_sign_in(),
+        config_paths: vec![],
+        volatile: None,
+        source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Unmeasured, note: None },
+        size: Size::Measured { bytes: 300841352, on: "2026-09-26".into(), method: SizeMethod::Unpacked },
+        about: AgentAbout {
+            creator: "Block".into(),
+            description: "An open source, extensible agent that installs, runs, edits and tests code with any model.".into(),
+            homepage: Some("https://goose-docs.ai".into()),
+            repo: Some("https://github.com/aaif-goose/goose".into()),
+            license: "Apache-2.0".into(),
+        },
+        mark: Some(AgentMark {
+            svg: "<svg viewBox=\"0 0 24 24\"><g fill-rule=\"evenodd\"><path d=\"M21.595 23.61c1.167-.254 2.405-.944 2.405-.944l-2.167-1.784a12.124 12.124 0 01-2.695-3.131 12.127 12.127 0 00-3.97-4.049l-.794-.462a1.115 1.115 0 01-.488-.815.844.844 0 01.154-.575c.413-.582 2.548-3.115 2.94-3.44.503-.416 1.065-.762 1.586-1.159.074-.056.148-.112.221-.17.003-.002.007-.004.009-.007.167-.131.325-.272.45-.438.453-.524.563-.988.59-1.193-.061-.197-.244-.639-.753-1.148.319.02.705.272 1.056.569.235-.376.481-.773.727-1.171.165-.266-.08-.465-.086-.471h-.001V3.22c-.007-.007-.206-.25-.471-.086-.567.35-1.134.702-1.639 1.021 0 0-.597-.012-1.305.599a2.464 2.464 0 00-.438.45l-.007.009c-.058.072-.114.147-.17.221-.397.521-.743 1.083-1.16 1.587-.323.391-2.857 2.526-3.44 2.94a.842.842 0 01-.574.153 1.115 1.115 0 01-.815-.488l-.462-.794a12.123 12.123 0 00-4.049-3.97 12.133 12.133 0 01-3.13-2.695L1.332 0S.643 1.238.39 2.405c.352.428 1.27 1.49 2.34 2.302C1.58 4.167.73 3.75.06 3.4c-.103.765-.063 1.92.043 2.816.726.317 1.961.806 3.219 1.066-1.006.236-2.11.278-2.961.262.15.554.358 1.119.64 1.688.119.263.25.52.39.77.452.125 2.222.383 3.164.171l-2.51.897a27.776 27.776 0 002.544 2.726c2.031-1.092 2.494-1.241 4.018-2.238-2.467 2.008-3.108 2.828-3.8 3.67l-.483.678c-.25.351-.469.725-.65 1.117-.61 1.31-1.47 4.1-1.47 4.1-.154.486.202.842.674.674 0 0 2.79-.861 4.1-1.47.392-.182.766-.4 1.118-.65l.677-.483c.227-.187.453-.37.701-.586 0 0 1.705 2.02 3.458 3.349l.896-2.511c-.211.942.046 2.712.17 3.163.252.142.509.272.772.392.569.28 1.134.49 1.688.64-.016-.853.026-1.956.261-2.962.26 1.258.75 2.493 1.067 3.219.895.106 2.051.146 2.816.043a73.87 73.87 0 01-1.308-2.67c.811 1.07 1.874 1.988 2.302 2.34h-.001z\"/></g></svg>".into(),
+            inks: None,
+            source: "https://github.com/lobehub/lobe-icons/blob/329f378cbd1a88f45b60cd096b9111ce16f3ea39/src/Goose/components/Mono.tsx".into(),
+            license: "MIT".into(),
+        }),
+        latest: Some(LatestSource::Github { repo: "aaif-goose/goose".into() }),
+        update_line: None,
+        state_home: ".local/share/goose".into(),
+        guest_state_home: None,
+        state_home_env: None,
+        project_key_env: None,
+        project_state: vec![
+        ],
+        history: None,
+        prints_limits: None,
+        plan_brand: None,
+        usage_log: None,
+        mcp: None,
+        context: None,
+        hooks: None,
+        skill_roots: SkillRoots { user: vec![SkillRoot { dir: "~/.config/goose/skills".into(), lands: Lands::Copy }, SkillRoot { dir: "~/.agents/skills".into(), lands: Lands::Copy }, SkillRoot { dir: "~/.claude/skills".into(), lands: Lands::Link }, SkillRoot { dir: "~/.config/agents/skills".into(), lands: Lands::Copy }], project: vec![SkillRoot { dir: ".goose/skills".into(), lands: Lands::Copy }, SkillRoot { dir: ".agents/skills".into(), lands: Lands::Copy }, SkillRoot { dir: ".claude/skills".into(), lands: Lands::Link }] },
+        plugin_skills: None,
+        bundled_skills: None,
+        plugins: None,
+        plugin_shelf: None,
+        project_docs: vec![AGENTS_MD.into()],
+        first_move: SET_UP_WSP.into(),
+        apt_needs: None,
+        setup_needs: None,
+        background_road: None,
+    }
+}
+
+fn amp() -> AgentEntry {
+    AgentEntry {
+        id: "amp".into(),
+        name: "Amp".into(),
+        kind: EntryKind::Agent,
+        bin: "amp".into(),
+        install_road: InstallRoad::Npm { package: PackageRoad { package: "@ampcode/cli".into(), version: Some("0.0.1790352060-g26b83c".into()), pin: None }, ignore_scripts: None },
+        node: None,
+        sign_in: no_sign_in(),
+        config_paths: vec![],
+        volatile: None,
+        source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Unmeasured, note: None },
+        size: not_measured(),
+        about: AgentAbout {
+            creator: "Sourcegraph".into(),
+            description: "The command line for Amp, a coding agent and development environment.".into(),
+            homepage: Some("https://ampcode.com".into()),
+            repo: None,
+            license: "proprietary".into(),
+        },
+        mark: Some(AgentMark {
+            svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M15.087 23.18L12.03 24l-2.097-7.823-5.738 5.738-2.251-2.251 5.718-5.719-7.769-2.082.82-3.057 11.294 3.08 3.08 11.295z\" fill=\"#F34E3F\"/><path d=\"M19.505 18.762l-3.057.82-2.564-9.573-9.572-2.564.819-3.057 11.295 3.079 3.08 11.295z\" fill=\"#F34E3F\"/><path d=\"M23.893 14.374l-3.057.82-2.565-9.572L8.7 3.057 9.52 0l11.295 3.08 3.079 11.294z\" fill=\"#F34E3F\"/></svg>".into(),
+            inks: None,
+            source: "https://github.com/lobehub/lobe-icons/blob/329f378cbd1a88f45b60cd096b9111ce16f3ea39/src/Amp/components/Color.tsx".into(),
+            license: "MIT".into(),
+        }),
+        latest: Some(LatestSource::Npm { package: "@ampcode/cli".into() }),
+        update_line: None,
+        state_home: ".config/amp".into(),
+        guest_state_home: None,
+        state_home_env: None,
+        project_key_env: None,
+        project_state: vec![
+        ],
+        history: None,
+        prints_limits: None,
+        plan_brand: None,
+        usage_log: None,
+        mcp: None,
+        context: None,
+        hooks: None,
+        skill_roots: SkillRoots { user: vec![SkillRoot { dir: "~/.config/amp/skills".into(), lands: Lands::Copy }, SkillRoot { dir: "~/.config/agents/skills".into(), lands: Lands::Copy }, SkillRoot { dir: "~/.agents/skills".into(), lands: Lands::Copy }, SkillRoot { dir: "~/.claude/skills".into(), lands: Lands::Link }], project: vec![SkillRoot { dir: ".agents/skills".into(), lands: Lands::Copy }, SkillRoot { dir: ".claude/skills".into(), lands: Lands::Link }] },
+        plugin_skills: None,
+        bundled_skills: None,
+        plugins: None,
+        plugin_shelf: None,
+        project_docs: vec![AGENTS_MD.into()],
+        first_move: SET_UP_WSP.into(),
+        apt_needs: None,
+        setup_needs: None,
+        background_road: None,
+    }
+}
+
+fn cursor() -> AgentEntry {
+    AgentEntry {
+        id: "cursor".into(),
+        name: "Cursor".into(),
+        kind: EntryKind::Agent,
+        bin: "cursor-agent".into(),
+        install_road: InstallRoad::Vendor { cask: CURSOR.clone(), version: Some(CURSOR.version.clone()), pin: None },
+        node: None,
+        sign_in: sign_in_row("cursor").clone(),
+        config_paths: vec![],
+        volatile: None,
+        source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Unmeasured, note: None },
+        size: Size::Measured { bytes: 583125383, on: "2026-09-27".into(), method: SizeMethod::Unpacked },
+        about: AgentAbout {
+            creator: "Anysphere".into(),
+            description: "The command line agent from the makers of the Cursor editor.".into(),
+            homepage: Some("https://cursor.com/cli".into()),
+            repo: None,
+            license: "proprietary".into(),
+        },
+        mark: Some(AgentMark {
+            svg: "<svg viewBox=\"0 0 24 24\"><path fill-rule=\"evenodd\" d=\"M22.106 5.68L12.5.135a.998.998 0 00-.998 0L1.893 5.68a.84.84 0 00-.419.726v11.186c0 .3.16.577.42.727l9.607 5.547a.999.999 0 00.998 0l9.608-5.547a.84.84 0 00.42-.727V6.407a.84.84 0 00-.42-.726zm-.603 1.176L12.228 22.92c-.063.108-.228.064-.228-.061V12.34a.59.59 0 00-.295-.51l-9.11-5.26c-.107-.062-.063-.228.062-.228h18.55c.264 0 .428.286.296.514z\"/></svg>".into(),
+            inks: None,
+            source: "https://github.com/lobehub/lobe-icons/blob/329f378cbd1a88f45b60cd096b9111ce16f3ea39/src/Cursor/components/Mono.tsx".into(),
+            license: "MIT".into(),
+        }),
+        latest: None,
+        update_line: None,
+        state_home: ".cursor".into(),
+        guest_state_home: None,
+        state_home_env: None,
+        project_key_env: None,
+        project_state: vec![
+        ],
+        history: None,
+        prints_limits: None,
+        plan_brand: None,
+        usage_log: None,
+        mcp: None,
+        context: None,
+        hooks: None,
+        skill_roots: SkillRoots { user: vec![SkillRoot { dir: "~/.cursor/skills".into(), lands: Lands::Copy }, SkillRoot { dir: "~/.agents/skills".into(), lands: Lands::Copy }, SkillRoot { dir: "~/.claude/skills".into(), lands: Lands::Link }], project: vec![SkillRoot { dir: ".cursor/skills".into(), lands: Lands::Copy }, SkillRoot { dir: ".agents/skills".into(), lands: Lands::Copy }, SkillRoot { dir: ".claude/skills".into(), lands: Lands::Link }] },
+        plugin_skills: None,
+        bundled_skills: None,
+        plugins: None,
+        plugin_shelf: None,
+        project_docs: vec![AGENTS_MD.into()],
+        first_move: SET_UP_WSP.into(),
+        apt_needs: None,
+        setup_needs: None,
+        background_road: None,
+    }
 }
