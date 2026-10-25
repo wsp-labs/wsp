@@ -27,21 +27,22 @@ Source: `packages/runtime/src/slates.ts` (1,566), `slate-runs.ts` (987), `lazy-s
 `impl SlatesInner` block in its own file, and `SlatesArea` implements the `Slates` trait by calling them. Likewise
 `createSlateRuns` is `SlateRunsTable` over `Rc<RunsInner>` in `slate_runs/table.rs`.
 
-## What this crate takes from crates that do not have it yet (`src/pending.rs`)
+## What this crate takes from crates that do not have it yet (`src/pending/`, joined in `join.md`)
 
 1. **`wsp-slate` has no Rust crate and no writer.** Proposal 1 puts `protocol/src/slate/` less `wire.ts` (5,755
-   lines: parser, expressions, validator, batch, sketch, catalog) in `wsp-slate`, layer 2. `pending::slate` holds the
-   names this slice calls, with the TS signatures, every body `todo!()`: the types of `slate/types.ts` that the
+   lines: parser, expressions, validator, batch, sketch, catalog) in `wsp-slate`, layer 2. `pending/slate.rs` holds
+   the names this slice calls, with the TS signatures, every body `todo!()`: the types of `slate/types.ts` that the
    stored record holds (`SlateDoc`, `SlateRunDecl`, `SlatePiece`, `SlateProblem`, ...) are ported in full, since the
    store reads them; the functions (`parse_slate`, `validate_slate`, `run_slate_batch`, `sketch_slate`, ...) are
    stubs. **Until `wsp-slate` is ported, every `slates_*` test that writes a slate stays red whatever this crate
    does.** The helpers, lazy_slates and runs units do not need it.
 2. **`slate/wire.ts`'s answers and view are not in `wsp-wire`.** `wsp_wire::types::slate_wire` holds the three event
-   shapes only. `pending::wire` ports `SlateView`, `SlateAsk`, `SlateApprovalView`, `SlateEmpty`, the four answers
+   shapes only. `pending/wire.rs` ports `SlateView`, `SlateAsk`, `SlateApprovalView`, `SlateEmpty`, the four answers
    and the two constants, to move into `slate_wire` at the wire's drift pass.
 3. **The other wsp-slates slice's files** (`slate-mcp.ts`, `slate-files.ts`, `slate-box.ts`, `slate-mcp-on.ts`,
-   `slate-images.ts`, `slate-sources/`) are not pushed. `pending::siblings` names what `slates.ts` calls of them,
-   by the TS names in Rust case; the join turns each into a `pub use` of the sibling's item.
+   `slate-images.ts`, `slate-sources/`) are in this crate now: `slates.rs` uses their items (`BoxLedger`, `BoxPins`,
+   `SlateMcp`, `SlateSourceContext`, `ImageOn`, `HashOn`, `Away`, `MissingOnFn`, `ToolAsks`) and `pending::siblings`
+   is gone.
 4. **`HostError` has no `code` yet** (ruling 6402177374 point 3). `pending::code_of(&HostError)` stands for
    `e.code`; tests read the code through it.
 

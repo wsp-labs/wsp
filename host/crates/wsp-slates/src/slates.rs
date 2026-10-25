@@ -18,6 +18,7 @@ use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::future::{LocalBoxFuture, Shared};
@@ -30,9 +31,14 @@ use wsp_wire::types::slate_wire::{SessionSlateEvent, SlateRunEvent, SlateValuesE
 use wsp_wire::views::workspace::Caller;
 use wsp_words::exit::HostError;
 
-use crate::pending::siblings::{Away, BoxLedger, BoxPins, HashOn, ImageOn, McpServerSpec, MissingOn, SlateMcp, SlateSourceContext, ToolAsks};
 use crate::pending::wire::{SlateEventAnswer, SlateReadAnswer, SlateStateAnswer, SlateView, SlateWriteAnswer, SlatesImageAnswer};
+use crate::slate_box::BoxLedger;
+use crate::slate_files::{BoxPins, HashOn};
+use crate::slate_images::ImageOn;
+use crate::slate_mcp::{Away, McpServerSpec, MissingOnFn, SlateMcp, ToolAsks};
 use crate::slate_runs::{RunBy, SlateRuns, SlateRunsDeps};
+use crate::slate_sources::SlateSourceContext;
+pub use crate::slate_sources::Views;
 use crate::slate_writes::WriteBudget;
 pub use model::{Approval, SlateRecord, SlateSnap, TurnMark};
 
@@ -166,7 +172,7 @@ pub trait SlatesDeps {
         Ok(())
     }
     /// The machine a thread runs on where that is not this computer.
-    fn machine_of(&self, _thread_id: &str) -> Option<Rc<dyn Machine>> {
+    fn machine_of(&self, _thread_id: &str) -> Option<Arc<dyn Machine>> {
         None
     }
     fn image_on(&self, _thread_id: &str) -> Option<ImageOn> {
@@ -216,7 +222,7 @@ pub trait SlatesDeps {
     fn away(&self, _thread_id: &str) -> Option<Away> {
         None
     }
-    fn missing_on(&self, _thread_id: &str) -> Option<MissingOn> {
+    fn missing_on(&self, _thread_id: &str) -> Option<MissingOnFn> {
         None
     }
 }
@@ -375,7 +381,6 @@ pub trait Slates {
 }
 
 /// The source views a batch and a read hold: a source with no view is `None`.
-pub type Views = IndexMap<String, Option<Value>>;
 /// One thread's record, shared by every task on its chain, as the TS shares one object.
 pub type RecordRef = Rc<RefCell<SlateRecord>>;
 /// A chain's tail and a held answer.
@@ -390,9 +395,9 @@ pub struct SlatesInner {
     pub(crate) capturing: RefCell<Option<(String, String)>>,
     pub(crate) started_by: RefCell<IndexMap<String, RunBy>>,
     pub(crate) runs: OnceCell<Rc<dyn SlateRuns>>,
-    pub(crate) mcp: OnceCell<Rc<dyn SlateMcp>>,
-    pub(crate) ledger: OnceCell<Rc<dyn BoxLedger>>,
-    pub(crate) pins: OnceCell<Rc<dyn BoxPins>>,
+    pub(crate) mcp: OnceCell<Rc<SlateMcp>>,
+    pub(crate) ledger: OnceCell<Rc<BoxLedger>>,
+    pub(crate) pins: OnceCell<BoxPins>,
     pub(crate) skipped: RefCell<HashMap<String, IndexSet<String>>>,
     pub(crate) windows: RefCell<HashMap<String, i64>>,
     pub(crate) loaded: RefCell<Option<Shared<LocalBoxFuture<'static, Result<(), HostError>>>>>,

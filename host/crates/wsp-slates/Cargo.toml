@@ -26,6 +26,7 @@ url = "2"
 wsp-catalog = { path = "../wsp-catalog" }
 wsp-core = { path = "../wsp-core" }
 wsp-engine = { path = "../wsp-engine" }
+wsp-machines = { path = "../wsp-machines" }
 wsp-store = { path = "../wsp-store" }
 wsp-wire = { path = "../wsp-wire" }
 wsp-words = { path = "../wsp-words" }

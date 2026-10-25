@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The slates area of the runtime: `runtime/src/slates.ts`, `slate-*.ts`, `lazy-slates.ts`,
 //! `slate-sources/` and `account/slates.ts`. `wsp-threads` and `wsp-slate` join the
-//! dependencies when they land; until then `pending` holds what this crate names from them.
+//! dependencies when they land; until then `pending` holds what this crate names from `wsp-slate` and the gaps below
+//! it (spec/join.md).
 
 pub mod account;
 pub mod lazy_slates;

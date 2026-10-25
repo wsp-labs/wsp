@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! What every wsp-slates test builds on: clocks of the tests' own (rule 13.3, so a test stops in this crate's
-//! `todo!()`, not in wsp-core's), an in-memory store, a fake runtime for the slate area, and the process-group guard.
+//! What every wsp-slates test builds on: wsp-core's clocks, wsp-store's in-memory store, a fake runtime for the slate
+//! area, and the process-group guard. `ManualClock` and `MemStore` wrap the real ones for what each lacks: the delays
+//! a clock was asked for, and a store's refused `list` and its count.
 #![allow(dead_code)]
+
+pub mod entry;
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -11,12 +14,15 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use futures::future::LocalBoxFuture;
+use futures::FutureExt;
 use indexmap::IndexMap;
 use serde_json::Value;
-use wsp_core::clock::{Cancel, Clock, Timer};
-use wsp_slates::pending::siblings::SlateSourceContext;
+use wsp_core::clock::{real_clock, Cancel, Clock, FakeClock, Timer};
+use wsp_slates::slate_sources::context::{AccountRow, SessionView, SlateWorkspaceFacts, TurnResult};
+use wsp_slates::slate_sources::SlateSourceContext;
 use wsp_slates::slates::{create_slates, Delivered, Delivery, DeliveryOutcome, SlateEmit, SlateThreadFacts, Slates, SlatesDeps};
-use wsp_store::store::{BlobMark, Store};
+use wsp_store::store::{memory_store, BlobMark, MemoryStore, Store};
 use wsp_wire::types::slate_wire::SessionSlateEvent;
 use wsp_wire::views::workspace::{Caller, ThreadLit};
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
@@ -56,102 +62,47 @@ pub async fn until(ms: u64, mut check: impl FnMut() -> bool) -> bool {
     }
 }
 
-/// The wall clock, timers on the current `LocalSet`.
-pub struct TestClock;
-
-impl Clock for TestClock {
-    fn now(&self) -> i64 {
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64
-    }
-    fn schedule(&self, f: Timer, ms: i64) -> Cancel {
-        let ms = if !(1..=2_147_483_647).contains(&ms) { 1 } else { ms };
-        let gone = Rc::new(Cell::new(false));
-        let mine = gone.clone();
-        tokio::task::spawn_local(async move {
-            tokio::time::sleep(Duration::from_millis(ms as u64)).await;
-            if !mine.get() {
-                mine.set(true);
-                f();
-            }
-        });
-        Rc::new(move || gone.set(true))
-    }
-}
-
+/// wsp-core's process clock: system time, timers on the current `LocalSet`.
 pub fn test_clock() -> Rc<dyn Clock> {
-    Rc::new(TestClock)
+    real_clock()
 }
 
-struct Pending {
-    id: u64,
-    at: i64,
-    f: Option<Timer>,
-}
-
-/// A clock that moves only when the test says so; every delay asked is kept, as given.
-#[derive(Clone, Default)]
+/// wsp-core's `FakeClock` that also keeps every delay it was asked for, as given.
+#[derive(Clone)]
 pub struct ManualClock {
-    now: Rc<Cell<i64>>,
-    seq: Rc<Cell<u64>>,
-    timers: Rc<RefCell<Vec<Pending>>>,
+    inner: FakeClock,
     pub asked: Rc<RefCell<Vec<i64>>>,
 }
 
 impl ManualClock {
     pub fn new(start: i64) -> ManualClock {
-        let c = ManualClock::default();
-        c.now.set(start);
-        c
+        ManualClock { inner: FakeClock::new(start), asked: Rc::new(RefCell::new(Vec::new())) }
     }
     pub fn clock(&self) -> Rc<dyn Clock> {
         Rc::new(self.clone())
     }
     /// Runs every timer due by `now + ms`, earliest first, ties in scheduling order, with `now` at its own time.
     pub fn advance(&self, ms: i64) {
-        let target = self.now.get() + ms;
-        loop {
-            let next = {
-                let timers = self.timers.borrow();
-                timers.iter().filter(|t| t.at <= target).min_by_key(|t| (t.at, t.id)).map(|t| t.id)
-            };
-            let Some(id) = next else { break };
-            let (at, f) = {
-                let mut timers = self.timers.borrow_mut();
-                let i = timers.iter().position(|t| t.id == id).unwrap();
-                let t = timers.remove(i);
-                (t.at, t.f)
-            };
-            self.now.set(at);
-            if let Some(f) = f {
-                f();
-            }
-        }
-        self.now.set(target);
+        self.inner.advance(ms);
     }
     pub fn pending(&self) -> usize {
-        self.timers.borrow().len()
+        self.inner.pending()
     }
 }
 
 impl Clock for ManualClock {
     fn now(&self) -> i64 {
-        self.now.get()
+        self.inner.now()
     }
     fn schedule(&self, f: Timer, ms: i64) -> Cancel {
         self.asked.borrow_mut().push(ms);
-        let id = self.seq.get() + 1;
-        self.seq.set(id);
-        let at = self.now.get() + if !(1..=2_147_483_647).contains(&ms) { 1 } else { ms };
-        self.timers.borrow_mut().push(Pending { id, at, f: Some(f) });
-        let timers = self.timers.clone();
-        Rc::new(move || timers.borrow_mut().retain(|t| t.id != id))
+        self.inner.schedule(f, ms)
     }
 }
 
-/// An in-memory store: collections of JSON by id, in first-write order (rule 2.5).
-#[derive(Default)]
+/// wsp-store's in-memory store, with a `list` a test can refuse and a count of the `list` calls.
 pub struct MemStore {
-    pub rows: RefCell<IndexMap<String, IndexMap<String, Value>>>,
+    inner: MemoryStore,
     /// When set, `list` fails with this message.
     pub list_fails: RefCell<Option<String>>,
     pub lists: Cell<usize>,
@@ -159,55 +110,78 @@ pub struct MemStore {
 
 impl MemStore {
     pub fn new() -> Rc<MemStore> {
-        Rc::new(MemStore::default())
+        Rc::new(MemStore { inner: memory_store(), list_fails: RefCell::new(None), lists: Cell::new(0) })
     }
     pub fn row(&self, collection: &str, id: &str) -> Option<Value> {
-        self.rows.borrow().get(collection).and_then(|c| c.get(id).cloned())
+        futures::executor::block_on(self.inner.get(collection, id)).unwrap()
+    }
+    /// A row written before the host starts.
+    pub fn seed(&self, collection: &str, id: &str, value: Value) {
+        futures::executor::block_on(self.inner.put(collection, id, value)).unwrap();
     }
 }
 
 #[async_trait(?Send)]
 impl Store for MemStore {
     async fn get(&self, collection: &str, id: &str) -> Result<Option<Value>, HostError> {
-        Ok(self.row(collection, id))
+        self.inner.get(collection, id).await
     }
     async fn put(&self, collection: &str, id: &str, value: Value) -> Result<(), HostError> {
-        self.rows.borrow_mut().entry(collection.to_string()).or_default().insert(id.to_string(), value);
-        Ok(())
+        self.inner.put(collection, id, value).await
     }
     async fn list(&self, collection: &str) -> Result<Vec<Value>, HostError> {
         self.lists.set(self.lists.get() + 1);
         if let Some(m) = self.list_fails.borrow().clone() {
             return Err(HostError::new(m));
         }
-        Ok(self.rows.borrow().get(collection).map(|c| c.values().cloned().collect()).unwrap_or_default())
+        self.inner.list(collection).await
     }
     async fn keys(&self, collection: &str) -> Result<Vec<String>, HostError> {
-        Ok(self.rows.borrow().get(collection).map(|c| c.keys().cloned().collect()).unwrap_or_default())
+        self.inner.keys(collection).await
     }
     async fn delete(&self, collection: &str, id: &str) -> Result<(), HostError> {
-        if let Some(c) = self.rows.borrow_mut().get_mut(collection) {
-            c.shift_remove(id);
-        }
-        Ok(())
+        self.inner.delete(collection, id).await
     }
-    async fn get_blob(&self, _collection: &str, _id: &str) -> Result<Option<Vec<u8>>, HostError> {
-        Ok(None)
+    async fn get_blob(&self, collection: &str, id: &str) -> Result<Option<Vec<u8>>, HostError> {
+        self.inner.get_blob(collection, id).await
     }
-    async fn put_blob(&self, _collection: &str, _id: &str, _bytes: Vec<u8>) -> Result<(), HostError> {
-        Ok(())
+    async fn put_blob(&self, collection: &str, id: &str, bytes: Vec<u8>) -> Result<(), HostError> {
+        self.inner.put_blob(collection, id, bytes).await
     }
-    async fn delete_blob(&self, _collection: &str, _id: &str) -> Result<(), HostError> {
-        Ok(())
+    async fn delete_blob(&self, collection: &str, id: &str) -> Result<(), HostError> {
+        self.inner.delete_blob(collection, id).await
     }
-    async fn stat_blob(&self, _collection: &str, _id: &str) -> Result<Option<BlobMark>, HostError> {
-        Ok(None)
+    async fn stat_blob(&self, collection: &str, id: &str) -> Result<Option<BlobMark>, HostError> {
+        self.inner.stat_blob(collection, id).await
     }
 }
 
 /// A source context with nothing in it.
 pub struct NoSources;
-impl SlateSourceContext for NoSources {}
+
+impl SlateSourceContext for NoSources {
+    fn thread_id(&self) -> &str {
+        THREAD
+    }
+    fn workspace_id(&self) -> &str {
+        WORKSPACE
+    }
+    fn now(&self) -> i64 {
+        0
+    }
+    fn rows(&self) -> Vec<SessionView> {
+        Vec::new()
+    }
+    fn results(&self) -> Vec<TurnResult> {
+        Vec::new()
+    }
+    fn account(&self) -> LocalBoxFuture<'_, Option<AccountRow>> {
+        async { None }.boxed_local()
+    }
+    fn workspace(&self) -> Option<SlateWorkspaceFacts> {
+        None
+    }
+}
 
 /// The first thread's id; its word is `11111111`.
 pub const THREAD: &str = "11111111-aaaa-4bbb-8ccc-000000000001";
@@ -354,7 +328,10 @@ impl SlatesDeps for FakeHost {
 
 /// The thread's own token, as the agent calls (`origin: "here"`, scoped to the thread).
 pub fn as_thread(thread_id: &str, root: &str) -> Caller {
-    Caller::Scoped { origin: WorkspaceOrigin::Here, by: ThreadScope { kind: ThreadLit, thread_id: thread_id.into(), workspace_id: WORKSPACE.into(), root_thread_id: root.into() } }
+    Caller::Scoped {
+        origin: WorkspaceOrigin::Here,
+        by: ThreadScope { kind: ThreadLit, thread_id: thread_id.into(), workspace_id: WORKSPACE.into(), root_thread_id: root.into() },
+    }
 }
 
 /// A window on this computer.

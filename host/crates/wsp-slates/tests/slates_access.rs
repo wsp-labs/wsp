@@ -252,8 +252,8 @@ mod restart {
             let rec = |thread: &str, schema: i64| {
                 json!({"threadId": thread, "workspaceId": WORKSPACE, "rootThreadId": thread, "schema": schema, "version": 3, "document": null, "values": {"n": 1}, "empty": "cleared", "turns": {}, "kept": {}, "comments": [], "approvals": {}, "problems": [], "shownOnce": true, "updatedAt": 5})
             };
-            store.rows.borrow_mut().entry("slates".into()).or_default().insert(THREAD.into(), rec(THREAD, 2));
-            store.rows.borrow_mut().entry("slates".into()).or_default().insert(STRANGER.into(), rec(STRANGER, 1));
+            store.seed("slates", THREAD, rec(THREAD, 2));
+            store.seed("slates", STRANGER, rec(STRANGER, 1));
             let host = FakeHost::new(root.path(), store);
             let s = host.slates();
             s.ready().await.unwrap();
