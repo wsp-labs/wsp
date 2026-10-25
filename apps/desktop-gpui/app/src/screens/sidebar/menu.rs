@@ -429,7 +429,7 @@ pub fn items_for(s: &Sidebar, tile: &Tile, key: &str) -> Vec<Item> {
     let place = if tile.moves { s.root_place(key) } else { None };
     let mut out = Vec::new();
 
-    let stop_refusal = (!running && !(is_root && working)).then(|| "Thread is not running".to_owned());
+    let stop_refusal = (!(running || (is_root && working))).then(|| "Thread is not running".to_owned());
     out.push(item(Act::Stop, act_words::STOP, "state", stop_refusal));
     if is_root && !settled {
         out.push(Item { keys: chord("secondary-shift-e"), ..item(Act::Settle, act_words::SETTLE, "state", settle_refusal(working)) });
