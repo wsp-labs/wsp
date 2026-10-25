@@ -126,6 +126,9 @@ here are included or relied upon under their own licenses, reproduced below.
    Nerd Fonts release 3.4.0 (the version string in the font's name table;
    t3code, where the file was taken from, does not record it) from
    https://github.com/ryanoasis/nerd-fonts; its LICENSE sits beside it.
+   apps/desktop-gpui/app/src/screens/terminal/fonts/SymbolsNerdFontMono-Regular.ttf
+   is the same file decompressed to TTF, embedded in the desktop-gpui
+   binary; its LICENSE sits beside it.
 
    The MIT License (MIT)
    
@@ -155,7 +158,8 @@ here are included or relied upon under their own licenses, reproduced below.
 
    The file preview, diff and chat surfaces render with @pierre/diffs, applied
    with the patch at patches/@pierre%2Fdiffs@1.3.0-beta.10.patch; the files
-   surface's tree is @pierre/trees. Both are from
+   surface's tree is @pierre/trees, whose file glyphs the GPUI app copies into
+   apps/desktop-gpui/app/src/screens/pr_pane/files/pierre_icons.rs. Both are from
    https://github.com/pierre-computer. Apache License, Version 2.0:
 
    Apache License
@@ -484,8 +488,9 @@ here are included or relied upon under their own licenses, reproduced below.
 
 10. Whimsy Loaders crab (pixel loader), Sasha
 
-   .claude/skills/wsp-design/references/mockup/crab.js and
-   apps/web/src/components/status/Crab.tsx are transcriptions of the crab
+   .claude/skills/wsp-design/references/mockup/crab.js,
+   apps/web/src/components/status/Crab.tsx and
+   apps/desktop-gpui/app/src/ui/status.rs are transcriptions of the crab
    loader from Whimsy Loaders, https://www.whimsically.app/loaders, by
    Sasha (https://x.com/aleksksaa): the site's exported draw function, its
    pixel table, timings and alpha values as published, with the canvas
@@ -548,3 +553,82 @@ here are included or relied upon under their own licenses, reproduced below.
    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
    SOFTWARE.
+
+------------------------------------------------------------------------
+
+13. GPUI Kit agent skills (Apache-2.0), Longbridge
+
+   .claude/skills/gpui-kit and .claude/skills/gpui-kit-design-guides are
+   skills/gpui-kit and skills/gpui-kit-design-guides from
+   https://github.com/longbridge/gpui-kit, unchanged, at the commit each
+   folder's UPSTREAM file names. Copyright 2024 - 2026 Longbridge
+   <https://longbridge.com>. Apache License 2.0; the text is under item 5.
+
+------------------------------------------------------------------------
+
+14. GPUI (Apache-2.0), Zed Industries
+
+   apps/desktop-gpui/patches holds wsp's changes to gpui-pre,
+   gpui-pre-wgpu and gpui-pre-apple 0.3.9, crates published from Zed's
+   GPUI at zed@93d7456 (https://github.com/zed-industries/zed).
+   apps/desktop-gpui/scripts/gpui-patches.sh applies them to unchanged
+   copies of those crates in apps/desktop-gpui/vendor, which git does
+   not track. Each patch names the files wsp changed and how.
+   Copyright 2022 - 2025 Zed Industries, Inc. Apache License 2.0; the
+   text is under item 5.
+
+------------------------------------------------------------------------
+
+15. KaTeX fonts (SIL OFL 1.1) and metrics (MIT), Khan Academy, Design Science
+
+   apps/desktop-gpui/app/assets/fonts/katex holds KaTeX_Main (Regular and
+   Bold), KaTeX_Math (Italic) and KaTeX_Size1 to KaTeX_Size4 from katex
+   0.16.47 (dist/fonts, https://github.com/KaTeX/KaTeX), unmodified, under
+   the SIL Open Font License 1.1, whose text sits beside them in OFL.txt.
+   apps/desktop-gpui/app/src/screens/thread_view/math.rs transcribes the
+   same release's font metrics (fontMetricsData), spacing table
+   (spacingData) and sigmasAndXis.
+
+   The MIT License (MIT)
+
+   Copyright (c) 2013-2020 Khan Academy and other contributors
+
+   Permission is hereby granted, free of charge, to any person obtaining a copy
+   of this software and associated documentation files (the "Software"), to deal
+   in the Software without restriction, including without limitation the rights
+   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+   copies of the Software, and to permit persons to whom the Software is
+   furnished to do so, subject to the following conditions:
+
+   The above copyright notice and this permission notice shall be included in all
+   copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+
+------------------------------------------------------------------------
+
+16. GPUI Kit (Apache-2.0), Longbridge
+
+   apps/desktop-gpui/patches/gpui-kit-14f5933*.patch hold wsp's changes to
+   gpui-kit at 14f5933 (https://github.com/longbridge/gpui-kit), which
+   apps/desktop-gpui/scripts/gpui-patches.sh applies to an unchanged copy
+   in apps/desktop-gpui/vendor, which git does not track. Each patch names
+   the files wsp changed and how. Copyright 2024 - 2026 Longbridge
+   <https://longbridge.com>. Apache License 2.0; the text is under item 5.
+
+------------------------------------------------------------------------
+
+17. Inter (SIL OFL 1.1), The Inter Project Authors
+
+   apps/desktop-gpui/app/tests/text/InterFigures-Regular.ttf is a subset of
+   Inter 3.019 (https://github.com/rsms/inter) holding the digits 0 to 9,
+   the letter m and the tnum feature, renamed Inter Figures because it is
+   modified, for a test of tabular figures. Copyright 2020 The Inter Project
+   Authors. SIL Open Font License 1.1, whose text sits beside it in
+   InterFigures-OFL.txt.

@@ -1,0 +1,184 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+use std::sync::Arc;
+
+use gpui_kit::{Image, ImageFormat};
+
+use super::*;
+use crate::transcript::FileTile;
+
+fn attachments() -> Vec<SessionEvent> {
+    vec![base(
+        "session.start",
+        1,
+        json!({"prompt": "look", "requestId": "q1", "attachments": [
+            {"mediaType": "image/png", "bytes": 1300, "name": "shot.png"},
+            {"mediaType": "text/plain", "bytes": 30, "name": "notes.txt"}
+        ]}),
+    )]
+}
+
+/// A 2 x 1 PNG, whole.
+const PNG: &str = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAAEElEQVR4nGP4z8DAwMDAAAAJ/QH/ZoWm8QAAAABJRU5ErkJggg==";
+
+#[gpui_kit::test]
+fn a_messages_files_draw_as_tiles_and_its_unheld_image_as_its_line(cx: &mut TestAppContext) {
+    let (view, cx) = window(attachments(), cx);
+    let tile = bounds(cx, "file-tile");
+    assert_eq!(tile.size.height, px(56.));
+    assert!(tile.size.width <= px(192.));
+    // With no host to ask, the image is not held: its line, 2 px under the tiles' `mb-2`.
+    let lines = bounds(cx, "file-lines");
+    assert_eq!((lines.size.height, lines.top() - tile.bottom()), (px(16.), px(8.)));
+    assert!(cx.debug_bounds("thumb").is_none());
+    let key = view.read_with(cx, |v, _| v.rows()[0].key.clone());
+    let bytes = unbase64(PNG).unwrap();
+    assert_eq!(image_size(&bytes), Some((2., 1.)));
+    view.update(cx, |v, cx| {
+        let held = Shot::Held(Arc::new(Image::from_bytes(ImageFormat::Png, bytes)), Some((2., 1.)), None);
+        v.images.insert(key, vec![held, Shot::File]);
+        cx.notify();
+    });
+    cx.run_until_parked();
+    let thumb = bounds(cx, "thumb");
+    let tile = bounds(cx, "file-tile");
+    assert_eq!((thumb.size, tile.left() - thumb.right()), (size(px(56.), px(56.)), px(6.)));
+    assert!(cx.debug_bounds("file-lines").is_none(), "a held image needs no line");
+    // The layer times its fade out on the wall clock.
+    let shut = |cx: &mut VisualTestContext| {
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        !cx.update(|_, cx| crate::screens::dialogs::layer::is_open(super::IMAGE_PREVIEW, cx)) && cx.debug_bounds("image-dialog").is_none()
+    };
+    cx.simulate_click(thumb.center(), Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(cx.update(|_, cx| crate::screens::dialogs::layer::top(cx)), Some(super::IMAGE_PREVIEW), "the image opened off the layer");
+    assert!(cx.debug_bounds("image-dialog").is_some() && cx.debug_bounds("dialogs-layer").is_some(), "a press opens the image whole");
+    for _ in 0..3 {
+        cx.executor().advance_clock(std::time::Duration::from_millis(16));
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+    }
+    cx.simulate_keystrokes("escape");
+    assert!(shut(cx), "Escape left the image open");
+    cx.simulate_click(thumb.center(), Modifiers::none());
+    cx.run_until_parked();
+    cx.update(|window, cx| window.simulate_next_frame(cx));
+    cx.simulate_click(gpui_kit::point(px(4.), px(4.)), Modifiers::none());
+    assert!(shut(cx), "a press outside left the image open");
+}
+
+#[gpui_kit::test]
+fn an_image_lets_go_of_its_pixels_once_its_row_leaves_the_kept_rows(cx: &mut TestAppContext) {
+    let mut events = attachments();
+    events.push(base("session.done", 2, json!({"result": {"status": "completed"}})));
+    events.push(base("session.end", 3, json!({"exitCode": 0, "sawResult": true})));
+    for n in 0..60u64 {
+        let (turn, pos) = (format!("t{n}"), 10 + 4 * n);
+        events.push(base("session.start", pos, json!({"prompt": format!("Question {n}"), "turnId": turn})));
+        events.push(base("session.delta", pos + 1, json!({"kind": "text", "text": format!("Answer {n}."), "turnId": turn})));
+        events.push(base("session.done", pos + 2, json!({"result": {"status": "completed"}, "turnId": turn})));
+        events.push(base("session.end", pos + 3, json!({"exitCode": 0, "sawResult": true, "turnId": turn})));
+    }
+    let (view, cx) = window(events, cx);
+    let key = view.read_with(cx, |v, _| v.rows()[0].key.clone());
+    let image = Arc::new(Image::from_bytes(ImageFormat::Png, unbase64(PNG).unwrap()));
+    view.update(cx, |v, cx| {
+        v.images.insert(key.clone(), vec![Shot::Held(image.clone(), Some((2., 1.)), None), Shot::File]);
+        cx.notify();
+    });
+    cx.run_until_parked();
+    let thumb = cx.debug_bounds("thumb").expect("the image was not drawn");
+    assert!(cx.update(|_, cx| image.is_asset_cached(cx)), "the drawn image was not decoded");
+    cx.simulate_click(thumb.center(), Modifiers::none());
+    cx.run_until_parked();
+    cx.simulate_keystrokes("escape");
+    // The layer times its fade out on the wall clock.
+    std::thread::sleep(std::time::Duration::from_millis(250));
+    cx.update(|window, cx| window.simulate_next_frame(cx));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("image-dialog").is_none(), "Escape left the image open");
+    view.update(cx, |v, cx| v.scroll_to_end(cx));
+    for _ in 0..3 {
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+    }
+    assert!(view.read_with(cx, |v, _| !v.images.contains_key(&key)), "the row's attachments outlived its kept rows");
+    assert!(!cx.update(|_, cx| image.is_asset_cached(cx)), "the image's decoded pixels outlived its row");
+    assert!(
+        !super::super::files::OPENED.with(|o| o.borrow().contains(&image.id())),
+        "an image with no thumbnail stayed opened past its row"
+    );
+}
+
+/// A `w` x `h` PNG in base64, as the host sends a screenshot.
+fn png(w: u32, h: u32) -> String {
+    use base64::Engine as _;
+    let mut bytes = Vec::new();
+    image::RgbaImage::from_pixel(w, h, image::Rgba([10, 20, 30, 255]))
+        .write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageFormat::Png)
+        .unwrap();
+    base64::engine::general_purpose::STANDARD.encode(bytes)
+}
+
+#[gpui_kit::test]
+fn a_screenshot_is_decoded_off_the_ui_thread_into_a_thumbnail_the_size_of_its_tile(cx: &mut TestAppContext) {
+    let (view, cx) = window(attachments(), cx);
+    let key = view.read_with(cx, |v, _| v.rows()[0].key.clone());
+    view.update(cx, |v, cx| {
+        v.images.insert(key.clone(), vec![Shot::Asking, Shot::File]);
+        super::super::files::take(key.clone(), 0, Some(("image/png".into(), png(1600, 1000))), cx);
+        assert!(matches!(v.images[&key][0], Shot::Asking), "the screenshot was decoded on the UI thread, inside the host's answer");
+    });
+    cx.run_until_parked();
+    let (whole, thumb) = view.read_with(cx, |v, _| match &v.images[&key][0] {
+        Shot::Held(_, whole, thumb) => (*whole, thumb.as_ref().map(|t| t.size(0))),
+        _ => (None, None),
+    });
+    assert_eq!(whole, Some((1600., 1000.)), "the dialog lost the screenshot's own size");
+    let side = gpui_kit::DevicePixels(112);
+    assert_eq!(thumb, Some(size(side, side)), "the 56 px tile draws from the whole screenshot, which GPUI decodes and uploads whole");
+    assert!(cx.debug_bounds("thumb").is_some(), "the held screenshot was not drawn");
+}
+
+/// An answer asked before its row was dropped and drawn anew can land over the screenshot the row already drew; the
+/// one it replaces leaves the window's atlas.
+#[gpui_kit::test]
+fn a_screenshot_answered_twice_lets_the_first_go(cx: &mut TestAppContext) {
+    let (view, cx) = window(attachments(), cx);
+    let key = view.read_with(cx, |v, _| v.rows()[0].key.clone());
+    view.update(cx, |v, cx| {
+        v.images.insert(key.clone(), vec![Shot::Asking, Shot::File]);
+        super::super::files::take(key.clone(), 0, Some(("image/png".into(), png(400, 300))), cx);
+    });
+    cx.run_until_parked();
+    let first = view.read_with(cx, |v, _| match &v.images[&key][0] {
+        Shot::Held(_, _, Some(thumb)) => thumb.clone(),
+        _ => panic!("the first answer was not held with a thumbnail"),
+    });
+    assert!(cx.update(|window, _| window.has_image_atlas_entry(&first)), "the first thumbnail was not drawn");
+    view.update(cx, |_, cx| super::super::files::take(key.clone(), 0, Some(("image/png".into(), png(300, 400))), cx));
+    cx.run_until_parked();
+    cx.update(|window, cx| window.simulate_next_frame(cx));
+    cx.run_until_parked();
+    assert!(!cx.update(|window, _| window.has_image_atlas_entry(&first)), "the thumbnail an answer replaced stayed in the window's atlas");
+}
+
+#[test]
+fn an_unheld_attachment_reads_as_the_command_line_prints_it() {
+    let tile = |mime: &str, bytes| FileTile {
+        name: "a.txt".into(),
+        bytes: Some(bytes),
+        image: mime.starts_with("image/"),
+        id: None,
+        index: 0,
+        mime: Some(mime.into()),
+    };
+    assert_eq!(attachment_line(&tile("image/png", 1_258_291)), "[image 1 MB png]");
+    assert_eq!(attachment_line(&tile("image/jpeg", 900)), "[image 900 B jpeg]");
+    assert_eq!(attachment_line(&tile("text/plain", 2_048)), "[file 2 KB a.txt]");
+    assert_eq!(unbase64("aGk="), Some(b"hi".to_vec()));
+    assert_eq!(unbase64("aGk"), Some(b"hi".to_vec()));
+    assert_eq!(unbase64("a$=="), None);
+}

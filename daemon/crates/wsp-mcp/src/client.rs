@@ -8,9 +8,10 @@
 //! pinned for it at `seal.open`, and every frame after that reply rides inside the seal both ends agreed, so the token
 //! and everything the line asks for cross a road whose carrier reads nothing and writes nothing into it.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
@@ -21,7 +22,7 @@ use serde_json::{Map, Value};
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
-use tokio_tungstenite::tungstenite::protocol::CloseFrame;
+use tokio_tungstenite::tungstenite::protocol::{CloseFrame, WebSocketConfig};
 use tokio_tungstenite::tungstenite::Message;
 use wsp_frames::{
     numbers, place_link_transcript, Base64Bytes, LinkEphemerals, LinkRole, PlaceEphemeral, PlaceNonce, PlacePublicKey, PlaceSignature,
@@ -30,7 +31,7 @@ use wsp_seal::Seal;
 
 use crate::failure::Failure;
 use crate::record::{self, fill};
-use crate::release::{self, ReleaseHost};
+use crate::release::{self, ReleaseHost, ReleaseRule};
 
 type Waiting = HashMap<u64, oneshot::Sender<Result<String, Failure>>>;
 
@@ -39,6 +40,8 @@ type Waiting = HashMap<u64, oneshot::Sender<Result<String, Failure>>>;
 struct Head {
     #[serde(default)]
     id: Option<Value>,
+    #[serde(default, rename = "type")]
+    push_type: Option<String>,
     #[serde(default)]
     ok: Option<bool>,
     #[serde(default)]
@@ -49,6 +52,10 @@ struct Head {
     errors: Option<Box<RawValue>>,
     #[serde(default)]
     warnings: Option<Box<RawValue>>,
+    #[serde(default)]
+    fix: Option<Value>,
+    #[serde(default)]
+    left: Option<Value>,
 }
 
 struct Shared {
@@ -56,6 +63,9 @@ struct Shared {
     /// Each open `Frames` by the number it was handed, taken out when it is dropped.
     listeners: Mutex<Vec<(u64, mpsc::UnboundedSender<String>)>>,
     heard: AtomicU64,
+    /// Which pushes `counted` counts, by their type, once a caller said; read as each push arrives.
+    counts: OnceLock<fn(&str) -> bool>,
+    counted: AtomicU64,
     /// Set once the host proved the pinned key: from then on every frame either way is sealed, and one in the clear
     /// or one that will not open ends the socket.
     seal: Mutex<Option<Seal>>,
@@ -69,6 +79,8 @@ pub struct Client {
     next: AtomicU64,
     subscribed: tokio::sync::OnceCell<Result<(), Failure>>,
     tasks: [JoinHandle<()>; 2],
+    /// The release the host named on the answer that let this socket in, where it named one.
+    release: Option<String>,
 }
 
 /// The frames the host pushes from the moment this was opened, held until read: a reply that names what to follow
@@ -105,10 +117,12 @@ impl Drop for Client {
 }
 
 /// What a dial presents once any seal is open: the token this computer holds, or its device key for a host on the
-/// account that has handed it none yet.
+/// account that has handed it none yet, or a pairing code the host issued, which a socket that presents no token
+/// spends for a device token of its own.
 pub enum Presents<'a> {
     Token(&'a str),
     Admit(&'a Admit),
+    Redeem { code: &'a str, name: &'a str },
 }
 
 /// A computer the account admitted: the key that host was told to trust, and what its listing calls this computer.
@@ -156,8 +170,10 @@ pub struct Dial<'a> {
     pub window: Duration,
     pub pinned: Option<&'a str>,
     pub alias: Option<&'a str>,
-    /// The host a release refusal names, where this line holds the host to its own release.
+    /// The host a release refusal names, where this line holds the host to a release.
     pub release: Option<&'a ReleaseHost>,
+    /// Which releases the line goes on with.
+    pub rule: ReleaseRule,
 }
 
 /// The host's answer to seal.open: the key it proves, its nonce, its half of the agreement and its signature.
@@ -170,23 +186,30 @@ struct SealOpened {
     ephemeral: PlaceEphemeral,
 }
 
+/// The socket's reads: the buffer a frame is read into grows to the frame and is let go of once no message shares it,
+/// which happens only once the reads after it have filled what it held past the frame, up to one read's length.
+fn read_config() -> WebSocketConfig {
+    WebSocketConfig::default().read_buffer_size(8 * 1024)
+}
+
 /// Dials the host and presents what `presents` names, after the host proved the pinned key where one is pinned.
 pub async fn dial(to: &Dial<'_>, presents: Presents<'_>) -> Result<(Client, Option<Paired>), Refused> {
     let words = record::words();
     let at = to.at;
     let not_proved = || Refused { failure: Failure::auth(fill(&words.pair_key, &[("url", at)])), token: false };
     let authed = async {
-        let (ws, _) = tokio_tungstenite::connect_async(to.url).await.map_err(|e| Refused {
+        let (ws, _) = tokio_tungstenite::connect_async_with_config(to.url, Some(read_config()), false).await.map_err(|e| Refused {
             failure: Failure::of_kind(fill(&words.no_answer, &[("where", at), ("why", &e.to_string())]), "unreachable"),
             token: false,
         })?;
-        let client = Client::over(ws);
+        let mut client = Client::over(ws);
         // Before the token or the key: a host on this computer is reached over its own loopback and pins nothing.
         let expect = match to.pinned {
             Some(pinned) => Some(client.open_seal(pinned).await.ok_or_else(not_proved)?),
             None => None,
         };
         let admit = matches!(presents, Presents::Admit(_));
+        let redeem = matches!(presents, Presents::Redeem { .. });
         let answered = match presents {
             Presents::Token(token) => {
                 let mut params = Map::new();
@@ -207,17 +230,29 @@ pub async fn dial(to: &Dial<'_>, presents: Presents<'_>) -> Result<(Client, Opti
                     serde_json::from_value::<Paired>(answer).map(|paired| (Some(paired), released)).map_err(|e| Failure::new(e.to_string()))
                 })
             }
+            Presents::Redeem { code, name } => {
+                let mut params = Map::new();
+                params.insert("code".to_owned(), Value::from(code));
+                params.insert("name".to_owned(), Value::from(name));
+                client.request::<Value>("pair.redeem", params).await.and_then(|answer| {
+                    let released = Released::of(&answer);
+                    serde_json::from_value::<Paired>(answer).map(|paired| (Some(paired), released)).map_err(|e| Failure::new(e.to_string()))
+                })
+            }
         };
         match answered {
             Ok((paired, released)) => {
                 // A host that names no release is one from before the answer carried it, and is not judged.
                 if let (Some(host), Some(theirs)) = (to.release, released.version.as_deref()) {
-                    if let Some(failure) = release::refusal(theirs, released.road.as_deref(), host) {
+                    if let Some(failure) = release::refusal(theirs, released.road.as_deref(), host, to.rule) {
                         return Err(Refused { failure, token: false });
                     }
                 }
+                client.release = released.version;
                 Ok((client, paired))
             }
+            // The host's one sentence for every code it will not spend is the whole answer: there is no token to pair again for.
+            Err(refused) if redeem => Err(Refused { failure: Failure::auth(refused.message), token: true }),
             Err(refused) => Err(Refused { failure: client.token_refused(refused, to.alias, admit, at).await, token: true }),
         }
     };
@@ -244,6 +279,8 @@ impl Client {
             waiting: Mutex::new(HashMap::new()),
             listeners: Mutex::new(Vec::new()),
             heard: AtomicU64::new(0),
+            counts: OnceLock::new(),
+            counted: AtomicU64::new(0),
             seal: Mutex::new(None),
             gone: watch::channel(None).0,
         });
@@ -258,36 +295,41 @@ impl Client {
         let reading = shared.clone();
         let reader = tokio::spawn(async move {
             let mut code = None;
+            // The frame before, held until the next is read: tungstenite reads each frame into one buffer and hands it
+            // out as the message, and takes back whole a buffer no message shares, at the size of the longest frame.
+            let mut _held = None;
             while let Some(read) = stream.next().await {
-                let text = match read {
-                    Ok(Message::Text(text)) if reading.seal.lock().unwrap().is_none() => Ok(text.to_string()),
-                    Ok(Message::Text(_)) => Err(()),
-                    Ok(Message::Binary(bytes)) => match reading.seal.lock().unwrap().as_mut() {
-                        Some(seal) => seal.unseal(&bytes).ok_or(()),
-                        None => Ok(String::from_utf8_lossy(&bytes).into_owned()),
-                    },
-                    Ok(Message::Close(frame)) => {
-                        code = frame.map(|f| u16::from(f.code));
-                        break;
-                    }
-                    Ok(_) => continue,
-                    Err(_) => break,
+                let Ok(message) = read else { break };
+                if let Message::Close(frame) = &message {
+                    code = frame.as_ref().map(|f| u16::from(f.code));
+                    break;
+                }
+                let text = match &message {
+                    Message::Text(text) if reading.seal.lock().unwrap().is_none() => Some(Ok(Cow::Borrowed(text.as_str()))),
+                    Message::Text(_) => Some(Err(())),
+                    Message::Binary(bytes) => Some(match reading.seal.lock().unwrap().as_mut() {
+                        Some(seal) => seal.unseal(bytes).map(Cow::Owned).ok_or(()),
+                        None => Ok(String::from_utf8_lossy(bytes)),
+                    }),
+                    _ => None,
                 };
                 match text {
-                    Ok(text) => reading.take(&text),
+                    Some(Ok(text)) => reading.take(&text),
                     // A frame in the clear after the seal began and one that will not open are the same thing:
                     // somebody carrying the bytes writing into the socket. It ends, and every waiting reply with it.
-                    Err(()) => {
-                        let refusal = CloseFrame { code: CloseCode::Protocol, reason: record::host().seal_refusal.into() };
+                    Some(Err(())) => {
+                        let refusal = CloseFrame { code: CloseCode::Protocol, reason: record::host().seal_refusal.clone().into() };
                         let _ = closer.send(Message::Close(Some(refusal)));
                         code = Some(u16::from(CloseCode::Protocol));
                         break;
                     }
+                    None => {}
                 }
+                _held = Some(message);
             }
             reading.went(code);
         });
-        Client { send, shared, next: AtomicU64::new(1), subscribed: tokio::sync::OnceCell::new(), tasks: [writer, reader] }
+        Client { send, shared, next: AtomicU64::new(1), subscribed: tokio::sync::OnceCell::new(), tasks: [writer, reader], release: None }
     }
 
     /// Every frame that answers no request from now on.
@@ -299,6 +341,17 @@ impl Client {
             listeners.push((id, tell));
         }
         Frames { told, id, shared: self.shared.clone() }
+    }
+
+    /// Counts from now on each push this socket reads whose type `counts` takes, frames that answer a request apart;
+    /// the first caller's rule stands for the socket.
+    pub fn count_pushes(&self, counts: fn(&str) -> bool) {
+        let _ = self.shared.counts.set(counts);
+    }
+
+    /// How many pushes the rule `count_pushes` set has counted, each as the reader took it, before any listener had it.
+    pub fn pushes_counted(&self) -> u64 {
+        self.shared.counted.load(Ordering::SeqCst)
     }
 
     /// The host's events on this socket, asked for once however many calls follow them.
@@ -346,11 +399,16 @@ impl Client {
             let said = head.error.as_ref().and_then(Value::as_str).map_or_else(|| format!("{op} failed"), str::to_owned);
             // Only a list is carried, as problemListsOf carries one.
             let list = |raw: Option<Box<RawValue>>| raw.filter(|r| r.get().starts_with('[')).map(|r| r.get().to_owned());
+            let kind = head.kind.as_ref().and_then(Value::as_str).map(str::to_owned);
+            // The host sends a list only beside a processes-left refusal (`refusalFields`).
+            let left = head.left.filter(Value::is_array).map(Box::new);
             return Err(Failure {
                 message: said,
-                kind: head.kind.as_ref().and_then(Value::as_str).map(str::to_owned),
+                kind,
                 errors: list(head.errors),
                 warnings: list(head.warnings),
+                fix: head.fix.as_ref().and_then(Value::as_str).map(Box::from),
+                left,
             });
         }
         serde_json::from_str(&text).map_err(|e| Failure::new(format!("{op}: {e}")))
@@ -362,7 +420,7 @@ impl Client {
     /// Answers the bytes the host expects this end to sign for an admission, or none where it proved nothing, which
     /// is one refusal whichever check caught it.
     async fn open_seal(&self, pinned: &str) -> Option<Vec<u8>> {
-        let word = record::host().seal_client;
+        let word = &record::host().seal_client;
         let (private, mine) = wsp_seal::fresh_ephemeral()?;
         let mine: PlaceEphemeral = Base64Bytes::from_bytes(&mine);
         let mut nonce = [0u8; numbers::PLACE_LINK_NONCE_BYTES];
@@ -377,14 +435,19 @@ impl Client {
             return None;
         }
         let asked = LinkEphemerals { challenger: mine.as_str(), answerer: opened.ephemeral.as_str() };
-        let host_bytes = place_link_transcript(LinkRole::Host, &word, nonce.as_str(), opened.nonce.as_str(), asked);
+        let host_bytes = place_link_transcript(LinkRole::Host, word, nonce.as_str(), opened.nonce.as_str(), asked);
         if !wsp_seal::verify(&key, &host_bytes, &opened.signature.to_bytes()) {
             return None;
         }
         let secret = wsp_seal::agree(private, &opened.ephemeral.to_bytes())?;
-        *self.shared.seal.lock().unwrap() = Some(Seal::place(&wsp_seal::seal_keys(&secret, &word)));
+        *self.shared.seal.lock().unwrap() = Some(Seal::place(&wsp_seal::seal_keys(&secret, word)));
         let answered = LinkEphemerals { challenger: opened.ephemeral.as_str(), answerer: mine.as_str() };
-        Some(place_link_transcript(LinkRole::Place, &word, opened.nonce.as_str(), nonce.as_str(), answered))
+        Some(place_link_transcript(LinkRole::Place, word, opened.nonce.as_str(), nonce.as_str(), answered))
+    }
+
+    /// The release the host named on the answer that let this socket in; none from a host before the answer carried one.
+    pub fn release(&self) -> Option<&str> {
+        self.release.as_deref()
     }
 
     pub fn is_closed(&self) -> bool {
@@ -430,18 +493,56 @@ impl Client {
 fn close_words(code: Option<u16>) -> String {
     let words = record::words();
     if code == Some(record::host().stopping_close) {
-        words.host_stopping
+        words.host_stopping.clone()
     } else {
-        words.host_closed
+        words.host_closed.clone()
     }
+}
+
+/// JavaScript escapes half an emoji as a lone surrogate, which serde refuses with the whole frame, so each becomes U+FFFD.
+fn lossy(text: &str) -> Cow<'_, str> {
+    let surrogate = |at: usize| {
+        let hex = text.get(at + 2..at + 6).filter(|_| text[at..].starts_with("\\u"))?;
+        u16::from_str_radix(hex, 16).ok().filter(|unit| (0xD800..0xE000).contains(unit))
+    };
+    let bytes = text.as_bytes();
+    let (mut out, mut kept, mut at) = (String::new(), 0, 0);
+    while at < bytes.len() {
+        if bytes[at] != b'\\' {
+            at += 1;
+            continue;
+        }
+        match surrogate(at) {
+            Some(0xD800..0xDC00) if surrogate(at + 6).is_some_and(|low| low >= 0xDC00) => at += 12,
+            Some(_) => {
+                out.push_str(&text[kept..at]);
+                out.push_str("\\uFFFD");
+                at += 6;
+                kept = at;
+            }
+            None => at += 2,
+        }
+    }
+    if kept == 0 {
+        return text.into();
+    }
+    out.push_str(&text[kept..]);
+    out.into()
 }
 
 impl Shared {
     fn take(&self, text: &str) {
-        let id = serde_json::from_str::<Head>(text).ok().and_then(|head| head.id).and_then(|id| id.as_u64());
+        let text = &*lossy(text);
+        let head = serde_json::from_str::<Head>(text).ok();
+        let id = head.as_ref().and_then(|head| head.id.as_ref()).and_then(Value::as_u64);
         if let Some(waiter) = id.and_then(|id| self.waiting.lock().unwrap().remove(&id)) {
             let _ = waiter.send(Ok(text.to_owned()));
             return;
+        }
+        if let (Some(Head { push_type: Some(push_type), ok: None, .. }), Some(counts)) = (&head, self.counts.get()) {
+            if counts(push_type) {
+                self.counted.fetch_add(1, Ordering::SeqCst);
+            }
         }
         for (_, listener) in self.listeners.lock().unwrap().iter() {
             let _ = listener.send(text.to_owned());
@@ -465,6 +566,35 @@ impl Shared {
 mod tests {
     use super::*;
 
+    /// A delete refused over processes still running, as the host frames it: the sentence with its fix joined on, the
+    /// fix again on its own, and the threads with what each still runs. No host here runs a thread's processes
+    /// without a wsp-daemon, so the frame is the host's shape, served by hand.
+    #[tokio::test]
+    async fn a_refusal_keeps_its_fix_and_the_processes_it_names() {
+        let (near, far) = tokio::io::duplex(1 << 16);
+        let fix = "delete it again with processes stop to end them first, or processes keep to leave them running (--processes on the command line).";
+        let left = serde_json::json!([{ "threadId": "t1", "title": "dev", "workspaceId": "w1", "memory": 1024, "cpu": 0.5,
+            "processes": [{ "pid": 41, "name": "vite", "kind": "server", "ports": [5173] }] }]);
+        let said = "the thread to delete still runs a process: 41 vite (server, :5173) of thread t1:";
+        let frame =
+            serde_json::json!({ "ok": false, "error": format!("{said} {fix}"), "kind": "processes-left", "fix": fix, "left": left });
+        let serving = tokio::spawn(async move {
+            let mut ws = tokio_tungstenite::accept_async(far).await.unwrap();
+            let Some(Ok(Message::Text(asked))) = ws.next().await else { panic!("no request") };
+            let mut reply = frame;
+            reply["id"] = serde_json::from_str::<Value>(&asked).unwrap()["id"].clone();
+            ws.send(Message::text(reply.to_string())).await.unwrap();
+            ws
+        });
+        let (ws, _) = tokio_tungstenite::client_async("ws://host/ws", near).await.unwrap();
+        let client = Client::over(ws);
+        let refused = client.request::<Value>("sessions.delete", Map::new()).await.unwrap_err();
+        let _server = serving.await.unwrap();
+        assert_eq!((refused.message.as_str(), refused.said()), (format!("{said} {fix}").as_str(), said), "the message stays whole");
+        assert_eq!((refused.kind.as_deref(), refused.fix.as_deref()), (Some("processes-left"), Some(fix)));
+        assert_eq!(refused.left, Some(Box::new(left)));
+    }
+
     #[tokio::test]
     async fn a_listener_goes_when_its_frames_is_dropped() {
         let (near, far) = tokio::io::duplex(1024);
@@ -477,5 +607,24 @@ mod tests {
         drop(dropped);
         let left: Vec<u64> = client.shared.listeners.lock().unwrap().iter().map(|(id, _)| *id).collect();
         assert_eq!(left, [kept.id]);
+    }
+
+    #[tokio::test]
+    async fn half_an_emoji_blanks_only_its_own_answer() {
+        let (near, far) = tokio::io::duplex(4096);
+        let serving = tokio::spawn(async move {
+            let mut server = tokio_tungstenite::accept_async(far).await.unwrap();
+            let asked = server.next().await.unwrap().unwrap();
+            let id = serde_json::from_str::<Value>(asked.to_text().unwrap()).unwrap()["id"].clone();
+            let reply = format!(r#"{{"id":{id},"ok":true,"values":["a\ud83d","b","\\ud83d","\ud83d\ude00","\ude00c"]}}"#);
+            server.send(Message::text(reply)).await.unwrap();
+            server
+        });
+        let (ws, _) = tokio_tungstenite::client_async("ws://host/ws", near).await.unwrap();
+        let client = Client::over(ws);
+        let asked = tokio::time::timeout(Duration::from_secs(5), client.request::<Value>("slates.resolve", Map::new()));
+        let reply = asked.await.expect("the reply never reached its request").unwrap();
+        let _server = serving.await.unwrap();
+        assert_eq!(reply["values"], serde_json::json!(["a\u{FFFD}", "b", "\\ud83d", "\u{1F600}", "\u{FFFD}c"]));
     }
 }

@@ -81,10 +81,10 @@ async fn search(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     let found: SearchOut = client.request("skills.search", asked).await?;
     let words = record::words();
     let lines = if found.skills.is_empty() {
-        vec![words.no_skill_hits]
+        vec![words.no_skill_hits.clone()]
     } else {
         let rows = found.skills.iter().map(|h| vec![cell(&h.name), h.installs.to_string(), cell(&h.id)]);
-        table(&std::iter::once(words.skill_hit_columns).chain(rows).collect::<Vec<_>>())
+        table(&std::iter::once(words.skill_hit_columns.clone()).chain(rows).collect::<Vec<_>>())
     };
     Ok(Answer::text(lines.join("\n"), &found))
 }
@@ -118,8 +118,8 @@ async fn show(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     let ShowIn { skill, thread, on, project } = input("skills_show", arguments)?;
     let client = host.client().await?;
     let words = record::words();
-    let usage = target::usage(&words, "skills_show");
-    let asked = target::project_asked(&words, project.as_ref(), on.as_deref(), "skills_show")?;
+    let usage = target::usage(words, "skills_show");
+    let asked = target::project_asked(words, project.as_ref(), on.as_deref(), "skills_show")?;
     let Previewed { preview } = if skill.split('/').count() == 3 {
         if thread.is_some() || on.is_some() || asked.project {
             return Err(refused(&words.skills_sh_placeless, &[("skill", &skill)], &usage).into());
@@ -129,7 +129,7 @@ async fn show(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
         client.request("skills.get", get).await?
     } else {
         let aimed =
-            target::target(&client, &words, thread.as_deref(), on.as_deref(), &usage, asked.name.as_deref(), "skills_show", host.cloud())
+            target::target(&client, words, thread.as_deref(), on.as_deref(), &usage, asked.name.as_deref(), "skills_show", host.cloud())
                 .await?;
         let mut read = Map::new();
         read.insert("target".to_owned(), aimed);
@@ -190,11 +190,10 @@ async fn add(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     let AddIn { skill, thread, on, agent, project } = input("skills_add", arguments)?;
     let client = host.client().await?;
     let words = record::words();
-    let asked = target::project_asked(&words, project.as_ref(), on.as_deref(), "skills_add")?;
-    let usage = target::usage(&words, "skills_add");
+    let asked = target::project_asked(words, project.as_ref(), on.as_deref(), "skills_add")?;
+    let usage = target::usage(words, "skills_add");
     let aimed =
-        target::target(&client, &words, thread.as_deref(), on.as_deref(), &usage, asked.name.as_deref(), "skills_add", host.cloud())
-            .await?;
+        target::target(&client, words, thread.as_deref(), on.as_deref(), &usage, asked.name.as_deref(), "skills_add", host.cloud()).await?;
     let mut adding = Map::new();
     adding.insert("target".to_owned(), aimed);
     adding.insert("skill".to_owned(), Value::from(skill.as_str()));
@@ -211,7 +210,7 @@ async fn add(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
         let copies = added
             .agents
             .iter()
-            .map(|a| fill(&words.agent_copy, &[("agent", &agent_name(&words, &a.agent)), ("path", &cell(&a.path))]))
+            .map(|a| fill(&words.agent_copy, &[("agent", &agent_name(words, &a.agent)), ("path", &cell(&a.path))]))
             .collect::<Vec<_>>()
             .join(", ");
         fill(&words.is_in_also, &[("name", &name), ("path", &path), ("copies", &copies)])
@@ -241,10 +240,10 @@ async fn remove(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     let RemoveIn { name, thread, on, project } = input("skills_remove", arguments)?;
     let client = host.client().await?;
     let words = record::words();
-    let asked = target::project_asked(&words, project.as_ref(), on.as_deref(), "skills_remove")?;
-    let usage = target::usage(&words, "skills_remove");
+    let asked = target::project_asked(words, project.as_ref(), on.as_deref(), "skills_remove")?;
+    let usage = target::usage(words, "skills_remove");
     let aimed =
-        target::target(&client, &words, thread.as_deref(), on.as_deref(), &usage, asked.name.as_deref(), "skills_remove", host.cloud())
+        target::target(&client, words, thread.as_deref(), on.as_deref(), &usage, asked.name.as_deref(), "skills_remove", host.cloud())
             .await?;
     let mut removing = Map::new();
     removing.insert("target".to_owned(), aimed);
@@ -276,8 +275,8 @@ async fn toggle(host: Arc<Host>, arguments: Value, tool: &'static str, turn_on: 
     let ToggleIn { name, thread, on } = input(tool, arguments)?;
     let client = host.client().await?;
     let words = record::words();
-    let usage = target::usage(&words, tool);
-    let aimed = target::target(&client, &words, thread.as_deref(), on.as_deref(), &usage, None, tool, host.cloud()).await?;
+    let usage = target::usage(words, tool);
+    let aimed = target::target(&client, words, thread.as_deref(), on.as_deref(), &usage, None, tool, host.cloud()).await?;
     let mut turning = Map::new();
     turning.insert("target".to_owned(), aimed);
     turning.insert("name".to_owned(), Value::from(name.as_str()));

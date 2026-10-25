@@ -1,0 +1,16 @@
+.row:hover > .title {
+  color: #fff;
+  margin: 0 4px;
+  --gap: calc(100% - 2px);
+}
+
+@media (max-width: 600px) {
+  body {
+    display: none !important;
+  }
+}
+
+#main::before,
+a[href] {
+  content: "x";
+}

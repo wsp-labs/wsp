@@ -72,7 +72,7 @@ impl Source {
 fn computer_named(computer: &str, named: &HashMap<String, String>) -> String {
     let words = workspace::words();
     if computer == words.here_place_id {
-        return if cfg!(target_os = "macos") { words.this_mac } else { words.this_computer };
+        return if cfg!(target_os = "macos") { words.this_mac.clone() } else { words.this_computer.clone() };
     }
     named.get(computer).cloned().unwrap_or_else(|| computer.to_owned())
 }
