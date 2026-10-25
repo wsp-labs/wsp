@@ -452,7 +452,7 @@ test("a bare fixture holds its short top-level threads and nothing else, as the 
 test("a bench refuses a locked screen, and a page whose screen locks mid-run reads NO READING, never a verdict", () => {
   const tmp = mkdtempSync(join(tmpdir(), "wsp-lock-test-"));
   try {
-    const env = { PATH: "/usr/bin:/bin", HOME: tmp, BENCH_OUT: join(tmp, "out"), BENCH_GPUI_APP: join(tmp, "no-app") };
+    const env = { PATH: `${dirname(process.execPath)}:/usr/bin:/bin`, HOME: tmp, BENCH_OUT: join(tmp, "out"), BENCH_GPUI_APP: join(tmp, "no-app") };
     for (const script of ["rest.sh", "activity-scroll.sh", "session.sh", "ctrl-tab.sh"]) {
       const run = spawnSync("sh", [join(here, script)], { encoding: "utf8", env: { ...env, BENCH_LOCKED: "true" }, timeout: 20_000 });
       assert.equal(run.status, 3, `${script}: ${run.stderr}`);
