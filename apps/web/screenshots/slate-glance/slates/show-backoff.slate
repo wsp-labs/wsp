@@ -1,0 +1,14 @@
+<slate title="How a box's turns dial back after a blip">
+  <column>
+    <frame id="sim" src="show-backoff.html" caption="Move the blip and the turns waiting on it" />
+    <stats id="blip">
+      <stat label="Daemon back" value={12} unit="s" window="after the link dropped" />
+      <stat label="All 6 turns back" value={16.4} unit="s" window="from 16.0 s, spread by jitter" />
+      <stat label="Dials" value={30} format="integer" window="5 for each turn" />
+    </stats>
+    <facts id="rule">
+      <fact label="Wait before a dial" value="0.5 s doubling to 10 s, plus up to 0.25 s" />
+      <fact label="Turn cut after" value="60 s with no answer" />
+    </facts>
+  </column>
+</slate>

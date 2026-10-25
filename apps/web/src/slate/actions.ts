@@ -3,7 +3,7 @@
 // version through slates.event, and answers an outcome, with the consent sheet's content when it held a run; fill,
 // open, copy and pane run here. The person's value writes go to the host through one sender
 // per slate, typing debounced and every other change at once; a secret's text goes once and is not kept.
-import type { SlateEventAnswer, SlateOpParams, SlatesImageAnswer } from "@wsp/protocol";
+import type { SlateEventAnswer, SlateOpParams, SlatesImageAnswer, SlatesPageAnswer } from "@wsp/protocol";
 import { slateDomainKey, type SlateJson } from "@wsp/protocol/slate";
 import type { SlateEngine } from "./engine.js";
 import { isHostStep, stepsOf, type SlateApproval, type SlateAsk, type SlateEventName, type SlateStep } from "./model.js";
@@ -29,6 +29,8 @@ export interface SlateLink {
   open?(href: string): void;
   /** An image piece's src, a path on the thread's computer or an address, read or fetched by the host. */
   image?(src: string, have?: string): Promise<SlatesImageAnswer>;
+  /** A frame piece's src, an .html file on the thread's computer, read by the host. */
+  page?(src: string, have?: string): Promise<SlatesPageAnswer>;
 }
 
 export interface RaiseOptions {
@@ -147,6 +149,11 @@ export class ActionRunner {
   image(src: string, have?: string): Promise<SlatesImageAnswer> {
     const read = this.#link().image;
     return read === undefined ? Promise.resolve({ problem: { code: "R903", name: "source-unavailable", message: "this window reads no images" } }) : read(src, have);
+  }
+
+  page(src: string, have?: string): Promise<SlatesPageAnswer> {
+    const read = this.#link().page;
+    return read === undefined ? Promise.resolve({ problem: { code: "R903", name: "source-unavailable", message: "this window reads no pages" } }) : read(src, have);
   }
 
   /** The person allows a domain's images for the thread, under the key a link's "Always for this domain" keeps. */

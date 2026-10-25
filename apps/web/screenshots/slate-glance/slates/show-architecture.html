@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Where dev4 went Unreachable</title>
+<style>
+  body { font: 13px/1.5 var(--font-sans); color: var(--foreground); }
+  .wrap { display: flex; flex-direction: column; gap: 10px; padding: 2px 0 4px; }
+  .switch { display: flex; gap: 6px; flex-wrap: wrap; }
+  button { font: 12px var(--font-sans); color: var(--muted-foreground); background: transparent; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+  button[aria-pressed="true"] { color: var(--foreground); border-color: var(--slate-accent); }
+  svg { display: block; width: 100%; overflow: visible; }
+  .place rect { fill: none; stroke: var(--border); stroke-width: 1; }
+  .place text { font: 11px var(--font-sans); fill: var(--muted-foreground); }
+  .part rect { fill: var(--card); stroke: var(--border); stroke-width: 1; transition: stroke .2s, opacity .2s; }
+  .part text { font: 12px var(--font-sans); fill: var(--foreground); }
+  .part .sub { font: 10.5px var(--font-mono); fill: var(--muted-foreground); }
+  .part { cursor: pointer; transition: opacity .2s; }
+  .part.lit rect { stroke: var(--slate-accent); stroke-width: 1.5; }
+  .part.bad rect { stroke: var(--error-foreground); stroke-width: 1.5; }
+  .part.picked rect { fill: color-mix(in oklab, var(--slate-accent) 12%, var(--card)); }
+  .edge { stroke: var(--border); stroke-width: 1.25; fill: none; transition: stroke .2s, opacity .2s; }
+  .edge.lit { stroke: var(--slate-accent); stroke-width: 1.75; }
+  .edge.bad { stroke: var(--error-foreground); stroke-dasharray: 4 3; stroke-width: 1.75; }
+  .edge-label { font: 10px var(--font-mono); fill: var(--muted-foreground); }
+  .dim { opacity: .32; }
+  .mem rect.track { fill: none; stroke: var(--border); }
+  .mem rect.used { fill: var(--error-foreground); opacity: .75; }
+  .mem text { font: 10px var(--font-mono); fill: var(--muted-foreground); }
+  .say { min-height: 3em; }
+  .say b { font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="switch" role="group" aria-label="Show"><button data-show="path">The path this touches</button><button data-show="all">Everything</button></div>
+  <svg role="img" aria-label="This Mac holds the app and the host; the host's link reaches the daemon on dev4, which runs three turns; the relay and cloud machines sit off the path"></svg>
+  <div class="say" aria-live="polite"></div>
+</div>
+<script>
+  const PARTS = {
+    app: { name: "App", sub: "Electron window", place: "mac", path: true, say: "Draws what the host says over one socket. <b>Unreachable</b> is the host's word." },
+    host: { name: "Host", sub: "per state file", place: "mac", path: true, say: "Redials a silent daemon at <b>0.5 s doubling to 10 s</b>, and cuts a turn after <b>60 s</b>: \"machine stopped answering\"." },
+    macd: { name: "Daemon", sub: "this Mac", place: "mac", say: "The Mac's own daemon. Not on this path." },
+    boxd: { name: "Daemon", sub: "root, Rust", place: "box", path: true, bad: true, say: "Serves files, git, terminals and ports. Short of memory it <b>starves first</b>: on 2026-09-06 it stopped answering." },
+    t1: { name: "Remerge 1", sub: "running vitest", place: "box", path: true, bad: true, say: "One turn running the test suite: its workers fill most of 4 GB." },
+    t2: { name: "Remerge 2", sub: "running vitest", place: "box", path: true, bad: true, say: "A second turn running the suite at the same time." },
+    t3: { name: "Review", sub: "running vitest", place: "box", path: true, bad: true, say: "A third suite at once. All three failed; a box now takes one thread per 2048 MB." },
+    relay: { name: "Relay", sub: "https address", place: "far", say: "Gives a host no one can reach an https address, for a phone. Not on this path." },
+    cloud: { name: "Cloud machines", sub: "at a provider", place: "far", say: "Machines wsp makes at a cloud provider. Not on this path." },
+  };
+  const EDGES = [
+    { from: "app", to: "host", label: "socket", path: true },
+    { from: "host", to: "macd", label: "" },
+    { from: "host", to: "boxd", label: "link", path: true, bad: true },
+    { from: "boxd", to: "t1", label: "", path: true },
+    { from: "boxd", to: "t2", label: "", path: true },
+    { from: "boxd", to: "t3", label: "", path: true },
+    { from: "host", to: "relay", label: "" },
+    { from: "host", to: "cloud", label: "" },
+  ];
+  const svg = document.querySelector("svg"), say = document.querySelector(".say");
+  let show = "path", picked = "boxd";
+  const el = (name, attrs, text) => { const e = document.createElementNS("http://www.w3.org/2000/svg", name); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (text !== undefined) e.textContent = text; return e; };
+  /** Where every place and part sits at this width: side by side when there is room, stacked when not. */
+  function layout(W) {
+    const pw = 112, ph = 40, g = 12;
+    if (W >= 500) {
+      const mid = Math.round(W * 0.47);
+      const places = { mac: { x: 0, y: 18, w: mid - 16, h: 196, label: "This Mac" }, box: { x: mid + 16, y: 18, w: W - mid - 16, h: 196, label: "dev4, a 4 GB box" }, far: { x: 0, y: 238, w: W, h: 58, label: "Elsewhere" } };
+      const mx = places.mac.x + 16, bx = places.box.x + 16;
+      return { W, H: 300, far: true, places, parts: {
+        app: { x: mx, y: 44 }, host: { x: mx, y: 108 }, macd: { x: mx + pw + 18, y: 160 },
+        boxd: { x: bx, y: 102 }, t1: { x: places.box.x + places.box.w - pw - 16, y: 44 }, t2: { x: places.box.x + places.box.w - pw - 16, y: 102 }, t3: { x: places.box.x + places.box.w - pw - 16, y: 160 },
+        relay: { x: 16, y: 252 }, cloud: { x: 16 + pw + 18, y: 252 },
+      }, pw, ph, mem: { x: bx, y: 166, w: Math.min(100, places.box.w - pw - 48) } };
+    }
+    const half = (W - 3 * g) / 2, cw = Math.min(pw + 8, half), ch = 36;
+    const far = show === "all";
+    const places = { mac: { x: 0, y: 18, w: W, h: 98, label: "This Mac" }, box: { x: 0, y: 140, w: W, h: 150, label: "dev4, a 4 GB box" }, ...(far ? { far: { x: 0, y: 314, w: W, h: 52, label: "Elsewhere" } } : {}) };
+    return { W, H: far ? 370 : 294, places, parts: {
+      app: { x: g, y: 28 }, host: { x: g, y: 72 }, macd: { x: W - cw - g, y: 72 },
+      boxd: { x: g, y: 152 }, t1: { x: W - cw - g, y: 152 }, t2: { x: W - cw - g, y: 196 }, t3: { x: W - cw - g, y: 240 },
+      relay: { x: g, y: 322 }, cloud: { x: W - cw - g, y: 322 },
+    }, pw: cw, ph: ch, mem: { x: g, y: 204, w: Math.min(110, cw) }, far };
+  }
+  function draw() {
+    const L = layout(Math.round(svg.getBoundingClientRect().width) || 560);
+    svg.setAttribute("viewBox", `0 0 ${L.W} ${L.H}`);
+    svg.setAttribute("height", L.H);
+    svg.replaceChildren();
+    const off = p => show === "path" && !p.path;
+    for (const [k, p] of Object.entries(L.places)) {
+      const g = el("g", { class: `place${show === "path" && k === "far" ? " dim" : ""}` });
+      g.append(el("rect", { x: p.x + 0.5, y: p.y + 0.5, width: p.w - 1, height: p.h - 1, rx: 12 }), el("text", L.W >= 500 ? { x: p.x + 12, y: p.y - 6 } : { x: p.x + p.w - 12, y: p.y - 6, "text-anchor": "end" }, p.label));
+      svg.append(g);
+    }
+    const box = k => ({ ...L.parts[k], w: L.pw, h: L.ph });
+    for (const e of EDGES) {
+      if (show === "path" && !e.path) continue;
+      if (!L.parts[e.to] || (PARTS[e.to].place === "far" && !L.far)) continue;
+      const a = box(e.from), b = box(e.to);
+      const ax = a.x + a.w / 2, ay = a.y + a.h / 2, bx = b.x + b.w / 2, by = b.y + b.h / 2;
+      const horizontal = Math.abs(bx - ax) > Math.abs(by - ay);
+      const [sx, sy] = horizontal ? [bx > ax ? a.x + a.w : a.x, ay] : [ax, by > ay ? a.y + a.h : a.y];
+      const [tx, ty] = horizontal ? [bx > ax ? b.x : b.x + b.w, by] : [bx, by > ay ? b.y : b.y + b.h];
+      const d = horizontal ? `M${sx} ${sy} C${(sx + tx) / 2} ${sy} ${(sx + tx) / 2} ${ty} ${tx} ${ty}` : `M${sx} ${sy} C${sx} ${(sy + ty) / 2} ${tx} ${(sy + ty) / 2} ${tx} ${ty}`;
+      svg.append(el("path", { class: `edge${e.path ? (e.bad ? " bad" : " lit") : ""}${off(e) ? " dim" : ""}`, d }));
+      if (e.label) svg.append(el("text", horizontal ? { class: "edge-label", x: (sx + tx) / 2, y: (sy + ty) / 2 - 6, "text-anchor": "middle" } : { class: "edge-label", x: (sx + tx) / 2 + 6, y: (sy + ty) / 2 + 3.5 }, e.label));
+    }
+    for (const [k, p] of Object.entries(PARTS)) {
+      if (p.place === "far" && !L.far) continue;
+      const b = box(k);
+      const g = el("g", { class: `part${p.path ? (p.bad ? " bad" : " lit") : ""}${off(p) ? " dim" : ""}${k === picked ? " picked" : ""}`, tabindex: "0", role: "button", "aria-label": `${p.name}, ${p.sub}` });
+      g.append(el("rect", { x: b.x + 0.5, y: b.y + 0.5, width: b.w - 1, height: b.h - 1, rx: 8 }), el("text", { x: b.x + 10, y: b.y + (b.h > 38 ? 17 : 15) }, p.name), el("text", { class: "sub", x: b.x + 10, y: b.y + b.h - 9 }, p.sub));
+      g.onclick = () => { picked = k; draw(); };
+      g.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); picked = k; draw(); } };
+      svg.append(g);
+    }
+    const m = L.mem, mg = el("g", { class: "mem" });
+    mg.append(el("rect", { class: "track", x: m.x + 0.5, y: m.y + 0.5, width: m.w, height: 6, rx: 3 }), el("rect", { class: "used", x: m.x + 0.5, y: m.y + 0.5, width: m.w, height: 6, rx: 3 }), el("text", { x: m.x, y: m.y + 20 }, "memory: full"));
+    svg.append(mg);
+    const p = PARTS[picked];
+    say.innerHTML = `<b>${p.name}</b>, ${p.sub}. ${p.say}`;
+    document.querySelectorAll("[data-show]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.show === show)));
+  }
+  document.querySelectorAll("[data-show]").forEach(b => (b.onclick = () => { show = b.dataset.show; draw(); }));
+  new ResizeObserver(draw).observe(document.documentElement);
+  draw();
+</script>
+</body>
+</html>
