@@ -1,0 +1,68 @@
+{
+ "stopped": "no signed-in command line for github.com is on this computer and pr-lab is stopped, so the pull request is not read",
+ "unread": "no signed-in command line for github.com is on this computer, so the pull request is not read",
+ "noPullRequest": {
+  "message": "pr-lab has no pull request: push its branch and open one with gh pr create first"
+ },
+ "posts": [
+  {
+   "remote": "https://github.com/wsp/pr-lab.git",
+   "host": "github.com",
+   "line": "no signed-in command line for github.com is on this computer, so nothing is posted as you"
+  },
+  {
+   "remote": "git@github.com:wsp/pr-lab.git",
+   "host": "github.com",
+   "line": "no signed-in command line for github.com is on this computer, so nothing is posted as you"
+  },
+  {
+   "remote": "ssh://git@ssh.github.com/wsp/pr-lab.git",
+   "host": "github.com",
+   "line": "no signed-in command line for github.com is on this computer, so nothing is posted as you"
+  },
+  {
+   "remote": "HTTPS://GitHub.com/wsp/pr-lab",
+   "host": "https",
+   "line": "no signed-in command line for https is on this computer, so nothing is posted as you"
+  },
+  {
+   "remote": "https://gitlab.com/wsp/pr-lab.git",
+   "host": "gitlab.com",
+   "line": "no signed-in command line for gitlab.com is on this computer, so nothing is posted as you"
+  },
+  {
+   "remote": "git@altssh.gitlab.com:wsp/pr-lab.git",
+   "host": "gitlab.com",
+   "line": "no signed-in command line for gitlab.com is on this computer, so nothing is posted as you"
+  },
+  {
+   "remote": "https://git.example.com/wsp/pr-lab.git",
+   "host": "git.example.com",
+   "line": "no signed-in command line for git.example.com is on this computer, so nothing is posted as you"
+  },
+  {
+   "remote": "git@git.example.com:wsp/pr-lab.git",
+   "host": "git.example.com",
+   "line": "no signed-in command line for git.example.com is on this computer, so nothing is posted as you"
+  },
+  {
+   "remote": "https://Code.Example.ORG:8443/wsp/pr-lab",
+   "host": "code.example.org",
+   "line": "no signed-in command line for code.example.org is on this computer, so nothing is posted as you"
+  },
+  {
+   "remote": "not a url",
+   "host": "not a url",
+   "line": "no signed-in command line for not a url is on this computer, so nothing is posted as you"
+  },
+  {
+   "remote": "",
+   "host": "",
+   "line": "no signed-in command line for  is on this computer, so nothing is posted as you"
+  }
+ ],
+ "warns": [
+  "the tree of pr-lab was not settled: boom",
+  "pr-lab was not napped once its pull request settled: no machine"
+ ]
+}
