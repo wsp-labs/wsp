@@ -1,0 +1,7532 @@
+{
+  "words": {
+    "absentSrv": "srv is not answering; it connects on its own when it is on",
+    "absentMini": "mini is not answering; it connects on its own when it is on",
+    "absentThis": "this computer is not answering; it connects on its own when it is on",
+    "subGone": "Solari is no longer on this host",
+    "noLogins": "srv has not said where it keeps its logins, so Codex's there cannot be reached; wsp add srv --update puts a newer agent on it",
+    "noLoginsMini": "garage has not said where it keeps its logins, so Codex's there cannot be reached; wsp add garage --update puts a newer agent on it",
+    "unknownOp": "unknown op: usage.logs",
+    "thisComputer": "this computer",
+    "outsideWsp": "Outside wsp",
+    "wspThreads": "wsp threads",
+    "removedComputer": "a removed computer",
+    "unread": "not read yet: shows after its next turn",
+    "noPlaceDoor": "this runtime holds no places; the host that serves the app wires them"
+  },
+  "stores": [
+    {
+      "agent": "claude",
+      "format": "claude-jsonl",
+      "root": "~/.claude/projects"
+    },
+    {
+      "agent": "codex",
+      "format": "codex-rollout",
+      "root": "~/.codex/sessions"
+    },
+    {
+      "agent": "opencode",
+      "format": "opencode-sqlite",
+      "root": "~/.local/share/opencode/opencode.db"
+    }
+  ],
+  "away": {
+    "cloud_gone": "Solari is no longer on this host",
+    "cloud_gone_released": null,
+    "cloud_gone_released_on_away_box": "studio is not answering; it connects on its own when it is on",
+    "sub_not_gone": null,
+    "away_box": "studio is not answering; it connects on its own when it is on",
+    "present_box": null,
+    "here": null
+  },
+  "scenarios": {
+    "logs": {
+      "warns": [],
+      "asked": [
+        {
+          "place": "here",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        },
+        {
+          "place": "box1",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        }
+      ],
+      "filed": [
+        {
+          "entries": [
+            {
+              "at": 1000,
+              "agent": "claude",
+              "account": "claude@here",
+              "accountLabel": "Claude Code signed in on this Mac",
+              "computer": "here",
+              "project": "pH",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "costUsd": 0.5,
+              "session": "s-a",
+              "source": "log"
+            },
+            {
+              "at": 2000,
+              "agent": "codex",
+              "account": "codex:acct_1",
+              "accountLabel": "Codex with ChatGPT Plus",
+              "computer": "here",
+              "project": "",
+              "model": "gpt-5",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-b",
+              "source": "log"
+            },
+            {
+              "at": 3000,
+              "agent": "claude",
+              "account": "claude@here",
+              "accountLabel": "Claude Code signed in on this Mac",
+              "computer": "here",
+              "project": "",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-c",
+              "source": "log"
+            },
+            {
+              "at": 4000,
+              "agent": "claude",
+              "account": "claude@box1",
+              "accountLabel": "Claude Code signed in on studio",
+              "computer": "box1",
+              "project": "pB",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 11,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-d",
+              "source": "log"
+            },
+            {
+              "at": 4100,
+              "agent": "claude",
+              "account": "claude@box1",
+              "accountLabel": "Claude Code signed in on studio",
+              "computer": "box1",
+              "project": "",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 3,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-e",
+              "source": "log"
+            }
+          ],
+          "read": [
+            "here",
+            "box1"
+          ]
+        }
+      ],
+      "readings": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computer": "here",
+          "limit": {
+            "windows": [],
+            "plan": "{\"primary\":{\"usedPercent\":40,\"windowDurationMins\":300,\"resetsAt\":1790690000},\"planType\":\"pro\"}"
+          },
+          "at": 5000
+        },
+        {
+          "key": "codex@box1",
+          "agent": "codex",
+          "label": "Codex signed in on studio",
+          "road": "own",
+          "computer": "box1",
+          "limit": {
+            "windows": [],
+            "plan": "{\"secondary\":{\"usedPercent\":12,\"windowDurationMins\":10080}}"
+          },
+          "at": 7000
+        }
+      ],
+      "alerts": [
+        [
+          null,
+          {
+            "key": "codex:acct_1",
+            "readAt": 5000
+          }
+        ]
+      ],
+      "snapshots": [
+        {
+          "primary": {
+            "usedPercent": 40,
+            "windowDurationMins": 300,
+            "resetsAt": 1790690000
+          },
+          "planType": "pro"
+        },
+        {
+          "secondary": {
+            "usedPercent": 12,
+            "windowDurationMins": 10080
+          }
+        }
+      ],
+      "used": [
+        {
+          "range": "day",
+          "split": "source",
+          "outside": true,
+          "labels": []
+        },
+        {
+          "range": "day",
+          "split": "source",
+          "outside": true,
+          "labels": []
+        }
+      ],
+      "rows": [],
+      "names": [
+        {
+          "limits": [
+            {
+              "key": "codex:acct_1",
+              "agent": "codex",
+              "label": "Codex with ChatGPT Plus",
+              "road": "named",
+              "computers": [
+                "here"
+              ]
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [
+            {
+              "key": "codex:acct_1",
+              "agent": "codex",
+              "label": "Codex with ChatGPT Plus",
+              "road": "named",
+              "computers": [
+                "here"
+              ]
+            }
+          ],
+          "names": []
+        }
+      ],
+      "execs": [],
+      "spends": [],
+      "signInReads": 0,
+      "ready": 1,
+      "marks": [
+        {
+          "label": "first",
+          "asked": 2,
+          "filed": 1,
+          "execs": 0,
+          "readings": 2,
+          "warns": [],
+          "signInReads": 0
+        },
+        {
+          "label": "second",
+          "asked": 2,
+          "filed": 1,
+          "execs": 0,
+          "readings": 2,
+          "warns": [],
+          "signInReads": 0
+        }
+      ]
+    },
+    "logs_window": {
+      "warns": [],
+      "asked": [
+        {
+          "place": "here",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        },
+        {
+          "place": "box1",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        },
+        {
+          "place": "here",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        },
+        {
+          "place": "box1",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        }
+      ],
+      "filed": [
+        {
+          "entries": [
+            {
+              "at": 1000,
+              "agent": "claude",
+              "account": "claude@here",
+              "accountLabel": "Claude Code signed in on this Mac",
+              "computer": "here",
+              "project": "pH",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "costUsd": 0.5,
+              "session": "s-a",
+              "source": "log"
+            },
+            {
+              "at": 2000,
+              "agent": "codex",
+              "account": "codex:acct_1",
+              "accountLabel": "Codex with ChatGPT Plus",
+              "computer": "here",
+              "project": "",
+              "model": "gpt-5",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-b",
+              "source": "log"
+            },
+            {
+              "at": 3000,
+              "agent": "claude",
+              "account": "claude@here",
+              "accountLabel": "Claude Code signed in on this Mac",
+              "computer": "here",
+              "project": "",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-c",
+              "source": "log"
+            },
+            {
+              "at": 4000,
+              "agent": "claude",
+              "account": "claude@box1",
+              "accountLabel": "Claude Code signed in on studio",
+              "computer": "box1",
+              "project": "pB",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 11,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-d",
+              "source": "log"
+            },
+            {
+              "at": 4100,
+              "agent": "claude",
+              "account": "claude@box1",
+              "accountLabel": "Claude Code signed in on studio",
+              "computer": "box1",
+              "project": "",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 3,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-e",
+              "source": "log"
+            }
+          ],
+          "read": [
+            "here",
+            "box1"
+          ]
+        },
+        {
+          "entries": [
+            {
+              "at": 1000,
+              "agent": "claude",
+              "account": "claude@here",
+              "accountLabel": "Claude Code signed in on this Mac",
+              "computer": "here",
+              "project": "pH",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "costUsd": 0.5,
+              "session": "s-a",
+              "source": "log"
+            },
+            {
+              "at": 2000,
+              "agent": "codex",
+              "account": "codex:acct_1",
+              "accountLabel": "Codex with ChatGPT Plus",
+              "computer": "here",
+              "project": "",
+              "model": "gpt-5",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-b",
+              "source": "log"
+            },
+            {
+              "at": 3000,
+              "agent": "claude",
+              "account": "claude@here",
+              "accountLabel": "Claude Code signed in on this Mac",
+              "computer": "here",
+              "project": "",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-c",
+              "source": "log"
+            },
+            {
+              "at": 4000,
+              "agent": "claude",
+              "account": "claude@box1",
+              "accountLabel": "Claude Code signed in on studio",
+              "computer": "box1",
+              "project": "pB",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 11,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-d",
+              "source": "log"
+            },
+            {
+              "at": 4100,
+              "agent": "claude",
+              "account": "claude@box1",
+              "accountLabel": "Claude Code signed in on studio",
+              "computer": "box1",
+              "project": "",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 3,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-e",
+              "source": "log"
+            }
+          ],
+          "read": [
+            "here",
+            "box1"
+          ]
+        }
+      ],
+      "readings": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computer": "here",
+          "limit": {
+            "windows": [],
+            "plan": "{\"primary\":{\"usedPercent\":40,\"windowDurationMins\":300,\"resetsAt\":1790690000},\"planType\":\"pro\"}"
+          },
+          "at": 5000
+        },
+        {
+          "key": "codex@box1",
+          "agent": "codex",
+          "label": "Codex signed in on studio",
+          "road": "own",
+          "computer": "box1",
+          "limit": {
+            "windows": [],
+            "plan": "{\"secondary\":{\"usedPercent\":12,\"windowDurationMins\":10080}}"
+          },
+          "at": 7000
+        },
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computer": "here",
+          "limit": {
+            "windows": [],
+            "plan": "{\"primary\":{\"usedPercent\":40,\"windowDurationMins\":300,\"resetsAt\":1790690000},\"planType\":\"pro\"}"
+          },
+          "at": 5000
+        },
+        {
+          "key": "codex@box1",
+          "agent": "codex",
+          "label": "Codex signed in on studio",
+          "road": "own",
+          "computer": "box1",
+          "limit": {
+            "windows": [],
+            "plan": "{\"secondary\":{\"usedPercent\":12,\"windowDurationMins\":10080}}"
+          },
+          "at": 7000
+        }
+      ],
+      "alerts": [
+        [
+          null,
+          {
+            "key": "codex:acct_1",
+            "readAt": 5000
+          }
+        ],
+        [
+          null,
+          {
+            "key": "codex:acct_1",
+            "readAt": 5000
+          }
+        ]
+      ],
+      "snapshots": [
+        {
+          "primary": {
+            "usedPercent": 40,
+            "windowDurationMins": 300,
+            "resetsAt": 1790690000
+          },
+          "planType": "pro"
+        },
+        {
+          "secondary": {
+            "usedPercent": 12,
+            "windowDurationMins": 10080
+          }
+        },
+        {
+          "primary": {
+            "usedPercent": 40,
+            "windowDurationMins": 300,
+            "resetsAt": 1790690000
+          },
+          "planType": "pro"
+        },
+        {
+          "secondary": {
+            "usedPercent": 12,
+            "windowDurationMins": 10080
+          }
+        }
+      ],
+      "used": [
+        {
+          "range": "day",
+          "split": "source",
+          "outside": true,
+          "labels": []
+        },
+        {
+          "range": "day",
+          "split": "source",
+          "outside": true,
+          "labels": []
+        },
+        {
+          "range": "day",
+          "split": "source",
+          "outside": true,
+          "labels": []
+        }
+      ],
+      "rows": [],
+      "names": [
+        {
+          "limits": [
+            {
+              "key": "codex:acct_1",
+              "agent": "codex",
+              "label": "Codex with ChatGPT Plus",
+              "road": "named",
+              "computers": [
+                "here"
+              ]
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [
+            {
+              "key": "codex:acct_1",
+              "agent": "codex",
+              "label": "Codex with ChatGPT Plus",
+              "road": "named",
+              "computers": [
+                "here"
+              ]
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [
+            {
+              "key": "codex:acct_1",
+              "agent": "codex",
+              "label": "Codex with ChatGPT Plus",
+              "road": "named",
+              "computers": [
+                "here"
+              ]
+            }
+          ],
+          "names": []
+        }
+      ],
+      "execs": [],
+      "spends": [],
+      "signInReads": 0,
+      "ready": 2,
+      "marks": [
+        {
+          "label": "0",
+          "asked": 2,
+          "filed": 1,
+          "execs": 0,
+          "readings": 2,
+          "warns": [],
+          "signInReads": 0
+        },
+        {
+          "label": "59999",
+          "asked": 2,
+          "filed": 1,
+          "execs": 0,
+          "readings": 2,
+          "warns": [],
+          "signInReads": 0
+        },
+        {
+          "label": "60000",
+          "asked": 4,
+          "filed": 2,
+          "execs": 0,
+          "readings": 4,
+          "warns": [],
+          "signInReads": 0
+        }
+      ]
+    },
+    "logs_off": {
+      "warns": [],
+      "asked": [],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [],
+      "used": [
+        {
+          "range": "day",
+          "split": "project",
+          "outside": false,
+          "labels": []
+        }
+      ],
+      "rows": [],
+      "names": [
+        {
+          "limits": [
+            {
+              "key": "codex:acct_1",
+              "agent": "codex",
+              "label": "Codex with ChatGPT Plus",
+              "road": "named",
+              "computers": [
+                "here"
+              ]
+            }
+          ],
+          "names": []
+        }
+      ],
+      "execs": [],
+      "spends": [],
+      "signInReads": 0,
+      "ready": 0,
+      "marks": [
+        {
+          "label": "off",
+          "asked": 0,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [],
+          "signInReads": 0
+        }
+      ]
+    },
+    "logs_not_asked": {
+      "warns": [],
+      "asked": [],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [],
+      "used": [
+        {
+          "range": "day",
+          "split": "project",
+          "outside": false,
+          "labels": []
+        }
+      ],
+      "rows": [],
+      "names": [
+        {
+          "limits": [
+            {
+              "key": "codex:acct_1",
+              "agent": "codex",
+              "label": "Codex with ChatGPT Plus",
+              "road": "named",
+              "computers": [
+                "here"
+              ]
+            }
+          ],
+          "names": []
+        }
+      ],
+      "execs": [],
+      "spends": [],
+      "signInReads": 0,
+      "ready": 0,
+      "marks": [
+        {
+          "label": "not asked",
+          "asked": 0,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [],
+          "signInReads": 0
+        }
+      ]
+    },
+    "logs_old_daemon_and_failures": {
+      "warns": [
+        "the agent logs on studio were not read for usage: the socket closed"
+      ],
+      "asked": [
+        {
+          "place": "here",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        },
+        {
+          "place": "box1",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        }
+      ],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [],
+      "used": [
+        {
+          "range": "day",
+          "split": "source",
+          "outside": true,
+          "labels": []
+        }
+      ],
+      "rows": [],
+      "names": [
+        {
+          "limits": [
+            {
+              "key": "codex:acct_1",
+              "agent": "codex",
+              "label": "Codex with ChatGPT Plus",
+              "road": "named",
+              "computers": [
+                "here"
+              ]
+            }
+          ],
+          "names": []
+        }
+      ],
+      "execs": [],
+      "spends": [],
+      "signInReads": 0,
+      "ready": 0,
+      "marks": [
+        {
+          "label": "both fail",
+          "asked": 2,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [
+            "the agent logs on studio were not read for usage: the socket closed"
+          ],
+          "signInReads": 0
+        }
+      ]
+    },
+    "logs_timeout": {
+      "warns": [
+        "the agent logs on studio were not read for usage: usage.logs on studio was not answered in 30s"
+      ],
+      "asked": [
+        {
+          "place": "here",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        },
+        {
+          "place": "box1",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        }
+      ],
+      "filed": [
+        {
+          "entries": [
+            {
+              "at": 1000,
+              "agent": "claude",
+              "account": "claude@here",
+              "accountLabel": "Claude Code signed in on this Mac",
+              "computer": "here",
+              "project": "pH",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "costUsd": 0.5,
+              "session": "s-a",
+              "source": "log"
+            },
+            {
+              "at": 2000,
+              "agent": "codex",
+              "account": "codex:acct_1",
+              "accountLabel": "Codex with ChatGPT Plus",
+              "computer": "here",
+              "project": "",
+              "model": "gpt-5",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-b",
+              "source": "log"
+            },
+            {
+              "at": 3000,
+              "agent": "claude",
+              "account": "claude@here",
+              "accountLabel": "Claude Code signed in on this Mac",
+              "computer": "here",
+              "project": "",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-c",
+              "source": "log"
+            }
+          ],
+          "read": [
+            "here"
+          ]
+        }
+      ],
+      "readings": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computer": "here",
+          "limit": {
+            "windows": [],
+            "plan": "{\"primary\":{\"usedPercent\":40,\"windowDurationMins\":300,\"resetsAt\":1790690000},\"planType\":\"pro\"}"
+          },
+          "at": 5000
+        }
+      ],
+      "alerts": [
+        [
+          null,
+          {
+            "key": "codex:acct_1",
+            "readAt": 5000
+          }
+        ]
+      ],
+      "snapshots": [
+        {
+          "primary": {
+            "usedPercent": 40,
+            "windowDurationMins": 300,
+            "resetsAt": 1790690000
+          },
+          "planType": "pro"
+        }
+      ],
+      "used": [
+        {
+          "range": "day",
+          "split": "source",
+          "outside": true,
+          "labels": []
+        }
+      ],
+      "rows": [],
+      "names": [
+        {
+          "limits": [
+            {
+              "key": "codex:acct_1",
+              "agent": "codex",
+              "label": "Codex with ChatGPT Plus",
+              "road": "named",
+              "computers": [
+                "here"
+              ]
+            }
+          ],
+          "names": []
+        }
+      ],
+      "execs": [],
+      "spends": [],
+      "signInReads": 0,
+      "ready": 1,
+      "marks": [
+        {
+          "label": "before the bound",
+          "asked": 2,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [],
+          "signInReads": 0
+        },
+        {
+          "label": "after the bound",
+          "asked": 2,
+          "filed": 1,
+          "execs": 0,
+          "readings": 1,
+          "warns": [
+            "the agent logs on studio were not read for usage: usage.logs on studio was not answered in 30s"
+          ],
+          "signInReads": 0
+        }
+      ]
+    },
+    "logs_without_a_daemon_here": {
+      "warns": [],
+      "asked": [
+        {
+          "place": "box1",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        }
+      ],
+      "filed": [
+        {
+          "entries": [
+            {
+              "at": 4000,
+              "agent": "claude",
+              "account": "claude@box1",
+              "accountLabel": "Claude Code signed in on studio",
+              "computer": "box1",
+              "project": "pB",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 11,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-d",
+              "source": "log"
+            },
+            {
+              "at": 4100,
+              "agent": "claude",
+              "account": "claude@box1",
+              "accountLabel": "Claude Code signed in on studio",
+              "computer": "box1",
+              "project": "",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 3,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-e",
+              "source": "log"
+            }
+          ],
+          "read": [
+            "box1"
+          ]
+        }
+      ],
+      "readings": [
+        {
+          "key": "codex@box1",
+          "agent": "codex",
+          "label": "Codex signed in on studio",
+          "road": "own",
+          "computer": "box1",
+          "limit": {
+            "windows": [],
+            "plan": "{\"secondary\":{\"usedPercent\":12,\"windowDurationMins\":10080}}"
+          },
+          "at": 7000
+        }
+      ],
+      "alerts": [],
+      "snapshots": [
+        {
+          "secondary": {
+            "usedPercent": 12,
+            "windowDurationMins": 10080
+          }
+        }
+      ],
+      "used": [
+        {
+          "range": "day",
+          "split": "source",
+          "outside": true,
+          "labels": []
+        }
+      ],
+      "rows": [],
+      "names": [
+        {
+          "limits": [
+            {
+              "key": "codex:acct_1",
+              "agent": "codex",
+              "label": "Codex with ChatGPT Plus",
+              "road": "named",
+              "computers": [
+                "here"
+              ]
+            }
+          ],
+          "names": []
+        }
+      ],
+      "execs": [],
+      "spends": [],
+      "signInReads": 0,
+      "ready": 1,
+      "marks": [
+        {
+          "label": "no road here",
+          "asked": 1,
+          "filed": 1,
+          "execs": 0,
+          "readings": 1,
+          "warns": [],
+          "signInReads": 0
+        }
+      ]
+    },
+    "accounts_here_row_added": {
+      "warns": [],
+      "asked": [],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [],
+      "used": [],
+      "rows": [
+        {
+          "limits": [
+            {
+              "key": "k"
+            }
+          ],
+          "places": [
+            {
+              "id": "box1",
+              "name": "studio",
+              "signIns": {
+                "codex": "signed-in"
+              }
+            },
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": [
+            "this computer",
+            "studio",
+            "old-box"
+          ]
+        }
+      ],
+      "names": [],
+      "execs": [],
+      "spends": [],
+      "signInReads": 1,
+      "ready": 0,
+      "marks": [
+        {
+          "label": "one",
+          "asked": 0,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [],
+          "signInReads": 1
+        }
+      ]
+    },
+    "accounts_here_row_given": {
+      "warns": [],
+      "asked": [],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [],
+      "used": [],
+      "rows": [
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this Mac",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            },
+            {
+              "id": "box1",
+              "name": "studio",
+              "signIns": {
+                "codex": "signed-in"
+              }
+            }
+          ],
+          "names": []
+        }
+      ],
+      "names": [],
+      "execs": [],
+      "spends": [],
+      "signInReads": 1,
+      "ready": 0,
+      "marks": [
+        {
+          "label": "one",
+          "asked": 0,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [],
+          "signInReads": 1
+        }
+      ]
+    },
+    "accounts_here_row_has_its_own": {
+      "warns": [],
+      "asked": [],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [],
+      "used": [],
+      "rows": [
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this Mac",
+              "signIns": {
+                "claude": "signed-in"
+              }
+            }
+          ],
+          "names": []
+        }
+      ],
+      "names": [],
+      "execs": [],
+      "spends": [],
+      "signInReads": 1,
+      "ready": 0,
+      "marks": [
+        {
+          "label": "one",
+          "asked": 0,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [],
+          "signInReads": 1
+        }
+      ]
+    },
+    "sign_ins_hold": {
+      "warns": [],
+      "asked": [],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [],
+      "used": [],
+      "rows": [
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        }
+      ],
+      "names": [],
+      "execs": [],
+      "spends": [],
+      "signInReads": 3,
+      "ready": 0,
+      "marks": [
+        {
+          "label": "40 at once",
+          "asked": 0,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [],
+          "signInReads": 1
+        },
+        {
+          "label": "59999",
+          "asked": 0,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [],
+          "signInReads": 1
+        },
+        {
+          "label": "60000",
+          "asked": 0,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [],
+          "signInReads": 2
+        },
+        {
+          "label": "agents changed",
+          "asked": 0,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [],
+          "signInReads": 3
+        }
+      ]
+    },
+    "sign_ins_failed_read_held": {
+      "warns": [],
+      "asked": [],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [],
+      "used": [],
+      "rows": [
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {}
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {}
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {}
+            }
+          ],
+          "names": []
+        }
+      ],
+      "names": [],
+      "execs": [],
+      "spends": [],
+      "signInReads": 2,
+      "ready": 0,
+      "marks": [
+        {
+          "label": "failed twice",
+          "asked": 0,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [],
+          "signInReads": 1
+        },
+        {
+          "label": "a minute on",
+          "asked": 0,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [],
+          "signInReads": 2
+        }
+      ]
+    },
+    "sign_ins_no_reader": {
+      "warns": [],
+      "asked": [],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [],
+      "used": [],
+      "rows": [
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this computer",
+              "signIns": {}
+            }
+          ],
+          "names": []
+        }
+      ],
+      "names": [],
+      "execs": [],
+      "spends": [],
+      "signInReads": 0,
+      "ready": 0,
+      "marks": [
+        {
+          "label": "none",
+          "asked": 0,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [],
+          "signInReads": 0
+        }
+      ]
+    },
+    "plans": {
+      "warns": [
+        "Codex's limits on shed were not read: shed has not said where it keeps its logins, so Codex's there cannot be reached; wsp add shed --update puts a newer agent on it",
+        "Codex's limits on shed were not read: shed has not said where it keeps its logins, so Codex's there cannot be reached; wsp add shed --update puts a newer agent on it"
+      ],
+      "asked": [],
+      "filed": [],
+      "readings": [
+        {
+          "key": "codex@here",
+          "agent": "codex",
+          "label": "Codex signed in on this Mac",
+          "road": "own",
+          "computer": "here",
+          "limit": {
+            "windows": [
+              {
+                "kind": "week",
+                "usedPercent": 3
+              }
+            ]
+          }
+        },
+        {
+          "key": "codex:acct_7f3a",
+          "agent": "codex",
+          "label": "dev@example.com",
+          "road": "named",
+          "computer": "box1",
+          "limit": {
+            "windows": [
+              {
+                "kind": "session",
+                "usedPercent": 12,
+                "resetsAt": 1790690000000
+              }
+            ],
+            "plan": "plus",
+            "account": {
+              "id": "acct_7f3a",
+              "label": "dev@example.com"
+            }
+          }
+        },
+        {
+          "key": "codex@box4",
+          "agent": "codex",
+          "label": "Codex signed in on pantry",
+          "road": "own",
+          "computer": "box4",
+          "limit": {
+            "windows": [
+              {
+                "kind": "week",
+                "usedPercent": 50
+              }
+            ]
+          }
+        },
+        {
+          "key": "codex@here",
+          "agent": "codex",
+          "label": "Codex signed in on this Mac",
+          "road": "own",
+          "computer": "here",
+          "limit": {
+            "windows": [
+              {
+                "kind": "week",
+                "usedPercent": 3
+              }
+            ]
+          }
+        },
+        {
+          "key": "codex:acct_7f3a",
+          "agent": "codex",
+          "label": "dev@example.com",
+          "road": "named",
+          "computer": "box1",
+          "limit": {
+            "windows": [
+              {
+                "kind": "session",
+                "usedPercent": 12,
+                "resetsAt": 1790690000000
+              }
+            ],
+            "plan": "plus",
+            "account": {
+              "id": "acct_7f3a",
+              "label": "dev@example.com"
+            }
+          }
+        },
+        {
+          "key": "codex@box4",
+          "agent": "codex",
+          "label": "Codex signed in on pantry",
+          "road": "own",
+          "computer": "box4",
+          "limit": {
+            "windows": [
+              {
+                "kind": "week",
+                "usedPercent": 50
+              }
+            ]
+          }
+        }
+      ],
+      "alerts": [
+        [
+          null,
+          {
+            "key": "codex@here",
+            "readAt": 1800000000000
+          }
+        ],
+        [
+          null,
+          {
+            "key": "codex:acct_7f3a",
+            "readAt": 1800000000000
+          }
+        ],
+        [
+          null,
+          {
+            "key": "codex@box4",
+            "readAt": 1800000000000
+          }
+        ],
+        [
+          null,
+          {
+            "key": "codex@here",
+            "readAt": 1800000060000
+          }
+        ],
+        [
+          null,
+          {
+            "key": "codex:acct_7f3a",
+            "readAt": 1800000060000
+          }
+        ],
+        [
+          null,
+          {
+            "key": "codex@box4",
+            "readAt": 1800000060000
+          }
+        ]
+      ],
+      "snapshots": [],
+      "used": [],
+      "rows": [
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this Mac",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "signed-in"
+              }
+            },
+            {
+              "id": "box1",
+              "name": "studio"
+            },
+            {
+              "id": "box2",
+              "name": "garage"
+            },
+            {
+              "id": "box3",
+              "name": "attic"
+            },
+            {
+              "id": "box4",
+              "name": "pantry"
+            },
+            {
+              "id": "box5",
+              "name": "shed"
+            },
+            {
+              "id": "solari",
+              "name": "solari"
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this Mac",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "signed-in"
+              }
+            },
+            {
+              "id": "box1",
+              "name": "studio"
+            },
+            {
+              "id": "box2",
+              "name": "garage"
+            },
+            {
+              "id": "box3",
+              "name": "attic"
+            },
+            {
+              "id": "box4",
+              "name": "pantry"
+            },
+            {
+              "id": "box5",
+              "name": "shed"
+            },
+            {
+              "id": "solari",
+              "name": "solari"
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this Mac",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "signed-in"
+              }
+            },
+            {
+              "id": "box1",
+              "name": "studio"
+            },
+            {
+              "id": "box2",
+              "name": "garage"
+            },
+            {
+              "id": "box3",
+              "name": "attic"
+            },
+            {
+              "id": "box4",
+              "name": "pantry"
+            },
+            {
+              "id": "box5",
+              "name": "shed"
+            },
+            {
+              "id": "solari",
+              "name": "solari"
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this Mac",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "signed-in"
+              }
+            },
+            {
+              "id": "box1",
+              "name": "studio"
+            },
+            {
+              "id": "box2",
+              "name": "garage"
+            },
+            {
+              "id": "box3",
+              "name": "attic"
+            },
+            {
+              "id": "box4",
+              "name": "pantry"
+            },
+            {
+              "id": "box5",
+              "name": "shed"
+            },
+            {
+              "id": "solari",
+              "name": "solari"
+            }
+          ],
+          "names": []
+        },
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this Mac",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "signed-in"
+              }
+            },
+            {
+              "id": "box1",
+              "name": "studio"
+            },
+            {
+              "id": "box2",
+              "name": "garage"
+            },
+            {
+              "id": "box3",
+              "name": "attic"
+            },
+            {
+              "id": "box4",
+              "name": "pantry"
+            },
+            {
+              "id": "box5",
+              "name": "shed"
+            },
+            {
+              "id": "solari",
+              "name": "solari"
+            }
+          ],
+          "names": []
+        }
+      ],
+      "names": [],
+      "execs": [
+        {
+          "where": "here",
+          "script": "read {\"home\":\"/home/u/.codex\",\"env\":{}}",
+          "env": {},
+          "options": {
+            "idleMs": 30000,
+            "deadlineMs": 30000
+          }
+        },
+        {
+          "where": "box1",
+          "script": "while IFS= read -r -d '' wsp_kv; do export \"$wsp_kv\"; done; unset wsp_kv\nread {\"home\":\"/home/maya/.codex-work\",\"env\":{}}",
+          "timeoutMs": 30000,
+          "stdin": ""
+        },
+        {
+          "where": "box4",
+          "script": "while IFS= read -r -d '' wsp_kv; do export \"$wsp_kv\"; done; unset wsp_kv\nread {\"home\":\"/srv/logins/codex\",\"env\":{},\"launch\":{\"program\":\"wrap\"}}",
+          "timeoutMs": 30000,
+          "stdin": ""
+        },
+        {
+          "where": "here",
+          "script": "read {\"home\":\"/home/u/.codex\",\"env\":{}}",
+          "env": {},
+          "options": {
+            "idleMs": 30000,
+            "deadlineMs": 30000
+          }
+        },
+        {
+          "where": "box1",
+          "script": "while IFS= read -r -d '' wsp_kv; do export \"$wsp_kv\"; done; unset wsp_kv\nread {\"home\":\"/home/maya/.codex-work\",\"env\":{}}",
+          "timeoutMs": 30000,
+          "stdin": ""
+        },
+        {
+          "where": "box4",
+          "script": "while IFS= read -r -d '' wsp_kv; do export \"$wsp_kv\"; done; unset wsp_kv\nread {\"home\":\"/srv/logins/codex\",\"env\":{},\"launch\":{\"program\":\"wrap\"}}",
+          "timeoutMs": 30000,
+          "stdin": ""
+        }
+      ],
+      "spends": [],
+      "signInReads": 2,
+      "ready": 0,
+      "marks": [
+        {
+          "label": "first",
+          "asked": 0,
+          "filed": 0,
+          "execs": 3,
+          "readings": 3,
+          "warns": [
+            "Codex's limits on shed were not read: shed has not said where it keeps its logins, so Codex's there cannot be reached; wsp add shed --update puts a newer agent on it"
+          ],
+          "signInReads": 1
+        },
+        {
+          "label": "second",
+          "asked": 0,
+          "filed": 0,
+          "execs": 3,
+          "readings": 3,
+          "warns": [
+            "Codex's limits on shed were not read: shed has not said where it keeps its logins, so Codex's there cannot be reached; wsp add shed --update puts a newer agent on it"
+          ],
+          "signInReads": 1
+        },
+        {
+          "label": "59999",
+          "asked": 0,
+          "filed": 0,
+          "execs": 3,
+          "readings": 3,
+          "warns": [
+            "Codex's limits on shed were not read: shed has not said where it keeps its logins, so Codex's there cannot be reached; wsp add shed --update puts a newer agent on it"
+          ],
+          "signInReads": 1
+        },
+        {
+          "label": "60000",
+          "asked": 0,
+          "filed": 0,
+          "execs": 6,
+          "readings": 6,
+          "warns": [
+            "Codex's limits on shed were not read: shed has not said where it keeps its logins, so Codex's there cannot be reached; wsp add shed --update puts a newer agent on it",
+            "Codex's limits on shed were not read: shed has not said where it keeps its logins, so Codex's there cannot be reached; wsp add shed --update puts a newer agent on it"
+          ],
+          "signInReads": 2
+        },
+        {
+          "label": "not fresh",
+          "asked": 0,
+          "filed": 0,
+          "execs": 6,
+          "readings": 6,
+          "warns": [
+            "Codex's limits on shed were not read: shed has not said where it keeps its logins, so Codex's there cannot be reached; wsp add shed --update puts a newer agent on it",
+            "Codex's limits on shed were not read: shed has not said where it keeps its logins, so Codex's there cannot be reached; wsp add shed --update puts a newer agent on it"
+          ],
+          "signInReads": 2
+        }
+      ]
+    },
+    "plans_here_vault_key": {
+      "warns": [],
+      "asked": [],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [],
+      "used": [],
+      "rows": [
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this Mac",
+              "signIns": {
+                "codex": "vault-key"
+              }
+            }
+          ],
+          "names": []
+        }
+      ],
+      "names": [],
+      "execs": [],
+      "spends": [],
+      "signInReads": 1,
+      "ready": 0,
+      "marks": [
+        {
+          "label": "vault key",
+          "asked": 0,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [],
+          "signInReads": 1
+        }
+      ]
+    },
+    "plans_exec_error": {
+      "warns": [
+        "Codex's limits on shed were not read: shed has not said where it keeps its logins, so Codex's there cannot be reached; wsp add shed --update puts a newer agent on it",
+        "Codex's limits on studio were not read: the link dropped"
+      ],
+      "asked": [],
+      "filed": [],
+      "readings": [
+        {
+          "key": "codex@here",
+          "agent": "codex",
+          "label": "Codex signed in on this Mac",
+          "road": "own",
+          "computer": "here",
+          "limit": {
+            "windows": [
+              {
+                "kind": "week",
+                "usedPercent": 3
+              }
+            ]
+          }
+        },
+        {
+          "key": "codex@box4",
+          "agent": "codex",
+          "label": "Codex signed in on pantry",
+          "road": "own",
+          "computer": "box4",
+          "limit": {
+            "windows": [
+              {
+                "kind": "week",
+                "usedPercent": 50
+              }
+            ]
+          }
+        }
+      ],
+      "alerts": [
+        [
+          null,
+          {
+            "key": "codex@here",
+            "readAt": 1800000000000
+          }
+        ],
+        [
+          null,
+          {
+            "key": "codex@box4",
+            "readAt": 1800000000000
+          }
+        ]
+      ],
+      "snapshots": [],
+      "used": [],
+      "rows": [
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this Mac",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "signed-in"
+              }
+            },
+            {
+              "id": "box1",
+              "name": "studio"
+            },
+            {
+              "id": "box2",
+              "name": "garage"
+            },
+            {
+              "id": "box3",
+              "name": "attic"
+            },
+            {
+              "id": "box4",
+              "name": "pantry"
+            },
+            {
+              "id": "box5",
+              "name": "shed"
+            },
+            {
+              "id": "solari",
+              "name": "solari"
+            }
+          ],
+          "names": []
+        }
+      ],
+      "names": [],
+      "execs": [
+        {
+          "where": "here",
+          "script": "read {\"home\":\"/home/u/.codex\",\"env\":{}}",
+          "env": {},
+          "options": {
+            "idleMs": 30000,
+            "deadlineMs": 30000
+          }
+        },
+        {
+          "where": "box4",
+          "script": "while IFS= read -r -d '' wsp_kv; do export \"$wsp_kv\"; done; unset wsp_kv\nread {\"home\":\"/srv/logins/codex\",\"env\":{},\"launch\":{\"program\":\"wrap\"}}",
+          "timeoutMs": 30000,
+          "stdin": ""
+        }
+      ],
+      "spends": [],
+      "signInReads": 1,
+      "ready": 0,
+      "marks": [
+        {
+          "label": "exec error",
+          "asked": 0,
+          "filed": 0,
+          "execs": 2,
+          "readings": 2,
+          "warns": [
+            "Codex's limits on shed were not read: shed has not said where it keeps its logins, so Codex's there cannot be reached; wsp add shed --update puts a newer agent on it",
+            "Codex's limits on studio were not read: the link dropped"
+          ],
+          "signInReads": 1
+        }
+      ]
+    },
+    "plans_timeout": {
+      "warns": [
+        "Codex's limits on shed were not read: shed has not said where it keeps its logins, so Codex's there cannot be reached; wsp add shed --update puts a newer agent on it",
+        "Codex's limits on studio were not read: codex limits on studio was not answered in 30s"
+      ],
+      "asked": [],
+      "filed": [],
+      "readings": [
+        {
+          "key": "codex@here",
+          "agent": "codex",
+          "label": "Codex signed in on this Mac",
+          "road": "own",
+          "computer": "here",
+          "limit": {
+            "windows": [
+              {
+                "kind": "week",
+                "usedPercent": 3
+              }
+            ]
+          }
+        },
+        {
+          "key": "codex@box4",
+          "agent": "codex",
+          "label": "Codex signed in on pantry",
+          "road": "own",
+          "computer": "box4",
+          "limit": {
+            "windows": [
+              {
+                "kind": "week",
+                "usedPercent": 50
+              }
+            ]
+          }
+        }
+      ],
+      "alerts": [
+        [
+          null,
+          {
+            "key": "codex@here",
+            "readAt": 1800000000000
+          }
+        ],
+        [
+          null,
+          {
+            "key": "codex@box4",
+            "readAt": 1800000000000
+          }
+        ]
+      ],
+      "snapshots": [],
+      "used": [],
+      "rows": [
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this Mac",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "signed-in"
+              }
+            },
+            {
+              "id": "box1",
+              "name": "studio"
+            },
+            {
+              "id": "box2",
+              "name": "garage"
+            },
+            {
+              "id": "box3",
+              "name": "attic"
+            },
+            {
+              "id": "box4",
+              "name": "pantry"
+            },
+            {
+              "id": "box5",
+              "name": "shed"
+            },
+            {
+              "id": "solari",
+              "name": "solari"
+            }
+          ],
+          "names": []
+        }
+      ],
+      "names": [],
+      "execs": [
+        {
+          "where": "here",
+          "script": "read {\"home\":\"/home/u/.codex\",\"env\":{}}",
+          "env": {},
+          "options": {
+            "idleMs": 30000,
+            "deadlineMs": 30000
+          }
+        },
+        {
+          "where": "box1",
+          "script": "while IFS= read -r -d '' wsp_kv; do export \"$wsp_kv\"; done; unset wsp_kv\nread {\"home\":\"/home/maya/.codex-work\",\"env\":{}}",
+          "timeoutMs": 30000,
+          "stdin": ""
+        },
+        {
+          "where": "box4",
+          "script": "while IFS= read -r -d '' wsp_kv; do export \"$wsp_kv\"; done; unset wsp_kv\nread {\"home\":\"/srv/logins/codex\",\"env\":{},\"launch\":{\"program\":\"wrap\"}}",
+          "timeoutMs": 30000,
+          "stdin": ""
+        }
+      ],
+      "spends": [],
+      "signInReads": 1,
+      "ready": 0,
+      "marks": [
+        {
+          "label": "before the bound",
+          "asked": 0,
+          "filed": 0,
+          "execs": 3,
+          "readings": 2,
+          "warns": [
+            "Codex's limits on shed were not read: shed has not said where it keeps its logins, so Codex's there cannot be reached; wsp add shed --update puts a newer agent on it"
+          ],
+          "signInReads": 1
+        },
+        {
+          "label": "after the bound",
+          "asked": 0,
+          "filed": 0,
+          "execs": 3,
+          "readings": 2,
+          "warns": [
+            "Codex's limits on shed were not read: shed has not said where it keeps its logins, so Codex's there cannot be reached; wsp add shed --update puts a newer agent on it",
+            "Codex's limits on studio were not read: codex limits on studio was not answered in 30s"
+          ],
+          "signInReads": 1
+        }
+      ]
+    },
+    "plans_failures": {
+      "warns": [
+        "Codex's limits on shed were not read: shed has not said where it keeps its logins, so Codex's there cannot be reached; wsp add shed --update puts a newer agent on it"
+      ],
+      "asked": [],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [],
+      "used": [],
+      "rows": [
+        {
+          "limits": [],
+          "places": [
+            {
+              "id": "here",
+              "name": "this Mac",
+              "signIns": {
+                "claude": "signed-in",
+                "codex": "signed-in"
+              }
+            },
+            {
+              "id": "box1",
+              "name": "studio"
+            },
+            {
+              "id": "box2",
+              "name": "garage"
+            },
+            {
+              "id": "box3",
+              "name": "attic"
+            },
+            {
+              "id": "box4",
+              "name": "pantry"
+            },
+            {
+              "id": "box5",
+              "name": "shed"
+            },
+            {
+              "id": "solari",
+              "name": "solari"
+            }
+          ],
+          "names": []
+        }
+      ],
+      "names": [],
+      "execs": [
+        {
+          "where": "here",
+          "script": "read {\"home\":\"/home/u/.codex\",\"env\":{}}",
+          "env": {},
+          "options": {
+            "idleMs": 30000,
+            "deadlineMs": 30000
+          }
+        },
+        {
+          "where": "box1",
+          "script": "while IFS= read -r -d '' wsp_kv; do export \"$wsp_kv\"; done; unset wsp_kv\nread {\"home\":\"/home/maya/.codex-work\",\"env\":{}}",
+          "timeoutMs": 30000,
+          "stdin": ""
+        },
+        {
+          "where": "box4",
+          "script": "while IFS= read -r -d '' wsp_kv; do export \"$wsp_kv\"; done; unset wsp_kv\nread {\"home\":\"/srv/logins/codex\",\"env\":{},\"launch\":{\"program\":\"wrap\"}}",
+          "timeoutMs": 30000,
+          "stdin": ""
+        }
+      ],
+      "spends": [],
+      "signInReads": 1,
+      "ready": 0,
+      "marks": [
+        {
+          "label": "failures",
+          "asked": 0,
+          "filed": 0,
+          "execs": 3,
+          "readings": 0,
+          "warns": [
+            "Codex's limits on shed were not read: shed has not said where it keeps its logins, so Codex's there cannot be reached; wsp add shed --update puts a newer agent on it"
+          ],
+          "signInReads": 1
+        }
+      ]
+    },
+    "reset_pieces": {
+      "warns": [],
+      "asked": [],
+      "filed": [],
+      "readings": [
+        {
+          "key": "codex:acct_7f3a",
+          "agent": "codex",
+          "label": "dev@example.com",
+          "road": "named",
+          "computer": "box1",
+          "limit": {
+            "windows": [],
+            "account": {
+              "id": "acct_7f3a",
+              "label": "dev@example.com"
+            }
+          }
+        },
+        {
+          "key": "codex@box1",
+          "agent": "codex",
+          "label": "Codex signed in on studio",
+          "road": "own",
+          "computer": "box1",
+          "limit": {
+            "windows": []
+          }
+        }
+      ],
+      "alerts": [
+        [
+          null,
+          {
+            "key": "codex:acct_7f3a",
+            "readAt": 1800000000000
+          }
+        ],
+        [
+          null,
+          {
+            "key": "codex@box1",
+            "readAt": 1800000000000
+          }
+        ]
+      ],
+      "snapshots": [],
+      "used": [],
+      "rows": [],
+      "names": [],
+      "execs": [
+        {
+          "where": "box1",
+          "script": "while IFS= read -r -d '' wsp_kv; do export \"$wsp_kv\"; done; unset wsp_kv\necho hi",
+          "timeoutMs": 30000,
+          "stdin": "PATH=/opt/codex/bin:/usr/bin\u0000CODEX_GATEWAY_TOKEN=sk-test-0123\u0000"
+        },
+        {
+          "where": "here",
+          "script": "echo hi",
+          "env": {
+            "PATH": "/usr/local/bin:/usr/bin",
+            "HOME": "/home/u",
+            "CODEX_GATEWAY_TOKEN": "sk-test-0123"
+          },
+          "options": {
+            "idleMs": 30000,
+            "deadlineMs": 30000
+          }
+        },
+        {
+          "where": "box5",
+          "script": "while IFS= read -r -d '' wsp_kv; do export \"$wsp_kv\"; done; unset wsp_kv\necho hi",
+          "timeoutMs": 30000,
+          "stdin": "CODEX_GATEWAY_TOKEN=sk-test-0123\u0000"
+        }
+      ],
+      "spends": [],
+      "signInReads": 1,
+      "ready": 0,
+      "placeTable": {
+        "here": {
+          "id": "here",
+          "name": "this Mac",
+          "kind": "here",
+          "connected": true,
+          "codexSignedIn": true,
+          "claudeSignedIn": true
+        },
+        "box1": {
+          "id": "box1",
+          "name": "studio",
+          "kind": "box",
+          "connected": true,
+          "codexSignedIn": true,
+          "claudeSignedIn": false
+        },
+        "box2": {
+          "id": "box2",
+          "name": "garage",
+          "kind": "box",
+          "connected": false,
+          "codexSignedIn": true,
+          "claudeSignedIn": false
+        },
+        "box3": {
+          "id": "box3",
+          "name": "attic",
+          "kind": "box",
+          "connected": true,
+          "codexSignedIn": false,
+          "claudeSignedIn": false
+        },
+        "solari": {
+          "id": "solari",
+          "name": "Solari",
+          "kind": "provider",
+          "connected": false,
+          "codexSignedIn": false,
+          "claudeSignedIn": false
+        },
+        "unknown": {
+          "id": "unknown",
+          "name": "a removed computer",
+          "kind": "provider",
+          "connected": false,
+          "codexSignedIn": false,
+          "claudeSignedIn": false
+        }
+      },
+      "runs": {
+        "box": "boxed",
+        "here": "a\nb",
+        "box_no_path": ""
+      },
+      "envInput": "PATH=/opt/codex/bin:/usr/bin\u0000CODEX_GATEWAY_TOKEN=sk-test-0123\u0000",
+      "envInputOnlyLaunch": "CODEX_GATEWAY_TOKEN=sk-test-0123\u0000",
+      "scriptWithEnv": "while IFS= read -r -d '' wsp_kv; do export \"$wsp_kv\"; done; unset wsp_kv\necho hi",
+      "roads": {
+        "here": {
+          "home": "/home/u/.codex",
+          "env": {}
+        },
+        "here_config_dir": {
+          "home": "/custom/claude",
+          "env": {}
+        },
+        "box_logins": {
+          "home": "/home/maya/logins/codex",
+          "env": {}
+        },
+        "box_config_dir_and_args_only": {
+          "home": "/x/.codex-w",
+          "env": {}
+        },
+        "box_logins_and_program": {
+          "home": "/srv/logins/codex",
+          "env": {},
+          "launch": {
+            "program": "wrap"
+          }
+        },
+        "box_no_logins": {
+          "error": "garage has not said where it keeps its logins, so Codex's there cannot be reached; wsp add garage --update puts a newer agent on it"
+        },
+        "provider_no_logins": {
+          "error": "Solari has not said where it keeps its logins, so Codex's there cannot be reached; wsp add Solari --update puts a newer agent on it"
+        }
+      },
+      "filed_keys": [
+        "codex:acct_7f3a",
+        "codex@box1"
+      ],
+      "marks": []
+    },
+    "reset_here_absent": {
+      "warns": [],
+      "asked": [],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [],
+      "used": [],
+      "rows": [],
+      "names": [],
+      "execs": [],
+      "spends": [],
+      "signInReads": 1,
+      "ready": 0,
+      "placeHere": {
+        "name": "this Mac",
+        "connected": false
+      },
+      "trys": {
+        "run": "this Mac is not answering; it connects on its own when it is on",
+        "road": "this Mac is not answering; it connects on its own when it is on"
+      },
+      "marks": []
+    },
+    "reset_names_the_place": {
+      "warns": [],
+      "asked": [],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [],
+      "used": [],
+      "rows": [],
+      "names": [],
+      "execs": [],
+      "spends": [
+        {
+          "account": "codex@here",
+          "on": "box1"
+        },
+        {
+          "account": "codex@here",
+          "creditId": "c1",
+          "on": "here"
+        },
+        {
+          "account": "codex@here"
+        }
+      ],
+      "signInReads": 0,
+      "ready": 0,
+      "marks": []
+    },
+    "used_labels": {
+      "warns": [],
+      "asked": [],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [],
+      "used": [
+        {
+          "range": "week",
+          "split": "agent",
+          "outside": false,
+          "labels": [
+            [
+              "agent",
+              [
+                "Claude Code",
+                "nobody"
+              ]
+            ],
+            [
+              "project",
+              [
+                "No project",
+                "alpha",
+                "pX"
+              ]
+            ],
+            [
+              "computer",
+              [
+                "this Mac",
+                "studio",
+                "old-box",
+                "a removed computer"
+              ]
+            ],
+            [
+              "account",
+              [
+                "Filed label",
+                "Read name",
+                "Only read",
+                "k4"
+              ]
+            ],
+            [
+              "source",
+              [
+                "Outside wsp",
+                "wsp threads",
+                "wsp threads"
+              ]
+            ]
+          ]
+        }
+      ],
+      "rows": [],
+      "names": [
+        {
+          "limits": [],
+          "names": [
+            "this Mac",
+            "old-box"
+          ]
+        }
+      ],
+      "execs": [],
+      "spends": [],
+      "signInReads": 0,
+      "ready": 0,
+      "marks": [
+        {
+          "label": "agent",
+          "asked": 0,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [],
+          "signInReads": 0
+        }
+      ]
+    },
+    "used_flag_outside": {
+      "warns": [],
+      "asked": [
+        {
+          "place": "here",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        },
+        {
+          "place": "box1",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        }
+      ],
+      "filed": [
+        {
+          "entries": [
+            {
+              "at": 1000,
+              "agent": "claude",
+              "account": "claude@here",
+              "accountLabel": "Claude Code signed in on this Mac",
+              "computer": "here",
+              "project": "pH",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "costUsd": 0.5,
+              "session": "s-a",
+              "source": "log"
+            },
+            {
+              "at": 2000,
+              "agent": "codex",
+              "account": "codex:acct_1",
+              "accountLabel": "Codex with ChatGPT Plus",
+              "computer": "here",
+              "project": "",
+              "model": "gpt-5",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-b",
+              "source": "log"
+            },
+            {
+              "at": 3000,
+              "agent": "claude",
+              "account": "claude@here",
+              "accountLabel": "Claude Code signed in on this Mac",
+              "computer": "here",
+              "project": "",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-c",
+              "source": "log"
+            },
+            {
+              "at": 4000,
+              "agent": "claude",
+              "account": "claude@box1",
+              "accountLabel": "Claude Code signed in on studio",
+              "computer": "box1",
+              "project": "pB",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 11,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-d",
+              "source": "log"
+            },
+            {
+              "at": 4100,
+              "agent": "claude",
+              "account": "claude@box1",
+              "accountLabel": "Claude Code signed in on studio",
+              "computer": "box1",
+              "project": "",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 3,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-e",
+              "source": "log"
+            }
+          ],
+          "read": [
+            "here",
+            "box1"
+          ]
+        }
+      ],
+      "readings": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computer": "here",
+          "limit": {
+            "windows": [],
+            "plan": "{\"primary\":{\"usedPercent\":40,\"windowDurationMins\":300,\"resetsAt\":1790690000},\"planType\":\"pro\"}"
+          },
+          "at": 5000
+        },
+        {
+          "key": "codex@box1",
+          "agent": "codex",
+          "label": "Codex signed in on studio",
+          "road": "own",
+          "computer": "box1",
+          "limit": {
+            "windows": [],
+            "plan": "{\"secondary\":{\"usedPercent\":12,\"windowDurationMins\":10080}}"
+          },
+          "at": 7000
+        }
+      ],
+      "alerts": [
+        [
+          null,
+          {
+            "key": "codex:acct_1",
+            "readAt": 5000
+          }
+        ]
+      ],
+      "snapshots": [
+        {
+          "primary": {
+            "usedPercent": 40,
+            "windowDurationMins": 300,
+            "resetsAt": 1790690000
+          },
+          "planType": "pro"
+        },
+        {
+          "secondary": {
+            "usedPercent": 12,
+            "windowDurationMins": 10080
+          }
+        }
+      ],
+      "used": [
+        {
+          "range": "day",
+          "split": "agent",
+          "outside": true,
+          "labels": []
+        }
+      ],
+      "rows": [],
+      "names": [
+        {
+          "limits": [
+            {
+              "key": "codex:acct_1",
+              "agent": "codex",
+              "label": "Codex with ChatGPT Plus",
+              "road": "named",
+              "computers": [
+                "here"
+              ]
+            }
+          ],
+          "names": []
+        }
+      ],
+      "execs": [],
+      "spends": [],
+      "signInReads": 0,
+      "ready": 1,
+      "marks": [
+        {
+          "label": "outside",
+          "asked": 2,
+          "filed": 1,
+          "execs": 0,
+          "readings": 2,
+          "warns": [],
+          "signInReads": 0
+        }
+      ]
+    },
+    "used_flag_source": {
+      "warns": [],
+      "asked": [
+        {
+          "place": "here",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        },
+        {
+          "place": "box1",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        }
+      ],
+      "filed": [
+        {
+          "entries": [
+            {
+              "at": 1000,
+              "agent": "claude",
+              "account": "claude@here",
+              "accountLabel": "Claude Code signed in on this Mac",
+              "computer": "here",
+              "project": "pH",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "costUsd": 0.5,
+              "session": "s-a",
+              "source": "log"
+            },
+            {
+              "at": 2000,
+              "agent": "codex",
+              "account": "codex:acct_1",
+              "accountLabel": "Codex with ChatGPT Plus",
+              "computer": "here",
+              "project": "",
+              "model": "gpt-5",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-b",
+              "source": "log"
+            },
+            {
+              "at": 3000,
+              "agent": "claude",
+              "account": "claude@here",
+              "accountLabel": "Claude Code signed in on this Mac",
+              "computer": "here",
+              "project": "",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-c",
+              "source": "log"
+            },
+            {
+              "at": 4000,
+              "agent": "claude",
+              "account": "claude@box1",
+              "accountLabel": "Claude Code signed in on studio",
+              "computer": "box1",
+              "project": "pB",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 11,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-d",
+              "source": "log"
+            },
+            {
+              "at": 4100,
+              "agent": "claude",
+              "account": "claude@box1",
+              "accountLabel": "Claude Code signed in on studio",
+              "computer": "box1",
+              "project": "",
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 3,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "session": "s-e",
+              "source": "log"
+            }
+          ],
+          "read": [
+            "here",
+            "box1"
+          ]
+        }
+      ],
+      "readings": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computer": "here",
+          "limit": {
+            "windows": [],
+            "plan": "{\"primary\":{\"usedPercent\":40,\"windowDurationMins\":300,\"resetsAt\":1790690000},\"planType\":\"pro\"}"
+          },
+          "at": 5000
+        },
+        {
+          "key": "codex@box1",
+          "agent": "codex",
+          "label": "Codex signed in on studio",
+          "road": "own",
+          "computer": "box1",
+          "limit": {
+            "windows": [],
+            "plan": "{\"secondary\":{\"usedPercent\":12,\"windowDurationMins\":10080}}"
+          },
+          "at": 7000
+        }
+      ],
+      "alerts": [
+        [
+          null,
+          {
+            "key": "codex:acct_1",
+            "readAt": 5000
+          }
+        ]
+      ],
+      "snapshots": [
+        {
+          "primary": {
+            "usedPercent": 40,
+            "windowDurationMins": 300,
+            "resetsAt": 1790690000
+          },
+          "planType": "pro"
+        },
+        {
+          "secondary": {
+            "usedPercent": 12,
+            "windowDurationMins": 10080
+          }
+        }
+      ],
+      "used": [
+        {
+          "range": "day",
+          "split": "source",
+          "outside": true,
+          "labels": []
+        }
+      ],
+      "rows": [],
+      "names": [
+        {
+          "limits": [
+            {
+              "key": "codex:acct_1",
+              "agent": "codex",
+              "label": "Codex with ChatGPT Plus",
+              "road": "named",
+              "computers": [
+                "here"
+              ]
+            }
+          ],
+          "names": []
+        }
+      ],
+      "execs": [],
+      "spends": [],
+      "signInReads": 0,
+      "ready": 1,
+      "marks": [
+        {
+          "label": "source",
+          "asked": 2,
+          "filed": 1,
+          "execs": 0,
+          "readings": 2,
+          "warns": [],
+          "signInReads": 0
+        }
+      ]
+    },
+    "used_flag_outside_false": {
+      "warns": [],
+      "asked": [],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [],
+      "used": [
+        {
+          "range": "day",
+          "split": "agent",
+          "outside": false,
+          "labels": []
+        }
+      ],
+      "rows": [],
+      "names": [
+        {
+          "limits": [
+            {
+              "key": "codex:acct_1",
+              "agent": "codex",
+              "label": "Codex with ChatGPT Plus",
+              "road": "named",
+              "computers": [
+                "here"
+              ]
+            }
+          ],
+          "names": []
+        }
+      ],
+      "execs": [],
+      "spends": [],
+      "signInReads": 0,
+      "ready": 0,
+      "marks": [
+        {
+          "label": "outside false",
+          "asked": 0,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [],
+          "signInReads": 0
+        }
+      ]
+    },
+    "used_logs_failure": {
+      "warns": [
+        "the agent logs were not read for usage: the ledger is gone"
+      ],
+      "asked": [
+        {
+          "place": "here",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        },
+        {
+          "place": "box1",
+          "frame": "{\"op\":\"usage.logs\",\"stores\":[{\"agent\":\"claude\",\"format\":\"claude-jsonl\",\"root\":\"~/.claude/projects\"},{\"agent\":\"codex\",\"format\":\"codex-rollout\",\"root\":\"~/.codex/sessions\"},{\"agent\":\"opencode\",\"format\":\"opencode-sqlite\",\"root\":\"~/.local/share/opencode/opencode.db\"}]}"
+        }
+      ],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [
+        {
+          "primary": {
+            "usedPercent": 40,
+            "windowDurationMins": 300,
+            "resetsAt": 1790690000
+          },
+          "planType": "pro"
+        },
+        {
+          "secondary": {
+            "usedPercent": 12,
+            "windowDurationMins": 10080
+          }
+        }
+      ],
+      "used": [
+        {
+          "range": "day",
+          "split": "agent",
+          "outside": true,
+          "labels": []
+        }
+      ],
+      "rows": [],
+      "names": [
+        {
+          "limits": [
+            {
+              "key": "codex:acct_1",
+              "agent": "codex",
+              "label": "Codex with ChatGPT Plus",
+              "road": "named",
+              "computers": [
+                "here"
+              ]
+            }
+          ],
+          "names": []
+        }
+      ],
+      "execs": [],
+      "spends": [],
+      "signInReads": 0,
+      "ready": 1,
+      "marks": [
+        {
+          "label": "filing fails",
+          "asked": 2,
+          "filed": 0,
+          "execs": 0,
+          "readings": 0,
+          "warns": [
+            "the agent logs were not read for usage: the ledger is gone"
+          ],
+          "signInReads": 0
+        }
+      ]
+    },
+    "used_outside_off": {
+      "warns": [],
+      "asked": [],
+      "filed": [],
+      "readings": [],
+      "alerts": [],
+      "snapshots": [],
+      "used": [
+        {
+          "range": "day",
+          "split": "source",
+          "outside": false,
+          "labels": []
+        }
+      ],
+      "rows": [],
+      "names": [
+        {
+          "limits": [
+            {
+              "key": "codex:acct_1",
+              "agent": "codex",
+              "label": "Codex with ChatGPT Plus",
+              "road": "named",
+              "computers": [
+                "here"
+              ]
+            }
+          ],
+          "names": []
+        }
+      ],
+      "execs": [],
+      "spends": [],
+      "signInReads": 0,
+      "ready": 0,
+      "marks": []
+    }
+  },
+  "worlds": {
+    "logs": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {
+        "here": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "sess-wsp-here",
+              "at": 900,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha",
+              "tokens": {
+                "input": 99,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-a",
+              "at": 1000,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub/x",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "cost": 0.5
+            },
+            {
+              "agent": "codex",
+              "session": "s-b",
+              "at": 2000,
+              "model": "gpt-5",
+              "folder": "/tmp/else",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-c",
+              "at": 3000,
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 5000,
+              "primary": {
+                "usedPercent": 40,
+                "windowDurationMins": 300,
+                "resetsAt": 1790690000
+              },
+              "planType": "pro"
+            },
+            {
+              "agent": "claude",
+              "at": 6000,
+              "primary": {
+                "usedPercent": 1
+              }
+            }
+          ]
+        },
+        "box1": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "s-d",
+              "at": 4000,
+              "model": "claude-opus-5",
+              "folder": "/srv/app/lib",
+              "tokens": {
+                "input": 11,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-e",
+              "at": 4100,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub",
+              "tokens": {
+                "input": 3,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 7000,
+              "secondary": {
+                "usedPercent": 12,
+                "windowDurationMins": 10080
+              }
+            }
+          ]
+        }
+      },
+      "projects": [
+        {
+          "id": "pH",
+          "name": "alpha",
+          "computer": "here",
+          "path": "/home/u/alpha"
+        },
+        {
+          "id": "pH2",
+          "name": "alpha-sub",
+          "computer": "here",
+          "path": "/home/u/alpha/sub"
+        },
+        {
+          "id": "pB",
+          "name": "app",
+          "computer": "box1",
+          "path": "/srv/app"
+        }
+      ],
+      "sessions": [
+        "sess-wsp-here"
+      ],
+      "ledgerLimits": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computers": [
+            "here"
+          ]
+        }
+      ],
+      "stale": [
+        "codex@box1"
+      ],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": null,
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "logs_window": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {
+        "here": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "sess-wsp-here",
+              "at": 900,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha",
+              "tokens": {
+                "input": 99,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-a",
+              "at": 1000,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub/x",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "cost": 0.5
+            },
+            {
+              "agent": "codex",
+              "session": "s-b",
+              "at": 2000,
+              "model": "gpt-5",
+              "folder": "/tmp/else",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-c",
+              "at": 3000,
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 5000,
+              "primary": {
+                "usedPercent": 40,
+                "windowDurationMins": 300,
+                "resetsAt": 1790690000
+              },
+              "planType": "pro"
+            },
+            {
+              "agent": "claude",
+              "at": 6000,
+              "primary": {
+                "usedPercent": 1
+              }
+            }
+          ]
+        },
+        "box1": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "s-d",
+              "at": 4000,
+              "model": "claude-opus-5",
+              "folder": "/srv/app/lib",
+              "tokens": {
+                "input": 11,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-e",
+              "at": 4100,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub",
+              "tokens": {
+                "input": 3,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 7000,
+              "secondary": {
+                "usedPercent": 12,
+                "windowDurationMins": 10080
+              }
+            }
+          ]
+        }
+      },
+      "projects": [
+        {
+          "id": "pH",
+          "name": "alpha",
+          "computer": "here",
+          "path": "/home/u/alpha"
+        },
+        {
+          "id": "pH2",
+          "name": "alpha-sub",
+          "computer": "here",
+          "path": "/home/u/alpha/sub"
+        },
+        {
+          "id": "pB",
+          "name": "app",
+          "computer": "box1",
+          "path": "/srv/app"
+        }
+      ],
+      "sessions": [
+        "sess-wsp-here"
+      ],
+      "ledgerLimits": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computers": [
+            "here"
+          ]
+        }
+      ],
+      "stale": [
+        "codex@box1"
+      ],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": null,
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "logs_off": {
+      "now": 1800000000000,
+      "usageLogs": false,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {
+        "here": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "sess-wsp-here",
+              "at": 900,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha",
+              "tokens": {
+                "input": 99,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-a",
+              "at": 1000,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub/x",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "cost": 0.5
+            },
+            {
+              "agent": "codex",
+              "session": "s-b",
+              "at": 2000,
+              "model": "gpt-5",
+              "folder": "/tmp/else",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-c",
+              "at": 3000,
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 5000,
+              "primary": {
+                "usedPercent": 40,
+                "windowDurationMins": 300,
+                "resetsAt": 1790690000
+              },
+              "planType": "pro"
+            },
+            {
+              "agent": "claude",
+              "at": 6000,
+              "primary": {
+                "usedPercent": 1
+              }
+            }
+          ]
+        },
+        "box1": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "s-d",
+              "at": 4000,
+              "model": "claude-opus-5",
+              "folder": "/srv/app/lib",
+              "tokens": {
+                "input": 11,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-e",
+              "at": 4100,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub",
+              "tokens": {
+                "input": 3,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 7000,
+              "secondary": {
+                "usedPercent": 12,
+                "windowDurationMins": 10080
+              }
+            }
+          ]
+        }
+      },
+      "projects": [
+        {
+          "id": "pH",
+          "name": "alpha",
+          "computer": "here",
+          "path": "/home/u/alpha"
+        },
+        {
+          "id": "pH2",
+          "name": "alpha-sub",
+          "computer": "here",
+          "path": "/home/u/alpha/sub"
+        },
+        {
+          "id": "pB",
+          "name": "app",
+          "computer": "box1",
+          "path": "/srv/app"
+        }
+      ],
+      "sessions": [
+        "sess-wsp-here"
+      ],
+      "ledgerLimits": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computers": [
+            "here"
+          ]
+        }
+      ],
+      "stale": [
+        "codex@box1"
+      ],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": null,
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "logs_not_asked": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {
+        "here": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "sess-wsp-here",
+              "at": 900,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha",
+              "tokens": {
+                "input": 99,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-a",
+              "at": 1000,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub/x",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "cost": 0.5
+            },
+            {
+              "agent": "codex",
+              "session": "s-b",
+              "at": 2000,
+              "model": "gpt-5",
+              "folder": "/tmp/else",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-c",
+              "at": 3000,
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 5000,
+              "primary": {
+                "usedPercent": 40,
+                "windowDurationMins": 300,
+                "resetsAt": 1790690000
+              },
+              "planType": "pro"
+            },
+            {
+              "agent": "claude",
+              "at": 6000,
+              "primary": {
+                "usedPercent": 1
+              }
+            }
+          ]
+        },
+        "box1": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "s-d",
+              "at": 4000,
+              "model": "claude-opus-5",
+              "folder": "/srv/app/lib",
+              "tokens": {
+                "input": 11,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-e",
+              "at": 4100,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub",
+              "tokens": {
+                "input": 3,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 7000,
+              "secondary": {
+                "usedPercent": 12,
+                "windowDurationMins": 10080
+              }
+            }
+          ]
+        }
+      },
+      "projects": [
+        {
+          "id": "pH",
+          "name": "alpha",
+          "computer": "here",
+          "path": "/home/u/alpha"
+        },
+        {
+          "id": "pH2",
+          "name": "alpha-sub",
+          "computer": "here",
+          "path": "/home/u/alpha/sub"
+        },
+        {
+          "id": "pB",
+          "name": "app",
+          "computer": "box1",
+          "path": "/srv/app"
+        }
+      ],
+      "sessions": [
+        "sess-wsp-here"
+      ],
+      "ledgerLimits": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computers": [
+            "here"
+          ]
+        }
+      ],
+      "stale": [
+        "codex@box1"
+      ],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": null,
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "logs_old_daemon_and_failures": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {
+        "here": {
+          "error": "unknown op: usage.logs"
+        },
+        "box1": {
+          "error": "the socket closed"
+        }
+      },
+      "projects": [
+        {
+          "id": "pH",
+          "name": "alpha",
+          "computer": "here",
+          "path": "/home/u/alpha"
+        },
+        {
+          "id": "pH2",
+          "name": "alpha-sub",
+          "computer": "here",
+          "path": "/home/u/alpha/sub"
+        },
+        {
+          "id": "pB",
+          "name": "app",
+          "computer": "box1",
+          "path": "/srv/app"
+        }
+      ],
+      "sessions": [
+        "sess-wsp-here"
+      ],
+      "ledgerLimits": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computers": [
+            "here"
+          ]
+        }
+      ],
+      "stale": [
+        "codex@box1"
+      ],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": null,
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "logs_timeout": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {
+        "here": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "sess-wsp-here",
+              "at": 900,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha",
+              "tokens": {
+                "input": 99,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-a",
+              "at": 1000,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub/x",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "cost": 0.5
+            },
+            {
+              "agent": "codex",
+              "session": "s-b",
+              "at": 2000,
+              "model": "gpt-5",
+              "folder": "/tmp/else",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-c",
+              "at": 3000,
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 5000,
+              "primary": {
+                "usedPercent": 40,
+                "windowDurationMins": 300,
+                "resetsAt": 1790690000
+              },
+              "planType": "pro"
+            },
+            {
+              "agent": "claude",
+              "at": 6000,
+              "primary": {
+                "usedPercent": 1
+              }
+            }
+          ]
+        },
+        "box1": {
+          "never": true
+        }
+      },
+      "projects": [
+        {
+          "id": "pH",
+          "name": "alpha",
+          "computer": "here",
+          "path": "/home/u/alpha"
+        },
+        {
+          "id": "pH2",
+          "name": "alpha-sub",
+          "computer": "here",
+          "path": "/home/u/alpha/sub"
+        },
+        {
+          "id": "pB",
+          "name": "app",
+          "computer": "box1",
+          "path": "/srv/app"
+        }
+      ],
+      "sessions": [
+        "sess-wsp-here"
+      ],
+      "ledgerLimits": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computers": [
+            "here"
+          ]
+        }
+      ],
+      "stale": [
+        "codex@box1"
+      ],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": null,
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "logs_without_a_daemon_here": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": false,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {
+        "here": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "sess-wsp-here",
+              "at": 900,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha",
+              "tokens": {
+                "input": 99,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-a",
+              "at": 1000,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub/x",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "cost": 0.5
+            },
+            {
+              "agent": "codex",
+              "session": "s-b",
+              "at": 2000,
+              "model": "gpt-5",
+              "folder": "/tmp/else",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-c",
+              "at": 3000,
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 5000,
+              "primary": {
+                "usedPercent": 40,
+                "windowDurationMins": 300,
+                "resetsAt": 1790690000
+              },
+              "planType": "pro"
+            },
+            {
+              "agent": "claude",
+              "at": 6000,
+              "primary": {
+                "usedPercent": 1
+              }
+            }
+          ]
+        },
+        "box1": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "s-d",
+              "at": 4000,
+              "model": "claude-opus-5",
+              "folder": "/srv/app/lib",
+              "tokens": {
+                "input": 11,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-e",
+              "at": 4100,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub",
+              "tokens": {
+                "input": 3,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 7000,
+              "secondary": {
+                "usedPercent": 12,
+                "windowDurationMins": 10080
+              }
+            }
+          ]
+        }
+      },
+      "projects": [
+        {
+          "id": "pH",
+          "name": "alpha",
+          "computer": "here",
+          "path": "/home/u/alpha"
+        },
+        {
+          "id": "pH2",
+          "name": "alpha-sub",
+          "computer": "here",
+          "path": "/home/u/alpha/sub"
+        },
+        {
+          "id": "pB",
+          "name": "app",
+          "computer": "box1",
+          "path": "/srv/app"
+        }
+      ],
+      "sessions": [
+        "sess-wsp-here"
+      ],
+      "ledgerLimits": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computers": [
+            "here"
+          ]
+        }
+      ],
+      "stale": [
+        "codex@box1"
+      ],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": null,
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "accounts_here_row_added": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio",
+          "signIns": {
+            "codex": "signed-in"
+          }
+        }
+      ],
+      "links": [],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {},
+      "projects": [],
+      "sessions": [],
+      "ledgerLimits": [
+        {
+          "key": "k"
+        }
+      ],
+      "stale": [],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [
+        "here",
+        "box1",
+        "gone"
+      ],
+      "keptNames": {},
+      "signIns": [
+        {
+          "id": "claude",
+          "signIn": "signed-in"
+        },
+        {
+          "id": "codex",
+          "signIn": "vault-key"
+        },
+        {
+          "id": "gemini",
+          "signIn": "none"
+        },
+        {
+          "id": "opencode",
+          "signIn": "not-signed-in"
+        }
+      ],
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "accounts_here_row_given": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio",
+          "signIns": {
+            "codex": "signed-in"
+          }
+        }
+      ],
+      "links": [],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {},
+      "projects": [],
+      "sessions": [],
+      "ledgerLimits": [],
+      "stale": [],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": [
+        {
+          "id": "claude",
+          "signIn": "signed-in"
+        },
+        {
+          "id": "codex",
+          "signIn": "vault-key"
+        },
+        {
+          "id": "gemini",
+          "signIn": "none"
+        },
+        {
+          "id": "opencode",
+          "signIn": "not-signed-in"
+        }
+      ],
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "accounts_here_row_has_its_own": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac",
+          "signIns": {
+            "claude": "signed-in"
+          }
+        }
+      ],
+      "links": [],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {},
+      "projects": [],
+      "sessions": [],
+      "ledgerLimits": [],
+      "stale": [],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": [
+        {
+          "id": "claude",
+          "signIn": "signed-in"
+        },
+        {
+          "id": "codex",
+          "signIn": "vault-key"
+        },
+        {
+          "id": "gemini",
+          "signIn": "none"
+        },
+        {
+          "id": "opencode",
+          "signIn": "not-signed-in"
+        }
+      ],
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "sign_ins_hold": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [],
+      "links": [],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {},
+      "projects": [],
+      "sessions": [],
+      "ledgerLimits": [],
+      "stale": [],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": [
+        {
+          "id": "claude",
+          "signIn": "signed-in"
+        },
+        {
+          "id": "codex",
+          "signIn": "vault-key"
+        },
+        {
+          "id": "gemini",
+          "signIn": "none"
+        },
+        {
+          "id": "opencode",
+          "signIn": "not-signed-in"
+        }
+      ],
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "sign_ins_failed_read_held": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [],
+      "links": [],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {},
+      "projects": [],
+      "sessions": [],
+      "ledgerLimits": [],
+      "stale": [],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": "fail",
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "sign_ins_no_reader": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [],
+      "links": [],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {},
+      "projects": [],
+      "sessions": [],
+      "ledgerLimits": [],
+      "stale": [],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": null,
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "plans": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio",
+          "logins": "/home/maya/logins"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "box3",
+          "kind": "computer",
+          "name": "attic"
+        },
+        {
+          "id": "box4",
+          "kind": "computer",
+          "name": "pantry",
+          "logins": "/srv/logins"
+        },
+        {
+          "id": "box5",
+          "kind": "computer",
+          "name": "shed"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "box3",
+        "box4",
+        "box5",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {
+        "codex": "/home/u/.codex"
+      },
+      "logs": {},
+      "projects": [],
+      "sessions": [],
+      "ledgerLimits": [],
+      "stale": [],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": [
+        {
+          "id": "claude",
+          "signIn": "signed-in"
+        },
+        {
+          "id": "codex",
+          "signIn": "signed-in"
+        }
+      ],
+      "signInsAt": {
+        "box1": {
+          "codex": "signed-in"
+        },
+        "box2": {
+          "codex": "signed-in"
+        },
+        "box3": {
+          "codex": "not-signed-in"
+        },
+        "box4": {
+          "codex": "signed-in"
+        },
+        "box5": {
+          "codex": "signed-in"
+        },
+        "solari": {
+          "codex": "signed-in"
+        }
+      },
+      "reports": {},
+      "launch": {
+        "box1/codex": {
+          "configDir": "/home/maya/.codex-work",
+          "env": {}
+        },
+        "box4/codex": {
+          "env": {},
+          "launch": {
+            "program": "wrap"
+          }
+        }
+      },
+      "boxStdout": {
+        "box1": "limit:{\"windows\":[{\"kind\":\"session\",\"usedPercent\":12,\"resetsAt\":1790690000000}],\"plan\":\"plus\",\"account\":{\"id\":\"acct_7f3a\",\"label\":\"dev@example.com\"}}",
+        "box4": "limit:{\"windows\":[{\"kind\":\"week\",\"usedPercent\":50}]}"
+      },
+      "localLines": [
+        "limit:{\"windows\":[{\"kind\":\"week\",\"usedPercent\":3}]}"
+      ],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "plans_here_vault_key": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        }
+      ],
+      "links": [
+        "box1",
+        "box3",
+        "box4",
+        "box5",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {
+        "codex": "/home/u/.codex"
+      },
+      "logs": {},
+      "projects": [],
+      "sessions": [],
+      "ledgerLimits": [],
+      "stale": [],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": [
+        {
+          "id": "codex",
+          "signIn": "vault-key"
+        }
+      ],
+      "signInsAt": {
+        "box1": {
+          "codex": "signed-in"
+        },
+        "box2": {
+          "codex": "signed-in"
+        },
+        "box3": {
+          "codex": "not-signed-in"
+        },
+        "box4": {
+          "codex": "signed-in"
+        },
+        "box5": {
+          "codex": "signed-in"
+        },
+        "solari": {
+          "codex": "signed-in"
+        }
+      },
+      "reports": {},
+      "launch": {
+        "box1/codex": {
+          "configDir": "/home/maya/.codex-work",
+          "env": {}
+        },
+        "box4/codex": {
+          "env": {},
+          "launch": {
+            "program": "wrap"
+          }
+        }
+      },
+      "boxStdout": {
+        "box1": "limit:{\"windows\":[{\"kind\":\"session\",\"usedPercent\":12,\"resetsAt\":1790690000000}],\"plan\":\"plus\",\"account\":{\"id\":\"acct_7f3a\",\"label\":\"dev@example.com\"}}",
+        "box4": "limit:{\"windows\":[{\"kind\":\"week\",\"usedPercent\":50}]}"
+      },
+      "localLines": [
+        "limit:{\"windows\":[{\"kind\":\"week\",\"usedPercent\":3}]}"
+      ],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "plans_exec_error": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio",
+          "logins": "/home/maya/logins"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "box3",
+          "kind": "computer",
+          "name": "attic"
+        },
+        {
+          "id": "box4",
+          "kind": "computer",
+          "name": "pantry",
+          "logins": "/srv/logins"
+        },
+        {
+          "id": "box5",
+          "kind": "computer",
+          "name": "shed"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "box3",
+        "box4",
+        "box5",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {
+        "codex": "/home/u/.codex"
+      },
+      "logs": {},
+      "projects": [],
+      "sessions": [],
+      "ledgerLimits": [],
+      "stale": [],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": [
+        {
+          "id": "claude",
+          "signIn": "signed-in"
+        },
+        {
+          "id": "codex",
+          "signIn": "signed-in"
+        }
+      ],
+      "signInsAt": {
+        "box1": {
+          "codex": "signed-in"
+        },
+        "box2": {
+          "codex": "signed-in"
+        },
+        "box3": {
+          "codex": "not-signed-in"
+        },
+        "box4": {
+          "codex": "signed-in"
+        },
+        "box5": {
+          "codex": "signed-in"
+        },
+        "solari": {
+          "codex": "signed-in"
+        }
+      },
+      "reports": {},
+      "launch": {
+        "box1/codex": {
+          "configDir": "/home/maya/.codex-work",
+          "env": {}
+        },
+        "box4/codex": {
+          "env": {},
+          "launch": {
+            "program": "wrap"
+          }
+        }
+      },
+      "boxStdout": {
+        "box1": "limit:{\"windows\":[{\"kind\":\"session\",\"usedPercent\":12,\"resetsAt\":1790690000000}],\"plan\":\"plus\",\"account\":{\"id\":\"acct_7f3a\",\"label\":\"dev@example.com\"}}",
+        "box4": "limit:{\"windows\":[{\"kind\":\"week\",\"usedPercent\":50}]}"
+      },
+      "localLines": [
+        "limit:{\"windows\":[{\"kind\":\"week\",\"usedPercent\":3}]}"
+      ],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {
+        "box1": "the link dropped"
+      },
+      "boxNever": []
+    },
+    "plans_timeout": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio",
+          "logins": "/home/maya/logins"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "box3",
+          "kind": "computer",
+          "name": "attic"
+        },
+        {
+          "id": "box4",
+          "kind": "computer",
+          "name": "pantry",
+          "logins": "/srv/logins"
+        },
+        {
+          "id": "box5",
+          "kind": "computer",
+          "name": "shed"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "box3",
+        "box4",
+        "box5",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {
+        "codex": "/home/u/.codex"
+      },
+      "logs": {},
+      "projects": [],
+      "sessions": [],
+      "ledgerLimits": [],
+      "stale": [],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": [
+        {
+          "id": "claude",
+          "signIn": "signed-in"
+        },
+        {
+          "id": "codex",
+          "signIn": "signed-in"
+        }
+      ],
+      "signInsAt": {
+        "box1": {
+          "codex": "signed-in"
+        },
+        "box2": {
+          "codex": "signed-in"
+        },
+        "box3": {
+          "codex": "not-signed-in"
+        },
+        "box4": {
+          "codex": "signed-in"
+        },
+        "box5": {
+          "codex": "signed-in"
+        },
+        "solari": {
+          "codex": "signed-in"
+        }
+      },
+      "reports": {},
+      "launch": {
+        "box1/codex": {
+          "configDir": "/home/maya/.codex-work",
+          "env": {}
+        },
+        "box4/codex": {
+          "env": {},
+          "launch": {
+            "program": "wrap"
+          }
+        }
+      },
+      "boxStdout": {
+        "box1": "limit:{\"windows\":[{\"kind\":\"session\",\"usedPercent\":12,\"resetsAt\":1790690000000}],\"plan\":\"plus\",\"account\":{\"id\":\"acct_7f3a\",\"label\":\"dev@example.com\"}}",
+        "box4": "limit:{\"windows\":[{\"kind\":\"week\",\"usedPercent\":50}]}"
+      },
+      "localLines": [
+        "limit:{\"windows\":[{\"kind\":\"week\",\"usedPercent\":3}]}"
+      ],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": [
+        "box1"
+      ]
+    },
+    "plans_failures": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio",
+          "logins": "/home/maya/logins"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "box3",
+          "kind": "computer",
+          "name": "attic"
+        },
+        {
+          "id": "box4",
+          "kind": "computer",
+          "name": "pantry",
+          "logins": "/srv/logins"
+        },
+        {
+          "id": "box5",
+          "kind": "computer",
+          "name": "shed"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "box3",
+        "box4",
+        "box5",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {
+        "codex": "/home/u/.codex"
+      },
+      "logs": {},
+      "projects": [],
+      "sessions": [],
+      "ledgerLimits": [],
+      "stale": [],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": [
+        {
+          "id": "claude",
+          "signIn": "signed-in"
+        },
+        {
+          "id": "codex",
+          "signIn": "signed-in"
+        }
+      ],
+      "signInsAt": {
+        "box1": {
+          "codex": "signed-in"
+        },
+        "box2": {
+          "codex": "signed-in"
+        },
+        "box3": {
+          "codex": "not-signed-in"
+        },
+        "box4": {
+          "codex": "signed-in"
+        },
+        "box5": {
+          "codex": "signed-in"
+        },
+        "solari": {
+          "codex": "signed-in"
+        }
+      },
+      "reports": {},
+      "launch": {
+        "box1/codex": {
+          "configDir": "/home/maya/.codex-work",
+          "env": {}
+        },
+        "box4/codex": {
+          "env": {},
+          "launch": {
+            "program": "wrap"
+          }
+        }
+      },
+      "boxStdout": {
+        "box1": "garbage",
+        "box4": "nothing"
+      },
+      "localLines": [
+        "nothing"
+      ],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "reset_pieces": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio",
+          "logins": "/home/maya/logins"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "box3",
+          "kind": "computer",
+          "name": "attic"
+        },
+        {
+          "id": "box4",
+          "kind": "computer",
+          "name": "pantry",
+          "logins": "/srv/logins"
+        },
+        {
+          "id": "box5",
+          "kind": "computer",
+          "name": "shed"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "box3",
+        "box4",
+        "box5",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {
+        "PATH": "/usr/local/bin:/usr/bin",
+        "HOME": "/home/u",
+        "WSP_THREAD_HOME": "/x"
+      },
+      "homes": {
+        "codex": "/home/u/.codex"
+      },
+      "logs": {},
+      "projects": [],
+      "sessions": [],
+      "ledgerLimits": [],
+      "stale": [],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": [
+        {
+          "id": "claude",
+          "signIn": "signed-in"
+        },
+        {
+          "id": "codex",
+          "signIn": "signed-in"
+        }
+      ],
+      "signInsAt": {
+        "box1": {
+          "codex": "signed-in"
+        },
+        "box2": {
+          "codex": "signed-in"
+        },
+        "box3": {
+          "codex": "not-signed-in"
+        },
+        "box4": {
+          "codex": "signed-in"
+        },
+        "box5": {
+          "codex": "signed-in"
+        },
+        "solari": {
+          "codex": "signed-in"
+        }
+      },
+      "reports": {
+        "box1": {
+          "login": {
+            "PATH": "/opt/codex/bin:/usr/bin"
+          }
+        }
+      },
+      "launch": {
+        "here/codex": {
+          "env": {
+            "CODEX_GATEWAY_TOKEN": "sk-test-0123"
+          }
+        },
+        "here/claude": {
+          "configDir": "/custom/claude",
+          "env": {}
+        },
+        "box1/codex": {
+          "env": {
+            "CODEX_GATEWAY_TOKEN": "sk-test-0123"
+          }
+        },
+        "box3/codex": {
+          "configDir": "/x/.codex-w",
+          "env": {},
+          "launch": {
+            "args": [
+              "--x"
+            ]
+          }
+        },
+        "box4/codex": {
+          "env": {},
+          "launch": {
+            "program": "wrap"
+          }
+        },
+        "box5/codex": {
+          "env": {
+            "CODEX_GATEWAY_TOKEN": "sk-test-0123"
+          }
+        }
+      },
+      "boxStdout": {
+        "box1": "boxed"
+      },
+      "localLines": [
+        "a",
+        "b"
+      ],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "reset_here_absent": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio",
+          "logins": "/home/maya/logins"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "box3",
+          "kind": "computer",
+          "name": "attic"
+        },
+        {
+          "id": "box4",
+          "kind": "computer",
+          "name": "pantry",
+          "logins": "/srv/logins"
+        },
+        {
+          "id": "box5",
+          "kind": "computer",
+          "name": "shed"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "box3",
+        "box4",
+        "box5",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": false,
+      "localEnv": {},
+      "homes": {
+        "codex": "/home/u/.codex"
+      },
+      "logs": {},
+      "projects": [],
+      "sessions": [],
+      "ledgerLimits": [],
+      "stale": [],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": [
+        {
+          "id": "claude",
+          "signIn": "signed-in"
+        },
+        {
+          "id": "codex",
+          "signIn": "signed-in"
+        }
+      ],
+      "signInsAt": {
+        "box1": {
+          "codex": "signed-in"
+        },
+        "box2": {
+          "codex": "signed-in"
+        },
+        "box3": {
+          "codex": "not-signed-in"
+        },
+        "box4": {
+          "codex": "signed-in"
+        },
+        "box5": {
+          "codex": "signed-in"
+        },
+        "solari": {
+          "codex": "signed-in"
+        }
+      },
+      "reports": {},
+      "launch": {
+        "box1/codex": {
+          "configDir": "/home/maya/.codex-work",
+          "env": {}
+        },
+        "box4/codex": {
+          "env": {},
+          "launch": {
+            "program": "wrap"
+          }
+        }
+      },
+      "boxStdout": {
+        "box1": "limit:{\"windows\":[{\"kind\":\"session\",\"usedPercent\":12,\"resetsAt\":1790690000000}],\"plan\":\"plus\",\"account\":{\"id\":\"acct_7f3a\",\"label\":\"dev@example.com\"}}",
+        "box4": "limit:{\"windows\":[{\"kind\":\"week\",\"usedPercent\":50}]}"
+      },
+      "localLines": [
+        "limit:{\"windows\":[{\"kind\":\"week\",\"usedPercent\":3}]}"
+      ],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "reset_names_the_place": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [],
+      "links": [],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {},
+      "projects": [],
+      "sessions": [],
+      "ledgerLimits": [],
+      "stale": [],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": null,
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {
+        "srv": "box1"
+      },
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "used_labels": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio"
+        }
+      ],
+      "links": [],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {},
+      "projects": [
+        {
+          "id": "p1",
+          "name": "alpha",
+          "computer": "here",
+          "path": "/a"
+        }
+      ],
+      "sessions": [],
+      "ledgerLimits": [],
+      "stale": [],
+      "accountLabels": {
+        "k1": "Filed label",
+        "k2": "Other filed"
+      },
+      "accountNames": {
+        "k2": "Read name",
+        "k3": "Only read"
+      },
+      "labelProbe": {
+        "agent": [
+          "claude",
+          "nobody"
+        ],
+        "project": [
+          "",
+          "p1",
+          "pX"
+        ],
+        "computer": [
+          "here",
+          "box1",
+          "gone",
+          "unknown"
+        ],
+        "account": [
+          "k1",
+          "k2",
+          "k3",
+          "k4"
+        ],
+        "source": [
+          "log",
+          "wsp",
+          "anything"
+        ]
+      },
+      "nameProbe": [
+        "here",
+        "gone"
+      ],
+      "keptNames": {
+        "gone": "old-box"
+      },
+      "signIns": null,
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "used_flag_outside": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {
+        "here": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "sess-wsp-here",
+              "at": 900,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha",
+              "tokens": {
+                "input": 99,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-a",
+              "at": 1000,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub/x",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "cost": 0.5
+            },
+            {
+              "agent": "codex",
+              "session": "s-b",
+              "at": 2000,
+              "model": "gpt-5",
+              "folder": "/tmp/else",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-c",
+              "at": 3000,
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 5000,
+              "primary": {
+                "usedPercent": 40,
+                "windowDurationMins": 300,
+                "resetsAt": 1790690000
+              },
+              "planType": "pro"
+            },
+            {
+              "agent": "claude",
+              "at": 6000,
+              "primary": {
+                "usedPercent": 1
+              }
+            }
+          ]
+        },
+        "box1": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "s-d",
+              "at": 4000,
+              "model": "claude-opus-5",
+              "folder": "/srv/app/lib",
+              "tokens": {
+                "input": 11,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-e",
+              "at": 4100,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub",
+              "tokens": {
+                "input": 3,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 7000,
+              "secondary": {
+                "usedPercent": 12,
+                "windowDurationMins": 10080
+              }
+            }
+          ]
+        }
+      },
+      "projects": [
+        {
+          "id": "pH",
+          "name": "alpha",
+          "computer": "here",
+          "path": "/home/u/alpha"
+        },
+        {
+          "id": "pH2",
+          "name": "alpha-sub",
+          "computer": "here",
+          "path": "/home/u/alpha/sub"
+        },
+        {
+          "id": "pB",
+          "name": "app",
+          "computer": "box1",
+          "path": "/srv/app"
+        }
+      ],
+      "sessions": [
+        "sess-wsp-here"
+      ],
+      "ledgerLimits": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computers": [
+            "here"
+          ]
+        }
+      ],
+      "stale": [
+        "codex@box1"
+      ],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": null,
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "used_flag_source": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {
+        "here": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "sess-wsp-here",
+              "at": 900,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha",
+              "tokens": {
+                "input": 99,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-a",
+              "at": 1000,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub/x",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "cost": 0.5
+            },
+            {
+              "agent": "codex",
+              "session": "s-b",
+              "at": 2000,
+              "model": "gpt-5",
+              "folder": "/tmp/else",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-c",
+              "at": 3000,
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 5000,
+              "primary": {
+                "usedPercent": 40,
+                "windowDurationMins": 300,
+                "resetsAt": 1790690000
+              },
+              "planType": "pro"
+            },
+            {
+              "agent": "claude",
+              "at": 6000,
+              "primary": {
+                "usedPercent": 1
+              }
+            }
+          ]
+        },
+        "box1": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "s-d",
+              "at": 4000,
+              "model": "claude-opus-5",
+              "folder": "/srv/app/lib",
+              "tokens": {
+                "input": 11,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-e",
+              "at": 4100,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub",
+              "tokens": {
+                "input": 3,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 7000,
+              "secondary": {
+                "usedPercent": 12,
+                "windowDurationMins": 10080
+              }
+            }
+          ]
+        }
+      },
+      "projects": [
+        {
+          "id": "pH",
+          "name": "alpha",
+          "computer": "here",
+          "path": "/home/u/alpha"
+        },
+        {
+          "id": "pH2",
+          "name": "alpha-sub",
+          "computer": "here",
+          "path": "/home/u/alpha/sub"
+        },
+        {
+          "id": "pB",
+          "name": "app",
+          "computer": "box1",
+          "path": "/srv/app"
+        }
+      ],
+      "sessions": [
+        "sess-wsp-here"
+      ],
+      "ledgerLimits": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computers": [
+            "here"
+          ]
+        }
+      ],
+      "stale": [
+        "codex@box1"
+      ],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": null,
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "used_flag_outside_false": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {
+        "here": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "sess-wsp-here",
+              "at": 900,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha",
+              "tokens": {
+                "input": 99,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-a",
+              "at": 1000,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub/x",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "cost": 0.5
+            },
+            {
+              "agent": "codex",
+              "session": "s-b",
+              "at": 2000,
+              "model": "gpt-5",
+              "folder": "/tmp/else",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-c",
+              "at": 3000,
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 5000,
+              "primary": {
+                "usedPercent": 40,
+                "windowDurationMins": 300,
+                "resetsAt": 1790690000
+              },
+              "planType": "pro"
+            },
+            {
+              "agent": "claude",
+              "at": 6000,
+              "primary": {
+                "usedPercent": 1
+              }
+            }
+          ]
+        },
+        "box1": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "s-d",
+              "at": 4000,
+              "model": "claude-opus-5",
+              "folder": "/srv/app/lib",
+              "tokens": {
+                "input": 11,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-e",
+              "at": 4100,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub",
+              "tokens": {
+                "input": 3,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 7000,
+              "secondary": {
+                "usedPercent": 12,
+                "windowDurationMins": 10080
+              }
+            }
+          ]
+        }
+      },
+      "projects": [
+        {
+          "id": "pH",
+          "name": "alpha",
+          "computer": "here",
+          "path": "/home/u/alpha"
+        },
+        {
+          "id": "pH2",
+          "name": "alpha-sub",
+          "computer": "here",
+          "path": "/home/u/alpha/sub"
+        },
+        {
+          "id": "pB",
+          "name": "app",
+          "computer": "box1",
+          "path": "/srv/app"
+        }
+      ],
+      "sessions": [
+        "sess-wsp-here"
+      ],
+      "ledgerLimits": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computers": [
+            "here"
+          ]
+        }
+      ],
+      "stale": [
+        "codex@box1"
+      ],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": null,
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    },
+    "used_logs_failure": {
+      "now": 1800000000000,
+      "usageLogs": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {
+        "here": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "sess-wsp-here",
+              "at": 900,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha",
+              "tokens": {
+                "input": 99,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-a",
+              "at": 1000,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub/x",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "cost": 0.5
+            },
+            {
+              "agent": "codex",
+              "session": "s-b",
+              "at": 2000,
+              "model": "gpt-5",
+              "folder": "/tmp/else",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-c",
+              "at": 3000,
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 5000,
+              "primary": {
+                "usedPercent": 40,
+                "windowDurationMins": 300,
+                "resetsAt": 1790690000
+              },
+              "planType": "pro"
+            },
+            {
+              "agent": "claude",
+              "at": 6000,
+              "primary": {
+                "usedPercent": 1
+              }
+            }
+          ]
+        },
+        "box1": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "s-d",
+              "at": 4000,
+              "model": "claude-opus-5",
+              "folder": "/srv/app/lib",
+              "tokens": {
+                "input": 11,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-e",
+              "at": 4100,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub",
+              "tokens": {
+                "input": 3,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 7000,
+              "secondary": {
+                "usedPercent": 12,
+                "windowDurationMins": 10080
+              }
+            }
+          ]
+        }
+      },
+      "projects": [
+        {
+          "id": "pH",
+          "name": "alpha",
+          "computer": "here",
+          "path": "/home/u/alpha"
+        },
+        {
+          "id": "pH2",
+          "name": "alpha-sub",
+          "computer": "here",
+          "path": "/home/u/alpha/sub"
+        },
+        {
+          "id": "pB",
+          "name": "app",
+          "computer": "box1",
+          "path": "/srv/app"
+        }
+      ],
+      "sessions": [
+        "sess-wsp-here"
+      ],
+      "ledgerLimits": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computers": [
+            "here"
+          ]
+        }
+      ],
+      "stale": [
+        "codex@box1"
+      ],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": null,
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "fileError": "the ledger is gone",
+      "boxError": {},
+      "boxNever": []
+    },
+    "used_outside_off": {
+      "now": 1800000000000,
+      "usageLogs": false,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "this Mac"
+        },
+        {
+          "id": "box1",
+          "kind": "computer",
+          "name": "studio"
+        },
+        {
+          "id": "box2",
+          "kind": "computer",
+          "name": "garage"
+        },
+        {
+          "id": "solari",
+          "kind": "provider",
+          "name": "solari"
+        }
+      ],
+      "links": [
+        "box1",
+        "solari"
+      ],
+      "away": [],
+      "daemonRoad": true,
+      "localWired": true,
+      "localEnv": {},
+      "homes": {},
+      "logs": {
+        "here": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "sess-wsp-here",
+              "at": 900,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha",
+              "tokens": {
+                "input": 99,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-a",
+              "at": 1000,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub/x",
+              "tokens": {
+                "input": 40,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              },
+              "cost": 0.5
+            },
+            {
+              "agent": "codex",
+              "session": "s-b",
+              "at": 2000,
+              "model": "gpt-5",
+              "folder": "/tmp/else",
+              "tokens": {
+                "input": 5,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-c",
+              "at": 3000,
+              "model": "claude-opus-5",
+              "tokens": {
+                "input": 7,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 5000,
+              "primary": {
+                "usedPercent": 40,
+                "windowDurationMins": 300,
+                "resetsAt": 1790690000
+              },
+              "planType": "pro"
+            },
+            {
+              "agent": "claude",
+              "at": 6000,
+              "primary": {
+                "usedPercent": 1
+              }
+            }
+          ]
+        },
+        "box1": {
+          "rows": [
+            {
+              "agent": "claude",
+              "session": "s-d",
+              "at": 4000,
+              "model": "claude-opus-5",
+              "folder": "/srv/app/lib",
+              "tokens": {
+                "input": 11,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            },
+            {
+              "agent": "claude",
+              "session": "s-e",
+              "at": 4100,
+              "model": "claude-opus-5",
+              "folder": "/home/u/alpha/sub",
+              "tokens": {
+                "input": 3,
+                "output": 1,
+                "cached": 0,
+                "cacheWrite": 0,
+                "reasoning": 0
+              }
+            }
+          ],
+          "limits": [
+            {
+              "agent": "codex",
+              "at": 7000,
+              "secondary": {
+                "usedPercent": 12,
+                "windowDurationMins": 10080
+              }
+            }
+          ]
+        }
+      },
+      "projects": [
+        {
+          "id": "pH",
+          "name": "alpha",
+          "computer": "here",
+          "path": "/home/u/alpha"
+        },
+        {
+          "id": "pH2",
+          "name": "alpha-sub",
+          "computer": "here",
+          "path": "/home/u/alpha/sub"
+        },
+        {
+          "id": "pB",
+          "name": "app",
+          "computer": "box1",
+          "path": "/srv/app"
+        }
+      ],
+      "sessions": [
+        "sess-wsp-here"
+      ],
+      "ledgerLimits": [
+        {
+          "key": "codex:acct_1",
+          "agent": "codex",
+          "label": "Codex with ChatGPT Plus",
+          "road": "named",
+          "computers": [
+            "here"
+          ]
+        }
+      ],
+      "stale": [
+        "codex@box1"
+      ],
+      "accountLabels": {},
+      "accountNames": {},
+      "labelProbe": {},
+      "nameProbe": [],
+      "keptNames": {},
+      "signIns": null,
+      "signInsAt": {},
+      "reports": {},
+      "launch": {},
+      "boxStdout": {},
+      "localLines": [],
+      "placeFor": {},
+      "spendAnswer": {
+        "outcome": "reset",
+        "said": "ok",
+        "account": null
+      },
+      "boxError": {},
+      "boxNever": []
+    }
+  }
+}
