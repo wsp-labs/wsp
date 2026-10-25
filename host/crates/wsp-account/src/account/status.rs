@@ -37,6 +37,9 @@ pub struct Confirmed {
 pub enum ReadFailure {
     Missing,
     Failed(String),
+    /// The machine was read but its `state()` failed: outside the TS `try` (status.ts:149), so `adoptLost` itself
+    /// fails with this message and the sweep's adopt stops there.
+    StateFailed(String),
 }
 
 /// What the rows and `adoptLost` read off the runtime's context.
@@ -111,7 +114,9 @@ impl StatusArea {
         todo!()
     }
 
-    /// S1, status.ts:13: every held entry's row as the TS object, its callbacks left out (the tracker's join adds them).
+    /// S1, status.ts:13: every held entry's row as the TS object, keys in the TS order. A key whose TS value is a
+    /// function (`daemonReach`, `daemonAnswers`, `providerState`, `metrics`, `facts`, `exec`) holds `null`: the tracker's
+    /// join puts the callback there, so the key's presence and place are what the area decides.
     pub async fn records(&self) -> Vec<Map<String, Value>> {
         todo!()
     }

@@ -81,6 +81,8 @@ pub trait PreferencesCtx {
     /// `harnessCatalog(id) ?? { label: ctx.agentLabel(id), permissionModes: [] }`.
     fn access_table(&self, agent: &str) -> AccessTable;
     fn project_held(&self, id: &str) -> bool;
+    /// `ctx.projectHeld(id)` as the agents read takes it: the project's id and name; its refusal where none is held.
+    fn project_of(&self, id: &str) -> Result<(String, String), HostError>;
     /// `ctx.defaultAgentOf(prefs, undefined)`.
     fn default_agent_of(&self, prefs: &Preferences) -> String;
     /// `threadKeyOf(row.view)` of every session row.
@@ -115,6 +117,8 @@ pub trait PreferencesCtx {
     fn place_name(&self, place_id: &str) -> Option<String>;
     /// `setups.set(placeId, agent, change, ...)`.
     async fn setup_write(&self, place_id: &str, agent: &str, change: Value) -> AccountResult<()>;
+    /// `setupView(setups.get(placeId, agent))`: the setup as the app reads it, names only.
+    fn setup_view(&self, place_id: &str, agent: &str) -> Value;
     /// `ctx.setupRefusals.delete(keyOf(placeId, agent))`.
     fn drop_setup_refusal(&self, place_id: &str, agent: &str) -> bool;
     fn setup_refusal_moved(&self, place_id: &str, agent: &str);
@@ -186,6 +190,21 @@ impl PreferencesArea {
 
     /// F7, preferences.ts:142.
     pub fn agents_changed(&self, target: Option<Value>) {
+        todo!()
+    }
+
+    /// F7, preferences.ts:143: nothing for an agent with no adapter, else the context's `setup_view`.
+    pub fn agents_setup_of(&self, place_id: &str, agent: &str) -> Option<Value> {
+        todo!()
+    }
+
+    /// F7, preferences.ts:129: whether the person lets this host ask the vendors for each agent's newest version.
+    pub async fn agents_latest_on(&self) -> AccountResult<bool> {
+        todo!()
+    }
+
+    /// F7, preferences.ts:146: the backend's `callbackRelay`.
+    pub fn agents_relayed(&self) -> bool {
         todo!()
     }
 

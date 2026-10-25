@@ -1,0 +1,8459 @@
+{
+ "home": "/root",
+ "tables": {
+  "claude": {
+   "label": "Claude Code",
+   "access": {
+    "ask": "default",
+    "auto-edit": "acceptEdits",
+    "full": "bypassPermissions"
+   },
+   "permissionModes": [
+    {
+     "value": "default",
+     "label": "Default",
+     "description": "Asks in the chat about each action that needs permission"
+    },
+    {
+     "value": "acceptEdits",
+     "label": "Accept edits",
+     "description": "Edits files without asking; asks about commands that need permission"
+    },
+    {
+     "value": "bypassPermissions",
+     "label": "Bypass",
+     "description": "Runs every action without asking",
+     "isDefault": true
+    },
+    {
+     "value": "auto",
+     "label": "Auto",
+     "description": "The agent decides which actions to ask about; where the account has no such mode it asks as Default does"
+    },
+    {
+     "value": "manual",
+     "label": "Manual",
+     "description": "Asks before every action"
+    },
+    {
+     "value": "dontAsk",
+     "label": "Don't ask",
+     "description": "Refuses any action that needs permission, without asking"
+    }
+   ]
+  },
+  "codex": {
+   "label": "Codex",
+   "access": {
+    "ask": "workspace-write",
+    "full": "danger-full-access",
+    "plan": "read-only"
+   },
+   "permissionModes": [
+    {
+     "value": "read-only",
+     "label": "Read only",
+     "description": "Reads only; edits no files and runs no command that writes"
+    },
+    {
+     "value": "workspace-write",
+     "label": "Workspace write",
+     "description": "Edits files and runs commands inside the working folder"
+    },
+    {
+     "value": "danger-full-access",
+     "label": "Full access",
+     "description": "Runs every action without asking, with no folder off limits",
+     "isDefault": true
+    }
+   ]
+  }
+ },
+ "catalogAgents": [
+  {
+   "id": "claude",
+   "stateHomeEnv": "CLAUDE_CONFIG_DIR",
+   "pluginSeedEnv": "CLAUDE_CODE_PLUGIN_SEED_DIR"
+  },
+  {
+   "id": "codex",
+   "stateHomeEnv": "CODEX_HOME",
+   "pluginSeedEnv": null
+  },
+  {
+   "id": "gemini",
+   "stateHomeEnv": null,
+   "pluginSeedEnv": null
+  },
+  {
+   "id": "opencode",
+   "stateHomeEnv": null,
+   "pluginSeedEnv": null
+  },
+  {
+   "id": "pi",
+   "stateHomeEnv": null,
+   "pluginSeedEnv": null
+  },
+  {
+   "id": "hermes",
+   "stateHomeEnv": null,
+   "pluginSeedEnv": null
+  },
+  {
+   "id": "crush",
+   "stateHomeEnv": null,
+   "pluginSeedEnv": null
+  },
+  {
+   "id": "qwen",
+   "stateHomeEnv": null,
+   "pluginSeedEnv": null
+  },
+  {
+   "id": "goose",
+   "stateHomeEnv": null,
+   "pluginSeedEnv": null
+  },
+  {
+   "id": "amp",
+   "stateHomeEnv": null,
+   "pluginSeedEnv": null
+  },
+  {
+   "id": "cursor",
+   "stateHomeEnv": null,
+   "pluginSeedEnv": null
+  }
+ ],
+ "threadEnv": {
+  "claude": {
+   "CLAUDE_CONFIG_DIR": "/root/.claude-cfg",
+   "CLAUDE_CODE_PLUGIN_SEED_DIR": "/root/.claude-plugin-seed"
+  },
+  "codex": {
+   "CODEX_HOME": "/state/codex"
+  },
+  "gemini": {},
+  "opencode": {},
+  "pi": {},
+  "hermes": {},
+  "crush": {},
+  "qwen": {},
+  "goose": {},
+  "amp": {},
+  "cursor": {}
+ },
+ "adapters": [
+  "claude",
+  "codex",
+  "mystery"
+ ],
+ "scripts": [
+  {
+   "script": {
+    "name": "get defaults",
+    "steps": []
+   },
+   "results": [],
+   "puts": [],
+   "emitted": [],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "get stored older labs",
+    "stored": {
+     "theme": "light",
+     "labs": true
+    },
+    "steps": []
+   },
+   "results": [],
+   "puts": [],
+   "emitted": [],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "light",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "light",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "get env labs over stored",
+    "stored": {
+     "theme": "dark",
+     "labs": false
+    },
+    "env": {
+     "WSP_LABS": "1"
+    },
+    "steps": []
+   },
+   "results": [],
+   "puts": [],
+   "emitted": [],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "dark",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": true
+   },
+   "reopened": {
+    "theme": "dark",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": true
+   }
+  },
+  {
+   "script": {
+    "name": "get env labs not one",
+    "env": {
+     "WSP_LABS": "yes"
+    },
+    "steps": []
+   },
+   "results": [],
+   "puts": [],
+   "emitted": [],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "get malformed stored",
+    "stored": {
+     "theme": "sepia"
+    },
+    "steps": []
+   },
+   "results": [],
+   "puts": [],
+   "emitted": [],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "get stored before computer icons",
+    "stored": {
+     "theme": "light",
+     "projectLook": {
+      "pr_1": {
+       "icon": "rocket"
+      }
+     }
+    },
+    "steps": []
+   },
+   "results": [],
+   "puts": [],
+   "emitted": [],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "light",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {
+     "pr_1": {
+      "icon": "rocket"
+     }
+    },
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "light",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {
+     "pr_1": {
+      "icon": "rocket"
+     }
+    },
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "two sets at once",
+    "concurrent": true,
+    "steps": [
+     {
+      "patch": {
+       "theme": "light"
+      }
+     },
+     {
+      "patch": {
+       "sidebarMode": "spaces"
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "light",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "light",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "spaces",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "puts": [
+    {
+     "theme": "light",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "light",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "spaces",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "light",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "light",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "spaces",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "light",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "spaces",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "light",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "spaces",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "a refused set among two at once",
+    "concurrent": true,
+    "steps": [
+     {
+      "patch": {
+       "defaultAgent": "nope"
+      }
+     },
+     {
+      "patch": {
+       "theme": "light"
+      }
+     },
+     {
+      "patch": {
+       "sidebarMode": "spaces"
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": false,
+     "error": {
+      "message": "no adapter registered for harness \"nope\"; agents on this host: claude, codex, mystery",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "light",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "light",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "spaces",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "puts": [
+    {
+     "theme": "light",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "light",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "spaces",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "light",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "light",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "spaces",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "light",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "spaces",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "light",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "spaces",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "refused then next",
+    "steps": [
+     {
+      "patch": {
+       "defaultAgent": "nope"
+      }
+     },
+     {
+      "patch": {
+       "theme": "dark"
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": false,
+     "error": {
+      "message": "no adapter registered for harness \"nope\"; agents on this host: claude, codex, mystery",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "dark",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "puts": [
+    {
+     "theme": "dark",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "dark",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "dark",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "dark",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "over the wire",
+    "steps": [
+     {
+      "patch": {
+       "theme": "light",
+       "sidebarWidth": 312,
+       "terminalZoom": {
+        "ws_a": 2
+       }
+      }
+     },
+     {
+      "patch": {
+       "sidebarMode": "spaces",
+       "sidebarWidth": null,
+       "terminalZoom": {
+        "ws_b": -1
+       }
+      }
+     },
+     {
+      "patch": {
+       "terminalZoom": {
+        "ws_b": null
+       }
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "light",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {
+       "ws_a": 2
+      },
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "sidebarWidth": 312
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "light",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "spaces",
+      "terminalSize": "app",
+      "terminalZoom": {
+       "ws_a": 2,
+       "ws_b": -1
+      },
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "light",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "spaces",
+      "terminalSize": "app",
+      "terminalZoom": {
+       "ws_a": 2
+      },
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "puts": [
+    {
+     "theme": "light",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {
+      "ws_a": 2
+     },
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "sidebarWidth": 312
+    },
+    {
+     "theme": "light",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "spaces",
+     "terminalSize": "app",
+     "terminalZoom": {
+      "ws_a": 2,
+      "ws_b": -1
+     },
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "light",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "spaces",
+     "terminalSize": "app",
+     "terminalZoom": {
+      "ws_a": 2
+     },
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "light",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {
+       "ws_a": 2
+      },
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "sidebarWidth": 312
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "light",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "spaces",
+      "terminalSize": "app",
+      "terminalZoom": {
+       "ws_a": 2,
+       "ws_b": -1
+      },
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "light",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "spaces",
+      "terminalSize": "app",
+      "terminalZoom": {
+       "ws_a": 2
+      },
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "light",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "spaces",
+    "terminalSize": "app",
+    "terminalZoom": {
+     "ws_a": 2
+    },
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "light",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "spaces",
+    "terminalSize": "app",
+    "terminalZoom": {
+     "ws_a": 2
+    },
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "dismissed release",
+    "steps": [
+     {
+      "patch": {
+       "updateDismissed": "0.3.3"
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "updateDismissed": "0.3.3"
+     }
+    }
+   ],
+   "puts": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "updateDismissed": "0.3.3"
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "updateDismissed": "0.3.3"
+     }
+    }
+   ],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false,
+    "updateDismissed": "0.3.3"
+   },
+   "reopened": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false,
+    "updateDismissed": "0.3.3"
+   }
+  },
+  {
+   "script": {
+    "name": "usage counts",
+    "steps": [
+     {
+      "patch": {
+       "productUsage": false
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": false,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "puts": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": false,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": false,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": false,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": false,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "failed hook",
+    "adapters": [],
+    "steps": [
+     {
+      "patch": {
+       "defaultAgent": "nope"
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": false,
+     "error": {
+      "message": "no adapter registered for harness \"nope\"; agents on this host: none",
+      "kind": "usage"
+     }
+    }
+   ],
+   "puts": [],
+   "emitted": [],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "threads shut leads",
+    "sessions": [
+     "lead1"
+    ],
+    "threadRecords": [
+     "lead2"
+    ],
+    "steps": [
+     {
+      "patch": {
+       "threadsShut": {
+        "lead1": true,
+        "lead2": true,
+        "thr_gone": true
+       }
+      }
+     },
+     {
+      "patch": {
+       "threadsShut": {
+        "lead1": null
+       }
+      }
+     },
+     {
+      "patch": {
+       "threadsShut": {
+        "lead2": null
+       }
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "threadsShut": {
+       "lead1": true,
+       "lead2": true
+      }
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "threadsShut": {
+       "lead2": true
+      }
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "threadsShut": {}
+     }
+    }
+   ],
+   "puts": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "threadsShut": {
+      "lead1": true,
+      "lead2": true
+     }
+    },
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "threadsShut": {
+      "lead2": true
+     }
+    },
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "threadsShut": {}
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "threadsShut": {
+       "lead1": true,
+       "lead2": true
+      }
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "threadsShut": {
+       "lead2": true
+      }
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "threadsShut": {}
+     }
+    }
+   ],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false,
+    "threadsShut": {}
+   },
+   "reopened": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false,
+    "threadsShut": {}
+   }
+  },
+  {
+   "script": {
+    "name": "threads shut stale kept when the patch names none",
+    "stored": {
+     "threadsShut": {
+      "thr_stale": true
+     }
+    },
+    "steps": [
+     {
+      "patch": {
+       "theme": "dark"
+      }
+     },
+     {
+      "patch": {
+       "threadsShut": {
+        "thr_new": true
+       }
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "dark",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "threadsShut": {
+       "thr_stale": true
+      }
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "dark",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "threadsShut": {}
+     }
+    }
+   ],
+   "puts": [
+    {
+     "theme": "dark",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "threadsShut": {
+      "thr_stale": true
+     }
+    },
+    {
+     "theme": "dark",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "threadsShut": {}
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "dark",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "threadsShut": {
+       "thr_stale": true
+      }
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "dark",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "threadsShut": {}
+     }
+    }
+   ],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "dark",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false,
+    "threadsShut": {}
+   },
+   "reopened": {
+    "theme": "dark",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false,
+    "threadsShut": {}
+   }
+  },
+  {
+   "script": {
+    "name": "threads shut record alone",
+    "threadRecords": [
+     "lead1"
+    ],
+    "steps": [
+     {
+      "patch": {
+       "threadsShut": {
+        "lead1": true,
+        "thr_gone": true
+       }
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "threadsShut": {
+       "lead1": true
+      }
+     }
+    }
+   ],
+   "puts": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "threadsShut": {
+      "lead1": true
+     }
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "threadsShut": {
+       "lead1": true
+      }
+     }
+    }
+   ],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false,
+    "threadsShut": {
+     "lead1": true
+    }
+   },
+   "reopened": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false,
+    "threadsShut": {
+     "lead1": true
+    }
+   }
+  },
+  {
+   "script": {
+    "name": "threads shut refused default still prunes nothing",
+    "sessions": [
+     "lead1"
+    ],
+    "steps": [
+     {
+      "patch": {
+       "threadsShut": {
+        "lead1": true
+       },
+       "defaultAgent": "nope"
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": false,
+     "error": {
+      "message": "no adapter registered for harness \"nope\"; agents on this host: claude, codex, mystery",
+      "kind": "usage"
+     }
+    }
+   ],
+   "puts": [],
+   "emitted": [],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "refusal table",
+    "steps": [
+     {
+      "patch": {
+       "defaultAgent": "nope"
+      }
+     },
+     {
+      "patch": {
+       "defaultAgent": "codex"
+      }
+     },
+     {
+      "patch": {
+       "defaultAgent": null
+      }
+     },
+     {
+      "patch": {
+       "agentDefaults": {
+        "nope": {
+         "model": "m"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "agentDefaults": {
+        "claude": {
+         "access": "plan"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "agentDefaults": {
+        "codex": {
+         "access": "auto-edit"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "agentDefaults": {
+        "codex": {
+         "access": "plan"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "agentDefaults": {
+        "mystery": {
+         "access": "ask"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "agentDefaults": {
+        "claude": {
+         "access": null
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "agentDefaults": {
+        "claude": {
+         "model": "claude opus"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "agentDefaults": {
+        "claude": {
+         "model": "-x",
+         "models": {
+          "custom": [
+           "a b"
+          ]
+         }
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "agentDefaults": {
+        "claude": {
+         "models": {
+          "custom": [
+           "ok-id",
+           "a;b"
+          ]
+         }
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "agentDefaults": {
+        "claude": {
+         "model": ""
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "agentDefaults": {
+        "nope": null
+       }
+      }
+     },
+     {
+      "patch": {
+       "agentDefaults": {
+        "claude": {
+         "access": "plan"
+        },
+        "nope": {}
+       }
+      }
+     },
+     {
+      "patch": {
+       "agentDefaults": {
+        "nope": {},
+        "claude": {
+         "access": "plan"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "agentDefaults": {
+        "claude": {
+         "access": "ask",
+         "model": "claude-sonnet-5"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "agentDefaults": {
+        "codex": {
+         "model": "gpt;5"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "projectDefaults": {
+        "pX": {
+         "model": "m"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "projectDefaults": {
+        "p1": {
+         "agent": "nope"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "projectDefaults": {
+        "p1": {
+         "model": "a b"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "projectDefaults": {
+        "p1": {
+         "model": "-x"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "projectDefaults": {
+        "p1": {
+         "access": "plan"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "projectDefaults": {
+        "p1": {
+         "agent": "codex"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "projectDefaults": {
+        "p1": {
+         "access": "auto-edit"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "projectDefaults": {
+        "p1": {
+         "access": "plan"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "projectDefaults": {
+        "p1": {
+         "agent": "claude",
+         "access": "plan"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "projectDefaults": {
+        "p1": {
+         "agent": "mystery",
+         "access": "ask"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "projectDefaults": {
+        "p1": {
+         "access": null
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "projectDefaults": {
+        "p2": {
+         "agent": "claude",
+         "model": "provider/model:tag",
+         "access": "auto-edit"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "projectDefaults": {
+        "p1": null
+       }
+      }
+     },
+     {
+      "patch": {
+       "defaultAgent": "codex",
+       "projectDefaults": {
+        "p3": {
+         "access": "auto-edit"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "defaultAgent": "nope",
+       "agentDefaults": {
+        "claude": {
+         "access": "plan"
+        }
+       },
+       "projectDefaults": {
+        "pX": {}
+       }
+      }
+     },
+     {
+      "patch": {
+       "agentDefaults": {
+        "claude": {
+         "access": "plan"
+        }
+       },
+       "projectDefaults": {
+        "pX": {}
+       }
+      }
+     },
+     {
+      "patch": {
+       "projectDefaults": {
+        "pX": {},
+        "p1": {
+         "agent": "nope"
+        }
+       }
+      }
+     },
+     {
+      "patch": {
+       "theme": "light",
+       "defaultAgent": "nope"
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": false,
+     "error": {
+      "message": "no adapter registered for harness \"nope\"; agents on this host: claude, codex, mystery",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "defaultAgent": "codex"
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "no adapter registered for harness \"nope\"; agents on this host: claude, codex, mystery",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "Claude Code takes no plan access; it takes ask, auto-edit, full",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "Codex takes no auto-edit access; it takes ask, full, plan",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       }
+      },
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "the mystery agent takes no access of wsp's words",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       }
+      },
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "No model id has a space in it",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "No model id starts with \"-\"",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "No model id has \";\" in it",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "A model id cannot be empty",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       }
+      },
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "Claude Code takes no plan access; it takes ask, auto-edit, full",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "no adapter registered for harness \"nope\"; agents on this host: claude, codex, mystery",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       },
+       "claude": {
+        "access": "ask",
+        "model": "claude-sonnet-5"
+       }
+      },
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "No model id has \";\" in it",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "no project \"pX\"",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "no adapter registered for harness \"nope\"; agents on this host: claude, codex, mystery",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "No model id has a space in it",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "No model id starts with \"-\"",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "Claude Code takes no plan access; it takes ask, auto-edit, full",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       },
+       "claude": {
+        "access": "ask",
+        "model": "claude-sonnet-5"
+       }
+      },
+      "projectDefaults": {
+       "p1": {
+        "agent": "codex"
+       }
+      },
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "Codex takes no auto-edit access; it takes ask, full, plan",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       },
+       "claude": {
+        "access": "ask",
+        "model": "claude-sonnet-5"
+       }
+      },
+      "projectDefaults": {
+       "p1": {
+        "agent": "codex",
+        "access": "plan"
+       }
+      },
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "Claude Code takes no plan access; it takes ask, auto-edit, full",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "the mystery agent takes no access of wsp's words",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       },
+       "claude": {
+        "access": "ask",
+        "model": "claude-sonnet-5"
+       }
+      },
+      "projectDefaults": {
+       "p1": {
+        "agent": "codex"
+       }
+      },
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       },
+       "claude": {
+        "access": "ask",
+        "model": "claude-sonnet-5"
+       }
+      },
+      "projectDefaults": {
+       "p1": {
+        "agent": "codex"
+       },
+       "p2": {
+        "agent": "claude",
+        "model": "provider/model:tag",
+        "access": "auto-edit"
+       }
+      },
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       },
+       "claude": {
+        "access": "ask",
+        "model": "claude-sonnet-5"
+       }
+      },
+      "projectDefaults": {
+       "p2": {
+        "agent": "claude",
+        "model": "provider/model:tag",
+        "access": "auto-edit"
+       }
+      },
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "Codex takes no auto-edit access; it takes ask, full, plan",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "no adapter registered for harness \"nope\"; agents on this host: claude, codex, mystery",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "Claude Code takes no plan access; it takes ask, auto-edit, full",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "no project \"pX\"",
+      "kind": "usage"
+     }
+    },
+    {
+     "ok": false,
+     "error": {
+      "message": "no adapter registered for harness \"nope\"; agents on this host: claude, codex, mystery",
+      "kind": "usage"
+     }
+    }
+   ],
+   "puts": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false,
+     "defaultAgent": "codex"
+    },
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {
+      "codex": {
+       "access": "plan"
+      }
+     },
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {
+      "codex": {
+       "access": "plan"
+      }
+     },
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {
+      "codex": {
+       "access": "plan"
+      }
+     },
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {
+      "codex": {
+       "access": "plan"
+      },
+      "claude": {
+       "access": "ask",
+       "model": "claude-sonnet-5"
+      }
+     },
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {
+      "codex": {
+       "access": "plan"
+      },
+      "claude": {
+       "access": "ask",
+       "model": "claude-sonnet-5"
+      }
+     },
+     "projectDefaults": {
+      "p1": {
+       "agent": "codex"
+      }
+     },
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {
+      "codex": {
+       "access": "plan"
+      },
+      "claude": {
+       "access": "ask",
+       "model": "claude-sonnet-5"
+      }
+     },
+     "projectDefaults": {
+      "p1": {
+       "agent": "codex",
+       "access": "plan"
+      }
+     },
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {
+      "codex": {
+       "access": "plan"
+      },
+      "claude": {
+       "access": "ask",
+       "model": "claude-sonnet-5"
+      }
+     },
+     "projectDefaults": {
+      "p1": {
+       "agent": "codex"
+      }
+     },
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {
+      "codex": {
+       "access": "plan"
+      },
+      "claude": {
+       "access": "ask",
+       "model": "claude-sonnet-5"
+      }
+     },
+     "projectDefaults": {
+      "p1": {
+       "agent": "codex"
+      },
+      "p2": {
+       "agent": "claude",
+       "model": "provider/model:tag",
+       "access": "auto-edit"
+      }
+     },
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {
+      "codex": {
+       "access": "plan"
+      },
+      "claude": {
+       "access": "ask",
+       "model": "claude-sonnet-5"
+      }
+     },
+     "projectDefaults": {
+      "p2": {
+       "agent": "claude",
+       "model": "provider/model:tag",
+       "access": "auto-edit"
+      }
+     },
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false,
+      "defaultAgent": "codex"
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       }
+      },
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       }
+      },
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       }
+      },
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       },
+       "claude": {
+        "access": "ask",
+        "model": "claude-sonnet-5"
+       }
+      },
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       },
+       "claude": {
+        "access": "ask",
+        "model": "claude-sonnet-5"
+       }
+      },
+      "projectDefaults": {
+       "p1": {
+        "agent": "codex"
+       }
+      },
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       },
+       "claude": {
+        "access": "ask",
+        "model": "claude-sonnet-5"
+       }
+      },
+      "projectDefaults": {
+       "p1": {
+        "agent": "codex",
+        "access": "plan"
+       }
+      },
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       },
+       "claude": {
+        "access": "ask",
+        "model": "claude-sonnet-5"
+       }
+      },
+      "projectDefaults": {
+       "p1": {
+        "agent": "codex"
+       }
+      },
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       },
+       "claude": {
+        "access": "ask",
+        "model": "claude-sonnet-5"
+       }
+      },
+      "projectDefaults": {
+       "p1": {
+        "agent": "codex"
+       },
+       "p2": {
+        "agent": "claude",
+        "model": "provider/model:tag",
+        "access": "auto-edit"
+       }
+      },
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {
+       "codex": {
+        "access": "plan"
+       },
+       "claude": {
+        "access": "ask",
+        "model": "claude-sonnet-5"
+       }
+      },
+      "projectDefaults": {
+       "p2": {
+        "agent": "claude",
+        "model": "provider/model:tag",
+        "access": "auto-edit"
+       }
+      },
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {
+     "codex": {
+      "access": "plan"
+     },
+     "claude": {
+      "access": "ask",
+      "model": "claude-sonnet-5"
+     }
+    },
+    "projectDefaults": {
+     "p2": {
+      "agent": "claude",
+      "model": "provider/model:tag",
+      "access": "auto-edit"
+     }
+    },
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {
+     "codex": {
+      "access": "plan"
+     },
+     "claude": {
+      "model": "claude-sonnet-5",
+      "access": "ask"
+     }
+    },
+    "projectDefaults": {
+     "p2": {
+      "agent": "claude",
+      "model": "provider/model:tag",
+      "access": "auto-edit"
+     }
+    },
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "icons forget fails",
+    "icons": {
+     "forget": "EACCES: permission denied, rmdir '/root/.wsp/icons'"
+    },
+    "steps": [
+     {
+      "patch": {
+       "serverIcons": false
+      }
+     },
+     {
+      "patch": {
+       "theme": "dark"
+      }
+     },
+     {
+      "patch": {
+       "serverIcons": true
+      }
+     },
+     {
+      "patch": {
+       "serverIcons": false
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     },
+     "notice": "Server icons are off, but ~/.wsp/icons could not be deleted: permission denied. Delete it by hand."
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "dark",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "dark",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "dark",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     },
+     "notice": "Server icons are off, but ~/.wsp/icons could not be deleted: permission denied. Delete it by hand."
+    }
+   ],
+   "puts": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": false,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "dark",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": false,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "dark",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "dark",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": false,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "dark",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "dark",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "dark",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "forgets": 2,
+   "storeGets": 1,
+   "after": {
+    "theme": "dark",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": false,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "dark",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": false,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "icons forget ok",
+    "icons": {
+     "forget": null
+    },
+    "steps": [
+     {
+      "patch": {
+       "serverIcons": false
+      }
+     },
+     {
+      "patch": {
+       "serverIcons": false
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "puts": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": false,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": false,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "forgets": 2,
+   "storeGets": 1,
+   "after": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": false,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": false,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "icons absent",
+    "steps": [
+     {
+      "patch": {
+       "serverIcons": false
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "puts": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": false,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": false,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": false,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "icons message without a code",
+    "icons": {
+     "forget": "disk is busy"
+    },
+    "steps": [
+     {
+      "patch": {
+       "serverIcons": false
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     },
+     "notice": "Server icons are off, but ~/.wsp/icons could not be deleted: disk is busy. Delete it by hand."
+    }
+   ],
+   "puts": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": false,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "forgets": 1,
+   "storeGets": 1,
+   "after": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": false,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": false,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "icons message with a call",
+    "icons": {
+     "forget": "EBUSY: resource busy or locked, unlink '/root/.wsp/icons/a b'"
+    },
+    "steps": [
+     {
+      "patch": {
+       "serverIcons": false
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     },
+     "notice": "Server icons are off, but ~/.wsp/icons could not be deleted: resource busy or locked. Delete it by hand."
+    }
+   ],
+   "puts": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": false,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "forgets": 1,
+   "storeGets": 1,
+   "after": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": false,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": false,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "icons message with a lower case code",
+    "icons": {
+     "forget": "eacces: nope"
+    },
+    "steps": [
+     {
+      "patch": {
+       "serverIcons": false
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     },
+     "notice": "Server icons are off, but ~/.wsp/icons could not be deleted: eacces: nope. Delete it by hand."
+    }
+   ],
+   "puts": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": false,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "forgets": 1,
+   "storeGets": 1,
+   "after": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": false,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": false,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "icons message with two codes",
+    "icons": {
+     "forget": "ENOENT: EPERM: nested, call '/x'"
+    },
+    "steps": [
+     {
+      "patch": {
+       "serverIcons": false
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     },
+     "notice": "Server icons are off, but ~/.wsp/icons could not be deleted: EPERM: nested. Delete it by hand."
+    }
+   ],
+   "puts": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": false,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": false,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "forgets": 1,
+   "storeGets": 1,
+   "after": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": false,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "system",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": false,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   }
+  },
+  {
+   "script": {
+    "name": "agent versions switch",
+    "probe": true,
+    "steps": [
+     {
+      "patch": {
+       "agentVersions": false
+      }
+     },
+     {
+      "patch": {
+       "theme": "dark"
+      }
+     },
+     {
+      "patch": {
+       "agentVersions": true
+      }
+     }
+    ]
+   },
+   "results": [
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": false,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "dark",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": false,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "ok": true,
+     "preferences": {
+      "theme": "dark",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "puts": [
+    {
+     "theme": "system",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": false,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "dark",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": false,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    },
+    {
+     "theme": "dark",
+     "lightTheme": "paper",
+     "darkTheme": "graphite",
+     "sidebarMode": "list",
+     "terminalSize": "app",
+     "terminalZoom": {},
+     "access": {},
+     "projectLook": {},
+     "projectIcon": {},
+     "computerLook": {},
+     "serverIcons": true,
+     "agentVersions": true,
+     "usageLogs": true,
+     "productUsage": true,
+     "keepAwake": true,
+     "transparency": true,
+     "projectOrder": [],
+     "keybindings": {},
+     "appFont": "",
+     "codeFont": "",
+     "agentDefaults": {},
+     "projectDefaults": {},
+     "sendWith": "enter",
+     "midTurn": "queue",
+     "notifyNeeds": "notify-sound",
+     "notifyDone": "notify",
+     "planAlerts": true,
+     "settleAfter": "2h",
+     "askDelete": true,
+     "onQuit": "ask",
+     "newThreadIn": "current",
+     "labs": false
+    }
+   ],
+   "emitted": [
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "system",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": false,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "dark",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": false,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    },
+    {
+     "type": "preferences.changed",
+     "preferences": {
+      "theme": "dark",
+      "lightTheme": "paper",
+      "darkTheme": "graphite",
+      "sidebarMode": "list",
+      "terminalSize": "app",
+      "terminalZoom": {},
+      "access": {},
+      "projectLook": {},
+      "projectIcon": {},
+      "computerLook": {},
+      "serverIcons": true,
+      "agentVersions": true,
+      "usageLogs": true,
+      "productUsage": true,
+      "keepAwake": true,
+      "transparency": true,
+      "projectOrder": [],
+      "keybindings": {},
+      "appFont": "",
+      "codeFont": "",
+      "agentDefaults": {},
+      "projectDefaults": {},
+      "sendWith": "enter",
+      "midTurn": "queue",
+      "notifyNeeds": "notify-sound",
+      "notifyDone": "notify",
+      "planAlerts": true,
+      "settleAfter": "2h",
+      "askDelete": true,
+      "onQuit": "ask",
+      "newThreadIn": "current",
+      "labs": false
+     }
+    }
+   ],
+   "forgets": 0,
+   "storeGets": 1,
+   "after": {
+    "theme": "dark",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "reopened": {
+    "theme": "dark",
+    "lightTheme": "paper",
+    "darkTheme": "graphite",
+    "sidebarMode": "list",
+    "terminalSize": "app",
+    "terminalZoom": {},
+    "access": {},
+    "projectLook": {},
+    "projectIcon": {},
+    "computerLook": {},
+    "serverIcons": true,
+    "agentVersions": true,
+    "usageLogs": true,
+    "productUsage": true,
+    "keepAwake": true,
+    "transparency": true,
+    "projectOrder": [],
+    "keybindings": {},
+    "appFont": "",
+    "codeFont": "",
+    "agentDefaults": {},
+    "projectDefaults": {},
+    "sendWith": "enter",
+    "midTurn": "queue",
+    "notifyNeeds": "notify-sound",
+    "notifyDone": "notify",
+    "planAlerts": true,
+    "settleAfter": "2h",
+    "askDelete": true,
+    "onQuit": "ask",
+    "newThreadIn": "current",
+    "labs": false
+   },
+   "latestBefore": true,
+   "latestAfter": [
+    false,
+    false,
+    true
+   ]
+  }
+ ],
+ "folders": [
+  {
+   "folder": "/srv/icons",
+   "notice": "Server icons are off, but /srv/icons could not be deleted: no. Delete it by hand."
+  },
+  {
+   "folder": "/root",
+   "notice": "Server icons are off, but ~ could not be deleted: no. Delete it by hand."
+  },
+  {
+   "folder": "/rootx/icons",
+   "notice": "Server icons are off, but /rootx/icons could not be deleted: no. Delete it by hand."
+  },
+  {
+   "folder": "/root/a",
+   "notice": "Server icons are off, but ~/a could not be deleted: no. Delete it by hand."
+  }
+ ],
+ "agents": {
+  "entries": {
+   "wCloud": {
+    "id": "wCloud",
+    "name": "alpha",
+    "phase": "running",
+    "project": "p1",
+    "kind": "cloud",
+    "place": "box",
+    "machineId": "m1"
+   },
+   "wNap": {
+    "id": "wNap",
+    "name": "beta",
+    "phase": "napping",
+    "project": "p2",
+    "kind": "cloud",
+    "place": "box",
+    "machineId": "m2"
+   },
+   "wAway": {
+    "id": "wAway",
+    "name": "gamma",
+    "phase": "running",
+    "project": "p1",
+    "kind": "cloud",
+    "place": "elsewhere",
+    "machineId": "m3"
+   },
+   "wNoPlace": {
+    "id": "wNoPlace",
+    "name": "delta",
+    "phase": "running",
+    "project": "p1",
+    "kind": "cloud",
+    "machineId": "m4"
+   },
+   "wLocal": {
+    "id": "wLocal",
+    "name": "mac",
+    "phase": "running",
+    "project": "p1",
+    "kind": "local",
+    "machineId": ""
+   },
+   "wBad": {
+    "id": "wBad",
+    "name": "epsilon",
+    "phase": "running",
+    "project": "p1",
+    "kind": "cloud",
+    "machineId": "m5"
+   }
+  },
+  "projectRows": [
+   {
+    "id": "p1",
+    "name": "landing",
+    "computer": "pl_box",
+    "path": "/home/maya/landing",
+    "checkout": "/srv/landing"
+   },
+   {
+    "id": "p2",
+    "name": "api",
+    "computer": "pl_box",
+    "path": "/home/maya/api"
+   },
+   {
+    "id": "p3",
+    "name": "mac",
+    "computer": "here",
+    "path": "/Users/maya/mac"
+   }
+  ],
+  "names": {
+   "pl_gone": "studio"
+  },
+  "workspaces": [
+   {
+    "id": "wCloud",
+    "origin": true,
+    "answer": {
+     "name": "alpha",
+     "phase": "running",
+     "local": false,
+     "project": {
+      "id": "p1",
+      "name": "landing",
+      "path": "/work/p1"
+     },
+     "stores": {
+      "claude": "/root/.claude-cfg",
+      "codex": "/state/codex"
+     },
+     "seeds": {
+      "claude": "/root/.claude-plugin-seed"
+     },
+     "brokered": true
+    },
+    "log": [
+     [
+      "entryOf",
+      "wCloud",
+      true
+     ]
+    ]
+   },
+   {
+    "id": "wNap",
+    "origin": false,
+    "answer": {
+     "name": "beta",
+     "phase": "napping",
+     "local": false,
+     "project": {
+      "id": "p2",
+      "name": "api",
+      "path": "/work/p2"
+     },
+     "stores": {
+      "claude": "/root/.claude-cfg",
+      "codex": "/state/codex"
+     },
+     "seeds": {
+      "claude": "/root/.claude-plugin-seed"
+     },
+     "brokered": true,
+     "pauseMode": "disk"
+    },
+    "log": [
+     [
+      "entryOf",
+      "wNap",
+      false
+     ]
+    ]
+   },
+   {
+    "id": "wAway",
+    "origin": false,
+    "answer": {
+     "name": "gamma",
+     "phase": "running",
+     "local": false,
+     "project": {
+      "id": "p1",
+      "name": "landing",
+      "path": "/work/p1"
+     },
+     "stores": {
+      "claude": "/root/.claude-cfg",
+      "codex": "/state/codex"
+     },
+     "seeds": {
+      "claude": "/root/.claude-plugin-seed"
+     }
+    },
+    "log": [
+     [
+      "entryOf",
+      "wAway",
+      false
+     ]
+    ]
+   },
+   {
+    "id": "wNoPlace",
+    "origin": false,
+    "answer": {
+     "name": "delta",
+     "phase": "running",
+     "local": false,
+     "project": {
+      "id": "p1",
+      "name": "landing",
+      "path": "/work/p1"
+     },
+     "stores": {
+      "claude": "/root/.claude-cfg",
+      "codex": "/state/codex"
+     },
+     "seeds": {
+      "claude": "/root/.claude-plugin-seed"
+     }
+    },
+    "log": [
+     [
+      "entryOf",
+      "wNoPlace",
+      false
+     ]
+    ]
+   },
+   {
+    "id": "wLocal",
+    "origin": true,
+    "answer": {
+     "name": "mac",
+     "phase": "running",
+     "local": true,
+     "project": {
+      "id": "p1",
+      "name": "landing",
+      "path": "/work/p1"
+     },
+     "stores": {},
+     "seeds": {}
+    },
+    "log": [
+     [
+      "entryOf",
+      "wLocal",
+      true
+     ]
+    ]
+   },
+   {
+    "id": "wBad",
+    "origin": false,
+    "error": {
+     "message": "no checkout here"
+    },
+    "log": [
+     [
+      "entryOf",
+      "wBad",
+      false
+     ]
+    ]
+   },
+   {
+    "id": "wMissing",
+    "origin": false,
+    "error": {
+     "message": "no workspace wMissing"
+    },
+    "log": [
+     [
+      "entryOf",
+      "wMissing",
+      false
+     ]
+    ]
+   }
+  ],
+  "projects": [
+   {
+    "place": "pl_box",
+    "answer": [
+     {
+      "id": "p1",
+      "name": "landing",
+      "path": "/srv/landing"
+     },
+     {
+      "id": "p2",
+      "name": "api",
+      "path": "/home/maya/api"
+     }
+    ],
+    "log": [
+     "ready"
+    ]
+   },
+   {
+    "place": "here",
+    "answer": [
+     {
+      "id": "p3",
+      "name": "mac",
+      "path": "/Users/maya/mac"
+     }
+    ],
+    "log": [
+     "ready"
+    ]
+   },
+   {
+    "place": "pl_none",
+    "answer": [],
+    "log": [
+     "ready"
+    ]
+   }
+  ],
+  "channels": [
+   {
+    "target": {
+     "workspaceId": "wCloud"
+    },
+    "origin": true,
+    "answer": {
+     "chan": "workspace wCloud",
+     "origin": true
+    },
+    "log": []
+   },
+   {
+    "target": {
+     "workspaceId": "wCloud"
+    },
+    "origin": false,
+    "answer": {
+     "chan": "workspace wCloud",
+     "origin": false
+    },
+    "log": []
+   },
+   {
+    "target": {
+     "placeId": "here"
+    },
+    "origin": false,
+    "answer": {
+     "chan": "local"
+    },
+    "log": [
+     "localRoad"
+    ]
+   },
+   {
+    "target": {
+     "placeId": "pl_box"
+    },
+    "origin": false,
+    "answer": {
+     "chan": "link pl_box",
+     "sameOnEvent": true
+    },
+    "log": []
+   },
+   {
+    "target": {
+     "placeId": "pl_gone"
+    },
+    "origin": false,
+    "error": {
+     "message": "studio is not answering; it connects on its own when it is on"
+    },
+    "log": []
+   },
+   {
+    "target": {
+     "placeId": "pl_nameless"
+    },
+    "origin": false,
+    "error": {
+     "message": "pl_nameless is not answering; it connects on its own when it is on"
+    },
+    "log": []
+   }
+  ],
+  "changed": [
+   {
+    "target": null,
+    "emitted": [
+     {
+      "type": "agents.changed"
+     }
+    ]
+   },
+   {
+    "target": {
+     "placeId": "pl_box"
+    },
+    "emitted": [
+     {
+      "type": "agents.changed",
+      "target": {
+       "placeId": "pl_box"
+      }
+     }
+    ]
+   },
+   {
+    "target": {
+     "workspaceId": "wCloud"
+    },
+    "emitted": [
+     {
+      "type": "agents.changed",
+      "target": {
+       "workspaceId": "wCloud"
+      }
+     }
+    ]
+   }
+  ],
+  "setupOf": [
+   {
+    "agent": "claude",
+    "answer": {
+     "on": false,
+     "program": "claude-wsp",
+     "envNames": [
+      "A",
+      "B"
+     ]
+    }
+   },
+   {
+    "agent": "codex",
+    "answer": {
+     "on": true,
+     "envNames": []
+    }
+   },
+   {
+    "agent": "mystery",
+    "answer": {
+     "on": true,
+     "envNames": []
+    }
+   },
+   {
+    "agent": "ghost",
+    "answer": null
+   }
+  ],
+  "writes": [
+   {
+    "place": "here",
+    "agent": "ghost",
+    "change": {
+     "on": false
+    },
+    "refusals": [
+     "here:ghost"
+    ],
+    "fails": null,
+    "ok": false,
+    "error": {
+     "message": "no adapter registered for harness \"ghost\"; agents on this host: claude, codex, mystery",
+     "kind": "usage"
+    },
+    "calls": [],
+    "refusalsLeft": [
+     "here:ghost"
+    ]
+   },
+   {
+    "place": "here",
+    "agent": "claude",
+    "change": {
+     "on": false
+    },
+    "refusals": [
+     "here:claude",
+     "pl_box:claude"
+    ],
+    "fails": null,
+    "ok": true,
+    "calls": [
+     [
+      "set",
+      "here",
+      "claude",
+      {
+       "on": false
+      }
+     ],
+     [
+      "moved",
+      "here",
+      "claude"
+     ]
+    ],
+    "refusalsLeft": [
+     "pl_box:claude"
+    ]
+   },
+   {
+    "place": "here",
+    "agent": "codex",
+    "change": {
+     "on": true
+    },
+    "refusals": [
+     "here:claude"
+    ],
+    "fails": null,
+    "ok": true,
+    "calls": [
+     [
+      "set",
+      "here",
+      "codex",
+      {
+       "on": true
+      }
+     ]
+    ],
+    "refusalsLeft": [
+     "here:claude"
+    ]
+   },
+   {
+    "place": "pl_box",
+    "agent": "claude",
+    "change": {
+     "env": {
+      "A": "1"
+     }
+    },
+    "refusals": [
+     "pl_box:claude"
+    ],
+    "fails": "config folder is the home",
+    "ok": false,
+    "error": {
+     "message": "config folder is the home"
+    },
+    "calls": [
+     [
+      "set",
+      "pl_box",
+      "claude",
+      {
+       "env": {
+        "A": "1"
+       }
+      }
+     ]
+    ],
+    "refusalsLeft": [
+     "pl_box:claude"
+    ]
+   }
+  ],
+  "relayed": true
+ }
+}
