@@ -1058,3 +1058,46 @@ async fn aside_ends_the_run_and_says_why_where_the_cli_refuses_the_hook() {
     assert_eq!(err, "Unsupported control request subtype: initialize");
     assert!(exec.order().contains(&"teardown".to_string()));
 }
+
+fn chain_line(at: u64, uuid: &str, parent: Option<&str>, kind: &str, message_id: Option<&str>, calls: Vec<wsp_adapters::claude::chain::ChainCall>) -> ChainLine {
+    ChainLine { at, uuid: uuid.into(), parent: parent.map(String::from), r#type: kind.into(), boundary: false, message_id: message_id.map(String::from), calls, answers: vec![] }
+}
+
+// Rule K1 (a forced difference): a running call is named by its first 300 UTF-16 units of input; the TS cut can split a
+// pair and leave half of it, which a Rust string cannot hold, so the half goes.
+#[test]
+fn a_running_call_is_cut_at_300_utf16_units() {
+    let s = format!("a{}", "😀".repeat(200));
+    let call = wsp_adapters::claude::chain::ChainCall { id: "c1".into(), name: "Write".into(), input: json!({"s": s}) };
+    let lines = [chain_line(1, "u0", None, "user", None, vec![]), chain_line(2, "a1", Some("u0"), "assistant", Some("m1"), vec![call])];
+    let end = live_end(&lines).unwrap();
+    assert_eq!(end, LiveEnd { anchor: "u0".into(), running: vec![format!("Write {{\"s\":\"a{}", "😀".repeat(146))] }, "7 units, 146 pairs, and the half of the 147th dropped");
+}
+
+// Rule K2: the write's refusals come in the TS order: the fork's id, then the count, then the session's id.
+#[test]
+fn the_write_refuses_in_the_ts_order() {
+    let u = "e16ed170-8257-4668-879e-fe836341633c";
+    let refused = |session: &str, fork: &str, count: u64| chain_write_command(session, fork, "/c", count).expect_err("refused").0;
+    assert_eq!(refused(u, "x", 0), r#"session identifier must be a UUID, got "x""#);
+    assert_eq!(refused("bad", u, 0), "a copy keeps a whole number of lines, got 0");
+    assert_eq!(refused("bad", u, 3), r#"session identifier must be a UUID, got "bad""#);
+}
+
+// Rule K3: the copy's wall says its time through fmt_duration.
+#[test]
+fn the_copy_wall_says_its_time() {
+    assert_eq!(wsp_adapters::claude::chain::copy_wall_line(90_000), "the copy of the session had not finished after 1m 30s and was stopped");
+}
+
+// Rule K4: a side question's answer: a turn cap with no error is the tool line; a failure with a blank first error
+// names its subtype, with none says "no result"; a success keeps its text whole, a failure's text is trimmed.
+#[test]
+fn a_side_answer_reads_each_ending() {
+    let answer = |v: Value| wsp_adapters::claude::aside::aside_answer(v.as_object().unwrap());
+    assert_eq!(answer(json!({"type": "result", "subtype": "error_max_turns", "is_error": false, "result": "hello"})), Err(ASIDE_TOOL_LINE.to_string()));
+    assert_eq!(answer(json!({"type": "result", "subtype": "error_during_execution", "is_error": true, "errors": ["", "real"]})), Err("claude ended the side question with error_during_execution".to_string()));
+    assert_eq!(answer(json!({"type": "result", "is_error": true})), Err("claude ended the side question with no result".to_string()));
+    assert_eq!(answer(json!({"type": "result", "subtype": "success", "is_error": false, "result": "  hi \n"})), Ok(AsideAnswer { text: "  hi \n".into(), usage: None }));
+    assert_eq!(answer(json!({"type": "result", "subtype": "error_during_execution", "is_error": true, "result": "  boom \n"})), Err("boom".to_string()));
+}

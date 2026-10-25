@@ -4,7 +4,9 @@ TS at a3b870a6e: `packages/adapter-claude/src/{chain,aside}.ts` (335 lines) and 
 them, `forkSession` and `aside` (adapter.ts:1345-1417, specced in claude_adapter.md). Rust: `src/claude/{chain,aside}.rs`.
 Tests: `tests/claude_copy.rs` (12 + 19 ported, several on a real sh and real files). The copy is a file on the machine;
 a host restart leaves a written copy where it is (the adapter removes a side question's copy after its run, and a
-fork's copy only through `drop`).
+fork's copy only through `drop`). A write cut by the wall leaves its `.<fork>.jsonl.part` beside the source:
+`copy_session` removes nothing on that road, the cleanup's globs do not match a part file, and no fork id comes back
+on a failure. Nothing sweeps it (an after-port line).
 
 ## chain.ts
 
@@ -27,16 +29,20 @@ fork's copy only through `drop`).
 - `live_end(lines)`: `None` for no lines. The newest assistant line's messageId; the calls of every line of that
   message not answered by any line. None open (or no assistant, or no messageId) → `{anchor: last line's uuid,
   running: []}`. Otherwise the first line of that message; its parent None → `None`; else `{anchor: that parent,
-  running: each open call as "<name> <JSON.stringify(input) cut to 300 UTF-16 units>"}`.
+  running: each open call as "<name> <JSON.stringify(input) cut to 300 UTF-16 units>"}`. The input is written as
+  `JSON.stringify` writes it (claude-control-lines: index keys first, JS numbers). A cut that splits a surrogate pair
+  leaves half of it in the TS; here the half goes (rule K1). Calls come from every line of the newest message, not
+  only adjacent ones, and an answer on any line counts. Duplicate uuids: the later line wins.
 - `line_ranges`: consecutive runs as `a-b`, singles as `a`, joined by `,`; `[]` gives `""`.
-- `chain_write_command(session, fork, config, count)`: count must be a safe integer ≥ 1 (`Err("a copy keeps a whole
-  number of lines, got <count>")`); awk picks the ranges read from stdin into `${src%/*}/.<fork>.jsonl.part`, checks
+- `chain_write_command(session, fork, config, count)`: checks the fork's id, then the count, then the session's id
+  (rule K2); count must be a safe integer ≥ 1 (`Err("a copy keeps a whole number of lines, got <count>")`, the count
+  written as a JS number); awk picks the ranges read from stdin into `${src%/*}/.<fork>.jsonl.part`, checks
   the line count, renames to `<fork>.jsonl`, else removes the part and exits 1 with `the copy of session <session>
   came out short` on stderr.
 - `copy_cleanup_command`: `rm -rf '<config>/projects'/*/<fork>.jsonl '<config>/projects'/*/<fork>`.
 - `copy_wall_line(ms)`: `the copy of the session had not finished after <fmt_duration(ms)> and was stopped`.
-- `copy_session` (:179): run = launch on `exec` with `env` (and `input: [ranges]` for the write, its input closed at
-  once); collect every line; a wall timer (`wall_ms`, default 90 000) ends the run with `end_run(grace_ms)` and the
+- `copy_session` (:179): run = launch on `exec` with `env` alone for the read (no input channel, never closed) and
+  `{env, input: [ranges]}` for the write, whose input is closed once, at once; collect every line; a wall timer (`wall_ms`, default 90 000) ends the run with `end_run(grace_ms)` and the
   call fails with copy_wall_line. The read's code ≠ 0 → `Err(last line or no_conversation_line)`. Live end `None` →
   `Err("the session <session> holds no message to copy")`. Then chain_through, a fresh session id, the write; code ≠ 0
   → `Err(last line or "the copy of session <session> was not written")`. Answers `{session: fork, running}`. A wall
@@ -55,7 +61,18 @@ fork's copy only through `drop`).
   string text.
 - `aside_answer(result)`: `error_max_turns` → `Err(ASIDE_TOOL_LINE)` before anything else; is_error or subtype not
   success → `Err(trimmed result text, else the first non-[ede_diagnostic] error, else "claude ended the side question
-  with <subtype or 'no result'>")`; else `{text: result string or "", usage: the usage object where one}`.
+  with <subtype or 'no result'>")`, where a first error of `""` is taken as none and the subtype line follows; the
+  failure's text is trimmed (JS trim), a success's is kept whole; else `{text: result string or "", usage: the usage object where one}`.
+
+## Rules added for the port (numbered; each value printed by the TS at a3b870a6e)
+
+- **K1.** A Write call whose input is `{"s": "a" + 200 emoji}` runs as `Write {"s":"a` + 146 emoji: 7 units, 146 pairs,
+  and the 147th pair's half dropped (the TS keeps the half; a forced difference).
+- **K2.** `chain_write_command` refuses the fork's id first, then a count of 0, then the session's id.
+- **K3.** `copy_wall_line(90000)` is `the copy of the session had not finished after 1m 30s and was stopped`.
+- **K4.** `aside_answer`: `error_max_turns` with is_error false is ASIDE_TOOL_LINE; errors `["", "real"]` give `claude
+  ended the side question with error_during_execution`; no subtype gives `... with no result`; a success keeps
+  `"  hi \n"` whole; a failure's `"  boom \n"` is `boom`.
 
 ## Rules against tests
 
@@ -70,3 +87,7 @@ fork's copy only through `drop`).
 | cleanup removes only the copy | `claude_copy::shell_removes_only_the_copy` (ported, real sh) |
 | aside launch line, hooks before the question, every call refused | `claude_copy` aside cases (ported, aside.test.ts) |
 | the copy is removed on every road out, a wall included | `claude_copy` aside cases on the wall and the transport throw (ported) |
+| K1 | `claude_copy::a_running_call_is_cut_at_300_utf16_units` |
+| K2 | `claude_copy::the_write_refuses_in_the_ts_order` |
+| K3 | `claude_copy::the_copy_wall_says_its_time` |
+| K4 | `claude_copy::a_side_answer_reads_each_ending` |

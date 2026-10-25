@@ -17,8 +17,10 @@ containing "aborted" → interrupted; else failed.
 - `models_of(raw)`: each entry of a modelUsage object in key order, non-object values skipped; cached =
   cacheReadInputTokens, cacheWrite = cacheCreationInputTokens (0 where absent); input = inputTokens + cached +
   cacheWrite; output = outputTokens; reasoning = thinkingTokens; costUsd = costUSD where numeric. `None` raw → `[]`.
-- `start_of(models, model)`: exact name first, then equal base_model (a `[1m]` suffix ignored).
-- `with_calls(models, calls)`: copies; each call joins its start_of entry (usage_of(plus_tokens)) or is appended.
+- `start_of(models, model)`: an exact name anywhere first, then the first equal base_model (the last trailing `[...]`
+  dropped); `""` finds nothing.
+- `with_calls(models, calls)`: copies; each call joins its start_of entry (usage_of(plus_tokens), tokens only: the
+  call's cost is dropped) or is appended with its cost; a later call may join an entry appended earlier.
 - `result_tokens(result)`: tokens = usage_tokens(usage) plus `window` = the largest numeric contextWindow of
   modelUsage, where usage is an object; models = models_of(modelUsage) where the key exists at all.
 - `saved_use_of(line, session)`: only where `sessionId` equals session, `totalCostUSD` is numeric and modelUsage an
@@ -49,7 +51,8 @@ containing "aborted" → interrupted; else failed.
   is_error is true and status is failed: `refused_turn(result, refusal)`.
 - `refusal_cause`: authentication_failed → sign-in; nothing else.
 - `api_error_cause(line)`: NotOne unless an assistant line with `is_api_error_message: true`; then Cause or Unclaimed.
-- `answered_nothing`: completed, text trims empty, tokens input + output == 0 (absent tokens count 0).
+- `answered_nothing`: completed, text trims empty by JS trim (rule N1), tokens input + output == 0 (absent tokens
+  count 0; cached alone still answers nothing).
 - `with_context(result, context, init_model)`: model = result.model or init_model; tokens.context = context where
   both exist.
 - `compacted_to`: system/compact_boundary with numeric `compact_metadata.post_tokens`; before where pre_tokens.
@@ -58,9 +61,10 @@ containing "aborted" → interrupted; else failed.
   error_category and error_status.
 - `no_output_error(result, tail)`: `claude answered with no output and no usage after <fmt_duration(durationMs or
   0)>` then `: ` and the tail joined by `\n` where the tail is non-empty. The tail keeps the last 5 non-JSON lines.
-- `subagent_launch`: system/task_started with string task_id and tool_use_id. `subagent_started`: the same with
-  task_type local_agent; parent = tool_use_id, title = description, depth = spawn_depth, each where present.
-- `subagent_prompts`: the lead's own assistant lines only (parent_tool_use_id absent or null); each tool_use of Agent
+- `subagent_launch`: system/task_started with string task_id and tool_use_id. `subagent_started`: a task_started with
+  a string task_id and task_type local_agent, tool_use_id not required; parent = tool_use_id, title = description, depth = spawn_depth, each where present.
+- `subagent_prompts`: the lead's own assistant lines only (parent_tool_use_id not a string: absent, null, a number;
+  `""` is a subagent's); each tool_use of Agent
   or Task with a string id and a string `input.prompt`, in block order.
 - `background_tasks_of`: system/background_tasks_changed; a non-array tasks is `Some([])`; entries need a string
   task_id; description defaults to the id.
@@ -86,6 +90,21 @@ sessionId = the line's session_id or the fallback. parentToolUseId = the line's 
   parentToolUseId, cwd, bytes, exitCode, durationMs, patch. It matches the TS construction for every delta built here.
 - `session_file_in(config, id)`: `{folder: <config>/projects, name: <id>.jsonl, depth: 1}`.
 
+## Rules added for the port (numbered; each value printed by the TS at a3b870a6e)
+
+- **N1.** `answered_nothing` on text U+0085, U+FEFF, U+00A0, U+2028, U+3000, U+000B, U+200B, U+180E, U+001C: false,
+  true, true, true, true, true, false, false, false (JS trim, not `str::trim`).
+- **N2.** `result_tokens`: `modelUsage: null` gives `models: Some([])`; `usage: {}` gives `{input: 0, output: 0}` with
+  no cached or cacheWrite; `usage: [1]` gives nothing. Never a `reasoning` key.
+- **N3.** `with_calls([m[1m] 10/1 $0.5], [m 2/3 $0.7, n 1/1 $0.2, n[1m] 4/4 $0.3])` is `[m[1m] 12/4 $0.5, n 5/5 $0.2]`;
+  `start_of([m[1m], m], "m")` is the second, `start_of([m[1m], m[200k]], "m")` the first.
+- **N4.** A resume with saved totals and no running models costs the gain (0.2 over 0.1 is 0.1) and names no models.
+- **N5.** A bare tool_use block draws `{kind: tool_use, text: "null"}` with no name or id.
+- **N6.** A tool result with no `is_error` says `isError: false`.
+- **N7.** `api_retry` with `attempt: 0` alone is `{attempt: 0, why: "Anthropic did not answer"}`.
+- **N8.** `no_output_error` for 1500, 999.6, 59999, 61000, -5 and no duration: `1.5s`, `1000ms`, `60s`, `1m 1s`, `0ms`,
+  `1ms`; the tail's blank entries stay (`a\n\nb`).
+
 ## Rules against tests
 
 | Rule | Test |
@@ -104,3 +123,11 @@ sessionId = the line's session_id or the fallback. parentToolUseId = the line's 
 | assistant blocks, null input, plan calls | `claude_normalize::assistant_blocks_become_deltas_and_plans` |
 | TaskCreate named off its result, no row | `claude_normalize::a_task_create_result_names_the_task_and_draws_nothing` |
 | retries, background tasks, drained notices | `claude_normalize::retries_tasks_and_drained_notices` |
+| N1 | `claude_normalize::answered_nothing_trims_as_javascript_does` |
+| N2 | `claude_normalize::result_tokens_read_null_model_usage_as_no_model` |
+| N3 | `claude_normalize::a_joined_call_adds_tokens_only_and_an_exact_name_beats_its_base` |
+| N4 | `claude_normalize::own_use_with_no_running_models_costs_the_gain_alone` |
+| N5 | `claude_normalize::a_bare_tool_use_block_draws_null` |
+| N6 | `claude_normalize::a_tool_result_always_says_whether_it_failed` |
+| N7 | `claude_normalize::a_first_retry_with_no_words_says_anthropic_did_not_answer` |
+| N8 | `claude_normalize::the_empty_answer_line_times_any_duration` |
