@@ -48,9 +48,13 @@ const MCP_ANSWERS = join(root, "daemon/crates/wsp-mcp/tests/answers");
  * tools on stdio or runs the command line; the live suites make real machines and stay out. */
 const OUTSIDE_IN = String.raw`serveRuntime\(|ws-client|WsClient|startHost\(|serveHost\(|built-bin|serveMcp\(|[^a-zA-Z.]cli\(`;
 
+/** Suites that run the leave sweep against the computer they run on, which as root on a box takes real installed
+ * paths (/usr/local/bin/claude, wsp-map#2464): the daemon's wire suite, and every suite about a leave. */
+const SWEEPS = [/^packages\/daemon\//, /leave/];
+
 function suites() {
   const listed = spawnSync("git", ["grep", "-l", "-E", OUTSIDE_IN, "--", "packages/*/test/*.test.ts"], { cwd: root, encoding: "utf8" });
-  return listed.stdout.split("\n").filter(f => f !== "" && !f.endsWith(".live.test.ts"));
+  return listed.stdout.split("\n").filter(f => f !== "" && !f.endsWith(".live.test.ts") && !SWEEPS.some(s => s.test(f)));
 }
 
 const slug = text =>

@@ -63,13 +63,31 @@ struct Run {
     /// Only the tapes whose id holds this text.
     #[arg(long)]
     only: Option<String>,
-    /// Let the host reach the network; without it a replay on Linux runs in a network namespace of its own.
+    /// Run the tapes on this computer as it is, with no sandbox: a tape's command line can be `wsp leave`, which
+    /// takes what wsp installed off the computer it runs on.
     #[arg(long)]
-    online: bool,
+    no_sandbox: bool,
 }
 
-/// Set on the copy of this command that runs inside its own network namespace.
-const NETNS_ENV: &str = "WSP_PARITY_NETNS";
+/// Set on the copy of this command that runs inside the sandbox.
+const SANDBOX_ENV: &str = "WSP_PARITY_SANDBOX";
+/// The folder the copy inside the sandbox may write, which is where the goldens go.
+const WRITABLE_ENV: &str = "WSP_PARITY_WRITABLE";
+
+/// What the copy inside the namespaces does before it runs: loopback up; every top-level folder but the kernel's, the
+/// devices and /tmp read-only, so nothing a replayed command does reaches what is installed on this computer; an empty
+/// /run, so no service manager or bus socket answers it; and the parity folder writable again for the goldens.
+const SANDBOX_SH: &str = r#"set -e
+PATH="$PATH:/usr/sbin:/sbin"
+ip link set lo up
+mount --make-rprivate /
+for d in /*; do
+  case "$d" in /proc|/sys|/dev|/tmp|/run) continue ;; esac
+  if [ -d "$d" ] && [ ! -L "$d" ]; then mount --bind -o ro "$d" "$d"; fi
+done
+mount -t tmpfs -o mode=755 tmpfs /run
+mount --bind "$WSP_PARITY_WRITABLE" "$WSP_PARITY_WRITABLE"
+exec "$0" "$@""#;
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
@@ -127,37 +145,48 @@ fn node() -> Result<String, String> {
         .ok_or_else(|| "node is not on the PATH".into())
 }
 
-/// On Linux the run goes on in a copy of this command inside a network namespace whose only interface is loopback, so
-/// no tape's frame reaches a provider, a box or the relay, and every answer that would have is the same refusal.
-fn offline(run: &Run) -> Option<ExitCode> {
-    if run.online || !cfg!(target_os = "linux") || std::env::var_os(NETNS_ENV).is_some() {
-        return None;
+/// Every tape runs in a copy of this command inside its own network, mount and process namespaces (Linux's unshare),
+/// since a tape is what a test or a person once sent a host and its commands act on the computer they run on: a
+/// replayed `wsp leave` as root took /usr/local/bin/claude and /opt/wsp/landed off a box on 2026-10-25. A frame that
+/// would reach a provider, a box or the relay is refused the same way every time, no process outside the run can be
+/// signalled, and everything the run started ends with it. Where there are no namespaces the run is refused unless
+/// --no-sandbox says to run the tapes here as they are.
+fn sandboxed(root: &Path, run: &Run) -> Result<Option<ExitCode>, String> {
+    if std::env::var_os(SANDBOX_ENV).is_some() {
+        return Ok(None);
     }
-    let ns = |args: &[&str]| {
-        Command::new("unshare")
-            .args(args)
-            .arg("true")
-            .status()
-            .is_ok_and(|s| s.success())
-            .then(|| args.iter().map(|a| a.to_string()).collect::<Vec<_>>())
-    };
-    let Some(flags) = ns(&["--net"]).or_else(|| ns(&["--net", "--map-root-user"])) else {
-        eprintln!("parity: no network namespace here (unshare refused); the hosts run online");
-        return None;
-    };
-    let exe = std::env::current_exe().ok()?;
-    let mut cmd = Command::new("unshare");
-    cmd.args(&flags)
-        .args(["--", "/bin/sh", "-c", r#"PATH="$PATH:/usr/sbin:/sbin" ip link set lo up && exec "$0" "$@""#])
+    if run.no_sandbox {
+        eprintln!("parity: no sandbox; every tape's commands run on this computer as this user");
+        return Ok(None);
+    }
+    let refused = "no sandbox to run the tapes in here (Linux's unshare with network, mount and process namespaces); a tape's command line can be wsp leave, which takes what wsp installed off this computer. Run it on Linux, or pass --no-sandbox to run the tapes here as they are";
+    if !cfg!(target_os = "linux") {
+        return Err(refused.into());
+    }
+    // SAFETY: geteuid reads the process's own id and cannot fail.
+    let root_user = unsafe { libc::geteuid() } == 0;
+    let mut flags = vec!["--net", "--mount", "--pid", "--fork", "--mount-proc"];
+    if !root_user {
+        flags.push("--map-root-user");
+    }
+    if !Command::new("unshare").args(&flags).arg("true").status().is_ok_and(|s| s.success()) {
+        return Err(refused.into());
+    }
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let status = Command::new("unshare")
+        .args(&flags)
+        .args(["--", "/bin/sh", "-c", SANDBOX_SH])
         .arg(exe)
         .args(std::env::args_os().skip(1))
-        .env(NETNS_ENV, "1");
-    let status = cmd.status().ok()?;
-    Some(ExitCode::from(status.code().unwrap_or(2) as u8))
+        .env(SANDBOX_ENV, "1")
+        .env(WRITABLE_ENV, root.join("parity"))
+        .status()
+        .map_err(|e| format!("unshare: {e}"))?;
+    Ok(Some(ExitCode::from(status.code().unwrap_or(2) as u8)))
 }
 
 fn parity(root: &Path, run: &Run) -> Result<ExitCode, String> {
-    if let Some(code) = offline(run) {
+    if let Some(code) = sandboxed(root, run)? {
         return Ok(code);
     }
     let host = host(root, run)?;
@@ -169,7 +198,7 @@ fn parity(root: &Path, run: &Run) -> Result<ExitCode, String> {
 }
 
 fn record(root: &Path, run: &Run) -> Result<ExitCode, String> {
-    if let Some(code) = offline(run) {
+    if let Some(code) = sandboxed(root, run)? {
         return Ok(code);
     }
     if run.host.is_some() {
@@ -223,7 +252,7 @@ fn unit(root: &Path, name: &str, base: Option<String>, run: &Run) -> Result<Exit
     let units = xtask::unit::read_units(root)?;
     let unit = units.iter().find(|u| u.name == name).ok_or_else(|| format!("{} names no unit {name}", xtask::unit::UNITS_FILE))?;
     // The copy inside the network namespace replays the tapes alone: the refusals and the tests ran before it started.
-    if std::env::var_os(NETNS_ENV).is_none() {
+    if std::env::var_os(SANDBOX_ENV).is_none() {
         let base = match base {
             Some(b) => b,
             None => xtask::unit::merge_base(root)?,
@@ -247,7 +276,7 @@ fn unit(root: &Path, name: &str, base: Option<String>, run: &Run) -> Result<Exit
         println!("no tape sends an op of {name}");
         return Ok(ExitCode::SUCCESS);
     }
-    if let Some(code) = offline(run) {
+    if let Some(code) = sandboxed(root, run)? {
         return Ok(code);
     }
     let host = host(root, run)?;

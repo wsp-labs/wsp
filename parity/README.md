@@ -25,6 +25,7 @@ cargo xtask unit <unit>             # one unit held to its packet, then its test
 - `held-seed`: draws the held-back set, every shadow tape and about one in five of each op family's tapes.
 - `units.tsv`: the units `cargo xtask unit` knows.
 
-Each tape replays against a fresh host on a temp home and state folder. On Linux the run goes on in a network
-namespace whose only interface is loopback, so a frame that would reach a provider, a box or the relay is refused
-the same way every time; `--online` turns that off.
+Each tape replays against a fresh host on a temp home and state folder, inside a sandbox: Linux network, mount and
+process namespaces where every folder but /tmp is read-only, /run is empty and only loopback is up. A tape's command
+line can be `wsp leave`, which takes what wsp installed off the computer it runs on, so with no namespaces (a Mac) the
+run is refused unless `--no-sandbox` says to run the tapes on the computer as it is.
