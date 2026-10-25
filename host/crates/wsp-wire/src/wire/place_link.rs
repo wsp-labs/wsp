@@ -194,7 +194,12 @@ pub struct PlaceReport {
     pub daemon_port: Option<JsInt>,
     pub wsp: Vec<String>,
     pub agents: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub agent_versions: Option<IndexMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub logins: Option<Vec<String>>,
@@ -451,32 +456,32 @@ impl Check for PlaceReport {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_name(&x) { out.push(e.under("name")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
-        match obj.get("platform") { None => out.push(crate::types::check::missing::<Self>("platform")), Some(v) => { match crate::types::check::read::<PlaceReportPlatform>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("platform"))), } } }
-        match obj.get("arch") { None => out.push(crate::types::check::missing::<Self>("arch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_arch(&x) { out.push(e.under("arch")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("arch"))), } } }
-        match obj.get("os") { None => out.push(crate::types::check::missing::<Self>("os")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_os(&x) { out.push(e.under("os")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("os"))), } } }
-        match obj.get("shape") { None => out.push(crate::types::check::missing::<Self>("shape")), Some(v) => { match crate::types::check::read::<WorkspaceSize>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("shape"))), } } }
-        if let Some(v) = obj.get("diskFreeBytes") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_disk_free_bytes(&x) { out.push(e.under("diskFreeBytes")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("diskFreeBytes"))), } }
-        if let Some(v) = obj.get("diskSizeBytes") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_disk_size_bytes(&x) { out.push(e.under("diskSizeBytes")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("diskSizeBytes"))), } }
-        if let Some(v) = obj.get("model") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_model(&x) { out.push(e.under("model")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("model"))), } }
-        match obj.get("login") { None => out.push(crate::types::check::missing::<Self>("login")), Some(v) => { match crate::types::check::read::<IndexMap<String, String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("login"))), } } }
-        match obj.get("runsWorkspaces") { None => out.push(crate::types::check::missing::<Self>("runsWorkspaces")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("runsWorkspaces"))), } } }
-        if let Some(v) = obj.get("workspacesBlocked") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspacesBlocked"))), } }
-        match obj.get("engine") { None => out.push(crate::types::check::missing::<Self>("engine")), Some(v) => { match crate::types::check::read::<PlaceReportEngine>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("engine"))), } } }
-        if let Some(v) = obj.get("copies") { match crate::types::check::read_present::<CopyWord>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("copies"))), } }
-        if let Some(v) = obj.get("uptimeMs") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_uptime_ms(&x) { out.push(e.under("uptimeMs")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("uptimeMs"))), } }
-        match obj.get("daemonVersion") { None => out.push(crate::types::check::missing::<Self>("daemonVersion")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_daemon_version(&x) { out.push(e.under("daemonVersion")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("daemonVersion"))), } } }
-        if let Some(v) = obj.get("daemonPort") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_daemon_port(&x) { out.push(e.under("daemonPort")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("daemonPort"))), } }
-        match obj.get("wsp") { None => out.push(crate::types::check::missing::<Self>("wsp")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(x) => { if let Err(e) = Self::rule_wsp(&x) { out.push(e.under("wsp")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("wsp"))), } } }
-        match obj.get("agents") { None => out.push(crate::types::check::missing::<Self>("agents")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(x) => { if let Err(e) = Self::rule_agents(&x) { out.push(e.under("agents")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("agents"))), } } }
-        if let Some(v) = obj.get("agentVersions") { match crate::types::check::read_present::<IndexMap<String, String>>(v) { Ok(x) => { if let Err(e) = Self::rule_agent_versions(&x) { out.push(e.under("agentVersions")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentVersions"))), } }
-        if let Some(v) = obj.get("logins") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(x) => { if let Err(e) = Self::rule_logins(&x) { out.push(e.under("logins")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("logins"))), } }
-        if let Some(v) = obj.get("wspDoor") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wspDoor"))), } }
-        if let Some(v) = obj.get("wspDoorBlocked") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wspDoorBlocked"))), } }
-        if let Some(v) = obj.get("daemonUnit") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_daemon_unit(&x) { out.push(e.under("daemonUnit")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("daemonUnit"))), } }
-        if let Some(v) = obj.get("takesRuntime") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("takesRuntime"))), } }
-        if let Some(v) = obj.get("wspDaemonVersion") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wspDaemonVersion"))), } }
-        match obj.get("dialed") { None => out.push(crate::types::check::missing::<Self>("dialed")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_dialed(&x) { out.push(e.under("dialed")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("dialed"))), } } }
+        crate::types::keys::req_key_with::<String>(obj, "name", &mut out, Self::rule_name);
+        crate::types::keys::req_key::<PlaceReportPlatform>(obj, "platform", &mut out);
+        crate::types::keys::req_key_with::<String>(obj, "arch", &mut out, Self::rule_arch);
+        crate::types::keys::req_key_with::<String>(obj, "os", &mut out, Self::rule_os);
+        crate::types::keys::req_key::<WorkspaceSize>(obj, "shape", &mut out);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "diskFreeBytes", &mut out, Self::rule_disk_free_bytes);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "diskSizeBytes", &mut out, Self::rule_disk_size_bytes);
+        crate::types::keys::opt_key_with::<String>(obj, "model", &mut out, Self::rule_model);
+        crate::types::keys::req_key::<IndexMap<String, String>>(obj, "login", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "runsWorkspaces", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "workspacesBlocked", &mut out);
+        crate::types::keys::req_key::<PlaceReportEngine>(obj, "engine", &mut out);
+        crate::types::keys::opt_key::<CopyWord>(obj, "copies", &mut out);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "uptimeMs", &mut out, Self::rule_uptime_ms);
+        crate::types::keys::req_key_with::<JsInt>(obj, "daemonVersion", &mut out, Self::rule_daemon_version);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "daemonPort", &mut out, Self::rule_daemon_port);
+        crate::types::keys::req_key_with::<Vec<String>>(obj, "wsp", &mut out, Self::rule_wsp);
+        crate::types::keys::req_key_with::<Vec<String>>(obj, "agents", &mut out, Self::rule_agents);
+        crate::types::keys::opt_key_with::<IndexMap<String, String>>(obj, "agentVersions", &mut out, Self::rule_agent_versions);
+        crate::types::keys::opt_key_with::<Vec<String>>(obj, "logins", &mut out, Self::rule_logins);
+        crate::types::keys::opt_key::<bool>(obj, "wspDoor", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "wspDoorBlocked", &mut out);
+        crate::types::keys::opt_key_with::<String>(obj, "daemonUnit", &mut out, Self::rule_daemon_unit);
+        crate::types::keys::opt_key::<bool>(obj, "takesRuntime", &mut out);
+        crate::types::keys::opt_key::<JsInt>(obj, "wspDaemonVersion", &mut out);
+        crate::types::keys::req_key_with::<String>(obj, "dialed", &mut out, Self::rule_dialed);
         Some(out)
     }
 
@@ -580,8 +585,7 @@ impl PlaceReport {
             for (agent, version) in said {
                 text_at_most(version, 64).map_err(|e| e.under(agent.as_str()))?;
             }
-            refine(said.len() <= AGENTS_REPORTED_MAX, &format!("at most {AGENTS_REPORTED_MAX} agents"))
-                ?;
+            refine(said.len() <= AGENTS_REPORTED_MAX, &format!("at most {AGENTS_REPORTED_MAX} agents"))?;
         }
         Ok(())
     }
@@ -616,10 +620,10 @@ impl Check for PlaceJoinRequest {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<ReqId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("publicKey") { None => out.push(crate::types::check::missing::<Self>("publicKey")), Some(v) => { match crate::types::check::read::<PlacePublicKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("publicKey"))), } } }
-        match obj.get("nonce") { None => out.push(crate::types::check::missing::<Self>("nonce")), Some(v) => { match crate::types::check::read::<PlaceNonce>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("nonce"))), } } }
-        if let Some(v) = obj.get("ephemeral") { match crate::types::check::read_present::<PlaceEphemeral>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ephemeral"))), } }
+        crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
+        crate::types::keys::req_key::<PlacePublicKey>(obj, "publicKey", &mut out);
+        crate::types::keys::req_key::<PlaceNonce>(obj, "nonce", &mut out);
+        crate::types::keys::opt_key::<PlaceEphemeral>(obj, "ephemeral", &mut out);
         Some(out)
     }
 
@@ -652,12 +656,12 @@ impl Check for PlaceJoinReply {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("placeId") { None => out.push(crate::types::check::missing::<Self>("placeId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("placeId"))), } } }
-        match obj.get("hostPublicKey") { None => out.push(crate::types::check::missing::<Self>("hostPublicKey")), Some(v) => { match crate::types::check::read::<PlacePublicKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostPublicKey"))), } } }
-        match obj.get("nonce") { None => out.push(crate::types::check::missing::<Self>("nonce")), Some(v) => { match crate::types::check::read::<PlaceNonce>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("nonce"))), } } }
-        match obj.get("signature") { None => out.push(crate::types::check::missing::<Self>("signature")), Some(v) => { match crate::types::check::read::<PlaceSignature>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signature"))), } } }
-        match obj.get("ephemeral") { None => out.push(crate::types::check::missing::<Self>("ephemeral")), Some(v) => { match crate::types::check::read::<PlaceEphemeral>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ephemeral"))), } } }
-        match obj.get("hostName") { None => out.push(crate::types::check::missing::<Self>("hostName")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_host_name(&x) { out.push(e.under("hostName")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostName"))), } } }
+        crate::types::keys::req_key::<String>(obj, "placeId", &mut out);
+        crate::types::keys::req_key::<PlacePublicKey>(obj, "hostPublicKey", &mut out);
+        crate::types::keys::req_key::<PlaceNonce>(obj, "nonce", &mut out);
+        crate::types::keys::req_key::<PlaceSignature>(obj, "signature", &mut out);
+        crate::types::keys::req_key::<PlaceEphemeral>(obj, "ephemeral", &mut out);
+        crate::types::keys::req_key_with::<String>(obj, "hostName", &mut out, Self::rule_host_name);
         Some(out)
     }
 
@@ -697,8 +701,8 @@ impl Check for PlaceJoinDevice {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("deviceId") { None => out.push(crate::types::check::missing::<Self>("deviceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("deviceId"))), } } }
-        match obj.get("deviceToken") { None => out.push(crate::types::check::missing::<Self>("deviceToken")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_device_token(&x) { out.push(e.under("deviceToken")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("deviceToken"))), } } }
+        crate::types::keys::req_key::<String>(obj, "deviceId", &mut out);
+        crate::types::keys::req_key_with::<String>(obj, "deviceToken", &mut out, Self::rule_device_token);
         Some(out)
     }
 
@@ -734,10 +738,10 @@ impl Check for PlaceAuthRequest {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<ReqId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("placeId") { None => out.push(crate::types::check::missing::<Self>("placeId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_place_id(&x) { out.push(e.under("placeId")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("placeId"))), } } }
-        match obj.get("nonce") { None => out.push(crate::types::check::missing::<Self>("nonce")), Some(v) => { match crate::types::check::read::<PlaceNonce>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("nonce"))), } } }
-        if let Some(v) = obj.get("ephemeral") { match crate::types::check::read_present::<PlaceEphemeral>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ephemeral"))), } }
+        crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
+        crate::types::keys::req_key_with::<String>(obj, "placeId", &mut out, Self::rule_place_id);
+        crate::types::keys::req_key::<PlaceNonce>(obj, "nonce", &mut out);
+        crate::types::keys::opt_key::<PlaceEphemeral>(obj, "ephemeral", &mut out);
         Some(out)
     }
 
@@ -768,10 +772,10 @@ impl Check for PlaceAuthReply {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("nonce") { None => out.push(crate::types::check::missing::<Self>("nonce")), Some(v) => { match crate::types::check::read::<PlaceNonce>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("nonce"))), } } }
-        match obj.get("hostPublicKey") { None => out.push(crate::types::check::missing::<Self>("hostPublicKey")), Some(v) => { match crate::types::check::read::<PlacePublicKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostPublicKey"))), } } }
-        match obj.get("signature") { None => out.push(crate::types::check::missing::<Self>("signature")), Some(v) => { match crate::types::check::read::<PlaceSignature>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signature"))), } } }
-        match obj.get("ephemeral") { None => out.push(crate::types::check::missing::<Self>("ephemeral")), Some(v) => { match crate::types::check::read::<PlaceEphemeral>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ephemeral"))), } } }
+        crate::types::keys::req_key::<PlaceNonce>(obj, "nonce", &mut out);
+        crate::types::keys::req_key::<PlacePublicKey>(obj, "hostPublicKey", &mut out);
+        crate::types::keys::req_key::<PlaceSignature>(obj, "signature", &mut out);
+        crate::types::keys::req_key::<PlaceEphemeral>(obj, "ephemeral", &mut out);
         Some(out)
     }
 
@@ -796,8 +800,8 @@ impl Check for PlaceAuthRefusal {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("hostPublicKey") { None => out.push(crate::types::check::missing::<Self>("hostPublicKey")), Some(v) => { match crate::types::check::read::<PlacePublicKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostPublicKey"))), } } }
-        match obj.get("signature") { None => out.push(crate::types::check::missing::<Self>("signature")), Some(v) => { match crate::types::check::read::<PlaceSignature>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signature"))), } } }
+        crate::types::keys::req_key::<PlacePublicKey>(obj, "hostPublicKey", &mut out);
+        crate::types::keys::req_key::<PlaceSignature>(obj, "signature", &mut out);
         Some(out)
     }
 
@@ -831,11 +835,11 @@ impl Check for PlaceProveRequest {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<ReqId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("signature") { None => out.push(crate::types::check::missing::<Self>("signature")), Some(v) => { match crate::types::check::read::<PlaceSignature>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signature"))), } } }
-        match obj.get("report") { None => out.push(crate::types::check::missing::<Self>("report")), Some(v) => { match crate::types::check::read::<PlaceReport>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("report"))), } } }
-        if let Some(v) = obj.get("code") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_code(&x) { out.push(e.under("code")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("code"))), } }
-        if let Some(v) = obj.get("client") { match crate::types::check::read_present::<PlaceProveRequestClient>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("client"))), } }
+        crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
+        crate::types::keys::req_key::<PlaceSignature>(obj, "signature", &mut out);
+        crate::types::keys::req_key::<PlaceReport>(obj, "report", &mut out);
+        crate::types::keys::opt_key_with::<String>(obj, "code", &mut out, Self::rule_code);
+        crate::types::keys::opt_key::<PlaceProveRequestClient>(obj, "client", &mut out);
         Some(out)
     }
 
@@ -877,7 +881,7 @@ impl Check for PlaceProveRequestClient {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_name(&x) { out.push(e.under("name")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
+        crate::types::keys::req_key_with::<String>(obj, "name", &mut out, Self::rule_name);
         Some(out)
     }
 
@@ -907,9 +911,9 @@ impl Check for SealOpenRequest {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<ReqId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("nonce") { None => out.push(crate::types::check::missing::<Self>("nonce")), Some(v) => { match crate::types::check::read::<PlaceNonce>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("nonce"))), } } }
-        match obj.get("ephemeral") { None => out.push(crate::types::check::missing::<Self>("ephemeral")), Some(v) => { match crate::types::check::read::<PlaceEphemeral>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ephemeral"))), } } }
+        crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
+        crate::types::keys::req_key::<PlaceNonce>(obj, "nonce", &mut out);
+        crate::types::keys::req_key::<PlaceEphemeral>(obj, "ephemeral", &mut out);
         Some(out)
     }
 
@@ -933,10 +937,10 @@ impl Check for SealOpenReply {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("nonce") { None => out.push(crate::types::check::missing::<Self>("nonce")), Some(v) => { match crate::types::check::read::<PlaceNonce>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("nonce"))), } } }
-        match obj.get("hostPublicKey") { None => out.push(crate::types::check::missing::<Self>("hostPublicKey")), Some(v) => { match crate::types::check::read::<PlacePublicKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostPublicKey"))), } } }
-        match obj.get("signature") { None => out.push(crate::types::check::missing::<Self>("signature")), Some(v) => { match crate::types::check::read::<PlaceSignature>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signature"))), } } }
-        match obj.get("ephemeral") { None => out.push(crate::types::check::missing::<Self>("ephemeral")), Some(v) => { match crate::types::check::read::<PlaceEphemeral>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ephemeral"))), } } }
+        crate::types::keys::req_key::<PlaceNonce>(obj, "nonce", &mut out);
+        crate::types::keys::req_key::<PlacePublicKey>(obj, "hostPublicKey", &mut out);
+        crate::types::keys::req_key::<PlaceSignature>(obj, "signature", &mut out);
+        crate::types::keys::req_key::<PlaceEphemeral>(obj, "ephemeral", &mut out);
         Some(out)
     }
 
@@ -970,10 +974,10 @@ impl Check for DeviceAuthRequest {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<ReqId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("publicKey") { None => out.push(crate::types::check::missing::<Self>("publicKey")), Some(v) => { match crate::types::check::read::<PlacePublicKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("publicKey"))), } } }
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_name(&x) { out.push(e.under("name")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
-        match obj.get("signature") { None => out.push(crate::types::check::missing::<Self>("signature")), Some(v) => { match crate::types::check::read::<PlaceSignature>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signature"))), } } }
+        crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
+        crate::types::keys::req_key::<PlacePublicKey>(obj, "publicKey", &mut out);
+        crate::types::keys::req_key_with::<String>(obj, "name", &mut out, Self::rule_name);
+        crate::types::keys::req_key::<PlaceSignature>(obj, "signature", &mut out);
         Some(out)
     }
 
@@ -1027,10 +1031,10 @@ impl Check for PlaceDoorView {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("port") { None => out.push(crate::types::check::missing::<Self>("port")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_port(&x) { out.push(e.under("port")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("port"))), } } }
-        match obj.get("addresses") { None => out.push(crate::types::check::missing::<Self>("addresses")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(x) => { if let Err(e) = Self::rule_addresses(&x) { out.push(e.under("addresses")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("addresses"))), } } }
-        match obj.get("hostKey") { None => out.push(crate::types::check::missing::<Self>("hostKey")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_host_key(&x) { out.push(e.under("hostKey")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostKey"))), } } }
-        if let Some(v) = obj.get("relay") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_relay(&x) { out.push(e.under("relay")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("relay"))), } }
+        crate::types::keys::req_key_with::<JsInt>(obj, "port", &mut out, Self::rule_port);
+        crate::types::keys::req_key_with::<Vec<String>>(obj, "addresses", &mut out, Self::rule_addresses);
+        crate::types::keys::req_key_with::<String>(obj, "hostKey", &mut out, Self::rule_host_key);
+        crate::types::keys::opt_key_with::<String>(obj, "relay", &mut out, Self::rule_relay);
         Some(out)
     }
 
@@ -1088,9 +1092,9 @@ impl Check for JoinRoad {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("url") { None => out.push(crate::types::check::missing::<Self>("url")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_url(&x) { out.push(e.under("url")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("url"))), } } }
-        match obj.get("line") { None => out.push(crate::types::check::missing::<Self>("line")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_line(&x) { out.push(e.under("line")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("line"))), } } }
-        if let Some(v) = obj.get("note") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("note"))), } }
+        crate::types::keys::req_key_with::<String>(obj, "url", &mut out, Self::rule_url);
+        crate::types::keys::req_key_with::<String>(obj, "line", &mut out, Self::rule_line);
+        crate::types::keys::opt_key::<String>(obj, "note", &mut out);
         Some(out)
     }
 
@@ -1133,8 +1137,8 @@ impl Check for JoinMint {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("joins") { None => out.push(crate::types::check::missing::<Self>("joins")), Some(v) => { match crate::types::check::read::<Vec<JoinRoad>>(v) { Ok(x) => { if let Err(e) = Self::rule_joins(&x) { out.push(e.under("joins")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("joins"))), } } }
-        match obj.get("expiresAt") { None => out.push(crate::types::check::missing::<Self>("expiresAt")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_expires_at(&x) { out.push(e.under("expiresAt")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("expiresAt"))), } } }
+        crate::types::keys::req_key_with::<Vec<JoinRoad>>(obj, "joins", &mut out, Self::rule_joins);
+        crate::types::keys::req_key_with::<String>(obj, "expiresAt", &mut out, Self::rule_expires_at);
         Some(out)
     }
 
@@ -1189,11 +1193,11 @@ impl Check for SshHostSuggestion {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("alias") { None => out.push(crate::types::check::missing::<Self>("alias")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_alias(&x) { out.push(e.under("alias")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("alias"))), } } }
-        if let Some(v) = obj.get("hostName") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_host_name(&x) { out.push(e.under("hostName")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostName"))), } }
-        if let Some(v) = obj.get("user") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_user(&x) { out.push(e.under("user")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("user"))), } }
-        if let Some(v) = obj.get("port") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_port(&x) { out.push(e.under("port")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("port"))), } }
-        match obj.get("from") { None => out.push(crate::types::check::missing::<Self>("from")), Some(v) => { match crate::types::check::read::<SshHostSuggestionFrom>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("from"))), } } }
+        crate::types::keys::req_key_with::<String>(obj, "alias", &mut out, Self::rule_alias);
+        crate::types::keys::opt_key_with::<String>(obj, "hostName", &mut out, Self::rule_host_name);
+        crate::types::keys::opt_key_with::<String>(obj, "user", &mut out, Self::rule_user);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "port", &mut out, Self::rule_port);
+        crate::types::keys::req_key::<SshHostSuggestionFrom>(obj, "from", &mut out);
         Some(out)
     }
 
@@ -1245,8 +1249,8 @@ impl Check for TwoPartRefusal {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("what") { None => out.push(crate::types::check::missing::<Self>("what")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("what"))), } } }
-        match obj.get("fix") { None => out.push(crate::types::check::missing::<Self>("fix")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("fix"))), } } }
+        crate::types::keys::req_key::<String>(obj, "what", &mut out);
+        crate::types::keys::req_key::<String>(obj, "fix", &mut out);
         Some(out)
     }
 
@@ -1498,13 +1502,13 @@ impl Check for PlaceFile {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("placeId") { None => out.push(crate::types::check::missing::<Self>("placeId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("placeId"))), } } }
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
-        match obj.get("hostName") { None => out.push(crate::types::check::missing::<Self>("hostName")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostName"))), } } }
-        match obj.get("hostUrls") { None => out.push(crate::types::check::missing::<Self>("hostUrls")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostUrls"))), } } }
-        match obj.get("hostPublicKey") { None => out.push(crate::types::check::missing::<Self>("hostPublicKey")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hostPublicKey"))), } } }
-        match obj.get("keyPath") { None => out.push(crate::types::check::missing::<Self>("keyPath")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("keyPath"))), } } }
-        if let Some(v) = obj.get("joinedAt") { match crate::types::check::read_present::<Value>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("joinedAt"))), } }
+        crate::types::keys::req_key::<String>(obj, "placeId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "name", &mut out);
+        crate::types::keys::req_key::<String>(obj, "hostName", &mut out);
+        crate::types::keys::req_key::<Vec<String>>(obj, "hostUrls", &mut out);
+        crate::types::keys::req_key::<String>(obj, "hostPublicKey", &mut out);
+        crate::types::keys::req_key::<String>(obj, "keyPath", &mut out);
+        crate::types::keys::opt_key::<Value>(obj, "joinedAt", &mut out);
         Some(out)
     }
 

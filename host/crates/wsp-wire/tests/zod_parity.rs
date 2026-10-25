@@ -71,8 +71,18 @@ fn a_schema_written_as_an_alias_keeps_its_rules() {
         refused::<EnvName>(json!("1X"), "invalid_string", json!([]), ENV_NAME),
         refused::<TrackerRepo>(json!("no-slash"), "invalid_string", json!([]), "Invalid"),
         refused::<ThemeId>(json!(""), "too_small", json!([]), "String must contain at least 1 character(s)"),
-        refused::<RecipeFile>(json!({"name": "r", "folders": {"k": {"from": "f", "image": "../x"}}}), "invalid_string", json!(["folders", "k", "image"]), "Invalid"),
-        refused::<Preferences>(preferences(json!({"projectIcon": {"k": "../x"}})), "invalid_string", json!(["projectIcon", "k"]), "Invalid"),
+        refused::<RecipeFile>(
+            json!({"name": "r", "folders": {"k": {"from": "f", "image": "../x"}}}),
+            "invalid_string",
+            json!(["folders", "k", "image"]),
+            "Invalid",
+        ),
+        refused::<Preferences>(
+            preferences(json!({"projectIcon": {"k": "../x"}})),
+            "invalid_string",
+            json!(["projectIcon", "k"]),
+            "Invalid",
+        ),
     ]);
 }
 
@@ -95,7 +105,12 @@ fn the_first_issue_is_the_first_key_of_the_schema_that_fails() {
             "Number must be greater than 0",
         ),
         refused::<AgentsProject>(json!({"name": "n", "path": true}), "invalid_type", json!(["id"]), "Required"),
-        refused::<Preferences>(preferences(json!({"sidebarWidth": 0, "appFont": "x".repeat(129)})), "too_small", json!(["sidebarWidth"]), "Number must be greater than 0"),
+        refused::<Preferences>(
+            preferences(json!({"sidebarWidth": 0, "appFont": "x".repeat(129)})),
+            "too_small",
+            json!(["sidebarWidth"]),
+            "Number must be greater than 0",
+        ),
     ]);
 }
 
@@ -103,8 +118,18 @@ fn the_first_issue_is_the_first_key_of_the_schema_that_fails() {
 #[test]
 fn an_optional_key_refuses_null() {
     none_differ(vec![
-        refused::<LimitWindow>(json!({"kind": "week", "usedPercent": 1, "resetsAt": null}), "invalid_type", json!(["resetsAt"]), "Expected number, received null"),
-        refused::<PullRequestLabel>(json!({"name": "n", "color": "c", "description": null}), "invalid_type", json!(["description"]), "Expected string, received null"),
+        refused::<LimitWindow>(
+            json!({"kind": "week", "usedPercent": 1, "resetsAt": null}),
+            "invalid_type",
+            json!(["resetsAt"]),
+            "Expected number, received null",
+        ),
+        refused::<PullRequestLabel>(
+            json!({"name": "n", "color": "c", "description": null}),
+            "invalid_type",
+            json!(["description"]),
+            "Expected string, received null",
+        ),
     ]);
 }
 
@@ -116,8 +141,13 @@ fn an_int_field_reads_every_number_javascript_calls_an_integer() {
     none_differ(vec![
         read_as::<PullRequestReaction>(r#"{"content":"+1","count":5.0,"mine":true}"#, r#"{"content":"+1","count":5,"mine":true}"#),
         read_as::<PullRequestReaction>(r#"{"content":"+1","count":-0,"mine":true}"#, r#"{"content":"+1","count":0,"mine":true}"#),
-        read_as::<PullRequestReaction>(r#"{"content":"+1","count":9007199254740993,"mine":true}"#, r#"{"content":"+1","count":9007199254740992,"mine":true}"#),
-        parse::<PullRequestReaction>(&e21).err().map(|e| format!("1e21: zod reads it as an integer, refused here: {} {:?}", e.code, e.message)),
+        read_as::<PullRequestReaction>(
+            r#"{"content":"+1","count":9007199254740993,"mine":true}"#,
+            r#"{"content":"+1","count":9007199254740992,"mine":true}"#,
+        ),
+        parse::<PullRequestReaction>(&e21)
+            .err()
+            .map(|e| format!("1e21: zod reads it as an integer, refused here: {} {:?}", e.code, e.message)),
     ]);
 }
 
@@ -132,7 +162,12 @@ fn an_issue_inside_a_union_member_keeps_its_path() {
             json!(["workspaceId"]),
             "Expected string, received number",
         ),
-        refused::<RecipeSource>(json!({"kind": "used", "sessions": 1, "calls": 1.5}), "invalid_type", json!(["calls"]), "Expected integer, received float"),
+        refused::<RecipeSource>(
+            json!({"kind": "used", "sessions": 1, "calls": 1.5}),
+            "invalid_type",
+            json!(["calls"]),
+            "Expected integer, received float",
+        ),
         refused::<FixResult>(json!({"outcome": "updated"}), "invalid_type", json!(["base"]), "Required"),
     ]);
 }
@@ -152,7 +187,12 @@ fn an_array_is_not_an_object() {
 fn a_record_s_keys_keep_their_rules() {
     none_differ(vec![
         refused::<AgentSetupSet>(json!({"env": {"1X": "v"}}), "invalid_string", json!(["env", "1X"]), ENV_NAME),
-        refused::<RecipeFile>(json!({"name": "r", "agents": {"": {}}}), "too_small", json!(["agents", ""]), "String must contain at least 1 character(s)"),
+        refused::<RecipeFile>(
+            json!({"name": "r", "agents": {"": {}}}),
+            "too_small",
+            json!(["agents", ""]),
+            "String must contain at least 1 character(s)",
+        ),
     ]);
 }
 
@@ -161,7 +201,12 @@ fn a_record_s_keys_keep_their_rules() {
 #[test]
 fn a_nested_check_the_doc_comment_names_runs() {
     none_differ(vec![
-        refused::<PlaceView>(place_view(json!({"road": {"back": {"boxPort": 70000}}})), "too_big", json!(["road", "back", "boxPort"]), "Number must be less than or equal to 65535"),
+        refused::<PlaceView>(
+            place_view(json!({"road": {"back": {"boxPort": 70000}}})),
+            "too_big",
+            json!(["road", "back", "boxPort"]),
+            "Number must be less than or equal to 65535",
+        ),
         refused::<PlaceView>(
             place_view(json!({"dialled": {"at": "t", "answered": true, "roundTripMs": -1}})),
             "too_small",
@@ -176,7 +221,12 @@ fn a_nested_check_the_doc_comment_names_runs() {
 #[test]
 fn a_reexported_enum_names_its_wire_words() {
     none_differ(vec![
-        refused::<PullRequestState>(json!("x"), "invalid_enum_value", json!([]), "Invalid enum value. Expected 'open' | 'merged' | 'closed', received 'x'"),
+        refused::<PullRequestState>(
+            json!("x"),
+            "invalid_enum_value",
+            json!([]),
+            "Invalid enum value. Expected 'open' | 'merged' | 'closed', received 'x'",
+        ),
         refused::<WorkspaceKind>(json!(null), "invalid_type", json!([]), "Expected 'cloud' | 'local' | 'place', received null"),
     ]);
 }
@@ -186,8 +236,18 @@ fn a_reexported_enum_names_its_wire_words() {
 #[test]
 fn every_key_describes_what_zod_expects_there() {
     none_differ(vec![
-        refused::<WorktreeFolder>(json!({"path": "p", "made": true, "gone": 7}), "invalid_literal", json!(["gone"]), "Invalid literal value, expected true"),
-        refused::<SessionPlanEvent>(json!({"type": "session.plan", "workspaceId": "w", "sessionId": "s", "steps": 7}), "invalid_type", json!(["steps"]), "Expected array, received number"),
+        refused::<WorktreeFolder>(
+            json!({"path": "p", "made": true, "gone": 7}),
+            "invalid_literal",
+            json!(["gone"]),
+            "Invalid literal value, expected true",
+        ),
+        refused::<SessionPlanEvent>(
+            json!({"type": "session.plan", "workspaceId": "w", "sessionId": "s", "steps": 7}),
+            "invalid_type",
+            json!(["steps"]),
+            "Expected array, received number",
+        ),
     ]);
 }
 
@@ -232,7 +292,10 @@ fn a_union_answers_its_first_dirty_member() {
 /// A JavaScript object holds integer-like keys first, ascending, and ZodRecord's `for in` writes them so.
 #[test]
 fn a_record_writes_integer_keys_first_as_javascript_does() {
-    none_differ(vec![read_as::<SignInLine>(r#"{"command":"c","env":{"b":"x","10":"x","2":"x"}}"#, r#"{"command":"c","env":{"2":"x","10":"x","b":"x"}}"#)]);
+    none_differ(vec![read_as::<SignInLine>(
+        r#"{"command":"c","env":{"b":"x","10":"x","2":"x"}}"#,
+        r#"{"command":"c","env":{"2":"x","10":"x","b":"x"}}"#,
+    )]);
 }
 
 /// JavaScript's `\s` is not char::is_whitespace: U+0085 is not in it and U+FEFF is (TrackerRepo's regex,

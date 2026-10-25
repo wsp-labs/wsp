@@ -124,13 +124,13 @@ impl Check for ThreadPrompt {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("askId") { None => out.push(crate::types::check::missing::<Self>("askId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("askId"))), } } }
-        match obj.get("toolName") { None => out.push(crate::types::check::missing::<Self>("toolName")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("toolName"))), } } }
-        if let Some(v) = obj.get("toolUseId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("toolUseId"))), } }
-        if let Some(v) = obj.get("parentToolUseId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("parentToolUseId"))), } }
-        match obj.get("input") { None => out.push(crate::types::check::missing::<Self>("input")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("input"))), } } }
-        if let Some(v) = obj.get("detail") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("detail"))), } }
-        match obj.get("options") { None => out.push(crate::types::check::missing::<Self>("options")), Some(v) => { match crate::types::check::read::<Vec<PermissionOption>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("options"))), } } }
+        crate::types::keys::req_key::<String>(obj, "askId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "toolName", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "toolUseId", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "parentToolUseId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "input", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "detail", &mut out);
+        crate::types::keys::req_key::<Vec<PermissionOption>>(obj, "options", &mut out);
         Some(out)
     }
 
@@ -174,11 +174,11 @@ impl Check for ThreadWaitingOn {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("threadId") { None => out.push(crate::types::check::missing::<Self>("threadId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } } }
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("sessionId") { None => out.push(crate::types::check::missing::<Self>("sessionId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sessionId"))), } } }
-        match obj.get("title") { None => out.push(crate::types::check::missing::<Self>("title")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("title"))), } } }
-        match obj.get("prompt") { None => out.push(crate::types::check::missing::<Self>("prompt")), Some(v) => { match crate::types::check::read::<ThreadPrompt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("prompt"))), } } }
+        crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "sessionId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "title", &mut out);
+        crate::types::keys::req_key::<ThreadPrompt>(obj, "prompt", &mut out);
         Some(out)
     }
 
@@ -234,11 +234,11 @@ impl Check for ThreadCapWait {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("placeId") { None => out.push(crate::types::check::missing::<Self>("placeId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("placeId"))), } } }
-        match obj.get("place") { None => out.push(crate::types::check::missing::<Self>("place")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("place"))), } } }
-        match obj.get("running") { None => out.push(crate::types::check::missing::<Self>("running")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("running"))), } } }
-        match obj.get("atOnce") { None => out.push(crate::types::check::missing::<Self>("atOnce")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("atOnce"))), } } }
-        if let Some(v) = obj.get("why") { match crate::types::check::read_present::<ThreadCapWaitWhy>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("why"))), } }
+        crate::types::keys::req_key::<String>(obj, "placeId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "place", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "running", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "atOnce", &mut out);
+        crate::types::keys::opt_key::<ThreadCapWaitWhy>(obj, "why", &mut out);
         Some(out)
     }
 
@@ -296,8 +296,8 @@ impl Check for ThreadPlacement {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<ThreadSection>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
-        match obj.get("whileState") { None => out.push(crate::types::check::missing::<Self>("whileState")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("whileState"))), } } }
+        crate::types::keys::req_key::<ThreadSection>(obj, "name", &mut out);
+        crate::types::keys::req_key::<String>(obj, "whileState", &mut out);
         Some(out)
     }
 
@@ -330,11 +330,16 @@ impl Check for ThreadMarksPinned {
     }
 
     fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
-        Some(crate::types::check::union_answer(vec![crate::types::check::issues_of::<bool>(value), crate::types::check::issues_of::<JsNumber>(value)]))
+        Some(crate::types::check::union_answer(vec![
+            crate::types::check::issues_of::<bool>(value),
+            crate::types::check::issues_of::<JsNumber>(value),
+        ]))
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        if path.is_empty() { return Some(crate::types::check::Zod::Union); }
+        if path.is_empty() {
+            return Some(crate::types::check::Zod::Union);
+        }
         <bool as Check>::describe(path).or_else(|| <JsNumber as Check>::describe(path))
     }
 }
@@ -372,15 +377,17 @@ impl Check for ThreadMarks {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("pinned") { match crate::types::check::read_present::<ThreadMarksPinned>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pinned"))), } }
-        if let Some(v) = obj.get("order") { match crate::types::check::read_double::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("order"))), } }
-        if let Some(v) = obj.get("snoozedUntil") { match crate::types::check::read_double::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("snoozedUntil"))), } }
-        if let Some(v) = obj.get("section") { match crate::types::check::read_double::<ThreadPlacement>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("section"))), } }
-        if let Some(v) = obj.get("resumeAtReset") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("resumeAtReset"))), } }
-        if let Some(v) = obj.get("folded") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("folded"))), } }
+        crate::types::keys::opt_key::<ThreadMarksPinned>(obj, "pinned", &mut out);
+        crate::types::keys::dbl_key::<JsNumber>(obj, "order", &mut out);
+        crate::types::keys::dbl_key::<JsNumber>(obj, "snoozedUntil", &mut out);
+        crate::types::keys::dbl_key::<ThreadPlacement>(obj, "section", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "resumeAtReset", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "folded", &mut out);
         let known: &[&str] = &["pinned", "order", "snoozedUntil", "section", "resumeAtReset", "folded"];
         let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
-        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        if !extra.is_empty() {
+            out.push(crate::types::check::unrecognized(Vec::new(), extra));
+        }
         Some(out)
     }
 
@@ -437,7 +444,7 @@ impl Check for SubagentUsage {
     fn check(&self) -> Result<(), SchemaError> {
         self.tokens.check().map_err(|e| e.under("tokens"))?;
         if let Some(v) = self.tool_uses {
-            crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("toolUses"))?;
+            crate::types::check::num_at_least(v.0 .0, 0.0).map_err(|e| e.under("toolUses"))?;
         }
         if let Some(v) = self.duration_ms {
             crate::types::check::num_at_least(v.0, 0.0).map_err(|e| e.under("durationMs"))?;
@@ -450,9 +457,9 @@ impl Check for SubagentUsage {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("tokens") { match crate::types::check::read_present::<UsageTokens>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("tokens"))), } }
-        if let Some(v) = obj.get("toolUses") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_tool_uses(&x) { out.push(e.under("toolUses")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("toolUses"))), } }
-        if let Some(v) = obj.get("durationMs") { match crate::types::check::read_present::<JsNumber>(v) { Ok(x) => { if let Err(e) = Self::rule_duration_ms(&x) { out.push(e.under("durationMs")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("durationMs"))), } }
+        crate::types::keys::opt_key::<UsageTokens>(obj, "tokens", &mut out);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "toolUses", &mut out, Self::rule_tool_uses);
+        crate::types::keys::opt_key_with::<JsNumber>(obj, "durationMs", &mut out, Self::rule_duration_ms);
         Some(out)
     }
 
@@ -471,7 +478,7 @@ impl Check for SubagentUsage {
 impl SubagentUsage {
     fn rule_tool_uses(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
         if let Some(v) = (*x) {
-            crate::types::check::num_at_least(v.0.0, 0.0)?;
+            crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
     }
@@ -515,7 +522,7 @@ impl Check for SubagentView {
     fn check(&self) -> Result<(), SchemaError> {
         self.state.check().map_err(|e| e.under("state"))?;
         if let Some(v) = self.depth {
-            crate::types::check::num_above(v.0.0, 0.0).map_err(|e| e.under("depth"))?;
+            crate::types::check::num_above(v.0 .0, 0.0).map_err(|e| e.under("depth"))?;
         }
         self.usage.check().map_err(|e| e.under("usage"))?;
         Ok(())
@@ -526,18 +533,18 @@ impl Check for SubagentView {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("title") { None => out.push(crate::types::check::missing::<Self>("title")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("title"))), } } }
-        match obj.get("state") { None => out.push(crate::types::check::missing::<Self>("state")), Some(v) => { match crate::types::check::read::<SubagentState>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("state"))), } } }
-        if let Some(v) = obj.get("parentToolUseId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("parentToolUseId"))), } }
-        if let Some(v) = obj.get("depth") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_depth(&x) { out.push(e.under("depth")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("depth"))), } }
-        if let Some(v) = obj.get("model") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("model"))), } }
-        if let Some(v) = obj.get("asked") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("asked"))), } }
-        match obj.get("startedAt") { None => out.push(crate::types::check::missing::<Self>("startedAt")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("startedAt"))), } } }
-        if let Some(v) = obj.get("endedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("endedAt"))), } }
-        if let Some(v) = obj.get("lastLine") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("lastLine"))), } }
-        if let Some(v) = obj.get("failure") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("failure"))), } }
-        if let Some(v) = obj.get("usage") { match crate::types::check::read_present::<SubagentUsage>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("usage"))), } }
+        crate::types::keys::req_key::<String>(obj, "id", &mut out);
+        crate::types::keys::req_key::<String>(obj, "title", &mut out);
+        crate::types::keys::req_key::<SubagentState>(obj, "state", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "parentToolUseId", &mut out);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "depth", &mut out, Self::rule_depth);
+        crate::types::keys::opt_key::<String>(obj, "model", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "asked", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "startedAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "endedAt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "lastLine", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "failure", &mut out);
+        crate::types::keys::opt_key::<SubagentUsage>(obj, "usage", &mut out);
         Some(out)
     }
 
@@ -565,7 +572,7 @@ impl Check for SubagentView {
 impl SubagentView {
     fn rule_depth(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
         if let Some(v) = (*x) {
-            crate::types::check::num_above(v.0.0, 0.0)?;
+            crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
     }
@@ -586,7 +593,7 @@ impl Check for ForkSource {
     /// Rules: at: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
         if let Some(v) = self.at {
-            crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("at"))?;
+            crate::types::check::num_at_least(v.0 .0, 0.0).map_err(|e| e.under("at"))?;
         }
         Ok(())
     }
@@ -596,9 +603,9 @@ impl Check for ForkSource {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("threadId") { None => out.push(crate::types::check::missing::<Self>("threadId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } } }
-        if let Some(v) = obj.get("turnId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("turnId"))), } }
-        if let Some(v) = obj.get("at") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_at(&x) { out.push(e.under("at")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } }
+        crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "turnId", &mut out);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "at", &mut out, Self::rule_at);
         Some(out)
     }
 
@@ -617,7 +624,7 @@ impl Check for ForkSource {
 impl ForkSource {
     fn rule_at(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
         if let Some(v) = (*x) {
-            crate::types::check::num_at_least(v.0.0, 0.0)?;
+            crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
     }
@@ -643,9 +650,9 @@ impl Check for ForkedFrom {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("threadId") { None => out.push(crate::types::check::missing::<Self>("threadId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } } }
-        if let Some(v) = obj.get("turnId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("turnId"))), } }
-        match obj.get("title") { None => out.push(crate::types::check::missing::<Self>("title")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("title"))), } } }
+        crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "turnId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "title", &mut out);
         Some(out)
     }
 
@@ -679,8 +686,8 @@ impl Check for SessionViewProject {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
+        crate::types::keys::req_key::<String>(obj, "id", &mut out);
+        crate::types::keys::req_key::<String>(obj, "name", &mut out);
         Some(out)
     }
 
@@ -825,58 +832,58 @@ impl Check for SessionView {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("harness") { None => out.push(crate::types::check::missing::<Self>("harness")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("harness"))), } } }
-        match obj.get("status") { None => out.push(crate::types::check::missing::<Self>("status")), Some(v) => { match crate::types::check::read::<SessionStatus>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("status"))), } } }
-        if let Some(v) = obj.get("startedBy") { match crate::types::check::read_present::<SessionOrigin>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("startedBy"))), } }
-        if let Some(v) = obj.get("claudeSessionId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("claudeSessionId"))), } }
-        if let Some(v) = obj.get("threadId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } }
-        if let Some(v) = obj.get("parentThreadId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("parentThreadId"))), } }
-        if let Some(v) = obj.get("rootThreadId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rootThreadId"))), } }
-        if let Some(v) = obj.get("attempt") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("attempt"))), } }
-        if let Some(v) = obj.get("prompt") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("prompt"))), } }
-        if let Some(v) = obj.get("harnessTitle") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("harnessTitle"))), } }
-        if let Some(v) = obj.get("titleSource") { match crate::types::check::read_present::<TitleSource>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("titleSource"))), } }
-        if let Some(v) = obj.get("startedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("startedAt"))), } }
-        if let Some(v) = obj.get("endedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("endedAt"))), } }
-        if let Some(v) = obj.get("cwd") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cwd"))), } }
-        if let Some(v) = obj.get("refusal") { match crate::types::check::read_present::<TurnRefusal>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("refusal"))), } }
-        if let Some(v) = obj.get("limit") { match crate::types::check::read_present::<TurnLimit>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("limit"))), } }
-        if let Some(v) = obj.get("resumeAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("resumeAt"))), } }
-        if let Some(v) = obj.get("costUsd") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("costUsd"))), } }
-        if let Some(v) = obj.get("lastLine") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("lastLine"))), } }
-        if let Some(v) = obj.get("failure") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("failure"))), } }
-        if let Some(v) = obj.get("model") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("model"))), } }
-        if let Some(v) = obj.get("effort") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("effort"))), } }
-        if let Some(v) = obj.get("permissionMode") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("permissionMode"))), } }
-        if let Some(v) = obj.get("contextWindow") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("contextWindow"))), } }
-        if let Some(v) = obj.get("fast") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("fast"))), } }
-        if let Some(v) = obj.get("asking") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("asking"))), } }
-        if let Some(v) = obj.get("waitingOn") { match crate::types::check::read_present::<ThreadWaitingOn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("waitingOn"))), } }
-        if let Some(v) = obj.get("setupRefusal") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("setupRefusal"))), } }
-        if let Some(v) = obj.get("project") { match crate::types::check::read_present::<SessionViewProject>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("project"))), } }
-        if let Some(v) = obj.get("computerName") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("computerName"))), } }
-        if let Some(v) = obj.get("sub") { match crate::types::check::read_present::<SubRow>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sub"))), } }
-        if let Some(v) = obj.get("diskKeptUntil") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("diskKeptUntil"))), } }
-        if let Some(v) = obj.get("diskGone") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("diskGone"))), } }
-        if let Some(v) = obj.get("capped") { match crate::types::check::read_present::<ThreadCapWait>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("capped"))), } }
-        if let Some(v) = obj.get("waitsFor") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("waitsFor"))), } }
-        if let Some(v) = obj.get("pid") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pid"))), } }
-        if let Some(v) = obj.get("agentPid") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentPid"))), } }
-        if let Some(v) = obj.get("subagents") { match crate::types::check::read_present::<Vec<SubagentView>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("subagents"))), } }
-        if let Some(v) = obj.get("readAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("readAt"))), } }
-        if let Some(v) = obj.get("settledAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("settledAt"))), } }
-        if let Some(v) = obj.get("pinnedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pinnedAt"))), } }
-        if let Some(v) = obj.get("order") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("order"))), } }
-        if let Some(v) = obj.get("foldedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("foldedAt"))), } }
-        if let Some(v) = obj.get("replaces") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("replaces"))), } }
-        if let Some(v) = obj.get("replacedBy") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("replacedBy"))), } }
-        if let Some(v) = obj.get("snoozedUntil") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("snoozedUntil"))), } }
-        if let Some(v) = obj.get("wokeAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wokeAt"))), } }
-        if let Some(v) = obj.get("section") { match crate::types::check::read_present::<ThreadPlacement>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("section"))), } }
-        if let Some(v) = obj.get("rewoundAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rewoundAt"))), } }
-        if let Some(v) = obj.get("forkedFrom") { match crate::types::check::read_present::<ForkedFrom>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("forkedFrom"))), } }
+        crate::types::keys::req_key::<String>(obj, "id", &mut out);
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "harness", &mut out);
+        crate::types::keys::req_key::<SessionStatus>(obj, "status", &mut out);
+        crate::types::keys::opt_key::<SessionOrigin>(obj, "startedBy", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "claudeSessionId", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "parentThreadId", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "rootThreadId", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "attempt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "prompt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "harnessTitle", &mut out);
+        crate::types::keys::opt_key::<TitleSource>(obj, "titleSource", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "startedAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "endedAt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "cwd", &mut out);
+        crate::types::keys::opt_key::<TurnRefusal>(obj, "refusal", &mut out);
+        crate::types::keys::opt_key::<TurnLimit>(obj, "limit", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "resumeAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "costUsd", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "lastLine", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "failure", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "model", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "effort", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "permissionMode", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "contextWindow", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "fast", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "asking", &mut out);
+        crate::types::keys::opt_key::<ThreadWaitingOn>(obj, "waitingOn", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "setupRefusal", &mut out);
+        crate::types::keys::opt_key::<SessionViewProject>(obj, "project", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "computerName", &mut out);
+        crate::types::keys::opt_key::<SubRow>(obj, "sub", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "diskKeptUntil", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "diskGone", &mut out);
+        crate::types::keys::opt_key::<ThreadCapWait>(obj, "capped", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "waitsFor", &mut out);
+        crate::types::keys::opt_key::<JsInt>(obj, "pid", &mut out);
+        crate::types::keys::opt_key::<JsInt>(obj, "agentPid", &mut out);
+        crate::types::keys::opt_key::<Vec<SubagentView>>(obj, "subagents", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "readAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "settledAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "pinnedAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "order", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "foldedAt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "replaces", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "replacedBy", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "snoozedUntil", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "wokeAt", &mut out);
+        crate::types::keys::opt_key::<ThreadPlacement>(obj, "section", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "rewoundAt", &mut out);
+        crate::types::keys::opt_key::<ForkedFrom>(obj, "forkedFrom", &mut out);
         Some(out)
     }
 
@@ -1037,7 +1044,7 @@ impl Check for ThreadView {
     fn check(&self) -> Result<(), SchemaError> {
         self.started_by.check().map_err(|e| e.under("startedBy"))?;
         self.status.check().map_err(|e| e.under("status"))?;
-        crate::types::check::num_above(self.turns.0.0, 0.0).map_err(|e| e.under("turns"))?;
+        crate::types::check::num_above(self.turns.0 .0, 0.0).map_err(|e| e.under("turns"))?;
         self.waiting_on.check().map_err(|e| e.under("waitingOn"))?;
         self.sub.check().map_err(|e| e.under("sub"))?;
         self.capped.check().map_err(|e| e.under("capped"))?;
@@ -1053,52 +1060,52 @@ impl Check for ThreadView {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        if let Some(v) = obj.get("threadId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } }
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("harness") { None => out.push(crate::types::check::missing::<Self>("harness")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("harness"))), } } }
-        match obj.get("startedBy") { None => out.push(crate::types::check::missing::<Self>("startedBy")), Some(v) => { match crate::types::check::read::<SessionOrigin>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("startedBy"))), } } }
-        match obj.get("status") { None => out.push(crate::types::check::missing::<Self>("status")), Some(v) => { match crate::types::check::read::<SessionStatus>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("status"))), } } }
-        match obj.get("title") { None => out.push(crate::types::check::missing::<Self>("title")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("title"))), } } }
-        match obj.get("sessionId") { None => out.push(crate::types::check::missing::<Self>("sessionId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sessionId"))), } } }
-        if let Some(v) = obj.get("claudeSessionId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("claudeSessionId"))), } }
-        if let Some(v) = obj.get("startedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("startedAt"))), } }
-        if let Some(v) = obj.get("endedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("endedAt"))), } }
-        if let Some(v) = obj.get("cwd") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cwd"))), } }
-        match obj.get("turns") { None => out.push(crate::types::check::missing::<Self>("turns")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_turns(&x) { out.push(e.under("turns")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("turns"))), } } }
-        match obj.get("ran") { None => out.push(crate::types::check::missing::<Self>("ran")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ran"))), } } }
-        if let Some(v) = obj.get("parentThreadId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("parentThreadId"))), } }
-        if let Some(v) = obj.get("rootThreadId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rootThreadId"))), } }
-        if let Some(v) = obj.get("attempt") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("attempt"))), } }
-        if let Some(v) = obj.get("asking") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("asking"))), } }
-        if let Some(v) = obj.get("waitingOn") { match crate::types::check::read_present::<ThreadWaitingOn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("waitingOn"))), } }
-        if let Some(v) = obj.get("setupRefusal") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("setupRefusal"))), } }
-        if let Some(v) = obj.get("sub") { match crate::types::check::read_present::<SubRow>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sub"))), } }
-        if let Some(v) = obj.get("diskKeptUntil") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("diskKeptUntil"))), } }
-        if let Some(v) = obj.get("diskGone") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("diskGone"))), } }
-        if let Some(v) = obj.get("capped") { match crate::types::check::read_present::<ThreadCapWait>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("capped"))), } }
-        if let Some(v) = obj.get("limit") { match crate::types::check::read_present::<TurnLimit>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("limit"))), } }
-        if let Some(v) = obj.get("resumeAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("resumeAt"))), } }
-        if let Some(v) = obj.get("costUsd") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("costUsd"))), } }
-        if let Some(v) = obj.get("lastLine") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("lastLine"))), } }
-        if let Some(v) = obj.get("failure") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("failure"))), } }
-        if let Some(v) = obj.get("pid") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pid"))), } }
-        if let Some(v) = obj.get("agentPid") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentPid"))), } }
-        if let Some(v) = obj.get("readAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("readAt"))), } }
-        if let Some(v) = obj.get("settledAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("settledAt"))), } }
-        if let Some(v) = obj.get("pinnedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pinnedAt"))), } }
-        if let Some(v) = obj.get("order") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("order"))), } }
-        if let Some(v) = obj.get("foldedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("foldedAt"))), } }
-        if let Some(v) = obj.get("replaces") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("replaces"))), } }
-        if let Some(v) = obj.get("replacedBy") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("replacedBy"))), } }
-        if let Some(v) = obj.get("snoozedUntil") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("snoozedUntil"))), } }
-        if let Some(v) = obj.get("wokeAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wokeAt"))), } }
-        if let Some(v) = obj.get("section") { match crate::types::check::read_present::<ThreadPlacement>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("section"))), } }
-        if let Some(v) = obj.get("rewoundAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rewoundAt"))), } }
-        if let Some(v) = obj.get("forkedFrom") { match crate::types::check::read_present::<ForkedFrom>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("forkedFrom"))), } }
-        if let Some(v) = obj.get("permissionMode") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("permissionMode"))), } }
-        if let Some(v) = obj.get("fast") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("fast"))), } }
-        if let Some(v) = obj.get("subagents") { match crate::types::check::read_present::<Vec<SubagentView>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("subagents"))), } }
+        crate::types::keys::req_key::<String>(obj, "id", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "harness", &mut out);
+        crate::types::keys::req_key::<SessionOrigin>(obj, "startedBy", &mut out);
+        crate::types::keys::req_key::<SessionStatus>(obj, "status", &mut out);
+        crate::types::keys::req_key::<String>(obj, "title", &mut out);
+        crate::types::keys::req_key::<String>(obj, "sessionId", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "claudeSessionId", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "startedAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "endedAt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "cwd", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "turns", &mut out, Self::rule_turns);
+        crate::types::keys::req_key::<bool>(obj, "ran", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "parentThreadId", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "rootThreadId", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "attempt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "asking", &mut out);
+        crate::types::keys::opt_key::<ThreadWaitingOn>(obj, "waitingOn", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "setupRefusal", &mut out);
+        crate::types::keys::opt_key::<SubRow>(obj, "sub", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "diskKeptUntil", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "diskGone", &mut out);
+        crate::types::keys::opt_key::<ThreadCapWait>(obj, "capped", &mut out);
+        crate::types::keys::opt_key::<TurnLimit>(obj, "limit", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "resumeAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "costUsd", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "lastLine", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "failure", &mut out);
+        crate::types::keys::opt_key::<JsInt>(obj, "pid", &mut out);
+        crate::types::keys::opt_key::<JsInt>(obj, "agentPid", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "readAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "settledAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "pinnedAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "order", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "foldedAt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "replaces", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "replacedBy", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "snoozedUntil", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "wokeAt", &mut out);
+        crate::types::keys::opt_key::<ThreadPlacement>(obj, "section", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "rewoundAt", &mut out);
+        crate::types::keys::opt_key::<ForkedFrom>(obj, "forkedFrom", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "permissionMode", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "fast", &mut out);
+        crate::types::keys::opt_key::<Vec<SubagentView>>(obj, "subagents", &mut out);
         Some(out)
     }
 
@@ -1159,7 +1166,7 @@ impl Check for ThreadView {
 }
 impl ThreadView {
     fn rule_turns(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_above((*x).0.0, 0.0)?;
+        crate::types::check::num_above((*x).0 .0, 0.0)?;
         Ok(())
     }
 }

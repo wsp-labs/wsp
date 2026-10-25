@@ -84,16 +84,16 @@ impl Check for ActivityProc {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("pid") { None => out.push(crate::types::check::missing::<Self>("pid")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pid"))), } } }
-        match obj.get("ppid") { None => out.push(crate::types::check::missing::<Self>("ppid")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ppid"))), } } }
-        match obj.get("depth") { None => out.push(crate::types::check::missing::<Self>("depth")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_depth(&x) { out.push(e.under("depth")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("depth"))), } } }
-        match obj.get("startedAt") { None => out.push(crate::types::check::missing::<Self>("startedAt")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("startedAt"))), } } }
-        match obj.get("kind") { None => out.push(crate::types::check::missing::<Self>("kind")), Some(v) => { match crate::types::check::read::<ProcKind>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("kind"))), } } }
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
-        match obj.get("command") { None => out.push(crate::types::check::missing::<Self>("command")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("command"))), } } }
-        match obj.get("memory") { None => out.push(crate::types::check::missing::<Self>("memory")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memory"))), } } }
-        match obj.get("cpu") { None => out.push(crate::types::check::missing::<Self>("cpu")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cpu"))), } } }
-        match obj.get("ports") { None => out.push(crate::types::check::missing::<Self>("ports")), Some(v) => { match crate::types::check::read::<Vec<JsInt>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ports"))), } } }
+        crate::types::keys::req_key::<JsInt>(obj, "pid", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "ppid", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "depth", &mut out, Self::rule_depth);
+        crate::types::keys::req_key::<JsNumber>(obj, "startedAt", &mut out);
+        crate::types::keys::req_key::<ProcKind>(obj, "kind", &mut out);
+        crate::types::keys::req_key::<String>(obj, "name", &mut out);
+        crate::types::keys::req_key::<String>(obj, "command", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "memory", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "cpu", &mut out);
+        crate::types::keys::req_key::<Vec<JsInt>>(obj, "ports", &mut out);
         Some(out)
     }
 
@@ -147,12 +147,12 @@ impl Check for ActivityThread {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("threadId") { None => out.push(crate::types::check::missing::<Self>("threadId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } } }
-        match obj.get("title") { None => out.push(crate::types::check::missing::<Self>("title")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("title"))), } } }
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("memory") { None => out.push(crate::types::check::missing::<Self>("memory")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memory"))), } } }
-        match obj.get("cpu") { None => out.push(crate::types::check::missing::<Self>("cpu")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cpu"))), } } }
-        match obj.get("processes") { None => out.push(crate::types::check::missing::<Self>("processes")), Some(v) => { match crate::types::check::read::<Vec<ActivityProc>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("processes"))), } } }
+        crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "title", &mut out);
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "memory", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "cpu", &mut out);
+        crate::types::keys::req_key::<Vec<ActivityProc>>(obj, "processes", &mut out);
         Some(out)
     }
 
@@ -197,11 +197,11 @@ impl Check for ActivityView {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("computer") { None => out.push(crate::types::check::missing::<Self>("computer")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("computer"))), } } }
-        match obj.get("at") { None => out.push(crate::types::check::missing::<Self>("at")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } } }
-        match obj.get("threads") { None => out.push(crate::types::check::missing::<Self>("threads")), Some(v) => { match crate::types::check::read::<Vec<ActivityThread>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threads"))), } } }
-        match obj.get("wsp") { None => out.push(crate::types::check::missing::<Self>("wsp")), Some(v) => { match crate::types::check::read::<Vec<ActivityProc>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wsp"))), } } }
-        match obj.get("unowned") { None => out.push(crate::types::check::missing::<Self>("unowned")), Some(v) => { match crate::types::check::read::<Vec<ActivityProc>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("unowned"))), } } }
+        crate::types::keys::req_key::<String>(obj, "computer", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "at", &mut out);
+        crate::types::keys::req_key::<Vec<ActivityThread>>(obj, "threads", &mut out);
+        crate::types::keys::req_key::<Vec<ActivityProc>>(obj, "wsp", &mut out);
+        crate::types::keys::req_key::<Vec<ActivityProc>>(obj, "unowned", &mut out);
         Some(out)
     }
 
@@ -246,13 +246,13 @@ impl Check for LeftThread {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("threadId") { None => out.push(crate::types::check::missing::<Self>("threadId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } } }
-        match obj.get("title") { None => out.push(crate::types::check::missing::<Self>("title")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("title"))), } } }
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("memory") { None => out.push(crate::types::check::missing::<Self>("memory")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memory"))), } } }
-        match obj.get("cpu") { None => out.push(crate::types::check::missing::<Self>("cpu")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cpu"))), } } }
-        match obj.get("processes") { None => out.push(crate::types::check::missing::<Self>("processes")), Some(v) => { match crate::types::check::read::<Vec<ActivityProc>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("processes"))), } } }
-        if let Some(v) = obj.get("on") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("on"))), } }
+        crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "title", &mut out);
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "memory", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "cpu", &mut out);
+        crate::types::keys::req_key::<Vec<ActivityProc>>(obj, "processes", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "on", &mut out);
         Some(out)
     }
 
@@ -297,11 +297,11 @@ impl Check for ActivityEnded {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("pid") { None => out.push(crate::types::check::missing::<Self>("pid")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pid"))), } } }
-        match obj.get("ended") { None => out.push(crate::types::check::missing::<Self>("ended")), Some(v) => { match crate::types::check::read::<Vec<ActivityProc>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ended"))), } } }
-        match obj.get("forced") { None => out.push(crate::types::check::missing::<Self>("forced")), Some(v) => { match crate::types::check::read::<Vec<JsInt>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("forced"))), } } }
-        match obj.get("left") { None => out.push(crate::types::check::missing::<Self>("left")), Some(v) => { match crate::types::check::read::<Vec<JsInt>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("left"))), } } }
-        if let Some(v) = obj.get("freed") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("freed"))), } }
+        crate::types::keys::req_key::<JsInt>(obj, "pid", &mut out);
+        crate::types::keys::req_key::<Vec<ActivityProc>>(obj, "ended", &mut out);
+        crate::types::keys::req_key::<Vec<JsInt>>(obj, "forced", &mut out);
+        crate::types::keys::req_key::<Vec<JsInt>>(obj, "left", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "freed", &mut out);
         Some(out)
     }
 
@@ -341,12 +341,12 @@ impl Check for ProcessesAsk {
 
 use crate::types::thread_cgroup::{cgroup_memory, in_cgroup};
 use crate::views::activity_fold::PidRow;
+use crate::wire::daemon::{by_proc_column, ProcSort};
+use crate::wire::daemon_version::place_behind_line;
 use indexmap::IndexMap;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet, VecDeque};
-use crate::wire::daemon::{by_proc_column, ProcSort};
-use crate::wire::daemon_version::place_behind_line;
 use wsp_frames::{CgroupMemory, ProcEntry, ProcOwnedBy};
 
 const SHELLS: &[&str] = &["sh", "bash", "zsh", "fish", "dash"];

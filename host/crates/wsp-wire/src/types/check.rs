@@ -31,8 +31,11 @@ impl SchemaError {
     pub fn issue_text(&self) -> String {
         let mut issue: IndexMap<String, Value> = IndexMap::new();
         let code = self.code.as_str();
-        let detail = |keys: &[&str]| keys.iter().filter_map(|k| self.detail.get(*k).map(|v| (k.to_string(), v.clone()))).collect::<Vec<_>>();
-        let rest = |skip: &[&str]| self.detail.iter().filter(|(k, _)| !skip.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>();
+        let detail =
+            |keys: &[&str]| keys.iter().filter_map(|k| self.detail.get(*k).map(|v| (k.to_string(), v.clone()))).collect::<Vec<_>>();
+        let rest = |skip: &[&str]| {
+            self.detail.iter().filter(|(k, _)| !skip.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>()
+        };
         let float = self.detail.get("received") == Some(&Value::from("float"));
         let order: Vec<(String, Value)> = match code {
             "invalid_enum_value" | "invalid_literal" => {
@@ -250,7 +253,15 @@ impl Check for f64 {
 
 impl Check for Value {}
 
-fn bound(code: &str, minimum: Option<Value>, maximum: Option<Value>, ty: &str, inclusive: bool, exact: bool, message: String) -> SchemaError {
+fn bound(
+    code: &str,
+    minimum: Option<Value>,
+    maximum: Option<Value>,
+    ty: &str,
+    inclusive: bool,
+    exact: bool,
+    message: String,
+) -> SchemaError {
     let mut detail = IndexMap::new();
     if let Some(v) = minimum {
         detail.insert("minimum".to_string(), v);
@@ -272,28 +283,60 @@ pub fn num_at_least(v: f64, min: f64) -> Result<(), SchemaError> {
     if v >= min {
         return Ok(());
     }
-    Err(bound("too_small", Some(num_json(min)), None, "number", true, false, format!("Number must be greater than or equal to {}", JsNumber(min).js_string())))
+    Err(bound(
+        "too_small",
+        Some(num_json(min)),
+        None,
+        "number",
+        true,
+        false,
+        format!("Number must be greater than or equal to {}", JsNumber(min).js_string()),
+    ))
 }
 
 pub fn num_above(v: f64, min: f64) -> Result<(), SchemaError> {
     if v > min {
         return Ok(());
     }
-    Err(bound("too_small", Some(num_json(min)), None, "number", false, false, format!("Number must be greater than {}", JsNumber(min).js_string())))
+    Err(bound(
+        "too_small",
+        Some(num_json(min)),
+        None,
+        "number",
+        false,
+        false,
+        format!("Number must be greater than {}", JsNumber(min).js_string()),
+    ))
 }
 
 pub fn num_at_most(v: f64, max: f64) -> Result<(), SchemaError> {
     if v <= max {
         return Ok(());
     }
-    Err(bound("too_big", None, Some(num_json(max)), "number", true, false, format!("Number must be less than or equal to {}", JsNumber(max).js_string())))
+    Err(bound(
+        "too_big",
+        None,
+        Some(num_json(max)),
+        "number",
+        true,
+        false,
+        format!("Number must be less than or equal to {}", JsNumber(max).js_string()),
+    ))
 }
 
 pub fn num_below(v: f64, max: f64) -> Result<(), SchemaError> {
     if v < max {
         return Ok(());
     }
-    Err(bound("too_big", None, Some(num_json(max)), "number", false, false, format!("Number must be less than {}", JsNumber(max).js_string())))
+    Err(bound(
+        "too_big",
+        None,
+        Some(num_json(max)),
+        "number",
+        false,
+        false,
+        format!("Number must be less than {}", JsNumber(max).js_string()),
+    ))
 }
 
 /// zod's `.min(n)` on a string: its length in UTF-16 units.
@@ -315,10 +358,26 @@ pub fn text_at_most(s: &str, max: usize) -> Result<(), SchemaError> {
 pub fn text_exactly(s: &str, n: usize) -> Result<(), SchemaError> {
     let len = utf16_len(s);
     if len < n {
-        return Err(bound("too_small", Some(Value::from(n)), None, "string", true, true, format!("String must contain exactly {n} character(s)")));
+        return Err(bound(
+            "too_small",
+            Some(Value::from(n)),
+            None,
+            "string",
+            true,
+            true,
+            format!("String must contain exactly {n} character(s)"),
+        ));
     }
     if len > n {
-        return Err(bound("too_big", None, Some(Value::from(n)), "string", true, true, format!("String must contain exactly {n} character(s)")));
+        return Err(bound(
+            "too_big",
+            None,
+            Some(Value::from(n)),
+            "string",
+            true,
+            true,
+            format!("String must contain exactly {n} character(s)"),
+        ));
     }
     Ok(())
 }
@@ -339,10 +398,26 @@ pub fn items_at_most(len: usize, max: usize) -> Result<(), SchemaError> {
 
 pub fn items_exactly(len: usize, n: usize) -> Result<(), SchemaError> {
     if len < n {
-        return Err(bound("too_small", Some(Value::from(n)), None, "array", true, true, format!("Array must contain exactly {n} element(s)")));
+        return Err(bound(
+            "too_small",
+            Some(Value::from(n)),
+            None,
+            "array",
+            true,
+            true,
+            format!("Array must contain exactly {n} element(s)"),
+        ));
     }
     if len > n {
-        return Err(bound("too_big", None, Some(Value::from(n)), "array", true, true, format!("Array must contain exactly {n} element(s)")));
+        return Err(bound(
+            "too_big",
+            None,
+            Some(Value::from(n)),
+            "array",
+            true,
+            true,
+            format!("Array must contain exactly {n} element(s)"),
+        ));
     }
     Ok(())
 }
@@ -380,7 +455,11 @@ pub fn text_at_least_with(s: &str, min: usize, message: &str) -> Result<(), Sche
 /// JavaScript's `\s`: the white space and line terminators a JavaScript regex and `String.prototype.trim` take. Rust's
 /// `char::is_whitespace` is another set: it has U+0085 and lacks U+FEFF.
 pub fn js_space(c: char) -> bool {
-    matches!(c, '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
+    matches!(
+        c,
+        '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'
+    )
 }
 
 /// `/^[^/\s]+\/[^/\s]+$/`: one slash between two non-empty runs of non-space characters.
@@ -783,7 +862,10 @@ impl<K: Serialize, V: Serialize> Serialize for JsRecord<'_, K, V> {
             })
             .collect();
         let is_index = |k: &str| {
-            !k.is_empty() && k.bytes().all(|b| b.is_ascii_digit()) && (k == "0" || !k.starts_with('0')) && k.parse::<u64>().is_ok_and(|n| n < 4_294_967_295)
+            !k.is_empty()
+                && k.bytes().all(|b| b.is_ascii_digit())
+                && (k == "0" || !k.starts_with('0'))
+                && k.parse::<u64>().is_ok_and(|n| n < 4_294_967_295)
         };
         entries.sort_by_key(|(k, _)| if is_index(k) { (0, k.parse::<u64>().unwrap_or(0)) } else { (1, 0) });
         let mut map = s.serialize_map(Some(entries.len()))?;
@@ -875,7 +957,6 @@ impl Check for wsp_frames::ProcOwnedBy {
         leaf(path, Zod::Options(&["root", "fork", "group", "env", "cgroup", "folder", "coalition"]))
     }
 }
-
 
 /// wsp-frames' kill signal, read by its two words.
 impl Check for wsp_frames::ProcSignal {

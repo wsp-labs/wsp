@@ -67,7 +67,13 @@ pub enum ProjectIcon {
 
 impl Check for ProjectIcon {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["folder", "code", "terminal", "globe", "rocket", "box", "database", "server", "cpu", "zap", "flame", "leaf", "star", "heart", "book", "music", "camera", "gamepad", "shield", "wrench"]))
+        crate::types::check::leaf(
+            path,
+            crate::types::check::Zod::Options(&[
+                "folder", "code", "terminal", "globe", "rocket", "box", "database", "server", "cpu", "zap", "flame", "leaf", "star",
+                "heart", "book", "music", "camera", "gamepad", "shield", "wrench",
+            ]),
+        )
     }
 }
 
@@ -96,7 +102,10 @@ pub enum ProjectHue {
 
 impl Check for ProjectHue {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["neutral", "red", "orange", "amber", "green", "teal", "blue", "violet", "pink"]))
+        crate::types::check::leaf(
+            path,
+            crate::types::check::Zod::Options(&["neutral", "red", "orange", "amber", "green", "teal", "blue", "violet", "pink"]),
+        )
     }
 }
 

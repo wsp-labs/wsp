@@ -10,9 +10,7 @@ use wsp_wire::types::check::{issues_of, parse, Check};
 use wsp_wire::types::pull_request::PullRequestSeen;
 use wsp_wire::wire::daemon_events::DaemonEvent;
 use wsp_wire::wire::events_union::EventUnion;
-use wsp_wire::wire::runtime::{
-    request_secrets, RuntimeErrorResponse, RuntimeOkResponse, RuntimeRequest, SessionSteerResult,
-};
+use wsp_wire::wire::runtime::{request_secrets, RuntimeErrorResponse, RuntimeOkResponse, RuntimeRequest, SessionSteerResult};
 
 fn frame(text: &str) -> Value {
     serde_json::from_str(text).unwrap()
@@ -54,9 +52,15 @@ fn written<T: DeserializeOwned + Serialize + Check>(text: &str) -> String {
 #[test]
 fn agents_setup_refuses_an_origin_key_as_its_strict_member_does() {
     let with_origin = r#"{"id":"a","op":"agents.setup","placeId":"p","agent":"claude","on":true,"origin":"here"}"#;
-    assert_eq!(first_issue::<RuntimeRequest>(with_origin), issue("unrecognized_keys", json!([]), "Unrecognized key(s) in object: 'origin'"));
+    assert_eq!(
+        first_issue::<RuntimeRequest>(with_origin),
+        issue("unrecognized_keys", json!([]), "Unrecognized key(s) in object: 'origin'")
+    );
     let with_both = r#"{"id":"a","op":"agents.setup","placeId":"p","agent":"claude","on":true,"extra":1,"origin":"here"}"#;
-    assert_eq!(first_issue::<RuntimeRequest>(with_both), issue("unrecognized_keys", json!([]), "Unrecognized key(s) in object: 'extra', 'origin'"));
+    assert_eq!(
+        first_issue::<RuntimeRequest>(with_both),
+        issue("unrecognized_keys", json!([]), "Unrecognized key(s) in object: 'extra', 'origin'")
+    );
     let bad_origin = r#"{"id":"a","op":"agents.setup","placeId":"p","agent":"claude","on":true,"origin":"zzz"}"#;
     assert_eq!(
         all_issues::<RuntimeRequest>(bad_origin),
@@ -140,7 +144,9 @@ fn an_inline_member_lists_every_issue_zod_lists() {
 #[test]
 fn agents_setup_lists_every_variable_name_it_refuses() {
     assert_eq!(
-        all_issues::<RuntimeRequest>(r#"{"id":"a","op":"agents.setup","placeId":"p","agent":"claude","on":true,"env":{"a b":"x","c d":"y"}}"#),
+        all_issues::<RuntimeRequest>(
+            r#"{"id":"a","op":"agents.setup","placeId":"p","agent":"claude","on":true,"env":{"a b":"x","c d":"y"}}"#
+        ),
         pairs(&[("invalid_string", json!(["env", "a b"])), ("invalid_string", json!(["env", "c d"]))]),
     );
 }
@@ -192,11 +198,10 @@ fn a_record_holds_its_index_like_keys_first() {
         request_secrets(&frame(r#"{"env":{"b":"1","2":"two","1":"one","a":"z"}}"#)),
         vec!["one".to_string(), "two".to_string(), "1".to_string(), "z".to_string()],
     );
-    assert_eq!(
-        written::<RuntimeOkResponse>(r#"{"id":1,"ok":true,"2":"a","b":1,"1":"c"}"#),
-        r#"{"1":"c","2":"a","id":1,"ok":true,"b":1}"#,
-    );
-    let request = parse::<RuntimeRequest>(&frame(r#"{"id":"a","op":"workspaces.create","project":"p","name":"n","envs":{"b":"x","2":"y","1":"z"}}"#)).unwrap();
+    assert_eq!(written::<RuntimeOkResponse>(r#"{"id":1,"ok":true,"2":"a","b":1,"1":"c"}"#), r#"{"1":"c","2":"a","id":1,"ok":true,"b":1}"#,);
+    let request =
+        parse::<RuntimeRequest>(&frame(r#"{"id":"a","op":"workspaces.create","project":"p","name":"n","envs":{"b":"x","2":"y","1":"z"}}"#))
+            .unwrap();
     let envs = serde_json::to_value(&request).unwrap()["envs"].clone();
     assert_eq!(serde_json::to_string(&envs).unwrap(), r#"{"1":"z","2":"y","b":"x"}"#);
 }
@@ -207,7 +212,9 @@ fn a_record_holds_its_index_like_keys_first() {
 #[test]
 fn a_proto_key_is_not_kept_by_a_record_or_a_passthrough_object() {
     assert_eq!(written::<RuntimeOkResponse>(r#"{"id":1,"ok":true,"__proto__":{"x":1},"z":2}"#), r#"{"id":1,"ok":true,"z":2}"#);
-    let request = parse::<RuntimeRequest>(&frame(r#"{"id":1,"op":"agents.setup","placeId":"p","agent":"a","env":{"__proto__":"x","A":"b"}}"#)).unwrap();
+    let request =
+        parse::<RuntimeRequest>(&frame(r#"{"id":1,"op":"agents.setup","placeId":"p","agent":"a","env":{"__proto__":"x","A":"b"}}"#))
+            .unwrap();
     let env = serde_json::to_value(&request).unwrap()["env"].clone();
     assert_eq!(serde_json::to_string(&env).unwrap(), r#"{"A":"b"}"#);
 }
@@ -236,7 +243,10 @@ fn a_value_kept_as_sent_is_written_as_javascript_writes_it() {
 #[test]
 fn a_pull_request_seen_is_the_first_member_that_reads_clean() {
     let text = r#"{"number":1,"url":"u","state":"open","host":"h","draft":false,"base":"b","branch":"br","headOid":"o","headSubject":"s","mergeable":"mergeable","mergeState":"m","review":"none","checks":[],"additions":-1,"deletions":0,"changedFiles":0,"commits":0,"readAt":1}"#;
-    assert_eq!(written::<PullRequestSeen>(text), r#"{"number":1,"url":"u","state":"open","base":"b","branch":"br","checks":[],"readAt":1}"#);
+    assert_eq!(
+        written::<PullRequestSeen>(text),
+        r#"{"number":1,"url":"u","state":"open","base":"b","branch":"br","checks":[],"readAt":1}"#
+    );
 }
 
 // -----------------------------------------------------------------------------------------------------------------
@@ -274,8 +284,14 @@ fn an_inline_enum_or_object_says_what_zod_expects() {
 /// runtime.rs:3872 and :3889 read the key with `missing::<Self>`, which has no word for it.
 #[test]
 fn a_response_with_no_ok_answers_invalid_literal() {
-    assert_eq!(first_issue::<RuntimeOkResponse>(r#"{"id":"a"}"#), issue("invalid_literal", json!(["ok"]), "Invalid literal value, expected true"));
-    assert_eq!(first_issue::<RuntimeErrorResponse>(r#"{"id":"a","error":"e"}"#), issue("invalid_literal", json!(["ok"]), "Invalid literal value, expected false"));
+    assert_eq!(
+        first_issue::<RuntimeOkResponse>(r#"{"id":"a"}"#),
+        issue("invalid_literal", json!(["ok"]), "Invalid literal value, expected true")
+    );
+    assert_eq!(
+        first_issue::<RuntimeErrorResponse>(r#"{"id":"a","error":"e"}"#),
+        issue("invalid_literal", json!(["ok"]), "Invalid literal value, expected false")
+    );
 }
 
 // -----------------------------------------------------------------------------------------------------------------
@@ -288,6 +304,7 @@ fn a_response_with_no_ok_answers_invalid_literal() {
 /// recipes.save, guest.send and guest.message; this is the fourth.)
 #[test]
 fn a_slate_event_scope_may_leave_out_item() {
-    let text = r#"{"id":"a","op":"slates.event","threadId":"t","version":1,"piece":"p","event":"press","requestId":"r","scope":{"index":1}}"#;
+    let text =
+        r#"{"id":"a","op":"slates.event","threadId":"t","version":1,"piece":"p","event":"press","requestId":"r","scope":{"index":1}}"#;
     assert_eq!(first_issue::<RuntimeRequest>(text), None);
 }

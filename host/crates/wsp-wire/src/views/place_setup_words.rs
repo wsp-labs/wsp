@@ -20,12 +20,12 @@ pub struct PlaceEstimate {
 impl Check for PlaceEstimate {
     /// Rules: neededBytes: >= 0; keptBytes: >= 0; freeBytes: >= 0; unmeasured: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.needed_bytes.0.0, 0.0).map_err(|e| e.under("neededBytes"))?;
-        crate::types::check::num_at_least(self.kept_bytes.0.0, 0.0).map_err(|e| e.under("keptBytes"))?;
+        crate::types::check::num_at_least(self.needed_bytes.0 .0, 0.0).map_err(|e| e.under("neededBytes"))?;
+        crate::types::check::num_at_least(self.kept_bytes.0 .0, 0.0).map_err(|e| e.under("keptBytes"))?;
         if let Some(v) = self.free_bytes {
-            crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("freeBytes"))?;
+            crate::types::check::num_at_least(v.0 .0, 0.0).map_err(|e| e.under("freeBytes"))?;
         }
-        crate::types::check::num_at_least(self.unmeasured.0.0, 0.0).map_err(|e| e.under("unmeasured"))?;
+        crate::types::check::num_at_least(self.unmeasured.0 .0, 0.0).map_err(|e| e.under("unmeasured"))?;
         Ok(())
     }
 
@@ -34,10 +34,10 @@ impl Check for PlaceEstimate {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("neededBytes") { None => out.push(crate::types::check::missing::<Self>("neededBytes")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_needed_bytes(&x) { out.push(e.under("neededBytes")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("neededBytes"))), } } }
-        match obj.get("keptBytes") { None => out.push(crate::types::check::missing::<Self>("keptBytes")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_kept_bytes(&x) { out.push(e.under("keptBytes")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("keptBytes"))), } } }
-        if let Some(v) = obj.get("freeBytes") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_free_bytes(&x) { out.push(e.under("freeBytes")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("freeBytes"))), } }
-        match obj.get("unmeasured") { None => out.push(crate::types::check::missing::<Self>("unmeasured")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_unmeasured(&x) { out.push(e.under("unmeasured")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("unmeasured"))), } } }
+        crate::types::keys::req_key_with::<JsInt>(obj, "neededBytes", &mut out, Self::rule_needed_bytes);
+        crate::types::keys::req_key_with::<JsInt>(obj, "keptBytes", &mut out, Self::rule_kept_bytes);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "freeBytes", &mut out, Self::rule_free_bytes);
+        crate::types::keys::req_key_with::<JsInt>(obj, "unmeasured", &mut out, Self::rule_unmeasured);
         Some(out)
     }
 
@@ -56,21 +56,21 @@ impl Check for PlaceEstimate {
 }
 impl PlaceEstimate {
     fn rule_needed_bytes(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
         Ok(())
     }
     fn rule_kept_bytes(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
         Ok(())
     }
     fn rule_free_bytes(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
         if let Some(v) = (*x) {
-            crate::types::check::num_at_least(v.0.0, 0.0)?;
+            crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
     }
     fn rule_unmeasured(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
         Ok(())
     }
 }

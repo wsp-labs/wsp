@@ -226,13 +226,12 @@ impl Check for PermissionOption {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("label") { None => out.push(crate::types::check::missing::<Self>("label")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("label"))), } } }
-        match obj.get("effect") { None => out.push(crate::types::check::missing::<Self>("effect")), Some(v) => { match crate::types::check::read::<PermissionEffect>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("effect"))), } } }
-        if let Some(v) = obj.get("mode") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("mode"))), } }
+        crate::types::keys::req_key::<String>(obj, "id", &mut out);
+        crate::types::keys::req_key::<String>(obj, "label", &mut out);
+        crate::types::keys::req_key::<PermissionEffect>(obj, "effect", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "mode", &mut out);
         Some(out)
     }
-
 }
 
 /// No refinement of its own; checks each option.
@@ -246,16 +245,15 @@ impl Check for PermissionPrompt {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("askId") { None => out.push(crate::types::check::missing::<Self>("askId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("askId"))), } } }
-        match obj.get("toolName") { None => out.push(crate::types::check::missing::<Self>("toolName")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("toolName"))), } } }
-        if let Some(v) = obj.get("toolUseId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("toolUseId"))), } }
-        if let Some(v) = obj.get("parentToolUseId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("parentToolUseId"))), } }
-        match obj.get("input") { None => out.push(crate::types::check::missing::<Self>("input")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("input"))), } } }
-        if let Some(v) = obj.get("detail") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("detail"))), } }
-        match obj.get("options") { None => out.push(crate::types::check::missing::<Self>("options")), Some(v) => { match crate::types::check::read::<Vec<PermissionOption>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("options"))), } } }
+        crate::types::keys::req_key::<String>(obj, "askId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "toolName", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "toolUseId", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "parentToolUseId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "input", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "detail", &mut out);
+        crate::types::keys::req_key::<Vec<PermissionOption>>(obj, "options", &mut out);
         Some(out)
     }
-
 }
 
 /// No refinement of its own.
@@ -268,16 +266,15 @@ impl Check for PortCloseDetail {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("pid") { match crate::types::check::read_present::<crate::types::JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pid"))), } }
-        if let Some(v) = obj.get("process") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("process"))), } }
-        if let Some(v) = obj.get("command") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("command"))), } }
-        if let Some(v) = obj.get("exited") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("exited"))), } }
-        if let Some(v) = obj.get("left") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("left"))), } }
-        if let Some(v) = obj.get("at") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } }
-        if let Some(v) = obj.get("watch") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("watch"))), } }
+        crate::types::keys::opt_key::<crate::types::JsNumber>(obj, "pid", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "process", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "command", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "exited", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "left", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "at", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "watch", &mut out);
         Some(out)
     }
-
 }
 
 // A word list zod reads with z.enum: serde refuses any other word, so nothing is left to check.
