@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Ported from packages/protocol/test/thread-read.test.ts:43-320 (a thread's messages, except :116), :322-384 (the
-//! latest turn and its final reply), :386-450 (threadReadText, threadMarkdown over threadMessages), :475-503 (openAsk,
-//! leadAsk) and :505-518 (threadSeed). Skipped: :116 (needs threadMovedLine, which lives in projects.ts and is absent
-//! from the stubs), :452-473 (threadRowLines, fmtClock, the two silences, turnEndLine: module words::turn, ported in
+//! Ported from packages/protocol/test/thread-read.test.ts:43-320 (a thread's messages), :322-384 (the latest turn and
+//! its final reply), :386-450 (threadReadText, threadMarkdown over threadMessages), :475-503 (openAsk, leadAsk) and
+//! :505-518 (threadSeed). Skipped: :452-473 (threadRowLines, fmtClock, the two silences, turnEndLine: module words::turn, ported in
 //! tests/turn.rs) and :520-536 (worktreeOf, repoPathOf: module project_path).
 
 use serde_json::{json, Value};
@@ -174,6 +173,26 @@ mod a_thread_s_messages {
         assert_eq!(pieces(Some("msg_a"), Some("msg_a")), strs(&["half a sentence"]));
         assert_eq!(pieces(None, None), strs(&["half a sentence"]));
         assert_eq!(pieces(None, Some("msg_a")), strs(&["half a sentence"]));
+    }
+
+    #[test]
+    fn prints_the_line_a_thread_is_told_where_its_worktree_went_and_where_it_was_left_b() {
+        let rows = messages(vec![
+            ev("session.moved", json!({ "turnId": "u1", "from": "/w/tree", "to": "/w/proj", "branch": "feat/x", "fresh": true })),
+            ev("session.behind", json!({ "turnId": "u1", "text": "this worktree is behind pull request #7" })),
+            ev("session.start", json!({ "turnId": "u1", "prompt": "go", "at": AT })),
+            ev("session.notice", json!({ "turnId": "u1", "text": "The disk of web is 92% full (67.7 of 73.6 GB).", "at": AT })),
+        ]);
+        assert_eq!(
+            pairs(&rows),
+            want(&[
+                ("turn", "its worktree at /w/tree is gone, so it goes on in /w/proj in a fresh session of its agent"),
+                ("turn", "this worktree is behind pull request #7"),
+                ("person", "go"),
+                ("turn", "The disk of web is 92% full (67.7 of 73.6 GB)."),
+            ])
+        );
+        assert_eq!(wsp_words::projects::thread_moved_line("/w/tree", "/w/proj", false), "its worktree at /w/tree is gone, so it goes on in /w/proj");
     }
 
     #[test]
