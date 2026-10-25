@@ -129,9 +129,10 @@ import { forwardsOf, type ForwardsSource } from "./forwards.js";
 import { costMoved } from "./status.js";
 import { answerProject, isProjectRequest, threadPlaces } from "./serve-projects.js";
 import { answerConversations, isConversationsRequest } from "./serve-conversations.js";
-import { answerSlate, isSlateRequest, type SlateHolds } from "./serve-slates.js";
+import { answerSlate, isSlateRequest, slateLookHubOf, type SlateHolds } from "./serve-slates.js";
 import { serveStart } from "./serve-start.js";
 export type { ForwardsSource };
+export type { GuestKindModule, GuestOpening, GuestSession } from "./guest-kinds.js";
 
 /** The address a host binds when nobody names another and the path the runtime answers upgrades on, both the
  * protocol's own rule; re-exported so the host and its tests keep reading them off the server they start. */
@@ -221,33 +222,6 @@ export interface ServeOptions {
   failed?: (op: string, e: unknown) => void;
   /** Takes one line per refused frame: the op, the kind and the sentence's first line, never the request itself. */
   log?: (line: string) => void;
-}
-
-/** What a kind's module is handed when a guest session opens: what the guest asked for, the environment its verbs
- * run under, and the two ways back to it. The host's guest door hands one for a process inside a machine, and this
- * socket for the wsp command's forwarder on this computer. */
-export interface GuestOpening {
-  argv: readonly string[];
-  cwd: string;
-  /** The pair a verb reads its host and its token off, as a turn's own launch leaves them, plus the turn's token. */
-  env: Record<string, string>;
-  /** The token is a thread another thread started, which has no slate: its tool server says nothing of one. */
-  noSlate?: true;
-  reply(message: unknown): void;
-  close(error?: string): void;
-}
-
-/** One open session, as the door talks to it. */
-export interface GuestSession {
-  message(message: unknown): void;
-  /** The guest's end went, or the workspace did: whatever this session holds open is dropped. A link that drops
-   * and redials is neither, and the session stands across it. */
-  close(): void;
-}
-
-/** A kind of guest session: the tool server, or one command line. */
-export interface GuestKindModule {
-  open(opening: GuestOpening): GuestSession;
 }
 
 /** How the runtime asks the host who this wsp is signed in to. The host owns the records; the runtime owns who may
@@ -875,7 +849,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
           return true;
         };
         try {
-          if (isSlateRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerSlate(rt.slates, msg, origin, slateHolds)) });
+          if (isSlateRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerSlate(rt.slates, msg, origin, slateHolds, { hub: slateLookHubOf(rt.slates), send, own: ownRoad() })) });
           if (isProjectRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerProject(rt.projects, msg, origin)) });
           if (isAppProcsRequest(msg)) return void send({ id: msg.id, ok: true, ...appProcsHubOf(rt).answer(msg, { send, detaches, own: ownRoad() }) });
           if (isProcessesRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerProcesses(rt, msg, origin)) });

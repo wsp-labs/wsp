@@ -132,6 +132,47 @@ impl Native {
         Ok(Native { webview, view, gpui, shown: Cell::new(false) })
     }
 
+    /// A slate frame's page: a web view of its own that keeps nothing, given `shell` as text, that opens no window and
+    /// goes to no address, drawn with no ground so the panel shows under the page.
+    pub fn sealed(
+        shell: &str,
+        _ground: gpui_kit::Rgba,
+        trusted_types: bool,
+        tx: UnboundedSender<Raw>,
+        window: &mut Window,
+        _cx: &mut App,
+    ) -> Result<Native, String> {
+        if !trusted_types {
+            return Err("WKWebView cannot turn Trusted Types off".to_owned());
+        }
+        let (title, gone) = (tx.clone(), tx.clone());
+        let webview = WebViewBuilder::new()
+            .with_incognito(true)
+            .with_visible(false)
+            .with_accept_first_mouse(true)
+            .with_html(shell)
+            .with_download_started_handler(|_, _| false)
+            .with_document_title_changed_handler(move |t| _ = title.unbounded_send(Raw::Titled(t)))
+            .with_new_window_req_handler(|_, _| wry::NewWindowResponse::Deny)
+            .with_on_web_content_process_terminate_handler(move || _ = gone.unbounded_send(Raw::Gone(String::new())))
+            .with_navigation_handler(|url| super::sealed_stays(&url))
+            .build_as_child(&*window)
+            .map_err(|e| format!("the frame could not be made: {e}"))?;
+        let view = objc2::rc::Retained::as_ptr(&webview.webview()) as id;
+        // SAFETY: wry made `view` a subview of GPUI's view on this thread, and both live past this call.
+        let gpui: id = unsafe { msg_send![view, superview] };
+        unsafe {
+            install(view, gpui);
+            // What wry's own `transparent` feature sets, which this app does not build with: the page draws no ground.
+            let no: id = msg_send![class!(NSNumber), numberWithBool: NO];
+            let key = std::ffi::CString::new("drawsBackground").unwrap_or_default();
+            let key: id = msg_send![class!(NSString), stringWithUTF8String: key.as_ptr()];
+            let _: () = msg_send![view, setValue: no forKey: key];
+        }
+        HOOKS.with(|hooks| hooks.borrow_mut().insert(view as usize, Hooks { holes: Vec::new(), tx, zoom: 1. }));
+        Ok(Native { webview, view, gpui, shown: Cell::new(false) })
+    }
+
     pub fn show(&self, at: Bounds<Pixels>, holes: &[Bounds<Pixels>], _scale: f32, zoom: f32) {
         let at = super::screen_points(at, zoom);
         let holes: Vec<Bounds<Pixels>> = holes.iter().map(|h| super::screen_points(*h, zoom)).collect();

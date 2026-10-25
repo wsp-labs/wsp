@@ -32,6 +32,7 @@ import {
   ATTACHMENTS, ATTACHMENT_KEYS, searchIndex, type SearchedHit, namedOnly, writeLines, type KeptProcess, type KeptLaunch, type ThreadRecord, type KeptImages, type LiveSession, type SessionEntry, stopLogLine,
 } from "../types/internal.js";
 import { cloudsTold, launchArea, seedAfterLoss, servedTo } from "./launch.js";
+import { slateLookHubOf } from "../serve-slate-look.js";
 import { trimmedRow } from "./trimmed-row.js";
 import type { RuntimeContext, SessionsArea } from "../context.js";
 
@@ -465,7 +466,8 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       // person's other servers stay (measured on 2.1.284 and 0.155.1 against the user-scope config; a project's own
       // .mcp.json naming wsp was not measured). A harness that takes none is refused where a caller named servers and
       // left alone here, since the person asked for a thread, not for tools.
-      const served = servedTo(wsp, tree.rootThreadId ?? threadId, threadId);
+      const looks = slateLookHubOf(ctx.slates).lookable();
+      const served = servedTo(wsp, tree.rootThreadId ?? threadId, threadId, looks);
       const mcpServers = served !== undefined && adapter.mcpServers === true ? { [MCP_SERVER_NAME]: served, ...o.mcpServers } : o.mcpServers;
       const records = (o.attachments ?? []).map(attachmentRecord);
       const blocked = filesBlocked(records, adapter.attachments, harness) ?? mcpServersBlocked(o.mcpServers, adapter.mcpServers, harness);
@@ -764,7 +766,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         // What a launch fixes for the life of the agent's process: a turn runs on the thread's kept process only where
         // its own launch would be the same, and a fork is a launch of its own.
         const forkOnStart = readied !== undefined && "fork" in readied ? readied.fork : undefined;
-        const launchKey: KeptLaunch | undefined = ctx.moduleOf(entry.record.kind).keepsAgents && forkOnStart === undefined ? { fixed: launchFixed(entry, harness, cwd, o.mcpServers, catalog?.version), picks: { ...picks } } : undefined;
+        const launchKey: KeptLaunch | undefined = ctx.moduleOf(entry.record.kind).keepsAgents && forkOnStart === undefined ? { fixed: launchFixed(entry, harness, cwd, o.mcpServers, catalog?.version, looks), picks: { ...picks } } : undefined;
         // Matched on what this send named and the thread's access alone: a pick it left out is the thread's own, which
         // is the kept process's, even where the agent announced its model in other words than it was launched with.
         const asked = { ...(o.model !== undefined ? { model: picks.model } : {}), ...(o.effort !== undefined ? { effort: picks.effort } : {}), ...(o.contextWindow !== undefined ? { contextWindow: picks.contextWindow } : {}), ...(picks.permissionMode !== undefined ? { permissionMode: picks.permissionMode } : {}), ...(picks.fast === true ? { fast: true } : {}) };
@@ -1220,7 +1222,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       try {
         const { adapter } = ctx.adapterFor(entry, harness, launchEnv, undefined, servers);
         if (adapter.aside === undefined) throw new Error(asideUnsupportedLine(harness));
-        const served = adapter.asideServers === true && adapter.mcpServers === true ? servedTo(wsp, ctx.rootOf(threadId), threadId) : undefined;
+        const served = adapter.asideServers === true && adapter.mcpServers === true ? servedTo(wsp, ctx.rootOf(threadId), threadId, slateLookHubOf(ctx.slates).lookable()) : undefined;
         const asideIn = latest.cwd ?? ctx.folderOf(latest.workspaceId, ask.session);
         const serverValues = asideIn === undefined || adapter.asideServers !== true || ctx.brokered(entry.record) ? undefined : await ctx.serverValuesFor(entry, harness, asideIn);
         return await answered(adapter.aside, { ...ask, ...(served !== undefined ? { mcpServers: { [MCP_SERVER_NAME]: served } } : {}), ...(serverValues !== undefined ? { serverValues } : {}) });

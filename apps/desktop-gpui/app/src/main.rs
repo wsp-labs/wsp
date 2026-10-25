@@ -62,8 +62,13 @@ fn main() {
         eprintln!("desktop-gpui: {e}");
         std::process::exit(64);
     });
-    // `--screen browser` with no state runs the pane's own checks on a page it serves, with no host.
-    let browser_check = args.screen.as_deref() == Some(screens::browser::NAME) && args.state.is_none();
+    // `--screen browser` with no state runs the pane's own checks on a page it serves, with no host; `--screen
+    // frame-check` a slate frame's on the page that tries every forbidden thing, and `frame-check-without-trusted-types`
+    // the same in an engine without them.
+    let frame_check = matches!(args.screen.as_deref(), Some(screens::slate::frame_check::NAME | screens::slate::frame_check::NAME_WITHOUT))
+        && args.state.is_none();
+    let trusted_types = args.screen.as_deref() != Some(screens::slate::frame_check::NAME_WITHOUT);
+    let browser_check = (args.screen.as_deref() == Some(screens::browser::NAME) || frame_check) && args.state.is_none();
     let session = args.bench.as_ref().is_some_and(|b| !b.session.is_empty());
     if let Some(name) = &pane {
         if args.open.is_none() && !session {
@@ -207,7 +212,11 @@ fn main() {
         menu::init(cx);
         cx.set_global(capture);
         if browser_check {
-            screens::browser::check::open(cx);
+            if frame_check {
+                screens::slate::frame_check::open(trusted_types, cx);
+            } else {
+                screens::browser::check::open(cx);
+            }
             return;
         }
         let reopen = {
