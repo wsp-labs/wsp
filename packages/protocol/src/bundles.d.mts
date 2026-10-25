@@ -15,6 +15,8 @@ export function classicNames(version: string): Names;
 /** The copies the release job uploads beside the versioned ones, under names no version moves. */
 export const STABLE_NAMES: { mac: string; appImage: string };
 export const CLASSIC_STABLE_NAMES: { mac: string; appImage: string };
+/** The last release that carried the classic app under STABLE_NAMES. */
+export const CLASSIC_FALLBACK_TAG: string;
 /** Where GitHub serves that asset of whichever release is newest. */
 export function downloadUrl(asset: string): string;
 /** The names one release's jobs work with, as the assignments it writes into its own environment. */

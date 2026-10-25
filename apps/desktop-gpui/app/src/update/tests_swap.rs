@@ -315,3 +315,56 @@ fn a_swap_put_back_after_a_restart_moves_the_host_back_itself() {
         Ok(None)
     );
 }
+
+/// Catches: an app that cannot tell which file it runs from (an AppImage moved, linked or unpacked under its name)
+/// offering Restart, the install line's unpacked files taken for an AppImage, and a swap that renames whatever stands at
+/// the path.
+#[test]
+fn an_app_that_cannot_tell_what_it_would_replace_says_so_and_changes_nothing() {
+    let dir = tmp();
+    let at = |name: &str| dir.path().join(name);
+    let image = |name: &str| Installed { path: at(name), kind: Kind::AppImage };
+    std::fs::write(at("wsp.AppImage"), b"\x7fELF\x02\x01\x01\x00AI\x02 0.3.8").unwrap();
+    assert_eq!(stage::in_place_refusal(&image("wsp.AppImage")), None, "an AppImage file of its own replaces itself");
+    std::os::unix::fs::symlink(at("wsp.AppImage"), at("linked.AppImage")).unwrap();
+    std::fs::create_dir(at("unpacked.AppImage")).unwrap();
+    std::fs::write(at("script.AppImage"), "#!/bin/sh\n").unwrap();
+    for name in ["gone.AppImage", "linked.AppImage", "unpacked.AppImage", "script.AppImage"] {
+        assert_eq!(stage::in_place_refusal(&image(name)), Some(stage::words::APP_IMAGE_GONE), "{name}");
+    }
+    if cfg!(target_os = "linux") {
+        let files = at(".wsp/app/0.4.0-install/usr/bin/desktop-gpui");
+        assert_eq!(Installed::of(&files, None, None), None, "the install line's unpacked files take the Downloads road");
+        let leaked = Installed::of(&files, Some(at("wsp.AppImage").as_os_str()), Some(std::ffi::OsStr::new("/tmp/.mount_wspX")));
+        assert_eq!(leaked, None, "an APPIMAGE another AppImage's launch left in the environment is not this app's");
+    }
+
+    for shape in ["folder", "link"] {
+        let s = swapping(quit_app(), "exec sleep 3");
+        let real = s.installed.with_file_name("real.AppImage");
+        std::fs::rename(&s.installed, &real).unwrap();
+        if shape == "folder" {
+            std::fs::create_dir(&s.installed).unwrap();
+            std::fs::write(s.installed.join("AppRun"), "unpacked").unwrap();
+        } else {
+            std::os::unix::fs::symlink(&real, &s.installed).unwrap();
+        }
+        assert!(!run_swap(&s.swap).wait().unwrap().success(), "{shape}");
+        assert!(log_of(&s).contains("so the update cannot tell what it would replace; nothing was changed"), "{shape}: {}", log_of(&s));
+        assert!(!s.installed.with_file_name("new.ran").exists(), "{shape}: the new app never ran");
+        assert!(!s.swap.staged.stage.exists(), "{shape}: the checked copy went");
+        if shape == "folder" {
+            assert_eq!(std::fs::read_to_string(s.installed.join("AppRun")).unwrap(), "unpacked", "the folder stands as it was");
+        } else {
+            assert_eq!(std::fs::read_link(&s.installed).unwrap(), real, "the link stands as it was");
+        }
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn the_swap_keeps_an_appimage_that_unpacks_itself_doing_so() {
+    let kept = swap::env(|name| ["HOME", "APPIMAGE_EXTRACT_AND_RUN", "GH_TOKEN"].contains(&name).then(|| "1".to_owned()));
+    let names: Vec<&str> = kept.iter().map(|(name, _)| name.as_str()).collect();
+    assert_eq!(names, ["PATH", "HOME", "APPIMAGE_EXTRACT_AND_RUN"], "where FUSE is missing the new app starts as the old one did");
+}

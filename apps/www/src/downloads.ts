@@ -3,7 +3,7 @@
 // and the URLs come from the release job's own formatter, so a rename there
 // moves these links with it and nothing on this page can go stale.
 import { useSyncExternalStore } from "react";
-import { CLASSIC_STABLE_NAMES, downloadUrl, STABLE_NAMES } from "../../../packages/protocol/src/bundles.mjs";
+import { downloadUrl, STABLE_NAMES } from "../../../packages/protocol/src/bundles.mjs";
 
 export type Platform = "mac" | "linux" | "windows";
 
@@ -12,10 +12,11 @@ export const DOWNLOADS: Record<Exclude<Platform, "windows">, { label: string; hr
   linux: { label: "Download for Linux", href: downloadUrl(STABLE_NAMES.appImage) },
 };
 
-/** The classic app's downloads, which the release lists second. */
+/** The classic app's downloads, which the site's Worker sends to the newest release's copy, or to the last release that
+ * carried the classic app under the app's names while no release carries one of its own. */
 export const CLASSIC: Record<Exclude<Platform, "windows">, string> = {
-  mac: downloadUrl(CLASSIC_STABLE_NAMES.mac),
-  linux: downloadUrl(CLASSIC_STABLE_NAMES.appImage),
+  mac: "/download/classic/mac",
+  linux: "/download/classic/linux",
 };
 
 /** Which download to put first. Mac against Linux is the one thing a browser answers reliably; the chip is not, since

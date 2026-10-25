@@ -81,7 +81,7 @@ describe("every route, as raw HTML", () => {
     }
     expect(html).toContain(`href="/download/mac"`);
     expect(html).toContain(`href="/compare/conductor"`);
-    expect(CLASSIC).toEqual({ mac: `${REPO}/releases/latest/download/wsp-classic-mac.dmg`, linux: `${REPO}/releases/latest/download/wsp-classic-linux.AppImage` });
+    expect(CLASSIC).toEqual({ mac: "/download/classic/mac", linux: "/download/classic/linux" });
     for (const href of Object.values(CLASSIC)) expect(html).toContain(`href="${href}"`);
   });
 

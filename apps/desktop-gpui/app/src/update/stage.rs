@@ -21,6 +21,7 @@ pub mod words {
         "macOS runs the app from a temporary copy, so it cannot replace itself. Move wsp to Applications and open it again.";
     pub const DISK_IMAGE: &str = "The app runs from a disk image or another drive, so it cannot replace itself. Move wsp to Applications.";
     pub const NOT_WRITABLE: &str = "The folder holding the app is not writable, so it cannot replace itself.";
+    pub const APP_IMAGE_GONE: &str = "The AppImage the app runs from is gone or is not a file of its own, so it cannot replace itself.";
     pub fn unreadable(asset: &str) -> String {
         format!("{asset} is not a zip that could be read")
     }
@@ -127,8 +128,12 @@ fn writable(path: &Path) -> bool {
 
 /// Why the installed app cannot replace itself, or nothing where it can (`inPlaceRefusal`): a translocated copy, and
 /// anything under /Volumes, where a disk image may be mounted writable, are refused, and so is a folder that is not
-/// writable, since the swap renames the app inside its own folder.
+/// writable, since the swap renames the app inside its own folder. An AppImage must still be an AppImage file of its
+/// own, since the swap renames whatever stands at its path.
 pub fn in_place_refusal(installed: &Installed) -> Option<&'static str> {
+    if installed.kind == Kind::AppImage && !(real_file(&installed.path) && app_image_marked(&installed.path)) {
+        return Some(words::APP_IMAGE_GONE);
+    }
     let path = installed.path.to_string_lossy();
     if installed.kind == Kind::Mac {
         if path.contains("/AppTranslocation/") {

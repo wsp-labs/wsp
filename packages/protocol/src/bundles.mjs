@@ -52,6 +52,10 @@ export function classicNames(version) {
 export const STABLE_NAMES = { mac: "wsp-mac.dmg", appImage: "wsp-linux.AppImage" };
 export const CLASSIC_STABLE_NAMES = { mac: "wsp-classic-mac.dmg", appImage: "wsp-classic-linux.AppImage" };
 
+/** The last release that carried the classic app under STABLE_NAMES, where the site sends a classic download while the
+ * newest release has no copy under CLASSIC_STABLE_NAMES. */
+export const CLASSIC_FALLBACK_TAG = "v0.3.8";
+
 /** Where GitHub serves that asset of whichever release is newest. */
 export function downloadUrl(asset) {
   return `${REPO}/releases/latest/download/${asset}`;
