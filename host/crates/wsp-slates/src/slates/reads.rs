@@ -9,9 +9,9 @@ use wsp_words::exit::HostError;
 
 use super::model::SlateRecord;
 use super::{CatalogParams, ReadParams, SlatesInner, Views};
-use crate::pending::siblings::Pin;
 use crate::pending::slate::{SlateDoc, SlateEvalContext, SlateProblem};
 use crate::pending::wire::{SlateAsk, SlateReadAnswer, SlateView};
+use crate::slate_files::Pin;
 
 // slates.ts:591
 //   /** The paths a document binds, as the evaluator names them. */
@@ -104,7 +104,14 @@ impl SlatesInner {
     pub(crate) fn scrub(&self, thread_id: &str, text: &str) -> String {
         todo!()
     }
-    pub(crate) fn sketched(&self, r: &SlateRecord, views: &Views, check: bool, asked: &[SlateProblem], warnings: &[SlateProblem]) -> String {
+    pub(crate) fn sketched(
+        &self,
+        r: &SlateRecord,
+        views: &Views,
+        check: bool,
+        asked: &[SlateProblem],
+        warnings: &[SlateProblem],
+    ) -> String {
         todo!()
     }
     pub(crate) async fn sketch_of(self: Rc<Self>, r: &SlateRecord) -> String {

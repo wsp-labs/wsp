@@ -14,6 +14,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 pub use wsp_catalog::mcp::McpTransport;
+/// When the thread's agent asks before an MCP tool at its mode now (slate-mcp.ts:140): wsp-core's, which wsp-slates takes.
+pub use wsp_core::harness_catalog::ToolAsks;
 pub use wsp_wire::wire::daemon::{HttpBearer, EXEC_OUTPUT_MAX};
 
 use wsp_core::clock::Clock;
@@ -49,7 +51,12 @@ pub type MissingOnFn = Rc<dyn Fn(Vec<String>) -> LocalBoxFuture<'static, Missing
 
 // slate-mcp.ts:33 refusedAway(before, doc, away, missingOn)
 /// What a slate is refused as it is written from a thread off this computer (spec rule 2).
-pub async fn refused_away(before: Option<&SlateDoc>, doc: Option<&SlateDoc>, away: Option<&Away>, missing_on: Option<MissingOnFn>) -> Vec<SlateProblem> {
+pub async fn refused_away(
+    before: Option<&SlateDoc>,
+    doc: Option<&SlateDoc>,
+    away: Option<&Away>,
+    missing_on: Option<MissingOnFn>,
+) -> Vec<SlateProblem> {
     todo!()
 }
 
@@ -169,15 +176,6 @@ pub struct McpResourceInfo {
     pub mime_type: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<Value>,
-}
-
-/// When the thread's agent asks before an MCP tool at its mode now (slate-mcp.ts:140).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum ToolAsks {
-    Never,
-    Every,
-    UnlessReadOnly,
 }
 
 // slate-mcp.ts:200 codeKey(decl, args)

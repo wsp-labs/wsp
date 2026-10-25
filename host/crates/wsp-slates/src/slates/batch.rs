@@ -8,8 +8,8 @@ use wsp_words::exit::HostError;
 
 use super::model::{BatchBy, SlateRecord};
 use super::{Delivered, RecordRef, SlatesInner, Views};
-use crate::pending::siblings::Pin;
 use crate::pending::slate::{BatchEvent, BatchSend, SlateRunDecl, SlateWrite};
+use crate::slate_files::Pin;
 use crate::slate_runs::{CmdRunDecl, RunAsk, RunBy, RunInputs, RunRecord};
 
 /// What a batch did (slates.ts:888-893).
@@ -319,7 +319,13 @@ impl SlatesInner {
     //     return { asks, started: deferred.map(d => d.run), sends };
     //   }
     /// Called on the thread's chain.
-    pub(crate) async fn batch(self: Rc<Self>, r: RecordRef, input: Vec<SlateWrite>, by: BatchBy, o: BatchOptions) -> Result<BatchOut, HostError> {
+    pub(crate) async fn batch(
+        self: Rc<Self>,
+        r: RecordRef,
+        input: Vec<SlateWrite>,
+        by: BatchBy,
+        o: BatchOptions,
+    ) -> Result<BatchOut, HostError> {
         todo!()
     }
 
@@ -380,7 +386,12 @@ impl SlatesInner {
     //     return first;
     //   };
     /// The first outcome, with the send's kind.
-    pub(crate) async fn deliver_all(self: Rc<Self>, thread_id: String, workspace_id: String, sends: Vec<ComposedSend>) -> Result<Option<(Delivered, String)>, HostError> {
+    pub(crate) async fn deliver_all(
+        self: Rc<Self>,
+        thread_id: String,
+        workspace_id: String,
+        sends: Vec<ComposedSend>,
+    ) -> Result<Option<(Delivered, String)>, HostError> {
         todo!()
     }
 }
