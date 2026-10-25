@@ -23,8 +23,7 @@ pub use wsp_frames::{place_link_transcript, place_refusal_transcript, LinkEpheme
 /// it: the six fields it checks, `joinedAt` as whatever the file holds there (never checked), and every other key
 /// kept in its order, since place_file_text writes back what was read. wsp_frames::PlaceFile is the daemon's stricter
 /// reading and is not this one.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PlaceFile {
     pub place_id: String,
     pub name: String,
@@ -32,10 +31,74 @@ pub struct PlaceFile {
     pub host_urls: Vec<String>,
     pub host_public_key: String,
     pub key_path: String,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub joined_at: Option<Value>,
-    #[serde(flatten, serialize_with = "crate::types::check::js_record")]
     pub rest: IndexMap<String, Value>,
+    /// The keys in the order the file held them; empty for a file built here, which writes in field order.
+    pub keys: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PlaceFileKnown {
+    place_id: String,
+    name: String,
+    host_name: String,
+    host_urls: Vec<String>,
+    host_public_key: String,
+    key_path: String,
+    #[serde(default, deserialize_with = "kept")]
+    joined_at: Option<Value>,
+    #[serde(flatten)]
+    rest: IndexMap<String, Value>,
+}
+
+fn kept<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Value>, D::Error> {
+    Value::deserialize(d).map(Some)
+}
+
+impl<'de> Deserialize<'de> for PlaceFile {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let map = IndexMap::<String, Value>::deserialize(d)?;
+        let keys = map.keys().cloned().collect();
+        let known: PlaceFileKnown =
+            serde_json::from_value(Value::Object(map.into_iter().collect())).map_err(<D::Error as serde::de::Error>::custom)?;
+        Ok(PlaceFile {
+            place_id: known.place_id,
+            name: known.name,
+            host_name: known.host_name,
+            host_urls: known.host_urls,
+            host_public_key: known.host_public_key,
+            key_path: known.key_path,
+            joined_at: known.joined_at,
+            rest: known.rest,
+            keys,
+        })
+    }
+}
+
+impl Serialize for PlaceFile {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut all: IndexMap<String, Value> = IndexMap::new();
+        all.insert("placeId".into(), Value::from(self.place_id.as_str()));
+        all.insert("name".into(), Value::from(self.name.as_str()));
+        all.insert("hostName".into(), Value::from(self.host_name.as_str()));
+        all.insert("hostUrls".into(), Value::from(self.host_urls.clone()));
+        all.insert("hostPublicKey".into(), Value::from(self.host_public_key.as_str()));
+        all.insert("keyPath".into(), Value::from(self.key_path.as_str()));
+        if let Some(at) = &self.joined_at {
+            all.insert("joinedAt".into(), at.clone());
+        }
+        all.extend(self.rest.clone());
+        let mut written: IndexMap<String, Value> = IndexMap::new();
+        for key in &self.keys {
+            if let Some(v) = all.shift_remove(key) {
+                written.insert(key.clone(), v);
+            }
+        }
+        written.extend(all);
+        js_key_order(&mut written);
+        written.serialize(s)
+    }
 }
 
 /// The engine a project's own containers would run on: Docker first, then podman, else none.
@@ -73,26 +136,48 @@ fn url_string(s: &str) -> Result<(), SchemaError> {
     Err(SchemaError { code: "invalid_string".into(), path: Vec::new(), message: "Invalid url".into(), detail })
 }
 
-/// zod's `.datetime()` with no offset allowed: `YYYY-MM-DDTHH:MM:SS`, an optional fraction, then `Z`.
-fn datetime_string(s: &str) -> Result<(), SchemaError> {
+/// zod 3.25.76's `.datetime()` regex with no offset allowed: a real calendar date (leap years included), `T`, an hour
+/// 00-23 and minute 00-59, optional seconds with an optional fraction, then `Z`.
+fn datetime_ok(s: &str) -> bool {
     let b = s.as_bytes();
-    let digits = |r: std::ops::Range<usize>| b.get(r).is_some_and(|d| d.iter().all(u8::is_ascii_digit));
-    let shape = digits(0..4)
-        && b.get(4) == Some(&b'-')
-        && digits(5..7)
-        && b.get(7) == Some(&b'-')
-        && digits(8..10)
-        && b.get(10) == Some(&b'T')
-        && digits(11..13)
-        && b.get(13) == Some(&b':')
-        && digits(14..16)
-        && b.get(16) == Some(&b':')
-        && digits(17..19);
-    let fraction_ok = s
-        .get(19..)
-        .and_then(|t| t.strip_suffix('Z'))
-        .is_some_and(|f| f.is_empty() || f.strip_prefix('.').is_some_and(|d| !d.is_empty() && d.bytes().all(|c| c.is_ascii_digit())));
-    if shape && fraction_ok {
+    let num = |at: usize, len: usize| -> Option<usize> {
+        let part = b.get(at..at + len)?;
+        part.iter().all(u8::is_ascii_digit).then(|| part.iter().fold(0, |n, d| n * 10 + usize::from(d - b'0')))
+    };
+    let (Some(year), Some(month), Some(day)) = (num(0, 4), num(5, 2), num(8, 2)) else { return false };
+    if b.get(4) != Some(&b'-') || b.get(7) != Some(&b'-') || b.get(10) != Some(&b'T') {
+        return false;
+    }
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let days = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => return false,
+    };
+    if day < 1 || day > days {
+        return false;
+    }
+    let (Some(hour), Some(minute)) = (num(11, 2), num(14, 2)) else { return false };
+    if b.get(13) != Some(&b':') || hour > 23 || minute > 59 {
+        return false;
+    }
+    match &s[16..] {
+        "Z" => true,
+        rest => {
+            let Some(seconds) = rest.strip_prefix(':').and_then(|r| r.strip_suffix('Z')) else { return false };
+            let (whole, fraction) = seconds.split_at(seconds.find('.').unwrap_or(seconds.len()));
+            whole.len() == 2
+                && whole.bytes().all(|c| c.is_ascii_digit())
+                && whole.as_bytes()[0] <= b'5'
+                && (fraction.is_empty() || (fraction.len() > 1 && fraction[1..].bytes().all(|c| c.is_ascii_digit())))
+        }
+    }
+}
+
+fn datetime_string(s: &str) -> Result<(), SchemaError> {
+    if datetime_ok(s) {
         return Ok(());
     }
     let mut detail = indexmap::IndexMap::new();
@@ -1490,9 +1575,7 @@ pub fn place_file_names(file: Option<&PlaceFile>, place_ids: &[String], host_pub
 // /** The text the file holds, which parsePlaceFile reads back. */
 // export const placeFileText = (file: PlaceFile): string => `${JSON.stringify(file, null, 2)}\n`;
 pub fn place_file_text(file: &PlaceFile) -> String {
-    let mut written = file.clone();
-    js_key_order(&mut written.rest);
-    format!("{}\n", serde_json::to_string_pretty(&written).expect("a place file writes as JSON"))
+    format!("{}\n", serde_json::to_string_pretty(file).expect("a place file writes as JSON"))
 }
 
 // The shapes wsp-frames holds read every bound while deserializing, so each Check has nothing left to refuse.
@@ -1508,7 +1591,6 @@ impl Check for PlaceFile {
         crate::types::keys::req_key::<Vec<String>>(obj, "hostUrls", &mut out);
         crate::types::keys::req_key::<String>(obj, "hostPublicKey", &mut out);
         crate::types::keys::req_key::<String>(obj, "keyPath", &mut out);
-        crate::types::keys::opt_key::<Value>(obj, "joinedAt", &mut out);
         Some(out)
     }
 
@@ -1551,5 +1633,29 @@ impl Check for SshHostSuggestionFrom {
     }
 }
 
-/// The place link's base64 values are wsp_frames' and read every bound at deserialize; nothing is left to check.
-impl<const N: usize> Check for wsp_frames::Base64Bytes<N> {}
+/// helpers.ts base64(n): `z.string().max(..).regex(..).refine(..)`, each run on a string, every failure an issue.
+impl<const N: usize> Check for wsp_frames::Base64Bytes<N> {
+    fn pass(value: &serde_json::Value) -> Option<Vec<SchemaError>> {
+        let serde_json::Value::String(text) = value else { return None };
+        let digits = text.trim_end_matches('=');
+        let pad = text.len() - digits.len();
+        let in_alphabet = !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'+' || b == b'/');
+        let len = crate::types::check::utf16_len(text);
+        let pad_bytes = if text.ends_with("==") { 2 } else { usize::from(text.ends_with('=')) };
+        let counts = len % 4 == 0 && len / 4 * 3 - pad_bytes == N;
+        Some(
+            [
+                text_at_most(text, N.div_ceil(3) * 4),
+                regex_check(in_alphabet && pad <= 2),
+                refine(counts, &format!("must be {N} bytes, base64")),
+            ]
+            .into_iter()
+            .filter_map(Result::err)
+            .collect(),
+        )
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Word("string"))
+    }
+}
