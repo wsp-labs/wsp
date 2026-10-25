@@ -4,16 +4,14 @@
 //! The slate's parser, expressions and validator stay with wsp-slate; these shapes sit here because wsp-wire's op
 //! union and event union name them and wsp-slate depends on wsp-wire.
 
-use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 use crate::types::check::{Check, SchemaError};
 use crate::types::js_number::JsInt;
 use crate::types::js_number::JsNumber;
 
 /// slate/wire.ts:21: a record of any JSON by path, kept in the order sent.
-pub type SlateWireValues = IndexMap<String, Value>;
+pub type SlateWireValues = crate::types::kept::Record<crate::types::kept::Kept>;
 
 /// slate/wire.ts:24 and :28, in order.
 pub const SLATE_CAUSES: &[&str] = &["write", "state", "clear", "undo", "restore", "comment", "run"];

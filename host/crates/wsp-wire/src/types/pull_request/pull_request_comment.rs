@@ -473,61 +473,6 @@ impl Check for GitPrReadReply {
     }
 }
 
-impl Check for GitRunLogReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "lines" => <Vec<String> as Check>::describe(rest),
-                "truncated" => <bool as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
-
-impl Check for GitPrMergeReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "merged" => <bool as Check>::describe(rest),
-                "autoArmed" => <bool as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
-
-impl Check for GitRepoReadReply {
-    /// Nested checks: methods, defaultMethod.
-    fn check(&self) -> Result<(), SchemaError> {
-        self.methods.check().map_err(|e| e.under("methods"))?;
-        self.default_method.check().map_err(|e| e.under("defaultMethod"))?;
-        Ok(())
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "methods" => <Vec<MergeMethod> as Check>::describe(rest),
-                "defaultMethod" => <MergeMethod as Check>::describe(rest),
-                "autoMerge" => <bool as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
-
 /// TS: packages/protocol/src/pull-request.ts:523 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -891,23 +836,6 @@ impl Check for GitPrReplyReply {
             Some((key, rest)) => match key.as_str()? {
                 "comment" => <Option<PullRequestComment> as Check>::describe(rest),
                 "reviewComment" => <Option<PullRequestReviewComment> as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
-
-impl Check for GitPrResolveReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "threadId" => <String as Check>::describe(rest),
-                "resolved" => <bool as Check>::describe(rest),
                 _ => None,
             },
         }

@@ -35,9 +35,11 @@ The views the host sends and the records it keeps, as serde types. The implement
    check (a `>= 0` rule must not be a serde refusal), the defaults and the nullable keys, and the nested schemas. Otherwise
    the type is a local struct with `JsNumber` fields and zod's rules, and wsp-frames is left alone. Re-exported today, after
    the audit: the unit enums (`PullRequestState`, `Mergeable`, `ReviewState`, `CheckState`, `MergeMethod`, `ReactionContent`,
-   `CopyWord`, `MachineKind`, `MachineState`, `WorkspaceKind`, `Carried`) and the structs `GitStartOnReply`, `GitPrDiffReply`,
-   `GitPrCheckoutReply`, `GitPrReviewReply`, `PullRequestLabel`, `PullRequestReviewRequest`, `GitRunLogReply`, `GitPrMergeReply`,
-   `GitRepoReadReply`, `GitPrResolveReply`, `CarryModule`. Local, because they differ: `GitPushReply`, `GitPrReply`, `IssueRead`,
+   `CopyWord`, `MachineKind`, `MachineState`, `WorkspaceKind`, `Carried`) and the structs `GitPrCheckoutReply` (one key),
+   `PullRequestLabel`, `CarryModule`. Local, because wsp-frames' derived `Deserialize` answers the first key the input holds
+   that fails and zod answers the first key of the schema, and lists every issue (`src/types/frames_replies.rs`):
+   `GitStartOnReply`, `GitPrDiffReply`, `GitPrReviewReply`, `PullRequestReviewRequest`, `GitRunLogReply`, `GitPrMergeReply`,
+   `GitRepoReadReply`, `GitPrResolveReply`. Local, because they differ: `GitPushReply`, `GitPrReply`, `IssueRead`,
    `GitIssueReadReply`, `GitBranchCompareReply`, `PullRequestReaction`, `PullRequestCommit`, `GitPrReadReply`, `GitPrReactReply`,
    `GitPrReplyReply`, `UsageTokens`, `HostFolder`, `HostFolderListing`, `WorkspaceCopy`, and `RelayPort` (wire/limits.rs).
 7. Hand rules beside the generated ones: `WorkspaceCopy.from/at`, `MachineShare.source/target`,

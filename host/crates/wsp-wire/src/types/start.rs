@@ -8,6 +8,8 @@ use crate::types::check::{Check, SchemaError};
 use crate::types::js_number::JsInt;
 use crate::types::js_number::JsNumber;
 
+pub use crate::types::frames_replies::{GitPrDiffReply, GitPrReviewReply};
+
 literal!(GithubComLit, "github.com");
 
 /// TS: packages/protocol/src/start.ts:104 at a3b870a6e.
@@ -362,28 +364,6 @@ impl Check for GitIssueReadReply {
     }
 }
 
-/// TS: packages/protocol/src/start.ts:92 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::GitPrDiffReply;
-
-impl Check for GitPrDiffReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "diff" => <String as Check>::describe(rest),
-                "truncated" => <bool as Check>::describe(rest),
-                "left" => <Vec<String> as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
-
 /// TS: packages/protocol/src/start.ts:96 at a3b870a6e.
 /// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
 pub use wsp_frames::GitPrCheckoutReply;
@@ -398,27 +378,6 @@ impl Check for GitPrCheckoutReply {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
                 "branch" => <String as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
-
-/// TS: packages/protocol/src/start.ts:100 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::GitPrReviewReply;
-
-impl Check for GitPrReviewReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "url" => <String as Check>::describe(rest),
-                "folded" => <Vec<String> as Check>::describe(rest),
                 _ => None,
             },
         }

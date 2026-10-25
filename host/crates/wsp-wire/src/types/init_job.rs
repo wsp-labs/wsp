@@ -566,7 +566,7 @@ impl Check for InitRow {
 }
 
 /// TS: packages/protocol/src/init-job.ts:142 at a3b870a6e.
-pub type InitKeys = IndexMap<String, bool>;
+pub type InitKeys = crate::types::kept::Record<bool>;
 
 /// TS: packages/protocol/src/init-job.ts:152 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

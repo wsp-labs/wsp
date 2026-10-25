@@ -684,7 +684,7 @@ pub enum RuntimeOp {
         turn_token: Option<String>,
         text: Option<String>,
         #[serde(default, serialize_with = "crate::types::check::js_record_opt", deserialize_with = "crate::types::kept::record_opt")]
-        document: Option<IndexMap<String, Value>>,
+        document: Option<IndexMap<String, crate::types::kept::Kept>>,
         check: Option<bool>,
         if_version: Option<JsInt>,
         values: Option<SlateWireValues>,

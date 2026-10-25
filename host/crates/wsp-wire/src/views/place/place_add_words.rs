@@ -685,8 +685,8 @@ impl Check for WorkspaceCopy {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        crate::types::keys::req_key_with::<String>(obj, "from", &mut out, Self::rule_from);
-        crate::types::keys::req_key_with::<String>(obj, "at", &mut out, Self::rule_at);
+        crate::types::key_rules::req_key_all::<String>(obj, "from", &mut out, Self::rules_from);
+        crate::types::key_rules::req_key_all::<String>(obj, "at", &mut out, Self::rules_at);
         Some(out)
     }
 
@@ -702,15 +702,17 @@ impl Check for WorkspaceCopy {
     }
 }
 impl WorkspaceCopy {
-    fn rule_from(x: &String) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::text_at_least(x, 1)?;
-        crate::types::check::refine(crate::wire::limits::is_plain_path(x), "an absolute path on the computer")?;
-        Ok(())
+    fn rules_from(x: &String) -> Vec<crate::types::check::SchemaError> {
+        crate::types::key_rules::all([
+            crate::types::check::text_at_least(x, 1),
+            crate::types::check::refine(crate::wire::limits::is_plain_path(x), "an absolute path on the computer"),
+        ])
     }
-    fn rule_at(x: &String) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::text_at_least(x, 1)?;
-        crate::types::check::refine(crate::wire::limits::is_plain_path(x), "an absolute path inside the workspace")?;
-        Ok(())
+    fn rules_at(x: &String) -> Vec<crate::types::check::SchemaError> {
+        crate::types::key_rules::all([
+            crate::types::check::text_at_least(x, 1),
+            crate::types::check::refine(crate::wire::limits::is_plain_path(x), "an absolute path inside the workspace"),
+        ])
     }
 }
 
@@ -744,8 +746,8 @@ impl Check for MachineShare {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        crate::types::keys::req_key_with::<String>(obj, "source", &mut out, Self::rule_source);
-        crate::types::keys::req_key_with::<String>(obj, "target", &mut out, Self::rule_target);
+        crate::types::key_rules::req_key_all::<String>(obj, "source", &mut out, Self::rules_source);
+        crate::types::key_rules::req_key_all::<String>(obj, "target", &mut out, Self::rules_target);
         Some(out)
     }
 
@@ -761,15 +763,17 @@ impl Check for MachineShare {
     }
 }
 impl MachineShare {
-    fn rule_source(x: &String) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::text_at_least(x, 1)?;
-        crate::types::check::refine(crate::wire::limits::is_plain_path(x), "an absolute path on the computer")?;
-        Ok(())
+    fn rules_source(x: &String) -> Vec<crate::types::check::SchemaError> {
+        crate::types::key_rules::all([
+            crate::types::check::text_at_least(x, 1),
+            crate::types::check::refine(crate::wire::limits::is_plain_path(x), "an absolute path on the computer"),
+        ])
     }
-    fn rule_target(x: &String) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::text_at_least(x, 1)?;
-        crate::types::check::refine(crate::wire::limits::is_plain_path(x), "an absolute path inside the workspace")?;
-        Ok(())
+    fn rules_target(x: &String) -> Vec<crate::types::check::SchemaError> {
+        crate::types::key_rules::all([
+            crate::types::check::text_at_least(x, 1),
+            crate::types::check::refine(crate::wire::limits::is_plain_path(x), "an absolute path inside the workspace"),
+        ])
     }
 }
 
@@ -799,8 +803,8 @@ impl Check for MachineBind {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        crate::types::keys::req_key_with::<String>(obj, "source", &mut out, Self::rule_source);
-        crate::types::keys::req_key_with::<String>(obj, "target", &mut out, Self::rule_target);
+        crate::types::key_rules::req_key_all::<String>(obj, "source", &mut out, Self::rules_source);
+        crate::types::key_rules::req_key_all::<String>(obj, "target", &mut out, Self::rules_target);
         crate::types::keys::opt_key::<bool>(obj, "readOnly", &mut out);
         Some(out)
     }
@@ -818,15 +822,17 @@ impl Check for MachineBind {
     }
 }
 impl MachineBind {
-    fn rule_source(x: &String) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::text_at_least(x, 1)?;
-        crate::types::check::refine(crate::wire::limits::is_plain_path(x), "an absolute path on the computer")?;
-        Ok(())
+    fn rules_source(x: &String) -> Vec<crate::types::check::SchemaError> {
+        crate::types::key_rules::all([
+            crate::types::check::text_at_least(x, 1),
+            crate::types::check::refine(crate::wire::limits::is_plain_path(x), "an absolute path on the computer"),
+        ])
     }
-    fn rule_target(x: &String) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::text_at_least(x, 1)?;
-        crate::types::check::refine(crate::wire::limits::is_plain_path(x), "an absolute path inside the workspace")?;
-        Ok(())
+    fn rules_target(x: &String) -> Vec<crate::types::check::SchemaError> {
+        crate::types::key_rules::all([
+            crate::types::check::text_at_least(x, 1),
+            crate::types::check::refine(crate::wire::limits::is_plain_path(x), "an absolute path inside the workspace"),
+        ])
     }
 }
 

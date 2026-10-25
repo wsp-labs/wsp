@@ -189,6 +189,6 @@ pub fn headers(x: &indexmap::IndexMap<String, String>) -> Vec<SchemaError> {
     for (key, value) in &walk {
         found.extend(text_at_most(value.as_str().unwrap_or_default(), 8192).err().map(|e| e.under(key.as_str())));
     }
-    found.extend(refine(x.len() <= 64, "at most 64 headers").err());
+    found.extend(refine(x.keys().filter(|k| *k != "__proto__").count() <= 64, "at most 64 headers").err());
     found
 }

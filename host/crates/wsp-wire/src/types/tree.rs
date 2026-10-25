@@ -7,29 +7,10 @@ use crate::types::check::{Check, SchemaError};
 use crate::types::js_number::JsInt;
 use crate::types::js_number::JsNumber;
 
+pub use crate::types::frames_replies::GitStartOnReply;
+
 /// TS: packages/protocol/src/tree.ts:149 at a3b870a6e.
 pub const FIX_CHECK_OR_CHILD: &str = "name a failed check or a child to merge, not both";
-
-/// TS: packages/protocol/src/tree.ts:12 at a3b870a6e.
-/// The daemon's own shape: wsp-frames declares it, with the same keys in the same order.
-pub use wsp_frames::GitStartOnReply;
-
-impl Check for GitStartOnReply {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "branch" => <String as Check>::describe(rest),
-                "oid" => <String as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
 
 /// TS: packages/protocol/src/tree.ts:17 at a3b870a6e.
 /// How far a head is from a base on the git host: whether it is pushed, and the counts and the host's word when it is.
