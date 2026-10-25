@@ -1,0 +1,44 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": {
+        "jsonLines": [
+          {
+            "computer": {
+              "id": "here",
+              "kind": "computer",
+              "name": "<computer>",
+              "default": true,
+              "os": "<machine>",
+              "shape": "<machine>",
+              "diskFreeBytes": "<machine>",
+              "engine": "none",
+              "home": "<tmp>/home",
+              "present": true,
+              "takesForks": false,
+              "buildsImages": false,
+              "cap": "<machine>",
+              "capDefault": "<machine>",
+              "turnLimitMs": null,
+              "turnLimitDefault": null,
+              "spawn": {
+                "spawn": true,
+                "maxMachines": 3,
+                "maxDepth": 2
+              },
+              "spawnDefault": {
+                "spawn": true,
+                "maxMachines": 3,
+                "maxDepth": 2
+              },
+              "running": 0
+            }
+          }
+        ]
+      },
+      "stderr": "starting the host for <tmp>/scratch/wsp-contract-<temp>/state/state.json; its log is <tmp>/scratch/wsp-contract-<temp>/state/host.log, and wsp down stops it\n"
+    }
+  ],
+  "events": []
+}

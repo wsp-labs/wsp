@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "no place named spoo; you have <computer>, none\n"
+    }
+  ],
+  "events": []
+}

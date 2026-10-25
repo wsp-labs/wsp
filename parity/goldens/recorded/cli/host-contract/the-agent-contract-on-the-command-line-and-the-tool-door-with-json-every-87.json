@@ -1,0 +1,24 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": {
+        "jsonLines": [
+          {
+            "target": {
+              "placeId": "here"
+            },
+            "home": "<tmp>/home",
+            "user": "root",
+            "readAt": "<time>",
+            "refused": [],
+            "projects": [],
+            "plugins": []
+          }
+        ]
+      },
+      "stderr": "starting the host for <tmp>/scratch/wsp-contract-<temp>/state/state.json; its log is <tmp>/scratch/wsp-contract-<temp>/state/host.log, and wsp down stops it\n"
+    }
+  ],
+  "events": []
+}

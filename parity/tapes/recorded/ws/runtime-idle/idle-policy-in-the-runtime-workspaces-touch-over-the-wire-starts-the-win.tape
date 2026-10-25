@@ -1,10 +1,19 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/idle.test.ts > idle policy in the runtime > workspaces.touch over the wire starts the window over"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/idle.test.ts > idle policy in the runtime > workspaces.touch over the wire starts the window over","outs":"recorded"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
+{"out":{"id":1,"ok":true}}
 {"in":{"workspaceId":"ws_00000001","id":2,"op":"workspaces.touch"}}
+{"out":{"id":2,"ok":true}}
 {"in":{"workspaceId":"ws_00000001","id":3,"op":"workspaces.touch"}}
+{"out":{"id":3,"ok":true}}
 {"in":{"workspaceId":"ws_00000001","id":4,"op":"workspaces.touch"}}
+{"out":{"id":4,"ok":true}}
 {"in":{"workspaceId":"ws_00000001","id":5,"op":"workspaces.touch"}}
+{"out":{"id":5,"ok":true}}
 {"in":{"workspaceId":"ws_00000001","id":6,"op":"workspaces.touch"}}
+{"out":{"id":6,"ok":true}}
 {"in":{"workspaceId":"ws_00000001","id":7,"op":"workspaces.touch"}}
+{"out":{"id":7,"ok":true}}
 {"in":{"workspaceId":"ws_00000001","id":8,"op":"workspaces.touch"}}
+{"out":{"id":8,"ok":true}}
 {"in":{"workspaceId":"ws_00000001","id":9,"op":"workspaces.touch"}}
+{"out":{"id":9,"ok":true}}

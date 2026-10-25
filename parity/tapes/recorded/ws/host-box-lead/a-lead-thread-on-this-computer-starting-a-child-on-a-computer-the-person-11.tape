@@ -1,4 +1,5 @@
-{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there acts on a thread on its lead's cloud machine by its words alone: no stop, no rename, no send that waits or carries a file, and that turn runs on"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"id":2,"op":"sessions.list"}}
-{"in":{"sessionId":"00000000-0000-4000-8000-000000000005","id":3,"op":"sessions.interrupt"}}
+{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there acts on a thread on its lead's cloud machine by its words alone: no stop, no rename, no send that waits or carries a file, and that turn runs on","outs":"recorded"}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEAib7IPinma0rHBeWsv6CTZqtTgPGoJ8O0xoxDysQ2264=","nonce":"IsChZIGfKOaF3tvLQhFlcN6WVPNPmnfhrLQv/3L+ybE=","ephemeral":"GjEjEbgw/ov9MQ/WBWnVGYyHW2rLDx/0pGxsPoLImjs=","id":1,"op":"place.join"}}
+{"out":{"id":1,"ok":true,"placeId":"p_00000001","hostPublicKey":"MCowBQYDK2VwAyEAYaKEHrsLlgcpeMbh6YGFHHJ6I8ZBzhKLNh8Zj03IoHY=","nonce":"SE6wjdAuYq5sIEY049/3mm1zn7GDlZVnuvcYPp8vStU=","signature":"b0E6/lB28jkNSv/GbovdPMcKbUg7XUOfnblmaeXhihRdtqKslMyWYuCQbO/LfecTpQIMKJ7bgSB32ryi5cTpCg==","ephemeral":"Tsd44W29bjSQxaBiijxJk8+EUiDOeIwj13JdELj0ll0=","hostName":"zingzys-mac"}}
+{"in":{"signature":"gPxiC9Lr4L5EUiRJvIlkfE64xhjSp+aGQp0KgkX3m8RvLS3JZnJoWEvmKheAXzTMbVPBNyE4t8CFDgDVQmgbBQ==","report":{"name":"hetzner","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/root","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":17,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"code":"<redacted>","id":2,"op":"place.prove"}}
+{"out":{"id":2,"ok":true}}

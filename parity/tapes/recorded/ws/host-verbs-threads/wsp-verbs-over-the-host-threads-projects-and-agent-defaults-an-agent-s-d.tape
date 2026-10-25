@@ -1,3 +1,5 @@
-{"meta":{"door":"ws","source":"packages/host/test/verbs-threads.test.ts > wsp verbs over the host: threads, projects and agent defaults > an agent's defaults and its project's override decide what a thread the line names nothing for starts at, and the line's own word wins"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
+{"meta":{"door":"ws","source":"packages/host/test/verbs-threads.test.ts > wsp verbs over the host: threads, projects and agent defaults > an agent's defaults and its project's override decide what a thread the line names nothing for starts at, and the line's own word wins","outs":"recorded"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"init"}}
 {"in":{"patch":{"agentDefaults":{"claude":{"access":"ask"}}},"id":2,"op":"preferences.set"}}
+{"out":{"id":2,"ok":true,"preferences":{"theme":"system","lightTheme":"paper","darkTheme":"graphite","sidebarMode":"list","terminalSize":"app","terminalZoom":{},"access":{},"projectLook":{},"projectIcon":{},"computerLook":{},"serverIcons":true,"agentVersions":true,"usageLogs":true,"productUsage":true,"keepAwake":true,"transparency":true,"projectOrder":[],"keybindings":{},"appFont":"","codeFont":"","agentDefaults":{"claude":{"access":"ask"}},"projectDefaults":{},"sendWith":"enter","midTurn":"queue","notifyNeeds":"notify-sound","notifyDone":"notify","planAlerts":true,"settleAfter":"2h","askDelete":true,"onQuit":"ask","newThreadIn":"current","labs":false}}}

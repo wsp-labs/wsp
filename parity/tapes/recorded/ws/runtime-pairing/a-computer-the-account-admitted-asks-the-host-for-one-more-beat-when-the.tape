@@ -1,3 +1,5 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/pairing.test.ts > a computer the account admitted > asks the host for one more beat when the key is not on the list yet, and admits what that beat learned"}}
-{"in":{"nonce":"o6ccxnntBMwbH2jNJearQFZ1gWia07UXsEssUs+dgOQ=","ephemeral":"555qQzGfTivGwR3BbIhWTEhocdK0czMLZLkVqW4C23I=","id":1,"op":"seal.open"}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEA8Ie+pz7hzibZyH1xNVutLOvJ54kr7x0jASpNOWMJa6o=","name":"the laptop","signature":"3PuTSbQNBpSnc6uqKknY7BbWo+HIvkraJg2pU14tm3d1/X3tG+XmrBRWfnv4HK+MKK3P54/MoyORdtk88+hpDg==","id":2,"op":"device.auth"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/pairing.test.ts > a computer the account admitted > asks the host for one more beat when the key is not on the list yet, and admits what that beat learned","outs":"recorded"}}
+{"in":{"nonce":"Dj3kcBZLZHJcTC/b0EOXrsZSbUp7h78YbSNfDghsJTo=","ephemeral":"QlG2fT9VlwO+He20ydl8UVBQZ79P2rVwwqse6TbGHgU=","id":1,"op":"seal.open"}}
+{"out":{"id":1,"ok":true,"nonce":"yupMKLTXmoaX3N0VQ1kGiRhDep5grl8kpUu+JErLLf4=","hostPublicKey":"MCowBQYDK2VwAyEAUgjMR/JXFY6/3RJut5tk2m0nr2xX6YIqo7T1u7I7FeA=","signature":"s7eq4NY2PdnitPOpHEGXU4kIvcDbsRQfCacNewTnvGVkSQKwljZCKkbetkyEffqz0WX1jAsAyctuwZD75AHHAg==","ephemeral":"h15RjtbLg3cdaYFDDN8JR+4Tuthg4wXNSnHOvfoxcxo="}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEA+NaBR43BF8cEcqaBDKWJktC18poOr9CiHW7V+5gZen0=","name":"the laptop","signature":"OBCpu4UitpEaHDjLupwwz3hDCszwMcDHW5xrA9JYz4iqUG8yNdD4TaszQyoMDVwJkH0UlMGt8T2ezc7BFztvCg==","id":2,"op":"device.auth"}}
+{"out":{"id":2,"ok":true,"deviceId":"d_00000001","deviceToken":"aF7Ptj1vyH931l_hp_b4B2WLvhUEtc3J"}}

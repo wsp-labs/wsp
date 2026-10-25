@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 2,
+      "stdout": "",
+      "stderr": "{\"error\":\"this thread's tools were launched without its own host token, so they refuse rather than act as the person; the agent did not pass WSP_HOST_URL and WSP_HOST_TOKEN to its MCP server\",\"class\":\"auth\",\"exit\":2}\n"
+    }
+  ],
+  "events": []
+}

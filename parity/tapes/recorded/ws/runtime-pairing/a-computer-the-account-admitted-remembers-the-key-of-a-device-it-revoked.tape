@@ -1,3 +1,5 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/pairing.test.ts > a computer the account admitted > remembers the key of a device it revoked and admits it no more, whatever admission the account still carries"}}
-{"in":{"nonce":"GhDIL3R46ICGvw1yhsV3Fo1xgObYHqd9suPv27WKhP8=","ephemeral":"1dePI9rpMglT388TDxg5aN2x3wbTVt+pSe2STyycjmI=","id":1,"op":"seal.open"}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEA8Ie+pz7hzibZyH1xNVutLOvJ54kr7x0jASpNOWMJa6o=","name":"the laptop","signature":"3bTAcUQ3+hhtxKyje/WiCb2QCLO7QebXACKL9seHZA0PRl/4XmhUAYfbV6j3e/cxnkZ/3tEf+rthdIZv7iP3Dw==","id":2,"op":"device.auth"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/pairing.test.ts > a computer the account admitted > remembers the key of a device it revoked and admits it no more, whatever admission the account still carries","outs":"recorded"}}
+{"in":{"nonce":"UGitA0s86bHN/3DYn87EYkJc5RW+lFd5nOZhKMDAAkc=","ephemeral":"plZbnEebwQdkvTxkdG4O8DqoS8EMMIDoCZhJMbqmJSg=","id":1,"op":"seal.open"}}
+{"out":{"id":1,"ok":true,"nonce":"m0ZkjLGP8fq9OqK5bIRJJT4AJAHoiI0w0ACWNwFJsJc=","hostPublicKey":"MCowBQYDK2VwAyEAUgjMR/JXFY6/3RJut5tk2m0nr2xX6YIqo7T1u7I7FeA=","signature":"SQULj6F/dQXbapCGXVEU0G9GLWv9jpJgYaW670Qqz+jqxe2UoAUuL5KGUEupJ8yCLrsEtaa6/z8b4863RMqZCQ==","ephemeral":"zCG1R3st3XnmOiV84L4yvna6L8Xdeks/lSHeH2k2UW8="}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEA+NaBR43BF8cEcqaBDKWJktC18poOr9CiHW7V+5gZen0=","name":"the laptop","signature":"LwPjYIf2njo2GOxRO9UhYdCBk3ePWOOJ8/G62jo2Xec3DgNKWwXaJEKZ455hGKrzvQQUFiYZnyBfgZkyDi3YBg==","id":2,"op":"device.auth"}}
+{"out":{"id":2,"ok":true,"deviceId":"d_00000001","deviceToken":"ZhaxYLVo0sjyqO936DBydCTgaRRrE_sR"}}

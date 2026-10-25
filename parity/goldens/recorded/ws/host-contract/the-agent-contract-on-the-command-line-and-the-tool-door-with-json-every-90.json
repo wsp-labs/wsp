@@ -1,0 +1,29 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "agent": {
+        "id": "claude",
+        "name": "Claude Code",
+        "installed": false,
+        "pinned": "2.1.296",
+        "road": "none",
+        "signIn": "none",
+        "signInRoad": "token",
+        "wspTools": false,
+        "setup": {
+          "on": true,
+          "envNames": []
+        }
+      }
+    }
+  ],
+  "events": []
+}

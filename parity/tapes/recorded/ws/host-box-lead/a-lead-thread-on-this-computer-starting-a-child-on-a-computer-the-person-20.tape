@@ -1,7 +1,5 @@
-{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there reaches its lead by its words alone: no stop of the lead, no send that waits on its reply or carries a file"}}
-{"in":{"token":"<redacted>","id":1,"op":"auth"}}
-{"in":{"id":2,"op":"sessions.list"}}
-{"in":{"workspaceId":"ws_00000001","id":3,"op":"harnesses.list"}}
-{"in":{"ref":"ws_00000001","id":4,"op":"workspaces.resolve"}}
-{"in":{"workspaceId":"ws_00000001","id":5,"op":"workspaces.wake"}}
-{"in":{"workspaceId":"ws_00000001","prompt":"which branch do I push to?","harness":"claude","thread":"00000000-0000-4000-8000-000000000002","followed":true,"startedBy":"cli","requestId":"00000000-0000-4000-8000-000000000005","answerHeld":true,"id":6,"op":"sessions.start"}}
+{"meta":{"door":"ws","source":"packages/host/test/box-lead.test.ts > a lead thread on this computer starting a child on a computer the person joined > a child there reaches its lead by its words alone: no stop of the lead, no send that waits on its reply or carries a file","outs":"recorded"}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEA7Gz2T0py6UTJjzk6txze8FwcZV/vhN4CDNme5J+m1W0=","nonce":"m2Mt3fKWSq2i4pEZonoB96jKDdBeMU6SQoGaQJ9Fuk0=","ephemeral":"qQdp7r2qXI1yqlxi40bOJ5M2h0nZHs5cFHIESM3fiUw=","id":1,"op":"place.join"}}
+{"out":{"id":1,"ok":true,"placeId":"p_00000001","hostPublicKey":"MCowBQYDK2VwAyEAOn2VpJN7iTLVlnfCi6a9FLj88VYHdrnjwiC+gtLG908=","nonce":"4zeUeb1VW9Zp38Q/xngn/cYezw7jYSMcutpZSKkltq8=","signature":"UXkpn0MVbtkpyw9wm0Jr6lQnuhHzRnuALo8/6lNf44y+nCMNHIgbC7Z/xbp7qtJuHTgqei8phzNMSmcdE9w9DQ==","ephemeral":"Kp5YsA5+f2BCnOLU806E/oZdoXfQfmdRSe3IX6hCdXE=","hostName":"zingzys-mac"}}
+{"in":{"signature":"AScFxEOAwiWZi4oQfTbg89PG0SEJZONYWsa3nspZrWH5lLCaCjOAT0S+LwFYoijLZ5jrxwLhmbZ1wDaVriaWAA==","report":{"name":"hetzner","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/root","USER":"root","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":17,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"code":"<redacted>","id":2,"op":"place.prove"}}
+{"out":{"id":2,"ok":true}}

@@ -1,0 +1,34 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": "no place named default; you have <computer>, none"
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "no project \"<pr-1>\"; wsp add <folder> records one",
+      "kind": "not-found"
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "no such workspace: <ws-1>",
+      "kind": "not-found"
+    },
+    {
+      "id": 5,
+      "ok": false,
+      "error": "no such workspace: <ws-1>",
+      "kind": "not-found"
+    }
+  ],
+  "events": []
+}

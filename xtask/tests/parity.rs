@@ -66,7 +66,7 @@ fn the_recorded_goldens_agree_with_a_replay_of_the_same_host() {
     let report = check(root.path(), &Fake, &Options { jobs: 2, ..Options::default() }).expect("check");
     let text = report.render();
     assert!(report.ok(), "{text}");
-    assert!(text.contains("coverage: 4 of 4 host ops have a tape"), "{text}");
+    assert!(text.contains("coverage: 4 of 4 host ops have a tape, 4 of them an answer on one"), "{text}");
     assert!(text.contains("result: 2 passed, 0 accepted, 0 failed, 0 families with no tape"), "{text}");
 }
 

@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "{\"error\":\"Unknown option '--json' for wsp up: it answers in prose. That flag belongs to wsp init, wsp add, wsp remove, and to every verb.\",\"class\":\"usage\",\"exit\":3}\n"
+    }
+  ],
+  "events": []
+}

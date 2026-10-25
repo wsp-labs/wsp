@@ -1,0 +1,122 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": {
+        "jsonLines": [
+          {
+            "accounts": [],
+            "used": {
+              "range": "day",
+              "split": "agent",
+              "rows": [],
+              "series": [
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                },
+                {
+                  "t": "<time>",
+                  "tokens": 0
+                }
+              ],
+              "lines": [],
+              "since": "<time>",
+              "until": "<time>"
+            }
+          }
+        ]
+      },
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

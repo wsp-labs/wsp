@@ -1,0 +1,171 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "project": {
+        "id": "<pr-1>",
+        "name": "wsp-mcp-add-<temp>",
+        "computer": "here",
+        "source": {
+          "kind": "folder",
+          "path": "<tmp>/scratch/wsp-mcp-add-<temp>"
+        },
+        "path": "<tmp>/scratch/wsp-mcp-add-<temp>",
+        "remote": "",
+        "defaultBranch": "main",
+        "memoryKey": "<tmp-dashed>-scratch-wsp-mcp-add-<temp>",
+        "memoryDir": "<tmp>/home/.claude/projects/<tmp-dashed>-scratch-wsp-mcp-add-<temp>/memory",
+        "createdAt": "<time>"
+      }
+    },
+    {
+      "id": 3,
+      "ok": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "<computer>",
+          "default": true,
+          "os": "<machine>",
+          "shape": "<machine>",
+          "diskFreeBytes": "<machine>",
+          "engine": "none",
+          "home": "<tmp>/home",
+          "present": true,
+          "takesForks": false,
+          "buildsImages": false,
+          "cap": "<machine>",
+          "capDefault": "<machine>",
+          "turnLimitMs": null,
+          "turnLimitDefault": null,
+          "spawn": {
+            "spawn": true,
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "spawnDefault": {
+            "spawn": true,
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "running": 0
+        }
+      ],
+      "adds": [],
+      "pending": []
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "no place named default; you have <computer>, none"
+    },
+    {
+      "id": 5,
+      "ok": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "<computer>",
+          "default": true,
+          "os": "<machine>",
+          "shape": "<machine>",
+          "diskFreeBytes": "<machine>",
+          "engine": "none",
+          "home": "<tmp>/home",
+          "present": true,
+          "takesForks": false,
+          "buildsImages": false,
+          "cap": "<machine>",
+          "capDefault": "<machine>",
+          "turnLimitMs": null,
+          "turnLimitDefault": null,
+          "spawn": {
+            "spawn": true,
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "spawnDefault": {
+            "spawn": true,
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "running": 0
+        }
+      ],
+      "adds": [],
+      "pending": []
+    },
+    {
+      "id": 6,
+      "ok": false,
+      "error": "no place named default; you have <computer>, none"
+    },
+    {
+      "id": 7,
+      "ok": false,
+      "error": "https://github.com/dev/other.git is a repo: clone it here with --into <folder>, or name the computer that clones it with --on none"
+    },
+    {
+      "id": 8,
+      "ok": false,
+      "error": "fatal: unable to access 'https://github.com/dev/other.git/': Could not resolve host: github.com",
+      "kind": "invalid"
+    },
+    {
+      "id": 9,
+      "ok": true,
+      "projects": [
+        {
+          "id": "<pr-1>",
+          "name": "wsp-mcp-add-<temp>",
+          "computer": "here",
+          "source": {
+            "kind": "folder",
+            "path": "<tmp>/scratch/wsp-mcp-add-<temp>"
+          },
+          "path": "<tmp>/scratch/wsp-mcp-add-<temp>",
+          "remote": "",
+          "defaultBranch": "main",
+          "memoryKey": "<tmp-dashed>-scratch-wsp-mcp-add-<temp>",
+          "memoryDir": "<tmp>/home/.claude/projects/<tmp-dashed>-scratch-wsp-mcp-add-<temp>/memory",
+          "createdAt": "<time>"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "ok": true,
+      "defaults": {
+        "<pr-1>": {
+          "agent": {
+            "value": "claude",
+            "from": "catalog"
+          },
+          "model": {
+            "value": "claude-opus-5-5",
+            "from": "catalog"
+          },
+          "effort": {
+            "value": "high",
+            "from": "catalog"
+          },
+          "access": {
+            "value": "full",
+            "mode": "bypassPermissions",
+            "from": "catalog"
+          }
+        }
+      }
+    }
+  ],
+  "events": []
+}

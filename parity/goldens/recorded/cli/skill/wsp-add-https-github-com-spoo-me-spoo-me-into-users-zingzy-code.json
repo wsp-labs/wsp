@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "fatal: unable to access 'https://github.com/spoo-me/spoo.me/': Could not resolve host: github.com\n"
+    }
+  ],
+  "events": []
+}

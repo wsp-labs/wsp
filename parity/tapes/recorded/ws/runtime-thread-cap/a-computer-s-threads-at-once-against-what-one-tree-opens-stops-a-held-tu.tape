@@ -1,3 +1,5 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/thread-cap.test.ts > a computer's threads at once against what one tree opens > stops a held turn whose stop lands between a wake and its next look, and never launches it"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/thread-cap.test.ts > a computer's threads at once against what one tree opens > stops a held turn whose stop lands between a wake and its next look, and never launches it","outs":"recorded"}}
 {"in":{"token":"<redacted>","id":1,"op":"auth"}}
+{"out":{"id":1,"ok":true}}
 {"in":{"prompt":"a2","answerHeld":true,"followed":true,"id":2,"op":"sessions.start"}}
+{"out":{"id":2,"ok":true,"session":{"id":"00000000-0000-4000-8000-000000000001","workspaceId":"ws_00000001","harness":"claude","status":"running","startedBy":"person","threadId":"00000000-0000-4000-8000-000000000002","parentThreadId":"00000000-0000-4000-8000-000000000003","rootThreadId":"00000000-0000-4000-8000-000000000003","prompt":"a2","startedAt":1792928352852,"model":"claude-opus-5-5","effort":"high","permissionMode":"bypassPermissions","cwd":"<run>/wsp-project-000001","claudeSessionId":"00000000-0000-4000-8000-000000000001"},"outcome":"started","turnId":"00000000-0000-4000-8000-000000000004"}}

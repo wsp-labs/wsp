@@ -1,2 +1,3 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/places.test.ts > a place dialling back in > refuses a second frame that is not the prove, and a prove on a socket that challenged nothing"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/places.test.ts > a place dialling back in > refuses a second frame that is not the prove, and a prove on a socket that challenged nothing","outs":"recorded"}}
 {"in":{"signature":"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ==","report":{"name":"old-macbook","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/home/maya","USER":"maya","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":17,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"id":1,"op":"place.prove"}}
+{"out":{"id":1,"ok":false,"error":"unauthorized","kind":"auth"}}

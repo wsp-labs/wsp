@@ -1,3 +1,5 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/local-workspace.test.ts > local workspace > a machine's socket is stamped relayed by the host, whatever origin its client sends"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/local-workspace.test.ts > local workspace > a machine's socket is stamped relayed by the host, whatever origin its client sends","outs":"recorded"}}
 {"in":{"workspaceId":"ws_00000001","id":1,"op":"workspaces.get"}}
+{"out":{"id":1,"ok":true,"workspace":{"id":"ws_00000001","name":"mac","machineId":"local","phase":"running","kind":"local","golden":"","createdAt":"2026-10-25T11:38:13.571Z","project":{"id":"pr_00000002","name":"mac","path":"<run>/wsp-project-000001","computer":"here"},"folder":"<run>/wsp-project-000001","home":"<run>/wsp-localws-000002","agents":{"spawn":true,"maxMachines":3,"maxDepth":2}}}}
 {"in":{"workspaceId":"ws_00000001","origin":"relayed","id":2,"op":"workspaces.get"}}
+{"out":{"id":2,"ok":true,"workspace":{"id":"ws_00000001","name":"mac","machineId":"local","phase":"running","kind":"local","golden":"","createdAt":"2026-10-25T11:38:13.571Z","project":{"id":"pr_00000002","name":"mac","path":"<run>/wsp-project-000001","computer":"here"},"folder":"<run>/wsp-project-000001","home":"<run>/wsp-localws-000002","agents":{"spawn":true,"maxMachines":3,"maxDepth":2}}}}
