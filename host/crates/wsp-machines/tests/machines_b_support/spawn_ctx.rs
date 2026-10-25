@@ -15,10 +15,9 @@ use serde_json::{json, Map, Value};
 
 use wsp_engine::box_backend::BoxLimits;
 use wsp_engine::errors::EngineError;
-use wsp_engine::machine::{Machine, MachineBackend, MachineSpec};
-use wsp_core::clock::Cancel;
-use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
-use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
+use wsp_engine::machine::{Machine, MachineBackend, MachineKind, MachineSpec, ProviderBoxState};
+use wsp_core::types::internal::{absent_machine, dead_machine, is_absent_machine};
+use wsp_core::types::wiring::{StageReport, StageSaid, WorkspaceRecord};
 use wsp_machines::machines::area_error::{AreaError, AreaResult};
 use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::sub_life::SessionFile;
@@ -26,6 +25,7 @@ use wsp_machines::machines::sub_spawn::{ImageRecord, Packed, ProviderRow, SubSpa
 use wsp_wire::views::golden_image::GoldenManifest;
 use wsp_wire::views::session::ThreadCapWait;
 use wsp_wire::views::workspace::{Caller, ProjectView, SeedChoice, SeedPlan};
+use wsp_wire::views::workspace_events::WorkspaceCreateStage;
 use wsp_wire::views::workspace_more::ThreadScope;
 use wsp_words::exit::HostError;
 
@@ -281,7 +281,7 @@ impl FakeHost {
         let record: WorkspaceRecord = serde_json::from_value(record).expect("the record reads as the TS writes it");
         let id = record.id.clone();
         let cell = Rc::new(RefCell::new(record));
-        let entry = live_entry(cell.clone(), FakeMachine::new(""));
+        let entry = live_entry(cell.clone(), absent());
         self.live.borrow_mut().insert(id, entry);
         cell
     }
@@ -289,7 +289,7 @@ impl FakeHost {
     pub fn put_dead(&self, record: Value) -> Entry {
         let record: WorkspaceRecord = serde_json::from_value(record).expect("the record reads as the TS writes it");
         let id = record.id.clone();
-        let entry = live_entry(Rc::new(RefCell::new(record)), FakeMachine::new(""));
+        let entry = live_entry(Rc::new(RefCell::new(record)), dead_machine(""));
         self.live.borrow_mut().insert(id, entry.clone());
         entry
     }
@@ -428,6 +428,34 @@ fn seal(head: u32, logins: &[(String, String)]) -> Value {
     json!({ "head": head, "versions": (1..=head).map(version).collect::<Vec<_>>() })
 }
 
+/// The stand-in a queued record is held by: no machine yet, an empty id.
+fn absent() -> Arc<dyn Machine> {
+    absent_machine("", MachineKind::Sandbox, Arc::new(|| engine_error("this record's machine is not known yet")))
+}
+
+/// The word the TS puts on the wire for a stage.
+fn stage_word(stage: WorkspaceCreateStage) -> String {
+    serde_json::to_value(stage).unwrap().as_str().unwrap().to_string()
+}
+
+/// What a stage said beside its line, as the TS object: only the keys it set.
+fn said_json(said: &StageSaid) -> Value {
+    let mut m = Map::new();
+    if let Some(n) = &said.notice {
+        m.insert("notice".to_string(), json!(n));
+    }
+    if let Some(d) = &said.detail {
+        m.insert("detail".to_string(), json!(d));
+    }
+    if said.waiting {
+        m.insert("waiting".to_string(), json!(true));
+    }
+    if let Some(b) = &said.r#box {
+        m.insert("box".to_string(), json!({ "id": b.id, "state": b.state }));
+    }
+    Value::Object(m)
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // The context.
 
@@ -441,7 +469,7 @@ impl SubSpawnCtx for FakeHost {
         self.live.borrow_mut().shift_remove(id);
     }
     fn is_absent_machine(&self, entry: &Entry) -> bool {
-        entry.machine.id().is_empty()
+        is_absent_machine(&*entry.borrow().machine.clone())
     }
     fn thread_records(&self) -> Vec<(String, String)> {
         self.thread_records.borrow().clone()
@@ -500,11 +528,11 @@ impl SubSpawnCtx for FakeHost {
         serde_json::from_value(w().borrow().project.clone()).expect("the project reads as the TS writes it")
     }
     async fn copy_blocked(&self, lead: &Entry) -> AreaResult<()> {
-        self.call("copy_blocked", &[&lead.id()]);
+        self.call("copy_blocked", &[&entry_id(lead)]);
         Ok(())
     }
     async fn daemon_frame(&self, entry: &Entry, frame: Value) -> AreaResult<Value> {
-        self.call("daemon_frame", &[&entry.id(), &frame.to_string()]);
+        self.call("daemon_frame", &[&entry_id(entry), &frame.to_string()]);
         let (git, error, ms) = {
             let world = w();
             let world = world.borrow();
@@ -558,7 +586,8 @@ impl SubSpawnCtx for FakeHost {
     fn free_branch_name(&self, wanted: &str, heads: Option<&str>) -> String {
         let mut taken: IndexSet<String> = IndexSet::new();
         for e in self.live.borrow().values() {
-            let r = e.record.borrow();
+            let record = e.borrow().record.clone();
+            let r = record.borrow();
             if let Some(b) = &r.branch_of_record {
                 taken.insert(b.branch.clone());
             }
@@ -602,7 +631,7 @@ impl SubSpawnCtx for FakeHost {
         Ok(())
     }
     async fn default_agent_of(&self, lead: &Entry) -> AreaResult<String> {
-        self.call("default_agent_of", &[&lead.id()]);
+        self.call("default_agent_of", &[&entry_id(lead)]);
         Ok("claude".to_string())
     }
     fn unbrokered_refusal(&self, harness: &str) -> Option<HostError> {
@@ -632,7 +661,7 @@ impl SubSpawnCtx for FakeHost {
         self.call("enqueue", &[&id, if wait.is_some() { "wait" } else { "none" }]);
         w().borrow_mut().enqueued.push(js_of(&*record.borrow()));
         self.persist_now(&record.borrow());
-        let entry = live_entry(record.clone(), FakeMachine::new(""));
+        let entry = live_entry(record.clone(), absent());
         self.live.borrow_mut().insert(id, entry);
         Ok(())
     }
@@ -646,7 +675,9 @@ impl SubSpawnCtx for FakeHost {
     fn stage_reporter(&self, id: &str, name: &str, started_at: f64, asked_by: Option<Value>) -> StageReport {
         self.call("stage_reporter", &[id, name, &started_at.to_string(), &asked_by.map(|v| v.to_string()).unwrap_or_default()]);
         let reports = w().borrow().reports.clone();
-        Rc::new(move |stage: &str, message: &str, said: Option<&Value>| reports.borrow_mut().push((stage.to_string(), message.to_string(), said.cloned())))
+        Rc::new(move |stage: WorkspaceCreateStage, message: &str, said: Option<StageSaid>| {
+            reports.borrow_mut().push((stage_word(stage), message.to_string(), said.map(|s| said_json(&s))))
+        })
     }
     /// The create road's own part: the cloud is asked for a box from the record's image at its size, the box reports
     /// the states it moves through, and a fault still leaves the box it made.
@@ -683,7 +714,8 @@ impl SubSpawnCtx for FakeHost {
             m.offers.lock().unwrap().daemon_answers = true;
         }
         for state in &states {
-            report("fork-requested", &wsp_words::words::units::boat_box_state_line(&m.id, state), Some(&json!({ "box": { "id": m.id, "state": state } })));
+            let said = StageSaid { r#box: Some(ProviderBoxState { id: m.id.clone(), state: state.clone() }), ..StageSaid::default() };
+            report(WorkspaceCreateStage::ForkRequested, &wsp_words::words::units::boat_box_state_line(&m.id, state), Some(said));
         }
         if fork_ms > 0.0 {
             self.clock.advance(fork_ms).await;
@@ -711,16 +743,16 @@ impl SubSpawnCtx for FakeHost {
     fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Entry {
         let id = record.borrow().id.clone();
         self.call("attach_dead", &[&id]);
-        let entry = live_entry(record.clone(), FakeMachine::new(""));
+        let entry = live_entry(record.clone(), dead_machine(""));
         self.live.borrow_mut().insert(id, entry.clone());
         entry
     }
     async fn ping_daemon(&self, entry: &Entry) -> Option<String> {
-        self.call("ping_daemon", &[&entry.id()]);
+        self.call("ping_daemon", &[&entry_id(entry)]);
         w().borrow().ping_fault.clone()
     }
     fn sync_daemon(&self, entry: &Entry) {
-        self.call("sync_daemon", &[&entry.id()]);
+        self.call("sync_daemon", &[&entry_id(entry)]);
     }
     async fn persist(&self, record: &WorkspaceRecord) -> AreaResult<()> {
         self.call("persist", &[&record.id]);
@@ -731,15 +763,16 @@ impl SubSpawnCtx for FakeHost {
         Ok(())
     }
     async fn emit_status_reachable(&self, entry: &Entry) -> AreaResult<()> {
-        self.call("emit_status", &[&entry.id(), "reachable"]);
+        self.call("emit_status", &[&entry_id(entry), "reachable"]);
         Ok(())
     }
     async fn unfork(&self, entry: &Entry) -> AreaResult<()> {
-        self.call("unfork", &[&entry.id(), entry.machine.id()]);
+        let machine = entry.borrow().machine.clone();
+        self.call("unfork", &[&entry_id(entry), machine.id()]);
         if let Some(Err(e)) = self.next("unfork") {
             return Err(e);
         }
-        entry.machine.kill().await.map_err(AreaError::Engine)
+        machine.kill().await.map_err(AreaError::Engine)
     }
     fn broker_lift(&self, workspace_id: &str) {
         self.call("broker_lift", &[workspace_id]);
