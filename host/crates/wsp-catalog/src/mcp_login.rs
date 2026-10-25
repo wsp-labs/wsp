@@ -13,7 +13,7 @@ use crate::mcp_check::CLAUDE_NOT_SET_UP;
 use wsp_wire::types::agents_report::PageReach;
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_words::exit::{usage_refusal, HostError};
-use wsp_words::js::js_trim;
+use wsp_words::js::{is_js_whitespace, js_trim};
 
 /// One module per harness (mcp-login.ts:229-243): a command, or a line typed inside the harness's own session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -128,7 +128,7 @@ fn program_word(word: &str) -> String {
 fn signs_with_login(command: &str, args: &[String]) -> bool {
     const SIGNS_WITH_LOGIN: [(&str, &str); 2] = [("mcp-proxy-for-aws", "--skip-auth"), ("mcp-proxy-for-aws-cli", "--skip-auth")];
     let words: Vec<String> =
-        std::iter::once(command).chain(args.iter().map(String::as_str)).flat_map(str::split_whitespace).map(program_word).collect();
+        std::iter::once(command).chain(args.iter().map(String::as_str)).flat_map(|w| w.split(is_js_whitespace)).map(program_word).collect();
     SIGNS_WITH_LOGIN.iter().any(|(program, unsigned)| words.iter().any(|w| w == program) && !words.iter().any(|w| w == unsigned))
 }
 

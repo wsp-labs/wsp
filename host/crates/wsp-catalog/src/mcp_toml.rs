@@ -14,7 +14,7 @@ use crate::mcp::{
     McpTransport, MergeOutcome, RewriteString,
 };
 use wsp_words::exit::HostError;
-use wsp_words::js::js_trim;
+use wsp_words::js::{js_trim, JS_WS as WS};
 
 /// A line without its trailing comment: `#` outside quotes ends it (mcp.ts:1263).
 pub fn uncomment_toml(line: &str) -> String {
@@ -40,7 +40,7 @@ pub fn uncomment_toml(line: &str) -> String {
 fn header_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r#"^\[\s*mcp_servers\s*\.\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_-]+))\s*(?:\.\s*([A-Za-z0-9_-]+)\s*)?\]$"#)
+        Regex::new(&format!(r#"^\[[{WS}]*mcp_servers[{WS}]*\.[{WS}]*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_-]+))[{WS}]*(?:\.[{WS}]*([A-Za-z0-9_-]+)[{WS}]*)?\]$"#))
             .expect("a fixed pattern")
     })
 }
@@ -163,7 +163,8 @@ pub fn toml_value(raw: &str) -> Result<Option<TomlValue>, HostError> {
     }
     if s.starts_with('{') {
         let re = TABLE.get_or_init(|| {
-            Regex::new(r#"(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_-]+))\s*=\s*("(?:[^"\\]|\\.)*"|'[^']*')"#).expect("a fixed pattern")
+            Regex::new(&format!(r#"(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_-]+))[{WS}]*=[{WS}]*("(?:[^"\\]|\\.)*"|'[^']*')"#))
+                .expect("a fixed pattern")
         });
         let mut out = IndexMap::new();
         for m in re.captures_iter(js_slice_inner(s)) {
@@ -272,7 +273,7 @@ fn codex_entry(lines: &[&str]) -> String {
 /// The command one server's tables name, as the machine will run it (mcp.ts:1469).
 fn codex_command(lines: &[&str]) -> Result<Option<String>, HostError> {
     static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| Regex::new(r"^\s*command\s*=\s*").expect("a fixed pattern"));
+    let re = RE.get_or_init(|| Regex::new(&format!(r"^[{WS}]*command[{WS}]*=[{WS}]*")).expect("a fixed pattern"));
     for line in lines {
         let code = uncomment_toml(line);
         if let Some(m) = re.find(&code) {
@@ -285,7 +286,7 @@ fn codex_command(lines: &[&str]) -> Result<Option<String>, HostError> {
 /// A kept server's line with every string on it as the machine reads it (mcp.ts:1479).
 fn codex_rewrite(lib: RewriteString<'_>, line: &str) -> Result<String, HostError> {
     static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| Regex::new(r"^\s*command\s*=").expect("a fixed pattern"));
+    let re = RE.get_or_init(|| Regex::new(&format!(r"^[{WS}]*command[{WS}]*=")).expect("a fixed pattern"));
     let command = re.is_match(&uncomment_toml(line));
     rewrite_toml_line(line, &|value| lib(value, command))
 }
@@ -653,7 +654,7 @@ pub fn enable_codex(text: &str, name: &str, on: bool) -> Result<String, HostErro
         end += 1;
     }
     static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| Regex::new(r"^\s*enabled\s*=").expect("a fixed pattern"));
+    let re = RE.get_or_init(|| Regex::new(&format!(r"^[{WS}]*enabled[{WS}]*=")).expect("a fixed pattern"));
     let at = (start + 1..end).find(|&i| re.is_match(&uncomment_toml(&lines[i])));
     let next: Vec<String> = match (on, at) {
         (true, Some(at)) => lines.into_iter().enumerate().filter(|(i, _)| *i != at).map(|(_, l)| l).collect(),
