@@ -29,8 +29,25 @@ pub const MARKERS: [(&str, &str, &str); 20] = [
 
 /// The files MARKERS names, in its order.
 pub const MARKER_FILES: [&str; 20] = [
-    "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb", "package-lock.json", "pyproject.toml", "uv.lock", "requirements.txt", ".tool-versions",
-    "mise.toml", ".mise.toml", "go.mod", "Cargo.toml", "Gemfile", "composer.json", "Dockerfile", "compose.yaml", "compose.yml", "docker-compose.yaml",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "bun.lock",
+    "bun.lockb",
+    "package-lock.json",
+    "pyproject.toml",
+    "uv.lock",
+    "requirements.txt",
+    ".tool-versions",
+    "mise.toml",
+    ".mise.toml",
+    "go.mod",
+    "Cargo.toml",
+    "Gemfile",
+    "composer.json",
+    "Dockerfile",
+    "compose.yaml",
+    "compose.yml",
+    "docker-compose.yaml",
     "docker-compose.yml",
 ];
 

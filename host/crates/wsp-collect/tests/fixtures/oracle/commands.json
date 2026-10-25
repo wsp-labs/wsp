@@ -1,0 +1,873 @@
+[
+ {
+  "line": "git log --oneline | head -5 && gh pr view; (cd x && pnpm test) || echo no",
+  "split": [
+   "git log --oneline",
+   "head -5",
+   "gh pr view",
+   "cd x",
+   "pnpm test",
+   "echo no"
+  ],
+  "heredocless": "git log --oneline | head -5 && gh pr view; (cd x && pnpm test) || echo no",
+  "names": [
+   "git",
+   "head",
+   "gh",
+   "pnpm"
+  ],
+  "installs": []
+ },
+ {
+  "line": "sudo -u root -g wheel apt-get install -y jq",
+  "split": [
+   "sudo -u root -g wheel apt-get install -y jq"
+  ],
+  "heredocless": "sudo -u root -g wheel apt-get install -y jq",
+  "names": [
+   "apt-get"
+  ],
+  "installs": [
+   {
+    "via": "apt",
+    "name": "jq"
+   }
+  ]
+ },
+ {
+  "line": "xargs -n 1 -I {} rm {}",
+  "split": [
+   "xargs -n 1 -I",
+   "rm"
+  ],
+  "heredocless": "xargs -n 1 -I {} rm {}",
+  "names": [
+   "rm"
+  ],
+  "installs": []
+ },
+ {
+  "line": "nice -n 10 make",
+  "split": [
+   "nice -n 10 make"
+  ],
+  "heredocless": "nice -n 10 make",
+  "names": [
+   "make"
+  ],
+  "installs": []
+ },
+ {
+  "line": "doas -u me ls",
+  "split": [
+   "doas -u me ls"
+  ],
+  "heredocless": "doas -u me ls",
+  "names": [
+   "ls"
+  ],
+  "installs": []
+ },
+ {
+  "line": "env -i FOO=1 BAR=2 node x.js",
+  "split": [
+   "env -i FOO=1 BAR=2 node x.js"
+  ],
+  "heredocless": "env -i FOO=1 BAR=2 node x.js",
+  "names": [
+   "node"
+  ],
+  "installs": []
+ },
+ {
+  "line": "! grep x y",
+  "split": [
+   "! grep x y"
+  ],
+  "heredocless": "! grep x y",
+  "names": [
+   "grep"
+  ],
+  "installs": []
+ },
+ {
+  "line": "if test -f x; then cat x; fi",
+  "split": [
+   "if test -f x",
+   "then cat x",
+   "fi"
+  ],
+  "heredocless": "if test -f x; then cat x; fi",
+  "names": [
+   "cat"
+  ],
+  "installs": []
+ },
+ {
+  "line": "while read l; do echo $l; done < f",
+  "split": [
+   "while read l",
+   "do echo $l",
+   "done < f"
+  ],
+  "heredocless": "while read l; do echo $l; done < f",
+  "names": [],
+  "installs": []
+ },
+ {
+  "line": "a=1 b=2",
+  "split": [
+   "a=1 b=2"
+  ],
+  "heredocless": "a=1 b=2",
+  "names": [],
+  "installs": []
+ },
+ {
+  "line": "export X=1; X=2 ls",
+  "split": [
+   "export X=1",
+   "X=2 ls"
+  ],
+  "heredocless": "export X=1; X=2 ls",
+  "names": [
+   "ls"
+  ],
+  "installs": []
+ },
+ {
+  "line": "cat <<-'EOF'\nrm -rf /\n\tEOF\nls",
+  "split": [
+   "cat <<-EOF",
+   "ls"
+  ],
+  "heredocless": "cat <<-'EOF'\nls",
+  "names": [
+   "cat",
+   "ls"
+  ],
+  "installs": []
+ },
+ {
+  "line": "cat << \"END\"\nx\nEND\nwc",
+  "split": [
+   "cat << END",
+   "wc"
+  ],
+  "heredocless": "cat << \"END\"\nwc",
+  "names": [
+   "cat",
+   "wc"
+  ],
+  "installs": []
+ },
+ {
+  "line": "echo \"$(date) and `whoami`\"",
+  "split": [
+   "echo",
+   "date",
+   "and `whoami`"
+  ],
+  "heredocless": "echo \"$(date) and `whoami`\"",
+  "names": [
+   "date",
+   "and"
+  ],
+  "installs": []
+ },
+ {
+  "line": "echo '$(not run)'",
+  "split": [
+   "echo $(not run)"
+  ],
+  "heredocless": "echo '$(not run)'",
+  "names": [],
+  "installs": []
+ },
+ {
+  "line": "ls # comment | grep x\npwd",
+  "split": [
+   "ls",
+   "pwd"
+  ],
+  "heredocless": "ls # comment | grep x\npwd",
+  "names": [
+   "ls",
+   "pwd"
+  ],
+  "installs": []
+ },
+ {
+  "line": "ls#notacomment",
+  "split": [
+   "ls#notacomment"
+  ],
+  "heredocless": "ls#notacomment",
+  "names": [
+   "ls#notacomment"
+  ],
+  "installs": []
+ },
+ {
+  "line": "ls \\| grep",
+  "split": [
+   "ls | grep"
+  ],
+  "heredocless": "ls \\| grep",
+  "names": [
+   "ls"
+  ],
+  "installs": []
+ },
+ {
+  "line": "echo \"a \\\" b\" | wc",
+  "split": [
+   "echo a \\\" b",
+   "wc"
+  ],
+  "heredocless": "echo \"a \\\" b\" | wc",
+  "names": [
+   "wc"
+  ],
+  "installs": []
+ },
+ {
+  "line": "{ ls; pwd; }",
+  "split": [
+   "ls",
+   "pwd"
+  ],
+  "heredocless": "{ ls; pwd; }",
+  "names": [
+   "ls",
+   "pwd"
+  ],
+  "installs": []
+ },
+ {
+  "line": "a & b",
+  "split": [
+   "a",
+   "b"
+  ],
+  "heredocless": "a & b",
+  "names": [
+   "a",
+   "b"
+  ],
+  "installs": []
+ },
+ {
+  "line": "a &>/dev/null; b 2>&1 | c",
+  "split": [
+   "a &>/dev/null",
+   "b 2>&1",
+   "c"
+  ],
+  "heredocless": "a &>/dev/null; b 2>&1 | c",
+  "names": [
+   "a",
+   "b",
+   "c"
+  ],
+  "installs": []
+ },
+ {
+  "line": "f() { ls; }",
+  "split": [
+   "f",
+   "ls"
+  ],
+  "heredocless": "f() { ls; }",
+  "names": [
+   "f",
+   "ls"
+  ],
+  "installs": []
+ },
+ {
+  "line": "a\nb\n\nc",
+  "split": [
+   "a",
+   "b",
+   "c"
+  ],
+  "heredocless": "a\nb\n\nc",
+  "names": [
+   "a",
+   "b",
+   "c"
+  ],
+  "installs": []
+ },
+ {
+  "line": "",
+  "split": [],
+  "heredocless": "",
+  "names": [],
+  "installs": []
+ },
+ {
+  "line": "   ",
+  "split": [],
+  "heredocless": "   ",
+  "names": [],
+  "installs": []
+ },
+ {
+  "line": "python3 -m pip install x",
+  "split": [
+   "python3 -m pip install x"
+  ],
+  "heredocless": "python3 -m pip install x",
+  "names": [
+   "python3"
+  ],
+  "installs": []
+ },
+ {
+  "line": "npm i -g @scope/pkg@1.2.3 other@latest",
+  "split": [
+   "npm i -g @scope/pkg@1.2.3 other@latest"
+  ],
+  "heredocless": "npm i -g @scope/pkg@1.2.3 other@latest",
+  "names": [
+   "npm"
+  ],
+  "installs": [
+   {
+    "via": "npm",
+    "name": "@scope/pkg"
+   },
+   {
+    "via": "npm",
+    "name": "other"
+   }
+  ]
+ },
+ {
+  "line": "pnpm add --global tsx",
+  "split": [
+   "pnpm add --global tsx"
+  ],
+  "heredocless": "pnpm add --global tsx",
+  "names": [
+   "pnpm"
+  ],
+  "installs": [
+   {
+    "via": "pnpm",
+    "name": "tsx"
+   }
+  ]
+ },
+ {
+  "line": "bun install -g bunx-thing",
+  "split": [
+   "bun install -g bunx-thing"
+  ],
+  "heredocless": "bun install -g bunx-thing",
+  "names": [
+   "bun"
+  ],
+  "installs": [
+   {
+    "via": "bun",
+    "name": "bunx-thing"
+   }
+  ]
+ },
+ {
+  "line": "uv tool install 'ruff>=0.5' black[jupyter]",
+  "split": [
+   "uv tool install ruff>=0.5 black[jupyter]"
+  ],
+  "heredocless": "uv tool install 'ruff>=0.5' black[jupyter]",
+  "names": [
+   "uv"
+  ],
+  "installs": [
+   {
+    "via": "uv",
+    "name": "ruff"
+   },
+   {
+    "via": "uv",
+    "name": "black"
+   }
+  ]
+ },
+ {
+  "line": "pipx run cowsay hello",
+  "split": [
+   "pipx run cowsay hello"
+  ],
+  "heredocless": "pipx run cowsay hello",
+  "names": [
+   "pipx"
+  ],
+  "installs": [
+   {
+    "via": "pipx-run",
+    "name": "cowsay"
+   }
+  ]
+ },
+ {
+  "line": "pipx install --python 3.12 poetry==1.8",
+  "split": [
+   "pipx install --python 3.12 poetry==1.8"
+  ],
+  "heredocless": "pipx install --python 3.12 poetry==1.8",
+  "names": [
+   "pipx"
+  ],
+  "installs": [
+   {
+    "via": "pipx",
+    "name": "3.12"
+   },
+   {
+    "via": "pipx",
+    "name": "poetry"
+   }
+  ]
+ },
+ {
+  "line": "cargo install --locked ripgrep",
+  "split": [
+   "cargo install --locked ripgrep"
+  ],
+  "heredocless": "cargo install --locked ripgrep",
+  "names": [
+   "cargo"
+  ],
+  "installs": [
+   {
+    "via": "cargo",
+    "name": "ripgrep"
+   }
+  ]
+ },
+ {
+  "line": "go install golang.org/x/tools/gopls@v0.16.2",
+  "split": [
+   "go install golang.org/x/tools/gopls@v0.16.2"
+  ],
+  "heredocless": "go install golang.org/x/tools/gopls@v0.16.2",
+  "names": [
+   "go"
+  ],
+  "installs": [
+   {
+    "via": "go",
+    "name": "gopls"
+   }
+  ]
+ },
+ {
+  "line": "go install example.com/mod/v2@latest",
+  "split": [
+   "go install example.com/mod/v2@latest"
+  ],
+  "heredocless": "go install example.com/mod/v2@latest",
+  "names": [
+   "go"
+  ],
+  "installs": [
+   {
+    "via": "go",
+    "name": "example.com/mod/v2"
+   }
+  ]
+ },
+ {
+  "line": "brew reinstall --cask iterm2",
+  "split": [
+   "brew reinstall --cask iterm2"
+  ],
+  "heredocless": "brew reinstall --cask iterm2",
+  "names": [
+   "brew"
+  ],
+  "installs": [
+   {
+    "via": "brew",
+    "name": "iterm2"
+   }
+  ]
+ },
+ {
+  "line": "brew upgrade gh",
+  "split": [
+   "brew upgrade gh"
+  ],
+  "heredocless": "brew upgrade gh",
+  "names": [
+   "brew"
+  ],
+  "installs": []
+ },
+ {
+  "line": "apt install -y curl",
+  "split": [
+   "apt install -y curl"
+  ],
+  "heredocless": "apt install -y curl",
+  "names": [
+   "apt"
+  ],
+  "installs": [
+   {
+    "via": "apt",
+    "name": "curl"
+   }
+  ]
+ },
+ {
+  "line": "npx create-next-app@latest my-app",
+  "split": [
+   "npx create-next-app@latest my-app"
+  ],
+  "heredocless": "npx create-next-app@latest my-app",
+  "names": [
+   "npx"
+  ],
+  "installs": [
+   {
+    "via": "npx",
+    "name": "create-next-app"
+   }
+  ]
+ },
+ {
+  "line": "bunx cowsay",
+  "split": [
+   "bunx cowsay"
+  ],
+  "heredocless": "bunx cowsay",
+  "names": [
+   "bunx"
+  ],
+  "installs": [
+   {
+    "via": "bunx",
+    "name": "cowsay"
+   }
+  ]
+ },
+ {
+  "line": "uvx ruff check",
+  "split": [
+   "uvx ruff check"
+  ],
+  "heredocless": "uvx ruff check",
+  "names": [
+   "uvx"
+  ],
+  "installs": [
+   {
+    "via": "uvx",
+    "name": "ruff"
+   }
+  ]
+ },
+ {
+  "line": "npm install -g",
+  "split": [
+   "npm install -g"
+  ],
+  "heredocless": "npm install -g",
+  "names": [
+   "npm"
+  ],
+  "installs": []
+ },
+ {
+  "line": "command -V ls",
+  "split": [
+   "command -V ls"
+  ],
+  "heredocless": "command -V ls",
+  "names": [],
+  "installs": []
+ },
+ {
+  "line": "command ls",
+  "split": [
+   "command ls"
+  ],
+  "heredocless": "command ls",
+  "names": [
+   "ls"
+  ],
+  "installs": []
+ },
+ {
+  "line": "builtin cd x",
+  "split": [
+   "builtin cd x"
+  ],
+  "heredocless": "builtin cd x",
+  "names": [],
+  "installs": []
+ },
+ {
+  "line": "type ls",
+  "split": [
+   "type ls"
+  ],
+  "heredocless": "type ls",
+  "names": [
+   "type"
+  ],
+  "installs": []
+ },
+ {
+  "line": "which -a node",
+  "split": [
+   "which -a node"
+  ],
+  "heredocless": "which -a node",
+  "names": [],
+  "installs": []
+ },
+ {
+  "line": "node -v x",
+  "split": [
+   "node -v x"
+  ],
+  "heredocless": "node -v x",
+  "names": [
+   "node"
+  ],
+  "installs": []
+ },
+ {
+  "line": "java -version",
+  "split": [
+   "java -version"
+  ],
+  "heredocless": "java -version",
+  "names": [],
+  "installs": []
+ },
+ {
+  "line": "/usr/bin/env python3 x",
+  "split": [
+   "/usr/bin/env python3 x"
+  ],
+  "heredocless": "/usr/bin/env python3 x",
+  "names": [
+   "env"
+  ],
+  "installs": []
+ },
+ {
+  "line": "time -p ls",
+  "split": [
+   "time -p ls"
+  ],
+  "heredocless": "time -p ls",
+  "names": [
+   "ls"
+  ],
+  "installs": []
+ },
+ {
+  "line": "caffeinate -i make build",
+  "split": [
+   "caffeinate -i make build"
+  ],
+  "heredocless": "caffeinate -i make build",
+  "names": [
+   "make"
+  ],
+  "installs": []
+ },
+ {
+  "line": "exec ./run.sh",
+  "split": [
+   "exec ./run.sh"
+  ],
+  "heredocless": "exec ./run.sh",
+  "names": [
+   "run.sh"
+  ],
+  "installs": []
+ },
+ {
+  "line": "${HOME}/bin/x",
+  "split": [
+   "${HOME}/bin/x"
+  ],
+  "heredocless": "${HOME}/bin/x",
+  "names": [
+   "x"
+  ],
+  "installs": []
+ },
+ {
+  "line": "echo ${a:-$(git status)}",
+  "split": [
+   "echo ${a:-$(git status)}"
+  ],
+  "heredocless": "echo ${a:-$(git status)}",
+  "names": [],
+  "installs": []
+ },
+ {
+  "line": "case $x in a) ls;; esac",
+  "split": [
+   "case $x in a",
+   "ls",
+   "esac"
+  ],
+  "heredocless": "case $x in a) ls;; esac",
+  "names": [
+   "ls"
+  ],
+  "installs": []
+ },
+ {
+  "line": "[[ -f x ]] && ls",
+  "split": [
+   "[[ -f x ]]",
+   "ls"
+  ],
+  "heredocless": "[[ -f x ]] && ls",
+  "names": [
+   "ls"
+  ],
+  "installs": []
+ },
+ {
+  "line": ": noop; true; false || ls",
+  "split": [
+   ": noop",
+   "true",
+   "false",
+   "ls"
+  ],
+  "heredocless": ": noop; true; false || ls",
+  "names": [
+   "ls"
+  ],
+  "installs": []
+ },
+ {
+  "line": "source ~/.zshrc && . ./env && ls",
+  "split": [
+   "source ~/.zshrc",
+   ". ./env",
+   "ls"
+  ],
+  "heredocless": "source ~/.zshrc && . ./env && ls",
+  "names": [
+   "ls"
+  ],
+  "installs": []
+ },
+ {
+  "line": "eval \"$(brew shellenv)\"",
+  "split": [
+   "eval",
+   "brew shellenv"
+  ],
+  "heredocless": "eval \"$(brew shellenv)\"",
+  "names": [
+   "brew"
+  ],
+  "installs": []
+ },
+ {
+  "line": "cd /tmp && rm -rf x",
+  "split": [
+   "cd /tmp",
+   "rm -rf x"
+  ],
+  "heredocless": "cd /tmp && rm -rf x",
+  "names": [
+   "rm"
+  ],
+  "installs": []
+ },
+ {
+  "line": "kill %1",
+  "split": [
+   "kill %1"
+  ],
+  "heredocless": "kill %1",
+  "names": [
+   "kill"
+  ],
+  "installs": []
+ },
+ {
+  "line": "sleep 1 &\nwait",
+  "split": [
+   "sleep 1",
+   "wait"
+  ],
+  "heredocless": "sleep 1 &\nwait",
+  "names": [
+   "sleep"
+  ],
+  "installs": []
+ },
+ {
+  "line": "git commit -m \"fix #12\" # done",
+  "split": [
+   "git commit -m fix #12"
+  ],
+  "heredocless": "git commit -m \"fix #12\" # done",
+  "names": [
+   "git"
+  ],
+  "installs": []
+ },
+ {
+  "line": "echo 'unclosed | ls",
+  "split": [
+   "echo unclosed | ls"
+  ],
+  "heredocless": "echo 'unclosed | ls",
+  "names": [],
+  "installs": []
+ },
+ {
+  "line": "echo \"unclosed | ls",
+  "split": [
+   "echo unclosed | ls"
+  ],
+  "heredocless": "echo \"unclosed | ls",
+  "names": [],
+  "installs": []
+ },
+ {
+  "line": "a | b |& c",
+  "split": [
+   "a",
+   "b",
+   "c"
+  ],
+  "heredocless": "a | b |& c",
+  "names": [
+   "a",
+   "b",
+   "c"
+  ],
+  "installs": []
+ },
+ {
+  "line": "nohup sh -c 'x' > /dev/null 2>&1 &",
+  "split": [
+   "nohup sh -c x > /dev/null 2>&1"
+  ],
+  "heredocless": "nohup sh -c 'x' > /dev/null 2>&1 &",
+  "names": [
+   "sh"
+  ],
+  "installs": []
+ }
+]
