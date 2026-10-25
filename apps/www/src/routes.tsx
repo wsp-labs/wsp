@@ -108,7 +108,7 @@ export const ROUTES: readonly Route[] = [
   ...POSTS.map(
     (post): Route => ({
       path: `/blog/${post.slug}`,
-      title: `${post.title}: wsp`,
+      title: /[.!?]$/.test(post.title) ? post.title : `${post.title}: wsp`,
       description: post.summary,
       image: { path: post.image ?? `/og-blog-${post.slug}.png`, line: post.title, alt: post.title },
       author: post.author,
