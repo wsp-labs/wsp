@@ -17,7 +17,8 @@ use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRe
 use wsp_machines::machines::area_error::{AreaError, AreaResult};
 use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::sub_queue::*;
-use wsp_wire::views::session::ThreadCapWait;
+use wsp_wire::views::session::{SessionView, ThreadCapWait};
+use wsp_wire::views::workspace_more::WorkspaceViewQueueWhy;
 use wsp_wire::views::workspace::Caller;
 
 const TASK: &str = "Fix the flaky upload test in packages/upload.";
@@ -76,13 +77,25 @@ fn start(area: &Rc<SubQueueArea>, id: &str, thread: &str) -> Started {
     Started { told, turn: tokio::task::spawn_local(fut) }
 }
 
+/// What the tests read of a session row (`SessionEntry` is not `Clone`).
+struct Row {
+    view: SessionView,
+    queued: bool,
+    launched: bool,
+}
+
+fn row_of(s: &SessionEntry) -> Row {
+    Row { view: s.view.clone(), queued: s.queued, launched: s.launch.is_some() }
+}
+
 fn phase(host: &FakeHost, id: &str) -> Value {
     host.stored(id).map(|r| r["phase"].clone()).unwrap_or(Value::Null)
 }
 
 fn nap(host: &FakeHost, id: &str) {
     let entry = host.live.borrow().get(id).cloned().unwrap();
-    entry.record.borrow_mut().phase = serde_json::from_value(json!("napping")).unwrap();
+    let record = entry.borrow().record.clone();
+    record.borrow_mut().phase = serde_json::from_value(json!("napping")).unwrap();
     host.emit_now(json!({ "type": "workspace.napped", "workspaceId": id }));
 }
 
@@ -98,7 +111,7 @@ fn is_held_as_queued_answered_capped_then_starts_by_itself_first_in_first_out() 
         settle().await;
         assert_eq!(sb.told.borrow().iter().map(text).collect::<Vec<_>>(), vec![text(&wait(1, 1, "slot"))]);
         // Its thread reads Waiting: a running row carrying the count, under the lead.
-        let row = host.sessions.borrow().values().find(|s| s.view.workspace_id == "ws_b").cloned().unwrap();
+        let row = host.sessions.borrow().values().find(|s| s.view.workspace_id == "ws_b").map(row_of).unwrap();
         assert_eq!(serde_json::to_value(&row.view.status).unwrap(), json!("running"));
         assert_eq!(text(row.view.capped.as_ref().unwrap()), text(&wait(1, 1, "slot")));
         assert_eq!((row.view.parent_thread_id.as_deref(), row.view.root_thread_id.as_deref()), (Some("t_lead"), Some("t_lead")));
@@ -147,7 +160,7 @@ fn lists_its_waiting_row_with_the_head_of_a_long_brief() {
         let ask = HoldAsk { workspace_id: "ws_b".into(), thread_id: "t_b".into(), tree: IndexMap::new(), o, on_held: Some(Rc::new(move |h: HeldTold| keep.borrow_mut().push(h))), notify: None };
         tokio::task::spawn_local(area.hold_queued(ask, Some(&lead())));
         settle().await;
-        let row = host.sessions.borrow().values().find(|s| s.view.workspace_id == "ws_b").cloned().unwrap();
+        let row = host.sessions.borrow().values().find(|s| s.view.workspace_id == "ws_b").map(row_of).unwrap();
         assert_eq!(row.view.prompt.as_deref(), Some(wsp_words::words::turn::kept_opening(&long).as_str()));
         assert_eq!(told.borrow().len(), 1);
     });
@@ -161,7 +174,7 @@ fn holds_a_spawn_with_no_start_left_in_the_minute_and_starts_it_when_a_read_show
         full.starts.as_mut().unwrap().minute.used = 12.0;
         *host.backend.limits.lock().unwrap() = Some(full);
         let b = spawned(&host, &area, "ws_b", "Second").await;
-        assert_eq!(b.borrow().queue.as_ref().unwrap().why, "minute");
+        assert_eq!(b.borrow().queue.as_ref().unwrap().why, WorkspaceViewQueueWhy::Minute);
         let sb = start(&area, "ws_b", "t_b");
         settle().await;
         assert_eq!(text(&sb.told.borrow()[0]), text(&wait(12, 12, "minute")));
@@ -191,10 +204,10 @@ fn a_held_spawn_whose_start_failed_fails_its_row_and_tells_its_targets() {
         let r = b.borrow().clone();
         assert_eq!(serde_json::to_value(&r.phase).unwrap(), json!("released"));
         assert_eq!(r.sub.as_ref().unwrap().opening.as_deref().map(|p| p.ends_with(TASK)), Some(true));
-        let row = host.sessions.borrow().values().find(|s| s.view.workspace_id == "ws_b").cloned().unwrap();
+        let row = host.sessions.borrow().values().find(|s| s.view.workspace_id == "ws_b").map(row_of).unwrap();
         assert_eq!(serde_json::to_value(&row.view.status).unwrap(), json!("failed"));
         assert!(row.view.failure.as_deref().unwrap().contains("fetch failed: Connect Timeout Error"));
-        assert!(row.view.capped.is_none() && row.launch.is_none());
+        assert!(row.view.capped.is_none() && !row.launched);
         assert_eq!(host.calls_of("notify_failed")[0][2], "me");
         // The failed row goes out before the caller hears the refusal.
         let names: Vec<String> = host.calls.borrow().iter().map(|(n, _)| n.clone()).collect();
@@ -275,7 +288,7 @@ fn survives_a_restart_queued_record_and_start_come_back_waiting() {
         let again = SubQueueArea::new(host.clone());
         again.resume_queue().await.unwrap();
         settle().await;
-        let row = host.sessions.borrow().get(&turn).cloned().expect("the row is back under its turn id");
+        let row = host.sessions.borrow().get(&turn).map(row_of).expect("the row is back under its turn id");
         assert_eq!(text(row.view.capped.as_ref().unwrap()), text(&wait(1, 1, "slot")));
         assert_eq!(row.view.thread_id.as_deref(), Some("t_b"));
         nap(&host, "ws_first");
@@ -303,7 +316,7 @@ fn a_restart_while_a_let_through_spawns_machine_was_made_puts_it_back_in_line() 
         again.resume_queue().await.unwrap();
         settle().await;
         let q = b.borrow().queue.clone().expect("back in line");
-        assert_eq!(q.why, "slot");
+        assert_eq!(q.why, WorkspaceViewQueueWhy::Slot);
         assert_eq!(host.stored("ws_b").unwrap()["queue"]["since"], json!(host.store.borrow()[SUB_STARTS]["ws_b"]["at"]));
         nap(&host, "ws_first");
         settle().await;
@@ -367,7 +380,7 @@ fn a_cap_refusal_puts_the_spawn_back_at_the_head_and_asks_again_a_read_later() {
         assert_eq!(host.calls_of("stand_up_queued").len(), 1);
         // Back at the head: queued again, 1 ms ahead of the third, waiting its read; it did not fail.
         let q = b.borrow().queue.clone().expect("queued again");
-        assert_eq!(q.why, "slot");
+        assert_eq!(q.why, WorkspaceViewQueueWhy::Slot);
         assert!(q.since < c_since, "{} before {c_since}", q.since);
         assert!(!sb.turn.is_finished());
         // The third is not let through past it while it waits its read.
@@ -398,7 +411,7 @@ fn two_spawns_asked_together_under_one_machine_one_starts_the_other_queues() {
         let sb = start(&area, "ws_b", "t_b");
         settle().await;
         assert!(a.borrow().queue.is_none());
-        assert_eq!(b.borrow().queue.as_ref().unwrap().why, "slot");
+        assert_eq!(b.borrow().queue.as_ref().unwrap().why, WorkspaceViewQueueWhy::Slot);
         assert_eq!(sb.told.borrow().len(), 1);
         open(&g);
         sa.turn.await.unwrap().unwrap();

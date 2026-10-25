@@ -680,7 +680,7 @@ fn the_record_is_queued_under_the_lead_before_any_machine() {
         assert!(f.host.at("forking_add") < f.host.at("enqueue"));
         // Its entry is the stand-in the queue holds it by: no machine yet.
         let entry = f.host.live.borrow().get(SPAWNED_ID).cloned().expect("the queue holds the record");
-        assert_eq!(entry.machine.id(), "");
+        assert_eq!(entry.borrow().machine.id(), "");
         assert_eq!(made.notice, Some(sub_stayed_line(&[".env"])));
     });
 }
