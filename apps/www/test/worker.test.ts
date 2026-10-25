@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The Worker in front of usewsp.com's files: old hosts go home, the waitlist reaches Resend, the docs reach Scalar,
-// and the install script reads as text.
+// the install script reads as text, and the classic app's downloads reach a release that has them.
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CLASSIC } from "../src/downloads";
 import worker, { type Env } from "../worker/index";
 
 const files = (body = "file", type = "application/octet-stream"): Env["ASSETS"] => ({ fetch: async () => new Response(body, { headers: { "content-type": type } }) });
@@ -70,6 +71,24 @@ describe("the Worker in front of usewsp.com", () => {
     expect(moved.status).toBe(307);
     expect(moved.headers.get("location")).toBe("https://usewsp.com/docs/reference/slate?x=1");
     expect((await worker.fetch(new Request("https://usewsp.com/nope"), env({ ASSETS: missing }))).status).toBe(404);
+  });
+
+  it("sends a classic download to the newest release's copy where GitHub has one, and to v0.3.8's Electron app under the app's names where it answers 404", async () => {
+    const REPO = "https://github.com/wsp-labs/wsp";
+    let status = 200;
+    const asked = vi.fn(async (_url: string, _init: RequestInit) => new Response(null, { status }));
+    vi.stubGlobal("fetch", asked);
+    const get = async (path: string) => (await worker.fetch(new Request(`https://usewsp.com${path}`), env())).headers.get("location");
+    expect(await get(CLASSIC.mac)).toBe(`${REPO}/releases/latest/download/wsp-classic-mac.dmg`);
+    expect(await get(CLASSIC.linux)).toBe(`${REPO}/releases/latest/download/wsp-classic-linux.AppImage`);
+    expect(asked.mock.calls.map(([url, init]) => `${init.method} ${url}`)).toEqual([`HEAD ${REPO}/releases/latest/download/wsp-classic-mac.dmg`, `HEAD ${REPO}/releases/latest/download/wsp-classic-linux.AppImage`]);
+    status = 503;
+    expect(await get(CLASSIC.mac), "GitHub failing is no proof the asset is missing").toBe(`${REPO}/releases/latest/download/wsp-classic-mac.dmg`);
+    status = 404;
+    const res = await worker.fetch(new Request(`https://usewsp.com${CLASSIC.mac}`), env());
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(`${REPO}/releases/download/v0.3.8/wsp-mac.dmg`);
+    expect(await get(CLASSIC.linux)).toBe(`${REPO}/releases/download/v0.3.8/wsp-linux.AppImage`);
   });
 
   it("serves the install script as text and every other file as the files say", async () => {

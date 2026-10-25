@@ -192,6 +192,7 @@ const NEVER_RUN: Record<string, Record<string, string>> = {
   "apps/desktop/test/self-update.test.ts": { 'join(s.staged.stage, "new")': "the folder a checked copy was unpacked into, made read only so the rename out of it fails" },
   "apps/desktop/test/install-script.test.ts": {
     'join(contents, "MacOS", "node")': "packed into the archive a release serves; the copy its unpack writes is the one that runs",
+    'join(contents, "MacOS", "wsp")': "the classic app's binary packed into the archive a release serves; the copy its unpack writes is the one that runs",
     'join(daemon, "wsp-daemon")': "packed into the archive a release serves; the copy its unpack writes is the one that runs",
     wrapper: "a person's wrapper that would hang if run, which the install line must leave without running",
   },

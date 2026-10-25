@@ -5,7 +5,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { App } from "../src/App";
-import { CLASSIC_STABLE_NAMES, downloadUrl, STABLE_NAMES } from "../../../packages/protocol/src/bundles.mjs";
+import { downloadUrl, STABLE_NAMES } from "../../../packages/protocol/src/bundles.mjs";
 import { INSTALL, RELEASES } from "../src/links";
 import { platformOf } from "../src/downloads";
 import { MAC_GUIDE } from "../src/components/download";
@@ -33,7 +33,8 @@ const FIRST: Record<keyof typeof AGENTS, "mac" | "linux" | "windows"> = {
 };
 
 const HREF = { mac: downloadUrl(STABLE_NAMES.mac), linux: downloadUrl(STABLE_NAMES.appImage) } as const;
-const CLASSIC_HREF = { mac: downloadUrl(CLASSIC_STABLE_NAMES.mac), linux: downloadUrl(CLASSIC_STABLE_NAMES.appImage) } as const;
+/** The site's own paths, which its Worker sends to whichever release holds the classic app. */
+const CLASSIC_HREF = { mac: "/download/classic/mac", linux: "/download/classic/linux" } as const;
 
 const realAgent = navigator.userAgent;
 function browsing(userAgent: string): void {
@@ -68,7 +69,7 @@ describe("the install on the page", () => {
   });
 
   it("puts the install line first on Linux, with the AppImage beside it, the newest release's asset and no releases page", () => {
-    for (const href of [...Object.values(HREF), ...Object.values(CLASSIC_HREF)]) {
+    for (const href of Object.values(HREF)) {
       expect(href.startsWith(`${RELEASES}/latest/download/`)).toBe(true);
       expect(href).not.toMatch(/\d+\.\d+\.\d+/);
     }
