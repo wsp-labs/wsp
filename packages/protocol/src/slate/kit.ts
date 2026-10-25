@@ -2,8 +2,8 @@
 // The pieces of kit wsp/2 (05-pieces), one self-contained entry each: props, items, events, its sketch line and its
 // catalog text. The compiler, the validator, the sketch and the catalog read these and switch on no type name of
 // their own, so adding a piece is one entry here and one view in the web app.
-import { fmtBytes, fmtClock, fmtCost, fmtDuration, fmtElapsed, fmtInr, fmtTokens } from "../format.js";
-import { slateAxisWord, slateChartAxis, slateShares, slateSpanState, slateTime, SLATE_SPAN_STATES } from "./chart.js";
+import { fmtBytesFigure, fmtClock, fmtCost, fmtDuration, fmtElapsed, fmtInr, fmtTokens } from "../format.js";
+import { slateAxisSpan, slateAxisWord, slateChartAxis, slateShares, slateSpanState, slateTime, SLATE_SPAN_STATES } from "./chart.js";
 import { slateResultShape, sketchSlateResult } from "./shape.js";
 import { isSlateBinding, isSlateSecretHandle, type SlateEventName, type SlateJson, type SlatePropValue, type SlateRunDecl, type SlateRunRecord } from "./types.js";
 import { slateDependencies } from "./expr.js";
@@ -186,8 +186,9 @@ export function slateFigure(value: number, format: string, max?: number): string
     case "percent": return `${Math.round(max !== undefined && max > 0 ? (value / max) * 100 : value)}%`;
     case "fraction": return max === undefined ? plain(value) : `${plain(value)}/${plain(max)}`;
     case "tokens": return fmtTokens(value);
-    case "bytes": return fmtBytes(value);
-    case "usd": return fmtCost(value);
+    case "bytes": return fmtBytesFigure(value);
+    // Whole dollars say no cents, so $22,900 never reads $22,900.00 and an axis steps in whole dollars.
+    case "usd": return Number.isInteger(value) ? fmtCost(value).replace(/\.00$/, "") : fmtCost(value);
     case "inr": return fmtInr(value);
     case "duration": return fmtDuration(value);
     case "integer": return Math.round(value).toLocaleString("en-US");
@@ -331,10 +332,10 @@ const PIECES: Record<string, SlatePieceModule> = {
       const xs = list.map((item, i) => (x === undefined ? i : v.row({ x }, item, i).x));
       const axisLine = (all: number[], at: number[]): string => {
         const axis = slateChartAxis(all.length === 1 ? [all[0]!, all[0]!] : all);
-        return `  x ${slateAxisWord(xs[at[0]!])} to ${slateAxisWord(xs[at.at(-1)!])}, y ${fig(axis.from)} to ${fig(axis.to)}`;
+        return `  x ${slateAxisWord(xs[at[0]!], slateAxisSpan(xs))} to ${slateAxisWord(xs[at.at(-1)!], slateAxisSpan(xs))}, y ${fig(axis.from)} to ${fig(axis.to)}`;
       };
       if (series.length === 0) {
-        if (v.raw("value") === undefined) return `${label}  nothing plotted from ${list.length} rows${list.length === 0 ? "" : `, x ${slateAxisWord(xs[0])} to ${slateAxisWord(xs.at(-1))}`}; give value or a <series> per line`.trimStart();
+        if (v.raw("value") === undefined) return `${label}  nothing plotted from ${list.length} rows${list.length === 0 ? "" : `, x ${slateAxisWord(xs[0], slateAxisSpan(xs))} to ${slateAxisWord(xs.at(-1), slateAxisSpan(xs))}`}; give value or a <series> per line`.trimStart();
         const at = list.map((item, i) => (isNum(v.row({ value: v.raw("value") ?? null }, item, i).value) ? i : -1)).filter(i => i >= 0);
         if (at.length === 0) return `${label}  no points yet`;
         const vals = at.map(i => v.row({ value: v.raw("value") ?? null }, list[i]!, i).value as number);
@@ -496,7 +497,7 @@ const PIECES: Record<string, SlatePieceModule> = {
     fallback: "text lines", example: `<facts><fact label="State" value={pr.word} /><fact label="Review" value={word(pr.review)} /></facts>`,
   },
   status: {
-    type: "status", level: "core", purpose: "A dot in a tone with a word: Live, Down, Waiting.", holdsChildren: false, textProp: "value",
+    type: "status", level: "core", purpose: "A state word in its tone: Live, Down, Waiting.", holdsChildren: false, textProp: "value",
     props: { value: { type: "text", binds: "yes", required: true }, tone: tone(["default", "muted", "good", "warning", "bad", "info"]) }, items: {}, events: [],
     sketch: v => `(${shown(v.prop("tone")) || "default"}) ${shown(v.prop("value"))}`, fallback: "text", example: `<status tone={$up ? 'good' : 'bad'}>{$up ? 'Live' : 'Down'}</status>`,
   },

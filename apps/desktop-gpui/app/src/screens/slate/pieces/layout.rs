@@ -100,11 +100,14 @@ pub fn is_toolbar(slate: &Slate, id: &str) -> bool {
 pub fn is_card_row(slate: &Slate, id: &str) -> bool {
     match kind(slate, id) {
         None => false,
+        // A strip is a card of its own, never a row of the card the pieces after it gather into.
+        _ if is_strip(slate, id) => false,
         Some("column") => !is_group(slate, id),
         Some("row") => !is_toolbar(slate, id) && !children(slate, id).iter().any(|c| kind(slate, c).is_some_and(|k| flags(k).heads)),
+        // A state word alone on the page stands bare; after a card's rows it joins them, as `gather` says.
         Some(
             "section" | "heading" | "text" | "markdown" | "chart" | "donut" | "timeline" | "treemap" | "diagram" | "image" | "images"
-            | "bars" | "button" | "table" | "stats",
+            | "bars" | "button" | "table" | "stats" | "status",
         ) => false,
         Some(_) => true,
     }
@@ -184,7 +187,7 @@ pub fn gather(slate: &Slate, ids: &[String]) -> Vec<Run> {
             }
             continue;
         }
-        let joins = is_card_row(slate, id) || ridden_by(slate, id).is_some() || is_note_text(slate, id);
+        let joins = is_card_row(slate, id) || ridden_by(slate, id).is_some() || is_note_text(slate, id) || kind(slate, id) == Some("status");
         match runs.last_mut() {
             Some(Run::Card(card)) if joins => card.push(id.clone()),
             _ if !is_card_row(slate, id) => runs.push(Run::Bare(id.clone())),
@@ -792,7 +795,8 @@ pub mod tests {
             "g": {"type": "grid", "children": ["a", "s2", "t2", "b"]},
             "a": {"type": "number"}, "s2": {"type": "status"}, "t2": {"type": "text"}, "b": {"type": "number"},
         }));
-        assert_eq!(gather(&s, &ids(&["n", "st", "tx", "g"])), vec![Run::Card(ids(&["n", "st", "tx", "g"]))]);
+        // The strip after them is a card of its own, never a row of theirs.
+        assert_eq!(gather(&s, &ids(&["n", "st", "tx", "g"])), vec![Run::Card(ids(&["n", "st", "tx"])), Run::Bare("g".into())]);
         assert_eq!(super::super::riders::riders_of(&s, "n").all, ids(&["st", "tx"]));
         assert_eq!(strip_cells(&s, "g"), Some(ids(&["a", "b"])));
         assert_eq!(super::super::riders::riders_of(&s, "a").all, ids(&["s2", "t2"]));

@@ -155,8 +155,9 @@ pub fn slate_figure(value: f64, format: &str, max: Option<f64>) -> String {
             None => plain(value),
         },
         "tokens" => fmt_tokens(value),
-        "bytes" if value < 1024. => format!("{} B", num_text(value)),
-        "bytes" => crate::ui::fmt_bytes(value as u64),
+        "bytes" => bytes_figure(value),
+        // Whole dollars say no cents, so $22,900 never reads $22,900.00 and an axis steps in whole dollars.
+        "usd" if value.fract() == 0. => fmt_cost(value).trim_end_matches(".00").to_owned(),
         "usd" => fmt_cost(value),
         "inr" => fmt_inr(value),
         "duration" => fmt_duration(value),
@@ -174,6 +175,27 @@ pub fn slate_figure(value: f64, format: &str, max: Option<f64>) -> String {
     }
 }
 
+/// `fmtBytesFigure`: bytes as a figure a person compares, one decimal under 10 of a unit, so 1,268,000 bytes reads
+/// 1.2 MB, not 1 MB.
+fn bytes_figure(n: f64) -> String {
+    const K: f64 = 1024.;
+    if n < K {
+        return format!("{} B", num_text(n));
+    }
+    let (size, unit) = if n < K * K {
+        (n / K, "KB")
+    } else if n < K * K * K {
+        (n / (K * K), "MB")
+    } else {
+        (n / (K * K * K), "GB")
+    };
+    if size < 10. {
+        format!("{} {unit}", num_text((size * 10.).round() / 10.))
+    } else {
+        format!("{} {unit}", num_text(size.round()))
+    }
+}
+
 /// `figure`: a finite number through its formatter, anything else as its text.
 pub fn figure(value: Option<&Value>, format: Option<&Value>) -> Option<String> {
     match num(value) {
@@ -182,13 +204,14 @@ pub fn figure(value: Option<&Value>, format: Option<&Value>) -> Option<String> {
     }
 }
 
-/// `isFigure`: a number, or text that is one with a unit or a rate after it.
+/// `isFigure`: a number, a count of a total (24/24), or text that is one with a unit or a rate after it; a sign may be
+/// the true minus (−2%).
 pub fn is_figure(v: Option<&Value>) -> bool {
     match v {
         Some(Value::Number(_)) => true,
         Some(Value::String(s)) => {
             let s = s.trim();
-            let s = s.strip_prefix(['-', '+']).unwrap_or(s);
+            let s = s.strip_prefix(['-', '+', '\u{2212}']).unwrap_or(s);
             let s = s.strip_prefix(['$', '\u{20ac}', '\u{a3}', '\u{20b9}', '\u{a5}']).unwrap_or(s);
             let digits = s.find(|c: char| !(c.is_ascii_digit() || c == ',' || c == '.')).unwrap_or(s.len());
             let (num, rest) = s.split_at(digits);
@@ -198,6 +221,17 @@ pub fn is_figure(v: Option<&Value>) -> bool {
             if num.contains('.') && num.split('.').next().is_some_and(|i| i.contains(',') && false) {
                 return false;
             }
+            // A count of a total: digits again after the slash, 24/24.
+            let rest = match rest.strip_prefix('/').filter(|r| r.starts_with(|c: char| c.is_ascii_digit())) {
+                Some(r) => {
+                    let total = r.find(|c: char| !(c.is_ascii_digit() || c == ',' || c == '.')).unwrap_or(r.len());
+                    if r[..total].ends_with('.') || r[..total].matches('.').count() > 1 {
+                        return false;
+                    }
+                    &r[total..]
+                }
+                None => rest,
+            };
             let rest = rest.strip_prefix(' ').unwrap_or(rest);
             if rest.is_empty() || rest == "%" {
                 return true;
@@ -267,7 +301,11 @@ mod tests {
         assert_eq!(slate_figure(4.64, "usd", None), "$4.64");
         assert_eq!(slate_figure(62., "percent", None), "62%");
         assert_eq!(slate_figure(3., "fraction", Some(4.)), "3/4");
-        assert_eq!(slate_figure(1_966_000., "bytes", None), "2 MB");
+        assert_eq!(slate_figure(1_966_000., "bytes", None), "1.9 MB");
+        assert_eq!(slate_figure(1_268_000., "bytes", None), "1.2 MB");
+        assert_eq!(slate_figure(512., "bytes", None), "512 B");
+        assert_eq!(slate_figure(22_900., "usd", None), "$22,900");
+        assert_eq!(slate_figure(38.4, "usd", None), "$38.40");
         assert_eq!(slate_figure(130_000., "bytes", None), "127 KB");
         assert_eq!(slate_figure(1_610_612_736., "bytes", None), "1.5 GB");
         assert_eq!(slate_figure(1.5, "bytes", None), "1.5 B");
@@ -318,6 +356,12 @@ mod tests {
         assert!(is_figure(Some(&json!("3 MB/s"))));
         assert!(!is_figure(Some(&json!("1m 4s"))));
         assert!(!is_figure(Some(&json!("main"))));
+        for figure in ["24/24", "\u{2212}2%", "-2%", "1,284/1,290"] {
+            assert!(is_figure(Some(&json!(figure))), "{figure} reads as a figure");
+        }
+        for word in ["a/b", "2026-10-25", "v2/api", "24/", "1/2.3."] {
+            assert!(!is_figure(Some(&json!(word))), "{word} is not a figure");
+        }
         assert!(is_sentence(Some(&json!("the build is green"))));
         assert!(!is_sentence(Some(&json!("src/main.rs"))));
     }

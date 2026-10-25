@@ -40,6 +40,7 @@ pub const STATES: &[State] = &[
     State { name: "glance-statrow-short-pairs", file: Some("glance-statrow-short.slate") },
     State { name: "glance-statrow-long-pairs", file: Some("glance-statrow-long.slate") },
     State { name: "glance-facts", file: Some("glance-facts.slate") },
+    State { name: "glance-round2-fixes", file: Some("glance-round2-fixes.slate") },
 ];
 
 /// The state whose slate `many()` makes rather than a data file.

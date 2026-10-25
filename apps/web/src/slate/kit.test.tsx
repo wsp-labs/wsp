@@ -44,7 +44,7 @@ describe("the richer kit in the renderer", () => {
     expect(grid.className).toContain("@min-[34rem]:grid-cols-3");
     expect(grid.querySelectorAll("[data-slate-type=number]")).toHaveLength(3);
     expect(within(grid).getByText("Per ounce")).toBeTruthy();
-    expect(grid.textContent).toContain("$2,399.00");
+    expect(grid.textContent).toContain("$2,399");
     // A number's trend is a sparkline's job; the stat cell draws its figure alone.
     expect(grid.querySelector("[data-slate-sparkline]")).toBeNull();
     expect(c.querySelector("[data-slate-strip]")).not.toBeNull();
@@ -158,7 +158,7 @@ describe("the richer kit in the renderer", () => {
 
     it("draws the plot with its round axis once the value moves", () => {
       const { view } = draw(compiled(GOLD), { hist: [4141.8, 4160, 4141.8].map(at) });
-      expect(ticks(view.container)).toEqual(["$4,140.00", "$4,145.00", "$4,150.00", "$4,155.00", "$4,160.00"]);
+      expect(ticks(view.container)).toEqual(["$4,140", "$4,145", "$4,150", "$4,155", "$4,160"]);
       expect(view.container.querySelector("[data-slate-chart-flat]")).toBeNull();
       expect(view.container.querySelector("[data-k=y-axis] [role=img], [data-k=y-axis] .digit-strip")).toBeNull();
     });
@@ -263,14 +263,14 @@ describe("the richer kit in the renderer", () => {
   });
 
   it("lines a group up only when align says so, and pads and insets on request", () => {
-    const doc = compiled(`<slate><column><section id="s" title="A" align="center" pad="loose"><status>x</status></section><section id="plain" title="B"><status>y</status></section><column id="inset" surface="inset"><status>z</status></column><grid id="g" columns={2} align="end"><text>1</text><text>2</text></grid></column></slate>`);
+    const doc = compiled(`<slate><column><section id="s" title="A" align="center" pad="loose"><facts><fact label="a" value="x" /></facts></section><section id="plain" title="B"><facts><fact label="b" value="y" /></facts></section><column id="inset" surface="inset"><facts><fact label="c" value="z" /></facts></column><grid id="g" columns={2} align="end"><text>1</text><text>2</text></grid></column></slate>`);
     const c = draw(doc).view.container;
     const inner = (id: string) => piece(c, id).querySelector<HTMLElement>("[data-slate-card], [data-slate-grid] > div")!;
     // A section's rows are a settings card whatever align, pad or surface it names: its rows take the card's inset.
     expect(inner("s").className).toContain("[&>:not([data-slate-rows])]:px-(--settings-inset,20px)");
     expect(inner("s").className).not.toMatch(/items-center|px-5/);
     expect(inner("plain").className).toContain("bg-card/40");
-    // A column standing among the cards takes no surface of its own: its status is a row of a card like any other.
+    // A column standing among the cards takes no surface of its own: its facts are a row of a card like any other.
     expect(piece(c, "inset").querySelector("[data-slate-card]")).not.toBeNull();
     expect(inner("g").className).toContain("justify-items-end");
     expect(c.querySelector("[data-slate-piece=s]")!.textContent).toContain("A");
@@ -279,12 +279,16 @@ describe("the richer kit in the renderer", () => {
   it("stands prose bare under its section head, plain, toned or mono, while a meta line still joins the card above it", () => {
     const doc = compiled(`<slate><column>
       <section id="prose" title="Feed"><text id="plain">Prices refresh every 60 seconds</text><text id="warn" tone="warning">Awaiting approval</text><text id="mono" mono>true</text></section>
-      <section id="rows" title="Now"><status id="up" tone="good">Up</status><text id="meta" tone="muted">checked 21s ago</text></section>
+      <section id="rows" title="Now"><facts id="up"><fact label="State" value="Up" /></facts><status id="live" tone="good">Live</status><text id="meta" tone="muted">checked 21s ago</text></section>
+      <section id="alone" title="Then"><status id="lone" tone="bad">Down</status></section>
     </column></slate>`);
     const c = draw(doc).view.container;
     for (const id of ["plain", "warn", "mono"]) expect(piece(c, id).closest("[data-slate-card]"), id).toBeNull();
     expect(piece(c, "up").closest("[data-slate-card]")).not.toBeNull();
+    // A state word and a meta line after a card's rows are rows of that card; a state word alone fills no card.
+    expect(piece(c, "live").closest("[data-slate-card]")).toBe(piece(c, "up").closest("[data-slate-card]"));
     expect(piece(c, "meta").closest("[data-slate-card]")).toBe(piece(c, "up").closest("[data-slate-card]"));
+    expect(piece(c, "lone").closest("[data-slate-card]")).toBeNull();
   });
 
   it("sets a facts list's values in one face: mono only when every value is a figure, else sans, unless one asks for mono", () => {

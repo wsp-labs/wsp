@@ -2,7 +2,8 @@
 //! The slate panel in Paper and Graphite drawn by GPUI's real offscreen renderer, against a host started for this run
 //! alone, at the panel body's 539 px and the window's scale of 2. Each state writes one of the
 //! `parity/wave-2/data/*.slate` files onto a fresh thread. `SLATE_PNG=<folder>` writes `<theme>/<state>.png` there;
-//! `SLATE_STATES=a,b` picks states, the press-driven ones in `fixture::PRESSED` among them; a state named `-pairs` draws
+//! `SLATE_STATES=a,b` picks states, the press-driven ones in `fixture::PRESSED` among them; `SLATE_FILES=<path>,...`
+//! draws more slate files, each named by its file; a state named `-pairs` draws
 //! three stat tiles two a row in a narrow row. Without libtest's harness, as `pixels.rs` explains.
 
 #[path = "../../host-client/tests/common/mod.rs"]
@@ -202,10 +203,19 @@ fn main() {
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap());
     let client = Arc::new(runtime.block_on(HostClient::connect(&host.state(), &host.env())).unwrap_or_else(|f| panic!("{}", f.message)));
     let handle = Host::new(client, runtime);
-    for state in fixture::STATES {
-        if only.as_ref().is_some_and(|o| !o.iter().any(|s| s == state.name)) {
-            continue;
-        }
+    // `SLATE_FILES=<path>,...` draws slate files from any folder too, each a state named by its file.
+    let files: Vec<fixture::State> = std::env::var("SLATE_FILES")
+        .ok()
+        .iter()
+        .flat_map(|f| f.split(',').filter(|f| !f.is_empty()).map(str::to_owned).collect::<Vec<_>>())
+        .map(|path| {
+            let path = std::fs::canonicalize(&path).unwrap_or_else(|e| panic!("SLATE_FILES names {path}: {e}"));
+            let name = path.file_stem().unwrap().to_string_lossy().into_owned();
+            fixture::State { name: name.leak(), file: Some(path.to_string_lossy().into_owned().leak()) }
+        })
+        .collect();
+    let picked = fixture::STATES.iter().filter(|s| only.as_ref().is_none_or(|o| o.iter().any(|n| n == s.name)));
+    for state in picked.chain(&files) {
         let thread = fixture::staged(&host, &folder, state);
         for theme in ["paper", "graphite"] {
             let image = shoot(theme, &handle, &thread, &[], state.name.ends_with("-pairs"));
