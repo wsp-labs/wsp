@@ -262,3 +262,45 @@ fn each_refusal_says_its_words() {
         "sealing to a place needs its public key"
     );
 }
+
+// ---- K-rules (spec/small.md K1 to K3), values from running vault-cipher.ts, project-install.ts and drop-template.ts
+
+/// K1: open authenticates the header line as it came (its raw bytes up to and including the `\n`), never a
+/// re-serialised header: vector A carries the image's keys out of schema order and an unknown key, vector B spaces, a
+/// tab and a `\r` in its header line; both were sealed by the TS and open here to the same plain and image.
+#[test]
+fn open_authenticates_the_header_bytes_as_they_came() {
+    let key: [u8; 32] = b64("yKzEjDqIKgihvcLZx1os8xxutqJsEH07WADm+4MHQ2o=").try_into().unwrap();
+    let plain = b64("cmF3IGhlYWRlciBwbGFpbgoAw78=");
+    let a = b64("eyJmb3JtYXQiOiJ3c3AtdmF1bHQtMSIsImNpcGhlciI6ImFlcy0yNTYtZ2NtIiwidG8iOiJrZXkiLCJzYWx0IjoidFJRRkVoU0JtMklEQkFRYlVid2syZz09Iiwibm9uY2UiOiJDdUUxMzFXZDVYQ0syMk5LIiwiZXBoZW1lcmFsIjoiTUNvd0JRWURLMlZ1QXlFQWRGb3REN0FjUUxWMkVWRC9zRHJ6ZVRObG0zeVBkeEZldFpHS21xaS9EM1E9IiwiaW1hZ2UiOnsidXNlZEJ5dGVzIjo1LCJzZWFsZWRGcm9tIjoidGhpcy1tYWMgw6kiLCJ6elVua25vd24iOnsiYiI6MSwiYSI6WzEsMl19LCJsb2dpbnMiOlt7InN0YXRlIjoic2lnbmVkLWluIiwibmFtZSI6ImNvZGV4In1dLCJzZWFsZWRBdCI6IjIwMjYtMDktMTJUMDA6MDA6MDAuMDAwWiIsInJlY2lwZUhhc2giOiJyaCIsImhhc2giOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwidmVyc2lvbiI6MSwibmFtZSI6ImRlZmF1bHQiLCJ2YXVsdCI6eyJ0YWtlbkF0IjoiMjAyNi0wOS0xMlQwMDowMDowMC4wMDBaIiwicGF0aHMiOjIsImJ5dGVzIjoxMjgsInNoYTI1NiI6ImJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmIifX19CtqOtCuwYtlnR495U1OnFixGDWASblh12+zu9w8oV4hYbZjJQA==");
+    let b = b64("eyAiZm9ybWF0IjogIndzcC12YXVsdC0xIiwJImNpcGhlciI6ImFlcy0yNTYtZ2NtIiwgInRvIjoia2V5IiwgImltYWdlIjogeyJ1c2VkQnl0ZXMiOjUsInNlYWxlZEZyb20iOiJ0aGlzLW1hYyDDqSIsInp6VW5rbm93biI6eyJiIjoxLCJhIjpbMSwyXX0sImxvZ2lucyI6W3sic3RhdGUiOiJzaWduZWQtaW4iLCJuYW1lIjoiY29kZXgifV0sInNlYWxlZEF0IjoiMjAyNi0wOS0xMlQwMDowMDowMC4wMDBaIiwicmVjaXBlSGFzaCI6InJoIiwiaGFzaCI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJ2ZXJzaW9uIjoxLCJuYW1lIjoiZGVmYXVsdCIsInZhdWx0Ijp7InRha2VuQXQiOiIyMDI2LTA5LTEyVDAwOjAwOjAwLjAwMFoiLCJwYXRocyI6MiwiYnl0ZXMiOjEyOCwic2hhMjU2IjoiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYiJ9fSwgInNhbHQiOiIwVnd0TmpvbkRITE0yemF2ZDJDSEZBPT0iLCAibm9uY2UiOiJsalVOUWt2U1pITHkxRkRzIiwgImVwaGVtZXJhbCI6Ik1Db3dCUVlESzJWdUF5RUFLUXZnVmorUUFLNXlUcWlWS3FxNjlaU2hOWHZielExZWtHQ2UxQ05EMldzPSIgfQ0KshNxdt+3yQ2LCs7CqF0WWU2EqVjPV/EK5NS1vr0g2CPEJwHh");
+    let want_image = json!({ "name": "default", "version": 1, "hash": "a".repeat(64), "recipeHash": "rh", "logins": [{ "name": "codex", "state": "signed-in" }], "sealedAt": "2026-09-12T00:00:00.000Z", "sealedFrom": "this-mac é", "vault": { "sha256": "b".repeat(64), "bytes": 128, "paths": 2, "takenAt": "2026-09-12T00:00:00.000Z" }, "usedBytes": 5 });
+    for sealed in [a, b] {
+        let opened = open(&sealed, &VaultKey::Private(key)).unwrap();
+        assert_eq!(opened.plain, plain);
+        let image = serde_json::to_value(&opened.image).unwrap();
+        assert_eq!(serde_json::to_value(sealed_image_of(&sealed).unwrap()).unwrap(), image);
+        for (k, v) in want_image.as_object().unwrap() {
+            assert_eq!(&image[k], v, "{k}");
+        }
+        assert!(image.get("zzUnknown").is_none());
+    }
+}
+
+/// K2: the log's folder is the log less `/[^/]+$`: a trailing slash is not cut, a root file leaves `''`, a doubled
+/// slash keeps one, no slash at all keeps the whole log.
+#[test]
+fn the_install_logs_folder_is_the_log_less_its_last_name() {
+    let install = ProjectInstall { row: "node".into(), command: "x".into(), check: None };
+    for (log, folder) in [("/c.log", ""), ("logs/", "logs/"), ("/a/b/", "/a/b/"), ("/a//c.log", "/a/"), ("", ""), ("plain.log", "plain.log")] {
+        assert_eq!(install_script(&install, "/d", log), format!("mkdir -p '{folder}' && cd '/d' && x >> '{log}' 2>&1"), "{log:?}");
+    }
+}
+
+/// K3: an empty template id is an id: only `None` is no call.
+#[tokio::test]
+async fn an_empty_template_id_is_still_dropped() {
+    let fine = Templates::new("a", true, true, None);
+    drop_template(fine.as_ref(), Some("")).await.unwrap();
+    assert_eq!(*fine.calls.lock().unwrap(), vec!["a delete ".to_string()]);
+}

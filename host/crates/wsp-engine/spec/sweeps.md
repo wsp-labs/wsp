@@ -10,7 +10,7 @@ Oracle: `small.json` (`ages`, `snapshotNames`).
 - W1. `is_reserved`: the `poc` key is present, whatever its value. The label constants are the TS values.
 - W2. `golden_name(host, golden, v)` = `wsp-<host>-<golden>-v<v>`; `project_snapshot_name` = `wsp-<host>-project-<project>-<stamp>`;
   a host not matching `^[a-z0-9]+$` fails `a snapshot name needs a host of lowercase letters and digits, got <JSON
-  string of host>` (empty and `h-1` included). `name_owner`: `^wsp-([a-z0-9]+)-(.+)$`, `.` not matching a newline, so
+  string of host>` (empty and `h-1` included). `name_owner`: `^wsp-([a-z0-9]+)-(.+)$`, `.` not matching any JS line break (`\n`, `\r`, U+2028, U+2029: the `regex` crate's `.` refuses `\n` alone, so use `[^\n\r\u{2028}\u{2029}]`), so
   `wsp-h1-\nx` has no owner; `wsp-h1-` none; `wsp-h1-a-b-c` is `h1`. Oracle `snapshotNames`.
 
 ## orphans.ts
@@ -58,16 +58,52 @@ Oracle: `small.json` (`ages`, `snapshotNames`).
 
 Nothing is kept; every rule reads labels and stamps the provider holds, so a host restart reads the same.
 
+## Pinned since (K-rules, values from running the TS)
+
+- K1. `lost_workspace`: running or paused only; not reserved (`poc` present with any value, `""` too); `wsp` exactly
+  `1`; `wsp-owner` exactly the owner (`""` is another owner); `wsp-builder` and `wsp-smoke` disqualify only at `1`
+  (`true`, `0`, `""` do not); `createdAt` unreadable (absent, `""`, `yesterday`) or at least 60000 old (60000 in,
+  59999 out, a future stamp out).
+- K2. `strays`: not `gone` (paused counts), id not known, name not asked, a readable stamp at least 600000 old (600000
+  in, 599999 out); absent, unreadable, empty and future stamps are out; a date-only stamp is UTC midnight.
+- K3. `reap` compares label values exactly: `wsp-owner: ""` is a foreign owner (spared, `owner: Some("")`, backstop
+  600000); `wsp` other than `1` is passed over (neither list); `wsp-builder` other than `1` is no builder (ten-minute
+  backstop, killed as `orphan`, `builder: false`).
+- K4. Ages are never clamped (a future own stamp is spared at a negative age, backstop 60000); `older_than_ms:
+  Some(0)` is a value (age 0 dies, a future stamp lives, backstop 0); a given listing, empty included, is never re-read;
+  `known_ids` is read exactly once. A size of `{cpu: 0, memMb: 0}` is a size, not absent.
+- K5. `name_owner`: any JS line break in the rest is no owner (foreign, never an orphan to delete); the mark is
+  `[a-z0-9]+`, case and leading space refuse; nothing is trimmed. `golden_name`'s refusal quotes the host as
+  `JSON.stringify` does (`serde_json::to_string`, not `{:?}`).
+- K6. The named charge is `max(0, named - free_named) * price` computed without unsigned underflow; a zero named price
+  is a price (`named` written); no named price, no `named`; per-GB billing adds the named charge to `monthlyUsd`
+  without writing `named`.
+- K7. `retention_plan`: `keep_count` 0 drops the head too; past the chain's length keeps it all, drops nothing, never
+  panics; the named saving is the named charge before less after, each floored at 0 (free 3 of 4 named, 2 dropped,
+  $0.5 each: saves 0.5).
+- `Date.parse` (W4, W7, ownership): the port reads ISO 8601 with or without seconds and fraction (the fraction
+  truncated to ms, any length), offsets with or without a colon, lowercase `t`/`z`, a date only or year-month as UTC
+  midnight, `24:00` as next midnight, and rolls an overflowing day (`2026-02-30` is March 2). A zone-less stamp is
+  host-local in the TS; the port reads it as UTC (accepted difference: wsp writes every stamp with `Z`). RFC 2822 and
+  the legacy `Sep 1 2026` forms read in the TS; not pinned.
+
 ## Rules and their tests
 
 Files: `sweeps.rs` (ported; the TS `it.each` of 25 rows is 25 tests made by its `verdict!` macro), `sweeps_hard.rs` (hard).
 
 | Rule | Tests |
 |---|---|
+| K1 | sweeps.rs: `a_lost_workspace_is_read_label_by_label` |
+| K2 | sweeps.rs: `strays_are_ten_minutes_old_by_a_readable_stamp` |
+| K3 | sweeps.rs: `reap_reads_label_values_exactly` |
+| K4 | sweeps.rs: `reap_keeps_negative_ages_takes_zero_as_a_value_and_reads_known_ids_once` |
+| K5 | sweeps.rs: `a_name_with_any_js_line_break_has_no_owner` |
+| K6 | sweeps_hard.rs: `the_named_charge_never_underflows_and_named_shows_only_when_billed_by_count` |
+| K7 | sweeps_hard.rs: `retention_keeps_any_count_and_saves_by_the_charge_before_and_after` |
 | W1, W2 | ported: the six snapshot-names tests (`a_golden_versions_snapshot_and_its_template_read_the_same_name_and_the_host_reads_back_off_it` to `a_host_outside_the_class_the_provider_takes_is_refused_rather_than_written_into_a_name_no_parser_reads_back`); hard `names_match_the_ts_oracle` |
 | W3, W4 | ported `kills_only_unknown_wsp_labeled_running_machines_older_than_10_min`, the 25 `verdict!` rows, `describes_a_spared_machine_with_whose_it_is_its_age_its_backstop_and_the_rate`, `fetches_no_machine_it_leaves_alone_a_spared_row_is_judged_from_the_listing`, `honors_a_custom_age_threshold_for_workspaces_not_for_builders`, `kills_nothing_when_the_listing_fails`, `reads_the_claimed_ids_after_the_listing_returns_so_a_create_that_lands_during_it_is_claimed`, `refuses_an_empty_owner_before_listing_anything` |
 | W5 | ported `skips_a_listed_machine_that_is_gone_by_the_time_it_is_fetched_or_killed_and_still_processes_the_rest`, `a_row_whose_kill_fails_with_anything_else_is_reported_by_id_and_the_rest_of_the_pass_still_runs` |
-| W6, W7 | ported: the `verdict!` rows for lost and stray machines |
+| W6, W7 | sweeps.rs: `a_lost_workspace_is_read_label_by_label`, `strays_are_ten_minutes_old_by_a_readable_stamp` (the `verdict!` rows call `reap` only) |
 | W8 | ported `describes_an_age_for_a_person_never_negative_floored_hours_with_one_decimal`; hard `describe_age_matches_the_ts_oracle` |
 | W9 to W11 | ported `counts_every_snapshot_on_the_account_and_bills_the_gb_past_the_free_tier_at_the_published_rate`, `inside_the_free_tier_the_monthly_cost_is_zero_never_negative`, `splits_the_sum_by_who_made_each_snapshot_so_the_count_on_the_line_says_why_the_account_holds_them`, `a_row_anything_records_is_kept_whatever_its_name`, `this_hosts_mark_with_nothing_recording_the_id_is_an_orphan`, `no_mark_of_this_host_is_foreign_whether_another_hosts_a_persons_own_or_a_name_from_before_the_mark`, `the_one_split_serves_snapshots_and_templates_alike`, `a_marked_row_the_provider_listed_inside_the_grace_is_kept`, `without_this_hosts_mark_there_is_no_split_at_all_rather_than_one_that_claims_every_unmarked_row`; hard `storage_view_writes_named_only_when_billed_by_count` |
 | W12 | ported: the eleven retention tests from `keeps_the_head_and_its_recorded_parent_and_offers_the_older_ancestors_oldest_first_with_what_they_hold_and_save` to `a_snapshot_the_listing_does_not_carry_counts_as_holding_nothing`; hard `retention_keeps_versions_above_the_head` |

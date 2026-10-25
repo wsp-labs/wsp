@@ -62,12 +62,23 @@ golden-tools' `TOOLS_DISK_FLOOR`, carried in `src/golden_seam.rs` until #2441 ru
 
 An empty formula list still writes the step (oracle). An empty table sizes nothing by the Mac road. Nothing is kept.
 
+## Pinned since (K-rules, values from running the TS)
+
+- K1. `agent_size` slices the id after `indexOf("/") + 1`, so an id with no slash is looked up whole (`claude` is
+  claude's size). `parse_du` keeps an empty key (`/` is cut to `""`), reads the block count as f64, and drops a
+  negative or fractional count; its `.` refuses `\r` and U+2028 as JS does.
+- Closure sizing: each member's bytes are `formula_bytes` (the catalog brew tool's size first, the Mac table's else), a
+  member the catalog carries is not descended, a dep missing from the table counts with 0 bytes, the toolchain filter
+  applies to deps and never to the root, `bytes: Some(0)` is a known size. A catalog entry whose size is unmeasured
+  gives no bytes (never the Mac's).
+
 ## Rules and their tests
 
 Files: `tool_sizes.rs` (ported), `tool_sizes_hard.rs` (hard).
 
 | Rule | Tests |
 |---|---|
+| K1 | tool_sizes_hard.rs: `an_agent_id_without_a_slash_is_looked_up_whole_and_du_keeps_an_empty_key` |
 | Z1 | ported `a_formulas_number_is_its_dependency_closure_read_from_this_macs_homebrew` (reads the constants beside the closure) |
 | Z2 | ported `a_row_nothing_measured_counts_at_the_default_for_its_kind_and_says_which_kind`; hard `assumed_sizes_match_the_ts_oracle` |
 | Z3 | ported `names_the_github_repository_and_tag_behind_a_formulas_url`; hard `source_of_matches_the_ts_oracle` |

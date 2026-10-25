@@ -127,3 +127,48 @@ fn retention_keeps_versions_above_the_head() {
     assert_eq!(plan.named_freed, 1);
     assert!((plan.saves_usd_per_month - 3.000000001).abs() < 1e-9, "{}", plan.saves_usd_per_month);
 }
+
+// ---- K-rules (spec/sweeps.md K6, K7), values from running snapshot-storage.ts at a4033dc34
+
+/// K6: the named charge is `max(0, named - free_named) * price` without underflow (named 1 below free 5 is 0); a zero
+/// named price is still a price (`named` written); no named price, no `named`; per-GB billing still adds the named
+/// charge to the sum without writing `named`.
+#[test]
+fn the_named_charge_never_underflows_and_named_shows_only_when_billed_by_count() {
+    let rows = vec![row("s", Some("wsp-h1-g-v1"), 1_000_000_000, "2020-01-01T00:00:00Z")];
+    let read = OwnerRead { host_id: "h1".into(), recorded: HashSet::new(), now: 1_790_000_000_000 };
+    for (p, monthly, named) in [
+        (json!({ "freeGb": 0, "usdPerGbMonth": 0, "freeNamed": 5, "usdPerNamedMonth": 0.5 }), 0.0, Some(json!({ "count": 1, "free": 5 }))),
+        (json!({ "freeGb": 0, "usdPerGbMonth": 0, "usdPerNamedMonth": 0 }), 0.0, Some(json!({ "count": 1, "free": 0 }))),
+        (json!({ "freeGb": 0, "usdPerGbMonth": 0, "freeNamed": 2 }), 0.0, None),
+        (json!({ "freeGb": 0, "usdPerGbMonth": 1, "freeNamed": 0, "usdPerNamedMonth": 0.5 }), 1.5, None),
+    ] {
+        let v = serde_json::to_value(snapshot_storage(&rows, &pricing(p.clone()), &read).unwrap()).unwrap();
+        assert_eq!(v["monthlyUsd"].as_f64().unwrap(), monthly, "{p}");
+        assert_eq!(v.get("named").cloned(), named, "{p}");
+    }
+}
+
+/// K7: `keep_count` 0 drops the head too; past the chain's length keeps it all and drops nothing (no panic); the
+/// named saving is the charge before less the charge after, each floored at 0.
+#[test]
+fn retention_keeps_any_count_and_saves_by_the_charge_before_and_after() {
+    let manifest = serde_json::from_value(json!({
+        "head": 4,
+        "versions": [version(1, "s1", None), version(2, "s2", Some("s1")), version(3, "s3", Some("s2")), version(4, "s4", Some("s3"))]
+    }))
+    .unwrap();
+    let rows: Vec<SnapshotRow> = (1..=4).map(|n| row(&format!("s{n}"), Some(&format!("wsp-h1-g-v{n}")), 1_000_000_000, "x")).collect();
+    let none = |_: &str| Vec::<String>::new();
+    let ns = |vs: &Vec<wsp_wire::views::golden_image::GoldenVersion>| vs.iter().map(|v| v.version.0 as u64).collect::<Vec<u64>>();
+    for (keep, kept, dropped, saves) in [(0, vec![], vec![1, 2, 3, 4], 4.0), (1, vec![4], vec![1, 2, 3], 3.0), (3, vec![4, 3, 2], vec![1], 1.0), (4, vec![4, 3, 2, 1], vec![], 0.0), (9, vec![4, 3, 2, 1], vec![], 0.0)] {
+        let plan = retention_plan(&manifest, &rows, &none, &pricing(json!({ "freeGb": 0, "usdPerGbMonth": 1 })), Some(keep));
+        assert_eq!((ns(&plan.keep), ns(&plan.drop)), (kept, dropped), "keep {keep}");
+        assert!((plan.saves_usd_per_month - saves).abs() < 1e-9, "keep {keep}: {}", plan.saves_usd_per_month);
+    }
+    for (free, saves) in [(0, 1.0), (1, 1.0), (2, 1.0), (3, 0.5), (4, 0.0)] {
+        let plan = retention_plan(&manifest, &rows, &none, &pricing(json!({ "freeGb": 0, "usdPerGbMonth": 0, "freeNamed": free, "usdPerNamedMonth": 0.5 })), None);
+        assert_eq!(plan.named_freed, 2);
+        assert!((plan.saves_usd_per_month - saves).abs() < 1e-9, "free {free}: {}", plan.saves_usd_per_month);
+    }
+}
