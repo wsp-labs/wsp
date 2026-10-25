@@ -3,7 +3,12 @@
 //! stand-ins for homes not written yet (the image roads' types in the engine, `github_cache`), each naming its TS
 //! home, and each becomes a `pub use` when its home lands. Not a TS file of its own.
 
+use std::sync::Arc;
+
 use indexmap::IndexMap;
+use wsp_engine::machine::Machine;
+use wsp_wire::views::golden_image::{GoldenBaseTool, GoldenLeftBehind, GoldenMissingTool, GoldenRetired, MachineKind, RecipeDigest};
+use wsp_wire::wire::capabilities::WorkspaceSize;
 
 pub use wsp_engine::copier::Copier;
 pub use wsp_engine::golden_seam::GoldenImport;
@@ -28,14 +33,59 @@ pub fn guest_user_env() -> IndexMap<String, String> {
 /// TS engine `BuildGoldenOptions`.
 #[derive(Clone, Debug, Default)]
 pub struct BuildGoldenOptions {}
-/// TS engine `Builder`: a builder machine as the image roads hold it.
-pub trait Builder {}
+/// TS engine golden.ts:405 `Builder`: a builder machine as the image roads hold it. Replaced whole, never changed in
+/// place (`kept.builder = { ...kept.builder, ... }`).
+#[derive(Clone)]
+pub struct Builder {
+    pub machine: Arc<dyn Machine>,
+    pub kind: MachineKind,
+    pub base_template: String,
+    pub setup_sha: String,
+    pub created_at: String,
+    pub first_life: bool,
+    pub size: WorkspaceSize,
+    pub import: Option<ImportLedger>,
+    pub parent_snapshot_id: Option<String>,
+    pub base: Option<Vec<GoldenBaseTool>>,
+    pub retired: Option<Vec<GoldenRetired>>,
+}
 /// TS engine `GoldenDelta`.
 #[derive(Clone, Debug, Default)]
 pub struct GoldenDelta {}
-/// TS engine `ImportLedger`.
+/// TS engine golden.ts:520 `ImportStage`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ImportStage {
+    #[serde(rename = "applying-setup")]
+    ApplyingSetup,
+    #[serde(rename = "uploading-files")]
+    UploadingFiles,
+    #[serde(rename = "installing-tools")]
+    InstallingTools,
+    #[serde(rename = "installing-harness")]
+    InstallingHarness,
+    #[serde(rename = "installing-mcp")]
+    InstallingMcp,
+}
+
+/// TS engine golden.ts:522 `ImportLedger`: what of a recipe is on a builder, in the TS's key order.
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct ImportLedger {}
+#[serde(rename_all = "camelCase")]
+pub struct ImportLedger {
+    pub recipe_hash: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recipe: Option<RecipeDigest>,
+    pub applied: Vec<ImportStage>,
+    /// The version checks of the agents that installed, joined; the seal runs this on the fork.
+    pub smoke: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub missing_tools: Option<Vec<GoldenMissingTool>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub silenced: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shell_noise: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub left_behind: Option<Vec<GoldenLeftBehind>>,
+}
 /// TS engine `KillConfirm`.
 #[derive(Clone, Debug, Default)]
 pub struct KillConfirm {}

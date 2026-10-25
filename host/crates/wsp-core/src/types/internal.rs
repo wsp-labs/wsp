@@ -967,7 +967,7 @@ pub enum BuilderLife {
 /// internal.ts:923-938.
 pub struct LiveBuilder {
     pub record: BuilderRecord,
-    pub builder: Rc<dyn Builder>,
+    pub builder: Builder,
     pub sealable: bool,
     pub life: BuilderLife,
     pub reach: Option<PreviewReach>,

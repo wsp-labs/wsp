@@ -24,43 +24,9 @@ use wsp_wire::views::golden_image::{
 use wsp_wire::wire::capabilities::WorkspaceSize;
 use wsp_wire::wire::machine_link::{PreviewReach, TemplateRow};
 
-/// golden.ts:522 `ImportLedger`: what of a recipe is on a builder. wsp-core's `types::pending::ImportLedger` (the
-/// type `BuilderRecord.import` carries) is an empty stand-in; it must become this.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ImportLedger {
-    pub recipe_hash: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub recipe: Option<RecipeDigest>,
-    /// `ImportStage[]`, kept as the engine wrote it.
-    pub applied: Vec<serde_json::Value>,
-    pub smoke: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub missing_tools: Option<Vec<GoldenMissingTool>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub silenced: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub shell_noise: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub left_behind: Option<Vec<GoldenLeftBehind>>,
-}
-
-/// golden.ts:405 `Builder`: a builder machine as the image roads hold it. Replaced whole, never changed in place
-/// (`kept.builder = { ...kept.builder, ... }`).
-#[derive(Clone)]
-pub struct EngineBuilder {
-    pub machine: Arc<dyn Machine>,
-    pub kind: MachineKind,
-    pub base_template: String,
-    pub setup_sha: String,
-    pub created_at: String,
-    pub first_life: bool,
-    pub size: WorkspaceSize,
-    pub import: Option<ImportLedger>,
-    pub parent_snapshot_id: Option<String>,
-    pub base: Option<Vec<GoldenBaseTool>>,
-    pub retired: Option<Vec<GoldenRetired>>,
-}
+/// golden.ts:522 `ImportLedger` and golden.ts:405 `Builder` (replaced whole, never changed in place) live in wsp-core,
+/// since `BuilderRecord.import` and `LiveBuilder.builder` carry them.
+pub use wsp_core::types::pending::{Builder as EngineBuilder, ImportLedger, ImportStage};
 
 /// image-vault.ts:14 `ImageVault`: the archive a seal took and its hash.
 #[derive(Clone, Debug, PartialEq)]

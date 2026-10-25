@@ -52,12 +52,12 @@ wsp-words'.
 1. The table is built per call (`harness_catalogs()` answers owned rows); a `LazyLock` is the implementer's choice.
 2. `ToolAsks` lives here until wsp-slates takes slate-mcp.ts; `as_str` gives the TS words.
 
-## Accepted difference (for the parity list)
-- Key order. A TS table row writes `source, version, contextWindows, steers, renames, images` first, then the row's
-  own keys in the order written, then `permissionModes`; `catalog_from_probe` writes the table's order with `source`
-  and `version` in place. The Rust rows serialize in wsp-wire's `HarnessCatalog` field order (harness, label, source,
-  version, models, ...). Ruling 6402177374 rule 1 asks for an accepted-difference line where the TS order changes by
-  path; the tests compare values, not bytes.
+## Key order
+A TS table row writes `source, version, contextWindows, steers, renames, images` first, then the row's own keys in the
+order written, then `permissionModes` (harness-catalog.ts `fromTable`); `catalog_from_probe` writes the table's order
+with `source` and `version` in place. The one order every row shares is wsp-wire's `HarnessCatalog` field order
+(changed in the join to the TS's, ruling 6402177374 rule 1: `source, version, contextWindows, steers, renames, images,
+harness, label, mcpServers, ...`, the adapter's declarations after the table's keys). It is not a parity line.
 
 ## Tests (`tests/harness_catalog.rs`)
 | Rule | Test |

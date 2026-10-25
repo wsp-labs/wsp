@@ -10,6 +10,7 @@ use wsp_adapters::codex::command::CodexBroker;
 use wsp_adapters::port::{AgentLaunch, Env, ExecStreamFactory};
 use wsp_engine::machine::Machine;
 use wsp_wire::types::thread_defaults::AccessChoice;
+use wsp_words::exit::HostError;
 
 pub use wsp_adapters::port::{HarnessAdapter, HarnessSession, HarnessStartOptions, HarnessWarmOptions, KeptAgent};
 
@@ -49,7 +50,8 @@ pub struct HarnessAdapterContext {
 }
 
 /// Called per session start with the workspace's current machine (it can change on wake or upgrade). harness.ts:288.
-pub type HarnessAdapterFactory = Arc<dyn Fn(HarnessAdapterContext) -> Arc<dyn HarnessAdapter>>;
+/// It can refuse, as the TS's throw (a relative config folder, a key beside a ChatGPT broker).
+pub type HarnessAdapterFactory = Arc<dyn Fn(HarnessAdapterContext) -> Result<Arc<dyn HarnessAdapter>, HostError>>;
 
 /// What a start names of its agent and picks, read against that agent's lists before a folder is made for it.
 /// harness.ts:290.
