@@ -164,7 +164,7 @@ jobs:
         env:
           VERSION: ${{ needs.draft.outputs.version }}
         run: node packages/wspx/scripts/bundle-env.mjs "$VERSION" >> "$GITHUB_ENV"
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: wsp-daemon-*
           path: daemon-bins
@@ -262,7 +262,7 @@ jobs:
         env:
           VERSION: ${{ needs.draft.outputs.version }}
         run: node packages/wspx/scripts/bundle-env.mjs "$VERSION" >> "$GITHUB_ENV"
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: wsp-daemon-*
           path: daemon-bins
@@ -341,7 +341,7 @@ jobs:
         env:
           VERSION: ${{ needs.draft.outputs.version }}
         run: node packages/wspx/scripts/bundle-env.mjs "$VERSION" >> "$GITHUB_ENV"
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: wsp-daemon-*
           path: daemon-bins
@@ -429,7 +429,7 @@ jobs:
         env:
           VERSION: ${{ needs.draft.outputs.version }}
         run: node packages/wspx/scripts/bundle-env.mjs "$VERSION" >> "$GITHUB_ENV"
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: wsp-daemon-*
           path: daemon-bins
@@ -492,7 +492,7 @@ jobs:
       # an exact version, since the latest dist-tag moves under that token.
       - run: npm install -g npm@12.0.2
       - run: pnpm install --frozen-lockfile
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: wsp-daemon-*
           path: daemon-bins
@@ -524,7 +524,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The binaries are attached here and not from the job that publishes to npm, so no job holds the identity
       # token and a write on this repository at once.
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: wsp-daemon-*
           path: daemon-bins
