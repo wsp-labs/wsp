@@ -176,7 +176,7 @@ it("boot: ready", async () => {
               "t-none": { permissionMode: "auto" },
             },
             sessions: [
-              row("r1", "a", { status: "running", notify: "lead-1", notifyBy: { kind: "thread", threadId: "t-lead", workspaceId: "a", rootThreadId: "t-lead" }, notifyRoad: "relayed", reply: "partial", told: 3, waited: 9, run: "run-1", from: 120, asked: { prompt: "go", effort: "high", junk: 1 }, turnToken: "tok", scopeDeviceId: "d-r1", toldLast: 2 }),
+              row("r1", "a", { status: "running", notify: "lead-1", notifyBy: { kind: "thread", threadId: "t-lead", workspaceId: "a", rootThreadId: "t-lead" }, notifyRoad: "relayed", reply: "completed", told: 3, waited: 9, run: "run-1", from: 120, asked: { prompt: "go", effort: "high", junk: 1 }, turnToken: "tok", scopeDeviceId: "d-r1", toldLast: 2 }),
               row("r2", "a", { status: "running", notifyBy: { kind: "nonsense" }, notifyRoad: "elsewhere", from: -1, waitingSince: 4 }),
               row("r3", "a", { status: "running", from: 1.5, prompt: "x".repeat(700) }),
               row("r4", "a", { status: "running", startedAt: undefined }),

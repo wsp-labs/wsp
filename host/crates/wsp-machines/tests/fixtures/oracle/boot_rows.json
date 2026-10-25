@@ -124,6 +124,7 @@
       "running": 2,
       "limit": 2
      },
+     "setupRefusal": "claude is refused on hetzner",
      "readAt": 5,
      "settledAt": 6,
      "pinnedAt": 7,
@@ -144,6 +145,7 @@
      "workspaceId": "a",
      "threadId": "t2",
      "endedAt": 1789999995000,
+     "setupRefusal": "claude is refused on hetzner",
      "readAt": 1789999995000,
      "replaces": "t1",
      "replacedBy": "t2-new",
@@ -156,6 +158,7 @@
      "workspaceId": "a",
      "threadId": "t3",
      "endedAt": 1789999999990,
+     "setupRefusal": "claude is refused on hetzner",
      "readAt": 1789999999990,
      "forkedFrom": {
       "threadId": "t-src",
@@ -167,6 +170,7 @@
      "status": "failed",
      "id": "r4",
      "workspaceId": "a",
+     "setupRefusal": "claude is refused on hetzner",
      "readAt": 1790000000000
     }
    ],
@@ -1210,6 +1214,24 @@
    },
    "log": [
     [
+     "accountOnComputer",
+     {
+      "agent": "claude",
+      "agentName": "Claude Code",
+      "computer": {
+       "id": "box-1",
+       "name": "Box"
+      },
+      "limits": [
+       {
+        "key": "acct-1",
+        "windows": []
+       }
+      ],
+      "vaulted": false
+     }
+    ],
+    [
      "persistSessions",
      "a"
     ],
@@ -1221,6 +1243,15 @@
       "threadIds": [
        "t1"
       ]
+     }
+    ],
+    [
+     "sessionsApi.start",
+     "a",
+     {
+      "prompt": "Your usage limit has reset. Go on with the task you were working on when it stopped you.",
+      "thread": "t1",
+      "afterLimit": 1790000000000
      }
     ],
     [
@@ -1467,6 +1498,29 @@
     }
    },
    "log": [
+    [
+     "accountOnComputer",
+     {
+      "agent": "claude",
+      "agentName": "Claude Code",
+      "computer": {
+       "id": "box-1",
+       "name": "Box"
+      },
+      "limits": [
+       {
+        "key": "acct-1",
+        "windows": [
+         {
+          "usedPercent": 100,
+          "resetsAt": 1790007200000
+         }
+        ]
+       }
+      ],
+      "vaulted": false
+     }
+    ],
     [
      "persistSessions",
      "a"

@@ -98,6 +98,11 @@ list, the last stage of each create in flight, and the join that makes one folde
 1. `project_landing`, `brokered_start` and `named_of_record` are calls through the unit's runtime trait, so tests fake
    them as the oracle does.
 
+2. In the TS the live entry's record and the record `fork` and `read_memory` write are one object (`bind` attaches the
+   very record `create_staged` holds). The Rust holds two: `bind` attaches a copy with `machineId` set; `create_staged`
+   sets `machineId` on its own record and writes it onto the live entry after the fork and after `read_memory`, before
+   anything reads the entry's record or persists, so the entry and the persisted record read as the TS's one object.
+
 ## After the port
 - A create whose `land_project` fails leaves its entry in `live` marked `creating` for the caller to drop.
 - `name_refusal` compares untrimmed names while `name_given` trims.

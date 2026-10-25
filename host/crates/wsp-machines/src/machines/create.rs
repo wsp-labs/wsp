@@ -94,7 +94,7 @@ pub trait CreateRuntime {
     /// The machines area's `attach`.
     fn attach(&self, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Entry;
     /// The machines area's `fork` with no override and `readsMemory` false; `bind` runs before the claim is let go.
-    async fn fork(&self, record: &mut WorkspaceRecord, bind: &dyn Fn(&Arc<dyn Machine>, &WorkspaceRecord), report: StageReport) -> Result<Arc<dyn Machine>, HostError>;
+    async fn fork(&self, record: &mut WorkspaceRecord, bind: &dyn for<'m, 'r> Fn(&'m Arc<dyn Machine>, &'r WorkspaceRecord), report: StageReport) -> Result<Arc<dyn Machine>, HostError>;
     async fn refresh_builders(&self) -> Result<(), HostError>;
     /// The builders in map order, as the cap road reads them.
     fn builders(&self) -> Vec<KeptBuilder>;

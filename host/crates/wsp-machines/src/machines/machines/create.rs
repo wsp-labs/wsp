@@ -117,7 +117,7 @@ impl MachinesArea {
     pub async fn fork(
         self: &Rc<Self>,
         record: &mut WorkspaceRecord,
-        bind: &dyn Fn(&Arc<dyn Machine>, &WorkspaceRecord),
+        bind: &dyn for<'m, 'r> Fn(&'m Arc<dyn Machine>, &'r WorkspaceRecord),
         over: Option<&WorkspaceSpec>,
         report: Option<Report>,
         reads_memory: bool,

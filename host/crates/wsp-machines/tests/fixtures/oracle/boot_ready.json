@@ -789,7 +789,7 @@
           "rootThreadId": "t-lead"
          },
          "notifyRoad": "relayed",
-         "reply": "partial",
+         "reply": "completed",
          "told": 3,
          "waited": 9,
          "run": "run-1",
@@ -1314,7 +1314,7 @@
        },
        "notifyRoad": "relayed",
        "turnLive": {
-        "reply": "partial",
+        "reply": "completed",
         "told": 3,
         "waited": 9
        },
@@ -1567,7 +1567,7 @@
            "rootThreadId": "t-lead"
           },
           "notifyRoad": "relayed",
-          "reply": "partial",
+          "reply": "completed",
           "told": 3,
           "waited": 9,
           "run": "run-1",

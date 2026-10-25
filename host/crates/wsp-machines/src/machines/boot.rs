@@ -144,7 +144,7 @@ pub trait BootRuntime {
     async fn persist(&self, record: &WorkspaceRecord) -> Result<(), HostError>;
     async fn shape_of(&self, machine: &Arc<dyn Machine>) -> Option<MachineShape>;
     fn size_built(&self, shape: Option<&MachineShape>, asked: WorkspaceSize) -> WorkspaceSize;
-    fn arm_grace(&self, builder_id: &str, sealed_at: f64);
+    fn arm_grace(&self, builder_id: &str, sealed_at: &str);
     /// The place door's `backendOf(place)`, where the places table has none.
     fn door_backend_of(&self, place: &str) -> Option<Arc<dyn MachineBackend>>;
     /// `imageOf(golden).version?.kind`.
@@ -164,8 +164,8 @@ pub trait BootRuntime {
     fn resume_on_reset(&self, thread_id: &str, at: f64);
     /// `ctx.settleCut(row, reason, line, stopped, unreached)`: `line` gets the end's time.
     fn settle_cut(&self, row: &Row, reason: &str, line: &dyn Fn(f64) -> String, stopped: Option<bool>, unreached: Option<bool>);
-    /// Started, not awaited: the per-workspace chain swallows its failure.
-    fn persist_sessions(&self, workspace_id: &str);
+    /// The per-workspace chain's write, which swallows its failure; `mark` awaits it, `ready` does not.
+    async fn persist_sessions(&self, workspace_id: &str);
     /// `turnWritten(await ctx.openThread(ws, thread), turn).changes`.
     async fn turn_changes_written(&self, workspace_id: &str, thread_id: &str, turn_id: &str) -> Result<bool, HostError>;
     async fn read_turn_changes(&self, entry: &Entry, ask: CardAsk) -> Result<bool, HostError>;

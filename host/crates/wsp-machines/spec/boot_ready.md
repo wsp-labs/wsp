@@ -86,6 +86,6 @@ once per process.
 | 1, 2, 14 | scenes `a_fresh_store_mints_*`, `a_kept_owner_and_reads_stamp_*` |
 | 3, 4 | scenes `projects_are_held_*`, `no_local_wiring_reads_no_repo` |
 | 5-13 | scene `the_sessions_documents_fill_the_rows_and_the_thread_records_and_running_rows_are_re_opened` |
-| invariant 1 | `a_machine_that_answers_nothing_leaves_the_turn_running_and_is_asked_again_a_window_later`, `a_run_the_machine_no_longer_holds_ends_on_the_gone_line_once` |
+| invariant 1 | `a_machine_that_answers_nothing_leaves_the_turn_running_and_is_asked_again_a_window_later`, `a_run_the_machine_no_longer_holds_ends_the_turn_on_the_gone_line` |
 | 2.37 | `every_held_start_fails_once_with_the_restart_named_and_no_row` |
 | 12 | `a_shell_held_token_outlives_the_restart_revocation` |
