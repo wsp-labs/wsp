@@ -24,6 +24,21 @@
                 }
               },
               {
+                "id": "claude",
+                "kind": "agent",
+                "name": "Claude Code",
+                "on": false,
+                "base": false,
+                "group": "Installed here, never used",
+                "why": "installed here, never used",
+                "size": 218103808,
+                "heavy": false,
+                "recommended": {
+                  "value": "off",
+                  "why": "installed here, never used"
+                }
+              },
+              {
                 "id": "opencode",
                 "kind": "agent",
                 "name": "OpenCode",
@@ -64,21 +79,6 @@
                 "why": "not installed here",
                 "size": 583125383,
                 "heavy": true,
-                "recommended": {
-                  "value": "off",
-                  "why": "not installed here"
-                }
-              },
-              {
-                "id": "claude",
-                "kind": "agent",
-                "name": "Claude Code",
-                "on": false,
-                "base": false,
-                "group": "Also in the catalog",
-                "why": "not installed here",
-                "size": 218103808,
-                "heavy": false,
                 "recommended": {
                   "value": "off",
                   "why": "not installed here"

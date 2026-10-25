@@ -16,6 +16,12 @@
         "home": "<tmp>/home",
         "agents": [
           {
+            "id": "claude",
+            "name": "Claude Code",
+            "configured": false,
+            "takesTools": true
+          },
+          {
             "id": "codex",
             "name": "Codex",
             "configured": false,
