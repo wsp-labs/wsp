@@ -81,24 +81,7 @@ fn ids(list: &[&str]) -> Vec<String> {
     list.iter().map(|s| s.to_string()).collect()
 }
 
-/// INTERFACE GAP: `otherOptionId` (packages/protocol/src/words/tools.ts:196) is not in src/pending.rs; this is its
-/// body, with `encodeURIComponent` spelled out.
-fn other_option_id(question: usize, words: &str) -> String {
-    let mut encoded = String::new();
-    for byte in words.bytes() {
-        if byte.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&byte) {
-            encoded.push(byte as char);
-        } else {
-            encoded.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    format!("q{question}:other:{encoded}")
-}
-
-/// INTERFACE GAP: `pickedOptionId` (packages/protocol/src/words/tools.ts:222) is not in src/pending.rs.
-fn picked_option_id(picked: &[String]) -> String {
-    picked.join("|")
-}
+use wsp_adapters::pending::{other_option_id, picked_option_id};
 
 fn answer_response(line: &str) -> Value {
     let parsed: Value = serde_json::from_str(line).unwrap_or_else(|e| panic!("not JSON ({e}): {line}"));
@@ -298,7 +281,7 @@ fn set_mode_line_asks_for_the_mode_by_its_own_slug_under_the_id_its_answer_will_
 
 const SID: &str = "e16ed170-8257-4668-879e-fe836341633c";
 
-// TS: steers.test.ts:13
+// TS: steers.test.ts:9
 #[test]
 fn a_runs_channel_read_back_names_the_steers_of_its_last_turn_alone() {
     let a = "11111111-1111-4111-8111-111111111111";
@@ -314,7 +297,7 @@ fn a_runs_channel_read_back_names_the_steers_of_its_last_turn_alone() {
     assert_eq!(steered_ids(&taken), vec![b.to_string()]);
 }
 
-// TS: steers.test.ts:18
+// TS: steers.test.ts:15
 #[test]
 fn a_line_written_again_under_a_steers_id_is_that_one_steer() {
     let a = "11111111-1111-4111-8111-111111111111";

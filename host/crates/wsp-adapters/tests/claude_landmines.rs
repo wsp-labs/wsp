@@ -25,8 +25,7 @@ use wsp_frames::shell_quote;
 
 use claude_exec::{FakeExec, StreamOpts};
 
-// INTERFACE GAP: PLUGIN_SEED_ENV (packages/protocol env.ts:113) has no Rust constant; this is its value.
-const PLUGIN_SEED_ENV: &str = "CLAUDE_CODE_PLUGIN_SEED_DIR";
+use wsp_wire::types::env::PLUGIN_SEED_ENV;
 
 fn base_env(pairs: &[(&str, &str)]) -> BaseEnv {
     pairs.iter().map(|(k, v)| (k.to_string(), Some(v.to_string()))).collect()
@@ -578,10 +577,8 @@ mod build_command_cases {
     #[test]
     fn a_launch_whose_wsp_server_gives_the_thread_a_slate_brings_the_slates_brief_and_no_other_launch_does() {
         let scoped = command(BuildCommandOptions { mcp_servers: servers(vec![("wsp", spec("/opt/wsp", &["mcp", "--scoped"]))]), ..fresh() });
-        // INTERFACE GAP: SLATE_BRIEF (packages/protocol wsp-tools.ts:42) has no Rust constant, so the brief is read back
-        // off the launch line and checked for the sentences the TS test names.
         let brief = brief_of(&scoped).expect("the launch carries --append-system-prompt");
-        assert!(brief.starts_with("wsp slate. This session is a wsp thread with a slate"), "{brief}");
+        assert_eq!(brief, wsp_wire::types::wsp_tools::SLATE_BRIEF);
         assert!(brief.contains("your first tool call is mcp__wsp__slate_catalog"));
         assert!(brief.contains("Never read that file or put its value in a tool call."));
         assert!(scoped.contains(&format!("--append-system-prompt {}", shell_quote(&brief))));

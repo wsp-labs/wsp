@@ -1083,7 +1083,7 @@ async fn with_prompt_after_starts_the_cli_at_once_and_holds_the_seed() {
     let mut held = held.fuse();
     assert!(futures::poll!(&mut held).is_pending(), "the seed settled before promptAfter did");
     assert_eq!(exec.writes(), Vec::<String>::new());
-    // INTERFACE GAP: ClaudeAdapter has no waits_for_prompt (the TS `adapter.waitsForPrompt`, expected true).
+    assert!(wsp_adapters::port::HarnessAdapter::waits_for_prompt(&adapter));
     exec.end(Some(0));
     session.finished().await;
     release.send(()).unwrap();
@@ -1153,9 +1153,8 @@ async fn self_generates_the_session_uuid_and_registers_the_session_before_any_ou
     let session = adapter.start(go("say ok", noop())).unwrap();
     let id = session.local_id();
     assert!(regex::Regex::new("^[0-9a-f-]{36}$").unwrap().is_match(&id), "{id}");
-    // INTERFACE GAP: ClaudeSession has no identity comparison, so the TS `toBe(session)` reads as the same local id.
     let registered = adapter.sessions();
-    assert_eq!(registered.get(&id).map(|s| s.local_id()), Some(id.clone()));
+    assert!(registered.get(&id).is_some_and(|s| s.same(&session)), "the registry holds this very session");
 }
 
 // TS: adapter.test.ts:878
@@ -1256,8 +1255,8 @@ async fn a_cli_that_goes_on_its_own_is_left_alone() {
 #[test]
 fn declares_that_its_sessions_take_a_message_mid_turn() {
     let exec = FakeExec::manual(StreamOpts::default());
-    let _adapter = adapter_for(&exec);
-    // INTERFACE GAP: ClaudeAdapter has no steers (the TS `adapter.steers`, expected true).
+    let adapter = adapter_for(&exec);
+    assert!(wsp_adapters::port::HarnessAdapter::steers(&adapter));
 }
 
 // TS: adapter.test.ts:975
@@ -1353,7 +1352,7 @@ async fn between_init_and_result_writes_one_user_line_and_answers_accepted() {
 async fn carries_a_steered_messages_images_as_base64_blocks_ahead_of_its_words() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = adapter_for(&exec);
-    // INTERFACE GAP: ClaudeAdapter has no steers_images (the TS `adapter.steersImages`, expected true).
+    assert!(wsp_adapters::port::HarnessAdapter::steers_images(&adapter));
     let (events, on_event) = collect();
     let session = adapter.start(go("go", on_event)).unwrap();
     exec.push(init_line());

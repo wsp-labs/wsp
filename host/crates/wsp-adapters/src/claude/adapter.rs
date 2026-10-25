@@ -143,3 +143,86 @@ impl ClaudeAdapter {
         todo!()
     }
 }
+
+/// The runtime's view of the Claude adapter (spec/claude_adapter.md, Construction): every capability Claude Code
+/// declares, and each optional TS member present.
+impl crate::port::HarnessAdapter for ClaudeAdapter {
+    fn start(&self, options: HarnessStartOptions) -> Result<Arc<dyn crate::port::HarnessSession>, AdapterError> {
+        todo!()
+    }
+    fn warm(&self, options: HarnessWarmOptions) -> Option<Result<Box<dyn crate::port::KeptAgent>, AdapterError>> {
+        todo!()
+    }
+    fn attach(&self, options: AdapterAttachOptions) -> Option<BoxFuture<'static, Result<Option<Arc<dyn crate::port::HarnessSession>>, ExecFailure>>> {
+        todo!()
+    }
+    fn steers(&self) -> bool {
+        todo!()
+    }
+    fn reports_edits(&self) -> bool {
+        todo!()
+    }
+    fn fork_session(&self, session: String, turn: ForkTurn) -> Option<BoxFuture<'static, Result<ForkedSession, String>>> {
+        todo!()
+    }
+    fn attachments(&self) -> Option<crate::port::AttachmentRoad> {
+        todo!()
+    }
+    fn mcp_servers(&self) -> bool {
+        todo!()
+    }
+    fn denies_servers(&self) -> bool {
+        todo!()
+    }
+    fn screen_commands(&self) -> Vec<ScreenCommand> {
+        todo!()
+    }
+    fn moves_access(&self) -> bool {
+        todo!()
+    }
+    fn steers_images(&self) -> bool {
+        todo!()
+    }
+    fn waits_for_prompt(&self) -> bool {
+        todo!()
+    }
+    fn probe_catalog(&self, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<crate::port::HarnessCatalogAnswer>, ExecFailure>>> {
+        todo!()
+    }
+    fn probe_version(&self, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+        todo!()
+    }
+    fn session_title(&self, harness_session_id: String, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+        todo!()
+    }
+    fn session_file(&self, session_id: &str) -> Option<SessionFile> {
+        todo!()
+    }
+    fn rename_session(&self, harness_session_id: String, title: String, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<SessionRenameWrite, ExecFailure>>> {
+        todo!()
+    }
+    fn title_for(&self, turn: TitleTurn, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+        todo!()
+    }
+    fn draft_for(&self, ask: DraftAsk, exec: Arc<dyn HarnessExec>) -> Option<BoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+        todo!()
+    }
+    fn aside(&self, question: AsideQuestion) -> Option<BoxFuture<'static, Result<AsideAnswer, String>>> {
+        todo!()
+    }
+    fn aside_servers(&self) -> bool {
+        todo!()
+    }
+    fn compacts(&self) -> Option<String> {
+        todo!()
+    }
+    fn terminal_resume(&self) -> Option<String> {
+        todo!()
+    }
+    fn env(&self) -> Option<Env> {
+        todo!()
+    }
+    fn conversations(&self) -> Option<Arc<dyn ConversationStore>> {
+        todo!()
+    }
+}

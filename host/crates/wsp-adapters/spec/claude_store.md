@@ -71,12 +71,12 @@ restart by living there. Nothing is cached in the host.
 
 | Rule | Test |
 |---|---|
-| probe reads models, 1M variants, efforts, modes less plan | `claude_store::reads_the_version_the_models_with_their_effort_levels...` (ported) |
-| recorded 2.1.296 probe | `claude_store::reads_the_pinned_version_s_recording...` (ported) |
-| probe `None` without init, tolerant of missing parts | `claude_store::is_null_without_an_initialize_response...` (ported) |
+| probe reads models, 1M variants, efforts, modes less plan | `claude_store::parse_catalog_reads_version_models_effort_levels_1m_variants_and_flag_choices` (ported) |
+| recorded 2.1.296 probe | `claude_store::parse_catalog_reads_the_pinned_versions_recording` (ported) |
+| probe `None` without init, tolerant of missing parts | `claude_store::parse_catalog_is_none_without_initialize_and_tolerates_missing_version_or_help` (ported) |
 | rename beats generated wherever it sits, blank falls back | `claude_store` title cases 49-77 (ported) |
 | title question shape, no tools, no session kept | `claude_store` cases at session-title.test.ts:95-178 (ported) |
 | rename record, half-written last line, no-session vs failed | `claude_store` cases at session-title.test.ts:182-232 (ported) |
 | list frames, keys, newest per id, runs of 64 | `claude_store` cases at conversations.test.ts:53-141 (ported) |
-| live None on a failed or non-list answer | `claude_store::are_none_of_them_open...` (ported) |
+| live None on a failed or non-list answer | `claude_store::live_is_none_where_the_command_answers_no_list` (ported) |
 | earlier gone where no folder holds it, tail passed | `claude_store` cases at conversations.test.ts:101-118 (ported) |
