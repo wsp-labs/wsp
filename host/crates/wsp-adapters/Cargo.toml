@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[package]
+name = "wsp-adapters"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+description = "The four harness adapters: what each agent's command line prints, read into the events the runtime keeps"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+indexmap = { version = "2", features = ["serde"] }
+futures = "0.3"
+wsp-wire = { path = "../wsp-wire" }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "sync", "time", "test-util"] }
