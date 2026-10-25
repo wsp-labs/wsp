@@ -74,3 +74,5 @@ sets `took`, always sets `deleted`, and sets `snapshots` and `note` only as abov
 | never more than four deletes at once | `never_runs_more_than_four_deletes_at_once` | |
 | a relist failure after something is left answers the kept line | `a_relist_failure_after_a_left_machine_answers_the_kept_line` | |
 | took never set, deleted always set | `the_answer_sets_deleted_and_never_took` | |
+| a first listing that fails (not auth) passes through | `a_first_listing_that_fails_passes_through` | |
+| a snapshot the provider lost is dropped and counted | `a_snapshot_the_provider_lost_is_dropped_and_counted` | |

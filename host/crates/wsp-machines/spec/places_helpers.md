@@ -109,3 +109,4 @@ local_port, conns: IndexMap<String, conn>, stop: Option<..> }`. `SyncJob`, `Pend
 | setup_outcome | `setup_outcome_matches_the_ts` |
 | cli_first | `cli_first_matches_the_ts`, `cli_first_answers_the_same_plan_when_no_id_is_a_cli`, `cli_first_stops_at_a_cycle` |
 | engine_row, first_line_of, picks_hash | `engine_row_matches_the_ts`, `first_line_of_matches_the_ts`, `picks_hash_matches_the_ts` |
+| box_said reads the log, keyPath only where present | `box_said_reads_the_log_with_the_key_path_only_where_there_is_one` |
