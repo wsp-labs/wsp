@@ -79,7 +79,20 @@
     "network": false,
     "neverSent": false
    }
-  ]
+  ],
+  "names": {
+   "MoveUnanswered": "Error",
+   "ResumeUnanswered": "Error",
+   "NotFirstLife": "NotFirstLifeError",
+   "EnvNotLanded": "EnvNotLandedError",
+   "DiskGone": "DiskGoneError",
+   "CreateCancelled": "CreateCancelledError",
+   "StopRefused": "StopRefusedError",
+   "NapRefused": "NapRefusedError",
+   "Unreached": "Error",
+   "NoProvider": "NoProviderError",
+   "Provider": "Error"
+  }
  },
  "machine_facts": {
   "uptime": [
@@ -1212,7 +1225,7 @@
     "cpu": 0,
     "memMb": 0,
     "diskGb": 0,
-    "createdAt": "2026-10-25T15:35:31.579Z"
+    "createdAt": "2026-10-25T15:36:24.721Z"
    },
    "listed": [
     {
