@@ -4,7 +4,6 @@
 use serde::{Deserialize, Serialize};
 
 use crate::types::check::from_json;
-use crate::types::js_number::JsInt;
 use crate::types::check::{Check, SchemaError};
 use crate::types::general_prefs::MidTurn;
 use crate::types::general_prefs::NewThreadIn;
@@ -12,6 +11,7 @@ use crate::types::general_prefs::NotifyChoice;
 use crate::types::general_prefs::OnQuit;
 use crate::types::general_prefs::SendKey;
 use crate::types::general_prefs::SettleAfter;
+use crate::types::js_number::JsInt;
 use crate::types::js_number::JsNumber;
 use crate::types::project_look::ProjectHue;
 use crate::types::project_look::ProjectIcon;
@@ -81,21 +81,56 @@ pub struct PreferencesStored {
     pub sidebar_width: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub terminal_size: Option<TerminalSizeSource>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub terminal_zoom: Option<IndexMap<String, JsInt>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub access: Option<IndexMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub target: Option<PreferencesTarget>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub project_look: Option<IndexMap<String, ProjectLook>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub project_icon: Option<IndexMap<String, ProjectIconHash>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub computer_look: Option<IndexMap<String, ComputerLook>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub recipe_look: Option<IndexMap<String, RecipeLook>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub threads_shut: Option<IndexMap<String, True>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub server_icons: Option<bool>,
@@ -117,7 +152,12 @@ pub struct PreferencesStored {
     pub transparency: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub project_order: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub keybindings: Option<IndexMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub app_font: Option<String>,
@@ -129,9 +169,19 @@ pub struct PreferencesStored {
     pub code_size: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub default_agent: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub agent_defaults: Option<IndexMap<String, AgentDefaults>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub project_defaults: Option<IndexMap<String, ProjectOverrides>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub send_with: Option<SendKey>,
@@ -162,7 +212,7 @@ impl Check for PreferencesStored {
         self.theme.check().map_err(|e| e.under("theme"))?;
         self.sidebar_mode.check().map_err(|e| e.under("sidebarMode"))?;
         if let Some(v) = self.sidebar_width {
-            crate::types::check::num_above(v.0.0, 0.0).map_err(|e| e.under("sidebarWidth"))?;
+            crate::types::check::num_above(v.0 .0, 0.0).map_err(|e| e.under("sidebarWidth"))?;
         }
         self.terminal_size.check().map_err(|e| e.under("terminalSize"))?;
         self.target.check().map_err(|e| e.under("target"))?;
@@ -187,10 +237,12 @@ impl Check for PreferencesStored {
             crate::types::check::text_at_most(v, 128).map_err(|e| e.under("codeFont"))?;
         }
         if let Some(v) = self.text_size {
-            crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v.get() as u64)), "one of 13, 14, 15, 16, 17").map_err(|e| e.under("textSize"))?;
+            crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v.get() as u64)), "one of 13, 14, 15, 16, 17")
+                .map_err(|e| e.under("textSize"))?;
         }
         if let Some(v) = self.code_size {
-            crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v.get() as u64)), "one of 11, 12, 13, 14, 15").map_err(|e| e.under("codeSize"))?;
+            crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v.get() as u64)), "one of 11, 12, 13, 14, 15")
+                .map_err(|e| e.under("codeSize"))?;
         }
         self.agent_defaults.check().map_err(|e| e.under("agentDefaults"))?;
         self.project_defaults.check().map_err(|e| e.under("projectDefaults"))?;
@@ -212,48 +264,48 @@ impl Check for PreferencesStored {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("theme") { match crate::types::check::read_present::<ThemePreference>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("theme"))), } }
-        if let Some(v) = obj.get("lightTheme") { match crate::types::check::read_present::<ThemeId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("lightTheme"))), } }
-        if let Some(v) = obj.get("darkTheme") { match crate::types::check::read_present::<ThemeId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("darkTheme"))), } }
-        if let Some(v) = obj.get("sidebarMode") { match crate::types::check::read_present::<SidebarMode>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sidebarMode"))), } }
-        if let Some(v) = obj.get("sidebarWidth") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_sidebar_width(&x) { out.push(e.under("sidebarWidth")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("sidebarWidth"))), } }
-        if let Some(v) = obj.get("terminalSize") { match crate::types::check::read_present::<TerminalSizeSource>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("terminalSize"))), } }
-        if let Some(v) = obj.get("terminalZoom") { match crate::types::check::read_present::<IndexMap<String, JsInt>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("terminalZoom"))), } }
-        if let Some(v) = obj.get("access") { match crate::types::check::read_present::<IndexMap<String, String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("access"))), } }
-        if let Some(v) = obj.get("target") { match crate::types::check::read_present::<PreferencesTarget>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("target"))), } }
-        if let Some(v) = obj.get("projectLook") { match crate::types::check::read_present::<IndexMap<String, ProjectLook>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectLook"))), } }
-        if let Some(v) = obj.get("projectIcon") { match crate::types::check::read_present::<IndexMap<String, ProjectIconHash>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectIcon"))), } }
-        if let Some(v) = obj.get("computerLook") { match crate::types::check::read_present::<IndexMap<String, ComputerLook>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("computerLook"))), } }
-        if let Some(v) = obj.get("recipeLook") { match crate::types::check::read_present::<IndexMap<String, RecipeLook>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("recipeLook"))), } }
-        if let Some(v) = obj.get("threadsShut") { match crate::types::check::read_present::<IndexMap<String, True>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadsShut"))), } }
-        if let Some(v) = obj.get("serverIcons") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("serverIcons"))), } }
-        if let Some(v) = obj.get("agentVersions") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentVersions"))), } }
-        if let Some(v) = obj.get("usageLogs") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("usageLogs"))), } }
-        if let Some(v) = obj.get("productUsage") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("productUsage"))), } }
-        if let Some(v) = obj.get("editor") { match crate::types::check::read_present::<EditorId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("editor"))), } }
-        if let Some(v) = obj.get("updateDismissed") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("updateDismissed"))), } }
-        if let Some(v) = obj.get("cloudCardDismissed") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cloudCardDismissed"))), } }
-        if let Some(v) = obj.get("keepAwake") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("keepAwake"))), } }
-        if let Some(v) = obj.get("transparency") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("transparency"))), } }
-        if let Some(v) = obj.get("projectOrder") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectOrder"))), } }
-        if let Some(v) = obj.get("keybindings") { match crate::types::check::read_present::<IndexMap<String, String>>(v) { Ok(x) => { if let Err(e) = Self::rule_keybindings(&x) { out.push(e.under("keybindings")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("keybindings"))), } }
-        if let Some(v) = obj.get("appFont") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_app_font(&x) { out.push(e.under("appFont")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("appFont"))), } }
-        if let Some(v) = obj.get("codeFont") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_code_font(&x) { out.push(e.under("codeFont")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("codeFont"))), } }
-        if let Some(v) = obj.get("textSize") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_text_size(&x) { out.push(e.under("textSize")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("textSize"))), } }
-        if let Some(v) = obj.get("codeSize") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_code_size(&x) { out.push(e.under("codeSize")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("codeSize"))), } }
-        if let Some(v) = obj.get("defaultAgent") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("defaultAgent"))), } }
-        if let Some(v) = obj.get("agentDefaults") { match crate::types::check::read_present::<IndexMap<String, AgentDefaults>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentDefaults"))), } }
-        if let Some(v) = obj.get("projectDefaults") { match crate::types::check::read_present::<IndexMap<String, ProjectOverrides>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectDefaults"))), } }
-        if let Some(v) = obj.get("sendWith") { match crate::types::check::read_present::<SendKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sendWith"))), } }
-        if let Some(v) = obj.get("midTurn") { match crate::types::check::read_present::<MidTurn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("midTurn"))), } }
-        if let Some(v) = obj.get("notifyNeeds") { match crate::types::check::read_present::<NotifyChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("notifyNeeds"))), } }
-        if let Some(v) = obj.get("notifyDone") { match crate::types::check::read_present::<NotifyChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("notifyDone"))), } }
-        if let Some(v) = obj.get("planAlerts") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("planAlerts"))), } }
-        if let Some(v) = obj.get("settleAfter") { match crate::types::check::read_present::<SettleAfter>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("settleAfter"))), } }
-        if let Some(v) = obj.get("askDelete") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("askDelete"))), } }
-        if let Some(v) = obj.get("onQuit") { match crate::types::check::read_present::<OnQuit>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("onQuit"))), } }
-        if let Some(v) = obj.get("newThreadIn") { match crate::types::check::read_present::<NewThreadIn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("newThreadIn"))), } }
-        if let Some(v) = obj.get("labs") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("labs"))), } }
+        crate::types::keys::opt_key::<ThemePreference>(obj, "theme", &mut out);
+        crate::types::keys::opt_key::<ThemeId>(obj, "lightTheme", &mut out);
+        crate::types::keys::opt_key::<ThemeId>(obj, "darkTheme", &mut out);
+        crate::types::keys::opt_key::<SidebarMode>(obj, "sidebarMode", &mut out);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "sidebarWidth", &mut out, Self::rule_sidebar_width);
+        crate::types::keys::opt_key::<TerminalSizeSource>(obj, "terminalSize", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, JsInt>>(obj, "terminalZoom", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, String>>(obj, "access", &mut out);
+        crate::types::keys::opt_key::<PreferencesTarget>(obj, "target", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, ProjectLook>>(obj, "projectLook", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, ProjectIconHash>>(obj, "projectIcon", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, ComputerLook>>(obj, "computerLook", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, RecipeLook>>(obj, "recipeLook", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, True>>(obj, "threadsShut", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "serverIcons", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "agentVersions", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "usageLogs", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "productUsage", &mut out);
+        crate::types::keys::opt_key::<EditorId>(obj, "editor", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "updateDismissed", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "cloudCardDismissed", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "keepAwake", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "transparency", &mut out);
+        crate::types::keys::opt_key::<Vec<String>>(obj, "projectOrder", &mut out);
+        crate::types::keys::opt_key_with::<IndexMap<String, String>>(obj, "keybindings", &mut out, Self::rule_keybindings);
+        crate::types::keys::opt_key_with::<String>(obj, "appFont", &mut out, Self::rule_app_font);
+        crate::types::keys::opt_key_with::<String>(obj, "codeFont", &mut out, Self::rule_code_font);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "textSize", &mut out, Self::rule_text_size);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "codeSize", &mut out, Self::rule_code_size);
+        crate::types::keys::opt_key::<String>(obj, "defaultAgent", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, AgentDefaults>>(obj, "agentDefaults", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, ProjectOverrides>>(obj, "projectDefaults", &mut out);
+        crate::types::keys::opt_key::<SendKey>(obj, "sendWith", &mut out);
+        crate::types::keys::opt_key::<MidTurn>(obj, "midTurn", &mut out);
+        crate::types::keys::opt_key::<NotifyChoice>(obj, "notifyNeeds", &mut out);
+        crate::types::keys::opt_key::<NotifyChoice>(obj, "notifyDone", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "planAlerts", &mut out);
+        crate::types::keys::opt_key::<SettleAfter>(obj, "settleAfter", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "askDelete", &mut out);
+        crate::types::keys::opt_key::<OnQuit>(obj, "onQuit", &mut out);
+        crate::types::keys::opt_key::<NewThreadIn>(obj, "newThreadIn", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "labs", &mut out);
         Some(out)
     }
 
@@ -311,7 +363,7 @@ impl Check for PreferencesStored {
 impl PreferencesStored {
     fn rule_sidebar_width(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
         if let Some(v) = (*x) {
-            crate::types::check::num_above(v.0.0, 0.0)?;
+            crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
     }
@@ -419,10 +471,12 @@ impl Check for PreferencesTarget {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspace") { None => out.push(crate::types::check::missing::<Self>("workspace")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspace"))), } } }
+        crate::types::keys::req_key::<String>(obj, "workspace", &mut out);
         let known: &[&str] = &["workspace"];
         let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
-        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        if !extra.is_empty() {
+            out.push(crate::types::check::unrecognized(Vec::new(), extra));
+        }
         Some(out)
     }
 
@@ -461,11 +515,13 @@ impl Check for ProjectLook {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("icon") { match crate::types::check::read_present::<ProjectIcon>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("icon"))), } }
-        if let Some(v) = obj.get("hue") { match crate::types::check::read_present::<ProjectHue>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hue"))), } }
+        crate::types::keys::opt_key::<ProjectIcon>(obj, "icon", &mut out);
+        crate::types::keys::opt_key::<ProjectHue>(obj, "hue", &mut out);
         let known: &[&str] = &["icon", "hue"];
         let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
-        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        if !extra.is_empty() {
+            out.push(crate::types::check::unrecognized(Vec::new(), extra));
+        }
         Some(out)
     }
 
@@ -510,7 +566,22 @@ pub enum ComputerIcon {
 
 impl Check for ComputerIcon {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["laptop", "desktop", "mac-mini", "mac-studio", "tower", "server", "cloud", "cpu", "drive", "container", "home"]))
+        crate::types::check::leaf(
+            path,
+            crate::types::check::Zod::Options(&[
+                "laptop",
+                "desktop",
+                "mac-mini",
+                "mac-studio",
+                "tower",
+                "server",
+                "cloud",
+                "cpu",
+                "drive",
+                "container",
+                "home",
+            ]),
+        )
     }
 }
 
@@ -534,10 +605,12 @@ impl Check for ComputerLook {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("icon") { None => out.push(crate::types::check::missing::<Self>("icon")), Some(v) => { match crate::types::check::read::<ComputerIcon>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("icon"))), } } }
+        crate::types::keys::req_key::<ComputerIcon>(obj, "icon", &mut out);
         let known: &[&str] = &["icon"];
         let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
-        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        if !extra.is_empty() {
+            out.push(crate::types::check::unrecognized(Vec::new(), extra));
+        }
         Some(out)
     }
 
@@ -572,10 +645,12 @@ impl Check for RecipeLook {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("icon") { None => out.push(crate::types::check::missing::<Self>("icon")), Some(v) => { match crate::types::check::read::<ProjectIcon>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("icon"))), } } }
+        crate::types::keys::req_key::<ProjectIcon>(obj, "icon", &mut out);
         let known: &[&str] = &["icon"];
         let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
-        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        if !extra.is_empty() {
+            out.push(crate::types::check::unrecognized(Vec::new(), extra));
+        }
         Some(out)
     }
 
@@ -641,7 +716,25 @@ pub enum EditorId {
 
 impl Check for EditorId {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["vscode", "cursor", "vscode-insiders", "zed", "idea", "webstorm", "pycharm", "goland", "rustrover", "clion", "phpstorm", "rubymine", "rider", "finder"]))
+        crate::types::check::leaf(
+            path,
+            crate::types::check::Zod::Options(&[
+                "vscode",
+                "cursor",
+                "vscode-insiders",
+                "zed",
+                "idea",
+                "webstorm",
+                "pycharm",
+                "goland",
+                "rustrover",
+                "clion",
+                "phpstorm",
+                "rubymine",
+                "rider",
+                "finder",
+            ]),
+        )
     }
 }
 
@@ -667,9 +760,9 @@ impl Check for EditorChoice {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<EditorId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
-        if let Some(v) = obj.get("remote") { match crate::types::check::read_present::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("remote"))), } }
+        crate::types::keys::req_key::<EditorId>(obj, "id", &mut out);
+        crate::types::keys::req_key::<String>(obj, "name", &mut out);
+        crate::types::keys::opt_key::<True>(obj, "remote", &mut out);
         Some(out)
     }
 
@@ -765,9 +858,19 @@ pub struct Preferences {
     pub code_size: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub default_agent: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub recipe_look: Option<IndexMap<String, RecipeLook>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub threads_shut: Option<IndexMap<String, True>>,
 }
 
@@ -801,15 +904,17 @@ impl Check for Preferences {
         self.on_quit.check().map_err(|e| e.under("onQuit"))?;
         self.new_thread_in.check().map_err(|e| e.under("newThreadIn"))?;
         if let Some(v) = self.sidebar_width {
-            crate::types::check::num_above(v.0.0, 0.0).map_err(|e| e.under("sidebarWidth"))?;
+            crate::types::check::num_above(v.0 .0, 0.0).map_err(|e| e.under("sidebarWidth"))?;
         }
         self.target.check().map_err(|e| e.under("target"))?;
         self.editor.check().map_err(|e| e.under("editor"))?;
         if let Some(v) = self.text_size {
-            crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v.get() as u64)), "one of 13, 14, 15, 16, 17").map_err(|e| e.under("textSize"))?;
+            crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v.get() as u64)), "one of 13, 14, 15, 16, 17")
+                .map_err(|e| e.under("textSize"))?;
         }
         if let Some(v) = self.code_size {
-            crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v.get() as u64)), "one of 11, 12, 13, 14, 15").map_err(|e| e.under("codeSize"))?;
+            crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v.get() as u64)), "one of 11, 12, 13, 14, 15")
+                .map_err(|e| e.under("codeSize"))?;
         }
         self.recipe_look.check().map_err(|e| e.under("recipeLook"))?;
         self.light_theme.check().map_err(|e| e.under("lightTheme"))?;
@@ -823,48 +928,48 @@ impl Check for Preferences {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("theme") { None => out.push(crate::types::check::missing::<Self>("theme")), Some(v) => { match crate::types::check::read::<ThemePreference>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("theme"))), } } }
-        if let Some(v) = obj.get("lightTheme") { match crate::types::check::read::<ThemeId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("lightTheme"))), } }
-        if let Some(v) = obj.get("darkTheme") { match crate::types::check::read::<ThemeId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("darkTheme"))), } }
-        match obj.get("sidebarMode") { None => out.push(crate::types::check::missing::<Self>("sidebarMode")), Some(v) => { match crate::types::check::read::<SidebarMode>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sidebarMode"))), } } }
-        if let Some(v) = obj.get("sidebarWidth") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_sidebar_width(&x) { out.push(e.under("sidebarWidth")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("sidebarWidth"))), } }
-        match obj.get("terminalSize") { None => out.push(crate::types::check::missing::<Self>("terminalSize")), Some(v) => { match crate::types::check::read::<TerminalSizeSource>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("terminalSize"))), } } }
-        match obj.get("terminalZoom") { None => out.push(crate::types::check::missing::<Self>("terminalZoom")), Some(v) => { match crate::types::check::read::<IndexMap<String, JsInt>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("terminalZoom"))), } } }
-        match obj.get("access") { None => out.push(crate::types::check::missing::<Self>("access")), Some(v) => { match crate::types::check::read::<IndexMap<String, String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("access"))), } } }
-        if let Some(v) = obj.get("target") { match crate::types::check::read_present::<PreferencesTarget>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("target"))), } }
-        match obj.get("projectLook") { None => out.push(crate::types::check::missing::<Self>("projectLook")), Some(v) => { match crate::types::check::read::<IndexMap<String, ProjectLook>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectLook"))), } } }
-        if let Some(v) = obj.get("projectIcon") { match crate::types::check::read::<IndexMap<String, ProjectIconHash>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectIcon"))), } }
-        if let Some(v) = obj.get("computerLook") { match crate::types::check::read::<IndexMap<String, ComputerLook>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("computerLook"))), } }
-        if let Some(v) = obj.get("recipeLook") { match crate::types::check::read_present::<IndexMap<String, RecipeLook>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("recipeLook"))), } }
-        if let Some(v) = obj.get("threadsShut") { match crate::types::check::read_present::<IndexMap<String, True>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadsShut"))), } }
-        if let Some(v) = obj.get("serverIcons") { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("serverIcons"))), } }
-        if let Some(v) = obj.get("agentVersions") { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentVersions"))), } }
-        if let Some(v) = obj.get("usageLogs") { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("usageLogs"))), } }
-        if let Some(v) = obj.get("productUsage") { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("productUsage"))), } }
-        if let Some(v) = obj.get("editor") { match crate::types::check::read_present::<EditorId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("editor"))), } }
-        if let Some(v) = obj.get("updateDismissed") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("updateDismissed"))), } }
-        if let Some(v) = obj.get("cloudCardDismissed") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cloudCardDismissed"))), } }
-        if let Some(v) = obj.get("keepAwake") { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("keepAwake"))), } }
-        if let Some(v) = obj.get("transparency") { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("transparency"))), } }
-        match obj.get("projectOrder") { None => out.push(crate::types::check::missing::<Self>("projectOrder")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectOrder"))), } } }
-        if let Some(v) = obj.get("keybindings") { match crate::types::check::read::<IndexMap<String, String>>(v) { Ok(x) => { if let Err(e) = Self::rule_keybindings(&x) { out.push(e.under("keybindings")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("keybindings"))), } }
-        if let Some(v) = obj.get("appFont") { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_app_font(&x) { out.push(e.under("appFont")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("appFont"))), } }
-        if let Some(v) = obj.get("codeFont") { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_code_font(&x) { out.push(e.under("codeFont")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("codeFont"))), } }
-        if let Some(v) = obj.get("textSize") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_text_size(&x) { out.push(e.under("textSize")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("textSize"))), } }
-        if let Some(v) = obj.get("codeSize") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_code_size(&x) { out.push(e.under("codeSize")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("codeSize"))), } }
-        if let Some(v) = obj.get("defaultAgent") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("defaultAgent"))), } }
-        if let Some(v) = obj.get("agentDefaults") { match crate::types::check::read::<IndexMap<String, AgentDefaults>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentDefaults"))), } }
-        if let Some(v) = obj.get("projectDefaults") { match crate::types::check::read::<IndexMap<String, ProjectOverrides>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectDefaults"))), } }
-        if let Some(v) = obj.get("sendWith") { match crate::types::check::read::<SendKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sendWith"))), } }
-        if let Some(v) = obj.get("midTurn") { match crate::types::check::read::<MidTurn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("midTurn"))), } }
-        if let Some(v) = obj.get("notifyNeeds") { match crate::types::check::read::<NotifyChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("notifyNeeds"))), } }
-        if let Some(v) = obj.get("notifyDone") { match crate::types::check::read::<NotifyChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("notifyDone"))), } }
-        if let Some(v) = obj.get("planAlerts") { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("planAlerts"))), } }
-        if let Some(v) = obj.get("settleAfter") { match crate::types::check::read::<SettleAfter>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("settleAfter"))), } }
-        if let Some(v) = obj.get("askDelete") { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("askDelete"))), } }
-        if let Some(v) = obj.get("onQuit") { match crate::types::check::read::<OnQuit>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("onQuit"))), } }
-        if let Some(v) = obj.get("newThreadIn") { match crate::types::check::read::<NewThreadIn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("newThreadIn"))), } }
-        match obj.get("labs") { None => out.push(crate::types::check::missing::<Self>("labs")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("labs"))), } } }
+        crate::types::keys::req_key::<ThemePreference>(obj, "theme", &mut out);
+        crate::types::keys::any_key::<ThemeId>(obj, "lightTheme", &mut out);
+        crate::types::keys::any_key::<ThemeId>(obj, "darkTheme", &mut out);
+        crate::types::keys::req_key::<SidebarMode>(obj, "sidebarMode", &mut out);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "sidebarWidth", &mut out, Self::rule_sidebar_width);
+        crate::types::keys::req_key::<TerminalSizeSource>(obj, "terminalSize", &mut out);
+        crate::types::keys::req_key::<IndexMap<String, JsInt>>(obj, "terminalZoom", &mut out);
+        crate::types::keys::req_key::<IndexMap<String, String>>(obj, "access", &mut out);
+        crate::types::keys::opt_key::<PreferencesTarget>(obj, "target", &mut out);
+        crate::types::keys::req_key::<IndexMap<String, ProjectLook>>(obj, "projectLook", &mut out);
+        crate::types::keys::any_key::<IndexMap<String, ProjectIconHash>>(obj, "projectIcon", &mut out);
+        crate::types::keys::any_key::<IndexMap<String, ComputerLook>>(obj, "computerLook", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, RecipeLook>>(obj, "recipeLook", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, True>>(obj, "threadsShut", &mut out);
+        crate::types::keys::any_key::<bool>(obj, "serverIcons", &mut out);
+        crate::types::keys::any_key::<bool>(obj, "agentVersions", &mut out);
+        crate::types::keys::any_key::<bool>(obj, "usageLogs", &mut out);
+        crate::types::keys::any_key::<bool>(obj, "productUsage", &mut out);
+        crate::types::keys::opt_key::<EditorId>(obj, "editor", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "updateDismissed", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "cloudCardDismissed", &mut out);
+        crate::types::keys::any_key::<bool>(obj, "keepAwake", &mut out);
+        crate::types::keys::any_key::<bool>(obj, "transparency", &mut out);
+        crate::types::keys::req_key::<Vec<String>>(obj, "projectOrder", &mut out);
+        crate::types::keys::any_key_with::<IndexMap<String, String>>(obj, "keybindings", &mut out, Self::rule_keybindings);
+        crate::types::keys::any_key_with::<String>(obj, "appFont", &mut out, Self::rule_app_font);
+        crate::types::keys::any_key_with::<String>(obj, "codeFont", &mut out, Self::rule_code_font);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "textSize", &mut out, Self::rule_text_size);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "codeSize", &mut out, Self::rule_code_size);
+        crate::types::keys::opt_key::<String>(obj, "defaultAgent", &mut out);
+        crate::types::keys::any_key::<IndexMap<String, AgentDefaults>>(obj, "agentDefaults", &mut out);
+        crate::types::keys::any_key::<IndexMap<String, ProjectOverrides>>(obj, "projectDefaults", &mut out);
+        crate::types::keys::any_key::<SendKey>(obj, "sendWith", &mut out);
+        crate::types::keys::any_key::<MidTurn>(obj, "midTurn", &mut out);
+        crate::types::keys::any_key::<NotifyChoice>(obj, "notifyNeeds", &mut out);
+        crate::types::keys::any_key::<NotifyChoice>(obj, "notifyDone", &mut out);
+        crate::types::keys::any_key::<bool>(obj, "planAlerts", &mut out);
+        crate::types::keys::any_key::<SettleAfter>(obj, "settleAfter", &mut out);
+        crate::types::keys::any_key::<bool>(obj, "askDelete", &mut out);
+        crate::types::keys::any_key::<OnQuit>(obj, "onQuit", &mut out);
+        crate::types::keys::any_key::<NewThreadIn>(obj, "newThreadIn", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "labs", &mut out);
         Some(out)
     }
 
@@ -939,7 +1044,7 @@ impl Preferences {
     }
     fn rule_sidebar_width(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
         if let Some(v) = (*x) {
-            crate::types::check::num_above(v.0.0, 0.0)?;
+            crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
     }
@@ -1069,19 +1174,49 @@ pub struct PreferencesPatch {
     pub sidebar_width: Option<Option<JsInt>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub terminal_size: Option<TerminalSizeSource>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub terminal_zoom: Option<IndexMap<String, Option<JsInt>>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub access: Option<IndexMap<String, Option<String>>>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
     pub target: Option<Option<PreferencesTarget>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub project_look: Option<IndexMap<String, Option<ProjectLook>>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub computer_look: Option<IndexMap<String, Option<ComputerLook>>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub recipe_look: Option<IndexMap<String, Option<RecipeLook>>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub threads_shut: Option<IndexMap<String, Option<True>>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub server_icons: Option<bool>,
@@ -1103,7 +1238,12 @@ pub struct PreferencesPatch {
     pub transparency: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub project_order: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub keybindings: Option<IndexMap<String, Option<String>>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub app_font: Option<String>,
@@ -1115,9 +1255,19 @@ pub struct PreferencesPatch {
     pub code_size: Option<Option<JsInt>>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
     pub default_agent: Option<Option<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub agent_defaults: Option<IndexMap<String, Option<AgentDefaultsPatch>>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present", serialize_with = "crate::types::check::js_record_opt")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::types::check::present",
+        serialize_with = "crate::types::check::js_record_opt"
+    )]
     pub project_defaults: Option<IndexMap<String, Option<ProjectOverridesPatch>>>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub send_with: Option<SendKey>,
@@ -1176,10 +1326,12 @@ impl Check for PreferencesPatch {
             crate::types::check::text_at_most(v, 128).map_err(|e| e.under("codeFont"))?;
         }
         if let Some(Some(v)) = self.text_size {
-            crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v.get() as u64)), "one of 13, 14, 15, 16, 17").map_err(|e| e.under("textSize"))?;
+            crate::types::check::refine(crate::views::preferences::TEXT_SIZES.contains(&(v.get() as u64)), "one of 13, 14, 15, 16, 17")
+                .map_err(|e| e.under("textSize"))?;
         }
         if let Some(Some(v)) = self.code_size {
-            crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v.get() as u64)), "one of 11, 12, 13, 14, 15").map_err(|e| e.under("codeSize"))?;
+            crate::types::check::refine(crate::views::preferences::CODE_SIZES.contains(&(v.get() as u64)), "one of 11, 12, 13, 14, 15")
+                .map_err(|e| e.under("codeSize"))?;
         }
         self.agent_defaults.check().map_err(|e| e.under("agentDefaults"))?;
         self.project_defaults.check().map_err(|e| e.under("projectDefaults"))?;
@@ -1200,49 +1352,92 @@ impl Check for PreferencesPatch {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("theme") { match crate::types::check::read_present::<ThemePreference>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("theme"))), } }
-        if let Some(v) = obj.get("lightTheme") { match crate::types::check::read_present::<ThemeId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("lightTheme"))), } }
-        if let Some(v) = obj.get("darkTheme") { match crate::types::check::read_present::<ThemeId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("darkTheme"))), } }
-        if let Some(v) = obj.get("sidebarMode") { match crate::types::check::read_present::<SidebarMode>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sidebarMode"))), } }
-        if let Some(v) = obj.get("sidebarWidth") { match crate::types::check::read_double::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_sidebar_width(&x) { out.push(e.under("sidebarWidth")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("sidebarWidth"))), } }
-        if let Some(v) = obj.get("terminalSize") { match crate::types::check::read_present::<TerminalSizeSource>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("terminalSize"))), } }
-        if let Some(v) = obj.get("terminalZoom") { match crate::types::check::read_present::<IndexMap<String, Option<JsInt>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("terminalZoom"))), } }
-        if let Some(v) = obj.get("access") { match crate::types::check::read_present::<IndexMap<String, Option<String>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("access"))), } }
-        if let Some(v) = obj.get("target") { match crate::types::check::read_double::<PreferencesTarget>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("target"))), } }
-        if let Some(v) = obj.get("projectLook") { match crate::types::check::read_present::<IndexMap<String, Option<ProjectLook>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectLook"))), } }
-        if let Some(v) = obj.get("computerLook") { match crate::types::check::read_present::<IndexMap<String, Option<ComputerLook>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("computerLook"))), } }
-        if let Some(v) = obj.get("recipeLook") { match crate::types::check::read_present::<IndexMap<String, Option<RecipeLook>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("recipeLook"))), } }
-        if let Some(v) = obj.get("threadsShut") { match crate::types::check::read_present::<IndexMap<String, Option<True>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadsShut"))), } }
-        if let Some(v) = obj.get("serverIcons") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("serverIcons"))), } }
-        if let Some(v) = obj.get("agentVersions") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentVersions"))), } }
-        if let Some(v) = obj.get("usageLogs") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("usageLogs"))), } }
-        if let Some(v) = obj.get("productUsage") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("productUsage"))), } }
-        if let Some(v) = obj.get("editor") { match crate::types::check::read_present::<EditorId>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("editor"))), } }
-        if let Some(v) = obj.get("updateDismissed") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("updateDismissed"))), } }
-        if let Some(v) = obj.get("cloudCardDismissed") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cloudCardDismissed"))), } }
-        if let Some(v) = obj.get("keepAwake") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("keepAwake"))), } }
-        if let Some(v) = obj.get("transparency") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("transparency"))), } }
-        if let Some(v) = obj.get("projectOrder") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectOrder"))), } }
-        if let Some(v) = obj.get("keybindings") { match crate::types::check::read_present::<IndexMap<String, Option<String>>>(v) { Ok(x) => { if let Err(e) = Self::rule_keybindings(&x) { out.push(e.under("keybindings")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("keybindings"))), } }
-        if let Some(v) = obj.get("appFont") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_app_font(&x) { out.push(e.under("appFont")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("appFont"))), } }
-        if let Some(v) = obj.get("codeFont") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_code_font(&x) { out.push(e.under("codeFont")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("codeFont"))), } }
-        if let Some(v) = obj.get("textSize") { match crate::types::check::read_double::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_text_size(&x) { out.push(e.under("textSize")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("textSize"))), } }
-        if let Some(v) = obj.get("codeSize") { match crate::types::check::read_double::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_code_size(&x) { out.push(e.under("codeSize")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("codeSize"))), } }
-        if let Some(v) = obj.get("defaultAgent") { match crate::types::check::read_double::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("defaultAgent"))), } }
-        if let Some(v) = obj.get("agentDefaults") { match crate::types::check::read_present::<IndexMap<String, Option<AgentDefaultsPatch>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentDefaults"))), } }
-        if let Some(v) = obj.get("projectDefaults") { match crate::types::check::read_present::<IndexMap<String, Option<ProjectOverridesPatch>>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("projectDefaults"))), } }
-        if let Some(v) = obj.get("sendWith") { match crate::types::check::read_present::<SendKey>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sendWith"))), } }
-        if let Some(v) = obj.get("midTurn") { match crate::types::check::read_present::<MidTurn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("midTurn"))), } }
-        if let Some(v) = obj.get("notifyNeeds") { match crate::types::check::read_present::<NotifyChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("notifyNeeds"))), } }
-        if let Some(v) = obj.get("notifyDone") { match crate::types::check::read_present::<NotifyChoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("notifyDone"))), } }
-        if let Some(v) = obj.get("planAlerts") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("planAlerts"))), } }
-        if let Some(v) = obj.get("settleAfter") { match crate::types::check::read_present::<SettleAfter>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("settleAfter"))), } }
-        if let Some(v) = obj.get("askDelete") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("askDelete"))), } }
-        if let Some(v) = obj.get("onQuit") { match crate::types::check::read_present::<OnQuit>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("onQuit"))), } }
-        if let Some(v) = obj.get("newThreadIn") { match crate::types::check::read_present::<NewThreadIn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("newThreadIn"))), } }
-        let known: &[&str] = &["theme", "lightTheme", "darkTheme", "sidebarMode", "sidebarWidth", "terminalSize", "terminalZoom", "access", "target", "projectLook", "computerLook", "recipeLook", "threadsShut", "serverIcons", "agentVersions", "usageLogs", "productUsage", "editor", "updateDismissed", "cloudCardDismissed", "keepAwake", "transparency", "projectOrder", "keybindings", "appFont", "codeFont", "textSize", "codeSize", "defaultAgent", "agentDefaults", "projectDefaults", "sendWith", "midTurn", "notifyNeeds", "notifyDone", "planAlerts", "settleAfter", "askDelete", "onQuit", "newThreadIn"];
+        crate::types::keys::opt_key::<ThemePreference>(obj, "theme", &mut out);
+        crate::types::keys::opt_key::<ThemeId>(obj, "lightTheme", &mut out);
+        crate::types::keys::opt_key::<ThemeId>(obj, "darkTheme", &mut out);
+        crate::types::keys::opt_key::<SidebarMode>(obj, "sidebarMode", &mut out);
+        crate::types::keys::dbl_key_with::<JsInt>(obj, "sidebarWidth", &mut out, Self::rule_sidebar_width);
+        crate::types::keys::opt_key::<TerminalSizeSource>(obj, "terminalSize", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, Option<JsInt>>>(obj, "terminalZoom", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, Option<String>>>(obj, "access", &mut out);
+        crate::types::keys::dbl_key::<PreferencesTarget>(obj, "target", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, Option<ProjectLook>>>(obj, "projectLook", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, Option<ComputerLook>>>(obj, "computerLook", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, Option<RecipeLook>>>(obj, "recipeLook", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, Option<True>>>(obj, "threadsShut", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "serverIcons", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "agentVersions", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "usageLogs", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "productUsage", &mut out);
+        crate::types::keys::opt_key::<EditorId>(obj, "editor", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "updateDismissed", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "cloudCardDismissed", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "keepAwake", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "transparency", &mut out);
+        crate::types::keys::opt_key::<Vec<String>>(obj, "projectOrder", &mut out);
+        crate::types::keys::opt_key_with::<IndexMap<String, Option<String>>>(obj, "keybindings", &mut out, Self::rule_keybindings);
+        crate::types::keys::opt_key_with::<String>(obj, "appFont", &mut out, Self::rule_app_font);
+        crate::types::keys::opt_key_with::<String>(obj, "codeFont", &mut out, Self::rule_code_font);
+        crate::types::keys::dbl_key_with::<JsInt>(obj, "textSize", &mut out, Self::rule_text_size);
+        crate::types::keys::dbl_key_with::<JsInt>(obj, "codeSize", &mut out, Self::rule_code_size);
+        crate::types::keys::dbl_key::<String>(obj, "defaultAgent", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, Option<AgentDefaultsPatch>>>(obj, "agentDefaults", &mut out);
+        crate::types::keys::opt_key::<IndexMap<String, Option<ProjectOverridesPatch>>>(obj, "projectDefaults", &mut out);
+        crate::types::keys::opt_key::<SendKey>(obj, "sendWith", &mut out);
+        crate::types::keys::opt_key::<MidTurn>(obj, "midTurn", &mut out);
+        crate::types::keys::opt_key::<NotifyChoice>(obj, "notifyNeeds", &mut out);
+        crate::types::keys::opt_key::<NotifyChoice>(obj, "notifyDone", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "planAlerts", &mut out);
+        crate::types::keys::opt_key::<SettleAfter>(obj, "settleAfter", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "askDelete", &mut out);
+        crate::types::keys::opt_key::<OnQuit>(obj, "onQuit", &mut out);
+        crate::types::keys::opt_key::<NewThreadIn>(obj, "newThreadIn", &mut out);
+        let known: &[&str] = &[
+            "theme",
+            "lightTheme",
+            "darkTheme",
+            "sidebarMode",
+            "sidebarWidth",
+            "terminalSize",
+            "terminalZoom",
+            "access",
+            "target",
+            "projectLook",
+            "computerLook",
+            "recipeLook",
+            "threadsShut",
+            "serverIcons",
+            "agentVersions",
+            "usageLogs",
+            "productUsage",
+            "editor",
+            "updateDismissed",
+            "cloudCardDismissed",
+            "keepAwake",
+            "transparency",
+            "projectOrder",
+            "keybindings",
+            "appFont",
+            "codeFont",
+            "textSize",
+            "codeSize",
+            "defaultAgent",
+            "agentDefaults",
+            "projectDefaults",
+            "sendWith",
+            "midTurn",
+            "notifyNeeds",
+            "notifyDone",
+            "planAlerts",
+            "settleAfter",
+            "askDelete",
+            "onQuit",
+            "newThreadIn",
+        ];
         let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
-        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        if !extra.is_empty() {
+            out.push(crate::types::check::unrecognized(Vec::new(), extra));
+        }
         Some(out)
     }
 
@@ -1368,8 +1563,8 @@ impl Check for ThreadMarkedEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("threadIds") { None => out.push(crate::types::check::missing::<Self>("threadIds")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadIds"))), } } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<Vec<String>>(obj, "threadIds", &mut out);
         Some(out)
     }
 
@@ -1486,7 +1681,7 @@ impl Check for ThreadFacts {
     fn check(&self) -> Result<(), SchemaError> {
         self.started_by.check().map_err(|e| e.under("startedBy"))?;
         self.status.check().map_err(|e| e.under("status"))?;
-        crate::types::check::num_above(self.turns.0.0, 0.0).map_err(|e| e.under("turns"))?;
+        crate::types::check::num_above(self.turns.0 .0, 0.0).map_err(|e| e.under("turns"))?;
         self.waiting_on.check().map_err(|e| e.under("waitingOn"))?;
         self.sub.check().map_err(|e| e.under("sub"))?;
         self.capped.check().map_err(|e| e.under("capped"))?;
@@ -1501,55 +1696,55 @@ impl Check for ThreadFacts {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        if let Some(v) = obj.get("threadId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } }
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("harness") { None => out.push(crate::types::check::missing::<Self>("harness")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("harness"))), } } }
-        match obj.get("startedBy") { None => out.push(crate::types::check::missing::<Self>("startedBy")), Some(v) => { match crate::types::check::read::<SessionOrigin>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("startedBy"))), } } }
-        match obj.get("status") { None => out.push(crate::types::check::missing::<Self>("status")), Some(v) => { match crate::types::check::read::<SessionStatus>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("status"))), } } }
-        match obj.get("title") { None => out.push(crate::types::check::missing::<Self>("title")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("title"))), } } }
-        match obj.get("sessionId") { None => out.push(crate::types::check::missing::<Self>("sessionId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sessionId"))), } } }
-        if let Some(v) = obj.get("claudeSessionId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("claudeSessionId"))), } }
-        if let Some(v) = obj.get("startedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("startedAt"))), } }
-        if let Some(v) = obj.get("endedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("endedAt"))), } }
-        if let Some(v) = obj.get("cwd") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("cwd"))), } }
-        match obj.get("turns") { None => out.push(crate::types::check::missing::<Self>("turns")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_turns(&x) { out.push(e.under("turns")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("turns"))), } } }
-        match obj.get("ran") { None => out.push(crate::types::check::missing::<Self>("ran")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ran"))), } } }
-        if let Some(v) = obj.get("parentThreadId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("parentThreadId"))), } }
-        if let Some(v) = obj.get("rootThreadId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rootThreadId"))), } }
-        if let Some(v) = obj.get("attempt") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("attempt"))), } }
-        if let Some(v) = obj.get("asking") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("asking"))), } }
-        if let Some(v) = obj.get("waitingOn") { match crate::types::check::read_present::<ThreadWaitingOn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("waitingOn"))), } }
-        if let Some(v) = obj.get("setupRefusal") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("setupRefusal"))), } }
-        if let Some(v) = obj.get("sub") { match crate::types::check::read_present::<SubRow>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("sub"))), } }
-        if let Some(v) = obj.get("diskKeptUntil") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("diskKeptUntil"))), } }
-        if let Some(v) = obj.get("diskGone") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("diskGone"))), } }
-        if let Some(v) = obj.get("capped") { match crate::types::check::read_present::<ThreadCapWait>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("capped"))), } }
-        if let Some(v) = obj.get("limit") { match crate::types::check::read_present::<TurnLimit>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("limit"))), } }
-        if let Some(v) = obj.get("resumeAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("resumeAt"))), } }
-        if let Some(v) = obj.get("costUsd") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("costUsd"))), } }
-        if let Some(v) = obj.get("lastLine") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("lastLine"))), } }
-        if let Some(v) = obj.get("failure") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("failure"))), } }
-        if let Some(v) = obj.get("pid") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pid"))), } }
-        if let Some(v) = obj.get("agentPid") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agentPid"))), } }
-        if let Some(v) = obj.get("readAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("readAt"))), } }
-        if let Some(v) = obj.get("settledAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("settledAt"))), } }
-        if let Some(v) = obj.get("pinnedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("pinnedAt"))), } }
-        if let Some(v) = obj.get("order") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("order"))), } }
-        if let Some(v) = obj.get("foldedAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("foldedAt"))), } }
-        if let Some(v) = obj.get("replaces") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("replaces"))), } }
-        if let Some(v) = obj.get("replacedBy") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("replacedBy"))), } }
-        if let Some(v) = obj.get("snoozedUntil") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("snoozedUntil"))), } }
-        if let Some(v) = obj.get("wokeAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wokeAt"))), } }
-        if let Some(v) = obj.get("section") { match crate::types::check::read_present::<ThreadPlacement>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("section"))), } }
-        if let Some(v) = obj.get("rewoundAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rewoundAt"))), } }
-        if let Some(v) = obj.get("forkedFrom") { match crate::types::check::read_present::<ForkedFrom>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("forkedFrom"))), } }
-        if let Some(v) = obj.get("permissionMode") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("permissionMode"))), } }
-        if let Some(v) = obj.get("fast") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("fast"))), } }
-        if let Some(v) = obj.get("model") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("model"))), } }
-        if let Some(v) = obj.get("effort") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("effort"))), } }
-        if let Some(v) = obj.get("contextWindow") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("contextWindow"))), } }
-        if let Some(v) = obj.get("turnId") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("turnId"))), } }
+        crate::types::keys::req_key::<String>(obj, "id", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "harness", &mut out);
+        crate::types::keys::req_key::<SessionOrigin>(obj, "startedBy", &mut out);
+        crate::types::keys::req_key::<SessionStatus>(obj, "status", &mut out);
+        crate::types::keys::req_key::<String>(obj, "title", &mut out);
+        crate::types::keys::req_key::<String>(obj, "sessionId", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "claudeSessionId", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "startedAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "endedAt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "cwd", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "turns", &mut out, Self::rule_turns);
+        crate::types::keys::req_key::<bool>(obj, "ran", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "parentThreadId", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "rootThreadId", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "attempt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "asking", &mut out);
+        crate::types::keys::opt_key::<ThreadWaitingOn>(obj, "waitingOn", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "setupRefusal", &mut out);
+        crate::types::keys::opt_key::<SubRow>(obj, "sub", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "diskKeptUntil", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "diskGone", &mut out);
+        crate::types::keys::opt_key::<ThreadCapWait>(obj, "capped", &mut out);
+        crate::types::keys::opt_key::<TurnLimit>(obj, "limit", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "resumeAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "costUsd", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "lastLine", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "failure", &mut out);
+        crate::types::keys::opt_key::<JsInt>(obj, "pid", &mut out);
+        crate::types::keys::opt_key::<JsInt>(obj, "agentPid", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "readAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "settledAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "pinnedAt", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "order", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "foldedAt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "replaces", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "replacedBy", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "snoozedUntil", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "wokeAt", &mut out);
+        crate::types::keys::opt_key::<ThreadPlacement>(obj, "section", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "rewoundAt", &mut out);
+        crate::types::keys::opt_key::<ForkedFrom>(obj, "forkedFrom", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "permissionMode", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "fast", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "model", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "effort", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "contextWindow", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "turnId", &mut out);
         Some(out)
     }
 
@@ -1613,7 +1808,7 @@ impl Check for ThreadFacts {
 }
 impl ThreadFacts {
     fn rule_turns(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_above((*x).0.0, 0.0)?;
+        crate::types::check::num_above((*x).0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -1636,8 +1831,8 @@ impl Check for ThreadHead {
     fn check(&self) -> Result<(), SchemaError> {
         self.facts.check().map_err(|e| e.under("facts"))?;
         self.events.check().map_err(|e| e.under("events"))?;
-        crate::types::check::num_at_least(self.pos.0.0, 0.0).map_err(|e| e.under("pos"))?;
-        crate::types::check::num_at_least(self.total.0.0, 0.0).map_err(|e| e.under("total"))?;
+        crate::types::check::num_at_least(self.pos.0 .0, 0.0).map_err(|e| e.under("pos"))?;
+        crate::types::check::num_at_least(self.total.0 .0, 0.0).map_err(|e| e.under("total"))?;
         Ok(())
     }
 
@@ -1646,11 +1841,11 @@ impl Check for ThreadHead {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("facts") { None => out.push(crate::types::check::missing::<Self>("facts")), Some(v) => { match crate::types::check::read::<ThreadFacts>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("facts"))), } } }
-        match obj.get("events") { None => out.push(crate::types::check::missing::<Self>("events")), Some(v) => { match crate::types::check::read::<Vec<SessionEvent>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("events"))), } } }
-        match obj.get("pos") { None => out.push(crate::types::check::missing::<Self>("pos")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_pos(&x) { out.push(e.under("pos")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("pos"))), } } }
-        match obj.get("total") { None => out.push(crate::types::check::missing::<Self>("total")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_total(&x) { out.push(e.under("total")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("total"))), } } }
-        if let Some(v) = obj.get("trimmed") { match crate::types::check::read_present::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("trimmed"))), } }
+        crate::types::keys::req_key::<ThreadFacts>(obj, "facts", &mut out);
+        crate::types::keys::req_key::<Vec<SessionEvent>>(obj, "events", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "pos", &mut out, Self::rule_pos);
+        crate::types::keys::req_key_with::<JsInt>(obj, "total", &mut out, Self::rule_total);
+        crate::types::keys::opt_key::<True>(obj, "trimmed", &mut out);
         Some(out)
     }
 
@@ -1670,11 +1865,11 @@ impl Check for ThreadHead {
 }
 impl ThreadHead {
     fn rule_pos(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
         Ok(())
     }
     fn rule_total(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -1695,8 +1890,8 @@ impl Check for HistoryPage {
     /// Nested checks: events.
     fn check(&self) -> Result<(), SchemaError> {
         self.events.check().map_err(|e| e.under("events"))?;
-        crate::types::check::num_at_least(self.pos.0.0, 0.0).map_err(|e| e.under("pos"))?;
-        crate::types::check::num_at_least(self.total.0.0, 0.0).map_err(|e| e.under("total"))?;
+        crate::types::check::num_at_least(self.pos.0 .0, 0.0).map_err(|e| e.under("pos"))?;
+        crate::types::check::num_at_least(self.total.0 .0, 0.0).map_err(|e| e.under("total"))?;
         Ok(())
     }
 
@@ -1705,10 +1900,10 @@ impl Check for HistoryPage {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("events") { None => out.push(crate::types::check::missing::<Self>("events")), Some(v) => { match crate::types::check::read::<Vec<SessionEvent>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("events"))), } } }
-        match obj.get("pos") { None => out.push(crate::types::check::missing::<Self>("pos")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_pos(&x) { out.push(e.under("pos")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("pos"))), } } }
-        match obj.get("total") { None => out.push(crate::types::check::missing::<Self>("total")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_total(&x) { out.push(e.under("total")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("total"))), } } }
-        if let Some(v) = obj.get("trimmed") { match crate::types::check::read_present::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("trimmed"))), } }
+        crate::types::keys::req_key::<Vec<SessionEvent>>(obj, "events", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "pos", &mut out, Self::rule_pos);
+        crate::types::keys::req_key_with::<JsInt>(obj, "total", &mut out, Self::rule_total);
+        crate::types::keys::opt_key::<True>(obj, "trimmed", &mut out);
         Some(out)
     }
 
@@ -1727,11 +1922,11 @@ impl Check for HistoryPage {
 }
 impl HistoryPage {
     fn rule_pos(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
         Ok(())
     }
     fn rule_total(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -1756,7 +1951,7 @@ impl Check for ThreadHeadEvent {
     /// Nested checks: facts.
     fn check(&self) -> Result<(), SchemaError> {
         self.facts.check().map_err(|e| e.under("facts"))?;
-        crate::types::check::num_at_least(self.pos.0.0, 0.0).map_err(|e| e.under("pos"))?;
+        crate::types::check::num_at_least(self.pos.0 .0, 0.0).map_err(|e| e.under("pos"))?;
         Ok(())
     }
 
@@ -1765,10 +1960,10 @@ impl Check for ThreadHeadEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("threadId") { None => out.push(crate::types::check::missing::<Self>("threadId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } } }
-        match obj.get("facts") { None => out.push(crate::types::check::missing::<Self>("facts")), Some(v) => { match crate::types::check::read::<ThreadFacts>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("facts"))), } } }
-        match obj.get("pos") { None => out.push(crate::types::check::missing::<Self>("pos")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_pos(&x) { out.push(e.under("pos")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("pos"))), } } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
+        crate::types::keys::req_key::<ThreadFacts>(obj, "facts", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "pos", &mut out, Self::rule_pos);
         Some(out)
     }
 
@@ -1787,7 +1982,7 @@ impl Check for ThreadHeadEvent {
 }
 impl ThreadHeadEvent {
     fn rule_pos(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -1815,8 +2010,8 @@ impl Check for ThreadRewoundEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("workspaceId") { None => out.push(crate::types::check::missing::<Self>("workspaceId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("workspaceId"))), } } }
-        match obj.get("threadId") { None => out.push(crate::types::check::missing::<Self>("threadId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("threadId"))), } } }
+        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
         Some(out)
     }
 
@@ -1856,7 +2051,7 @@ impl Check for PreferencesChangedEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("preferences") { None => out.push(crate::types::check::missing::<Self>("preferences")), Some(v) => { match crate::types::check::read::<Preferences>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("preferences"))), } } }
+        crate::types::keys::req_key::<Preferences>(obj, "preferences", &mut out);
         Some(out)
     }
 

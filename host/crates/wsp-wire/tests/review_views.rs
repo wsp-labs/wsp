@@ -29,7 +29,9 @@ fn read<T: serde::de::DeserializeOwned + wsp_wire::types::check::Check>(v: Value
 fn a_patched_record_keeps_its_kept_keys_first_and_puts_new_keys_last_in_the_patch_order() {
     let stored = json!({ "projectDefaults": { "p": { "agent": "claude", "access": "ask" } }, "agentDefaults": { "claude": { "model": "m", "access": "full" } } });
     let base: Preferences = preferences_from(Some(&stored));
-    let patch: PreferencesPatch = read(json!({ "projectDefaults": { "p": { "model": "opus", "access": "plan" } }, "agentDefaults": { "claude": { "effort": "high", "model": "n" } } }));
+    let patch: PreferencesPatch = read(
+        json!({ "projectDefaults": { "p": { "model": "opus", "access": "plan" } }, "agentDefaults": { "claude": { "effort": "high", "model": "n" } } }),
+    );
     let out = serde_json::to_value(apply_preferences_patch(&base, &patch)).unwrap();
     assert_eq!(serde_json::to_string(&out["projectDefaults"]).unwrap(), r#"{"p":{"agent":"claude","access":"plan","model":"opus"}}"#);
     assert_eq!(serde_json::to_string(&out["agentDefaults"]).unwrap(), r#"{"claude":{"model":"n","access":"full","effort":"high"}}"#);
@@ -39,7 +41,10 @@ fn a_patched_record_keeps_its_kept_keys_first_and_puts_new_keys_last_in_the_patc
 /// when byte 4 falls inside a multi-byte character. Node: procName({comm:"npx",cmdline:"npx 日本"}) is "日本".
 #[test]
 fn a_package_word_with_a_multi_byte_character_names_the_process_and_does_not_panic() {
-    let p: ProcEntry = serde_json::from_value(json!({ "pid": 1, "ppid": 0, "user": "u", "state": "S", "comm": "npx", "cmdline": "npx 日本", "cpu": 0, "rss": 0, "startedAt": 0 })).unwrap();
+    let p: ProcEntry = serde_json::from_value(
+        json!({ "pid": 1, "ppid": 0, "user": "u", "state": "S", "comm": "npx", "cmdline": "npx 日本", "cpu": 0, "rss": 0, "startedAt": 0 }),
+    )
+    .unwrap();
     assert_eq!(proc_name(&p), "日本");
 }
 
@@ -57,11 +62,10 @@ fn copied_from_is_read_off_every_event_type_that_carries_it() {
         json!({"type":"session.notify","workspaceId":"w","sessionId":"s","copiedFrom":"t0","notify":"x","text":"x"}),
         json!({"type":"session.changes","workspaceId":"w","sessionId":"s","copiedFrom":"t0","from":"x","to":"x","files":[],"moved":[]}),
     ];
-    let got: Vec<(String, Option<String>)> = events
-        .iter()
-        .map(|e| (e["type"].as_str().unwrap().to_string(), copied_from_of(&read::<SessionEvent>(e.clone()))))
-        .collect();
-    let want: Vec<(String, Option<String>)> = events.iter().map(|e| (e["type"].as_str().unwrap().to_string(), Some("t0".to_string()))).collect();
+    let got: Vec<(String, Option<String>)> =
+        events.iter().map(|e| (e["type"].as_str().unwrap().to_string(), copied_from_of(&read::<SessionEvent>(e.clone())))).collect();
+    let want: Vec<(String, Option<String>)> =
+        events.iter().map(|e| (e["type"].as_str().unwrap().to_string(), Some("t0".to_string()))).collect();
     assert_eq!(got, want);
 }
 
@@ -94,7 +98,10 @@ fn the_effort_a_model_marks_default_is_written_with_is_default_last() {
     }));
     let model = catalog.models.first().cloned();
     let text = serde_json::to_string(&efforts_for(&catalog, model.as_ref())).unwrap();
-    assert_eq!(text, r#"[{"value":"low","label":"Low","short":"L"},{"value":"high","label":"High","description":"d","short":"H","isDefault":true}]"#);
+    assert_eq!(
+        text,
+        r#"[{"value":"low","label":"Low","short":"L"},{"value":"high","label":"High","description":"d","short":"H","isDefault":true}]"#
+    );
 }
 
 /// text.rs `collate` on ICU4X 2.4 (compiled data) against node 22.23.4 (ICU 78.3, CLDR 48): node orders Han by

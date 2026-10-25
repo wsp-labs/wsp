@@ -50,9 +50,9 @@ impl Check for ThreadMessage {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("who") { None => out.push(crate::types::check::missing::<Self>("who")), Some(v) => { match crate::types::check::read::<ThreadVoice>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("who"))), } } }
-        if let Some(v) = obj.get("at") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } }
-        match obj.get("text") { None => out.push(crate::types::check::missing::<Self>("text")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("text"))), } } }
+        crate::types::keys::req_key::<ThreadVoice>(obj, "who", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "at", &mut out);
+        crate::types::keys::req_key::<String>(obj, "text", &mut out);
         Some(out)
     }
 

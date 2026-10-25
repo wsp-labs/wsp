@@ -51,11 +51,11 @@ impl Check for StateShape {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("shape") { None => out.push(crate::types::check::missing::<Self>("shape")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("shape"))), } } }
-        match obj.get("wsp") { None => out.push(crate::types::check::missing::<Self>("wsp")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("wsp"))), } } }
-        match obj.get("daemon") { None => out.push(crate::types::check::missing::<Self>("daemon")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("daemon"))), } } }
-        match obj.get("bin") { None => out.push(crate::types::check::missing::<Self>("bin")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("bin"))), } } }
-        match obj.get("at") { None => out.push(crate::types::check::missing::<Self>("at")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } } }
+        crate::types::keys::req_key::<JsInt>(obj, "shape", &mut out);
+        crate::types::keys::req_key::<String>(obj, "wsp", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "daemon", &mut out);
+        crate::types::keys::req_key::<String>(obj, "bin", &mut out);
+        crate::types::keys::req_key::<String>(obj, "at", &mut out);
         Some(out)
     }
 

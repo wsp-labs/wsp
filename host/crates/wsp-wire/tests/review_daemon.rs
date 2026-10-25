@@ -31,7 +31,10 @@ fn refused<T: DeserializeOwned + Serialize + Check>(text: &str, code: &str, path
     let input: Value = serde_json::from_str(text).unwrap();
     let label = format!("{} {}", name::<T>(), &text[..text.len().min(110)]);
     match parse::<T>(&input) {
-        Ok(read) => Some(format!("{label}: zod refused it ({code} at {path} {message:?}), read here as {}", serde_json::to_string(&read).unwrap_or_else(|e| format!("<unwritable: {e}>")))),
+        Ok(read) => Some(format!(
+            "{label}: zod refused it ({code} at {path} {message:?}), read here as {}",
+            serde_json::to_string(&read).unwrap_or_else(|e| format!("<unwritable: {e}>"))
+        )),
         Err(e) if e.code == code && Value::Array(e.path.clone()) == path && e.message == message => None,
         Err(e) => Some(format!("{label}: zod answers {code} at {path} {message:?}, here {} at {:?} {:?}", e.code, e.path, e.message)),
     }
@@ -71,7 +74,9 @@ fn op_refused(text: &str, code: &str, path: Value, message: &str) -> Option<Stri
     let input: Value = serde_json::from_str(text).unwrap();
     let label = format!("DaemonRequest {}", &text[..text.len().min(110)]);
     match parse_daemon_request(&input) {
-        Ok(read) => Some(format!("{label}: zod refused it ({code} at {path} {message:?}), read here as {}", serde_json::to_string(&read).unwrap())),
+        Ok(read) => {
+            Some(format!("{label}: zod refused it ({code} at {path} {message:?}), read here as {}", serde_json::to_string(&read).unwrap()))
+        }
         Err(e) if e.code == code && Value::Array(e.path.clone()) == path && e.message == message => None,
         Err(e) => Some(format!("{label}: zod answers {code} at {path} {message:?}, here {} at {:?} {:?}", e.code, e.path, e.message)),
     }
@@ -89,11 +94,26 @@ fn op_refused(text: &str, code: &str, path: Value, message: &str) -> Option<Stri
 fn an_ssh_host_key_is_one_ed25519_line_of_at_most_1024_units() {
     let long = format!(r#"{{"port":22,"hostKey":"ssh-ed25519 {}"}}"#, "A".repeat(1030));
     none_differ(vec![
-        refused::<SshStartReply>(r#"{"port":22,"hostKey":"ssh-ed25519 AAAA\n@cert-authority * ssh-ed25519 BBBB"}"#, "invalid_string", json!(["hostKey"]), "Invalid"),
-        refused::<SshStartReply>(r#"{"port":22,"hostKey":"@cert-authority * ssh-ed25519 AAAA"}"#, "invalid_string", json!(["hostKey"]), "Invalid"),
+        refused::<SshStartReply>(
+            r#"{"port":22,"hostKey":"ssh-ed25519 AAAA\n@cert-authority * ssh-ed25519 BBBB"}"#,
+            "invalid_string",
+            json!(["hostKey"]),
+            "Invalid",
+        ),
+        refused::<SshStartReply>(
+            r#"{"port":22,"hostKey":"@cert-authority * ssh-ed25519 AAAA"}"#,
+            "invalid_string",
+            json!(["hostKey"]),
+            "Invalid",
+        ),
         refused::<SshStartReply>(r#"{"port":22,"hostKey":"ssh-rsa AAAA"}"#, "invalid_string", json!(["hostKey"]), "Invalid"),
         refused::<SshStartReply>(r#"{"port":22,"hostKey":"ssh-ed25519 AAAA\n"}"#, "invalid_string", json!(["hostKey"]), "Invalid"),
-        refused::<SshStartReply>(r#"{"port":22,"hostKey":""}"#, "too_small", json!(["hostKey"]), "String must contain at least 1 character(s)"),
+        refused::<SshStartReply>(
+            r#"{"port":22,"hostKey":""}"#,
+            "too_small",
+            json!(["hostKey"]),
+            "String must contain at least 1 character(s)",
+        ),
         refused::<SshStartReply>(&long, "too_big", json!(["hostKey"]), "String must contain at most 1024 character(s)"),
     ]);
 }
@@ -127,10 +147,30 @@ fn a_host_node_refuses_is_refused_here() {
 #[test]
 fn an_ssh_port_is_an_integer_from_1_to_65535() {
     none_differ(vec![
-        refused::<SshStartReply>(r#"{"port":0,"hostKey":"ssh-ed25519 AAAA"}"#, "too_small", json!(["port"]), "Number must be greater than or equal to 1"),
-        refused::<SshStartReply>(r#"{"port":-1,"hostKey":"ssh-ed25519 AAAA"}"#, "too_small", json!(["port"]), "Number must be greater than or equal to 1"),
-        refused::<SshStartReply>(r#"{"port":65536,"hostKey":"ssh-ed25519 AAAA"}"#, "too_big", json!(["port"]), "Number must be less than or equal to 65535"),
-        refused::<SshStartReply>(r#"{"port":22.5,"hostKey":"ssh-ed25519 AAAA"}"#, "invalid_type", json!(["port"]), "Expected integer, received float"),
+        refused::<SshStartReply>(
+            r#"{"port":0,"hostKey":"ssh-ed25519 AAAA"}"#,
+            "too_small",
+            json!(["port"]),
+            "Number must be greater than or equal to 1",
+        ),
+        refused::<SshStartReply>(
+            r#"{"port":-1,"hostKey":"ssh-ed25519 AAAA"}"#,
+            "too_small",
+            json!(["port"]),
+            "Number must be greater than or equal to 1",
+        ),
+        refused::<SshStartReply>(
+            r#"{"port":65536,"hostKey":"ssh-ed25519 AAAA"}"#,
+            "too_big",
+            json!(["port"]),
+            "Number must be less than or equal to 65535",
+        ),
+        refused::<SshStartReply>(
+            r#"{"port":22.5,"hostKey":"ssh-ed25519 AAAA"}"#,
+            "invalid_type",
+            json!(["port"]),
+            "Expected integer, received float",
+        ),
         reads_as::<SshStartReply>(r#"{"port":22.0,"hostKey":"ssh-ed25519 AAAA"}"#, r#"{"port":22,"hostKey":"ssh-ed25519 AAAA"}"#),
     ]);
 }
@@ -140,7 +180,12 @@ fn an_ssh_port_is_an_integer_from_1_to_65535() {
 #[test]
 fn a_bearer_key_name_is_at_least_one_unit() {
     none_differ(vec![
-        refused::<HttpBearer>(r#"{"file":"abc","at":[""],"field":"f"}"#, "too_small", json!(["at", 0]), "String must contain at least 1 character(s)"),
+        refused::<HttpBearer>(
+            r#"{"file":"abc","at":[""],"field":"f"}"#,
+            "too_small",
+            json!(["at", 0]),
+            "String must contain at least 1 character(s)",
+        ),
         op_refused(
             r#"{"id":1,"op":"http.post","url":"http://a.test/x","headers":{},"body":"","bearer":{"file":"abc","at":[""],"field":"f"}}"#,
             "too_small",
@@ -167,7 +212,10 @@ fn an_fs_hash_reply_writes_its_files_in_the_order_it_read_them() {
 fn an_fs_hash_reply_keeps_an_empty_list_it_read() {
     none_differ(vec![
         writes::<FsHashReply>(r#"{"files":{},"outside":[],"past":[],"special":[]}"#, r#"{"files":{},"outside":[],"past":[],"special":[]}"#),
-        writes::<FsHashReply>(r#"{"files":{},"outside":["a"],"past":[],"special":["b"]}"#, r#"{"files":{},"outside":["a"],"past":[],"special":["b"]}"#),
+        writes::<FsHashReply>(
+            r#"{"files":{},"outside":["a"],"past":[],"special":["b"]}"#,
+            r#"{"files":{},"outside":["a"],"past":[],"special":["b"]}"#,
+        ),
     ]);
 }
 
@@ -190,8 +238,18 @@ fn an_optional_flag_read_as_false_is_written_as_false() {
 fn an_exec_request_read_alone_wants_op_exec() {
     none_differ(vec![
         refused::<DaemonExecRequest>(r#"{"id":1,"cmd":"x"}"#, "invalid_literal", json!(["op"]), "Invalid literal value, expected \"exec\""),
-        refused::<DaemonExecRequest>(r#"{"id":1,"op":"ping","cmd":"x"}"#, "invalid_literal", json!(["op"]), "Invalid literal value, expected \"exec\""),
-        refused::<DaemonExecRequest>(r#"{"id":1,"op":5,"cmd":"x"}"#, "invalid_literal", json!(["op"]), "Invalid literal value, expected \"exec\""),
+        refused::<DaemonExecRequest>(
+            r#"{"id":1,"op":"ping","cmd":"x"}"#,
+            "invalid_literal",
+            json!(["op"]),
+            "Invalid literal value, expected \"exec\"",
+        ),
+        refused::<DaemonExecRequest>(
+            r#"{"id":1,"op":5,"cmd":"x"}"#,
+            "invalid_literal",
+            json!(["op"]),
+            "Invalid literal value, expected \"exec\"",
+        ),
     ]);
 }
 
@@ -214,11 +272,17 @@ fn an_exec_request_written_alone_carries_op_exec() {
 fn a_re_exported_reply_reads_every_number_zod_reads() {
     none_differ(vec![
         // daemon.ts:122 size, mtime
-        reads_as::<FsEntry>(r#"{"name":"n","type":"file","size":2.5,"mtime":-1.5}"#, r#"{"name":"n","type":"file","size":2.5,"mtime":-1.5}"#),
+        reads_as::<FsEntry>(
+            r#"{"name":"n","type":"file","size":2.5,"mtime":-1.5}"#,
+            r#"{"name":"n","type":"file","size":2.5,"mtime":-1.5}"#,
+        ),
         // :126 total
         reads_as::<FsListReply>(r#"{"entries":[],"truncated":false,"total":2.5}"#, r#"{"entries":[],"truncated":false,"total":2.5}"#),
         // :189 size, modified, inode, changed
-        reads_as::<FsImageReply>(r#"{"size":2.5,"modified":-1,"inode":0.5,"changed":-2.5}"#, r#"{"size":2.5,"modified":-1,"inode":0.5,"changed":-2.5}"#),
+        reads_as::<FsImageReply>(
+            r#"{"size":2.5,"modified":-1,"inode":0.5,"changed":-2.5}"#,
+            r#"{"size":2.5,"modified":-1,"inode":0.5,"changed":-2.5}"#,
+        ),
         // :182 bytes (.int())
         reads_as::<FsWriteReply>(r#"{"bytes":-1}"#, r#"{"bytes":-1}"#),
         // :261 additions, deletions are u32 over z.number()
@@ -241,9 +305,15 @@ fn a_re_exported_reply_reads_every_number_zod_reads() {
         reads_as::<GitCheckpointDropReply>(r#"{"dropped":5.0}"#, r#"{"dropped":5}"#),
         // :167 committed (.int().nonnegative()): 5.0
         reads_as::<GitLocalBranch>(r#"{"name":"n","oid":"o","committed":5.0}"#, r#"{"name":"n","oid":"o","committed":5}"#),
-        reads_as::<GitBranchesReply>(r#"{"branches":[{"name":"n","oid":"o","committed":5.0}]}"#, r#"{"branches":[{"name":"n","oid":"o","committed":5}]}"#),
+        reads_as::<GitBranchesReply>(
+            r#"{"branches":[{"name":"n","oid":"o","committed":5.0}]}"#,
+            r#"{"branches":[{"name":"n","oid":"o","committed":5}]}"#,
+        ),
         // :140 number (.int())
-        reads_as::<HostItem>(r#"{"kind":"issue","number":-1,"title":"t","body":"b","url":"u"}"#, r#"{"kind":"issue","number":-1,"title":"t","body":"b","url":"u"}"#),
+        reads_as::<HostItem>(
+            r#"{"kind":"issue","number":-1,"title":"t","body":"b","url":"u"}"#,
+            r#"{"kind":"issue","number":-1,"title":"t","body":"b","url":"u"}"#,
+        ),
         reads_as::<GitPrListReply>(
             r#"{"items":[{"kind":"issue","number":-1,"title":"t","body":"b","url":"u"}]}"#,
             r#"{"items":[{"kind":"issue","number":-1,"title":"t","body":"b","url":"u"}]}"#,
@@ -256,8 +326,16 @@ fn a_re_exported_reply_reads_every_number_zod_reads() {
         // :92 heldMs (.int().nonnegative()): 5.0
         reads_as::<PipeOpen>(r#"{"op":"pipe.open","door":"http","heldMs":5.0}"#, r#"{"op":"pipe.open","door":"http","heldMs":5}"#),
         // :209 line (.int().positive()) is a u32
-        reads_as::<FsSearchReply>(r#"{"hits":[{"path":"p","line":4294967296}],"truncated":false}"#, r#"{"hits":[{"path":"p","line":4294967296}],"truncated":false}"#),
-        refused::<FsSearchReply>(r#"{"hits":[{"path":"p","line":0}],"truncated":false}"#, "too_small", json!(["hits", 0, "line"]), "Number must be greater than 0"),
+        reads_as::<FsSearchReply>(
+            r#"{"hits":[{"path":"p","line":4294967296}],"truncated":false}"#,
+            r#"{"hits":[{"path":"p","line":4294967296}],"truncated":false}"#,
+        ),
+        refused::<FsSearchReply>(
+            r#"{"hits":[{"path":"p","line":0}],"truncated":false}"#,
+            "too_small",
+            json!(["hits", 0, "line"]),
+            "Number must be greater than 0",
+        ),
     ]);
 }
 
@@ -293,7 +371,12 @@ fn a_re_exported_reply_refuses_null_on_an_optional_key() {
         nul("FsSearchReply", r#"{"hits":[{"path":"p","text":null}],"truncated":false}"#, json!(["hits", 0, "text"]), "string"),
         // :167-175
         nul("GitBranchesReply", r#"{"current":null,"branches":[]}"#, json!(["current"]), "string"),
-        nul("GitBranchesReply", r#"{"branches":[{"name":"n","oid":"o","committed":1,"upstream":null}]}"#, json!(["branches", 0, "upstream"]), "string"),
+        nul(
+            "GitBranchesReply",
+            r#"{"branches":[{"name":"n","oid":"o","committed":1,"upstream":null}]}"#,
+            json!(["branches", 0, "upstream"]),
+            "string",
+        ),
         nul("GitLocalBranch", r#"{"name":"n","oid":"o","committed":1,"upstream":null}"#, json!(["upstream"]), "string"),
         nul("GitLocalBranch", r#"{"name":"n","oid":"o","committed":1,"worktree":null}"#, json!(["worktree"]), "string"),
         // :261
@@ -318,16 +401,66 @@ fn a_re_exported_reply_refuses_null_on_an_optional_key() {
 fn a_re_exported_rule_answers_zod_s_issue_not_a_custom_one() {
     let long = |n: usize| "x".repeat(n);
     none_differ(vec![
-        refused::<HttpBearer>(r#"{"file":"ab","at":[],"field":"f"}"#, "too_small", json!(["file"]), "String must contain at least 3 character(s)"),
-        refused::<HttpBearer>(&format!(r#"{{"file":"{}","at":[],"field":"f"}}"#, long(4097)), "too_big", json!(["file"]), "String must contain at most 4096 character(s)"),
-        refused::<HttpBearer>(&format!(r#"{{"file":"abc","at":["{}"],"field":"f"}}"#, long(1025)), "too_big", json!(["at", 0]), "String must contain at most 1024 character(s)"),
-        refused::<HttpBearer>(r#"{"file":"abc","at":["x","x","x","x","x","x","x","x","x"],"field":"f"}"#, "too_big", json!(["at"]), "Array must contain at most 8 element(s)"),
-        refused::<HttpBearer>(r#"{"file":"abc","at":[],"field":""}"#, "too_small", json!(["field"]), "String must contain at least 1 character(s)"),
-        refused::<HttpBearer>(&format!(r#"{{"file":"abc","at":[],"field":"{}"}}"#, long(256)), "too_big", json!(["field"]), "String must contain at most 255 character(s)"),
-        refused::<UsageStore>(r#"{"agent":"a","format":"claude-jsonl","root":""}"#, "too_small", json!(["root"]), "String must contain at least 1 character(s)"),
-        refused::<UsageStore>(&format!(r#"{{"agent":"{}","format":"claude-jsonl","root":"r"}}"#, long(65)), "too_big", json!(["agent"]), "String must contain at most 64 character(s)"),
-        refused::<UsageStore>(&format!(r#"{{"agent":"{}","format":"claude-jsonl","root":"r"}}"#, "😀".repeat(33)), "too_big", json!(["agent"]), "String must contain at most 64 character(s)"),
-        refused::<UsageStore>(&format!(r#"{{"agent":"a","format":"claude-jsonl","root":"{}"}}"#, long(4097)), "too_big", json!(["root"]), "String must contain at most 4096 character(s)"),
+        refused::<HttpBearer>(
+            r#"{"file":"ab","at":[],"field":"f"}"#,
+            "too_small",
+            json!(["file"]),
+            "String must contain at least 3 character(s)",
+        ),
+        refused::<HttpBearer>(
+            &format!(r#"{{"file":"{}","at":[],"field":"f"}}"#, long(4097)),
+            "too_big",
+            json!(["file"]),
+            "String must contain at most 4096 character(s)",
+        ),
+        refused::<HttpBearer>(
+            &format!(r#"{{"file":"abc","at":["{}"],"field":"f"}}"#, long(1025)),
+            "too_big",
+            json!(["at", 0]),
+            "String must contain at most 1024 character(s)",
+        ),
+        refused::<HttpBearer>(
+            r#"{"file":"abc","at":["x","x","x","x","x","x","x","x","x"],"field":"f"}"#,
+            "too_big",
+            json!(["at"]),
+            "Array must contain at most 8 element(s)",
+        ),
+        refused::<HttpBearer>(
+            r#"{"file":"abc","at":[],"field":""}"#,
+            "too_small",
+            json!(["field"]),
+            "String must contain at least 1 character(s)",
+        ),
+        refused::<HttpBearer>(
+            &format!(r#"{{"file":"abc","at":[],"field":"{}"}}"#, long(256)),
+            "too_big",
+            json!(["field"]),
+            "String must contain at most 255 character(s)",
+        ),
+        refused::<UsageStore>(
+            r#"{"agent":"a","format":"claude-jsonl","root":""}"#,
+            "too_small",
+            json!(["root"]),
+            "String must contain at least 1 character(s)",
+        ),
+        refused::<UsageStore>(
+            &format!(r#"{{"agent":"{}","format":"claude-jsonl","root":"r"}}"#, long(65)),
+            "too_big",
+            json!(["agent"]),
+            "String must contain at most 64 character(s)",
+        ),
+        refused::<UsageStore>(
+            &format!(r#"{{"agent":"{}","format":"claude-jsonl","root":"r"}}"#, "😀".repeat(33)),
+            "too_big",
+            json!(["agent"]),
+            "String must contain at most 64 character(s)",
+        ),
+        refused::<UsageStore>(
+            &format!(r#"{{"agent":"a","format":"claude-jsonl","root":"{}"}}"#, long(4097)),
+            "too_big",
+            json!(["root"]),
+            "String must contain at most 4096 character(s)",
+        ),
     ]);
 }
 
@@ -337,14 +470,49 @@ fn a_re_exported_rule_answers_zod_s_issue_not_a_custom_one() {
 #[test]
 fn a_re_exported_key_names_the_type_zod_expects() {
     none_differ(vec![
-        refused::<FsEntry>(r#"{"name":"n","type":"file","size":"1","mtime":1}"#, "invalid_type", json!(["size"]), "Expected number, received string"),
-        refused::<FsEntry>(r#"{"name":"n","type":5,"size":1,"mtime":1}"#, "invalid_type", json!(["type"]), "Expected 'file' | 'dir' | 'symlink', received number"),
-        refused::<FsListReply>(r#"{"entries":[],"truncated":"x","total":1}"#, "invalid_type", json!(["truncated"]), "Expected boolean, received string"),
-        refused::<GitCheckpointReply>(r#"{"ref":"r","commit":"c","changed":"x","based":true}"#, "invalid_type", json!(["changed"]), "Expected boolean, received string"),
+        refused::<FsEntry>(
+            r#"{"name":"n","type":"file","size":"1","mtime":1}"#,
+            "invalid_type",
+            json!(["size"]),
+            "Expected number, received string",
+        ),
+        refused::<FsEntry>(
+            r#"{"name":"n","type":5,"size":1,"mtime":1}"#,
+            "invalid_type",
+            json!(["type"]),
+            "Expected 'file' | 'dir' | 'symlink', received number",
+        ),
+        refused::<FsListReply>(
+            r#"{"entries":[],"truncated":"x","total":1}"#,
+            "invalid_type",
+            json!(["truncated"]),
+            "Expected boolean, received string",
+        ),
+        refused::<GitCheckpointReply>(
+            r#"{"ref":"r","commit":"c","changed":"x","based":true}"#,
+            "invalid_type",
+            json!(["changed"]),
+            "Expected boolean, received string",
+        ),
         refused::<CgroupMemory>(r#"{"cgroup":"c","memory":"x"}"#, "invalid_type", json!(["memory"]), "Expected number, received string"),
-        refused::<PipeOpen>(r#"{"op":"pipe.open","door":5,"heldMs":1}"#, "invalid_type", json!(["door"]), "Expected 'http' | 'gh', received number"),
-        refused::<PipeOpen>(r#"{"op":"pipe.open","door":"http","heldMs":2.5}"#, "invalid_type", json!(["heldMs"]), "Expected integer, received float"),
-        refused::<GitLocalBranch>(r#"{"name":"n","oid":"o","committed":1.5}"#, "invalid_type", json!(["committed"]), "Expected integer, received float"),
+        refused::<PipeOpen>(
+            r#"{"op":"pipe.open","door":5,"heldMs":1}"#,
+            "invalid_type",
+            json!(["door"]),
+            "Expected 'http' | 'gh', received number",
+        ),
+        refused::<PipeOpen>(
+            r#"{"op":"pipe.open","door":"http","heldMs":2.5}"#,
+            "invalid_type",
+            json!(["heldMs"]),
+            "Expected integer, received float",
+        ),
+        refused::<GitLocalBranch>(
+            r#"{"name":"n","oid":"o","committed":1.5}"#,
+            "invalid_type",
+            json!(["committed"]),
+            "Expected integer, received float",
+        ),
         refused::<HttpPostReply>(r#"{"status":200.5,"body":""}"#, "invalid_type", json!(["status"]), "Expected integer, received float"),
     ]);
 }
@@ -357,11 +525,26 @@ fn a_re_exported_reply_answers_the_first_key_of_its_schema() {
         // :436 cgroup before memory
         refused::<CgroupMemory>(r#"{"memory":"1","cgroup":5}"#, "invalid_type", json!(["cgroup"]), "Expected string, received number"),
         // :148 ref before commit
-        refused::<GitCheckpointReply>(r#"{"commit":5,"ref":5,"changed":true,"based":true}"#, "invalid_type", json!(["ref"]), "Expected string, received number"),
+        refused::<GitCheckpointReply>(
+            r#"{"commit":5,"ref":5,"changed":true,"based":true}"#,
+            "invalid_type",
+            json!(["ref"]),
+            "Expected string, received number",
+        ),
         // :195 files before outside
-        refused::<FsHashReply>(r#"{"outside":{},"files":[],"past":["a"],"special":["a"]}"#, "invalid_type", json!(["files"]), "Expected object, received array"),
+        refused::<FsHashReply>(
+            r#"{"outside":{},"files":[],"past":["a"],"special":["a"]}"#,
+            "invalid_type",
+            json!(["files"]),
+            "Expected object, received array",
+        ),
         // :161 path before branch
-        refused::<GitWorktreesReply>(r#"{"worktrees":[{"branch":5,"path":5}]}"#, "invalid_type", json!(["worktrees", 0, "path"]), "Expected string, received number"),
+        refused::<GitWorktreesReply>(
+            r#"{"worktrees":[{"branch":5,"path":5}]}"#,
+            "invalid_type",
+            json!(["worktrees", 0, "path"]),
+            "Expected string, received number",
+        ),
         // :132 files before truncated
         refused::<FsFilesReply>(r#"{"truncated":"true","files":{}}"#, "invalid_type", json!(["files"]), "Expected array, received object"),
     ]);
@@ -409,8 +592,18 @@ fn a_literal_key_answers_invalid_literal_for_any_value() {
     none_differ(vec![
         refused::<DaemonAuthRequest>(r#"{"id":1,"op":5,"token":"t"}"#, "invalid_literal", json!(["op"]), auth),
         refused::<DaemonAuthRequest>(r#"{"id":1,"op":null,"token":"t"}"#, "invalid_literal", json!(["op"]), auth),
-        refused::<DeviceVia>(r#"{"kind":5,"relayDeviceId":"r","fingerprint":"f","publicKey":"p","admittedBy":"a"}"#, "invalid_literal", json!(["kind"]), account),
-        refused::<DeviceVia>(r#"{"kind":null,"relayDeviceId":"r","fingerprint":"f","publicKey":"p","admittedBy":"a"}"#, "invalid_literal", json!(["kind"]), account),
+        refused::<DeviceVia>(
+            r#"{"kind":5,"relayDeviceId":"r","fingerprint":"f","publicKey":"p","admittedBy":"a"}"#,
+            "invalid_literal",
+            json!(["kind"]),
+            account,
+        ),
+        refused::<DeviceVia>(
+            r#"{"kind":null,"relayDeviceId":"r","fingerprint":"f","publicKey":"p","admittedBy":"a"}"#,
+            "invalid_literal",
+            json!(["kind"]),
+            account,
+        ),
         refused::<PipeOpen>(r#"{"door":"http","heldMs":1}"#, "invalid_literal", json!(["op"]), pipe),
         refused::<PipeOpen>(r#"{"op":"zzz","door":"http","heldMs":1}"#, "invalid_literal", json!(["op"]), pipe),
         refused::<PipeOpen>(r#"{"op":5,"door":"http","heldMs":1}"#, "invalid_literal", json!(["op"]), pipe),
@@ -421,7 +614,10 @@ fn a_literal_key_answers_invalid_literal_for_any_value() {
 /// review_core.rs pins guest.send; guest.reply is the same cause with its own field.
 #[test]
 fn a_guest_reply_takes_an_absent_message() {
-    none_differ(vec![reads_as::<DaemonRequest>(r#"{"id":1,"op":"guest.reply","session":"s"}"#, r#"{"id":1,"op":"guest.reply","session":"s"}"#)]);
+    none_differ(vec![reads_as::<DaemonRequest>(
+        r#"{"id":1,"op":"guest.reply","session":"s"}"#,
+        r#"{"id":1,"op":"guest.reply","session":"s"}"#,
+    )]);
 }
 
 /// MINOR. daemon.ts:968-971 GuestCliMessage is `z.union([{stream, text}, {exit: z.number().int()}])`. A fraction in
@@ -441,7 +637,12 @@ fn a_permission_effect_names_its_words() {
     none_differ(vec![
         refused::<PermissionEffect>("null", "invalid_type", json!([]), &msg("null")),
         refused::<PermissionEffect>("5", "invalid_type", json!([]), &msg("number")),
-        refused::<wsp_wire::wire::helpers::PermissionOption>(r#"{"id":"a","label":"l","effect":5}"#, "invalid_type", json!(["effect"]), &msg("number")),
+        refused::<wsp_wire::wire::helpers::PermissionOption>(
+            r#"{"id":"a","label":"l","effect":5}"#,
+            "invalid_type",
+            json!(["effect"]),
+            &msg("number"),
+        ),
     ]);
 }
 
@@ -456,8 +657,18 @@ fn a_permission_effect_names_its_words() {
 fn an_op_answers_its_first_key_that_fails_by_type_or_by_rule() {
     let zeros = "0".repeat(64);
     none_differ(vec![
-        op_refused(r#"{"id":1,"op":"tunnel.open","tunnelId":"t","port":0,"machineId":5}"#, "too_small", json!(["port"]), "Number must be greater than or equal to 1"),
-        op_refused(r#"{"id":1,"op":"git.prRead","cwd":"c","remote":"r","number":-1,"seen":5}"#, "too_small", json!(["number"]), "Number must be greater than or equal to 0"),
+        op_refused(
+            r#"{"id":1,"op":"tunnel.open","tunnelId":"t","port":0,"machineId":5}"#,
+            "too_small",
+            json!(["port"]),
+            "Number must be greater than or equal to 1",
+        ),
+        op_refused(
+            r#"{"id":1,"op":"git.prRead","cwd":"c","remote":"r","number":-1,"seen":5}"#,
+            "too_small",
+            json!(["number"]),
+            "Number must be greater than or equal to 0",
+        ),
         op_refused(
             &format!(r#"{{"id":1,"op":"place.update","uploadId":"","seq":"1","last":true,"data":"d","sha256":"{zeros}"}}"#),
             "too_small",
@@ -472,9 +683,24 @@ fn an_op_answers_its_first_key_that_fails_by_type_or_by_rule() {
         ),
         op_refused(r#"{"id":1,"op":"proc.kill","pid":0,"signal":5}"#, "too_small", json!(["pid"]), "Number must be greater than 0"),
         op_refused(r#"{"id":1,"op":"http.post","url":"ftp://x","headers":5,"body":""}"#, "custom", json!(["url"]), "http or https URL"),
-        op_refused(r#"{"id":1,"op":"ssh.start","authorizedKey":"","machineId":5}"#, "too_small", json!(["authorizedKey"]), "String must contain at least 1 character(s)"),
-        op_refused(r#"{"id":1,"op":"transcripts.read","root":"","dirs":5,"session":"s","last":1}"#, "too_small", json!(["root"]), "String must contain at least 1 character(s)"),
-        op_refused(r#"{"id":1,"op":"git.prReply","cwd":"c","remote":"r","number":-1,"body":5}"#, "too_small", json!(["number"]), "Number must be greater than or equal to 0"),
+        op_refused(
+            r#"{"id":1,"op":"ssh.start","authorizedKey":"","machineId":5}"#,
+            "too_small",
+            json!(["authorizedKey"]),
+            "String must contain at least 1 character(s)",
+        ),
+        op_refused(
+            r#"{"id":1,"op":"transcripts.read","root":"","dirs":5,"session":"s","last":1}"#,
+            "too_small",
+            json!(["root"]),
+            "String must contain at least 1 character(s)",
+        ),
+        op_refused(
+            r#"{"id":1,"op":"git.prReply","cwd":"c","remote":"r","number":-1,"body":5}"#,
+            "too_small",
+            json!(["number"]),
+            "Number must be greater than or equal to 0",
+        ),
         op_refused(
             &format!(r#"{{"id":1,"op":"git.push","cwd":"c","token":"{}","machineId":5}}"#, "x".repeat(513)),
             "too_big",

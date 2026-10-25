@@ -107,7 +107,7 @@ impl Check for RecipeFileAgentsValue {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("signin") { match crate::types::check::read_present::<RecipeSignIn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signin"))), } }
+        crate::types::keys::opt_key::<RecipeSignIn>(obj, "signin", &mut out);
         Some(out)
     }
 
@@ -143,7 +143,7 @@ impl Check for RecipeFileMcpValue {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("agents") { None => out.push(crate::types::check::missing::<Self>("agents")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(x) => { if let Err(e) = Self::rule_agents(&x) { out.push(e.under("agents")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("agents"))), } } }
+        crate::types::keys::req_key_with::<Vec<String>>(obj, "agents", &mut out, Self::rule_agents);
         Some(out)
     }
 
@@ -192,8 +192,8 @@ impl Check for RecipeFileClisValue {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("via") { None => out.push(crate::types::check::missing::<Self>("via")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_via(&x) { out.push(e.under("via")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("via"))), } } }
-        if let Some(v) = obj.get("needs") { match crate::types::check::read_present::<Vec<String>>(v) { Ok(x) => { if let Err(e) = Self::rule_needs(&x) { out.push(e.under("needs")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("needs"))), } }
+        crate::types::keys::req_key_with::<String>(obj, "via", &mut out, Self::rule_via);
+        crate::types::keys::opt_key_with::<Vec<String>>(obj, "needs", &mut out, Self::rule_needs);
         Some(out)
     }
 
@@ -241,7 +241,7 @@ impl Check for RecipeFileSkillsValue {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("from") { None => out.push(crate::types::check::missing::<Self>("from")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_from(&x) { out.push(e.under("from")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("from"))), } } }
+        crate::types::keys::req_key_with::<String>(obj, "from", &mut out, Self::rule_from);
         Some(out)
     }
 
@@ -280,7 +280,11 @@ impl Check for RecipeFilePluginsValue {
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        if path.is_empty() { Some(crate::types::check::Zod::Word("object")) } else { None }
+        if path.is_empty() {
+            Some(crate::types::check::Zod::Word("object"))
+        } else {
+            None
+        }
     }
 }
 
@@ -322,12 +326,12 @@ impl Check for RecipeFileFoldersValue {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("from") { None => out.push(crate::types::check::missing::<Self>("from")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_from(&x) { out.push(e.under("from")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("from"))), } } }
-        if let Some(v) = obj.get("name") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_name(&x) { out.push(e.under("name")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } }
-        if let Some(v) = obj.get("icon") { match crate::types::check::read_present::<ProjectIcon>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("icon"))), } }
-        if let Some(v) = obj.get("hue") { match crate::types::check::read_present::<ProjectHue>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("hue"))), } }
-        if let Some(v) = obj.get("image") { match crate::types::check::read_present::<ProjectIconHash>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("image"))), } }
-        if let Some(v) = obj.get("keep") { match crate::types::check::read::<Vec<String>>(v) { Ok(x) => { if let Err(e) = Self::rule_keep(&x) { out.push(e.under("keep")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("keep"))), } }
+        crate::types::keys::req_key_with::<String>(obj, "from", &mut out, Self::rule_from);
+        crate::types::keys::opt_key_with::<String>(obj, "name", &mut out, Self::rule_name);
+        crate::types::keys::opt_key::<ProjectIcon>(obj, "icon", &mut out);
+        crate::types::keys::opt_key::<ProjectHue>(obj, "hue", &mut out);
+        crate::types::keys::opt_key::<ProjectIconHash>(obj, "image", &mut out);
+        crate::types::keys::any_key_with::<Vec<String>>(obj, "keep", &mut out, Self::rule_keep);
         Some(out)
     }
 
@@ -387,7 +391,11 @@ impl Check for RecipeFileConfigsGit {
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        if path.is_empty() { Some(crate::types::check::Zod::Word("object")) } else { None }
+        if path.is_empty() {
+            Some(crate::types::check::Zod::Word("object"))
+        } else {
+            None
+        }
     }
 }
 
@@ -409,7 +417,11 @@ impl Check for RecipeFileConfigsShell {
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        if path.is_empty() { Some(crate::types::check::Zod::Word("object")) } else { None }
+        if path.is_empty() {
+            Some(crate::types::check::Zod::Word("object"))
+        } else {
+            None
+        }
     }
 }
 
@@ -432,7 +444,7 @@ impl Check for RecipeFileConfigsGithub {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("signin") { match crate::types::check::read_present::<GitHubSignIn>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("signin"))), } }
+        crate::types::keys::opt_key::<GitHubSignIn>(obj, "signin", &mut out);
         Some(out)
     }
 
@@ -472,9 +484,9 @@ impl Check for RecipeFileConfigs {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("git") { match crate::types::check::read_present::<RecipeFileConfigsGit>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("git"))), } }
-        if let Some(v) = obj.get("shell") { match crate::types::check::read_present::<RecipeFileConfigsShell>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("shell"))), } }
-        if let Some(v) = obj.get("github") { match crate::types::check::read_present::<RecipeFileConfigsGithub>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("github"))), } }
+        crate::types::keys::opt_key::<RecipeFileConfigsGit>(obj, "git", &mut out);
+        crate::types::keys::opt_key::<RecipeFileConfigsShell>(obj, "shell", &mut out);
+        crate::types::keys::opt_key::<RecipeFileConfigsGithub>(obj, "github", &mut out);
         Some(out)
     }
 
@@ -552,18 +564,20 @@ impl Check for RecipeFile {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read_trimmed(v) { Ok(x) => { if let Err(e) = Self::rule_name(&x) { out.push(e.under("name")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
-        if let Some(v) = obj.get("agents") { match crate::types::check::read::<IndexMap<RecipeName, RecipeFileAgentsValue>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("agents"))), } }
-        if let Some(v) = obj.get("mcp") { match crate::types::check::read::<IndexMap<RecipeName, RecipeFileMcpValue>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("mcp"))), } }
-        if let Some(v) = obj.get("copyKeys") { match crate::types::check::read_present::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("copyKeys"))), } }
-        if let Some(v) = obj.get("clis") { match crate::types::check::read::<IndexMap<RecipeName, RecipeFileClisValue>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("clis"))), } }
-        if let Some(v) = obj.get("skills") { match crate::types::check::read::<IndexMap<RecipeName, RecipeFileSkillsValue>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("skills"))), } }
-        if let Some(v) = obj.get("plugins") { match crate::types::check::read::<IndexMap<RecipeName, RecipeFilePluginsValue>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("plugins"))), } }
-        if let Some(v) = obj.get("folders") { match crate::types::check::read::<IndexMap<RecipeName, RecipeFileFoldersValue>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("folders"))), } }
-        if let Some(v) = obj.get("configs") { match crate::types::check::read::<RecipeFileConfigs>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("configs"))), } }
+        crate::types::keys::req_trimmed_with(obj, "name", &mut out, Self::rule_name);
+        crate::types::keys::any_key::<IndexMap<RecipeName, RecipeFileAgentsValue>>(obj, "agents", &mut out);
+        crate::types::keys::any_key::<IndexMap<RecipeName, RecipeFileMcpValue>>(obj, "mcp", &mut out);
+        crate::types::keys::opt_key::<True>(obj, "copyKeys", &mut out);
+        crate::types::keys::any_key::<IndexMap<RecipeName, RecipeFileClisValue>>(obj, "clis", &mut out);
+        crate::types::keys::any_key::<IndexMap<RecipeName, RecipeFileSkillsValue>>(obj, "skills", &mut out);
+        crate::types::keys::any_key::<IndexMap<RecipeName, RecipeFilePluginsValue>>(obj, "plugins", &mut out);
+        crate::types::keys::any_key::<IndexMap<RecipeName, RecipeFileFoldersValue>>(obj, "folders", &mut out);
+        crate::types::keys::any_key::<RecipeFileConfigs>(obj, "configs", &mut out);
         let known: &[&str] = &["name", "agents", "mcp", "copyKeys", "clis", "skills", "plugins", "folders", "configs"];
         let extra: Vec<String> = obj.keys().filter(|k| !known.contains(&k.as_str())).cloned().collect();
-        if !extra.is_empty() { out.push(crate::types::check::unrecognized(Vec::new(), extra)); }
+        if !extra.is_empty() {
+            out.push(crate::types::check::unrecognized(Vec::new(), extra));
+        }
         Some(out)
     }
 
@@ -653,12 +667,12 @@ impl Check for RecipeView {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_name(&x) { out.push(e.under("name")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
-        match obj.get("slug") { None => out.push(crate::types::check::missing::<Self>("slug")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_slug(&x) { out.push(e.under("slug")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("slug"))), } } }
-        match obj.get("summary") { None => out.push(crate::types::check::missing::<Self>("summary")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_summary(&x) { out.push(e.under("summary")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("summary"))), } } }
-        match obj.get("machines") { None => out.push(crate::types::check::missing::<Self>("machines")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(x) => { if let Err(e) = Self::rule_machines(&x) { out.push(e.under("machines")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("machines"))), } } }
-        if let Some(v) = obj.get("savedAt") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("savedAt"))), } }
-        match obj.get("file") { None => out.push(crate::types::check::missing::<Self>("file")), Some(v) => { match crate::types::check::read::<RecipeFile>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("file"))), } } }
+        crate::types::keys::req_key_with::<String>(obj, "name", &mut out, Self::rule_name);
+        crate::types::keys::req_key_with::<String>(obj, "slug", &mut out, Self::rule_slug);
+        crate::types::keys::req_key_with::<String>(obj, "summary", &mut out, Self::rule_summary);
+        crate::types::keys::req_key_with::<Vec<String>>(obj, "machines", &mut out, Self::rule_machines);
+        crate::types::keys::opt_key::<String>(obj, "savedAt", &mut out);
+        crate::types::keys::req_key::<RecipeFile>(obj, "file", &mut out);
         Some(out)
     }
 

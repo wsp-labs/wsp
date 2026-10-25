@@ -34,10 +34,10 @@ impl Check for ReleaseLatest {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("version") { None => out.push(crate::types::check::missing::<Self>("version")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("version"))), } } }
-        match obj.get("tag") { None => out.push(crate::types::check::missing::<Self>("tag")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("tag"))), } } }
-        match obj.get("url") { None => out.push(crate::types::check::missing::<Self>("url")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("url"))), } } }
-        match obj.get("publishedAt") { None => out.push(crate::types::check::missing::<Self>("publishedAt")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("publishedAt"))), } } }
+        crate::types::keys::req_key::<String>(obj, "version", &mut out);
+        crate::types::keys::req_key::<String>(obj, "tag", &mut out);
+        crate::types::keys::req_key::<String>(obj, "url", &mut out);
+        crate::types::keys::req_key::<String>(obj, "publishedAt", &mut out);
         Some(out)
     }
 
@@ -126,14 +126,14 @@ impl Check for ReleaseView {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("state") { None => out.push(crate::types::check::missing::<Self>("state")), Some(v) => { match crate::types::check::read::<ReleaseState>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("state"))), } } }
-        if let Some(v) = obj.get("latest") { match crate::types::check::read_present::<ReleaseLatest>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("latest"))), } }
-        if let Some(v) = obj.get("checkedAt") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("checkedAt"))), } }
-        if let Some(v) = obj.get("triedAt") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("triedAt"))), } }
-        if let Some(v) = obj.get("installed") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("installed"))), } }
-        if let Some(v) = obj.get("update") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("update"))), } }
-        if let Some(v) = obj.get("shape") { match crate::types::check::read_present::<HostShape>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("shape"))), } }
-        if let Some(v) = obj.get("restartRefusal") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("restartRefusal"))), } }
+        crate::types::keys::req_key::<ReleaseState>(obj, "state", &mut out);
+        crate::types::keys::opt_key::<ReleaseLatest>(obj, "latest", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "checkedAt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "triedAt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "installed", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "update", &mut out);
+        crate::types::keys::opt_key::<HostShape>(obj, "shape", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "restartRefusal", &mut out);
         Some(out)
     }
 
@@ -179,7 +179,7 @@ impl Check for ReleaseChangedEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("release") { None => out.push(crate::types::check::missing::<Self>("release")), Some(v) => { match crate::types::check::read::<ReleaseView>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("release"))), } } }
+        crate::types::keys::req_key::<ReleaseView>(obj, "release", &mut out);
         Some(out)
     }
 

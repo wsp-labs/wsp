@@ -7,8 +7,10 @@ use wsp_wire::types::JsNumber;
 use wsp_wire::wire::daemon::{by_proc_column, ProcEntry, ProcSort};
 
 fn row(pid: i64, cpu: f64) -> ProcEntry {
-    let mut row: ProcEntry =
-        serde_json::from_value(json!({ "pid": pid, "ppid": 1, "user": "u", "state": "S", "comm": "c", "cmdline": "x", "cpu": 0, "rss": 1, "startedAt": 1 })).unwrap();
+    let mut row: ProcEntry = serde_json::from_value(
+        json!({ "pid": pid, "ppid": 1, "user": "u", "state": "S", "comm": "c", "cmdline": "x", "cpu": 0, "rss": 1, "startedAt": 1 }),
+    )
+    .unwrap();
     row.cpu = JsNumber(cpu);
     row
 }

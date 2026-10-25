@@ -88,7 +88,13 @@ pub enum WorkspaceGlyph {
 
 impl Check for WorkspaceGlyph {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["terminal", "code", "bug", "wrench", "hammer", "rocket", "flask", "database", "cloud", "globe", "compass", "map", "book", "feather", "palette", "leaf", "star", "bolt", "key", "shield", "box", "folder", "chip", "lamp"]))
+        crate::types::check::leaf(
+            path,
+            crate::types::check::Zod::Options(&[
+                "terminal", "code", "bug", "wrench", "hammer", "rocket", "flask", "database", "cloud", "globe", "compass", "map", "book",
+                "feather", "palette", "leaf", "star", "bolt", "key", "shield", "box", "folder", "chip", "lamp",
+            ]),
+        )
     }
 }
 
@@ -115,8 +121,8 @@ impl Check for ThemeDot {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("angle") { None => out.push(crate::types::check::missing::<Self>("angle")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(x) => { if let Err(e) = Self::rule_angle(&x) { out.push(e.under("angle")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("angle"))), } } }
-        match obj.get("radius") { None => out.push(crate::types::check::missing::<Self>("radius")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(x) => { if let Err(e) = Self::rule_radius(&x) { out.push(e.under("radius")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("radius"))), } } }
+        crate::types::keys::req_key_with::<JsNumber>(obj, "angle", &mut out, Self::rule_angle);
+        crate::types::keys::req_key_with::<JsNumber>(obj, "radius", &mut out, Self::rule_radius);
         Some(out)
     }
 
@@ -163,7 +169,10 @@ pub enum ThemeHarmony {
 
 impl Check for ThemeHarmony {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["single", "complementary", "analogous", "splitComplementary", "triadic", "analogousThree"]))
+        crate::types::check::leaf(
+            path,
+            crate::types::check::Zod::Options(&["single", "complementary", "analogous", "splitComplementary", "triadic", "analogousThree"]),
+        )
     }
 }
 
@@ -216,11 +225,11 @@ impl Check for WorkspaceTheme {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("dots") { None => out.push(crate::types::check::missing::<Self>("dots")), Some(v) => { match crate::types::check::read::<Vec<ThemeDot>>(v) { Ok(x) => { if let Err(e) = Self::rule_dots(&x) { out.push(e.under("dots")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("dots"))), } } }
-        match obj.get("harmony") { None => out.push(crate::types::check::missing::<Self>("harmony")), Some(v) => { match crate::types::check::read::<ThemeHarmony>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("harmony"))), } } }
-        match obj.get("grain") { None => out.push(crate::types::check::missing::<Self>("grain")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(x) => { if let Err(e) = Self::rule_grain(&x) { out.push(e.under("grain")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("grain"))), } } }
-        match obj.get("opacity") { None => out.push(crate::types::check::missing::<Self>("opacity")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(x) => { if let Err(e) = Self::rule_opacity(&x) { out.push(e.under("opacity")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("opacity"))), } } }
-        match obj.get("mode") { None => out.push(crate::types::check::missing::<Self>("mode")), Some(v) => { match crate::types::check::read::<ThemeMode>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("mode"))), } } }
+        crate::types::keys::req_key_with::<Vec<ThemeDot>>(obj, "dots", &mut out, Self::rule_dots);
+        crate::types::keys::req_key::<ThemeHarmony>(obj, "harmony", &mut out);
+        crate::types::keys::req_key_with::<JsNumber>(obj, "grain", &mut out, Self::rule_grain);
+        crate::types::keys::req_key_with::<JsNumber>(obj, "opacity", &mut out, Self::rule_opacity);
+        crate::types::keys::req_key::<ThemeMode>(obj, "mode", &mut out);
         Some(out)
     }
 
@@ -279,8 +288,8 @@ impl Check for WorkspaceLook {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("theme") { match crate::types::check::read_double::<WorkspaceTheme>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("theme"))), } }
-        if let Some(v) = obj.get("glyph") { match crate::types::check::read_double::<WorkspaceGlyph>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("glyph"))), } }
+        crate::types::keys::dbl_key::<WorkspaceTheme>(obj, "theme", &mut out);
+        crate::types::keys::dbl_key::<WorkspaceGlyph>(obj, "glyph", &mut out);
         Some(out)
     }
 

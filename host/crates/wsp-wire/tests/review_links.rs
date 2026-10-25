@@ -6,13 +6,11 @@ use common::*;
 use serde_json::{json, Value};
 use wsp_wire::wire::daemon::{pipe_open_of, ProcEntry, ProcListReply, ProcOwner, ProcScope};
 use wsp_wire::wire::machine_link::{
-    parse_machine_link_request, workspaces_blocked_by, DaemonResponse, KernelAt, MachineListRow, ModprobeRun, PlaceSysEvent, ProcCost, SysPoint,
-    TranscriptsListReply, UsageLogsReply, WorkspaceSysEvent,
-};
-use wsp_wire::wire::place_link::{
-    parse_place_file, place_file_text, JoinMint, PlaceAuthRefusal, PlaceAuthReply,
+    parse_machine_link_request, workspaces_blocked_by, DaemonResponse, KernelAt, MachineListRow, ModprobeRun, PlaceSysEvent, ProcCost,
+    SysPoint, TranscriptsListReply, UsageLogsReply, WorkspaceSysEvent,
 };
 use wsp_wire::wire::parse;
+use wsp_wire::wire::place_link::{parse_place_file, place_file_text, JoinMint, PlaceAuthRefusal, PlaceAuthReply};
 
 fn place_file_text_of(text: &str) -> String {
     place_file_text(&parse_place_file(text).expect("a place file"))
@@ -85,7 +83,10 @@ fn b64(bytes: usize, fill: u8) -> String {
 #[test]
 fn a_base64_field_of_the_wrong_json_type_says_it_wanted_a_string() {
     let e = refused::<PlaceAuthRefusal>(json!({ "hostPublicKey": null, "signature": b64(64, 5) }));
-    assert_eq!((e.code.as_str(), e.path.clone(), e.message.as_str()), ("invalid_type", path!["hostPublicKey"], "Expected string, received null"));
+    assert_eq!(
+        (e.code.as_str(), e.path.clone(), e.message.as_str()),
+        ("invalid_type", path!["hostPublicKey"], "Expected string, received null")
+    );
     assert_eq!(e.detail.get("expected"), Some(&json!("string")));
 }
 
@@ -96,7 +97,10 @@ fn a_base64_field_of_the_wrong_json_type_says_it_wanted_a_string() {
 fn a_base64_field_too_long_or_off_the_alphabet_is_zods_max_or_regex_issue() {
     let frame = |nonce: &str| json!({ "nonce": nonce, "hostPublicKey": b64(44, 3), "signature": b64(64, 5), "ephemeral": b64(32, 1) });
     let long = refused::<PlaceAuthReply>(frame(&"A".repeat(45)));
-    assert_eq!((long.code.as_str(), long.path.clone(), long.message.as_str()), ("too_big", path!["nonce"], "String must contain at most 44 character(s)"));
+    assert_eq!(
+        (long.code.as_str(), long.path.clone(), long.message.as_str()),
+        ("too_big", path!["nonce"], "String must contain at most 44 character(s)")
+    );
     let bang = refused::<PlaceAuthReply>(frame("!!!"));
     assert_eq!((bang.code.as_str(), bang.path.clone(), bang.message.as_str()), ("invalid_string", path!["nonce"], "Invalid"));
 }
@@ -121,7 +125,11 @@ fn expires_at_must_be_a_real_calendar_time() {
         "2024-01-01T00:00:60Z",
     ] {
         let e = refused::<JoinMint>(mint(bad));
-        assert_eq!((e.code.as_str(), e.path.clone(), e.message.as_str()), ("invalid_string", path!["expiresAt"], "Invalid datetime"), "{bad}");
+        assert_eq!(
+            (e.code.as_str(), e.path.clone(), e.message.as_str()),
+            ("invalid_string", path!["expiresAt"], "Invalid datetime"),
+            "{bad}"
+        );
     }
 }
 
@@ -160,8 +168,14 @@ fn a_record_and_a_passthrough_object_drop_a_proto_key_as_zod_does() {
 /// `too_big` at ["cmd"]; the Rust reads every key's type first and answers the `invalid_type` at ["timeoutMs"].
 #[test]
 fn decision_5_a_cmd_that_is_too_long_answers_before_a_later_null_timeout() {
-    let e = parse_machine_link_request(&json!({ "id": "x", "op": "machine.exec", "machineId": "m", "cmd": "a".repeat(16385), "timeoutMs": null })).unwrap_err();
-    assert_eq!((e.code.as_str(), e.path.clone(), e.message.as_str()), ("too_big", path!["cmd"], "String must contain at most 16384 character(s)"));
+    let e = parse_machine_link_request(
+        &json!({ "id": "x", "op": "machine.exec", "machineId": "m", "cmd": "a".repeat(16385), "timeoutMs": null }),
+    )
+    .unwrap_err();
+    assert_eq!(
+        (e.code.as_str(), e.path.clone(), e.message.as_str()),
+        ("too_big", path!["cmd"], "String must contain at most 16384 character(s)")
+    );
 }
 
 // ---- unions and literals ---------------------------------------------------------------------------------------
@@ -172,7 +186,10 @@ fn decision_5_a_cmd_that_is_too_long_answers_before_a_later_null_timeout() {
 #[test]
 fn a_fractional_status_is_the_integer_issue_not_an_invalid_union() {
     let e = refused::<DaemonResponse>(json!({ "id": 1, "ok": false, "error": "x", "status": 1.5 }));
-    assert_eq!((e.code.as_str(), e.path.clone(), e.message.as_str()), ("invalid_type", path!["status"], "Expected integer, received float"));
+    assert_eq!(
+        (e.code.as_str(), e.path.clone(), e.message.as_str()),
+        ("invalid_type", path!["status"], "Expected integer, received float")
+    );
 }
 
 fn sys_event(extra: Value) -> Value {
@@ -192,17 +209,26 @@ fn sys_event(extra: Value) -> Value {
 #[test]
 fn a_sys_event_type_that_is_not_the_literal_is_an_invalid_literal() {
     let e = refused::<WorkspaceSysEvent>(sys_event(json!({ "type": null })));
-    assert_eq!((e.code.as_str(), e.path.clone(), e.message.as_str()), ("invalid_literal", path!["type"], "Invalid literal value, expected \"workspace.sys\""));
+    assert_eq!(
+        (e.code.as_str(), e.path.clone(), e.message.as_str()),
+        ("invalid_literal", path!["type"], "Invalid literal value, expected \"workspace.sys\"")
+    );
     let e = refused::<PlaceSysEvent>({
         let mut v = sys_event(json!({ "type": 5 }));
         v["placeId"] = json!("p");
         v
     });
-    assert_eq!((e.code.as_str(), e.path.clone(), e.message.as_str()), ("invalid_literal", path!["type"], "Invalid literal value, expected \"place.sys\""));
+    assert_eq!(
+        (e.code.as_str(), e.path.clone(), e.message.as_str()),
+        ("invalid_literal", path!["type"], "Invalid literal value, expected \"place.sys\"")
+    );
     let mut bad = sys_event(json!({}));
     bad["sample"]["type"] = json!("zzz");
     let e = refused::<WorkspaceSysEvent>(bad);
-    assert_eq!((e.code.as_str(), e.path.clone(), e.message.as_str()), ("invalid_literal", path!["sample", "type"], "Invalid literal value, expected \"sys.sample\""));
+    assert_eq!(
+        (e.code.as_str(), e.path.clone(), e.message.as_str()),
+        ("invalid_literal", path!["sample", "type"], "Invalid literal value, expected \"sys.sample\"")
+    );
 }
 
 // ---- process rows ----------------------------------------------------------------------------------------------
@@ -291,13 +317,22 @@ fn a_frames_shape_takes_the_numbers_zod_takes() {
 #[test]
 fn a_frames_shape_refuses_null_for_an_optional_key() {
     let e = refused::<ProcListReply>(reply(vec![row(json!({ "pty": null }))]));
-    assert_eq!((e.code.as_str(), e.path.clone(), e.message.as_str()), ("invalid_type", path!["procs", 0, "pty"], "Expected string, received null"));
+    assert_eq!(
+        (e.code.as_str(), e.path.clone(), e.message.as_str()),
+        ("invalid_type", path!["procs", 0, "pty"], "Expected string, received null")
+    );
     let e = refused::<TranscriptsListReply>(json!({ "rows": [{ "id": "a", "cwd": "/a", "branch": null, "lastAt": 1, "bytes": 2 }] }));
-    assert_eq!((e.code.as_str(), e.path.clone(), e.message.as_str()), ("invalid_type", path!["rows", 0, "branch"], "Expected string, received null"));
+    assert_eq!(
+        (e.code.as_str(), e.path.clone(), e.message.as_str()),
+        ("invalid_type", path!["rows", 0, "branch"], "Expected string, received null")
+    );
     let usage = json!({ "rows": [{ "agent": "a", "session": "s", "at": 1, "model": "m", "folder": null,
         "tokens": { "input": 1, "output": 1, "cached": 1, "cacheWrite": 1, "reasoning": 1 } }], "limits": [] });
     let e = refused::<UsageLogsReply>(usage);
-    assert_eq!((e.code.as_str(), e.path.clone(), e.message.as_str()), ("invalid_type", path!["rows", 0, "folder"], "Expected string, received null"));
+    assert_eq!(
+        (e.code.as_str(), e.path.clone(), e.message.as_str()),
+        ("invalid_type", path!["rows", 0, "folder"], "Expected string, received null")
+    );
 }
 
 /// A whole-number f64 of a wsp-frames shape is written `1.0`, `0.0`, `50.0`; JavaScript writes `1`, `0`, `50`. node:

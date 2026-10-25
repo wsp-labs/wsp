@@ -42,7 +42,7 @@ impl Check for Checkout {
     /// Rules: stashes: > 0.
     fn check(&self) -> Result<(), SchemaError> {
         if let Some(v) = self.stashes {
-            crate::types::check::num_above(v.0.0, 0.0).map_err(|e| e.under("stashes"))?;
+            crate::types::check::num_above(v.0 .0, 0.0).map_err(|e| e.under("stashes"))?;
         }
         Ok(())
     }
@@ -52,15 +52,15 @@ impl Check for Checkout {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("branch") { None => out.push(crate::types::check::missing::<Self>("branch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } } }
-        match obj.get("ahead") { None => out.push(crate::types::check::missing::<Self>("ahead")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ahead"))), } } }
-        match obj.get("behind") { None => out.push(crate::types::check::missing::<Self>("behind")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("behind"))), } } }
-        match obj.get("changed") { None => out.push(crate::types::check::missing::<Self>("changed")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("changed"))), } } }
-        if let Some(v) = obj.get("editsUnread") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("editsUnread"))), } }
-        if let Some(v) = obj.get("countsUnknown") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("countsUnknown"))), } }
-        if let Some(v) = obj.get("stashes") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_stashes(&x) { out.push(e.under("stashes")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("stashes"))), } }
-        if let Some(v) = obj.get("head") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("head"))), } }
-        match obj.get("readAt") { None => out.push(crate::types::check::missing::<Self>("readAt")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("readAt"))), } } }
+        crate::types::keys::req_key::<String>(obj, "branch", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "ahead", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "behind", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "changed", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "editsUnread", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "countsUnknown", &mut out);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "stashes", &mut out, Self::rule_stashes);
+        crate::types::keys::opt_key::<String>(obj, "head", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "readAt", &mut out);
         Some(out)
     }
 
@@ -85,7 +85,7 @@ impl Check for Checkout {
 impl Checkout {
     fn rule_stashes(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
         if let Some(v) = (*x) {
-            crate::types::check::num_above(v.0.0, 0.0)?;
+            crate::types::check::num_above(v.0 .0, 0.0)?;
         }
         Ok(())
     }
@@ -111,7 +111,7 @@ impl Check for CheckoutReply {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        if let Some(v) = obj.get("checkout") { match crate::types::check::read_present::<Checkout>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("checkout"))), } }
+        crate::types::keys::opt_key::<Checkout>(obj, "checkout", &mut out);
         Some(out)
     }
 
@@ -146,8 +146,8 @@ impl Check for CommitDraft {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("message") { None => out.push(crate::types::check::missing::<Self>("message")), Some(v) => { match crate::types::check::read::<Option<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("message"))), } } }
-        if let Some(v) = obj.get("note") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("note"))), } }
+        crate::types::keys::req_key::<Option<String>>(obj, "message", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "note", &mut out);
         Some(out)
     }
 
@@ -181,7 +181,7 @@ impl Check for ViewedMarks {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("viewed") { None => out.push(crate::types::check::missing::<Self>("viewed")), Some(v) => { match crate::types::check::read::<IndexMap<String, String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("viewed"))), } } }
+        crate::types::keys::req_key::<IndexMap<String, String>>(obj, "viewed", &mut out);
         Some(out)
     }
 

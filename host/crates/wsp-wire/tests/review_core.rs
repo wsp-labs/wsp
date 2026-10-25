@@ -11,7 +11,9 @@ use wsp_wire::types::thread_defaults::ProjectOverrides;
 use wsp_wire::types::JsNumber;
 use wsp_wire::views::place::PlaceCap;
 use wsp_wire::wire::capabilities::Capabilities;
-use wsp_wire::wire::daemon::{CgroupMemory, DaemonAuthRequest, DaemonRequest, FsImageReply, FsSearchReply, GitCommitReply, ProcListReply, SshStartReply};
+use wsp_wire::wire::daemon::{
+    CgroupMemory, DaemonAuthRequest, DaemonRequest, FsImageReply, FsSearchReply, GitCommitReply, ProcListReply, SshStartReply,
+};
 use wsp_wire::wire::daemon_events::DaemonEvent;
 use wsp_wire::wire::limits::PortForward;
 use wsp_wire::wire::machine_link::{DaemonResponse, MachineLinkRequest, PlaceSysEvent, SysPoint};
@@ -26,7 +28,10 @@ fn refused<T: DeserializeOwned + Serialize + Check>(text: &str, code: &str, path
     let input: Value = serde_json::from_str(text).unwrap();
     let label = format!("{} {}", name::<T>(), &text[..text.len().min(120)]);
     match parse::<T>(&input) {
-        Ok(read) => Some(format!("{label}: zod refused it ({code} at {path} {message:?}), read here as {}", serde_json::to_string(&read).unwrap_or_else(|e| format!("<unwritable: {e}>")))),
+        Ok(read) => Some(format!(
+            "{label}: zod refused it ({code} at {path} {message:?}), read here as {}",
+            serde_json::to_string(&read).unwrap_or_else(|e| format!("<unwritable: {e}>"))
+        )),
         Err(e) if e.code == code && Value::Array(e.path.clone()) == path && e.message == message => None,
         Err(e) => Some(format!("{label}: zod answers {code} at {path} {message:?}, here {} at {:?} {:?}", e.code, e.path, e.message)),
     }
@@ -81,9 +86,24 @@ fn a_daemon_reply_re_exported_from_wsp_frames_reads_and_writes_as_zod_does() {
         // .optional() refuses null.
         refused::<FsImageReply>(r#"{"size":1,"modified":null}"#, "invalid_type", json!(["modified"]), "Expected number, received null"),
         // SSH_HOST_KEY_LINE (daemon.ts:290): one ed25519 line, no second line for known_hosts.
-        refused::<SshStartReply>(r#"{"port":22,"hostKey":"ssh-ed25519 AAAA\n@cert-authority * ssh-ed25519 AAAA"}"#, "invalid_string", json!(["hostKey"]), "Invalid"),
-        refused::<SshStartReply>(r#"{"port":0,"hostKey":"ssh-ed25519 AAAA"}"#, "too_small", json!(["port"]), "Number must be greater than or equal to 1"),
-        refused::<FsSearchReply>(r#"{"hits":[{"path":"a","line":0}],"truncated":false}"#, "too_small", json!(["hits", 0, "line"]), "Number must be greater than 0"),
+        refused::<SshStartReply>(
+            r#"{"port":22,"hostKey":"ssh-ed25519 AAAA\n@cert-authority * ssh-ed25519 AAAA"}"#,
+            "invalid_string",
+            json!(["hostKey"]),
+            "Invalid",
+        ),
+        refused::<SshStartReply>(
+            r#"{"port":0,"hostKey":"ssh-ed25519 AAAA"}"#,
+            "too_small",
+            json!(["port"]),
+            "Number must be greater than or equal to 1",
+        ),
+        refused::<FsSearchReply>(
+            r#"{"hits":[{"path":"a","line":0}],"truncated":false}"#,
+            "too_small",
+            json!(["hits", 0, "line"]),
+            "Number must be greater than 0",
+        ),
         // serde's derive reads a struct from an array by position.
         refused::<CgroupMemory>(r#"["/a",1]"#, "invalid_type", json!([]), "Expected object, received array"),
         // JavaScript writes an integral number with no ".0" (rule 4.25).
@@ -139,7 +159,12 @@ fn an_inline_member_answers_its_first_key_that_fails() {
 /// check.rs:602.
 #[test]
 fn a_fraction_where_a_string_is_due_is_received_as_a_number() {
-    none_differ(vec![refused::<PullRequestLabel>(r#"{"name":1.5,"color":"c"}"#, "invalid_type", json!(["name"]), "Expected string, received number")]);
+    none_differ(vec![refused::<PullRequestLabel>(
+        r#"{"name":1.5,"color":"c"}"#,
+        "invalid_type",
+        json!(["name"]),
+        "Expected string, received number",
+    )]);
 }
 
 /// The foundation review's finding 13, for the case it named: ZodNumber's .int() check marks the parse dirty, not
@@ -149,7 +174,12 @@ fn a_fraction_where_a_string_is_due_is_received_as_a_number() {
 fn a_union_answers_its_member_whose_only_issue_is_the_integer_rule() {
     none_differ(vec![
         refused::<PlaceCap>(r#"{"threads":2.5}"#, "invalid_type", json!(["threads"]), "Expected integer, received float"),
-        refused::<DaemonResponse>(r#"{"id":1,"ok":false,"error":"x","status":2.5}"#, "invalid_type", json!(["status"]), "Expected integer, received float"),
+        refused::<DaemonResponse>(
+            r#"{"id":1,"ok":false,"error":"x","status":2.5}"#,
+            "invalid_type",
+            json!(["status"]),
+            "Expected integer, received float",
+        ),
     ]);
 }
 
@@ -164,8 +194,18 @@ fn a_key_names_the_type_zod_expects_there() {
             json!(["kind"]),
             "Expected 'url' | 'callback' | 'editor', received null",
         ),
-        refused::<SessionWarmResult>(r#"{"warm":7}"#, "invalid_type", json!(["warm"]), "Expected 'started' | 'standing' | 'none', received number"),
-        refused::<BrokerStatus>(r#"{"claude":7}"#, "invalid_type", json!(["claude"]), "Expected 'token' | 'key' | 'gateway' | 'login', received number"),
+        refused::<SessionWarmResult>(
+            r#"{"warm":7}"#,
+            "invalid_type",
+            json!(["warm"]),
+            "Expected 'started' | 'standing' | 'none', received number",
+        ),
+        refused::<BrokerStatus>(
+            r#"{"claude":7}"#,
+            "invalid_type",
+            json!(["claude"]),
+            "Expected 'token' | 'key' | 'gateway' | 'login', received number",
+        ),
     ]);
 }
 
@@ -173,14 +213,22 @@ fn a_key_names_the_type_zod_expects_there() {
 /// null as absent.
 #[test]
 fn an_optional_trimmed_key_refuses_null() {
-    none_differ(vec![refused::<ProjectOverrides>(r#"{"afterWorktree":null}"#, "invalid_type", json!(["afterWorktree"]), "Expected string, received null")]);
+    none_differ(vec![refused::<ProjectOverrides>(
+        r#"{"afterWorktree":null}"#,
+        "invalid_type",
+        json!(["afterWorktree"]),
+        "Expected string, received null",
+    )]);
 }
 
 /// z.unknown() takes every value, null and undefined among them (runtime.ts:189, daemon.ts:930, daemon-events.ts:88).
 #[test]
 fn an_unknown_key_takes_null_and_absence() {
     none_differ(vec![
-        takes::<RuntimeRequest>(r#"{"id":1,"op":"recipes.save","name":"r","file":null}"#, json!({"id": 1, "op": "recipes.save", "name": "r", "file": null})),
+        takes::<RuntimeRequest>(
+            r#"{"id":1,"op":"recipes.save","name":"r","file":null}"#,
+            json!({"id": 1, "op": "recipes.save", "name": "r", "file": null}),
+        ),
         takes::<DaemonRequest>(r#"{"id":1,"op":"guest.send"}"#, json!({"id": 1, "op": "guest.send"})),
         takes::<DaemonEvent>(r#"{"type":"guest.message","session":"s"}"#, json!({"type": "guest.message", "session": "s"})),
     ]);
@@ -211,7 +259,12 @@ fn a_local_backend_s_capabilities_write_in_the_order_it_builds_them() {
 #[test]
 fn a_literal_key_answers_invalid_literal() {
     none_differ(vec![
-        refused::<DaemonAuthRequest>(r#"{"id":"a","token":"a","port":1,"pipe":true}"#, "invalid_literal", json!(["op"]), "Invalid literal value, expected \"auth\""),
+        refused::<DaemonAuthRequest>(
+            r#"{"id":"a","token":"a","port":1,"pipe":true}"#,
+            "invalid_literal",
+            json!(["op"]),
+            "Invalid literal value, expected \"auth\"",
+        ),
         refused::<PlaceSysEvent>(
             &format!(r#"{{"type":null,"placeId":"p","sample":{SYS_SAMPLE}}}"#),
             "invalid_literal",
@@ -251,7 +304,11 @@ fn a_response_with_no_id_answers_invalid_union() {
 #[test]
 fn a_daemon_frame_is_written_as_the_daemon_channel_writes_it() {
     let read = parse::<DaemonRequest>(&json!({"op": "git.status", "cwd": "/w", "id": 1})).unwrap();
-    assert_eq!(serde_json::to_string(&read).unwrap(), r#"{"op":"git.status","cwd":"/w","id":1}"#, "the TS host's daemon channel writes this frame so");
+    assert_eq!(
+        serde_json::to_string(&read).unwrap(),
+        r#"{"op":"git.status","cwd":"/w","id":1}"#,
+        "the TS host's daemon channel writes this frame so"
+    );
 }
 
 /// proc_frames rules 1-3 (zod's `.catch`, daemon.ts:359-380): a row's unknown or null kind reads as `other` and an
@@ -260,7 +317,11 @@ fn a_daemon_frame_is_written_as_the_daemon_channel_writes_it() {
 /// row refuses the whole list; the rule's tests read ProcSnapshot only.
 #[test]
 fn a_process_list_reads_a_row_it_does_not_know_as_zod_catches_it() {
-    let row = |extra: &str| format!(r#"{{"at":1,"daemon":1,"total":1,"procs":[{{"pid":1,"ppid":0,"user":"u","state":"S","comm":"c","cmdline":"c","cpu":1,"rss":1,"startedAt":1{extra}}}]}}"#);
+    let row = |extra: &str| {
+        format!(
+            r#"{{"at":1,"daemon":1,"total":1,"procs":[{{"pid":1,"ppid":0,"user":"u","state":"S","comm":"c","cmdline":"c","cpu":1,"rss":1,"startedAt":1{extra}}}]}}"#
+        )
+    };
     let caught = r#"{"at":1,"daemon":1,"total":1,"procs":[{"pid":1,"ppid":0,"user":"u","state":"S","comm":"c","cmdline":"c","cpu":1,"rss":1,"startedAt":1,"kind":"other"}]}"#;
     none_differ(vec![
         read_as::<ProcListReply>(&row(r#","kind":"nope""#), caught),

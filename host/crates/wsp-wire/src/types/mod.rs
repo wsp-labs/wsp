@@ -15,6 +15,7 @@ pub mod general_prefs;
 pub mod harness_picks;
 pub mod init_job;
 pub mod js_number;
+pub mod keys;
 pub mod literal;
 pub mod oom;
 pub mod outside_line;

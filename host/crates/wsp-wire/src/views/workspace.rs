@@ -16,8 +16,8 @@ use crate::types::workspace_look::WorkspaceGlyph;
 use crate::types::workspace_look::WorkspaceTheme;
 use crate::views::workspace_kind::WorkspaceKind;
 use crate::wire::capabilities::PauseMode;
-use wsp_frames::True;
 use crate::wire::capabilities::WorkspaceSize;
+use wsp_frames::True;
 
 literal!(ThreadLit, "thread");
 
@@ -42,7 +42,10 @@ pub enum WorkspacePhase {
 
 impl Check for WorkspacePhase {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["running", "pausing", "napping", "waking", "gone", "queued", "released"]))
+        crate::types::check::leaf(
+            path,
+            crate::types::check::Zod::Options(&["running", "pausing", "napping", "waking", "gone", "queued", "released"]),
+        )
     }
 }
 
@@ -79,7 +82,19 @@ pub enum ReachState {
 
 impl Check for ReachState {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["reachable", "no-daemon", "unreachable", "napping", "unsupported", "gone", "slow", "zombie"]))
+        crate::types::check::leaf(
+            path,
+            crate::types::check::Zod::Options(&[
+                "reachable",
+                "no-daemon",
+                "unreachable",
+                "napping",
+                "unsupported",
+                "gone",
+                "slow",
+                "zombie",
+            ]),
+        )
     }
 }
 
@@ -108,10 +123,10 @@ impl Check for ReachStatus {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("state") { None => out.push(crate::types::check::missing::<Self>("state")), Some(v) => { match crate::types::check::read::<ReachState>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("state"))), } } }
-        if let Some(v) = obj.get("url") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("url"))), } }
-        if let Some(v) = obj.get("expiresAt") { match crate::types::check::read_present::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("expiresAt"))), } }
-        if let Some(v) = obj.get("offline") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("offline"))), } }
+        crate::types::keys::req_key::<ReachState>(obj, "state", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "url", &mut out);
+        crate::types::keys::opt_key::<JsNumber>(obj, "expiresAt", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "offline", &mut out);
         Some(out)
     }
 
@@ -150,8 +165,8 @@ impl Check for ReachView {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("state") { None => out.push(crate::types::check::missing::<Self>("state")), Some(v) => { match crate::types::check::read::<ReachState>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("state"))), } } }
-        if let Some(v) = obj.get("offline") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("offline"))), } }
+        crate::types::keys::req_key::<ReachState>(obj, "state", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "offline", &mut out);
         Some(out)
     }
 
@@ -187,9 +202,9 @@ impl Check for DaemonReachView {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("url") { None => out.push(crate::types::check::missing::<Self>("url")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("url"))), } } }
-        match obj.get("expiresAt") { None => out.push(crate::types::check::missing::<Self>("expiresAt")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("expiresAt"))), } } }
-        if let Some(v) = obj.get("daemonToken") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("daemonToken"))), } }
+        crate::types::keys::req_key::<String>(obj, "url", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "expiresAt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "daemonToken", &mut out);
         Some(out)
     }
 
@@ -224,8 +239,8 @@ impl Check for PortReachView {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("url") { None => out.push(crate::types::check::missing::<Self>("url")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("url"))), } } }
-        match obj.get("expiresAt") { None => out.push(crate::types::check::missing::<Self>("expiresAt")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("expiresAt"))), } } }
+        crate::types::keys::req_key::<String>(obj, "url", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "expiresAt", &mut out);
         Some(out)
     }
 
@@ -259,8 +274,8 @@ impl Check for PortProbeView {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("status") { None => out.push(crate::types::check::missing::<Self>("status")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("status"))), } } }
-        match obj.get("body") { None => out.push(crate::types::check::missing::<Self>("body")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("body"))), } } }
+        crate::types::keys::req_key::<JsInt>(obj, "status", &mut out);
+        crate::types::keys::req_key::<String>(obj, "body", &mut out);
         Some(out)
     }
 
@@ -291,7 +306,7 @@ impl Check for WorkspaceProject {
     /// Rules: size: >= 0.
     fn check(&self) -> Result<(), SchemaError> {
         if let Some(v) = self.size {
-            crate::types::check::num_at_least(v.0.0, 0.0).map_err(|e| e.under("size"))?;
+            crate::types::check::num_at_least(v.0 .0, 0.0).map_err(|e| e.under("size"))?;
         }
         Ok(())
     }
@@ -301,10 +316,10 @@ impl Check for WorkspaceProject {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
-        match obj.get("dest") { None => out.push(crate::types::check::missing::<Self>("dest")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("dest"))), } } }
-        match obj.get("importedAt") { None => out.push(crate::types::check::missing::<Self>("importedAt")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("importedAt"))), } } }
-        if let Some(v) = obj.get("size") { match crate::types::check::read_present::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_size(&x) { out.push(e.under("size")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("size"))), } }
+        crate::types::keys::req_key::<String>(obj, "name", &mut out);
+        crate::types::keys::req_key::<String>(obj, "dest", &mut out);
+        crate::types::keys::req_key::<String>(obj, "importedAt", &mut out);
+        crate::types::keys::opt_key_with::<JsInt>(obj, "size", &mut out, Self::rule_size);
         Some(out)
     }
 
@@ -324,7 +339,7 @@ impl Check for WorkspaceProject {
 impl WorkspaceProject {
     fn rule_size(x: &Option<JsInt>) -> Result<(), crate::types::check::SchemaError> {
         if let Some(v) = (*x) {
-            crate::types::check::num_at_least(v.0.0, 0.0)?;
+            crate::types::check::num_at_least(v.0 .0, 0.0)?;
         }
         Ok(())
     }
@@ -370,8 +385,8 @@ impl Check for SeedFileRow {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
+        crate::types::keys::req_key::<String>(obj, "id", &mut out);
+        crate::types::keys::req_key::<String>(obj, "name", &mut out);
         Some(out)
     }
 
@@ -404,7 +419,7 @@ impl Check for SeedFile {
     /// Rules: bytes: >= 0.
     /// Nested checks: kind, row.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.bytes.0.0, 0.0).map_err(|e| e.under("bytes"))?;
+        crate::types::check::num_at_least(self.bytes.0 .0, 0.0).map_err(|e| e.under("bytes"))?;
         self.kind.check().map_err(|e| e.under("kind"))?;
         self.row.check().map_err(|e| e.under("row"))?;
         Ok(())
@@ -415,12 +430,12 @@ impl Check for SeedFile {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("path") { None => out.push(crate::types::check::missing::<Self>("path")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("path"))), } } }
-        match obj.get("dir") { None => out.push(crate::types::check::missing::<Self>("dir")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("dir"))), } } }
-        match obj.get("bytes") { None => out.push(crate::types::check::missing::<Self>("bytes")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_bytes(&x) { out.push(e.under("bytes")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("bytes"))), } } }
-        match obj.get("kind") { None => out.push(crate::types::check::missing::<Self>("kind")), Some(v) => { match crate::types::check::read::<SeedKind>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("kind"))), } } }
-        if let Some(v) = obj.get("row") { match crate::types::check::read_present::<SeedFileRow>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("row"))), } }
-        match obj.get("ticked") { None => out.push(crate::types::check::missing::<Self>("ticked")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("ticked"))), } } }
+        crate::types::keys::req_key::<String>(obj, "path", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "dir", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "bytes", &mut out, Self::rule_bytes);
+        crate::types::keys::req_key::<SeedKind>(obj, "kind", &mut out);
+        crate::types::keys::opt_key::<SeedFileRow>(obj, "row", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "ticked", &mut out);
         Some(out)
     }
 
@@ -441,7 +456,7 @@ impl Check for SeedFile {
 }
 impl SeedFile {
     fn rule_bytes(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -463,8 +478,8 @@ impl Check for SeedPlanUnpushed {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("commits") { None => out.push(crate::types::check::missing::<Self>("commits")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("commits"))), } } }
-        match obj.get("base") { None => out.push(crate::types::check::missing::<Self>("base")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("base"))), } } }
+        crate::types::keys::req_key::<JsInt>(obj, "commits", &mut out);
+        crate::types::keys::req_key::<String>(obj, "base", &mut out);
         Some(out)
     }
 
@@ -498,9 +513,9 @@ impl Check for SeedPlanMemory {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("key") { None => out.push(crate::types::check::missing::<Self>("key")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("key"))), } } }
-        match obj.get("files") { None => out.push(crate::types::check::missing::<Self>("files")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("files"))), } } }
-        match obj.get("bytes") { None => out.push(crate::types::check::missing::<Self>("bytes")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("bytes"))), } } }
+        crate::types::keys::req_key::<String>(obj, "key", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "files", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "bytes", &mut out);
         Some(out)
     }
 
@@ -543,7 +558,7 @@ impl Check for SeedPlan {
     /// Nested checks: unpushed, memory, files.
     fn check(&self) -> Result<(), SchemaError> {
         self.unpushed.check().map_err(|e| e.under("unpushed"))?;
-        crate::types::check::num_at_least(self.uncommitted.0.0, 0.0).map_err(|e| e.under("uncommitted"))?;
+        crate::types::check::num_at_least(self.uncommitted.0 .0, 0.0).map_err(|e| e.under("uncommitted"))?;
         self.memory.check().map_err(|e| e.under("memory"))?;
         self.files.check().map_err(|e| e.under("files"))?;
         Ok(())
@@ -554,16 +569,16 @@ impl Check for SeedPlan {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("source") { None => out.push(crate::types::check::missing::<Self>("source")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("source"))), } } }
-        match obj.get("remote") { None => out.push(crate::types::check::missing::<Self>("remote")), Some(v) => { match crate::types::check::read::<Option<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("remote"))), } } }
-        match obj.get("branch") { None => out.push(crate::types::check::missing::<Self>("branch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } } }
-        match obj.get("defaultBranch") { None => out.push(crate::types::check::missing::<Self>("defaultBranch")), Some(v) => { match crate::types::check::read::<Option<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("defaultBranch"))), } } }
-        match obj.get("unpushed") { None => out.push(crate::types::check::missing::<Self>("unpushed")), Some(v) => { match crate::types::check::read::<Option<SeedPlanUnpushed>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("unpushed"))), } } }
-        match obj.get("uncommitted") { None => out.push(crate::types::check::missing::<Self>("uncommitted")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_uncommitted(&x) { out.push(e.under("uncommitted")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("uncommitted"))), } } }
-        match obj.get("memory") { None => out.push(crate::types::check::missing::<Self>("memory")), Some(v) => { match crate::types::check::read::<Option<SeedPlanMemory>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memory"))), } } }
-        match obj.get("files") { None => out.push(crate::types::check::missing::<Self>("files")), Some(v) => { match crate::types::check::read::<Vec<SeedFile>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("files"))), } } }
-        match obj.get("remembered") { None => out.push(crate::types::check::missing::<Self>("remembered")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("remembered"))), } } }
-        if let Some(v) = obj.get("provider") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("provider"))), } }
+        crate::types::keys::req_key::<String>(obj, "source", &mut out);
+        crate::types::keys::req_key::<Option<String>>(obj, "remote", &mut out);
+        crate::types::keys::req_key::<String>(obj, "branch", &mut out);
+        crate::types::keys::req_key::<Option<String>>(obj, "defaultBranch", &mut out);
+        crate::types::keys::req_key::<Option<SeedPlanUnpushed>>(obj, "unpushed", &mut out);
+        crate::types::keys::req_key_with::<JsInt>(obj, "uncommitted", &mut out, Self::rule_uncommitted);
+        crate::types::keys::req_key::<Option<SeedPlanMemory>>(obj, "memory", &mut out);
+        crate::types::keys::req_key::<Vec<SeedFile>>(obj, "files", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "remembered", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "provider", &mut out);
         Some(out)
     }
 
@@ -588,7 +603,7 @@ impl Check for SeedPlan {
 }
 impl SeedPlan {
     fn rule_uncommitted(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least((*x).0.0, 0.0)?;
+        crate::types::check::num_at_least((*x).0 .0, 0.0)?;
         Ok(())
     }
 }
@@ -614,10 +629,10 @@ impl Check for SeedChoice {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("files") { None => out.push(crate::types::check::missing::<Self>("files")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("files"))), } } }
-        match obj.get("memory") { None => out.push(crate::types::check::missing::<Self>("memory")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memory"))), } } }
-        match obj.get("commits") { None => out.push(crate::types::check::missing::<Self>("commits")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("commits"))), } } }
-        if let Some(v) = obj.get("remember") { match crate::types::check::read_present::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("remember"))), } }
+        crate::types::keys::req_key::<Vec<String>>(obj, "files", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "memory", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "commits", &mut out);
+        crate::types::keys::opt_key::<bool>(obj, "remember", &mut out);
         Some(out)
     }
 
@@ -659,12 +674,12 @@ impl Check for SeedPickRow {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("path") { None => out.push(crate::types::check::missing::<Self>("path")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("path"))), } } }
-        match obj.get("dir") { None => out.push(crate::types::check::missing::<Self>("dir")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("dir"))), } } }
-        match obj.get("bytes") { None => out.push(crate::types::check::missing::<Self>("bytes")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("bytes"))), } } }
-        match obj.get("kind") { None => out.push(crate::types::check::missing::<Self>("kind")), Some(v) => { match crate::types::check::read::<SeedKind>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("kind"))), } } }
-        match obj.get("why") { None => out.push(crate::types::check::missing::<Self>("why")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("why"))), } } }
-        match obj.get("picked") { None => out.push(crate::types::check::missing::<Self>("picked")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("picked"))), } } }
+        crate::types::keys::req_key::<String>(obj, "path", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "dir", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "bytes", &mut out);
+        crate::types::keys::req_key::<SeedKind>(obj, "kind", &mut out);
+        crate::types::keys::req_key::<String>(obj, "why", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "picked", &mut out);
         Some(out)
     }
 
@@ -702,9 +717,9 @@ impl Check for ProjectSeedPicked {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("paths") { None => out.push(crate::types::check::missing::<Self>("paths")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("paths"))), } } }
-        match obj.get("bytes") { None => out.push(crate::types::check::missing::<Self>("bytes")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("bytes"))), } } }
-        match obj.get("missing") { None => out.push(crate::types::check::missing::<Self>("missing")), Some(v) => { match crate::types::check::read::<Vec<String>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("missing"))), } } }
+        crate::types::keys::req_key::<Vec<String>>(obj, "paths", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "bytes", &mut out);
+        crate::types::keys::req_key::<Vec<String>>(obj, "missing", &mut out);
         Some(out)
     }
 
@@ -745,11 +760,11 @@ impl Check for ProjectSeed {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("project") { None => out.push(crate::types::check::missing::<Self>("project")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("project"))), } } }
-        match obj.get("folder") { None => out.push(crate::types::check::missing::<Self>("folder")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("folder"))), } } }
-        match obj.get("rows") { None => out.push(crate::types::check::missing::<Self>("rows")), Some(v) => { match crate::types::check::read::<Vec<SeedPickRow>>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("rows"))), } } }
-        match obj.get("picked") { None => out.push(crate::types::check::missing::<Self>("picked")), Some(v) => { match crate::types::check::read::<ProjectSeedPicked>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("picked"))), } } }
-        match obj.get("saved") { None => out.push(crate::types::check::missing::<Self>("saved")), Some(v) => { match crate::types::check::read::<bool>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("saved"))), } } }
+        crate::types::keys::req_key::<String>(obj, "project", &mut out);
+        crate::types::keys::req_key::<String>(obj, "folder", &mut out);
+        crate::types::keys::req_key::<Vec<SeedPickRow>>(obj, "rows", &mut out);
+        crate::types::keys::req_key::<ProjectSeedPicked>(obj, "picked", &mut out);
+        crate::types::keys::req_key::<bool>(obj, "saved", &mut out);
         Some(out)
     }
 
@@ -789,7 +804,10 @@ pub enum ProjectAddStage {
 
 impl Check for ProjectAddStage {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["planned", "cloning", "seeding", "installing", "imaging", "done", "failed"]))
+        crate::types::check::leaf(
+            path,
+            crate::types::check::Zod::Options(&["planned", "cloning", "seeding", "installing", "imaging", "done", "failed"]),
+        )
     }
 }
 
@@ -814,7 +832,7 @@ impl Check for ProjectSourceFolder {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("path") { None => out.push(crate::types::check::missing::<Self>("path")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("path"))), } } }
+        crate::types::keys::req_key::<String>(obj, "path", &mut out);
         Some(out)
     }
 
@@ -850,7 +868,7 @@ impl Check for ProjectSourceGit {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("url") { None => out.push(crate::types::check::missing::<Self>("url")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("url"))), } } }
+        crate::types::keys::req_key::<String>(obj, "url", &mut out);
         Some(out)
     }
 
@@ -886,7 +904,7 @@ impl Check for ProjectSourceGithub {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("repo") { None => out.push(crate::types::check::missing::<Self>("repo")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("repo"))), } } }
+        crate::types::keys::req_key::<String>(obj, "repo", &mut out);
         Some(out)
     }
 
@@ -922,7 +940,7 @@ impl Check for ProjectSourceGitlab {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("repo") { None => out.push(crate::types::check::missing::<Self>("repo")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("repo"))), } } }
+        crate::types::keys::req_key::<String>(obj, "repo", &mut out);
         Some(out)
     }
 
@@ -966,20 +984,45 @@ impl Check for ProjectSource {
         let serde_json::Value::Object(obj) = value else {
             return Some(vec![crate::types::check::not_object(value)]);
         };
-        let Some(tag) = obj.get("kind") else { return Some(vec![crate::types::check::missing::<Self>("kind")]); };
+        let Some(tag) = obj.get("kind") else {
+            return Some(vec![crate::types::check::missing::<Self>("kind")]);
+        };
         match tag.as_str() {
-            Some("folder") => { let mut body = obj.clone(); body.shift_remove("kind"); Some(crate::types::check::issues_of::<ProjectSourceFolder>(&serde_json::Value::Object(body))) }
-            Some("git") => { let mut body = obj.clone(); body.shift_remove("kind"); Some(crate::types::check::issues_of::<ProjectSourceGit>(&serde_json::Value::Object(body))) }
-            Some("github") => { let mut body = obj.clone(); body.shift_remove("kind"); Some(crate::types::check::issues_of::<ProjectSourceGithub>(&serde_json::Value::Object(body))) }
-            Some("gitlab") => { let mut body = obj.clone(); body.shift_remove("kind"); Some(crate::types::check::issues_of::<ProjectSourceGitlab>(&serde_json::Value::Object(body))) }
+            Some("folder") => {
+                let mut body = obj.clone();
+                body.shift_remove("kind");
+                Some(crate::types::check::issues_of::<ProjectSourceFolder>(&serde_json::Value::Object(body)))
+            }
+            Some("git") => {
+                let mut body = obj.clone();
+                body.shift_remove("kind");
+                Some(crate::types::check::issues_of::<ProjectSourceGit>(&serde_json::Value::Object(body)))
+            }
+            Some("github") => {
+                let mut body = obj.clone();
+                body.shift_remove("kind");
+                Some(crate::types::check::issues_of::<ProjectSourceGithub>(&serde_json::Value::Object(body)))
+            }
+            Some("gitlab") => {
+                let mut body = obj.clone();
+                body.shift_remove("kind");
+                Some(crate::types::check::issues_of::<ProjectSourceGitlab>(&serde_json::Value::Object(body)))
+            }
             _ => Some(vec![crate::types::check::unknown_tag::<Self>("kind", tag)]),
         }
     }
 
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        if path.is_empty() { return Some(crate::types::check::Zod::Word("object")); }
-        if path.len() == 1 && path[0].as_str() == Some("kind") { return Some(crate::types::check::Zod::Tags("kind", &["folder", "git", "github", "gitlab"])); }
-        <ProjectSourceFolder as Check>::describe(path).or_else(|| <ProjectSourceGit as Check>::describe(path)).or_else(|| <ProjectSourceGithub as Check>::describe(path)).or_else(|| <ProjectSourceGitlab as Check>::describe(path))
+        if path.is_empty() {
+            return Some(crate::types::check::Zod::Word("object"));
+        }
+        if path.len() == 1 && path[0].as_str() == Some("kind") {
+            return Some(crate::types::check::Zod::Tags("kind", &["folder", "git", "github", "gitlab"]));
+        }
+        <ProjectSourceFolder as Check>::describe(path)
+            .or_else(|| <ProjectSourceGit as Check>::describe(path))
+            .or_else(|| <ProjectSourceGithub as Check>::describe(path))
+            .or_else(|| <ProjectSourceGitlab as Check>::describe(path))
     }
 }
 
@@ -1022,12 +1065,12 @@ impl Check for ProjectViewSeeded {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("files") { None => out.push(crate::types::check::missing::<Self>("files")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("files"))), } } }
-        match obj.get("bytes") { None => out.push(crate::types::check::missing::<Self>("bytes")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("bytes"))), } } }
-        match obj.get("memory") { None => out.push(crate::types::check::missing::<Self>("memory")), Some(v) => { match crate::types::check::read::<ProjectViewSeededMemory>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memory"))), } } }
-        if let Some(v) = obj.get("memoryFiles") { match crate::types::check::read_present::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memoryFiles"))), } }
-        match obj.get("commits") { None => out.push(crate::types::check::missing::<Self>("commits")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("commits"))), } } }
-        match obj.get("at") { None => out.push(crate::types::check::missing::<Self>("at")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } } }
+        crate::types::keys::req_key::<JsInt>(obj, "files", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "bytes", &mut out);
+        crate::types::keys::req_key::<ProjectViewSeededMemory>(obj, "memory", &mut out);
+        crate::types::keys::opt_key::<JsInt>(obj, "memoryFiles", &mut out);
+        crate::types::keys::req_key::<JsInt>(obj, "commits", &mut out);
+        crate::types::keys::req_key::<String>(obj, "at", &mut out);
         Some(out)
     }
 
@@ -1066,10 +1109,10 @@ impl Check for ProjectViewInstalled {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("row") { None => out.push(crate::types::check::missing::<Self>("row")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("row"))), } } }
-        match obj.get("command") { None => out.push(crate::types::check::missing::<Self>("command")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("command"))), } } }
-        match obj.get("at") { None => out.push(crate::types::check::missing::<Self>("at")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("at"))), } } }
-        match obj.get("seconds") { None => out.push(crate::types::check::missing::<Self>("seconds")), Some(v) => { match crate::types::check::read::<JsNumber>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("seconds"))), } } }
+        crate::types::keys::req_key::<String>(obj, "row", &mut out);
+        crate::types::keys::req_key::<String>(obj, "command", &mut out);
+        crate::types::keys::req_key::<String>(obj, "at", &mut out);
+        crate::types::keys::req_key::<JsNumber>(obj, "seconds", &mut out);
         Some(out)
     }
 
@@ -1106,9 +1149,9 @@ impl Check for ProjectViewImage {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("snapshotId") { None => out.push(crate::types::check::missing::<Self>("snapshotId")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("snapshotId"))), } } }
-        match obj.get("builtAt") { None => out.push(crate::types::check::missing::<Self>("builtAt")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("builtAt"))), } } }
-        if let Some(v) = obj.get("lockfileSha") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("lockfileSha"))), } }
+        crate::types::keys::req_key::<String>(obj, "snapshotId", &mut out);
+        crate::types::keys::req_key::<String>(obj, "builtAt", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "lockfileSha", &mut out);
         Some(out)
     }
 
@@ -1141,7 +1184,7 @@ impl Check for ProjectViewGit {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("top") { None => out.push(crate::types::check::missing::<Self>("top")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("top"))), } } }
+        crate::types::keys::req_key::<String>(obj, "top", &mut out);
         Some(out)
     }
 
@@ -1200,22 +1243,22 @@ impl Check for ProjectView {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("id") { None => out.push(crate::types::check::missing::<Self>("id")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("id"))), } } }
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
-        match obj.get("computer") { None => out.push(crate::types::check::missing::<Self>("computer")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("computer"))), } } }
-        match obj.get("source") { None => out.push(crate::types::check::missing::<Self>("source")), Some(v) => { match crate::types::check::read::<ProjectSource>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("source"))), } } }
-        match obj.get("path") { None => out.push(crate::types::check::missing::<Self>("path")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("path"))), } } }
-        match obj.get("remote") { None => out.push(crate::types::check::missing::<Self>("remote")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("remote"))), } } }
-        match obj.get("defaultBranch") { None => out.push(crate::types::check::missing::<Self>("defaultBranch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("defaultBranch"))), } } }
-        match obj.get("memoryKey") { None => out.push(crate::types::check::missing::<Self>("memoryKey")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memoryKey"))), } } }
-        match obj.get("memoryDir") { None => out.push(crate::types::check::missing::<Self>("memoryDir")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("memoryDir"))), } } }
-        if let Some(v) = obj.get("checkout") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("checkout"))), } }
-        if let Some(v) = obj.get("seeded") { match crate::types::check::read_present::<ProjectViewSeeded>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("seeded"))), } }
-        if let Some(v) = obj.get("installed") { match crate::types::check::read_present::<ProjectViewInstalled>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("installed"))), } }
-        if let Some(v) = obj.get("image") { match crate::types::check::read_present::<ProjectViewImage>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("image"))), } }
-        if let Some(v) = obj.get("base") { match crate::types::check::read_present::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("base"))), } }
-        if let Some(v) = obj.get("git") { match crate::types::check::read_present::<ProjectViewGit>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("git"))), } }
-        match obj.get("createdAt") { None => out.push(crate::types::check::missing::<Self>("createdAt")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("createdAt"))), } } }
+        crate::types::keys::req_key::<String>(obj, "id", &mut out);
+        crate::types::keys::req_key::<String>(obj, "name", &mut out);
+        crate::types::keys::req_key::<String>(obj, "computer", &mut out);
+        crate::types::keys::req_key::<ProjectSource>(obj, "source", &mut out);
+        crate::types::keys::req_key::<String>(obj, "path", &mut out);
+        crate::types::keys::req_key::<String>(obj, "remote", &mut out);
+        crate::types::keys::req_key::<String>(obj, "defaultBranch", &mut out);
+        crate::types::keys::req_key::<String>(obj, "memoryKey", &mut out);
+        crate::types::keys::req_key::<String>(obj, "memoryDir", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "checkout", &mut out);
+        crate::types::keys::opt_key::<ProjectViewSeeded>(obj, "seeded", &mut out);
+        crate::types::keys::opt_key::<ProjectViewInstalled>(obj, "installed", &mut out);
+        crate::types::keys::opt_key::<ProjectViewImage>(obj, "image", &mut out);
+        crate::types::keys::opt_key::<String>(obj, "base", &mut out);
+        crate::types::keys::opt_key::<ProjectViewGit>(obj, "git", &mut out);
+        crate::types::keys::req_key::<String>(obj, "createdAt", &mut out);
         Some(out)
     }
 
@@ -1262,7 +1305,7 @@ pub struct BranchOfRecord {
 impl Check for BranchOfRecord {
     /// Rules: repoId: > 0; owner: at least 1 UTF-16 units; name: at least 1 UTF-16 units; branch: at least 1 UTF-16 units; startSha: at least 1 UTF-16 units.
     fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_above(self.repo_id.0.0, 0.0).map_err(|e| e.under("repoId"))?;
+        crate::types::check::num_above(self.repo_id.0 .0, 0.0).map_err(|e| e.under("repoId"))?;
         crate::types::check::text_at_least(&self.owner, 1).map_err(|e| e.under("owner"))?;
         crate::types::check::text_at_least(&self.name, 1).map_err(|e| e.under("name"))?;
         crate::types::check::text_at_least(&self.branch, 1).map_err(|e| e.under("branch"))?;
@@ -1277,12 +1320,12 @@ impl Check for BranchOfRecord {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        match obj.get("repoId") { None => out.push(crate::types::check::missing::<Self>("repoId")), Some(v) => { match crate::types::check::read::<JsInt>(v) { Ok(x) => { if let Err(e) = Self::rule_repo_id(&x) { out.push(e.under("repoId")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("repoId"))), } } }
-        match obj.get("owner") { None => out.push(crate::types::check::missing::<Self>("owner")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_owner(&x) { out.push(e.under("owner")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("owner"))), } } }
-        match obj.get("name") { None => out.push(crate::types::check::missing::<Self>("name")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_name(&x) { out.push(e.under("name")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("name"))), } } }
-        match obj.get("branch") { None => out.push(crate::types::check::missing::<Self>("branch")), Some(v) => { match crate::types::check::read::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_branch(&x) { out.push(e.under("branch")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("branch"))), } } }
-        if let Some(v) = obj.get("startSha") { match crate::types::check::read_present::<String>(v) { Ok(x) => { if let Err(e) = Self::rule_start_sha(&x) { out.push(e.under("startSha")); } }, Err(es) => out.extend(es.into_iter().map(|e| e.under("startSha"))), } }
-        if let Some(v) = obj.get("public") { match crate::types::check::read_present::<True>(v) { Ok(_) => {}, Err(es) => out.extend(es.into_iter().map(|e| e.under("public"))), } }
+        crate::types::keys::req_key_with::<JsInt>(obj, "repoId", &mut out, Self::rule_repo_id);
+        crate::types::keys::req_key_with::<String>(obj, "owner", &mut out, Self::rule_owner);
+        crate::types::keys::req_key_with::<String>(obj, "name", &mut out, Self::rule_name);
+        crate::types::keys::req_key_with::<String>(obj, "branch", &mut out, Self::rule_branch);
+        crate::types::keys::opt_key_with::<String>(obj, "startSha", &mut out, Self::rule_start_sha);
+        crate::types::keys::opt_key::<True>(obj, "public", &mut out);
         Some(out)
     }
 
@@ -1303,7 +1346,7 @@ impl Check for BranchOfRecord {
 }
 impl BranchOfRecord {
     fn rule_repo_id(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_above((*x).0.0, 0.0)?;
+        crate::types::check::num_above((*x).0 .0, 0.0)?;
         Ok(())
     }
     fn rule_owner(x: &String) -> Result<(), crate::types::check::SchemaError> {
