@@ -54,6 +54,7 @@ struct Patterns {
     fingerprint: Regex,
     join_code: Regex,
     loopback: Regex,
+    temp_name: Regex,
     node_pid: Regex,
     reading: Regex,
     padding: Regex,
@@ -71,7 +72,8 @@ fn patterns() -> &'static Patterns {
         placeholder: Regex::new(r"<([a-z][a-z0-9]*)-(\d+)>").expect("placeholder"),
         fingerprint: Regex::new(r"SHA256:[A-Za-z0-9+/]{43}").expect("fingerprint"),
         join_code: Regex::new(r"\b[0-9A-Z]{4}-[0-9A-Z]{4}\b").expect("join code"),
-        loopback: Regex::new(r"\b(127\.0\.0\.1|localhost|\[::1\]):(?:3[3-9]|[4-6][0-9])\d{3}\b").expect("loopback"),
+        loopback: Regex::new(r"\b(127\.0\.0\.1|localhost|\[::1\]):(?:3[2-9]|[4-6][0-9])\d{3}\b").expect("loopback"),
+        temp_name: Regex::new(r"\b(wsp-[a-z0-9]+(?:-[a-z0-9]+)*-)([A-Za-z0-9]{6})\b").expect("temp name"),
         node_pid: Regex::new(r"\(node:\d+\)").expect("node pid"),
         reading: Regex::new(r"\b\d+(?:\.\d+)?[ \u{a0}]?(?:(?:[KMGT]i?)?B|ms)\b").expect("reading"),
         padding: Regex::new(r"  +").expect("padding"),
@@ -84,6 +86,14 @@ fn keyish(s: &str) -> bool {
     s.chars().any(|c| c.is_ascii_uppercase())
         && s.chars().any(|c| c.is_ascii_lowercase())
         && (s.chars().any(|c| c.is_ascii_digit() || c == '+' || c == '/') || s.len() >= 40)
+}
+
+/// Whether a whole string is a value a host mints: a uuid, a `ws_` style id, a run of hex, or a key in base64. A
+/// replay follows only these from a tape's recorded answers to the host's own.
+pub fn minted(s: &str) -> bool {
+    let p = patterns();
+    let whole = |re: &Regex| re.find(s).is_some_and(|m| m.start() == 0 && m.end() == s.len());
+    whole(&p.uuid) || whole(&p.prefixed) || p.hex.is_match(s) || (p.opaque.is_match(s) && keyish(s))
 }
 
 /// What a command printed, when every line of it is JSON, as `--json` prints: the lines as values, so the rules for
@@ -153,6 +163,18 @@ impl Normalizer {
         out = p.time.replace_all(&out, "<time>").into_owned();
         out = p.loopback.replace_all(&out, "$1:<port>").into_owned();
         out = p.node_pid.replace_all(&out, "(node:<pid>)").into_owned();
+        // A folder mkdtemp named, its six characters drawn at random: one of them a capital or a digit, so a word
+        // that happens to be six letters long stays.
+        out = p
+            .temp_name
+            .replace_all(&out, |c: &regex::Captures| {
+                if c[2].chars().any(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit()) {
+                    format!("{}<temp>", &c[1])
+                } else {
+                    c[0].to_string()
+                }
+            })
+            .into_owned();
         // A size or a time in prose or a table reads this computer's disk or how long a step took. A table pads its
         // columns to the widest reading, so where one was blanked the padding is too.
         if p.reading.is_match(&out) {

@@ -3,7 +3,7 @@
 //! each tape, on a temp home and state folder. The TS host is `node packages/host/dist/bin.js`; the Rust host is the
 //! same command line in one binary, so it plugs in as another program for the same `ProcessHost`.
 
-use crate::normalize::Facts;
+use crate::normalize::{minted, Facts};
 use crate::seed::Order;
 use crate::tape::{Door, Tape};
 use serde_json::{json, Value};
@@ -15,6 +15,7 @@ use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError};
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 use tungstenite::{Message, WebSocket};
 
@@ -49,11 +50,26 @@ pub struct ProcessHost {
     pub reply_wait: Duration,
     /// Values of the computer the replay runs on that an answer may name, as the checkout's folder.
     pub known: Facts,
+    version: OnceLock<Option<String>>,
 }
 
 impl ProcessHost {
     pub fn new(program: Vec<String>) -> ProcessHost {
-        ProcessHost { program, reply_wait: Duration::from_secs(20), known: Facts::default() }
+        ProcessHost { program, reply_wait: Duration::from_secs(20), known: Facts::default(), version: OnceLock::new() }
+    }
+
+    /// The version the host's own `--version` prints, read once: a bump is not a difference in what it answers.
+    fn version(&self) -> Option<String> {
+        self.version
+            .get_or_init(|| {
+                let out = Command::new(&self.program[0]).args(&self.program[1..]).arg("--version").env_clear().output().ok()?;
+                let said = String::from_utf8_lossy(&out.stdout);
+                said.split_whitespace()
+                    .last()
+                    .map(|v| v.trim_start_matches('v').to_string())
+                    .filter(|v| v.chars().next().is_some_and(|c| c.is_ascii_digit()))
+            })
+            .clone()
     }
 }
 
@@ -72,6 +88,9 @@ impl Host for ProcessHost {
         let mut facts = place.facts();
         for (value, placeholder) in &self.known.literals {
             facts.add(value.clone(), placeholder);
+        }
+        if let Some(version) = self.version() {
+            facts.add(version, "<version>");
         }
         facts.add(host.port.to_string(), "<port>");
         facts.add(host.pid.to_string(), "<pid>");
@@ -282,7 +301,7 @@ struct Swaps {
 impl Swaps {
     fn learn(&mut self, written: &Value, live: &Value) {
         match (written, live) {
-            (Value::String(a), Value::String(b)) if a != b => {
+            (Value::String(a), Value::String(b)) if a != b && (minted(a) || a.starts_with('<')) => {
                 self.map.insert(a.clone(), b.clone());
             }
             (Value::Object(a), Value::Object(b)) => {
@@ -301,16 +320,6 @@ impl Swaps {
             other => other.clone(),
         }
     }
-}
-
-/// The tape's frame as this host is sent it: the host token a recording blanked is this host's own, and the ids the
-/// tape's answers name are the ones this host minted.
-fn as_sent(frame: &Value, swaps: &Swaps, token: &str) -> Value {
-    let mut f = swaps.apply(frame);
-    if f.get("op").and_then(Value::as_str) == Some("auth") && f.get("token").and_then(Value::as_str) == Some("<redacted>") {
-        f["token"] = Value::String(token.to_string());
-    }
-    f
 }
 
 fn ws(tape: &Tape, order: &mut Order, host: &Running, wait: Duration) -> Result<(Vec<Value>, Vec<Value>), String> {
@@ -334,7 +343,7 @@ fn ws(tape: &Tape, order: &mut Order, host: &Running, wait: Duration) -> Result<
         let batch = order.window().min(tape.ins.len() - i);
         let mut waiting: Vec<String> = Vec::new();
         for frame in &tape.ins[i..i + batch] {
-            let sent = as_sent(frame, &swaps, &host.token);
+            let sent = swaps.apply(frame);
             if let Some(id) = request_id(&sent) {
                 asked.push(id.clone());
                 waiting.push(id);

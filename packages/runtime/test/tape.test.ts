@@ -14,6 +14,7 @@ import { WsClient } from "./ws-client.js";
 
 const HOST_TOKEN = "host-token-kept-off-tape";
 const CODE = "pair-code-kept-off-tape";
+const TURN = "turn-token-kept-off-tape";
 
 describe("the tap", () => {
   let dir: string;
@@ -31,19 +32,23 @@ describe("the tap", () => {
     const client = await WsClient.connect(srv.port, { token: HOST_TOKEN });
     await client.request("pair.redeem", { code: CODE, name: "lab" });
     await client.request("workspaces.list");
+    await client.request("sessions.start", { workspaceId: "ws_1", prompt: "hi", turnToken: TURN });
+    const { ticket } = await client.request("ticket.issue", { purpose: "connect" });
     client.close();
 
     const [file, ...more] = readdirSync(dir);
     expect(more).toEqual([]);
     const text = readFileSync(join(dir, file!), "utf8");
-    expect(text).not.toContain(HOST_TOKEN);
-    expect(text).not.toContain(CODE);
+    for (const secret of [HOST_TOKEN, CODE, TURN, String(ticket)]) expect(text).not.toContain(secret);
+    expect(String(ticket).length).toBeGreaterThan(8);
     const lines = text.trimEnd().split("\n").map(l => JSON.parse(l) as Record<string, { op?: string; token?: string; code?: string }>);
     expect(lines[0]).toEqual({ meta: { door: "ws", source: "the tap case" } });
-    expect(lines.slice(1).map(l => Object.keys(l)[0])).toEqual(["in", "out", "in", "out", "in", "out"]);
-    expect(lines[1]!["in"]).toMatchObject({ op: "auth", token: "<redacted>" });
+    expect(lines.slice(1).map(l => Object.keys(l)[0])).toEqual(["in", "out", "in", "out", "in", "out", "in", "out", "in", "out"]);
+    expect(lines[1]!["in"]).toMatchObject({ op: "auth", token: "<host-token>" });
     expect(lines[3]!["in"]).toMatchObject({ op: "pair.redeem", code: "<redacted>" });
     expect(lines[6]!["out"]).toMatchObject({ ok: true, workspaces: [] });
+    expect(lines[7]!["in"]).toMatchObject({ op: "sessions.start", turnToken: "<redacted>" });
+    expect(lines[10]!["out"]).toMatchObject({ ok: true, ticket: "<redacted>" });
   });
 
   it("never throws into the host: a frame it cannot write and one carrying more secrets than any real frame cost the tape their line", () => {
@@ -55,6 +60,22 @@ describe("the tap", () => {
     tape.in({ op: "agents.key", rows: Object.fromEntries(Array.from({ length: 300 }, (_, i) => [`k${i}`, `secret-value-${i}`])) });
     const lines = readFileSync(join(dir, readdirSync(dir)[0]!), "utf8").trimEnd().split("\n").slice(1);
     expect(lines).toEqual([JSON.stringify({ in: "<not written: RangeError>" }), JSON.stringify({ in: "<withheld: 300 secret values>" })]);
+  });
+
+  it("marks the host's own token, however short, apart from every other secret, so a replay signs in only where the case did", () => {
+    dir = mkdtempSync(join(tmpdir(), "wsp-tape-"));
+    const tape = tapeOf({ [TAPE_DIR_ENV]: dir }, "ws", "t")!;
+    tape.in({ id: 1, op: "auth", token: "t" });
+    tape.in({ id: 2, op: "auth", token: "u" });
+    tape.in({ id: 3, op: "agents.key", agent: "claude", key: "sk-acme-x" });
+    tape.out({ id: 3, ok: false, error: "the key sk-acme-x was refused" });
+    const lines = readFileSync(join(dir, readdirSync(dir)[0]!), "utf8").trimEnd().split("\n").slice(1);
+    expect(lines).toEqual([
+      JSON.stringify({ in: { id: 1, op: "auth", token: "<host-token>" } }),
+      JSON.stringify({ in: { id: 2, op: "auth", token: "<redacted>" } }),
+      JSON.stringify({ in: { id: 3, op: "agents.key", agent: "claude", key: "<redacted>" } }),
+      JSON.stringify({ out: { id: 3, ok: false, error: "the key <redacted> was refused" } }),
+    ]);
   });
 
   it("writes nothing when no folder is named", () => {

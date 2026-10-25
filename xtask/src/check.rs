@@ -153,7 +153,7 @@ fn judge(tape: &Tape, want: &Value, replay: &Replay, accepted: &Accepted, used: 
 
 /// The answers a tape writes down itself, in the golden's form, or none for a tape that writes none.
 fn written(tape: &Tape) -> Option<Value> {
-    if tape.outs.is_empty() {
+    if tape.outs.is_empty() || tape.recorded {
         return None;
     }
     let (replies, events) = match tape.door {

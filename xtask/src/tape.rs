@@ -50,8 +50,12 @@ pub struct Tape {
     pub door: Door,
     pub source: String,
     pub ins: Vec<Value>,
-    /// The answers the tape writes down itself, as a spec example does; each is held to the golden as well.
+    /// The answers the tape writes down itself, as a spec example does; each is held to the golden as well, unless
+    /// `recorded` says they are what the recording's own host answered.
     pub outs: Vec<Value>,
+    /// Set by `"outs": "recorded"` in the meta line: the answers came from the host the tape was recorded on, which a
+    /// test had set up as no fresh host is, so a replay follows the ids they name and holds nothing to them.
+    pub recorded: bool,
 }
 
 impl Tape {
@@ -62,6 +66,7 @@ impl Tape {
         let mut ins = Vec::new();
         let mut outs = Vec::new();
         let mut seen_frame = false;
+        let mut recorded = false;
         for (n, line) in text.lines().enumerate() {
             let at = format!("{origin}:{}", first_line + n);
             if line.trim().is_empty() {
@@ -80,6 +85,7 @@ impl Tape {
                     if let Some(s) = frame.get("source").and_then(Value::as_str) {
                         source = s.to_string();
                     }
+                    recorded = frame.get("outs").and_then(Value::as_str) == Some("recorded");
                 }
                 "meta" => return Err(format!("{at}: meta comes before the first frame")),
                 "in" => {
@@ -101,7 +107,7 @@ impl Tape {
         if ins.is_empty() {
             return Err(format!("{origin}: a tape sends the host at least one frame"));
         }
-        Ok(Tape { id: id.to_string(), door, source, ins, outs })
+        Ok(Tape { id: id.to_string(), door, source, ins, outs, recorded })
     }
 
     /// The ops the tape sends over the websocket, in order, repeats kept.

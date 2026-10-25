@@ -196,6 +196,7 @@ fn ids_are_numbered_by_first_sight_and_the_run_s_own_facts_are_taken_out() {
             "memoryDir": "/x/-tmp-wsp-parity-abc-scratch/memory",
             "ephemeral": "YAXNDdzLsQUIvQVHrmiGLyab+fuchUyNDr+xfMlDgXs=",
             "table": "here  8      31 GB   163.1 GB   none\nup 502ms",
+            "doctor": "local workspace  wsp-doctor-ywv1Rp (made for this run) and wsp-parity-harness stays at 127.0.0.1:32923",
             "stdout": "{\"diskFreeBytes\":1,\"name\":\"lab-box\"}\n{\"ok\":true}\n",
         }),
     ];
@@ -219,6 +220,7 @@ fn ids_are_numbered_by_first_sight_and_the_run_s_own_facts_are_taken_out() {
                     "memoryDir": "/x/<tmp-dashed>-scratch/memory",
                     "ephemeral": "<id-4>",
                     "table": "here  8  <reading>  <reading>  none\nup <reading>",
+                    "doctor": "local workspace  wsp-doctor-<temp> (made for this run) and wsp-parity-harness stays at 127.0.0.1:<port>",
                     "stdout": { "jsonLines": [{ "diskFreeBytes": "<machine>", "name": "<computer>" }, { "ok": true }] },
                 },
             ],
@@ -267,8 +269,12 @@ fn tapes_of(families: &[(&str, usize)], shadow: usize) -> Vec<Tape> {
 
 #[test]
 fn every_shadow_tape_and_one_in_five_of_each_family_is_held_back_by_the_seed() {
-    let tapes = tapes_of(&[("workspaces", 20), ("places", 10), ("slates", 3)], 4);
+    let mut tapes = tapes_of(&[("workspaces", 20), ("places", 10), ("slates", 3)], 4);
+    for id in ["hand/key-order", "spec/wire/1", "spec/wire/2"] {
+        tapes.push(Tape::parse(id, &format!("{}\n", json!({"in": {"id": 1, "op": "preferences.get"}})), "test", 1).unwrap());
+    }
     let held = xtask::held::held(&tapes, 2443);
+    assert!(!held.iter().any(|id| id.starts_with("hand/") || id.starts_with("spec/")), "{held:?}");
     assert!((0..4).all(|i| held.contains(&format!("shadow/day-{i}"))));
     let of = |family: &str| held.iter().filter(|id| id.starts_with(&format!("recorded/{family}-"))).count();
     assert_eq!((of("workspaces"), of("places"), of("slates")), (4, 2, 1));
