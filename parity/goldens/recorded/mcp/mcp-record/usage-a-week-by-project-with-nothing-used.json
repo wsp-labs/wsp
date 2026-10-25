@@ -22,7 +22,49 @@
         "content": [
           {
             "type": "text",
-            "text": "{\n  \"accounts\": [],\n  \"used\": {\n    \"range\": \"week\",\n    \"split\": \"project\",\n    \"rows\": [],\n    \"series\": [\n      {\n        \"t\": 1792368000000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792454400000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792540800000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792627200000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792713600000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792800000000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792886400000,\n        \"tokens\": 0\n      }\n    ],\n    \"lines\": [],\n    \"since\": 1792368000000,\n    \"until\": 1792972800000\n  }\n}"
+            "text": {
+              "json": {
+                "accounts": [],
+                "used": {
+                  "range": "week",
+                  "split": "project",
+                  "rows": [],
+                  "series": [
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    }
+                  ],
+                  "lines": [],
+                  "since": "<time>",
+                  "until": "<time>"
+                }
+              }
+            }
           }
         ],
         "structuredContent": {

@@ -75,7 +75,7 @@ fn patterns() -> &'static Patterns {
         loopback: Regex::new(r"\b(127\.0\.0\.1|localhost|\[::1\]):(?:3[2-9]|[4-6][0-9])\d{3}\b").expect("loopback"),
         temp_name: Regex::new(r"\b(wsp-[a-z0-9]+(?:-[a-z0-9]+)*-)([A-Za-z0-9]{6})\b").expect("temp name"),
         node_pid: Regex::new(r"\(node:\d+\)").expect("node pid"),
-        reading: Regex::new(r"\b\d+(?:\.\d+)?[ \u{a0}]?(?:(?:[KMGT]i?)?B|ms)\b").expect("reading"),
+        reading: Regex::new(r"\b\d+(?:\.\d+)?[ \u{a0}]?(?:(?:[KMGT]i?)?B|ms|s)\b").expect("reading"),
         padding: Regex::new(r"  +").expect("padding"),
     })
 }

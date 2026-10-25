@@ -3,7 +3,13 @@
     {
       "exit": 3,
       "stdout": "",
-      "stderr": "{\"error\":\"--cwd is a path on the machine, absolute, and got \\\"packages\\\". Give a path that opens with /, since whoever reads it works in a folder this line cannot see. usage: wsp exec <thread> [--cwd <dir>] -- <command...>\",\"class\":\"usage\",\"exit\":3}\n"
+      "stderr": {
+        "json": {
+          "error": "--cwd is a path on the machine, absolute, and got \"packages\". Give a path that opens with /, since whoever reads it works in a folder this line cannot see. usage: wsp exec <thread> [--cwd <dir>] -- <command...>",
+          "class": "usage",
+          "exit": 3
+        }
+      }
     }
   ],
   "events": []

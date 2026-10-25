@@ -3,7 +3,13 @@
     {
       "exit": 3,
       "stdout": "",
-      "stderr": "{\"error\":\"wsp init: --json prints the sign-ins as they are handed to you, and --yes skips the sign-ins, so there would be nothing to print. Drop one of them.\",\"class\":\"usage\",\"exit\":3}\n"
+      "stderr": {
+        "json": {
+          "error": "wsp init: --json prints the sign-ins as they are handed to you, and --yes skips the sign-ins, so there would be nothing to print. Drop one of them.",
+          "class": "usage",
+          "exit": 3
+        }
+      }
     }
   ],
   "events": []

@@ -42,7 +42,23 @@
     {
       "id": 8,
       "ok": false,
-      "error": "[\n  {\n    \"received\": \"app\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"person\",\n      \"cli\",\n      \"agent\"\n    ],\n    \"path\": [\n      \"startedBy\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'person' | 'cli' | 'agent', received 'app'\"\n  }\n]"
+      "error": {
+        "json": [
+          {
+            "received": "app",
+            "code": "<code>",
+            "options": [
+              "person",
+              "cli",
+              "agent"
+            ],
+            "path": [
+              "startedBy"
+            ],
+            "message": "Invalid enum value. Expected 'person' | 'cli' | 'agent', received 'app'"
+          }
+        ]
+      }
     }
   ],
   "events": []

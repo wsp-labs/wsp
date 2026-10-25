@@ -9,7 +9,22 @@
     {
       "id": 2,
       "ok": false,
-      "error": "[\n  {\n    \"code\": \"too_small\",\n    \"minimum\": 0,\n    \"type\": \"number\",\n    \"inclusive\": false,\n    \"exact\": false,\n    \"message\": \"Number must be greater than 0\",\n    \"path\": [\n      \"patch\",\n      \"sidebarWidth\"\n    ]\n  }\n]"
+      "error": {
+        "json": [
+          {
+            "code": "<code>",
+            "minimum": 0,
+            "type": "number",
+            "inclusive": false,
+            "exact": false,
+            "message": "Number must be greater than 0",
+            "path": [
+              "patch",
+              "sidebarWidth"
+            ]
+          }
+        ]
+      }
     }
   ],
   "events": []

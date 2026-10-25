@@ -22,7 +22,11 @@
         "content": [
           {
             "type": "text",
-            "text": "{\n  \"recipes\": []\n}"
+            "text": {
+              "json": {
+                "recipes": []
+              }
+            }
           }
         ],
         "structuredContent": {

@@ -9,7 +9,24 @@
     {
       "id": 2,
       "ok": false,
-      "error": "[\n  {\n    \"received\": \"sepia\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"system\",\n      \"light\",\n      \"dark\"\n    ],\n    \"path\": [\n      \"patch\",\n      \"theme\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'system' | 'light' | 'dark', received 'sepia'\"\n  }\n]"
+      "error": {
+        "json": [
+          {
+            "received": "sepia",
+            "code": "<code>",
+            "options": [
+              "system",
+              "light",
+              "dark"
+            ],
+            "path": [
+              "patch",
+              "theme"
+            ],
+            "message": "Invalid enum value. Expected 'system' | 'light' | 'dark', received 'sepia'"
+          }
+        ]
+      }
     }
   ],
   "events": []

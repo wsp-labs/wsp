@@ -22,7 +22,117 @@
         "content": [
           {
             "type": "text",
-            "text": "{\n  \"accounts\": [],\n  \"used\": {\n    \"range\": \"day\",\n    \"split\": \"agent\",\n    \"rows\": [],\n    \"series\": [\n      {\n        \"t\": 1792886400000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792890000000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792893600000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792897200000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792900800000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792904400000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792908000000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792911600000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792915200000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792918800000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792922400000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792926000000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792929600000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792933200000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792936800000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792940400000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792944000000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792947600000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792951200000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792954800000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792958400000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792962000000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792965600000,\n        \"tokens\": 0\n      },\n      {\n        \"t\": 1792969200000,\n        \"tokens\": 0\n      }\n    ],\n    \"lines\": [],\n    \"since\": 1792886400000,\n    \"until\": 1792972800000\n  }\n}"
+            "text": {
+              "json": {
+                "accounts": [],
+                "used": {
+                  "range": "day",
+                  "split": "agent",
+                  "rows": [],
+                  "series": [
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    },
+                    {
+                      "t": "<time>",
+                      "tokens": 0
+                    }
+                  ],
+                  "lines": [],
+                  "since": "<time>",
+                  "until": "<time>"
+                }
+              }
+            }
           }
         ],
         "structuredContent": {

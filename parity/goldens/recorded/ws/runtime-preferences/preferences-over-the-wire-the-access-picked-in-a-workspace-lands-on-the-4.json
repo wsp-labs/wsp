@@ -9,7 +9,21 @@
     {
       "id": 2,
       "ok": false,
-      "error": "[\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"string\",\n    \"received\": \"number\",\n    \"path\": [\n      \"patch\",\n      \"access\",\n      \"ws_b\"\n    ],\n    \"message\": \"Expected string, received number\"\n  }\n]"
+      "error": {
+        "json": [
+          {
+            "code": "<code>",
+            "expected": "string",
+            "received": "number",
+            "path": [
+              "patch",
+              "access",
+              "ws_b"
+            ],
+            "message": "Expected string, received number"
+          }
+        ]
+      }
     }
   ],
   "events": []

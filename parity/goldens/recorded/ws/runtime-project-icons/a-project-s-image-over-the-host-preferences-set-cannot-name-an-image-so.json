@@ -9,7 +9,20 @@
     {
       "id": 2,
       "ok": false,
-      "error": "[\n  {\n    \"code\": \"unrecognized_keys\",\n    \"keys\": [\n      \"projectIcon\"\n    ],\n    \"path\": [\n      \"patch\"\n    ],\n    \"message\": \"Unrecognized key(s) in object: 'projectIcon'\"\n  }\n]"
+      "error": {
+        "json": [
+          {
+            "code": "<code>",
+            "keys": [
+              "projectIcon"
+            ],
+            "path": [
+              "patch"
+            ],
+            "message": "Unrecognized key(s) in object: 'projectIcon'"
+          }
+        ]
+      }
     }
   ],
   "events": []

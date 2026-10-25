@@ -22,7 +22,28 @@
         "content": [
           {
             "type": "text",
-            "text": "{\n  \"setup\": {\n    \"keys\": {\n      \"box\": false\n    },\n    \"home\": \"<tmp>/home\",\n    \"agents\": [\n      {\n        \"id\": \"codex\",\n        \"name\": \"Codex\",\n        \"configured\": false,\n        \"takesTools\": true\n      }\n    ],\n    \"pricing\": null,\n    \"forksOn\": \"none\",\n    \"buildRefusal\": \"no place here runs workspaces, so there is nowhere to build your image; join a computer that runs them with wsp add, or save a provider key\",\n    \"job\": null\n  }\n}"
+            "text": {
+              "json": {
+                "setup": {
+                  "keys": {
+                    "box": false
+                  },
+                  "home": "<tmp>/home",
+                  "agents": [
+                    {
+                      "id": "codex",
+                      "name": "Codex",
+                      "configured": false,
+                      "takesTools": true
+                    }
+                  ],
+                  "pricing": null,
+                  "forksOn": "none",
+                  "buildRefusal": "no place here runs workspaces, so there is nowhere to build your image; join a computer that runs them with wsp add, or save a provider key",
+                  "job": null
+                }
+              }
+            }
           }
         ],
         "structuredContent": {

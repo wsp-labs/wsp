@@ -3,7 +3,13 @@
     {
       "exit": 1,
       "stdout": "",
-      "stderr": "{\"error\":\"the daemon for this computer did not start, so its terminal, files and processes have nothing to dial: wsp-daemon binary missing: <repo>/packages/wspx/daemon/aarch64-unknown-linux-musl/wsp-daemon\",\"class\":\"provider\",\"exit\":1}\n"
+      "stderr": {
+        "json": {
+          "error": "the daemon for this computer did not start, so its terminal, files and processes have nothing to dial: wsp-daemon binary missing: <repo>/packages/wspx/daemon/aarch64-unknown-linux-musl/wsp-daemon",
+          "class": "provider",
+          "exit": 1
+        }
+      }
     }
   ],
   "events": []
