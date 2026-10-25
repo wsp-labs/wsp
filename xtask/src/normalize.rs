@@ -52,6 +52,7 @@ struct Patterns {
     semver: Regex,
     placeholder: Regex,
     fingerprint: Regex,
+    short_hex: Regex,
     join_code: Regex,
     loopback: Regex,
     temp_name: Regex,
@@ -71,6 +72,7 @@ fn patterns() -> &'static Patterns {
         semver: Regex::new(r"^\d+\.\d+\.\d+").expect("semver"),
         placeholder: Regex::new(r"<([a-z][a-z0-9]*)-(\d+)>").expect("placeholder"),
         fingerprint: Regex::new(r"SHA256:[A-Za-z0-9+/]{43}").expect("fingerprint"),
+        short_hex: Regex::new(r"\b[0-9a-f]{8,16}\b").expect("short hex"),
         join_code: Regex::new(r"\b[0-9A-Z]{4}-[0-9A-Z]{4}\b").expect("join code"),
         loopback: Regex::new(r"\b(127\.0\.0\.1|localhost|\[::1\]):(?:3[2-9]|[4-6][0-9])\d{3}\b").expect("loopback"),
         temp_name: Regex::new(r"\b(wsp-[a-z0-9]+(?:-[a-z0-9]+)*-)([A-Za-z0-9]{6})\b").expect("temp name"),
@@ -208,8 +210,19 @@ impl Normalizer {
             out = p.reading.replace_all(&out, "<reading>").into_owned();
             out = p.padding.replace_all(&out, "  ").into_owned();
         }
-        for (re, kind) in [(&p.uuid, Some("uuid")), (&p.prefixed, None), (&p.fingerprint, Some("id")), (&p.join_code, Some("id"))] {
-            let found: Vec<String> = re.find_iter(&out).map(|m| m.as_str().to_string()).collect();
+        for (re, kind) in [
+            (&p.uuid, Some("uuid")),
+            (&p.prefixed, None),
+            (&p.fingerprint, Some("id")),
+            (&p.join_code, Some("id")),
+            (&p.short_hex, Some("id")),
+        ] {
+            // A short run of hex in a sentence is an id only with both a digit and a letter: "deadbeef" and "12345678"
+            // stay words and numbers.
+            let mixed = |m: &str| {
+                !std::ptr::eq(re, &p.short_hex) || (m.bytes().any(|b| b.is_ascii_digit()) && m.bytes().any(|b| b.is_ascii_alphabetic()))
+            };
+            let found: Vec<String> = re.find_iter(&out).map(|m| m.as_str().to_string()).filter(|m| mixed(m)).collect();
             for id in found {
                 let kind = kind.map(str::to_string).unwrap_or_else(|| id.split('_').next().unwrap_or("id").to_string());
                 let placeholder = self.id(&id, &kind);

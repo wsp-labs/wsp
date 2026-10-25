@@ -202,6 +202,7 @@ fn ids_are_numbered_by_first_sight_and_the_run_s_own_facts_are_taken_out() {
             "stdout": "{\"diskFreeBytes\":1,\"name\":\"lab-box\"}\n{\"ok\":true}\n",
             "text": "{\n  \"diskFreeBytes\": 2\n}",
             "placeId": "p_59d14321ab",
+            "said": "no checkpoint at thread db553cd8's turn end, deadbeef, 12345678",
         }),
     ];
     let got = canonical(&replies, &[json!({ "workspaceId": "ws_00000000" })], &facts);
@@ -229,6 +230,7 @@ fn ids_are_numbered_by_first_sight_and_the_run_s_own_facts_are_taken_out() {
                     "stdout": { "jsonLines": [{ "diskFreeBytes": "<machine>", "name": "<computer>" }, { "ok": true }] },
                     "text": { "json": { "diskFreeBytes": "<machine>" } },
                     "placeId": "<p-1>",
+                    "said": "no checkpoint at thread <id-6>'s turn end, deadbeef, 12345678",
                 },
             ],
             "events": [{ "workspaceId": "<ws>" }],
