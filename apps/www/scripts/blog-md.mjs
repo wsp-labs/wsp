@@ -95,7 +95,7 @@ export function blogMarkdown() {
       if (!id.endsWith(".md")) return null;
       const slug = id.split("/").pop().replace(/\.md$/, "");
       const { meta, body } = frontMatter(source, id);
-      const post = { slug, title: meta.title, date: meta.date, summary: meta.summary, image: meta.image ?? null, cover: meta.cover ?? null, coverAlt: meta.cover_alt ?? "", updated: meta.updated ?? null, author: meta.author ? { name: meta.author, url: meta.author_url ?? null, x: meta.author_x ?? null } : null, draft: meta.draft === "true", html: markedFor(id).parse(body) };
+      const post = { slug, title: meta.title, date: meta.date, summary: meta.summary, image: meta.image ?? null, cover: meta.cover ?? null, coverAlt: meta.cover_alt ?? "", updated: meta.updated ?? null, author: meta.author ? { name: meta.author, url: meta.author_url ?? null, x: meta.author_x ?? null, avatar: meta.author_avatar ?? null } : null, draft: meta.draft === "true", html: markedFor(id).parse(body) };
       return { code: `export default ${JSON.stringify(post)};`, map: null };
     },
   };

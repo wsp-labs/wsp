@@ -126,8 +126,8 @@ div()
 
 The Tab table is rebuilt every frame from the elements that painted with a
 tracked handle, in tree order (`tab_index` reorders within a `tab_group`). A
-stateless component may create its handle in `render` through keyed state —
-`window.use_keyed_state(id, cx, |_, cx| cx.focus_handle().tab_stop(true))` —
+stateless component may create its handle in `render` through keyed state , 
+`window.use_keyed_state(id, cx, |_, cx| cx.focus_handle().tab_stop(true))` , 
 which survives re-renders, so the order stays stable; `Button` does exactly
 this. A focused element receives `ClickEvent::Keyboard` in `on_click` when
 Enter or Space is released, so a `track_focus` + `on_click` row activates from

@@ -20,13 +20,13 @@ entity_a.update(cx, |_, cx| {
 
 // ✅ Fine: updating a *different* entity from within an update
 entity_a.update(cx, |_, cx| {
-    entity_b.update(cx, |_, _| {}); // OK — different lock
+    entity_b.update(cx, |_, _| {}); // OK, different lock
 });
 ```
 
 **Note:** Updating two *different* entities in a nested fashion is safe. The restriction is strictly about re-entering the *same* entity's lock.
 
-### `defer_in` Re-locks the Entity — Same Rules Apply
+### `defer_in` Re-locks the Entity, Same Rules Apply
 
 `cx.defer_in(window, callback)` schedules `callback` to run *on the entity the context refers to*. GPUI re-acquires that entity's lock to execute the deferred callback, so the re-entrancy rules apply equally inside it:
 
@@ -36,7 +36,7 @@ fn confirm(&mut self, _: bool, window: &mut Window, cx: &mut Context<ListState<S
     cx.defer_in(window, |list_state, window, cx| {
         // list_state IS locked for this entire callback!
         parent.update(cx, |this, cx| {
-            this.list.update(cx, |_, _| {}); // PANIC — re-enters ListState lock
+            this.list.update(cx, |_, _| {}); // PANIC, re-enters ListState lock
         });
     });
 }
@@ -45,20 +45,20 @@ fn confirm(&mut self, _: bool, window: &mut Window, cx: &mut Context<ListState<S
 **Fix:** Use the direct `&mut` reference the callback provides instead of going through the entity handle:
 
 ```rust
-// ✅ Correct: direct mutable access — no lock needed
+// ✅ Correct: direct mutable access, no lock needed
 fn confirm(&mut self, _: bool, window: &mut Window, cx: &mut Context<ListState<Self>>) {
     cx.defer_in(window, |list_state, window, cx| {
         // Step 1: call hooks directly through list_state (no entity lock)
         list_state.delegate_mut().on_will_change(&mut op, &snapshot);
 
-        // Step 2: update the parent entity — different lock, safe
+        // Step 2: update the parent entity, different lock, safe
         let new_sel = parent.update(cx, |this, cx| {
             this.state.apply_change(op);
             cx.notify();
             this.state.selection.clone() // return data needed for step 3
         });
 
-        // Step 3: sync list state directly — no entity lock
+        // Step 3: sync list state directly, no entity lock
         if let Ok(sel) = new_sel {
             list_state.delegate_mut().update_snapshot(sel.clone());
             list_state.delegate_mut().on_confirm(&sel);
@@ -74,12 +74,12 @@ fn confirm(&mut self, _: bool, window: &mut Window, cx: &mut Context<ListState<S
 **Fix:** Keep a plain `snapshot` field updated eagerly from outside render after every mutation:
 
 ```rust
-// ❌ Panic — called during ListState render; external entity access re-enters
+// ❌ Panic, called during ListState render; external entity access re-enters
 fn render_item(&mut self, ix: IndexPath, …) -> … {
     let checked = parent.read(cx).selection.contains(&ix); // PANIC
 }
 
-// ✅ Read from snapshot field — no entity access at all
+// ✅ Read from snapshot field, no entity access at all
 fn render_item(&mut self, ix: IndexPath, …) -> … {
     let checked = self.selection_snapshot.iter().any(|(sel_ix, _)| sel_ix == &ix);
 }

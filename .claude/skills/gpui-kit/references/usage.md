@@ -222,7 +222,7 @@ window.open_dialog(cx, |dialog, _, _| {
 
 ### AlertDialog
 
-Use `AlertDialog` — not `Dialog` — to confirm a consequential action. It is not
+Use `AlertDialog`, not `Dialog`, to confirm a consequential action. It is not
 overlay-closable and has no close button, so the choice must be made. Name the
 object in the title and the result on the confirming button; see the Design
 Guides for the copy rules.
@@ -386,7 +386,7 @@ v_flex().gap_4().p_4()
 
 ## Overlay Layers (Dialogs, Sheets, Notifications)
 
-The window's `Root` renders dialogs, sheets and notifications above the view, so a window opened with `gpui_kit::open_window` needs nothing else — `window.open_dialog(..)` just works. Applications define their own quit and close-window actions, key bindings, and confirmation flows. `open_window` returns `(AnyWindowHandle, Entity<V>)`. The complete tested consumer recipe is [`examples/ai_recipes/src/bootstrap.rs`](../../../examples/ai_recipes/src/bootstrap.rs).
+The window's `Root` renders dialogs, sheets and notifications above the view, so a window opened with `gpui_kit::open_window` needs nothing else, `window.open_dialog(..)` just works. Applications define their own quit and close-window actions, key bindings, and confirmation flows. `open_window` returns `(AnyWindowHandle, Entity<V>)`. The complete tested consumer recipe is [`examples/ai_recipes/src/bootstrap.rs`](../../../examples/ai_recipes/src/bootstrap.rs).
 
 Root always mounts all three layers. The former `Root::render_*_layer` methods have been removed; delete their calls from application views when migrating to 0.7.0.
 

@@ -18,7 +18,7 @@ authority for individual methods.
 
 The rules build on behavior in `gpui-base`, the GPUI Component theme and
 component system, and familiar desktop interaction. <a href="https://ui.shadcn.com/docs" target="_blank" rel="noopener noreferrer">shadcn/ui</a> contributes useful
-methods—open code, composition, and dependable defaults—but does not determine
+methods, open code, composition, and dependable defaults, but does not determine
 how a GPUI application should look. When influences conflict, preserve GPUI's
 lifecycle constraints and the interaction people already understand.
 
@@ -90,7 +90,7 @@ Before drawing a screen, write down:
 Organize the window around those answers. Do not begin with a dashboard grid or
 a component catalogue. A good desktop interface exposes the user's mental
 model: documents, accounts, projects, messages, settings, or another stable
-object—not the internal service architecture.
+object, not the internal service architecture.
 
 Design the primary task before distributing controls. Its visual weight,
 location, and information depth should match its importance to the product. A
@@ -150,7 +150,7 @@ custom theme values; never assume that foreground is black or background is
 white.
 
 Use Badge for a short state, count, or classification that benefits from rapid
-scanning—not for every label, metadata value, filter, or section title. Keep
+scanning, not for every label, metadata value, filter, or section title. Keep
 most badges neutral; reserve semantic variants for states that truly carry
 success, warning, danger, or informational meaning. A row of multicolored
 badges is usually a missing hierarchy or grouping decision.
@@ -275,7 +275,7 @@ when one pane has a clearly different role.
   dedicated window/page for complex work. Do not enlarge a dialog simply to
   create whitespace.
 - Reserve the strongest elevation for the topmost decision layer. Within a
-  layer, use background and hairlines—not successively larger shadows—to show
+  layer, use background and hairlines, not successively larger shadows, to show
   hierarchy.
 
 Define three size constraints for every major region: the minimum at which its
@@ -384,7 +384,7 @@ outer box is usually incomplete.
 A well-designed `rem` system preserves hierarchy while the interface zooms.
 Zoom is successful when the relationship between title and body, control and
 icon, inner and outer spacing, primary and secondary regions still feels the
-same at every scale—not merely when every object becomes larger.
+same at every scale, not merely when every object becomes larger.
 
 GPUI Component adopts the relative-scale idea familiar from <a href="https://tailwindcss.com/docs/theme" target="_blank" rel="noopener noreferrer">Tailwind CSS</a>. The
 theme's base `font_size` becomes the window's `rem` through `Root`, and GPUI
@@ -404,8 +404,8 @@ Design in ratios:
 Do not implement zoom by changing text size alone. A larger label inside a
 fixed-height button, a larger document inside fixed pane minima, or larger rows
 inside a stale virtual-list measurement destroys the original rhythm and can
-clip content. Conversely, multiplying every physical pixel—including
-hairlines—can make the interface visually heavy.
+clip content. Conversely, multiplying every physical pixel, including
+hairlines, can make the interface visually heavy.
 
 As a rule, application layout should not call `px(...)` directly. Use GPUI's
 rem-based scale helpers (`p_2`, `gap_3`, `w_64`, `text_sm`, and related
@@ -511,7 +511,7 @@ sealed design system. GPUI Component supplies coherent defaults, while the
 application owns composition and product semantics.
 
 - Use component variants by meaning. Primary is reserved for the explicit
-  default commit in a decision area—normally the action invoked by Enter. A
+  default commit in a decision area, normally the action invoked by Enter. A
   lone, frequent, or desirable action is not automatically primary. An `Add`
   command in a management toolbar normally uses a default Button; a form's
   default `Create` commit may use primary. Use `danger` for destructive
@@ -623,7 +623,7 @@ rebuild those behaviors and is invisible to keyboard-only and many assistive
 technology workflows.
 
 Choose `DropdownMenu` when users need a visible indication that more commands
-exist—for example a toolbar overflow, document actions, or account menu. Choose
+exist, for example a toolbar overflow, document actions, or account menu. Choose
 `ContextMenu` for selection- or object-scoped commands such as rename,
 duplicate, reveal, or remove. The context menu must not be the only way to
 perform an essential command; provide a menu-bar, toolbar, keyboard, or detail
@@ -666,8 +666,8 @@ disclosure control. Use concise context-aware labels such as `Full analysis`
 when the containing card already establishes what opens; reserve underlining
 for a resource that actually opens in a browser or mail client.
 
-All internal navigation—sidebar rows, tabs, breadcrumbs, list items, opening a
-local view, or switching workspaces—must use the corresponding native component
+All internal navigation, sidebar rows, tabs, breadcrumbs, list items, opening a
+local view, or switching workspaces, must use the corresponding native component
 or a Button/Action. Visual emphasis is chosen through Button variant or the
 navigation component's selected state, never by lying about semantics.
 
@@ -703,7 +703,7 @@ For example, expose `Clear history` only when a distinct recent-history section
 is visible and contains entries. Search results, recent items, and favorites
 are different collections; label and separate them instead of merging them
 into one unexplained list. Hide an inapplicable action or disable it with a
-useful reason—do not park an ambiguous trash icon in a footer.
+useful reason, do not park an ambiguous trash icon in a footer.
 
 Footer space is not a catch-all for capabilities that lacked a place in the
 design. A footer may present shortcuts, status, or actions that apply to the
@@ -752,7 +752,7 @@ as a visual style.
 ## Interface language
 
 Words are part of the interface architecture. Write the vocabulary for a
-feature as a system—destinations, objects, commands, states, and outcomes—not as
+feature as a system, destinations, objects, commands, states, and outcomes, not as
 isolated translations of implementation features. Prefer the shortest wording
 that remains accurate in its actual context.
 
@@ -817,7 +817,7 @@ that comparison context.
 
 ### Buttons and confirmation dialogs
 
-Button labels are short by default—usually one or two words—and describe the
+Button labels are short by default, usually one or two words, and describe the
 result, not the gesture or the component. Prefer `Save`, `Move`, or `Delete` to
 `Click to save`, `Perform move`, or `Confirm deletion`. Use `Cancel` consistently
 for the action that leaves without committing. Reserve `OK` for acknowledging
@@ -963,7 +963,7 @@ the right decisions. Ask, in order:
    focus behavior, empty/loading/failure/permission states, longer translations,
    zoom, minimum window size, and reduced motion.
 8. **Has it been tested in a real window?** Complete the task with real
-   components, copy, and representative content—not only an ideal screenshot.
+   components, copy, and representative content, not only an ideal screenshot.
 
 Continue with [Coding Guides](./coding-guides.md) to translate these design
 decisions into GPUI architecture and code.
