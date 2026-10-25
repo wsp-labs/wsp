@@ -130,7 +130,8 @@ describe("the tests a change runs", () => {
   });
 
   it("runs only the files every change runs for the parity harness: its cargo task, its tapes and the root cargo alias", () => {
-    for (const change of [{ ".cargo/config.toml": "[alias]\n" }, { "xtask/src/main.rs": "//\n" }, { "parity/tapes/hand/x.tape": "{}\n" }]) {
+    const changes: Record<string, string>[] = [{ ".cargo/config.toml": "[alias]\n" }, { "xtask/src/main.rs": "//\n" }, { "parity/tapes/hand/x.tape": "{}\n" }];
+    for (const change of changes) {
       const { out, err } = affected(workspace(), change);
       expect(out, err).toEqual(ALWAYS);
     }
