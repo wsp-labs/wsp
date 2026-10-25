@@ -1,0 +1,11 @@
+<slate title="#2338 header after a Boat sub-thread finishes">
+  <column>
+    <facts>
+      <fact label="Before" value="The header's spinner turns forever and Push is offered" />
+      <fact label="After" value="The spinner is at rest and Push is gone" />
+      <fact label="Also before" value="A stale notice that live readings for lab are not coming" />
+      <fact label="Where" value="Top right of the thread's header" />
+    </facts>
+    <text value="The rest of the page is unchanged." />
+  </column>
+</slate>

@@ -1,0 +1,23 @@
+<slate title="How long a ci run takes, 14 to 25 October">
+  <value name="days" start={[
+    {at: "14 Oct", median: 7.9, slowest: 31.5},
+    {at: "15 Oct", median: 8.3, slowest: 37.8},
+    {at: "16 Oct", median: 7.3, slowest: 32.2},
+    {at: "17 Oct", median: 7.0, slowest: 22.1},
+    {at: "18 Oct", median: 7.6, slowest: 7.6},
+    {at: "19 Oct", median: 7.3, slowest: 7.3},
+    {at: "20 Oct", median: 7.2, slowest: 7.6},
+    {at: "21 Oct", median: 5.8, slowest: 8.2},
+    {at: "22 Oct", median: 12.4, slowest: 12.4},
+    {at: "23 Oct", median: 7.4, slowest: 7.4},
+    {at: "24 Oct", median: 3.2, slowest: 6.6},
+    {at: "25 Oct", median: 11.4, slowest: 36.1}
+  ]} />
+  <column>
+    <chart label="Minutes per passing run" items={$days} x={item.at} unit="min">
+      <series label="Slowest" value={item.slowest} tone="warning" />
+      <series label="Median" value={item.median} />
+    </chart>
+    <text value="The median sits near 7 minutes; 25 October's slowest took 36." />
+  </column>
+</slate>
