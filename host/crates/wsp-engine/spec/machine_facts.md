@@ -31,3 +31,22 @@ What a machine that already existed says about itself, through `key value` lines
 | memory under Number() | `machine_facts::reads_the_memory_line_in_whole_mb_and_nothing_where_the_line_printed_no_figure`, `machine_facts_oracle::mem_mb_of_reads_the_figure_as_javascripts_number_does` |
 | empty arch and system are none | `machine_facts_oracle::arch_and_system_read_an_empty_answer_as_none` |
 | one exec, failure is none | `machine_facts::one_command_asks_for_the_name_and_a_machine_that_could_not_run_it_leaves_the_caller_without_one` |
+
+## Pins (wave 2)
+
+Values from `oracle/unit_pins.oracle.ts` (`tests/fixtures/scenes/units.json`, section `machine_facts`), held by
+`tests/machine_facts_pins.rs`.
+
+- F-1 `uptime_ms_of`: `Math.round(Number(uptime) x 1000)`, which rounds a half toward +infinity (`-0.0025` is -2,
+  `-0.0005` is 0, `0.0005` is 1; `wsp_words::js` has the helper, `f64::round` is wrong here); `Number` reads `1e3`,
+  `0x10` and padded figures; a non-finite uptime falls to boot. Boot is `/sec = (\d+)/` unanchored with ASCII digits,
+  so `{ usec = 5, sec = 7 }` reads 5 and `sec = ٣` reads nothing; `now - boot x 1000` in f64, at least 0, so a
+  20-digit boot is 0. An empty or non-numeric uptime falls to boot (`uptime_rounds_and_reads_boot_as_the_ts`).
+- F-2 `mem_mb_of` reads memkb with JS `Number`: `0b11`, `0o17`, `.5` and `+2048` are numbers (`+2048` is 2 MB, the
+  rest round to 0 and are `Some(0)`); `1_0`, `1,000`, `5kB` and `1e400` are `None`; 512 kB is 1 MB, 511 is 0
+  (`memory_reads_every_number_form_js_reads`). 1e30 kB, which the TS answers as 9.77e26 MB, is past a `u64`: an
+  accepted difference.
+- F-3 `read_values`: the last value of a key wins even when empty; the value is JS-trimmed, the key is not, so a BOM
+  before the first key stays in it; a line with no space (a tab only) is skipped
+  (`the_last_value_wins_and_keys_are_not_trimmed`). The TS builds a plain object, whose integer-like keys iterate
+  first; nothing here iterates it, so first-seen order is kept.

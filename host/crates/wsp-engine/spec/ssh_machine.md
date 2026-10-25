@@ -104,3 +104,18 @@ Oracle: `tests/fixtures/roads/ssh_machine.json`, `ssh_read.json`.
 | sudo read and try, riding | ssh_sudo.rs: `reads_the_road_as_the_login`, `says_sshs_own_line_where_the_login_does_not_stand`, `a_backend_riding_a_password_hands_it_to_every_script`, `reads_root_free_asks_tty_none` |
 | bytes over stdin | ssh_bytes.rs (4) |
 | this computer | `dials_this_computer_matches_the_ts` |
+
+## Pins (wave 2)
+
+Values from `oracle/unit_pins.oracle.ts` (`tests/fixtures/scenes/units.json`, section `ssh_machine`), held by
+`tests/ssh_machine_pins.rs`.
+
+- M-1 The landing's folder is `posix.dirname`: `a//b` makes `mkdir -p 'a/'`, `a/b//c` makes `'a/b/'`, `//a` makes
+  `'//'`, `///a/b` makes `'///a'`, `/a//` makes `'/'`, `a/`, `./a` and `..` make `'.'`, `a/b/` makes `'a'`
+  (`the_landing_folder_is_posix_dirname`).
+- M-2 Exactly one trailing dot is stripped before the loopback test: `localhost..` is not this computer, `[::1].`,
+  `LOCALHOST.`, `127.foo.example`, `::1` and `0.0.0.0` are (`one_trailing_dot_is_stripped`).
+- M-3 The sudo mark is `^WSP_SUDO (root|free|asks|tty|none)$` under JS `m`, where a line ends at `\n`, `\r`, U+2028 or
+  U+2029: `a\r\nWSP_SUDO root\r\nWSP_SUDO none` is root (the first), `x` U+2028 `WSP_SUDO free` is free, a mark inside a
+  line or with a trailing space is no mark and fails `{user}@{host} did not answer over ssh: {stdout trimmed}`
+  (`the_sudo_mark_is_read_with_javascript_line_rules`).

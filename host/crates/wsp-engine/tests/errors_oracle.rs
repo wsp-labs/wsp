@@ -111,7 +111,7 @@ fn should_retry_is_a_transient_answer_before_the_third_attempt_only() {
 }
 
 #[test]
-fn a_network_failure_is_read_off_the_error_or_its_cause_and_never_off_a_provider_answer() {
+fn a_network_failure_is_read_off_the_error_or_its_cause_and_a_gateway_answer_is_not_one() {
     for code in NETWORK_CODES {
         assert!(is_network_error(&road(None, Some(code))), "cause {code}");
         assert!(is_network_error(&EngineError::Other { message: "socket".into(), code: Some(code.to_string()) }), "own {code}");

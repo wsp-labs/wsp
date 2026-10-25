@@ -68,3 +68,22 @@ implements since golden waits on #2441.
 | scripts byte for byte, paths, agents | `context_oracle::the_probe_command_bounded_command_and_overlay_probe_are_the_ts_scripts`, `context_oracle::every_constant_and_path_is_the_ts_text`, `context_oracle::the_context_agents_are_the_catalogs_six_in_catalog_order` |
 | scripts on a real shell: markers, overlay, no shell, aliases | `context_probe::the_probe_prints_its_markers_the_kernel_and_the_disk_and_names_each_hook_the_persons_file_claims`, `context_probe::asks_modprobe_for_an_overlay_the_kernel_does_not_list_yet_and_says_no_where_it_will_not_load`, `context_probe::opens_no_shell_of_the_machines_own_where_it_may_open_none_and_reads_every_other_fact_just_the_same`, `context_probe::the_zsh_alias_probe_*`, `context_probe::the_bash_alias_probe_*`, `context_probe::the_fish_alias_probe_*` |
 | the bound: kill the group, fail, go on, say late | `context_probe::a_bounded_command_is_killed_at_its_bound_fails_there_so_the_script_can_say_so_and_the_script_goes_on`, `context_probe::a_login_shell_whose_rc_file_leaves_a_job_holding_the_output_open_*`, `context_probe::a_login_shell_that_has_not_answered_by_its_bound_*` |
+
+## Pins (wave 2)
+
+Values from `oracle/unit_pins.oracle.ts` (`tests/fixtures/scenes/units.json`, section `context_probe`), held by
+`tests/context_probe_pins.rs`.
+
+- P-1 `DISK`: the rest split on JS `\s+`, each word read with `Number`; the first two are size and free in kB, more
+  words are ignored; both finite and size above 0, free may be negative (`DISK 100 -5` is free -5,120 bytes); `0x10`
+  and `1e3` count; `-0` and a non-finite figure are no disk; one word is no disk
+  (`disk_words_are_read_with_js_number`).
+- P-2 `FACTS`: base64 as Node reads it (no padding needed, white space and other characters skipped, decoding stops at
+  the first `=`), then `JSON.parse`: JSON `null` is no facts, while `5`, `[]` and `"abc"` are the empty facts
+  `{ tools: [], agents: [], files: [] }`; `!!!` and an empty word are no facts
+  (`facts_decode_as_node_and_a_scalar_is_the_empty_facts`).
+- P-3 The key is the line up to its first space only: `KERNEL\t6.6` is one unknown key, a leading space makes the key
+  empty; `ALIAS ll\tls -l` is name `ll\tls`, word `-l`; the rest is JS-trimmed, so `ALIAS  ll ls` is `ll`
+  (`keys_split_at_a_space_only`).
+- P-4 Lines are trimmed at the end with JS white space before the markers are looked for: `WSP_CTX` followed by U+FEFF
+  or U+00A0 is the marker, followed by U+0085 is not (`the_markers_are_found_after_a_js_trim_end`).

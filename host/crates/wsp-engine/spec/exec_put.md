@@ -77,3 +77,16 @@ file, an append is held behind its marker, so two appends to one path in one cal
 | machine_answer, markers_of | `machine_answer_matches_the_ts`, `markers_of_reads_only_its_marker_lines` |
 | paged reads: 8 a page, split on size, place rebuilt | `paged_reads_split_where_the_ts_split` |
 | real shell: two files, appends, markers | exec_detached.rs real-bash cases `two_files_one_over_the_cap_and_appended_land_byte_for_byte`, `two_appends_to_one_path_leave_one_marker`, `an_append_exec_and_a_piece_form_join_each_run_twice` |
+
+## Pins (wave 2)
+
+Values from `oracle/unit_pins.oracle.ts` (`tests/fixtures/scenes/units.json`, section `exec_put`), held by
+`tests/exec_put_pins.rs`.
+
+- U-1 `markers_of`: each line JS-trimmed and split on single spaces; kept where word 0 is the marker and word 1
+  exists, an empty word 1 included: `M  x y` is key `""` with `x y`, `M k a  b` keeps `a  b`, a tab is no separator,
+  the last value of a key wins in the key's first place
+  (`markers_split_on_single_spaces_and_an_empty_word_is_a_key`).
+- U-2 Each file's folder is `posix.dirname(path)`, not `Path::parent`: `a.txt` is `.`, `a//b/c` is `a//b`, `/f` is `/`,
+  `///a` is `//`, `a/./b` is `a/.`, `a/b/` is `a`; each sent exec is byte for byte the fixture's
+  (`folders_are_posix_dirname`).

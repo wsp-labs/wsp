@@ -31,9 +31,11 @@ transient; every other status unknown, 2xx included. `code` and `requestId` ride
 - `should_retry` (:199): transient and `attempt < 3`. `backoff_ms(attempt, r)` (:203): `min(500 * 2^attempt, 8000) +
   floor(r * 250)`. `road_backoff_ms(retry, r)` (:294): `retry * 3000 + floor(r * 250)`. `ROAD_TRIES` 3,
   `PROVIDER_READ_CAP_MS` 20,000.
-- `is_network_error` (:208): an Error (any variant but Provider) whose message is exactly `fetch failed`, or whose own
-  code or whose cause's code is one of `NETWORK_CODES` (8, errors.ts:205). A Provider answer is never one.
-- `never_sent` (:217): own or cause code in `UNSENT_CODES` (4).
+- `is_network_error` (:213): an Error whose message is exactly `fetch failed`, or whose own code or whose cause's
+  code is one of `NETWORK_CODES` (8, errors.ts:210). Every variant counts, `Provider` included: a refusal is thrown
+  as `Object.assign(new Error(message), w)`, so a `Provider(w)` whose message is `fetch failed` or whose code is a
+  network code is one (rule E-2). Only `classify`'s bare object, which is no Error and no `EngineError`, never is.
+- `never_sent` (:222): own or cause code in `UNSENT_CODES` (4), `Provider` included.
 - `far_end_answered` (:225): the error carries a kind or a numeric status: Provider, a wrapper with a carried kind or
   status, GuestUnusable, MachineUnreachable, NotFirstLife (kind notFirstLife), VaultTooLarge and Exists and NoProvider
   and Invalid and PlaceAbsent (each has a kind word in the TS). Road and Other never.
@@ -62,8 +64,19 @@ sleep. Nothing is kept between calls.
 | fetch cap rounding and timer bound | `errors_oracle::fetch_cap_ms_rounds_up_never_below_zero_and_never_past_the_timer` |
 | sentences of each class | `errors_oracle::each_typed_error_says_the_ts_sentence`, `errors::exec_failed_is_the_unreachable_base_with_that_answers_own_sentence`, `errors::unreachable_keeps_the_sentence_it_was_handed_and_is_no_exec_failed`, `errors_oracle::the_constructors_make_the_ts_lines` |
 | backoffs and retry count | `errors_oracle::backoff_doubles_from_half_a_second_to_eight_and_adds_up_to_249_ms_of_draw`, `errors_oracle::road_backoff_is_three_seconds_a_retry_plus_the_draw`, `errors_oracle::should_retry_is_a_transient_answer_before_the_third_attempt_only` |
-| network, unsent, answered, capped, road code | `errors_oracle::a_network_failure_is_read_off_the_error_or_its_cause_and_never_off_a_provider_answer`, `errors::is_network_error_*` (2), `errors_oracle::never_sent_is_only_the_four_codes_of_a_call_that_never_left`, `errors_oracle::the_far_end_answered_where_the_error_carries_a_kind_or_a_status`, `errors_oracle::road_code_names_the_first_offline_code_only_when_every_address_failed_offline`, `errors_oracle::is_capped_reads_the_timeout_name_and_nothing_else`, `errors_oracle::aborted_is_nodes_abort_error_with_no_string_code` |
+| network, unsent, answered, capped, road code | `errors_oracle::a_network_failure_is_read_off_the_error_or_its_cause_and_a_gateway_answer_is_not_one`, `errors_pins::*`, `errors::is_network_error_*` (2), `errors_oracle::never_sent_is_only_the_four_codes_of_a_call_that_never_left`, `errors_oracle::the_far_end_answered_where_the_error_carries_a_kind_or_a_status`, `errors_oracle::road_code_names_the_first_offline_code_only_when_every_address_failed_offline`, `errors_oracle::is_capped_reads_the_timeout_name_and_nothing_else`, `errors_oracle::aborted_is_nodes_abort_error_with_no_string_code` |
 | failure words | `errors_oracle::failure_words_spell_out_what_fetch_hid_in_its_cause` |
 | wrappers carry the cause's fields | `errors_oracle::the_wrappers_carry_the_providers_kind_status_code_and_request_id_and_its_message`, `errors_oracle::missing_and_account_refusals_read_the_kind_alone` |
 | until_reached: retry, rethrow, give up | `errors::retries_a_call_nothing_answered_at_the_link_backoff_and_returns_the_answer_that_came`, `errors::rethrows_a_failure_that_is_not_the_network_at_once_after_one_call_and_no_wait`, `errors::gives_up_once_the_next_wait_would_end_past_the_link_window_with_the_count_and_the_time` |
 | abort: fresh cap per call, which fired | `errors_oracle::abort_gives_a_fresh_cap_each_call_and_says_which_fired` |
+
+## Pins (wave 2)
+
+Values from `oracle/unit_pins.oracle.ts` (`tests/fixtures/scenes/units.json`, section `errors`), held by
+`tests/errors_pins.rs`.
+
+- E-1 `backoff_ms(attempt, r)` is `min(500 x 2^attempt, 8000) + floor(r x 250)` in f64: any attempt from 4 up is
+  8,000 and nothing overflows, attempt 70 and 2,000 included (`backoff_holds_at_eight_seconds_for_any_attempt`).
+- E-2 A `Provider` refusal with the words `fetch failed`, or the code `ECONNRESET` or `ECONNREFUSED`, is a network
+  error; `bad gateway` is not; `ECONNREFUSED` is also never sent and `ECONNRESET` is not
+  (`a_thrown_refusal_with_network_words_or_codes_reads_as_the_network`).
