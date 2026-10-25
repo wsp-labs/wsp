@@ -4,13 +4,25 @@
 //! config readout, a theme's paint and a cloud's plan line. Each TS statement stands as a comment above its stub.
 //! See spec/places.md.
 
+use std::cmp::Ordering;
+use std::sync::OnceLock;
+
+use regex::Regex;
+use serde::Serialize;
 use wsp_wire::types::agents_report::AgentSignInState;
-use crate::workspace_look::Rgb;
 use wsp_wire::types::workspace_look::WorkspaceTheme;
 use wsp_wire::views::desktop_bridge::{ContextMenuItem, HostsView};
-use wsp_wire::views::place::{CloudPlan, CloudStarts, PlaceView};
-use wsp_wire::views::project_bundle::{ProjectExportEvent, ProjectImportEvent, ProjectSecret, TerminalConfig, TerminalRgb};
-use serde::Serialize;
+use wsp_wire::views::place::{CloudPlan, CloudStarts, PlaceView, PlaceViewEngine};
+use wsp_wire::views::place_kind::PlaceKind;
+use wsp_wire::views::project_bundle::{
+    ProjectExportEvent, ProjectExportStage, ProjectImportEvent, ProjectImportStage, ProjectSecret, TerminalConfig, TerminalRgb,
+};
+
+use crate::js::{js_round, js_trim, number_string, utf16};
+use crate::semver::compare_versions;
+use crate::words::base::plural;
+use crate::words::units::{fmt_bytes, fmt_cost, fmt_duration, fmt_rate};
+use crate::workspace_look::{dot_colour, effective_opacity, theme_ink, Rgb};
 
 /// The line under the import dialog's title: which workspace, and that the folder lands at the path it has here.
 // places.ts:8
@@ -18,7 +30,7 @@ use serde::Serialize;
 //   return `Into ${workspaceName}, at the same path.`;
 // }
 pub fn import_into_line(workspace_name: &str) -> String {
-    todo!()
+    format!("Into {workspace_name}, at the same path.")
 }
 
 /// The repository row of a plan, in words a stranger reads: the history travels with a .git, or there is none.
@@ -27,7 +39,11 @@ pub fn import_into_line(workspace_name: &str) -> String {
 //   return repo ? "Git repository, history travels" : "No repository";
 // }
 pub fn repo_line(repo: bool) -> String {
-    todo!()
+    if repo {
+        "Git repository, history travels".to_string()
+    } else {
+        "No repository".to_string()
+    }
 }
 
 /// What the ticks on the secret-shaped rows do, under how many rows there are.
@@ -36,7 +52,11 @@ pub fn repo_line(repo: bool) -> String {
 //   return `${plural(n, "file")} ${n === 1 ? "looks like a secret" : "look like secrets"}. Ticked files are copied as they are. Unticked files are left out and listed.`;
 // }
 pub fn secrets_note(n: f64) -> String {
-    todo!()
+    format!(
+        "{} {}. Ticked files are copied as they are. Unticked files are left out and listed.",
+        plural(n, "file"),
+        if n == 1.0 { "looks like a secret" } else { "look like secrets" }
+    )
 }
 
 /// What the ticks on the agent rows do.
@@ -49,7 +69,8 @@ pub const SESSIONS_NOTE: &str = "Ticked agents' sessions go with the folder. The
 //   return `${s.signals.join(", ")}, ${fmtBytes(s.bytes)}`;
 // }
 pub fn secret_signals_line(s: &ProjectSecret) -> String {
-    todo!()
+    let signals: Vec<String> = s.signals.iter().map(|signal| wire_word(signal)).collect();
+    format!("{}, {}", signals.join(", "), fmt_bytes(s.bytes.0))
 }
 
 /// The line under the export dialog's title: which workspace the folder leaves, and the computer it lands on.
@@ -58,7 +79,7 @@ pub fn secret_signals_line(s: &ProjectSecret) -> String {
 //   return `From ${workspaceName}, to ${here}.`;
 // }
 pub fn export_from_line(workspace_name: &str, here: &str) -> String {
-    todo!()
+    format!("From {workspace_name}, to {here}.")
 }
 
 /// What the ticks on the export dialog's agent rows do.
@@ -130,7 +151,39 @@ pub struct TripProgress {
 //   return events.length === 0 ? null : { line, fraction };
 // }
 pub fn import_progress(events: &[ProjectImportEvent], workspace_name: &str) -> Option<TripProgress> {
-    todo!()
+    let mut line = String::new();
+    let mut fraction = 0.0_f64;
+    let mut landings = 0;
+    for event in events {
+        match event.stage {
+            ProjectImportStage::Planned | ProjectImportStage::Consented => line = "Starting".to_string(),
+            ProjectImportStage::Packing => line = event.message.strip_suffix('.').unwrap_or(&event.message).to_string(),
+            ProjectImportStage::Uploading => {
+                let what = if landings > 0 { " sessions" } else { "" };
+                let size = match event.total {
+                    None => String::new(),
+                    Some(total) => format!("{} {}", if what.is_empty() { "" } else { "," }, fmt_bytes(total.0)),
+                };
+                line = format!("Uploading{what}{size}");
+                if let (Some(bytes), Some(total)) = (event.bytes, event.total) {
+                    if total.0 > 0.0 {
+                        fraction = fraction.max(bytes.0 / total.0);
+                    }
+                }
+            }
+            ProjectImportStage::Landing => {
+                landings += 1;
+                line = format!("Landing on {workspace_name}");
+                fraction = 1.0;
+            }
+            ProjectImportStage::Done => {
+                line = "Done".to_string();
+                fraction = 1.0;
+            }
+            ProjectImportStage::Failed => return None,
+        }
+    }
+    (!events.is_empty()).then(|| TripProgress { line, fraction })
 }
 
 /// An export's events folded into the one progress line and its bar. The runtime packs and downloads the folder,
@@ -168,7 +221,36 @@ pub fn import_progress(events: &[ProjectImportEvent], workspace_name: &str) -> O
 //   return events.length === 0 ? null : { line, fraction };
 // }
 pub fn export_progress(events: &[ProjectExportEvent], here: &str) -> Option<TripProgress> {
-    todo!()
+    let mut line = String::new();
+    let mut fraction = 0.0_f64;
+    let mut packings = 0;
+    for event in events {
+        match event.stage {
+            ProjectExportStage::Packing => {
+                packings += 1;
+                line = format!("Packing {}", export_pass(packings));
+            }
+            ProjectExportStage::Downloading => {
+                let size = event.total.map_or(String::new(), |total| format!(", {}", fmt_bytes(total.0)));
+                line = format!("Downloading {}{size}", export_pass(packings));
+                if let (Some(bytes), Some(total)) = (event.bytes, event.total) {
+                    if total.0 > 0.0 {
+                        fraction = fraction.max(bytes.0 / total.0);
+                    }
+                }
+            }
+            ProjectExportStage::Landing => {
+                line = if here.is_empty() { "Landing".to_string() } else { format!("Landing on {here}") };
+                fraction = 1.0;
+            }
+            ProjectExportStage::Done => {
+                line = "Done".to_string();
+                fraction = 1.0;
+            }
+            ProjectExportStage::Failed => return None,
+        }
+    }
+    (!events.is_empty()).then(|| TripProgress { line, fraction })
 }
 
 /// A color as a Ghostty file writes it.
@@ -177,7 +259,7 @@ pub fn export_progress(events: &[ProjectExportEvent], here: &str) -> Option<Trip
 //   return `#${[r, g, b].map(c => c.toString(16).padStart(2, "0")).join("")}`;
 // }
 pub fn hex_color(rgb: &TerminalRgb) -> String {
-    todo!()
+    format!("#{:02x}{:02x}{:02x}", rgb.r.get(), rgb.g.get(), rgb.b.get())
 }
 
 // places.ts:131
@@ -209,7 +291,30 @@ pub const NO_TERMINAL_CONFIG_LINE: &str = "No Ghostty config on this computer; t
 //   return [`Read ${config.files.join(", ")}`, ...rows.filter(([, value]) => value !== undefined).map(([key, value]) => `${key} = ${value}`)];
 // }
 pub fn terminal_config_lines(config: &TerminalConfig) -> Vec<String> {
-    todo!()
+    if config.files.is_empty() {
+        return vec![NO_TERMINAL_CONFIG_LINE.to_string()];
+    }
+    let set = config.palette.iter().filter(|colour| colour.is_some()).count();
+    let pair = |a: f64, b: f64| if a == b { number_string(a) } else { format!("{},{}", number_string(a), number_string(b)) };
+    let rows: Vec<(&str, Option<String>)> = vec![
+        ("font-family", if config.font_family.is_empty() { None } else { Some(config.font_family.join(", ")) }),
+        ("font-size", config.font_size.map(|size| number_string(size.0))),
+        ("theme", config.theme.clone()),
+        ("background", config.background.as_ref().map(hex_color)),
+        ("foreground", config.foreground.as_ref().map(hex_color)),
+        ("palette", if set == 0 { None } else { Some(format!("{set} of 16 colors")) }),
+        ("selection-background", config.selection_background.as_ref().map(hex_color)),
+        ("cursor-color", config.cursor_color.as_ref().map(hex_color)),
+        ("cursor-style", config.cursor_style.as_ref().map(|style| wire_word(style))),
+        ("cursor-style-blink", config.cursor_style_blink.map(|blink| blink.to_string())),
+        ("window-padding-x", config.window_padding_x.as_ref().map(|padding| pair(padding.left.0, padding.right.0))),
+        ("window-padding-y", config.window_padding_y.as_ref().map(|padding| pair(padding.top.0, padding.bottom.0))),
+        ("background-opacity", config.background_opacity.map(|opacity| number_string(opacity.0))),
+        ("background-blur", config.background_blur.map(|blur| number_string(blur.as_f64()))),
+    ];
+    let mut lines = vec![format!("Read {}", config.files.join(", "))];
+    lines.extend(rows.into_iter().filter_map(|(key, value)| value.map(|value| format!("{key} = {value}"))));
+    lines
 }
 
 /// A glyph's id as a picker names it. The ids are one word each, so the word is the id with its first letter up; a
@@ -220,7 +325,11 @@ pub fn terminal_config_lines(config: &TerminalConfig) -> Vec<String> {
 // }
 /// `id` is a WorkspaceGlyph's wire word.
 pub fn look_word(id: &str) -> String {
-    todo!()
+    let mut chars = id.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first) => format!("{}{}", first.to_uppercase(), chars.as_str()),
+    }
 }
 
 /// The custom properties a workspace's theme paints with, the one place the theme object is read. The gradient is
@@ -252,7 +361,7 @@ pub struct ThemeVars {
 //   return `${Math.round(share * 100)}%`;
 // }
 pub fn fmt_percent(share: f64) -> String {
-    todo!()
+    format!("{}%", number_string(js_round(share * 100.0)))
 }
 
 /// What the app says about a desktop shell and the host that served it its page being of two releases.
@@ -288,7 +397,23 @@ pub const GET_THE_APP_WORD: &str = "Get";
 //   return order < 0 ? { line: `${both}: get the new app`, update: true } : { line: `${both}: run the app's own host`, update: false };
 // }
 pub fn shell_version_notice(shell: Option<&str>, host: &str, label: Option<&str>) -> Option<ShellVersionNotice> {
-    todo!()
+    let named = match label {
+        None => "the host".to_string(),
+        Some(label) => format!("the host {label}"),
+    };
+    let Some(shell) = shell else {
+        return Some(ShellVersionNotice { line: format!("this app is older than {named}, which is {host}: get the new app"), update: true });
+    };
+    let order = compare_versions(shell, host);
+    if order == Ordering::Equal {
+        return None;
+    }
+    let both = format!("this app is {shell}, {named} is {host}");
+    if order == Ordering::Less {
+        Some(ShellVersionNotice { line: format!("{both}: get the new app"), update: true })
+    } else {
+        Some(ShellVersionNotice { line: format!("{both}: run the app's own host"), update: false })
+    }
 }
 
 /// The words of the desktop's hosts: the menu and the sidebar's foot read them here.
@@ -309,7 +434,16 @@ pub mod host_words {
 //   return hours < 24 ? `${hours} h` : `${Math.floor(hours / 24)} d`;
 // }
 pub fn offline_for(ms: f64) -> String {
-    todo!()
+    let minutes = (ms / 60_000.0).floor().max(0.0);
+    if minutes < 60.0 {
+        return format!("{} min", number_string(minutes));
+    }
+    let hours = (minutes / 60.0).floor();
+    if hours < 24.0 {
+        format!("{} h", number_string(hours))
+    } else {
+        format!("{} d", number_string((hours / 24.0).floor()))
+    }
 }
 
 /// The Workspaces cell of that table: how many stand on the computer, what it has cost this month where somebody
@@ -324,7 +458,11 @@ pub fn offline_for(ms: f64) -> String {
 //   return note === undefined ? n : `${n}, ${note}`;
 // }
 pub fn place_workspaces_cell(view: &PlaceView, count: f64, month_usd: Option<f64>) -> String {
-    todo!()
+    let parts = place_workspaces_parts(view, count, month_usd);
+    match parts.note {
+        None => parts.count,
+        Some(note) => format!("{}, {}", parts.count, note),
+    }
 }
 
 /// The same cell in its two parts, for a table that draws them in two inks: the count a person is counting, and
@@ -348,14 +486,22 @@ pub struct WorkspacesParts {
 }
 
 pub fn place_workspaces_parts(view: &PlaceView, count: f64, month_usd: Option<f64>) -> WorkspacesParts {
-    todo!()
+    let count_word = number_string(count);
+    if let Some(build) = &view.build {
+        return WorkspacesParts { count: count_word, note: Some(build.clone()) };
+    }
+    let note = match (&view.kind, month_usd) {
+        (PlaceKind::Provider, Some(usd)) => Some(spent_this_month(usd)),
+        _ => None,
+    };
+    WorkspacesParts { count: count_word, note }
 }
 
 /// What a place has taken since the first of the month, the clause every surface that says it says.
 // places.ts:243
 // export const spentThisMonth = (usd: number): string => `${fmtCost(usd)} this month`;
 pub fn spent_this_month(usd: f64) -> String {
-    todo!()
+    format!("{} this month", fmt_cost(usd))
 }
 
 /// What a cloud has spent today over its spend per day, the SPEND cell and the meter's figure: the limit is a number
@@ -365,7 +511,8 @@ pub fn spent_this_month(usd: f64) -> String {
 //   return `${fmtCost(todayUsd)}/${Number.isInteger(capUsd) ? `$${capUsd}` : fmtCost(capUsd)}`;
 // }
 pub fn spend_meter_word(today_usd: f64, cap_usd: f64) -> String {
-    todo!()
+    let cap = if cap_usd.fract() == 0.0 { format!("${}", number_string(cap_usd)) } else { fmt_cost(cap_usd) };
+    format!("{}/{}", fmt_cost(today_usd), cap)
 }
 
 /// The Spend row of a place's detail: the month behind it, what it burns right now and how many workspaces that is
@@ -376,7 +523,7 @@ pub fn spend_meter_word(today_usd: f64, cap_usd: f64) -> String {
 //   return `${spentThisMonth(spend.monthUsd)}, ${fmtRate(spend.rateUsdPerHour)} now across ${plural(workspaces, "workspace")}`;
 // }
 pub fn place_spend_line(month_usd: f64, rate_usd_per_hour: f64, workspaces: f64) -> String {
-    todo!()
+    format!("{}, {} now across {}", spent_this_month(month_usd), fmt_rate(rate_usd_per_hour), plural(workspaces, "workspace"))
 }
 
 /// The foot under the places table: what the providers that have taken something this month took, together, and how
@@ -387,7 +534,7 @@ pub fn place_spend_line(month_usd: f64, rate_usd_per_hour: f64, workspaces: f64)
 //   return `${spentThisMonth(monthUsd)} across ${plural(providers, "provider")}`;
 // }
 pub fn places_spend_foot(month_usd: f64, providers: f64) -> String {
-    todo!()
+    format!("{} across {}", spent_this_month(month_usd), plural(providers, "provider"))
 }
 
 /// The doctor's word on the engine a project's own containers run on here: the engine when the box has one, else
@@ -399,7 +546,11 @@ pub fn places_spend_foot(month_usd: f64, providers: f64) -> String {
 //   return `${view.name} runs a project's own containers on ${view.engine}; a workspace made with --engine gets a socket to it and sees its own containers alone`;
 // }
 pub fn place_engine_line(view: &PlaceView) -> Option<String> {
-    todo!()
+    let engine = view.engine.as_ref()?;
+    if matches!(engine, PlaceViewEngine::None) {
+        return Some(format!("{} has no container engine; a project's docker compose runs there once you install Docker or podman on it", view.name));
+    }
+    Some(format!("{} runs a project's own containers on {}; a workspace made with --engine gets a socket to it and sees its own containers alone", view.name, wire_word(engine)))
 }
 
 /// An agent wsp hands a token or a key of the person's at every turn, which needs no login on the computer.
@@ -414,7 +565,11 @@ pub const TOKEN_SIGN_IN_WORD: &str = "signed in with a token";
 //   return state === "signed-in" ? "signed in" : state === "vault-key" ? TOKEN_SIGN_IN_WORD : "not signed in";
 // }
 pub fn agent_sign_in_word(state: AgentSignInState) -> String {
-    todo!()
+    match state {
+        AgentSignInState::SignedIn => "signed in".to_string(),
+        AgentSignInState::VaultKey => TOKEN_SIGN_IN_WORD.to_string(),
+        AgentSignInState::None => "not signed in".to_string(),
+    }
 }
 
 /// The version number in what an agent's own version flag printed: agents word that line their own way (`2.1.270
@@ -425,7 +580,10 @@ pub fn agent_sign_in_word(state: AgentSignInState) -> String {
 //   return /\d+\.\d+\.\d+/.exec(raw)?.[0] ?? raw.trim();
 // }
 pub fn agent_version_word(raw: &str) -> String {
-    todo!()
+    match version_re().find(raw) {
+        Some(found) => found.as_str().to_string(),
+        None => js_trim(raw).to_string(),
+    }
 }
 
 // semver.org's own pattern, whole.
@@ -444,7 +602,13 @@ pub const VERSION_MAX_CHARS: usize = 64;
 //   return bare.length <= VERSION_MAX_CHARS && SEMVER.test(bare) ? bare : undefined;
 // }
 pub fn strict_version(raw: &str) -> Option<String> {
-    todo!()
+    let trimmed = js_trim(raw);
+    let bare = trimmed.strip_prefix('v').unwrap_or(trimmed);
+    if utf16::len(bare) <= VERSION_MAX_CHARS && semver_re().is_match(bare) {
+        Some(bare.to_string())
+    } else {
+        None
+    }
 }
 
 /// The agents cell of the computers table: each agent that computer reported, its version and the word for its
@@ -461,13 +625,22 @@ pub fn strict_version(raw: &str) -> Option<String> {
 //     .join(", ");
 // }
 pub fn agents_cell(place: &PlaceView) -> String {
-    todo!()
+    let agents = place.agents.as_deref().unwrap_or(&[]);
+    agents
+        .iter()
+        .map(|id| {
+            let version = place.agent_versions.as_ref().and_then(|versions| versions.get(id)).map(|raw| agent_version_word(raw));
+            let state = place.sign_ins.as_ref().and_then(|states| states.get(id)).map(|state| agent_sign_in_word(*state));
+            std::iter::once(id.clone()).chain(version).chain(state).collect::<Vec<_>>().join(" ")
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// How much of the provider's own reason for refusing a key a sentence carries: enough to tell a dead key from a
 /// narrowed one, short enough to stay one sentence.
 // places.ts:316
-const REFUSAL_REASON_MAX: i64 = 80;
+const REFUSAL_REASON_MAX: usize = 80;
 
 /// The one line a codex turn fails with when it ran on the person's own key and the provider turned that key down:
 /// whose key was refused, what the provider said about it, and the two ways out. Never the not-signed-in line,
@@ -480,7 +653,10 @@ const REFUSAL_REASON_MAX: i64 = 80;
 //   return `OpenAI refused your ${keyEnv}${said === "" ? "" : `: ${said}`}. Put a working key in ~/.wsp/.env, or sign Codex in where this thread runs with ${login}.`;
 // }
 pub fn codex_key_refused_line(key_env: &str, reason: &str, login: &str) -> String {
-    todo!()
+    let cut = utf16::cut(js_trim(reason), REFUSAL_REASON_MAX);
+    let said = js_trim(&cut);
+    let because = if said.is_empty() { String::new() } else { format!(": {said}") };
+    format!("OpenAI refused your {key_env}{because}. Put a working key in ~/.wsp/.env, or sign Codex in where this thread runs with {login}.")
 }
 
 /// The verb alone, for the host road that runs that leave on another computer over the line that computer said
@@ -500,7 +676,10 @@ pub const PLACE_LEAVE_LINE: &str = "wsp leave";
 // places.ts:339
 // export const imageCopyLine = (size?: string): string => `the copy of your image${size === undefined ? "" : ` (${size})`}`;
 pub fn image_copy_line(size: Option<&str>) -> String {
-    todo!()
+    match size {
+        None => "the copy of your image".to_string(),
+        Some(size) => format!("the copy of your image ({size})"),
+    }
 }
 
 /// Everything wsp puts on a computer it is installed on, named once. The Add sheet writes its lines and the note
@@ -577,7 +756,7 @@ pub mod places_words {
         pub const INSTALL: &str = "npm i -g @wsp-labs/wsp";
         /// `wsp join <url> --code <token>`.
         pub fn join_line(url: &str, token: &str) -> String {
-            todo!()
+            format!("wsp join {url} --code {token}")
         }
         pub const RELAY_NOTE: &str = "when the host is linked to your relay";
         pub const FIREWALL: &str = "macOS may ask once whether wsp can accept connections; allow it";
@@ -597,7 +776,13 @@ pub mod places_words {
 // export const providerRemoveQuestion = (name: string, tasks: number): string =>
 //   `Remove ${name}?\n${tasks === 0 ? "Every machine wsp made there is deleted" : `${tasks === 1 ? "Its task is" : `Its ${tasks} tasks are`} deleted at ${name}`}, and once ${name} reads ${tasks === 1 ? "it" : "them"} gone the key is forgotten.`;
 pub fn provider_remove_question(name: &str, tasks: f64) -> String {
-    todo!()
+    let gone = if tasks == 0.0 {
+        "Every machine wsp made there is deleted".to_string()
+    } else {
+        let its = if tasks == 1.0 { "Its task is".to_string() } else { format!("Its {} tasks are", number_string(tasks)) };
+        format!("{its} deleted at {name}")
+    };
+    format!("Remove {name}?\n{gone}, and once {name} reads {} gone the key is forgotten.", if tasks == 1.0 { "it" } else { "them" })
 }
 
 /// Where a provider's key still is once the file beside the state lost it: a host reads the shell's environment and
@@ -626,7 +811,29 @@ pub enum KeyStill {
 //   return `Its key is still in ${still.map(stillWhere).join(" and in ")}, which a host started ${still.map(stillReader).join(" or ")} reads first; take it out ${one ? "there" : still.length === 2 ? "of both" : "of each"}.`;
 // };
 pub fn provider_key_still_line(still: &[KeyStill]) -> String {
-    todo!()
+    let one = still.len() == 1;
+    let wheres: Vec<String> = still
+        .iter()
+        .map(|found| match found {
+            KeyStill::File(file) => file.clone(),
+            KeyStill::Env(env) => format!("the environment this host started with ({env})"),
+        })
+        .collect();
+    let readers: Vec<&str> = still
+        .iter()
+        .map(|found| match found {
+            KeyStill::File(_) => "in that folder",
+            KeyStill::Env(_) => "from that shell",
+        })
+        .collect();
+    let tail = if one {
+        "there"
+    } else if still.len() == 2 {
+        "of both"
+    } else {
+        "of each"
+    };
+    format!("Its key is still in {}, which a host started {} reads first; take it out {tail}.", wheres.join(" and in "), readers.join(" or "))
 }
 
 /// What removing a provider answers once every machine this host made there is gone: the key forgotten with them, or
@@ -638,7 +845,16 @@ pub fn provider_key_still_line(still: &[KeyStill]) -> String {
 // };
 /// `snapshots` defaults to 0.
 pub fn provider_removed_line(name: &str, deleted: f64, still: Option<&str>, snapshots: Option<f64>) -> String {
-    todo!()
+    let snapshots = snapshots.unwrap_or(0.0);
+    let went = if snapshots == 0.0 {
+        plural(deleted, "machine")
+    } else {
+        format!("{} and {}", plural(deleted, "machine"), plural(snapshots, "image snapshot"))
+    };
+    match still {
+        None => format!("{name} removed: {went} deleted, the key forgotten."),
+        Some(still) => format!("{name} removed: {went} deleted. {still}"),
+    }
 }
 
 // places.ts:421
@@ -650,7 +866,12 @@ pub fn provider_removed_line(name: &str, deleted: f64, still: Option<&str>, snap
 // export const providerForgetQuestion = (name: string, tasks: number): string =>
 //   `Forget ${name}?\nThe key ${tasks === 0 ? "leaves" : `and ${tasksRecords(tasks, true)} leave`} this host. ${forgetBills(name, "is")}`;
 pub fn provider_forget_question(name: &str, tasks: f64) -> String {
-    todo!()
+    let leaves = if tasks == 0.0 {
+        "leaves".to_string()
+    } else {
+        format!("and {} leave", tasks_records(tasks, true))
+    };
+    format!("Forget {name}?\nThe key {leaves} this host. {}", forget_bills(name, "is"))
 }
 
 /// What forgetting a provider answers, with where its key still is when the host reads it from beyond its own file.
@@ -661,7 +882,18 @@ pub fn provider_forget_question(name: &str, tasks: f64) -> String {
 //   return `${head} ${forgetBills(name, "was")}`;
 // };
 pub fn provider_forgot_line(name: &str, tasks: f64, still: Option<&str>) -> String {
-    todo!()
+    let records = if tasks == 0.0 { String::new() } else { format!("{} left this host", tasks_records(tasks, false)) };
+    let head = match still {
+        None => {
+            let key = if records.is_empty() { " left this host".to_string() } else { format!(" and {records}") };
+            format!("{name} forgotten: the key{key}.")
+        }
+        Some(still) => {
+            let tail = if records.is_empty() { ".".to_string() } else { format!(": {records}.") };
+            format!("{name} forgotten{tail} {still}")
+        }
+    };
+    format!("{head} {}", forget_bills(name, "was"))
 }
 
 /// Why one machine a provider's remove reached is not gone yet, as the kept line names it.
@@ -676,20 +908,20 @@ pub fn provider_forgot_line(name: &str, tasks: f64, still: Option<&str>) -> Stri
 pub mod provider_left_words {
     /// `still <state> after three asks`.
     pub fn running(state: &str) -> String {
-        todo!()
+        format!("still {state} after three asks")
     }
     /// `could not be read: <said>`.
     pub fn unread(said: &str) -> String {
-        todo!()
+        format!("could not be read: {said}")
     }
     /// `could not be deleted: <said>`.
     pub fn undeleted(said: &str) -> String {
-        todo!()
+        format!("could not be deleted: {said}")
     }
     pub const LATE: &str = "made while the remove ran";
     /// `still listed <js_round(grace_ms / 1000)> s after its delete`.
     pub fn listed(grace_ms: f64) -> String {
-        todo!()
+        format!("still listed {} s after its delete", crate::js::number_string(crate::js::js_round(grace_ms / 1000.0)))
     }
 }
 
@@ -725,7 +957,25 @@ pub struct SavedImage {
 }
 
 pub fn provider_kept_line(name: &str, deleted: f64, left: &[LeftThere]) -> String {
-    todo!()
+    let named = left
+        .iter()
+        .take(PROVIDER_LEFT_NAMED)
+        .map(|machine| format!("{} ({})", machine.id, machine.said))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let more = if left.len() > PROVIDER_LEFT_NAMED {
+        format!(" and {} more", left.len() - PROVIDER_LEFT_NAMED)
+    } else {
+        String::new()
+    };
+    let one = left.len() == 1;
+    format!(
+        "{} wsp made at {name} {} not gone: {named}{more}. The key is kept until {}{}. Remove {name} again to ask once more.",
+        plural(left.len() as f64, "machine"),
+        if one { "is" } else { "are" },
+        if one { "it goes" } else { "they go" },
+        others_deleted(deleted)
+    )
 }
 
 // places.ts:457
@@ -744,7 +994,12 @@ pub fn provider_kept_line(name: &str, deleted: f64, left: &[LeftThere]) -> Strin
 //   return images.length === 1 ? `Its image snapshot ${named} is deleted at ${name} before the key goes.` : `Its ${images.length} image snapshots, ${named}, are deleted at ${name} before the key goes.`;
 // }
 pub fn provider_images_line(name: &str, images: &[SavedImage]) -> String {
-    todo!()
+    let named = named_images(images);
+    if images.len() == 1 {
+        format!("Its image snapshot {named} is deleted at {name} before the key goes.")
+    } else {
+        format!("Its {} image snapshots, {named}, are deleted at {name} before the key goes.", images.len())
+    }
 }
 
 /// What a forget leaves at a provider beside its machines: the image snapshots this host saved there, which no timer
@@ -755,7 +1010,18 @@ pub fn provider_images_line(name: &str, images: &[SavedImage]) -> String {
 //   return `${one ? `Its image snapshot ${namedImages(images)} stays` : `Its ${images.length} image snapshots, ${namedImages(images)}, stay`} at ${name} and ${one ? "bills" : "bill"} every month; add the key again and remove ${name} to delete ${one ? "it" : "them"}.`;
 // }
 pub fn provider_images_left_line(name: &str, images: &[SavedImage]) -> String {
-    todo!()
+    let named = named_images(images);
+    let one = images.len() == 1;
+    let stay = if one {
+        format!("Its image snapshot {named} stays")
+    } else {
+        format!("Its {} image snapshots, {named}, stay", images.len())
+    };
+    format!(
+        "{stay} at {name} and {} every month; add the key again and remove {name} to delete {}.",
+        if one { "bills" } else { "bill" },
+        if one { "it" } else { "them" }
+    )
 }
 
 /// What it answers when every machine is gone and an image snapshot is not: each named with why, and the key kept,
@@ -767,7 +1033,19 @@ pub fn provider_images_left_line(name: &str, images: &[SavedImage]) -> String {
 //   return `${plural(left.length, "image snapshot")} this host saved at ${name} ${one ? "is" : "are"} not gone: ${left.map(l => `${l.id} (${l.said})`).join(", ")}. The key is kept until ${one ? "it goes" : "they go"}${machines}. Remove ${name} again to ask once more.`;
 // }
 pub fn provider_images_kept_line(name: &str, deleted: f64, left: &[LeftThere]) -> String {
-    todo!()
+    let one = left.len() == 1;
+    let machines = if deleted == 0.0 {
+        String::new()
+    } else {
+        format!("; {} {} deleted", plural(deleted, "machine"), if deleted == 1.0 { "was" } else { "were" })
+    };
+    let items = left.iter().map(|image| format!("{} ({})", image.id, image.said)).collect::<Vec<_>>().join(", ");
+    format!(
+        "{} this host saved at {name} {} not gone: {items}. The key is kept until {}{machines}. Remove {name} again to ask once more.",
+        plural(left.len() as f64, "image snapshot"),
+        if one { "is" } else { "are" },
+        if one { "it goes" } else { "they go" }
+    )
 }
 
 /// What it answers when the listing read again after the deletes failed: a machine a create made meanwhile may be
@@ -776,7 +1054,12 @@ pub fn provider_images_kept_line(name: &str, deleted: f64, left: &[LeftThere]) -
 // export const providerUnlistedLine = (name: string, deleted: number, said: string): string =>
 //   `${name}'s machines could not be listed again${deleted === 0 ? "" : ` after ${plural(deleted, "machine")} ${deleted === 1 ? "was" : "were"} deleted`} (${said}), so one made meanwhile may still be there and the key is kept. Remove ${name} again to finish.`;
 pub fn provider_unlisted_line(name: &str, deleted: f64, said: &str) -> String {
-    todo!()
+    let after = if deleted == 0.0 {
+        String::new()
+    } else {
+        format!(" after {} {} deleted", plural(deleted, "machine"), if deleted == 1.0 { "was" } else { "were" })
+    };
+    format!("{name}'s machines could not be listed again{after} ({said}), so one made meanwhile may still be there and the key is kept. Remove {name} again to finish.")
 }
 
 /// --force on a provider's remove: it takes work no remote has off a computer, and a provider is no computer.
@@ -793,7 +1076,10 @@ pub struct SaidFix {
 }
 
 pub fn provider_force_refusal(name: &str, typed: &str) -> SaidFix {
-    todo!()
+    SaidFix {
+        said: format!("{name} is not a computer, so --force, which removes one over work no remote has, means nothing there."),
+        fix: format!("Run {typed} without it, or with --forget to drop the key and touch nothing at {name}."),
+    }
 }
 
 /// A provider that refused the key a remove reads its machines with: nothing there can be seen or deleted.
@@ -803,7 +1089,10 @@ pub fn provider_force_refusal(name: &str, typed: &str) -> SaidFix {
 //   fix: `Save a working key and remove ${name} again, or remove it with --forget.`,
 // });
 pub fn provider_key_refused(name: &str, said: &str) -> SaidFix {
-    todo!()
+    SaidFix {
+        said: format!("{name} refused the key ({said}), so wsp cannot see or delete the machines it made there; the key is kept."),
+        fix: format!("Save a working key and remove {name} again, or remove it with --forget."),
+    }
 }
 
 /// Every line a computer you own can join this host by: one per address it answers on, and the relay's address
@@ -823,14 +1112,23 @@ pub struct JoinRoad {
 }
 
 pub fn join_roads(token: &str, urls: &[impl AsRef<str>], relay_url: Option<&str>) -> Vec<JoinRoad> {
-    todo!()
+    let road = |url: &str, note: Option<&str>| JoinRoad {
+        url: url.to_string(),
+        line: places_words::sheet::join_line(url, token),
+        note: note.map(str::to_string),
+    };
+    let mut roads: Vec<JoinRoad> = urls.iter().map(|url| road(url.as_ref(), None)).collect();
+    if let Some(relay) = relay_url {
+        roads.push(road(relay, Some(places_words::sheet::RELAY_NOTE)));
+    }
+    roads
 }
 
 /// What the app calls the computer it runs on, first in every hosts list.
 // places.ts:508
 // export const hereWord = (mac: boolean): string => (mac ? "This Mac" : "This computer");
 pub fn here_word(mac: bool) -> String {
-    todo!()
+    (if mac { "This Mac" } else { "This computer" }).to_string()
 }
 
 // places.ts:510
@@ -846,7 +1144,11 @@ const HOST_MENU_SWITCH: &str = "switch:";
 //   ];
 // }
 pub fn hosts_menu_items(view: &HostsView) -> Vec<ContextMenuItem> {
-    todo!()
+    let mut rows = vec![menu_row(HOST_MENU_SWITCH.to_string(), view.here.clone(), view.current.is_none())];
+    rows.extend(view.hosts.iter().map(|host| {
+        menu_row(format!("{HOST_MENU_SWITCH}{}", host.alias), host.alias.clone(), view.current.as_deref() == Some(host.alias.as_str()))
+    }));
+    rows
 }
 
 /// The host a row of the Hosts menu moves the window to, null for this computer, read back off its id; nothing for an
@@ -859,7 +1161,8 @@ pub fn hosts_menu_items(view: &HostsView) -> Vec<ContextMenuItem> {
 // }
 /// Some(None) is this computer (alias null); None is an id the menu never minted.
 pub fn host_menu_action(id: &str) -> Option<Option<String>> {
-    todo!()
+    let alias = id.strip_prefix(HOST_MENU_SWITCH)?;
+    Some(if alias.is_empty() { None } else { Some(alias.to_string()) })
 }
 
 /// How often a linked host says where it is on its account, and so how fresh a listing of the account's hosts can
@@ -918,7 +1221,11 @@ pub const ADDRESS_NEXT_START: &str = "waits on its next start";
 // }
 /// `awayMs` None is null.
 pub fn host_beat_word(away_ms: Option<f64>) -> String {
-    todo!()
+    match away_ms {
+        None => "not yet".to_string(),
+        Some(ms) if ms <= 2.0 * HOST_BEAT_MS => format!("up {}", fmt_duration(ms.max(0.0), None)),
+        Some(ms) => format!("away {}", offline_for(ms)),
+    }
 }
 
 /// The cells of the one hosts table, the header first: every host on the account this computer can reach.
@@ -938,7 +1245,23 @@ pub fn host_beat_word(away_ms: Option<f64>) -> String {
 //   ];
 // }
 pub fn hosts_table(rows: &[HostsTableRow]) -> Vec<Vec<String>> {
-    todo!()
+    let mut cells: Vec<Vec<String>> = vec![["HOST", "ADDRESS", "STATE", "DEVICE", "CONNECTOR", "KEY", ""].map(String::from).to_vec()];
+    for row in rows {
+        let never_up = matches!(row.away_ms, None | Some(None));
+        cells.push(vec![
+            row.host.clone(),
+            row.address.clone().unwrap_or_else(|| String::from(if never_up { NOT_UP_YET } else { ADDRESS_NEXT_START })),
+            match row.away_ms {
+                None => String::new(),
+                Some(away) => host_beat_word(away),
+            },
+            row.device_id.clone().unwrap_or_default(),
+            row.connector.clone().unwrap_or_default(),
+            row.host_key.clone().unwrap_or_default(),
+            if row.default == Some(true) { "default".to_string() } else { String::new() },
+        ]);
+    }
+    cells
 }
 
 /// What wsp hosts prints for a person who can reach nothing: the road to a host on the account.
@@ -950,7 +1273,7 @@ pub const NO_HOSTS_LINE: &str = "You can reach no host but this computer. Run ws
 // places.ts:589
 // export const relayQuietLine = (why: string): string => `${why}; the rows below are the hosts this computer already holds`;
 pub fn relay_quiet_line(why: &str) -> String {
-    todo!()
+    format!("{why}; the rows below are the hosts this computer already holds")
 }
 
 /// What wsp hosts says about a record it wrote for a host on the account that the account no longer names: the
@@ -958,7 +1281,7 @@ pub fn relay_quiet_line(why: &str) -> String {
 // places.ts:593
 // export const hostDroppedLine = (alias: string): string => `${alias} is no longer a host on your account, so this computer no longer holds a record for it`;
 pub fn host_dropped_line(alias: &str) -> String {
-    todo!()
+    format!("{alias} is no longer a host on your account, so this computer no longer holds a record for it")
 }
 
 /// What a listing that names another key for a host this computer already pinned is refused with: the key is
@@ -968,7 +1291,7 @@ pub fn host_dropped_line(alias: &str) -> String {
 // export const hostKeyMovedLine = (alias: string, held: string, listed: string): string =>
 //   `your account lists ${alias} under the key ${listed}, and this computer pinned ${held} when it first saw it; nothing was sent to it. Compare the key wsp host pair prints on that host, and if it is the one the account lists, wsp logout, wsp login and wsp hosts take the account's keys afresh`;
 pub fn host_key_moved_line(alias: &str, held: &str, listed: &str) -> String {
-    todo!()
+    format!("your account lists {alias} under the key {listed}, and this computer pinned {held} when it first saw it; nothing was sent to it. Compare the key wsp host pair prints on that host, and if it is the one the account lists, wsp logout, wsp login and wsp hosts take the account's keys afresh")
 }
 
 /// A colour as CSS spells it, with its alpha as a percent where one is given.
@@ -978,7 +1301,11 @@ pub fn host_key_moved_line(alias: &str, held: &str, listed: &str) -> String {
 //   return alpha === undefined ? `rgb(${channels})` : `rgb(${channels} / ${fmtPercent(alpha)})`;
 // }
 pub fn fmt_rgb(colour: &Rgb, alpha: Option<f64>) -> String {
-    todo!()
+    let channels = format!("{} {} {}", number_string(colour[0]), number_string(colour[1]), number_string(colour[2]));
+    match alpha {
+        None => format!("rgb({channels})"),
+        Some(alpha) => format!("rgb({channels} / {})", fmt_percent(alpha)),
+    }
 }
 
 // places.ts:607
@@ -995,7 +1322,21 @@ pub fn fmt_rgb(colour: &Rgb, alpha: Option<f64>) -> String {
 //   return { "--space-gradient": gradient, "--space-grain": String(theme.grain), "--space-tint": fmtRgb(themeInk(theme, appDark)) };
 // }
 pub fn fmt_theme_vars(theme: &WorkspaceTheme, app_dark: bool) -> ThemeVars {
-    todo!()
+    let alpha = effective_opacity(theme, app_dark);
+    let colours: Vec<String> = theme.dots.iter().map(|dot| fmt_rgb(&dot_colour(dot), Some(alpha))).collect();
+    let space_gradient = match colours.as_slice() {
+        [] => String::new(),
+        [only] => format!("linear-gradient({only}, {only})"),
+        [first, second] => format!("linear-gradient(160deg, {second} 0%, transparent 100%), linear-gradient(340deg, {first} 0%, transparent 100%)"),
+        [first, second, third, ..] => format!(
+            "radial-gradient(circle at 0% 0%, {first} 0%, transparent 70%), radial-gradient(circle at 100% 0%, {second} 0%, transparent 70%), linear-gradient(to top, {third} 0%, transparent 65%)"
+        ),
+    };
+    ThemeVars {
+        space_gradient,
+        space_grain: number_string(theme.grain.0),
+        space_tint: fmt_rgb(&theme_ink(theme, app_dark), None),
+    }
 }
 
 /// What a system notification says when a thread's turn finished while nobody was looking: the page's own line and
@@ -1003,14 +1344,14 @@ pub fn fmt_theme_vars(theme: &WorkspaceTheme, app_dark: bool) -> ThemeVars {
 // places.ts:622
 // export const threadFinishedLine = (title: string): string => `${title} finished`;
 pub fn thread_finished_line(title: &str) -> String {
-    todo!()
+    format!("{title} finished")
 }
 
 /// The same for a turn that failed; the line under it is the error, in one line.
 // places.ts:625
 // export const threadStoppedLine = (title: string): string => `${title} stopped`;
 pub fn thread_stopped_line(title: &str) -> String {
-    todo!()
+    format!("{title} stopped")
 }
 
 /// What a thread's end says of a process that went without an error of its own: its exit code, when it had one.
@@ -1018,7 +1359,7 @@ pub fn thread_stopped_line(title: &str) -> String {
 // export const exitLine = (exitCode: number | null): string | undefined => (exitCode === null ? undefined : `exit ${exitCode}`);
 /// `exitCode` None is null.
 pub fn exit_line(exit_code: Option<f64>) -> Option<String> {
-    todo!()
+    exit_code.map(|code| format!("exit {}", number_string(code)))
 }
 
 /// A cloud's plan as its page's head says it, off its own limits read: the trial's few figures, or a paid plan's
@@ -1033,13 +1374,112 @@ pub fn exit_line(exit_code: Option<f64>) -> Option<String> {
 //   return `${head}: ${plural(plan.machinesAtOnce, "machine")} at once${windows}`;
 // }
 pub fn cloud_plan_line(plan: &CloudPlan, starts: Option<&CloudStarts>, size_names: &[impl AsRef<str>]) -> String {
-    todo!()
+    let machines = plan.machines_at_once.as_f64();
+    let day = starts.map_or(String::new(), |starts| format!(", {} starts a day", number_string(starts.day.limit.as_f64())));
+    if plan.trial {
+        let sizes: Vec<&str> = size_names.iter().map(|size| size.as_ref()).collect();
+        return format!("Trial: {} at once{day}, {} sizes", plural(machines, "machine"), sizes.join(" and "));
+    }
+    let usd = plan
+        .key
+        .as_deref()
+        .and_then(|key| key.strip_prefix("box_"))
+        .filter(|digits| !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit()));
+    let head = match usd {
+        None => "Plan".to_string(),
+        Some(digits) => format!("${digits} plan"),
+    };
+    let windows = starts.map_or(String::new(), |starts| {
+        format!(
+            ", {} starts a minute, {} an hour, {} a day",
+            number_string(starts.minute.limit.as_f64()),
+            number_string(starts.hour.limit.as_f64()),
+            number_string(starts.day.limit.as_f64())
+        )
+    });
+    format!("{head}: {} at once{windows}", plural(machines, "machine"))
 }
 
 /// Today's starts against the plan's, under the plan line.
 // places.ts:642
 // export const cloudStartsTodayLine = (starts: CloudStarts): string => `Starts today: ${starts.day.used} of ${starts.day.limit}`;
 pub fn cloud_starts_today_line(starts: &CloudStarts) -> String {
-    todo!()
+    format!("Starts today: {} of {}", number_string(starts.day.used.as_f64()), number_string(starts.day.limit.as_f64()))
+}
+fn wire_word<T: Serialize>(value: &T) -> String {
+    serde_json::to_value(value).ok().and_then(|word| word.as_str().map(str::to_string)).unwrap_or_default()
 }
 
+fn export_pass(packings: i32) -> &'static str {
+    if packings > 1 {
+        "sessions"
+    } else {
+        "the folder"
+    }
+}
+
+fn tasks_records(tasks: f64, its: bool) -> String {
+    if tasks == 1.0 {
+        format!("{}'s record", if its { "its task" } else { "1 task" })
+    } else {
+        let count = if its { format!("its {}", number_string(tasks)) } else { number_string(tasks) };
+        format!("{count} tasks' records")
+    }
+}
+
+fn forget_bills(name: &str, touched: &str) -> String {
+    format!("Nothing at {name} {touched} touched, so machines wsp made there may bill until {name}'s own timer ends them.")
+}
+
+fn others_deleted(deleted: f64) -> String {
+    if deleted == 0.0 {
+        String::new()
+    } else {
+        format!("; {} {} deleted", number_string(deleted), if deleted == 1.0 { "other machine was" } else { "other machines were" })
+    }
+}
+
+fn named_images(images: &[SavedImage]) -> String {
+    let names: Vec<String> = images
+        .iter()
+        .map(|image| match image.size_bytes {
+            None => image.id.clone(),
+            Some(bytes) => format!("{} ({})", image.id, fmt_bytes(bytes)),
+        })
+        .collect();
+    named_list(&names)
+}
+
+fn named_list(names: &[String]) -> String {
+    match names.split_last() {
+        Some((last, rest)) if !rest.is_empty() => format!("{} and {last}", rest.join(", ")),
+        _ => names.join(" and "),
+    }
+}
+
+fn menu_row(id: String, label: String, checked: bool) -> ContextMenuItem {
+    ContextMenuItem {
+        id,
+        label,
+        group: "hosts".to_string(),
+        enabled: true,
+        refusal: None,
+        hint: None,
+        shortcut: None,
+        accelerator: None,
+        destructive: None,
+        checked: Some(checked),
+    }
+}
+
+const SEMVER: &str = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-((?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$";
+
+fn version_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"[0-9]+\.[0-9]+\.[0-9]+").unwrap())
+}
+
+fn semver_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(SEMVER).unwrap())
+}
