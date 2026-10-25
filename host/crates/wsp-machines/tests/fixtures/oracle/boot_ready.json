@@ -1,0 +1,1697 @@
+{
+ "T0": 1790000000000,
+ "scenes": [
+  {
+   "name": "a fresh store mints the owner and the reads stamp and reads nothing else",
+   "given": {},
+   "log": [
+    [
+     "store.put",
+     "owner",
+     "id",
+     {
+      "id": "h_01010101"
+     }
+    ],
+    [
+     "store.put",
+     "reads",
+     "since",
+     {
+      "at": 1790000000000
+     }
+    ],
+    [
+     "migrateCopies"
+    ],
+    [
+     "placeDoor.load"
+    ],
+    [
+     "store.list",
+     "projects"
+    ],
+    [
+     "setups.load"
+    ],
+    [
+     "store.list",
+     "workspaces"
+    ],
+    [
+     "store.list",
+     "transcripts"
+    ],
+    [
+     "store.list",
+     "sessions"
+    ],
+    [
+     "resumeQueue"
+    ],
+    [
+     "store.list",
+     "held-starts"
+    ],
+    [
+     "deviceDoor.list"
+    ],
+    [
+     "deviceDoor.revokeAsides"
+    ],
+    [
+     "armSubs"
+    ],
+    [
+     "deliverOwed"
+    ],
+    [
+     "store.list",
+     "builders"
+    ],
+    [
+     "moveOldCopies"
+    ],
+    [
+     "armSweep"
+    ],
+    [
+     "slates.ready"
+    ],
+    [
+     "joined",
+     true
+    ]
+   ],
+   "answer": null,
+   "after": {
+    "owner": "h_01010101",
+    "readsSince": 1790000000000,
+    "projects": [],
+    "threadRecords": [],
+    "viewedMarks": [],
+    "sessions": [],
+    "live": [],
+    "bootWork": [],
+    "stores": {
+     "owner": [
+      [
+       "id",
+       {
+        "id": "h_01010101"
+       }
+      ]
+     ],
+     "reads": [
+      [
+       "since",
+       {
+        "at": 1790000000000
+       }
+      ]
+     ],
+     "projects": [],
+     "workspaces": [],
+     "transcripts": [],
+     "sessions": [],
+     "held-starts": [],
+     "builders": []
+    }
+   }
+  },
+  {
+   "name": "a kept owner and reads stamp are read back; a blank owner is minted again",
+   "given": {
+    "store": {
+     "owner": {
+      "id": {
+       "id": ""
+      }
+     },
+     "reads": {
+      "since": {
+       "at": "not a number"
+      }
+     }
+    }
+   },
+   "log": [
+    [
+     "store.put",
+     "owner",
+     "id",
+     {
+      "id": "h_01010101"
+     }
+    ],
+    [
+     "store.put",
+     "reads",
+     "since",
+     {
+      "at": 1790000000000
+     }
+    ],
+    [
+     "migrateCopies"
+    ],
+    [
+     "placeDoor.load"
+    ],
+    [
+     "store.list",
+     "projects"
+    ],
+    [
+     "setups.load"
+    ],
+    [
+     "store.list",
+     "workspaces"
+    ],
+    [
+     "store.list",
+     "transcripts"
+    ],
+    [
+     "store.list",
+     "sessions"
+    ],
+    [
+     "resumeQueue"
+    ],
+    [
+     "store.list",
+     "held-starts"
+    ],
+    [
+     "deviceDoor.list"
+    ],
+    [
+     "deviceDoor.revokeAsides"
+    ],
+    [
+     "armSubs"
+    ],
+    [
+     "deliverOwed"
+    ],
+    [
+     "store.list",
+     "builders"
+    ],
+    [
+     "moveOldCopies"
+    ],
+    [
+     "armSweep"
+    ],
+    [
+     "slates.ready"
+    ]
+   ],
+   "answer": null,
+   "after": {
+    "owner": "h_01010101",
+    "readsSince": 1790000000000,
+    "projects": [],
+    "threadRecords": [],
+    "viewedMarks": [],
+    "sessions": [],
+    "live": [],
+    "bootWork": [],
+    "stores": {
+     "owner": [
+      [
+       "id",
+       {
+        "id": "h_01010101"
+       }
+      ]
+     ],
+     "reads": [
+      [
+       "since",
+       {
+        "at": 1790000000000
+       }
+      ]
+     ],
+     "projects": [],
+     "workspaces": [],
+     "transcripts": [],
+     "sessions": [],
+     "held-starts": [],
+     "builders": []
+    }
+   }
+  },
+  {
+   "name": "projects are held, and a folder project with no repo kept is read for one on this computer",
+   "given": {
+    "store": {
+     "owner": {
+      "id": {
+       "id": "h_kept"
+      }
+     },
+     "reads": {
+      "since": {
+       "at": 5
+      }
+     },
+     "projects": {
+      "p1": {
+       "id": "p1",
+       "name": "site",
+       "computer": "here",
+       "path": "/src/site",
+       "source": {
+        "kind": "folder"
+       }
+      },
+      "p2": {
+       "id": "p2",
+       "name": "kept",
+       "computer": "here",
+       "path": "/src/kept",
+       "source": {
+        "kind": "folder"
+       },
+       "git": {
+        "top": "/src/kept"
+       }
+      },
+      "p3": {
+       "id": "p3",
+       "name": "nogit",
+       "computer": "here",
+       "path": "/nogit",
+       "source": {
+        "kind": "folder"
+       }
+      },
+      "p4": {
+       "id": "p4",
+       "name": "remote",
+       "computer": "here",
+       "path": "/src/r",
+       "source": {
+        "kind": "github"
+       }
+      }
+     }
+    }
+   },
+   "log": [
+    [
+     "migrateCopies"
+    ],
+    [
+     "placeDoor.load"
+    ],
+    [
+     "store.list",
+     "projects"
+    ],
+    [
+     "gitTopOf",
+     "/src/site"
+    ],
+    [
+     "gitTopOf",
+     "/nogit"
+    ],
+    [
+     "rememberProject",
+     {
+      "id": "p1",
+      "name": "site",
+      "computer": "here",
+      "path": "/src/site",
+      "source": {
+       "kind": "folder"
+      },
+      "git": {
+       "top": "/src/site-top"
+      }
+     }
+    ],
+    [
+     "setups.load"
+    ],
+    [
+     "store.list",
+     "workspaces"
+    ],
+    [
+     "store.list",
+     "transcripts"
+    ],
+    [
+     "store.list",
+     "sessions"
+    ],
+    [
+     "resumeQueue"
+    ],
+    [
+     "store.list",
+     "held-starts"
+    ],
+    [
+     "deviceDoor.list"
+    ],
+    [
+     "deviceDoor.revokeAsides"
+    ],
+    [
+     "armSubs"
+    ],
+    [
+     "deliverOwed"
+    ],
+    [
+     "store.list",
+     "builders"
+    ],
+    [
+     "moveOldCopies"
+    ],
+    [
+     "armSweep"
+    ],
+    [
+     "slates.ready"
+    ]
+   ],
+   "answer": null,
+   "after": {
+    "owner": "h_kept",
+    "readsSince": 5,
+    "projects": [
+     "p1",
+     "p2",
+     "p3",
+     "p4"
+    ],
+    "threadRecords": [],
+    "viewedMarks": [],
+    "sessions": [],
+    "live": [],
+    "bootWork": [],
+    "stores": {
+     "owner": [
+      [
+       "id",
+       {
+        "id": "h_kept"
+       }
+      ]
+     ],
+     "reads": [
+      [
+       "since",
+       {
+        "at": 5
+       }
+      ]
+     ],
+     "projects": [
+      [
+       "p1",
+       {
+        "id": "p1",
+        "name": "site",
+        "computer": "here",
+        "path": "/src/site",
+        "source": {
+         "kind": "folder"
+        }
+       }
+      ],
+      [
+       "p2",
+       {
+        "id": "p2",
+        "name": "kept",
+        "computer": "here",
+        "path": "/src/kept",
+        "source": {
+         "kind": "folder"
+        },
+        "git": {
+         "top": "/src/kept"
+        }
+       }
+      ],
+      [
+       "p3",
+       {
+        "id": "p3",
+        "name": "nogit",
+        "computer": "here",
+        "path": "/nogit",
+        "source": {
+         "kind": "folder"
+        }
+       }
+      ],
+      [
+       "p4",
+       {
+        "id": "p4",
+        "name": "remote",
+        "computer": "here",
+        "path": "/src/r",
+        "source": {
+         "kind": "github"
+        }
+       }
+      ]
+     ],
+     "workspaces": [],
+     "transcripts": [],
+     "sessions": [],
+     "held-starts": [],
+     "builders": []
+    }
+   }
+  },
+  {
+   "name": "no local wiring reads no repo",
+   "given": {
+    "local": false,
+    "store": {
+     "owner": {
+      "id": {
+       "id": "h_kept"
+      }
+     },
+     "reads": {
+      "since": {
+       "at": 5
+      }
+     },
+     "projects": {
+      "p1": {
+       "id": "p1",
+       "name": "site",
+       "computer": "here",
+       "path": "/src/site",
+       "source": {
+        "kind": "folder"
+       }
+      }
+     }
+    }
+   },
+   "log": [
+    [
+     "migrateCopies"
+    ],
+    [
+     "placeDoor.load"
+    ],
+    [
+     "store.list",
+     "projects"
+    ],
+    [
+     "setups.load"
+    ],
+    [
+     "store.list",
+     "workspaces"
+    ],
+    [
+     "store.list",
+     "transcripts"
+    ],
+    [
+     "store.list",
+     "sessions"
+    ],
+    [
+     "resumeQueue"
+    ],
+    [
+     "store.list",
+     "held-starts"
+    ],
+    [
+     "deviceDoor.list"
+    ],
+    [
+     "deviceDoor.revokeAsides"
+    ],
+    [
+     "armSubs"
+    ],
+    [
+     "deliverOwed"
+    ],
+    [
+     "store.list",
+     "builders"
+    ],
+    [
+     "moveOldCopies"
+    ],
+    [
+     "armSweep"
+    ],
+    [
+     "slates.ready"
+    ]
+   ],
+   "answer": null,
+   "after": {
+    "owner": "h_kept",
+    "readsSince": 5,
+    "projects": [
+     "p1"
+    ],
+    "threadRecords": [],
+    "viewedMarks": [],
+    "sessions": [],
+    "live": [],
+    "bootWork": [],
+    "stores": {
+     "owner": [
+      [
+       "id",
+       {
+        "id": "h_kept"
+       }
+      ]
+     ],
+     "reads": [
+      [
+       "since",
+       {
+        "at": 5
+       }
+      ]
+     ],
+     "projects": [
+      [
+       "p1",
+       {
+        "id": "p1",
+        "name": "site",
+        "computer": "here",
+        "path": "/src/site",
+        "source": {
+         "kind": "folder"
+        }
+       }
+      ]
+     ],
+     "workspaces": [],
+     "transcripts": [],
+     "sessions": [],
+     "held-starts": [],
+     "builders": []
+    }
+   }
+  },
+  {
+   "name": "the sessions documents fill the rows and the thread records, and running rows are re-opened",
+   "given": {
+    "states": {
+     "m-b": "paused"
+    },
+    "reattach": {
+     "turn-r1": "reopened",
+     "turn-r2": "cannot",
+     "turn-r3": "gone",
+     "turn-r4": "unreached"
+    },
+    "running": [
+     "t-r1"
+    ],
+    "devices": [
+     {
+      "id": "d-r1",
+      "scope": {
+       "threadId": "t-r1"
+      }
+     },
+     {
+      "id": "d-r2",
+      "scope": {
+       "threadId": "t-r2"
+      }
+     },
+     {
+      "id": "d-shell",
+      "scope": {
+       "threadId": "t-r3"
+      }
+     },
+     {
+      "id": "d-plain"
+     },
+     {
+      "id": "d-old",
+      "scope": {
+       "threadId": "t-old"
+      }
+     }
+    ],
+    "shells": [
+     "d-shell"
+    ],
+    "store": {
+     "owner": {
+      "id": {
+       "id": "h_kept"
+      }
+     },
+     "reads": {
+      "since": {
+       "at": 5
+      }
+     },
+     "workspaces": {
+      "a": {
+       "id": "a",
+       "name": "w-a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "golden": "img",
+       "project": "p1"
+      },
+      "b": {
+       "id": "b",
+       "name": "w-b",
+       "kind": "cloud",
+       "machineId": "m-b",
+       "phase": "napping",
+       "golden": "img",
+       "project": "p1"
+      },
+      "w": {
+       "id": "w",
+       "name": "w-w",
+       "kind": "cloud",
+       "machineId": "m-w",
+       "phase": "running",
+       "golden": "img",
+       "project": "p1",
+       "worktree": {
+        "made": true
+       }
+      }
+     },
+     "sessions": {
+      "a": {
+       "workspaceId": "a",
+       "viewed": {
+        "t-1": "turn-x",
+        "t-bad": 3
+       },
+       "threads": {
+        "t-1": {
+         "harness": "claude",
+         "permissionMode": "auto",
+         "parentThreadId": "p",
+         "rootThreadId": "r",
+         "readAt": 1,
+         "settledAt": 2,
+         "settleNamedAt": 3,
+         "pinnedAt": 4,
+         "order": 5,
+         "foldedAt": 6,
+         "replaces": "t-0",
+         "snoozedUntil": 1790000060000,
+         "section": {
+          "name": "done",
+          "whileState": "idle"
+         },
+         "resumeAt": "cut-1",
+         "forkedFrom": {
+          "threadId": "t-src",
+          "title": "src"
+         },
+         "limitResume": {
+          "at": 1790000030000,
+          "turnId": "turn-x"
+         },
+         "rewound": {
+          "before": "e1",
+          "at": 7
+         },
+         "worked": true,
+         "ended": "completed",
+         "filesIn": [
+          "x"
+         ],
+         "clouds": {
+          "y": 1
+         }
+        },
+        "t-2": {
+         "harness": "codex",
+         "permissionMode": 3,
+         "section": {
+          "name": "nonsense"
+         },
+         "cutOwed": "cut-2",
+         "forkedFrom": {
+          "threadId": 1
+         },
+         "limitResume": {
+          "at": "x"
+         },
+         "ended": "weird"
+        },
+        "t-none": {
+         "permissionMode": "auto"
+        }
+       },
+       "sessions": [
+        {
+         "id": "r1",
+         "workspaceId": "a",
+         "harness": "claude",
+         "status": "running",
+         "threadId": "t-r1",
+         "startedAt": 1789999900000,
+         "turnId": "turn-r1",
+         "notify": "lead-1",
+         "notifyBy": {
+          "kind": "thread",
+          "threadId": "t-lead",
+          "workspaceId": "a",
+          "rootThreadId": "t-lead"
+         },
+         "notifyRoad": "relayed",
+         "reply": "partial",
+         "told": 3,
+         "waited": 9,
+         "run": "run-1",
+         "from": 120,
+         "asked": {
+          "prompt": "go",
+          "effort": "high",
+          "junk": 1
+         },
+         "turnToken": "tok",
+         "scopeDeviceId": "d-r1",
+         "toldLast": 2
+        },
+        {
+         "id": "r2",
+         "workspaceId": "a",
+         "harness": "claude",
+         "status": "running",
+         "threadId": "t-r2",
+         "startedAt": 1789999900000,
+         "turnId": "turn-r2",
+         "notifyBy": {
+          "kind": "nonsense"
+         },
+         "notifyRoad": "elsewhere",
+         "from": -1,
+         "waitingSince": 4
+        },
+        {
+         "id": "r3",
+         "workspaceId": "a",
+         "harness": "claude",
+         "status": "running",
+         "threadId": "t-r3",
+         "startedAt": 1789999900000,
+         "turnId": "turn-r3",
+         "from": 1.5,
+         "prompt": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+         "id": "r4",
+         "workspaceId": "a",
+         "harness": "claude",
+         "status": "running",
+         "threadId": "t-r4",
+         "turnId": "turn-r4"
+        },
+        {
+         "id": "done1",
+         "workspaceId": "a",
+         "harness": "claude",
+         "status": "completed",
+         "threadId": "t-done1",
+         "startedAt": 1789999900000,
+         "turnId": "turn-done1",
+         "snapshot": "snap-card"
+        },
+        {
+         "id": "done2",
+         "workspaceId": "a",
+         "harness": "claude",
+         "status": "completed",
+         "threadId": "t-done2",
+         "startedAt": 1789999900000,
+         "turnId": "turn-done2",
+         "prompt": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+        }
+       ]
+      },
+      "b": {
+       "workspaceId": "b",
+       "threads": {},
+       "sessions": [
+        {
+         "id": "rb",
+         "workspaceId": "b",
+         "harness": "claude",
+         "status": "running",
+         "threadId": "t-rb",
+         "startedAt": 1789999900000,
+         "turnId": "turn-rb"
+        }
+       ]
+      },
+      "w": {
+       "workspaceId": "w",
+       "threads": {}
+      },
+      "gone": {
+       "workspaceId": "gone",
+       "threads": {
+        "t-g": {
+         "harness": "claude"
+        }
+       },
+       "sessions": [
+        {
+         "id": "g1",
+         "workspaceId": "gone",
+         "harness": "claude",
+         "status": "completed",
+         "threadId": "t-g1",
+         "startedAt": 1789999900000,
+         "turnId": "turn-g1"
+        }
+       ]
+      }
+     },
+     "held-starts": {
+      "turn-h1": {
+       "workspaceId": "a",
+       "threadId": "t-h1",
+       "turnId": "turn-h1",
+       "sessionId": "s-h1",
+       "harness": "claude",
+       "place": "hetzner",
+       "prompt": "do it",
+       "notify": [
+        "lead"
+       ],
+       "notifyBy": {
+        "kind": "thread",
+        "threadId": "t-lead",
+        "workspaceId": "a",
+        "rootThreadId": "t-lead"
+       },
+       "notifyRoad": "here"
+      },
+      "turn-h2": {
+       "workspaceId": "a",
+       "threadId": "t-h2",
+       "turnId": "turn-h2",
+       "sessionId": "turn-h2",
+       "harness": "codex",
+       "place": "box"
+      },
+      "turn-h3": {
+       "workspaceId": "nolive",
+       "threadId": "t-h3",
+       "turnId": "turn-h3",
+       "sessionId": "s-h3",
+       "harness": "claude",
+       "place": "box"
+      }
+     }
+    }
+   },
+   "log": [
+    [
+     "migrateCopies"
+    ],
+    [
+     "placeDoor.load"
+    ],
+    [
+     "store.list",
+     "projects"
+    ],
+    [
+     "setups.load"
+    ],
+    [
+     "store.list",
+     "workspaces"
+    ],
+    [
+     "backend.get",
+     "m-a"
+    ],
+    [
+     "attach",
+     "a",
+     "running"
+    ],
+    [
+     "idle.touch",
+     "a"
+    ],
+    [
+     "backend.get",
+     "m-b"
+    ],
+    [
+     "attach",
+     "b",
+     "napping"
+    ],
+    [
+     "backend.get",
+     "m-w"
+    ],
+    [
+     "attach",
+     "w",
+     "running"
+    ],
+    [
+     "idle.touch",
+     "w"
+    ],
+    [
+     "store.list",
+     "transcripts"
+    ],
+    [
+     "loadIndex",
+     "a"
+    ],
+    [
+     "loadIndex",
+     "b"
+    ],
+    [
+     "loadIndex",
+     "w"
+    ],
+    [
+     "store.list",
+     "sessions"
+    ],
+    [
+     "wakeAt",
+     "t-1",
+     1790000060000
+    ],
+    [
+     "resumeOnReset",
+     "t-1",
+     1790000030000
+    ],
+    [
+     "warn",
+     "sessions document for w has no rows array, read as empty"
+    ],
+    [
+     "persistSessions",
+     "a"
+    ],
+    [
+     "resumeQueue"
+    ],
+    [
+     "persistSessions",
+     "a"
+    ],
+    [
+     "reattach",
+     "turn-r1",
+     false
+    ],
+    [
+     "reattach",
+     "turn-r2",
+     false
+    ],
+    [
+     "reattach",
+     "turn-r3",
+     false
+    ],
+    [
+     "reattach",
+     "turn-r4",
+     false
+    ],
+    [
+     "reattach",
+     "turn-rb",
+     false
+    ],
+    [
+     "worktreeMounted",
+     "w"
+    ],
+    [
+     "store.list",
+     "held-starts"
+    ],
+    [
+     "store.delete",
+     "held-starts",
+     "turn-h1"
+    ],
+    [
+     "notifyEnd",
+     "row:turn-h1",
+     [
+      "lead"
+     ],
+     {
+      "tellAs": {
+       "notifyBy": {
+        "kind": "thread",
+        "threadId": "t-lead",
+        "workspaceId": "a",
+        "rootThreadId": "t-lead"
+       },
+       "notifyRoad": "here"
+      }
+     },
+     {
+      "status": "failed",
+      "error": "the host restarted while this turn waited for a slot on hetzner; nothing started, so send it again"
+     }
+    ],
+    [
+     "record",
+     {
+      "type": "session.end",
+      "workspaceId": "a",
+      "sessionId": "s-h1",
+      "turnId": "turn-h1",
+      "threadId": "t-h1",
+      "exitCode": null,
+      "sawResult": false,
+      "reason": "the host restarted while this turn waited for a slot on hetzner; nothing started, so send it again",
+      "unstarted": true,
+      "prompt": "do it"
+     }
+    ],
+    [
+     "store.delete",
+     "held-starts",
+     "turn-h2"
+    ],
+    [
+     "settleCut",
+     "turn-r2",
+     "host restarted while the agent was working",
+     "cut by a host restart after 2m 45s"
+    ],
+    [
+     "settleCut",
+     "turn-r3",
+     "the machine no longer holds this turn's run, so nothing of it can be read back",
+     "the machine no longer holds this turn's run, so nothing of it can be read back"
+    ],
+    [
+     "persistSessions",
+     "a"
+    ],
+    [
+     "deviceDoor.list"
+    ],
+    [
+     "persistSessions",
+     "b"
+    ],
+    [
+     "sweepRuns",
+     "w"
+    ],
+    [
+     "record",
+     {
+      "type": "session.end",
+      "workspaceId": "a",
+      "sessionId": "turn-h2",
+      "turnId": "turn-h2",
+      "threadId": "t-h2",
+      "exitCode": null,
+      "sawResult": false,
+      "reason": "the host restarted while this turn waited for a slot on box; nothing started, so send it again",
+      "unstarted": true
+     }
+    ],
+    [
+     "store.delete",
+     "held-starts",
+     "turn-h3"
+    ],
+    [
+     "shellHeldDevices"
+    ],
+    [
+     "sweepRuns",
+     "b"
+    ],
+    [
+     "syncDaemon",
+     "w"
+    ],
+    [
+     "deviceDoor.list"
+    ],
+    [
+     "deviceDoor.revoke",
+     "d-r2"
+    ],
+    [
+     "shellHeldDevices"
+    ],
+    [
+     "deviceDoor.revoke",
+     "d-r2"
+    ],
+    [
+     "deviceDoor.revoke",
+     "d-old"
+    ],
+    [
+     "sweepRuns",
+     "a"
+    ],
+    [
+     "syncDaemon",
+     "a"
+    ],
+    [
+     "deviceDoor.revokeAsides"
+    ],
+    [
+     "armSubs"
+    ],
+    [
+     "deliverOwed"
+    ],
+    [
+     "store.list",
+     "builders"
+    ],
+    [
+     "moveOldCopies"
+    ],
+    [
+     "armSweep"
+    ],
+    [
+     "slates.ready"
+    ],
+    [
+     "mark",
+     "advance the link window"
+    ],
+    [
+     "reattach",
+     "turn-r4",
+     true
+    ]
+   ],
+   "answer": null,
+   "after": {
+    "owner": "h_kept",
+    "readsSince": 5,
+    "projects": [],
+    "threadRecords": [
+     [
+      "t-1",
+      {
+       "workspaceId": "a",
+       "harness": "claude",
+       "permissionMode": "auto",
+       "parentThreadId": "p",
+       "rootThreadId": "r",
+       "readAt": 1,
+       "settledAt": 2,
+       "settleNamedAt": 3,
+       "pinnedAt": 4,
+       "order": 5,
+       "foldedAt": 6,
+       "replaces": "t-0",
+       "snoozedUntil": 1790000060000,
+       "section": {
+        "name": "done",
+        "whileState": "idle"
+       },
+       "cutOwed": "cut-1",
+       "forkedFrom": {
+        "threadId": "t-src",
+        "title": "src"
+       },
+       "limitResume": {
+        "at": 1790000030000,
+        "turnId": "turn-x"
+       },
+       "rewound": {
+        "before": "e1",
+        "at": 7
+       },
+       "worked": true,
+       "ended": "completed"
+      }
+     ],
+     [
+      "t-2",
+      {
+       "workspaceId": "a",
+       "harness": "codex",
+       "cutOwed": "cut-2"
+      }
+     ]
+    ],
+    "viewedMarks": [
+     [
+      "a",
+      {
+       "t-1": "turn-x"
+      }
+     ]
+    ],
+    "sessions": [
+     [
+      "r1",
+      {
+       "view": {
+        "id": "r1",
+        "workspaceId": "a",
+        "harness": "claude",
+        "status": "running",
+        "threadId": "t-r1",
+        "startedAt": 1789999900000
+       },
+       "turnId": "turn-r1",
+       "notify": [
+        "lead-1"
+       ],
+       "notifyBy": {
+        "kind": "thread",
+        "threadId": "t-lead",
+        "workspaceId": "a",
+        "rootThreadId": "t-lead"
+       },
+       "notifyRoad": "relayed",
+       "turnLive": {
+        "reply": "partial",
+        "told": 3,
+        "waited": 9
+       },
+       "run": "run-1",
+       "from": 120,
+       "asked": {
+        "prompt": "go",
+        "effort": "high"
+       },
+       "turnToken": "tok",
+       "scopeDeviceId": "d-r1"
+      }
+     ],
+     [
+      "r2",
+      {
+       "view": {
+        "id": "r2",
+        "workspaceId": "a",
+        "harness": "claude",
+        "status": "failed",
+        "threadId": "t-r2",
+        "startedAt": 1789999900000
+       },
+       "turnId": "turn-r2",
+       "turnLive": {
+        "waitingSince": 4
+       }
+      }
+     ],
+     [
+      "r3",
+      {
+       "view": {
+        "id": "r3",
+        "workspaceId": "a",
+        "harness": "claude",
+        "status": "failed",
+        "threadId": "t-r3",
+        "startedAt": 1789999900000,
+        "prompt": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+       },
+       "turnId": "turn-r3"
+      }
+     ],
+     [
+      "r4",
+      {
+       "view": {
+        "id": "r4",
+        "workspaceId": "a",
+        "harness": "claude",
+        "status": "running",
+        "threadId": "t-r4"
+       },
+       "turnId": "turn-r4",
+       "unanswered": true
+      }
+     ],
+     [
+      "done1",
+      {
+       "view": {
+        "id": "done1",
+        "workspaceId": "a",
+        "harness": "claude",
+        "status": "completed",
+        "threadId": "t-done1",
+        "startedAt": 1789999900000
+       },
+       "turnId": "turn-done1"
+      }
+     ],
+     [
+      "done2",
+      {
+       "view": {
+        "id": "done2",
+        "workspaceId": "a",
+        "harness": "claude",
+        "status": "completed",
+        "threadId": "t-done2",
+        "startedAt": 1789999900000,
+        "prompt": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+       },
+       "turnId": "turn-done2"
+      }
+     ],
+     [
+      "rb",
+      {
+       "view": {
+        "id": "rb",
+        "workspaceId": "b",
+        "harness": "claude",
+        "status": "running",
+        "threadId": "t-rb",
+        "startedAt": 1789999900000
+       },
+       "turnId": "turn-rb"
+      }
+     ]
+    ],
+    "live": [
+     "a",
+     "b",
+     "w"
+    ],
+    "bootWork": [],
+    "stores": {
+     "owner": [
+      [
+       "id",
+       {
+        "id": "h_kept"
+       }
+      ]
+     ],
+     "reads": [
+      [
+       "since",
+       {
+        "at": 5
+       }
+      ]
+     ],
+     "workspaces": [
+      [
+       "a",
+       {
+        "id": "a",
+        "name": "w-a",
+        "kind": "cloud",
+        "machineId": "m-a",
+        "phase": "running",
+        "golden": "img",
+        "project": "p1"
+       }
+      ],
+      [
+       "b",
+       {
+        "id": "b",
+        "name": "w-b",
+        "kind": "cloud",
+        "machineId": "m-b",
+        "phase": "napping",
+        "golden": "img",
+        "project": "p1"
+       }
+      ],
+      [
+       "w",
+       {
+        "id": "w",
+        "name": "w-w",
+        "kind": "cloud",
+        "machineId": "m-w",
+        "phase": "running",
+        "golden": "img",
+        "project": "p1",
+        "worktree": {
+         "made": true
+        }
+       }
+      ]
+     ],
+     "sessions": [
+      [
+       "a",
+       {
+        "workspaceId": "a",
+        "viewed": {
+         "t-1": "turn-x",
+         "t-bad": 3
+        },
+        "threads": {
+         "t-1": {
+          "harness": "claude",
+          "permissionMode": "auto",
+          "parentThreadId": "p",
+          "rootThreadId": "r",
+          "readAt": 1,
+          "settledAt": 2,
+          "settleNamedAt": 3,
+          "pinnedAt": 4,
+          "order": 5,
+          "foldedAt": 6,
+          "replaces": "t-0",
+          "snoozedUntil": 1790000060000,
+          "section": {
+           "name": "done",
+           "whileState": "idle"
+          },
+          "resumeAt": "cut-1",
+          "forkedFrom": {
+           "threadId": "t-src",
+           "title": "src"
+          },
+          "limitResume": {
+           "at": 1790000030000,
+           "turnId": "turn-x"
+          },
+          "rewound": {
+           "before": "e1",
+           "at": 7
+          },
+          "worked": true,
+          "ended": "completed",
+          "filesIn": [
+           "x"
+          ],
+          "clouds": {
+           "y": 1
+          }
+         },
+         "t-2": {
+          "harness": "codex",
+          "permissionMode": 3,
+          "section": {
+           "name": "nonsense"
+          },
+          "cutOwed": "cut-2",
+          "forkedFrom": {
+           "threadId": 1
+          },
+          "limitResume": {
+           "at": "x"
+          },
+          "ended": "weird"
+         },
+         "t-none": {
+          "permissionMode": "auto"
+         }
+        },
+        "sessions": [
+         {
+          "id": "r1",
+          "workspaceId": "a",
+          "harness": "claude",
+          "status": "running",
+          "threadId": "t-r1",
+          "startedAt": 1789999900000,
+          "turnId": "turn-r1",
+          "notify": "lead-1",
+          "notifyBy": {
+           "kind": "thread",
+           "threadId": "t-lead",
+           "workspaceId": "a",
+           "rootThreadId": "t-lead"
+          },
+          "notifyRoad": "relayed",
+          "reply": "partial",
+          "told": 3,
+          "waited": 9,
+          "run": "run-1",
+          "from": 120,
+          "asked": {
+           "prompt": "go",
+           "effort": "high",
+           "junk": 1
+          },
+          "turnToken": "tok",
+          "scopeDeviceId": "d-r1",
+          "toldLast": 2
+         },
+         {
+          "id": "r2",
+          "workspaceId": "a",
+          "harness": "claude",
+          "status": "running",
+          "threadId": "t-r2",
+          "startedAt": 1789999900000,
+          "turnId": "turn-r2",
+          "notifyBy": {
+           "kind": "nonsense"
+          },
+          "notifyRoad": "elsewhere",
+          "from": -1,
+          "waitingSince": 4
+         },
+         {
+          "id": "r3",
+          "workspaceId": "a",
+          "harness": "claude",
+          "status": "running",
+          "threadId": "t-r3",
+          "startedAt": 1789999900000,
+          "turnId": "turn-r3",
+          "from": 1.5,
+          "prompt": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+         },
+         {
+          "id": "r4",
+          "workspaceId": "a",
+          "harness": "claude",
+          "status": "running",
+          "threadId": "t-r4",
+          "turnId": "turn-r4"
+         },
+         {
+          "id": "done1",
+          "workspaceId": "a",
+          "harness": "claude",
+          "status": "completed",
+          "threadId": "t-done1",
+          "startedAt": 1789999900000,
+          "turnId": "turn-done1",
+          "snapshot": "snap-card"
+         },
+         {
+          "id": "done2",
+          "workspaceId": "a",
+          "harness": "claude",
+          "status": "completed",
+          "threadId": "t-done2",
+          "startedAt": 1789999900000,
+          "turnId": "turn-done2",
+          "prompt": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+         }
+        ]
+       }
+      ],
+      [
+       "b",
+       {
+        "workspaceId": "b",
+        "threads": {},
+        "sessions": [
+         {
+          "id": "rb",
+          "workspaceId": "b",
+          "harness": "claude",
+          "status": "running",
+          "threadId": "t-rb",
+          "startedAt": 1789999900000,
+          "turnId": "turn-rb"
+         }
+        ]
+       }
+      ],
+      [
+       "w",
+       {
+        "workspaceId": "w",
+        "threads": {}
+       }
+      ],
+      [
+       "gone",
+       {
+        "workspaceId": "gone",
+        "threads": {
+         "t-g": {
+          "harness": "claude"
+         }
+        },
+        "sessions": [
+         {
+          "id": "g1",
+          "workspaceId": "gone",
+          "harness": "claude",
+          "status": "completed",
+          "threadId": "t-g1",
+          "startedAt": 1789999900000,
+          "turnId": "turn-g1"
+         }
+        ]
+       }
+      ]
+     ],
+     "held-starts": [],
+     "projects": [],
+     "transcripts": [],
+     "builders": []
+    }
+   }
+  }
+ ]
+}

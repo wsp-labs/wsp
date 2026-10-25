@@ -1,0 +1,4519 @@
+{
+ "T0": 1790000000000,
+ "scenes": [
+  {
+   "name": "a provider fork lands and is ready",
+   "scene": {},
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "readMemory"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     }
+    ],
+    [
+     "markUsed",
+     null
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "a size not offered is refused before any machine",
+   "scene": {
+    "o": {
+     "cpu": 3,
+     "memMb": 1000
+    }
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ]
+   ],
+   "answer": {
+    "threw": "3x1 is not a size this provider offers; the sizes are 1x2 ($0.05/hr), 2x4 ($0.10/hr), 4x8 ($0.20/hr). Ask for one of those instead.",
+    "kind": "invalid",
+    "status": null,
+    "cause": null
+   },
+   "entry": null
+  },
+  {
+   "name": "an offered size is kept",
+   "scene": {
+    "o": {
+     "cpu": 4,
+     "memMb": 8192,
+     "envs": {
+      "A": "1"
+     },
+     "labels": {
+      "l": "v"
+     },
+     "idleWindowMs": 60000,
+     "parent": "ws_p",
+     "agents": {
+      "machines": 1
+     }
+    }
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "spawnAt",
+     "solari"
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {
+       "envs": {
+        "A": "1"
+       },
+       "labels": {
+        "l": "v"
+       }
+      },
+      "idleWindowMs": 60000,
+      "size": {
+       "cpu": 4,
+       "memMb": 8192
+      },
+      "firstLife": true,
+      "parentWorkspaceId": "ws_p",
+      "agents": {
+       "machines": 1,
+       "threads": 2
+      }
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "readMemory"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {
+       "envs": {
+        "A": "1"
+       },
+       "labels": {
+        "l": "v"
+       }
+      },
+      "idleWindowMs": 60000,
+      "size": {
+       "cpu": 4,
+       "memMb": 8192
+      },
+      "firstLife": true,
+      "parentWorkspaceId": "ws_p",
+      "agents": {
+       "machines": 1,
+       "threads": 2
+      }
+     }
+    ],
+    [
+     "markUsed",
+     null
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "the road refuses before anything is written",
+   "scene": {
+    "road": {
+     "refusal": "this computer cannot hold it"
+    }
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ]
+   ],
+   "answer": {
+    "threw": "this computer cannot hold it",
+    "kind": "invalid",
+    "status": null,
+    "cause": null
+   },
+   "entry": null
+  },
+  {
+   "name": "a memory folder the road reads otherwise is remembered",
+   "scene": {
+    "road": {
+     "memoryDir": "/elsewhere",
+     "binds": [
+      {
+       "from": "/elsewhere",
+       "to": "/mem"
+      }
+     ]
+    }
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "rememberProject",
+     "/elsewhere"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {
+       "binds": [
+        {
+         "from": "/elsewhere",
+         "to": "/mem"
+        }
+       ]
+      },
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "readMemory"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {
+       "binds": [
+        {
+         "from": "/elsewhere",
+         "to": "/mem"
+        }
+       ]
+      },
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     }
+    ],
+    [
+     "markUsed",
+     null
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "a project with a checkout is copied, a child starts from its base",
+   "scene": {
+    "project": {
+     "checkout": "/co/site",
+     "base": "main"
+    },
+    "childBase": "feature"
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {
+       "copy": {
+        "from": "/co/site",
+        "at": "/src/site"
+       }
+      },
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true,
+      "base": "feature"
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "readMemory"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {
+       "copy": {
+        "from": "/co/site",
+        "at": "/src/site"
+       }
+      },
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true,
+      "base": "feature"
+     }
+    ],
+    [
+     "markUsed",
+     null
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "a computer that keeps no image forks from none",
+   "scene": {
+    "keepsImages": false
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 1,
+       "memMb": 2048
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "readMemory"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 1,
+       "memMb": 2048
+      },
+      "firstLife": true
+     }
+    ],
+    [
+     "markUsed",
+     null
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "a named golden at a place is copied there first",
+   "scene": {
+    "o": {
+     "golden": "snap-x"
+    },
+    "placeId": "pl1"
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     "pl1"
+    ],
+    [
+     "landingBackend",
+     "pl1"
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "copyForFork",
+     "snap-x",
+     "pl1"
+    ],
+    [
+     "report",
+     "fork-requested",
+     "building your image on box first, about ten minutes, billed at $0.50/hr while it builds, then w1 forks from it",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-x@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on door-pl1",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-x@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "place": "pl1",
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-x@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "place": "pl1",
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     }
+    ],
+    [
+     "markUsed",
+     "pl1"
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "a spawned fork carries its tree and no agents",
+   "scene": {
+    "spawned": {
+     "threadId": "t-asker",
+     "rootThreadId": "root"
+    },
+    "o": {
+     "agents": {
+      "machines": 1
+     }
+    }
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true,
+      "rootThreadId": "root",
+      "threadId": "t-asker"
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "readMemory"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true,
+      "rootThreadId": "root",
+      "threadId": "t-asker"
+     }
+    ],
+    [
+     "markUsed",
+     null
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "a brokered fork names its branch and the thread it opens",
+   "scene": {
+    "road": {
+     "brokered": true
+    },
+    "project": {
+     "base": "main"
+    }
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "placeName",
+     "solari"
+    ],
+    [
+     "namedOfRecord",
+     {
+      "remote": "git@github.com:acme/site.git",
+      "name": "w1",
+      "project": "site",
+      "on": "name-of-solari",
+      "base": "main",
+      "carried": false
+     }
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true,
+      "base": "main",
+      "branchOfRecord": {
+       "owner": "acme",
+       "name": "site",
+       "branch": "wsp/w1",
+       "public": false
+      }
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "readMemory"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true,
+      "base": "main",
+      "branchOfRecord": {
+       "owner": "acme",
+       "name": "site",
+       "branch": "wsp/w1",
+       "public": false
+      }
+     }
+    ],
+    [
+     "markUsed",
+     null
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": "string",
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "a brokered fork with the branch named keeps it held and opens the named thread",
+   "scene": {
+    "road": {
+     "brokered": true
+    },
+    "o": {
+     "branchOfRecord": {
+      "owner": "acme",
+      "name": "site",
+      "branch": "given"
+     },
+     "opensThread": "t-open"
+    }
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true,
+      "branchOfRecord": {
+       "owner": "acme",
+       "name": "site",
+       "branch": "given"
+      }
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "readMemory"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true,
+      "branchOfRecord": {
+       "owner": "acme",
+       "name": "site",
+       "branch": "given"
+      }
+     }
+    ],
+    [
+     "markUsed",
+     null
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": "string",
+    "ofRecordHeld": true
+   }
+  },
+  {
+   "name": "at the machine cap a kept builder is stopped and the fork goes",
+   "scene": {
+    "forks": [
+     "cap",
+     "ok"
+    ],
+    "builders": [
+     {
+      "id": "b0",
+      "name": "held-one",
+      "life": "held",
+      "sealed": 1
+     },
+     {
+      "id": "b1",
+      "name": "kept",
+      "life": "reusable",
+      "sealed": 3
+     },
+     {
+      "id": "b2",
+      "name": "own",
+      "life": "own",
+      "sealed": 4,
+      "place": "pl9"
+     }
+    ]
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "refreshBuilders"
+    ],
+    [
+     "grace cancelled",
+     "b1"
+    ],
+    [
+     "killUntilGone",
+     "backend-solari",
+     "bm-b1",
+     "confirm"
+    ],
+    [
+     "forgetBuilder",
+     "b1"
+    ],
+    [
+     "warn",
+     "workspace ws_1: stopped the builder kept from image v3 to make room at the machine cap (b1)"
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari again",
+     {
+      "notice": "Stopped the builder kept from image v3 to make room at the machine cap."
+     }
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "readMemory"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     }
+    ],
+    [
+     "markUsed",
+     null
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true,
+    "notice": "Stopped the builder kept from image v3 to make room at the machine cap."
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "at the cap with builders refused each time the refusal names the holders",
+   "scene": {
+    "forks": [
+     "cap",
+     "cap",
+     "cap"
+    ],
+    "builders": [
+     {
+      "id": "b1",
+      "name": "kept",
+      "life": "reusable",
+      "sealed": 3
+     },
+     {
+      "id": "b2",
+      "name": "own",
+      "life": "own",
+      "sealed": 4
+     },
+     {
+      "id": "b3",
+      "name": "unsealed",
+      "life": "own"
+     }
+    ],
+    "liveOthers": [
+     {
+      "name": "busy",
+      "holds": true
+     },
+     {
+      "name": "idle",
+      "holds": false
+     }
+    ]
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "refreshBuilders"
+    ],
+    [
+     "grace cancelled",
+     "b1"
+    ],
+    [
+     "killUntilGone",
+     "backend-solari",
+     "bm-b1",
+     "confirm"
+    ],
+    [
+     "forgetBuilder",
+     "b1"
+    ],
+    [
+     "warn",
+     "workspace ws_1: stopped the builder kept from image v3 to make room at the machine cap (b1)"
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari again",
+     {
+      "notice": "Stopped the builder kept from image v3 to make room at the machine cap."
+     }
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "killUntilGone",
+     "backend-solari",
+     "bm-b2",
+     "confirm"
+    ],
+    [
+     "forgetBuilder",
+     "b2"
+    ],
+    [
+     "warn",
+     "workspace ws_1: stopped the builder kept from image v4 to make room at the machine cap (b2)"
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari again",
+     {
+      "notice": "Stopped the builder kept from image v4 to make room at the machine cap."
+     }
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ]
+   ],
+   "answer": {
+    "threw": "both machine slots are in use: busy, unsealed (builder). Pause one or wait for a nap. The provider said: you have 3 machines",
+    "kind": "concurrency",
+    "status": null,
+    "cause": "cap"
+   },
+   "entry": null
+  },
+  {
+   "name": "at the cap with nothing to stop the status is kept",
+   "scene": {
+    "forks": [
+     "cap-status"
+    ]
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "refreshBuilders"
+    ]
+   ],
+   "answer": {
+    "threw": "the provider is at its machine cap and no machine of this computer holds a slot; free one at the provider and try again",
+    "kind": "concurrency",
+    "status": 429,
+    "cause": "cap"
+   },
+   "entry": null
+  },
+  {
+   "name": "a fork that fails another way is thrown as it is",
+   "scene": {
+    "forks": [
+     "fails"
+    ]
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ]
+   ],
+   "answer": {
+    "threw": "provider down",
+    "kind": "provider",
+    "status": null,
+    "cause": null
+   },
+   "entry": null
+  },
+  {
+   "name": "a refusal after a builder stopped that is not the cap is thrown",
+   "scene": {
+    "forks": [
+     "cap",
+     "fails"
+    ],
+    "builders": [
+     {
+      "id": "b1",
+      "name": "kept",
+      "life": "reusable",
+      "sealed": 3
+     }
+    ]
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "refreshBuilders"
+    ],
+    [
+     "grace cancelled",
+     "b1"
+    ],
+    [
+     "killUntilGone",
+     "backend-solari",
+     "bm-b1",
+     "confirm"
+    ],
+    [
+     "forgetBuilder",
+     "b1"
+    ],
+    [
+     "warn",
+     "workspace ws_1: stopped the builder kept from image v3 to make room at the machine cap (b1)"
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari again",
+     {
+      "notice": "Stopped the builder kept from image v3 to make room at the machine cap."
+     }
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ]
+   ],
+   "answer": {
+    "threw": "provider down",
+    "kind": "provider",
+    "status": null,
+    "cause": null
+   },
+   "entry": null
+  },
+  {
+   "name": "a route and a daemon: both asked, the sync started",
+   "scene": {
+    "machine": {
+     "previewUrl": "https://p"
+    }
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "report",
+     "preview-route",
+     "Preview route to the daemon minted.",
+     null
+    ],
+    [
+     "pingDaemon",
+     "ws_1"
+    ],
+    [
+     "report",
+     "daemon-answering",
+     "Daemon answered.",
+     {}
+    ],
+    [
+     "syncDaemon",
+     "ws_1"
+    ],
+    [
+     "readMemory"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     }
+    ],
+    [
+     "markUsed",
+     null
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "a route that is not minted is a notice, the daemon answering",
+   "scene": {
+    "machine": {
+     "previewUrl": "https://p"
+    },
+    "reach": "fails"
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "report",
+     "preview-route",
+     "No preview route to the daemon.",
+     {
+      "notice": "preview route for m-new not minted (no route)"
+     }
+    ],
+    [
+     "pingDaemon",
+     "ws_1"
+    ],
+    [
+     "report",
+     "daemon-answering",
+     "Daemon answered.",
+     {}
+    ],
+    [
+     "syncDaemon",
+     "ws_1"
+    ],
+    [
+     "readMemory"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     }
+    ],
+    [
+     "markUsed",
+     null
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "a daemon that does not answer is noted and the memory is not read",
+   "scene": {
+    "machine": {
+     "daemonAnswers": true
+    },
+    "fault": "no daemon on 7070"
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "pingDaemon",
+     "ws_1"
+    ],
+    [
+     "report",
+     "daemon-answering",
+     "Daemon did not answer.",
+     {
+      "notice": "no daemon on 7070"
+     }
+    ],
+    [
+     "syncDaemon",
+     "ws_1"
+    ],
+    [
+     "warn",
+     "workspace ws_1: memory not read: the daemon did not answer"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     }
+    ],
+    [
+     "markUsed",
+     null
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "a served workspace asks neither",
+   "scene": {
+    "machine": {
+     "previewUrl": "https://p"
+    },
+    "served": true
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "readMemory"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     }
+    ],
+    [
+     "markUsed",
+     null
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "memory read to another size says so",
+   "scene": {
+    "memory": {
+     "cpu": 2,
+     "memMb": 3900
+    }
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "readMemory"
+    ],
+    [
+     "warn",
+     "workspace ws_1: the image's size is 2 vCPU, 4 GB; the machine has 2 vCPU, 3.8 GB"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 3900
+      },
+      "firstLife": true
+     }
+    ],
+    [
+     "markUsed",
+     null
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true,
+    "notice": "the image's size is 2 vCPU, 4 GB; the machine has 2 vCPU, 3.8 GB"
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "memory read to another size with a size named",
+   "scene": {
+    "o": {
+     "cpu": 2,
+     "memMb": 4096
+    },
+    "memory": {
+     "cpu": 2,
+     "memMb": 3900
+    }
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "readMemory"
+    ],
+    [
+     "warn",
+     "workspace ws_1: asked for 2 vCPU, 4 GB; the machine has 2 vCPU, 3.8 GB"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 3900
+      },
+      "firstLife": true
+     }
+    ],
+    [
+     "markUsed",
+     null
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true,
+    "notice": "asked for 2 vCPU, 4 GB; the machine has 2 vCPU, 3.8 GB"
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "memory at a place is not read here",
+   "scene": {
+    "placeId": "pl1",
+    "memory": {
+     "cpu": 8,
+     "memMb": 1
+    }
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     "pl1"
+    ],
+    [
+     "landingBackend",
+     "pl1"
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     "pl1"
+    ],
+    [
+     "report",
+     "fork-requested",
+     "building your image on box first, about ten minutes, billed at $0.50/hr while it builds, then w1 forks from it",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on door-pl1",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "place": "pl1",
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "place": "pl1",
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     }
+    ],
+    [
+     "markUsed",
+     "pl1"
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "a machine notice joins the answer",
+   "scene": {
+    "machine": {
+     "notice": "forked at 2 cpu, not 4"
+    },
+    "memory": {
+     "cpu": 2,
+     "memMb": 3900
+    }
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "readMemory"
+    ],
+    [
+     "warn",
+     "workspace ws_1: the image's size is 2 vCPU, 4 GB; the machine has 2 vCPU, 3.8 GB"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ],
+    [
+     "writeDaemonRoots",
+     "ws_1"
+    ],
+    [
+     "persist",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "m-new",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 3900
+      },
+      "firstLife": true
+     }
+    ],
+    [
+     "markUsed",
+     null
+    ],
+    [
+     "report",
+     "ready",
+     "ready",
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "workspace.created",
+      "workspace": {
+       "id": "ws_1",
+       "name": "w1",
+       "view": true
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "id": "ws_1",
+    "name": "w1",
+    "view": true,
+    "notice": "forked at 2 cpu, not 4 the image's size is 2 vCPU, 4 GB; the machine has 2 vCPU, 3.8 GB"
+   },
+   "entry": {
+    "creating": null,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  },
+  {
+   "name": "a clone that fails ends the create before it is persisted",
+   "scene": {
+    "landFails": true
+   },
+   "log": [
+    [
+     "landingPlace",
+     "here"
+    ],
+    [
+     "placeRefuses",
+     null
+    ],
+    [
+     "landingBackend",
+     null
+    ],
+    [
+     "landingKind",
+     "here",
+     "landing"
+    ],
+    [
+     "projectLanding",
+     "provider"
+    ],
+    [
+     "landingDeps",
+     "here"
+    ],
+    [
+     "road.refusal",
+     "p_1",
+     {
+      "on": "here"
+     }
+    ],
+    [
+     "road.places",
+     "mk"
+    ],
+    [
+     "projectHeld",
+     "p_1"
+    ],
+    [
+     "road.workspaceBinds",
+     "p_1"
+    ],
+    [
+     "keepsImages",
+     "landing"
+    ],
+    [
+     "imageHead"
+    ],
+    [
+     "copyForFork",
+     "snap-head",
+     null
+    ],
+    [
+     "imageOf",
+     "snap-head@copy"
+    ],
+    [
+     "brokeredStart",
+     true
+    ],
+    [
+     "report",
+     "fork-requested",
+     "starting w1 on solari",
+     null
+    ],
+    [
+     "fork",
+     {
+      "id": "ws_1",
+      "name": "w1",
+      "kind": "cloud",
+      "machineId": "",
+      "phase": "running",
+      "golden": "snap-head@copy",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "project": "p_1",
+      "spec": {},
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      },
+      "firstLife": true
+     },
+     null,
+     false
+    ],
+    [
+     "attach",
+     "ws_1",
+     "m-new"
+    ],
+    [
+     "landed"
+    ],
+    [
+     "readMemory"
+    ],
+    [
+     "landProject",
+     "cloud",
+     "ws_1",
+     "p_1"
+    ]
+   ],
+   "answer": {
+    "threw": "clone failed",
+    "kind": null,
+    "status": null,
+    "cause": null
+   },
+   "entry": {
+    "creating": true,
+    "opensThread": null,
+    "ofRecordHeld": null
+   }
+  }
+ ],
+ "facts": {
+  "nameGiven": [
+   [
+    "  w1 ",
+    "w1"
+   ],
+   [
+    "\tw ",
+    "w"
+   ],
+   [
+    "",
+    ""
+   ],
+   [
+    "﻿x﻿",
+    "x"
+   ]
+  ],
+  "nameRefusal": [
+   [
+    "",
+    "a workspace name cannot be blank"
+   ],
+   [
+    "   ",
+    "a workspace name cannot be blank"
+   ],
+   [
+    "taken",
+    "taken is already a workspace; pick another name, or delete it first"
+   ],
+   [
+    "going",
+    "going is being deleted; wait for the delete to finish, then fork it again"
+   ],
+   [
+    "forking",
+    "forking is already a workspace; pick another name, or delete it first"
+   ],
+   [
+    "free",
+    null
+   ],
+   [
+    " taken",
+    null
+   ]
+  ],
+  "failedView": {
+   "id": "ws_f",
+   "name": "w1",
+   "machineId": "",
+   "phase": "gone",
+   "kind": "cloud",
+   "golden": "",
+   "createdAt": "2026-09-21T14:13:20.000Z",
+   "project": {
+    "id": "p1",
+    "name": "site"
+   },
+   "gone": "it failed"
+  },
+  "afterSupersede": [
+   "f2"
+  ],
+  "stagesHeld": [
+   [
+    "ws_9",
+    {
+     "type": "workspace.creating",
+     "workspaceId": "ws_9",
+     "name": "w9",
+     "stage": "fork-requested",
+     "message": "starting",
+     "elapsedMs": 1500,
+     "notice": "n",
+     "detail": "d",
+     "waiting": true,
+     "askedBy": {
+      "threadId": "t1",
+      "rootThreadId": "r1"
+     }
+    }
+   ],
+   [
+    "ws_8",
+    {
+     "type": "workspace.creating",
+     "workspaceId": "ws_8",
+     "name": "w8",
+     "stage": "ready",
+     "message": "ready",
+     "elapsedMs": 0
+    }
+   ]
+  ],
+  "stagesWithSeqStripped": [
+   [
+    "ws_9",
+    {
+     "type": "workspace.creating",
+     "workspaceId": "ws_9",
+     "name": "w9",
+     "stage": "fork-requested",
+     "message": "starting",
+     "elapsedMs": 1500,
+     "notice": "n",
+     "detail": "d",
+     "waiting": true,
+     "askedBy": {
+      "threadId": "t1",
+      "rootThreadId": "r1"
+     }
+    }
+   ],
+   [
+    "ws_8",
+    {
+     "type": "workspace.creating",
+     "workspaceId": "ws_8",
+     "name": "w8",
+     "stage": "ready",
+     "message": "ready",
+     "elapsedMs": 0
+    }
+   ],
+   [
+    "ws_7",
+    {
+     "type": "workspace.creating",
+     "workspaceId": "ws_7",
+     "name": "w7",
+     "stage": "x",
+     "message": "m",
+     "elapsedMs": 0
+    }
+   ]
+  ],
+  "stagesAfter": [
+   [
+    "ws_7",
+    {
+     "type": "workspace.creating",
+     "workspaceId": "ws_7",
+     "name": "w7",
+     "stage": "x",
+     "message": "m",
+     "elapsedMs": 0
+    }
+   ]
+  ],
+  "shown": [
+   [
+    "s1",
+    {
+     "id": "s1",
+     "name": "shown"
+    }
+   ]
+  ],
+  "foldersOf": [
+   "c"
+  ],
+  "oneFolderSame": true,
+  "oneFolderMade": 3
+ },
+ "log": [
+  [
+   "emit",
+   {
+    "type": "workspace.deleted",
+    "workspaceId": "f1"
+   }
+  ],
+  [
+   "emit",
+   {
+    "type": "workspace.deleted",
+    "workspaceId": "f3"
+   }
+  ],
+  [
+   "emit",
+   {
+    "type": "workspace.creating",
+    "workspaceId": "ws_9",
+    "name": "w9",
+    "stage": "fork-requested",
+    "message": "starting",
+    "elapsedMs": 1500,
+    "notice": "n",
+    "detail": "d",
+    "waiting": true,
+    "askedBy": {
+     "threadId": "t1",
+     "rootThreadId": "r1"
+    }
+   }
+  ],
+  [
+   "emit",
+   {
+    "type": "workspace.creating",
+    "workspaceId": "ws_8",
+    "name": "w8",
+    "stage": "ready",
+    "message": "ready",
+    "elapsedMs": 0
+   }
+  ],
+  [
+   "emit",
+   {
+    "type": "workspace.creating",
+    "workspaceId": "ws_7",
+    "name": "w7",
+    "stage": "x",
+    "message": "m",
+    "elapsedMs": 0,
+    "seq": 44
+   }
+  ],
+  [
+   "emit",
+   {
+    "type": "workspace.created",
+    "workspace": {
+     "id": "ws_9"
+    }
+   }
+  ],
+  [
+   "emit",
+   {
+    "type": "workspace.deleted",
+    "workspaceId": "ws_8"
+   }
+  ],
+  [
+   "emit",
+   {
+    "type": "workspace.created",
+    "workspace": {
+     "id": "s1",
+     "name": "shown"
+    }
+   }
+  ]
+ ]
+}

@@ -1,0 +1,2572 @@
+{
+ "T0": 1790000000000,
+ "DAEMON_VERSION": 167,
+ "DAEMON_LACKS_AGAIN_MS": 3600000,
+ "DAEMON_REVIVE_AGAIN_MS": 300000,
+ "scenes": [
+  {
+   "name": "sync: current daemon writes roots and asks the version",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: an old daemon is replaced, noted updating, roots written after",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "version": 1
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "updating the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: no daemon yet is noted installing",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "version": 1,
+       "hasDaemon": false
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "installing the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: a version not read is marked for the next probe",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "version": null
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "warn",
+     "daemon on m-a (workspace a): version not read within 8 s; asking again at the next reach probe"
+    ],
+    [
+     "unreadAt",
+     [
+      [
+       "a",
+       {
+        "machineId": "m-a",
+        "at": 1790000000000
+       }
+      ]
+     ]
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: a version read that throws rejects the sync",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "version": "throws"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "rejected",
+     "hello failed"
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: served by its computer, a folder, writes roots only",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "local",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "served": true
+     }
+    ]
+   },
+   "log": [
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "local",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: served by its computer, not a folder, does nothing",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "served": true
+     }
+    ]
+   },
+   "log": [],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: a machine that said it lacks something inside the hour is left alone",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p",
+       "daemonRefusedAt": {
+        "machineId": "m-a",
+        "at": "2026-09-21T13:13:20.001Z",
+        "why": "gcc"
+       }
+      },
+      "mod": {
+       "version": 1
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p",
+     "daemonRefusedAt": {
+      "machineId": "m-a",
+      "at": "2026-09-21T13:13:20.001Z",
+      "why": "gcc"
+     }
+    }
+   ]
+  },
+  {
+   "name": "sync: the hour out, it is offered again and a deploy that lands clears the mark",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "version": 1
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "updating the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "persist",
+     "a",
+     {
+      "id": "a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "project": "p"
+     }
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: another machine's refusal is taken off and the sync goes on",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "version": 1
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "persist",
+     "a",
+     {
+      "id": "a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "project": "p"
+     }
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "updating the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: a deploy refused for what the machine lacks keeps its sentence and flashes it",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p",
+       "daemonRefusedAt": {
+        "machineId": "m-a",
+        "at": "2026-09-21T14:13:20.000Z",
+        "why": "gcc is missing on this machine, so the daemon cannot build"
+       }
+      },
+      "mod": {
+       "version": 1,
+       "deploy": "lacks"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "updating the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "persist",
+     "a",
+     {
+      "id": "a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "project": "p",
+      "daemonRefusedAt": {
+       "machineId": "m-a",
+       "at": "2026-09-21T14:13:20.000Z",
+       "why": "gcc is missing on this machine, so the daemon cannot build"
+      }
+     }
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ],
+    [
+     "warn",
+     "daemon on m-a (workspace a) not updated: gcc is missing on this machine, so the daemon cannot build"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "gcc is missing on this machine, so the daemon cannot build"
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p",
+     "daemonRefusedAt": {
+      "machineId": "m-a",
+      "at": "2026-09-21T14:13:20.000Z",
+      "why": "gcc is missing on this machine, so the daemon cannot build"
+     }
+    }
+   ]
+  },
+  {
+   "name": "sync: a deploy the machine never answered keeps an old refusal",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p",
+       "daemonRefusedAt": {
+        "machineId": "m-a",
+        "at": "2026-09-21T13:13:19.995Z",
+        "why": "gcc"
+       }
+      },
+      "mod": {
+       "version": 1,
+       "deploy": "unanswered"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "updating the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ],
+    [
+     "warn",
+     "daemon on m-a (workspace a) not updated: no answer"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "could not update the helper"
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p",
+     "daemonRefusedAt": {
+      "machineId": "m-a",
+      "at": "2026-09-21T13:13:19.995Z",
+      "why": "gcc"
+     }
+    }
+   ]
+  },
+  {
+   "name": "sync: any other deploy failure drops the refusal and flashes update failed",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "version": 1,
+       "deploy": "fails"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "updating the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "persist",
+     "a",
+     {
+      "id": "a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "project": "p"
+     }
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ],
+    [
+     "warn",
+     "daemon on m-a (workspace a) not updated: npm ERR! long log"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "could not update the helper"
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: an install that fails flashes install failed",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "version": 1,
+       "hasDaemon": false,
+       "deploy": "fails"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "installing the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ],
+    [
+     "warn",
+     "daemon on m-a (workspace a) not installed: npm ERR! long log"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "could not install the helper"
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: no road to deploy asks no version",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "deploy": "none"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: no byte road and no signed urls asks no version",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "signedUrls": false
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: a byte road with no signed urls deploys",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "signedUrls": false,
+      "machine": {
+       "id": "m-a",
+       "putBytes": true
+      },
+      "mod": {
+       "version": 1
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "updating the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: waits out a running turn, then deploys",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "version": 1
+      }
+     }
+    ],
+    "sessions": [
+     {
+      "id": "s1",
+      "workspaceId": "a",
+      "status": "running",
+      "threadId": "t1"
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "warn",
+     "daemon on m-a (workspace a): update waits for the running turn"
+    ],
+    [
+     "mark",
+     "turn ends"
+    ],
+    [
+     "emit",
+     {
+      "type": "session.delta",
+      "workspaceId": "a"
+     }
+    ],
+    [
+     "emit",
+     {
+      "type": "session.done",
+      "workspaceId": "a"
+     }
+    ],
+    [
+     "pushStatus",
+     "a",
+     "updating the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: a queued row is no turn",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "version": 1
+      }
+     }
+    ],
+    "sessions": [
+     {
+      "id": "s1",
+      "workspaceId": "a",
+      "status": "running",
+      "queued": true
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "updating the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: a machine that napped under the wait is left alone",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "napping",
+       "project": "p"
+      },
+      "mod": {
+       "version": 1
+      }
+     }
+    ],
+    "sessions": [
+     {
+      "id": "s1",
+      "workspaceId": "a",
+      "status": "running"
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "warn",
+     "daemon on m-a (workspace a): update waits for the running turn"
+    ],
+    [
+     "emit",
+     {
+      "type": "session.end",
+      "workspaceId": "a"
+     }
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "napping",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "sync: two at once on one machine share the work",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "version": 1,
+       "deploy": "hangs"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "same",
+     true,
+     1
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "updating the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ],
+    [
+     "after",
+     0
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "roots: every record on the machine, deduped, landed folders after",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m1",
+       "phase": "running",
+       "project": "p",
+       "landed": [
+        "/work/p",
+        "/x"
+       ]
+      }
+     },
+     {
+      "record": {
+       "id": "b",
+       "kind": "cloud",
+       "machineId": "m1",
+       "phase": "running",
+       "project": "q"
+      }
+     },
+     {
+      "record": {
+       "id": "c",
+       "kind": "cloud",
+       "machineId": "m2",
+       "phase": "running",
+       "project": "p"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a",
+      "/x",
+      "/work/q",
+      "/work/q/b"
+     ]
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m1",
+     "phase": "running",
+     "project": "p",
+     "landed": [
+      "/work/p",
+      "/x"
+     ]
+    },
+    {
+     "id": "b",
+     "kind": "cloud",
+     "machineId": "m1",
+     "phase": "running",
+     "project": "q"
+    },
+    {
+     "id": "c",
+     "kind": "cloud",
+     "machineId": "m2",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "roots: a closed host writes nothing",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      }
+     }
+    ],
+    "closed": true
+   },
+   "log": [],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "roots: a failure warns the last 200 characters",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "roots": "fails"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "warn",
+     "browsable folders for a not written on m-a: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx roots refused"
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "roots: strict hands the failure back",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "roots": "fails"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "rejected",
+     264
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "revive: no-daemon on a running machine deploys, notes restarting, clears",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "pushStatus",
+     "a",
+     "restarting the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ],
+    [
+     "revivedAt",
+     [
+      [
+       "a",
+       {
+        "machineId": "m-a",
+        "at": 1790000000000
+       }
+      ]
+     ]
+    ],
+    [
+     "pushStatus",
+     "a",
+     "restarting the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "revive: only for no-daemon on a running machine with a road and no unreached mark",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      }
+     },
+     {
+      "record": {
+       "id": "b",
+       "kind": "cloud",
+       "machineId": "m-b",
+       "phase": "napping",
+       "project": "p"
+      }
+     },
+     {
+      "record": {
+       "id": "c",
+       "kind": "place",
+       "machineId": "m-c",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "deploy": "none"
+      }
+     },
+     {
+      "record": {
+       "id": "d",
+       "kind": "cloud",
+       "machineId": "m-d",
+       "phase": "running",
+       "project": "p"
+      }
+     }
+    ]
+   },
+   "log": [],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    },
+    {
+     "id": "b",
+     "kind": "cloud",
+     "machineId": "m-b",
+     "phase": "napping",
+     "project": "p"
+    },
+    {
+     "id": "c",
+     "kind": "place",
+     "machineId": "m-c",
+     "phase": "running",
+     "project": "p"
+    },
+    {
+     "id": "d",
+     "kind": "cloud",
+     "machineId": "m-d",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "revive: a failed restart flashes restart failed",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "deploy": "fails"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "pushStatus",
+     "a",
+     "restarting the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ],
+    [
+     "warn",
+     "daemon on m-a (workspace a) not restarted: npm ERR! long log"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "could not restart the helper"
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "revive: one at a time per machine",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "deploy": "hangs"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "pushStatus",
+     "a",
+     "restarting the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "unreachedOf: a replaced machine's mark is dropped",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "of",
+     null,
+     []
+    ],
+    [
+     "of",
+     "cannot reach",
+     [
+      [
+       "a",
+       {
+        "machineId": "m-a",
+        "line": "cannot reach"
+       }
+      ]
+     ]
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "offer again: only with a refusal and facts",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "version": 1
+      }
+     },
+     {
+      "record": {
+       "id": "b",
+       "kind": "cloud",
+       "machineId": "m-b",
+       "phase": "running",
+       "project": "p"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "mark",
+     "with facts"
+    ],
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "updating the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "persist",
+     "a",
+     {
+      "id": "a",
+      "kind": "cloud",
+      "machineId": "m-a",
+      "phase": "running",
+      "project": "p"
+     }
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    },
+    {
+     "id": "b",
+     "kind": "cloud",
+     "machineId": "m-b",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "read again: after the window, reachable and running, same machine",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "unread",
+     []
+    ],
+    [
+     "mark",
+     "now"
+    ],
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "unread",
+     []
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "turnRuns counts a queued row, daemonSettled does not wait beside a turn",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      },
+      "mod": {
+       "version": 1,
+       "deploy": "hangs"
+      }
+     }
+    ],
+    "sessions": [
+     {
+      "id": "s1",
+      "workspaceId": "a",
+      "status": "running",
+      "queued": true
+     }
+    ]
+   },
+   "log": [
+    [
+     "turnRuns",
+     true,
+     false
+    ],
+    [
+     "hasDaemon",
+     "a"
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "daemonVersion",
+     "a"
+    ],
+    [
+     "pushStatus",
+     "a",
+     "updating the helper"
+    ],
+    [
+     "deployDaemon",
+     "a"
+    ],
+    [
+     "settled before the deploy ends",
+     false
+    ],
+    [
+     "roots",
+     "a",
+     [
+      "/work/p",
+      "/work/p/a"
+     ]
+    ],
+    [
+     "pushStatus",
+     "a",
+     null
+    ],
+    [
+     "settled after",
+     true
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "send detached: started",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      }
+     }
+    ],
+    "starts": [
+     "started"
+    ]
+   },
+   "log": [
+    [
+     "start",
+     "a",
+     {
+      "prompt": "hi",
+      "thread": null,
+      "requestId": "string"
+     },
+     null
+    ],
+    [
+     "answer",
+     {
+      "outcome": "started",
+      "threadId": "s-9",
+      "harness": "claude"
+     }
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "send detached: steered",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      }
+     }
+    ],
+    "starts": [
+     "steered"
+    ]
+   },
+   "log": [
+    [
+     "start",
+     "a",
+     {
+      "prompt": "hi",
+      "thread": "t1",
+      "requestId": "string"
+     },
+     {
+      "kind": "person"
+     }
+    ],
+    [
+     "answer",
+     {
+      "outcome": "steered",
+      "threadId": "t-steer",
+      "harness": "claude"
+     }
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "send detached: queued answers at the event with this request's id",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      }
+     }
+    ],
+    "starts": [
+     "queued"
+    ]
+   },
+   "log": [
+    [
+     "start",
+     "a",
+     {
+      "prompt": "hi",
+      "thread": "t1",
+      "requestId": "string"
+     },
+     null
+    ],
+    [
+     "emit",
+     {
+      "type": "session.queued",
+      "requestId": "other",
+      "harness": "claude"
+     }
+    ],
+    [
+     "emit",
+     {
+      "type": "session.queued",
+      "requestId": "7a4eb245-17ea-4972-8efa-4f9bc05d2d33",
+      "harness": "codex"
+     }
+    ],
+    [
+     "answer",
+     {
+      "outcome": "queued",
+      "threadId": "t1",
+      "harness": "codex"
+     }
+    ],
+    [
+     "warn",
+     "a message waiting in thread t1 was not sent: later failure"
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "send detached: held answers the wait",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      }
+     }
+    ],
+    "starts": [
+     "held"
+    ]
+   },
+   "log": [
+    [
+     "start",
+     "a",
+     {
+      "prompt": "hi",
+      "thread": null,
+      "requestId": "string"
+     },
+     null
+    ],
+    [
+     "answer",
+     {
+      "outcome": "held",
+      "threadId": "row-1",
+      "harness": "claude",
+      "capped": {
+       "place": "box",
+       "running": 2,
+       "limit": 2
+      }
+     }
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "send detached: a refused start rejects",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      }
+     }
+    ],
+    "starts": [
+     "fails"
+    ]
+   },
+   "log": [
+    [
+     "start",
+     "a",
+     {
+      "prompt": "hi",
+      "thread": null,
+      "requestId": "string"
+     },
+     null
+    ],
+    [
+     "rejected",
+     "refused"
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "to first thread: the earliest row with a thread, ties to the first listed",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      }
+     },
+     {
+      "record": {
+       "id": "b",
+       "kind": "cloud",
+       "machineId": "m-b",
+       "phase": "running",
+       "project": "p"
+      }
+     }
+    ],
+    "sessions": [
+     {
+      "id": "s1",
+      "workspaceId": "a",
+      "status": "done",
+      "threadId": "late",
+      "startedAt": 30
+     },
+     {
+      "id": "s2",
+      "workspaceId": "b",
+      "status": "done",
+      "threadId": "other",
+      "startedAt": 1
+     },
+     {
+      "id": "s3",
+      "workspaceId": "a",
+      "status": "done",
+      "startedAt": 0
+     },
+     {
+      "id": "s4",
+      "workspaceId": "a",
+      "status": "done",
+      "threadId": "early",
+      "startedAt": 10
+     },
+     {
+      "id": "s5",
+      "workspaceId": "a",
+      "status": "done",
+      "threadId": "tie",
+      "startedAt": 10
+     }
+    ]
+   },
+   "log": [
+    [
+     "start",
+     "a",
+     {
+      "prompt": "go",
+      "thread": "early",
+      "requestId": "string"
+     },
+     null
+    ],
+    [
+     "answer",
+     {
+      "outcome": "started",
+      "threadId": "s-9",
+      "harness": "claude"
+     }
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    },
+    {
+     "id": "b",
+     "kind": "cloud",
+     "machineId": "m-b",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "to first thread: none opens one",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      }
+     }
+    ]
+   },
+   "log": [
+    [
+     "start",
+     "a",
+     {
+      "prompt": "go",
+      "thread": null,
+      "requestId": "string"
+     },
+     null
+    ],
+    [
+     "answer",
+     {
+      "outcome": "started",
+      "threadId": "s-9",
+      "harness": "claude"
+     }
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  },
+  {
+   "name": "to first thread: a row with no startedAt counts as 0",
+   "world": {
+    "entries": [
+     {
+      "record": {
+       "id": "a",
+       "kind": "cloud",
+       "machineId": "m-a",
+       "phase": "running",
+       "project": "p"
+      }
+     }
+    ],
+    "sessions": [
+     {
+      "id": "s1",
+      "workspaceId": "a",
+      "status": "done",
+      "threadId": "dated",
+      "startedAt": 5
+     },
+     {
+      "id": "s2",
+      "workspaceId": "a",
+      "status": "running",
+      "threadId": "undated"
+     }
+    ]
+   },
+   "log": [
+    [
+     "start",
+     "a",
+     {
+      "prompt": "go",
+      "thread": "undated",
+      "requestId": "string"
+     },
+     null
+    ],
+    [
+     "answer",
+     {
+      "outcome": "started",
+      "threadId": "s-9",
+      "harness": "claude"
+     }
+    ]
+   ],
+   "records": [
+    {
+     "id": "a",
+     "kind": "cloud",
+     "machineId": "m-a",
+     "phase": "running",
+     "project": "p"
+    }
+   ]
+  }
+ ]
+}

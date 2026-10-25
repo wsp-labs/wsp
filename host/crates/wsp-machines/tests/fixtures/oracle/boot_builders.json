@@ -1,0 +1,1086 @@
+{
+ "T0": 1790000000000,
+ "scenes": [
+  {
+   "name": "admit: every life a stored builder can read as",
+   "store": {
+    "builders": {
+     "foreign": {
+      "id": "foreign",
+      "name": "b-foreign",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true
+     },
+     "mineHeld": {
+      "id": "mineHeld",
+      "name": "b-mineHeld",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "heldBy": {
+       "host": "host:A",
+       "pid": "self",
+       "heartbeat": "2026-09-21T14:13:20.000Z"
+      }
+     },
+     "otherHostFresh": {
+      "id": "otherHostFresh",
+      "name": "b-otherHostFresh",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "heldBy": {
+       "host": "host:B",
+       "pid": "dead",
+       "heartbeat": "2026-09-21T13:58:20.001Z"
+      }
+     },
+     "otherHostStale": {
+      "id": "otherHostStale",
+      "name": "b-otherHostStale",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "heldBy": {
+       "host": "host:B",
+       "pid": "dead",
+       "heartbeat": "2026-09-21T13:58:20.000Z"
+      }
+     },
+     "unreadableBeat": {
+      "id": "unreadableBeat",
+      "name": "b-unreadableBeat",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "heldBy": {
+       "host": "host:B",
+       "pid": "dead",
+       "heartbeat": "garbage"
+      }
+     },
+     "sameHostLivePid": {
+      "id": "sameHostLivePid",
+      "name": "b-sameHostLivePid",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "heldBy": {
+       "host": "host:A",
+       "pid": "alive",
+       "heartbeat": "2026-09-21T14:13:20.000Z"
+      }
+     },
+     "sameHostDeadPid": {
+      "id": "sameHostDeadPid",
+      "name": "b-sameHostDeadPid",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "heldBy": {
+       "host": "host:A",
+       "pid": "dead",
+       "heartbeat": "2026-09-21T14:13:20.000Z"
+      }
+     },
+     "building": {
+      "id": "building",
+      "name": "b-building",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "building": true
+     },
+     "paused": {
+      "id": "paused",
+      "name": "b-paused",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true
+     },
+     "notFirst": {
+      "id": "notFirst",
+      "name": "b-notFirst",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": false
+     },
+     "sealed": {
+      "id": "sealed",
+      "name": "b-sealed",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "sealed": {
+       "version": 3,
+       "at": 1789999000000
+      },
+      "size": {
+       "cpu": 4,
+       "memMb": 8192
+      }
+     }
+    }
+   },
+   "answers": {
+    "foreign": {
+     "labels": {
+      "wsp-owner": "h_other"
+     }
+    },
+    "paused": {
+     "state": "paused"
+    },
+    "sealed": {
+     "seen": {
+      "state": "running"
+     },
+     "labels": {
+      "wsp-owner": "h_me"
+     }
+    }
+   },
+   "log": [
+    [
+     "backend.get",
+     "solari",
+     "foreign"
+    ],
+    [
+     "machine.state",
+     "foreign"
+    ],
+    [
+     "shapeOf",
+     "foreign"
+    ],
+    [
+     "sizeBuilt",
+     {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     {
+      "cpu": 1,
+      "memMb": 2048
+     }
+    ],
+    [
+     "backend.get",
+     "solari",
+     "mineHeld"
+    ],
+    [
+     "machine.state",
+     "mineHeld"
+    ],
+    [
+     "shapeOf",
+     "mineHeld"
+    ],
+    [
+     "sizeBuilt",
+     {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     {
+      "cpu": 1,
+      "memMb": 2048
+     }
+    ],
+    [
+     "backend.get",
+     "solari",
+     "otherHostFresh"
+    ],
+    [
+     "machine.state",
+     "otherHostFresh"
+    ],
+    [
+     "shapeOf",
+     "otherHostFresh"
+    ],
+    [
+     "sizeBuilt",
+     {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     {
+      "cpu": 1,
+      "memMb": 2048
+     }
+    ],
+    [
+     "backend.get",
+     "solari",
+     "otherHostStale"
+    ],
+    [
+     "machine.state",
+     "otherHostStale"
+    ],
+    [
+     "shapeOf",
+     "otherHostStale"
+    ],
+    [
+     "sizeBuilt",
+     {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     {
+      "cpu": 1,
+      "memMb": 2048
+     }
+    ],
+    [
+     "backend.get",
+     "solari",
+     "unreadableBeat"
+    ],
+    [
+     "machine.state",
+     "unreadableBeat"
+    ],
+    [
+     "shapeOf",
+     "unreadableBeat"
+    ],
+    [
+     "sizeBuilt",
+     {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     {
+      "cpu": 1,
+      "memMb": 2048
+     }
+    ],
+    [
+     "backend.get",
+     "solari",
+     "sameHostLivePid"
+    ],
+    [
+     "machine.state",
+     "sameHostLivePid"
+    ],
+    [
+     "shapeOf",
+     "sameHostLivePid"
+    ],
+    [
+     "sizeBuilt",
+     {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     {
+      "cpu": 1,
+      "memMb": 2048
+     }
+    ],
+    [
+     "backend.get",
+     "solari",
+     "sameHostDeadPid"
+    ],
+    [
+     "machine.state",
+     "sameHostDeadPid"
+    ],
+    [
+     "shapeOf",
+     "sameHostDeadPid"
+    ],
+    [
+     "sizeBuilt",
+     {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     {
+      "cpu": 1,
+      "memMb": 2048
+     }
+    ],
+    [
+     "backend.get",
+     "solari",
+     "building"
+    ],
+    [
+     "machine.state",
+     "building"
+    ],
+    [
+     "shapeOf",
+     "building"
+    ],
+    [
+     "sizeBuilt",
+     {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     {
+      "cpu": 1,
+      "memMb": 2048
+     }
+    ],
+    [
+     "backend.get",
+     "solari",
+     "paused"
+    ],
+    [
+     "machine.state",
+     "paused"
+    ],
+    [
+     "shapeOf",
+     "paused"
+    ],
+    [
+     "sizeBuilt",
+     {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     {
+      "cpu": 1,
+      "memMb": 2048
+     }
+    ],
+    [
+     "store.put",
+     "builders",
+     "paused",
+     {
+      "id": "paused",
+      "name": "b-paused",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": false,
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      }
+     }
+    ],
+    [
+     "backend.get",
+     "solari",
+     "notFirst"
+    ],
+    [
+     "machine.state",
+     "notFirst"
+    ],
+    [
+     "shapeOf",
+     "notFirst"
+    ],
+    [
+     "sizeBuilt",
+     {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     {
+      "cpu": 1,
+      "memMb": 2048
+     }
+    ],
+    [
+     "backend.get",
+     "solari",
+     "sealed"
+    ],
+    [
+     "armGrace",
+     "sealed",
+     1789999000000
+    ]
+   ],
+   "answer": null,
+   "builders": [
+    {
+     "id": "foreign",
+     "life": "foreign",
+     "sealable": true,
+     "firstLife": true,
+     "size": {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     "builder": {
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      }
+     }
+    },
+    {
+     "id": "mineHeld",
+     "life": "reusable",
+     "sealable": true,
+     "firstLife": true,
+     "size": {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     "builder": {
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      }
+     }
+    },
+    {
+     "id": "otherHostFresh",
+     "life": "held",
+     "sealable": true,
+     "firstLife": true,
+     "size": {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     "builder": {
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      }
+     }
+    },
+    {
+     "id": "otherHostStale",
+     "life": "reusable",
+     "sealable": true,
+     "firstLife": true,
+     "size": {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     "builder": {
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      }
+     }
+    },
+    {
+     "id": "unreadableBeat",
+     "life": "held",
+     "sealable": true,
+     "firstLife": true,
+     "size": {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     "builder": {
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      }
+     }
+    },
+    {
+     "id": "sameHostLivePid",
+     "life": "held",
+     "sealable": true,
+     "firstLife": true,
+     "size": {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     "builder": {
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      }
+     }
+    },
+    {
+     "id": "sameHostDeadPid",
+     "life": "reusable",
+     "sealable": true,
+     "firstLife": true,
+     "size": {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     "builder": {
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      }
+     }
+    },
+    {
+     "id": "building",
+     "life": "stale",
+     "sealable": true,
+     "firstLife": true,
+     "size": {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     "builder": {
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      }
+     }
+    },
+    {
+     "id": "paused",
+     "life": "stale",
+     "sealable": false,
+     "firstLife": false,
+     "size": {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     "builder": {
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": false,
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      }
+     }
+    },
+    {
+     "id": "notFirst",
+     "life": "stale",
+     "sealable": false,
+     "firstLife": false,
+     "size": {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     "builder": {
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": false,
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      }
+     }
+    },
+    {
+     "id": "sealed",
+     "life": "reusable",
+     "sealable": true,
+     "firstLife": true,
+     "size": {
+      "cpu": 4,
+      "memMb": 8192
+     },
+     "builder": {
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "size": {
+       "cpu": 4,
+       "memMb": 8192
+      }
+     }
+    }
+   ],
+   "live": []
+  },
+  {
+   "name": "admit: a provider whose copy is the disk as it stands seals any life",
+   "store": {
+    "builders": {
+     "notFirst": {
+      "id": "notFirst",
+      "name": "b-notFirst",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": false
+     }
+    }
+   },
+   "answers": {},
+   "log": [
+    [
+     "backend.get",
+     "solari",
+     "notFirst"
+    ],
+    [
+     "machine.state",
+     "notFirst"
+    ],
+    [
+     "shapeOf",
+     "notFirst"
+    ],
+    [
+     "sizeBuilt",
+     {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     {
+      "cpu": 1,
+      "memMb": 2048
+     }
+    ]
+   ],
+   "answer": null,
+   "builders": [
+    {
+     "id": "notFirst",
+     "life": "reusable",
+     "sealable": true,
+     "firstLife": false,
+     "size": {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     "builder": {
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": false,
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      }
+     }
+    }
+   ],
+   "live": []
+  },
+  {
+   "name": "admit: unreadable places leave the record, a confirmed gone drops it, another error is thrown",
+   "store": {
+    "builders": {
+     "away": {
+      "id": "away",
+      "name": "b-away",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "place": "away"
+     },
+     "absent": {
+      "id": "absent",
+      "name": "b-absent",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true
+     },
+     "noKey": {
+      "id": "noKey",
+      "name": "b-noKey",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true
+     },
+     "gone": {
+      "id": "gone",
+      "name": "b-gone",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true
+     },
+     "notGone": {
+      "id": "notGone",
+      "name": "b-notGone",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true
+     },
+     "boom": {
+      "id": "boom",
+      "name": "b-boom",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true
+     }
+    }
+   },
+   "answers": {
+    "absent": {
+     "throws": {
+      "kind": "absent"
+     }
+    },
+    "noKey": {
+     "throws": {
+      "kind": "noProvider"
+     }
+    },
+    "gone": {
+     "throws": {
+      "kind": "missing"
+     }
+    },
+    "notGone": {
+     "throws": {
+      "kind": "missing"
+     }
+    },
+    "boom": {
+     "throws": {
+      "message": "500 down"
+     }
+    }
+   },
+   "log": [
+    [
+     "backend.get",
+     "solari",
+     "absent"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "noKey"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "gone"
+    ],
+    [
+     "readGone",
+     "gone"
+    ],
+    [
+     "store.delete",
+     "builders",
+     "gone"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "notGone"
+    ],
+    [
+     "readGone",
+     "notGone"
+    ],
+    [
+     "backend.get",
+     "solari",
+     "boom"
+    ],
+    [
+     "rejected",
+     "500 down"
+    ]
+   ],
+   "answer": 9,
+   "builders": [],
+   "live": []
+  },
+  {
+   "name": "refresh: own builders stay, others re-derive, dropped rows go",
+   "store": {
+    "builders": {
+     "a": {
+      "id": "a",
+      "name": "b-a",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": false
+     },
+     "b": {
+      "id": "b",
+      "name": "b-b",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true
+     }
+    }
+   },
+   "answers": {},
+   "log": [
+    [
+     "backend.get",
+     "solari",
+     "b"
+    ],
+    [
+     "machine.state",
+     "b"
+    ],
+    [
+     "shapeOf",
+     "b"
+    ],
+    [
+     "sizeBuilt",
+     {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     {
+      "cpu": 1,
+      "memMb": 2048
+     }
+    ]
+   ],
+   "answer": null,
+   "builders": [
+    {
+     "id": "own1",
+     "life": "own",
+     "firstLife": true,
+     "builder": {
+      "firstLife": true
+     }
+    },
+    {
+     "id": "a",
+     "life": "stale",
+     "sealable": false,
+     "firstLife": false,
+     "size": {
+      "cpu": 9,
+      "memMb": 9
+     },
+     "builder": {
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": false,
+      "size": {
+       "cpu": 9,
+       "memMb": 9
+      }
+     }
+    },
+    {
+     "id": "b",
+     "life": "reusable",
+     "sealable": true,
+     "firstLife": true,
+     "size": {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     "builder": {
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      }
+     }
+    }
+   ],
+   "live": []
+  },
+  {
+   "name": "refresh: two admits of one row share one read",
+   "store": {
+    "builders": {
+     "slow": {
+      "id": "slow",
+      "name": "b-slow",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true
+     }
+    }
+   },
+   "answers": {
+    "slow": {
+     "hang": true
+    }
+   },
+   "log": [
+    [
+     "backend.get",
+     "solari",
+     "slow"
+    ],
+    [
+     "machine.state",
+     "slow"
+    ],
+    [
+     "shapeOf",
+     "slow"
+    ],
+    [
+     "sizeBuilt",
+     {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     {
+      "cpu": 1,
+      "memMb": 2048
+     }
+    ]
+   ],
+   "answer": null,
+   "builders": [
+    {
+     "id": "slow",
+     "life": "reusable",
+     "sealable": true,
+     "firstLife": true,
+     "size": {
+      "cpu": 2,
+      "memMb": 4096
+     },
+     "builder": {
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true,
+      "size": {
+       "cpu": 2,
+       "memMb": 4096
+      }
+     }
+    }
+   ],
+   "live": []
+  },
+  {
+   "name": "admit: a host closed while the read was out admits nothing",
+   "store": {
+    "builders": {
+     "slow": {
+      "id": "slow",
+      "name": "b-slow",
+      "kind": "sandbox",
+      "baseTemplate": "base",
+      "setupSha": "sha",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "firstLife": true
+     }
+    }
+   },
+   "answers": {
+    "slow": {
+     "hang": true
+    }
+   },
+   "log": [
+    [
+     "backend.get",
+     "solari",
+     "slow"
+    ]
+   ],
+   "answer": null,
+   "builders": [],
+   "live": []
+  }
+ ]
+}
