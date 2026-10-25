@@ -23,6 +23,32 @@ crate (sessions, turns, launch, waits, answered-start, trimmed-row, activity) is
 `src/threads/threads.rs`, `transcripts.rs` and `agents.rs` hold the module list, the area struct, its context trait
 and the re-exports; each unit file adds `impl` blocks on that struct.
 
+## The red run
+
+One `cargo test -j 3 --no-fail-fast` in a tree with the base's crates (`rust/2448-base` at `ffccfb720`) and without
+`wsp-account` and `wsp-machines`, which these files do not use: 439 tests, 438 failing on `not yet implemented`,
+1 green by design (`agents_lists::the_constants_are_the_ts_values`). 408 stop first in wsp-core's `StateCell::new`,
+2 in wsp-store's `event_bytes`, the other 28 in this slice's bodies.
+
+| Test file | Tests | TS cases ported (`// TS:` lines) |
+|---|---|---|
+| threads_tree.rs | 25 | spec tests, values read off the TS |
+| threads_kept.rs | 30 | |
+| threads_cap.rs | 18 | |
+| threads_owed.rs | 33 | |
+| threads_turn_end.rs | 20 | |
+| threads_ported.rs | 77 | 91 |
+| transcripts_rows.rs | 50 | 32 |
+| transcripts_kept.rs | 26 | 24 |
+| agents_lists.rs | 50 | 56 |
+| agents_launch.rs | 37 | 38 |
+| conversations.rs | 40 | 20 |
+| forks.rs | 33 | 18 |
+
+The TS tests of these files are whole-runtime tests: 555 cases touch them, 429 asserting their behaviour (`STRONG`),
+24 testing only the blob road that Proposal 3 drops. Each ported test drives its area through a fake of its context
+trait (`tests/support/`) and names its TS case in a `// TS:` line.
+
 ## Shared rules (every unit)
 
 R1. **One thread, no locks** (chapter 03, rules 3.1 to 3.3). Each area is a struct behind an `Rc`, built once from
@@ -95,3 +121,53 @@ sessions document by boot, which is slice a's and machines'), `unreadIndexes`, w
 - `ThreadRecord` in wsp-core has no `workspaceId`; the runtime's map holds `ThreadRecord & { workspaceId }`
   (`context.ts:213`). This slice keeps it as `HeldThread { workspace_id, record }` in `threads.rs` until wsp-core
   carries one.
+- `KeptProcess` in wsp-core: `box_file` is `Option<u64>`, but `boxFileSize` answers -1 where the agent wrote no file
+  (`threads.ts:139`), so it needs `i64`; `cancel` is a `Box<dyn FnOnce()>`, but the TS calls a keep's cancel more than
+  once (`rewarm` then `reapKept`, `threads.ts:260, 112`), so it needs wsp-core's `Cancel`.
+- The adapters' `HarnessAdapter` answers an ability only by being called (`rename_session`, `aside`, `fork_session`,
+  `revert`, `probe_catalog`, `session_title`, `title_for` return `None` when absent). `known` (`agents.ts:60-76`)
+  and the title and rename roads test presence before building any argument. The trait needs presence answers, and it
+  has no `accountModels` at all (`agents.ts:81`).
+- `KeptAgent::close` cannot fail in Rust, so the TS warning for a close that failed (`threads.ts:115`) has no road.
+- `computer_silent` reads marks on `HostError` (`SILENT_MARKS`); the places that turn an engine, deadline, launch or
+  daemon channel error into a `HostError` must stamp them.
+- Events are typed (`SessionEvent`), so an event's key order is wsp-wire's; these tests compare fields, not key
+  order (rule 3.24 belongs to wsp-wire's fix round).
+- Not ported by anyone yet, and named by these units' bodies: `wsp_core::adapters` (`secretsOf`, `PLAN_RESETS`),
+  `wsp_core::harness_catalog` (`harnessCatalog`, `HARNESS_CATALOGS`, `catalogFromProbe`, `smallestModel`),
+  `wsp_core::agent_setup` (`keyOf`, `realFolderHere`, `realFolderScript`), `wsp_core::daemon_token`
+  (`daemonTokenFor`, `assertTokenShape`), each an empty file in wsp-core; and usage.ts's `accountOf`,
+  `accountOnComputer`, `resetDetailsDue` in wsp-machines.
+- The crate's `Cargo.toml` names `wsp-account` and `wsp-machines`; these five files use neither (each area reads the
+  others through its own trait), so slice b builds in a tree where they are absent.
+
+## What the TS leaves unclear, and the choice taken
+
+- `persistSessions` sets `worked: true` only on a record that reads `worked: false`; a record with no `worked` stays
+  without it (`transcripts.ts:623`). Pinned as written.
+- `settleCut` changes the row through `sessions` by its id (trap #1646); the restart load hands it a row that is in
+  `sessions` too, so the Rust takes a row id.
+- `capWait` reads the harness off `sessions.get(turnId)`, which holds only while a start's held row is keyed by its
+  turn id (`threads.ts:448`); pinned with rows keyed so.
+- A line's warnings cut ids with `.slice(0, 8)` and thread words with `threadWord`, the same cut; ids are ASCII.
+- `deliver`'s detached task is one `spawn_local` started in the call; its first await is the store put of O2, so a
+  synchronous fall (O3 to O5) lands before the call returns, as in the TS.
+
+## After-port tickets (TS behaviour kept, not changed)
+
+1. `snapshotOf` answers `String(answer.commit)`, so a daemon answer with no `commit` becomes the snapshot `"undefined"`
+   and the turn's range is asked `to: "undefined"` (`threads.ts:1071`).
+2. `rowEnded`'s `session.end` listener is removed only when that turn ends; a try settled another way leaves it
+   registered for the host's life (`threads.ts:645-652`).
+3. `keep` on a thread that already holds a process replaces it without closing it or revoking its device; only
+   `holdWarm` can reach that (`threads.ts:281-283`).
+4. The kept cap counts this computer's and every provider workspace's processes together, since neither stands on a
+   joined computer (`threads.ts:295`).
+5. A retried line that reaches its hour gives up with `its last try failed`, not the words of the failure before it
+   (`threads.ts:824`).
+6. `settleRows` changes the held index in place inside the transaction (facts dropped, threads reindexed); a
+   transaction that fails rolls the rows back and leaves those changes in memory (`transcripts.ts:404-438`).
+7. `conversations.list` collects each store's held line as its read settles, so the order of `held` follows which
+   store answered first (`conversations.ts:180`).
+8. A store whose live read fails fails the whole list, while a failed list read is caught (`conversations.ts:139`).
+9. `dropThreadFiles` reads no exit code, so a removal that failed reads as done (`agents.ts:488`).

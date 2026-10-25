@@ -15,8 +15,8 @@ tail swallows; chapter 03), `flushes_queued: IndexMap<ws, Joined>`, `transcript_
 
 T1. `record(e)` (`:677-684`), synchronous: `at` is `now`, except a `session.earlier` keeps its own `at` (now when it
 has none); `pos = index_for(ws).pos + 1`. Both are set the way `{...e, at, pos}` sets them: a key the event already
-has keeps its place, a new one goes after the event's own keys. Then `append`, then `bus.emit` (which stamps `seq`
-last), then, for a `session.start` or `session.end` with a thread, `ctx.push_head(thread)`.
+has keeps its place, a new one goes after the event's own keys. Then `append`, then `ctx.emit` (the bus, which stamps
+`seq` last), then, for a `session.start` or `session.end` with a thread, `ctx.push_head(thread)`.
 
 T2. `record_copies(events)` (`:687-689`): each event, in order, gets `pos = index_for(ws).pos + 1` (its own `pos`
 replaced in place) and is appended. No `at`, no emit, no push. **Invariant 2**: positions are dense per workspace and
@@ -51,7 +51,7 @@ their images after, remove the rows, add the threads to reindex; reindex with `r
 rows.thread(ws, t))`, or, while the workspace is unread, rebuild the whole index from `rows.all` keeping `pos` at
 least as issued and `trimmed` as it was, and clear the unread mark; then `rows.put_index(indexBytes(index, None,
 false))` unless the workspace is still unread. After the commit: release the dropped starts' images
-(`ctx.drop_kept_keys`, only when there are keys), clear `pending` and `pending_bytes`, set the index when the
+(the area's `drop_kept_keys`, only when there are keys), clear `pending` and `pending_bytes`, set the index when the
 workspace still holds one, `balance_words`. A failure inside the transaction rolls it back and leaves pending as it
 was.
 

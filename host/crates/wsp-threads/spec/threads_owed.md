@@ -29,8 +29,9 @@ and that put is what the task below waits on first.
 O3. `parent = latest_on(notify)`. When it is not tellable (no row, or no `claudeSessionId`): warn `thread X ended, but
 thread Y has no session to tell`, the line falls (O10), stop.
 
-O4. Held for the wake (`:705-711`): when the parent's workspace is live and its phase reads anything but `running`
-through `workspaceState` (pausing, napping, waking, queued, gone, released), `sent` is appended to
+O4. Held for the wake (`:705-711`): when the parent's workspace is live and `sendRefusal(workspaceState({phase}))`
+is not null (pausing, napping, waking, gone, released; `queued` reads `waiting`, which refuses no send, and is not
+held), `sent` is appended to
 `held_lines[parent workspace]` and nothing else happens now. A workspace not live is not held.
 
 O5. A line whose `road` is `paired` falls at once, since a paired device may not start a turn (`DEVICE_OPS` has no

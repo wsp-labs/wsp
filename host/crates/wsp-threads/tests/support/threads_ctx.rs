@@ -311,11 +311,17 @@ impl ThreadsCtx for FakeThreadsCtx {
 
 /// A live entry over a fake machine, its record read from JSON (`id`, `name`, `kind`, `project` default).
 pub fn entry(fields: Value) -> (Entry, Arc<super::FakeMachine>) {
-    let mut v = serde_json::json!({ "id": "ws1", "name": "ws1", "kind": "local", "project": "p1", "phase": "running" });
+    let mut v = serde_json::json!({
+        "id": "ws1", "name": "ws1", "machineId": "m-ws1", "kind": "local", "golden": "snap_g", "createdAt": "2026-10-01T12:00:00.000Z",
+        "project": "p1", "phase": "running", "spec": {}, "size": { "cpu": 2, "memMb": 4096 }, "firstLife": false,
+    });
     for (k, x) in fields.as_object().expect("an object").iter() {
         v[k] = x.clone();
     }
-    let machine = super::FakeMachine::new(&format!("m-{}", v["id"].as_str().unwrap_or("ws1")));
+    if fields.get("machineId").is_none() {
+        v["machineId"] = serde_json::json!(format!("m-{}", v["id"].as_str().unwrap_or("ws1")));
+    }
+    let machine = super::FakeMachine::new(v["machineId"].as_str().expect("a machine id"));
     let record: WorkspaceRecord = serde_json::from_value(v).expect("a WorkspaceRecord");
     (Entry { record, machine: machine.clone() }, machine)
 }

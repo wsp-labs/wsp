@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use indexmap::IndexMap;
-use wsp_adapters::port::{AttachmentRoad, Env, TurnImage};
+use wsp_adapters::port::{AttachmentRoad, Env, ServerValues, TurnImage};
 use wsp_catalog::mcp_launch::{LaunchConfigs, LaunchServerRoad};
 use wsp_core::machine_exec::TurnWaiting;
 use wsp_core::types::harness::HarnessAdapter;
@@ -44,7 +44,7 @@ pub struct DefaultsOn {
 /// `Pick<HarnessStartOptions, "serverValues" | "offServers">` (agents.ts:615).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LaunchServers {
-    pub server_values: Option<IndexMap<String, Env>>,
+    pub server_values: Option<ServerValues>,
     pub off_servers: Option<Vec<String>>,
 }
 
@@ -141,7 +141,7 @@ impl AgentsArea {
         todo!()
     }
     /// agents.ts:561: A15.
-    pub async fn server_values_for(&self, entry: &Entry, harness: &str, folder: &str) -> Result<Option<IndexMap<String, Env>>, HostError> {
+    pub async fn server_values_for(&self, entry: &Entry, harness: &str, folder: &str) -> Result<Option<ServerValues>, HostError> {
         todo!()
     }
     /// agents.ts:592: A16.

@@ -39,6 +39,8 @@ pub trait TranscriptsCtx {
     fn clock(&self) -> Rc<dyn Clock>;
     fn ids(&self) -> Rc<dyn Ids>;
     fn bus(&self) -> Rc<dyn EventBus>;
+    /// `bus.emit(event)` (the read side `EventBus` has no emit).
+    fn emit(&self, event: wsp_wire::wire::events_union::EventUnion) -> Result<(), HostError>;
     fn store(&self) -> Rc<dyn Store>;
     /// `store.transcripts`: always present on the Rust host.
     fn rows(&self) -> Rc<dyn TranscriptRows>;
