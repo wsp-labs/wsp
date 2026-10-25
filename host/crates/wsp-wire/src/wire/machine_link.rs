@@ -7,7 +7,6 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::helpers::literal_word;
 use super::helpers::ReqId;
 use crate::types::check::parse;
 use crate::types::check::{num_above, num_at_least, num_at_most, refine, regex_check, text_at_least, text_at_most};
@@ -480,15 +479,34 @@ pub enum DaemonErrorCode {
     #[serde(rename = "on-default-branch")]
     OnDefaultBranch,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DaemonOkResponse {
     #[serde(deserialize_with = "crate::types::check::nullable")]
     pub id: Option<ReqId>,
     pub ok: True,
     /// zod passthrough: unknown keys kept, in the order read.
-    #[serde(flatten, serialize_with = "crate::types::check::js_record")]
+    #[serde(flatten)]
     pub rest: IndexMap<String, Value>,
+}
+
+/// JavaScript writes the keys that read as array indexes first, ahead of `id` and `ok`.
+impl Serialize for DaemonOkResponse {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut keys: IndexMap<String, Value> = IndexMap::from([("id".to_string(), Value::Null), ("ok".to_string(), Value::Null)]);
+        keys.extend(self.rest.clone());
+        super::helpers::js_key_order(&mut keys);
+        let mut map = s.serialize_map(Some(keys.len()))?;
+        for (key, kept) in &keys {
+            match key.as_str() {
+                "id" => map.serialize_entry("id", &self.id)?,
+                "ok" => map.serialize_entry("ok", &self.ok)?,
+                _ => map.serialize_entry(key, kept)?,
+            }
+        }
+        map.end()
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -575,31 +593,32 @@ impl Check for SysSampleFrame {
         let serde_json::Value::Object(obj) = value else {
             return Some(vec![crate::types::check::not_object(value)]);
         };
-        let Some(tag) = obj.get("type") else {
-            return Some(vec![crate::types::check::missing::<Self>("type")]);
+        let mut out = match obj.get("type") {
+            None => vec![crate::types::check::required::<SysSampleType>("type")],
+            Some(tag) => crate::types::check::issues_of::<SysSampleType>(tag).into_iter().map(|e| e.under("type")).collect(),
         };
-        match tag.as_str() {
-            Some("sys.sample") => {
-                let mut body = obj.clone();
-                body.shift_remove("type");
-                Some(crate::types::check::issues_of::<SysSample>(&serde_json::Value::Object(body)))
-            }
-            _ => Some(vec![crate::types::check::unknown_tag::<Self>("type", tag)]),
-        }
+        let mut body = obj.clone();
+        body.shift_remove("type");
+        out.extend(crate::types::check::issues_of::<SysSample>(&serde_json::Value::Object(body)));
+        Some(out)
     }
 }
+
+crate::literal!(WorkspaceSysType, "workspace.sys");
+crate::literal!(PlaceSysType, "place.sys");
+crate::literal!(SysSampleType, "sys.sample");
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceSysEvent {
-    pub r#type: String,
+    pub r#type: WorkspaceSysType,
     pub workspace_id: String,
     pub sample: SysSampleFrame,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaceSysEvent {
-    pub r#type: String,
+    pub r#type: PlaceSysType,
     pub place_id: String,
     pub sample: SysSampleFrame,
 }
@@ -1270,35 +1289,65 @@ impl Check for MachineHandleRoads {
     }
 }
 
+impl MachineLinkRequest {
+    fn rule_cmd(x: &String) -> Result<(), SchemaError> {
+        text_at_most(x, crate::wire::limits::EXEC_BODY_MAX as usize)
+    }
+
+    fn rule_timeout(x: &Option<JsInt>) -> Result<(), SchemaError> {
+        x.as_ref().map_or(Ok(()), |v| num_above(v.as_f64(), 0.0))
+    }
+
+    fn rule_port(x: &JsInt) -> Result<(), SchemaError> {
+        num_at_least(x.as_f64(), 1.0)?;
+        num_at_most(x.as_f64(), 65535.0)
+    }
+
+    fn rule_seq(x: &JsInt) -> Result<(), SchemaError> {
+        num_at_least(x.as_f64(), 0.0)
+    }
+
+    fn upload_id_issues(x: &str) -> Vec<SchemaError> {
+        [
+            text_at_least(x, 1),
+            text_at_most(x, 32),
+            regex_check(!x.is_empty() && x.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())),
+        ]
+        .into_iter()
+        .filter_map(Result::err)
+        .collect()
+    }
+
+    fn upload_id_key(obj: &crate::types::keys::Obj, out: &mut Vec<SchemaError>) {
+        match obj.get("uploadId") {
+            None => out.push(crate::types::check::required::<String>("uploadId")),
+            Some(v) => match crate::types::check::read::<String>(v) {
+                Ok(id) => out.extend(Self::upload_id_issues(&id).into_iter().map(|e| e.under("uploadId"))),
+                Err(issues) => out.extend(issues.into_iter().map(|e| e.under("uploadId"))),
+            },
+        }
+    }
+}
+
 /// No refinement of its own; checks every nested field that has one.
 impl Check for MachineLinkRequest {
     fn check(&self) -> Result<(), SchemaError> {
         match self {
             MachineLinkRequest::MachineCreate { spec, .. } => spec.check().map_err(|e| e.under("spec"))?,
             MachineLinkRequest::MachineExec { cmd, timeout_ms, .. } => {
-                text_at_most(cmd, crate::wire::limits::EXEC_BODY_MAX as usize).map_err(|e| e.under("cmd"))?;
-                if let Some(v) = timeout_ms {
-                    num_above(v.as_f64(), 0.0).map_err(|e| e.under("timeoutMs"))?;
-                }
+                Self::rule_cmd(cmd).map_err(|e| e.under("cmd"))?;
+                Self::rule_timeout(timeout_ms).map_err(|e| e.under("timeoutMs"))?;
             }
             MachineLinkRequest::MachineDaemonAnswers { timeout_ms, .. } => {
-                if let Some(v) = timeout_ms {
-                    num_above(v.as_f64(), 0.0).map_err(|e| e.under("timeoutMs"))?;
-                }
+                Self::rule_timeout(timeout_ms).map_err(|e| e.under("timeoutMs"))?;
             }
-            MachineLinkRequest::MachinePreviewUrl { port, .. } => {
-                num_at_least(port.as_f64(), 1.0).map_err(|e| e.under("port"))?;
-                num_at_most(port.as_f64(), 65535.0).map_err(|e| e.under("port"))?;
-            }
+            MachineLinkRequest::MachinePreviewUrl { port, .. } => Self::rule_port(port).map_err(|e| e.under("port"))?,
             MachineLinkRequest::MachinePutBytes { upload_id, seq, timeout_ms, .. } => {
-                text_at_least(upload_id, 1).map_err(|e| e.under("uploadId"))?;
-                text_at_most(upload_id, 32).map_err(|e| e.under("uploadId"))?;
-                regex_check(!upload_id.is_empty() && upload_id.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit()))
-                    .map_err(|e| e.under("uploadId"))?;
-                num_at_least(seq.as_f64(), 0.0).map_err(|e| e.under("seq"))?;
-                if let Some(v) = timeout_ms {
-                    num_above(v.as_f64(), 0.0).map_err(|e| e.under("timeoutMs"))?;
+                if let Some(e) = Self::upload_id_issues(upload_id).into_iter().next() {
+                    return Err(e.under("uploadId"));
                 }
+                Self::rule_seq(seq).map_err(|e| e.under("seq"))?;
+                Self::rule_timeout(timeout_ms).map_err(|e| e.under("timeoutMs"))?;
             }
             _ => {}
         }
@@ -1372,8 +1421,8 @@ impl Check for MachineLinkRequest {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "machineId", &mut out);
-                crate::types::keys::req_key::<String>(obj, "cmd", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "timeoutMs", &mut out);
+                crate::types::keys::req_key_with::<String>(obj, "cmd", &mut out, Self::rule_cmd);
+                crate::types::keys::opt_key_with::<JsInt>(obj, "timeoutMs", &mut out, Self::rule_timeout);
                 crate::types::keys::opt_key::<String>(obj, "stdin", &mut out);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
@@ -1447,7 +1496,7 @@ impl Check for MachineLinkRequest {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "machineId", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "timeoutMs", &mut out);
+                crate::types::keys::opt_key_with::<JsInt>(obj, "timeoutMs", &mut out, Self::rule_timeout);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -1457,7 +1506,7 @@ impl Check for MachineLinkRequest {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "machineId", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "port", &mut out);
+                crate::types::keys::req_key_with::<JsInt>(obj, "port", &mut out, Self::rule_port);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -1488,11 +1537,11 @@ impl Check for MachineLinkRequest {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "machineId", &mut out);
                 crate::types::keys::req_key::<String>(obj, "path", &mut out);
-                crate::types::keys::req_key::<String>(obj, "uploadId", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "seq", &mut out);
+                Self::upload_id_key(obj, &mut out);
+                crate::types::keys::req_key_with::<JsInt>(obj, "seq", &mut out, Self::rule_seq);
                 crate::types::keys::req_key::<bool>(obj, "last", &mut out);
                 crate::types::keys::req_key::<String>(obj, "data", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "timeoutMs", &mut out);
+                crate::types::keys::opt_key_with::<JsInt>(obj, "timeoutMs", &mut out, Self::rule_timeout);
                 if out.is_empty() {
                     out = crate::types::check::rules_of::<Self>(value);
                 }
@@ -2041,7 +2090,6 @@ impl Check for ReadingsAnswer {
 /// - `type`: literal "workspace.sys"
 impl Check for WorkspaceSysEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        literal_word(&self.r#type, "workspace.sys").map_err(|e| e.under("type"))?;
         self.sample.check().map_err(|e| e.under("sample"))?;
         Ok(())
     }
@@ -2051,7 +2099,7 @@ impl Check for WorkspaceSysEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        crate::types::keys::req_key_with::<String>(obj, "type", &mut out, Self::rule_type);
+        crate::types::keys::req_key::<WorkspaceSysType>(obj, "type", &mut out);
         crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
         crate::types::keys::req_key::<SysSampleFrame>(obj, "sample", &mut out);
         Some(out)
@@ -2061,7 +2109,7 @@ impl Check for WorkspaceSysEvent {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
-                "type" => Some(crate::types::check::Zod::Literal(|| Value::from("workspace.sys"))).filter(|_| rest.is_empty()),
+                "type" => <WorkspaceSysType as Check>::describe(rest),
                 "workspaceId" => <String as Check>::describe(rest),
                 "sample" => <SysSampleFrame as Check>::describe(rest),
                 _ => None,
@@ -2069,18 +2117,11 @@ impl Check for WorkspaceSysEvent {
         }
     }
 }
-impl WorkspaceSysEvent {
-    fn rule_type(x: &String) -> Result<(), crate::types::check::SchemaError> {
-        literal_word(x, "workspace.sys")?;
-        Ok(())
-    }
-}
 
 /// Refinements zod puts on this shape, each an issue when it fails:
 /// - `type`: literal "place.sys"
 impl Check for PlaceSysEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        literal_word(&self.r#type, "place.sys").map_err(|e| e.under("type"))?;
         self.sample.check().map_err(|e| e.under("sample"))?;
         Ok(())
     }
@@ -2090,7 +2131,7 @@ impl Check for PlaceSysEvent {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        crate::types::keys::req_key_with::<String>(obj, "type", &mut out, Self::rule_type);
+        crate::types::keys::req_key::<PlaceSysType>(obj, "type", &mut out);
         crate::types::keys::req_key::<String>(obj, "placeId", &mut out);
         crate::types::keys::req_key::<SysSampleFrame>(obj, "sample", &mut out);
         Some(out)
@@ -2100,18 +2141,12 @@ impl Check for PlaceSysEvent {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
-                "type" => Some(crate::types::check::Zod::Literal(|| Value::from("place.sys"))).filter(|_| rest.is_empty()),
+                "type" => <PlaceSysType as Check>::describe(rest),
                 "placeId" => <String as Check>::describe(rest),
                 "sample" => <SysSampleFrame as Check>::describe(rest),
                 _ => None,
             },
         }
-    }
-}
-impl PlaceSysEvent {
-    fn rule_type(x: &String) -> Result<(), crate::types::check::SchemaError> {
-        literal_word(x, "place.sys")?;
-        Ok(())
     }
 }
 
@@ -2427,7 +2462,7 @@ pub fn workspaces_blocked_by(at: &KernelAt<'_>) -> Option<String> {
     let Some(controllers) = (at.read)(CGROUP_CONTROLLERS_PATH) else {
         return Some("this computer mounts cgroup v1 at /sys/fs/cgroup, and wsp runs workspaces on cgroup v2 alone: boot it with systemd.unified_cgroup_hierarchy=1".into());
     };
-    let has: Vec<&str> = controllers.split_whitespace().collect();
+    let has: Vec<&str> = controllers.split(crate::types::check::js_space).collect();
     for wanted in ["memory", "cpu"] {
         if !has.contains(&wanted) {
             return Some(format!("this computer's cgroup root offers no {wanted} controller, which wsp needs to run workspaces here"));
@@ -2443,7 +2478,8 @@ pub fn workspaces_blocked_by(at: &KernelAt<'_>) -> Option<String> {
 }
 
 fn overlay_missing(at: &KernelAt<'_>) -> Option<String> {
-    let listed = || (at.read)(PROC_FILESYSTEMS_PATH).is_some_and(|text| text.split_whitespace().any(|fs| fs == "overlay"));
+    let listed =
+        || (at.read)(PROC_FILESYSTEMS_PATH).is_some_and(|text| text.split(crate::types::check::js_space).any(|fs| fs == "overlay"));
     if listed() {
         return None;
     }
@@ -2457,7 +2493,9 @@ fn overlay_missing(at: &KernelAt<'_>) -> Option<String> {
                 ModprobeRun::Ran { ok: true, .. } => {}
                 _ => return Some("this computer's kernel has no overlay filesystem and no overlay module to load, which a workspace here reads this computer's own directories through".into()),
             }
-            let last = stderr.trim_end().split('\n').next_back().unwrap_or_default().trim();
+            let last = crate::types::check::js_trim(
+                stderr.trim_end_matches(crate::types::check::js_space).split('\n').next_back().unwrap_or_default(),
+            );
             let said = if last.is_empty() { "modprobe loaded it and the kernel still lists no overlay" } else { last };
             Some(overlay_wont_load(said))
         }
