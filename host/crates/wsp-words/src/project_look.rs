@@ -4,6 +4,8 @@
 
 use serde::Serialize;
 
+use wsp_wire::types::project_look::PROJECT_ICON_AGAIN;
+
 // The glyphs a project can wear in the sidebar and the switcher; the app maps each word to its drawing.
 // project-look.ts:7
 // in wsp_wire::types::project_look: ProjectIcon
@@ -50,6 +52,6 @@ pub struct SaidFix {
 }
 
 pub fn project_icon_refusal(why: &str) -> SaidFix {
-    todo!()
+    SaidFix { said: format!("The host did not take this image: {why}."), fix: PROJECT_ICON_AGAIN.to_string() }
 }
 
