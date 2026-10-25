@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The brand, provider and editor marks the catalog draws. Port of packages/catalog/src/marks/*.ts at a3b870a6e; the
 //! spec is spec/marks.md. The svgs are data, copied by script from tests/fixtures/marks.json.
+use std::sync::LazyLock;
+
 use serde::Serialize;
 
-use crate::catalog::AgentMark;
-use wsp_wire::views::preferences::EditorId;
+use crate::catalog::{AgentMark, Ink};
 use wsp_wire::types::agents_report::McpRowTransport;
+use wsp_wire::views::preferences::EditorId;
+use wsp_wire::wire::limits::host_of;
+use wsp_wire::wire::place_link::host_under;
+use wsp_words::js::is_js_whitespace;
 
 /// marks/mark.ts:5.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -36,44 +41,219 @@ pub struct EditorMark {
     pub editors: Vec<EditorId>,
 }
 
+fn strs(items: &[&str]) -> Vec<String> {
+    items.iter().map(|item| item.to_string()).collect()
+}
+
+static BRAND_MARKS: LazyLock<Vec<BrandMark>> = LazyLock::new(|| {
+    vec![
+        BrandMark {
+            id: "node".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M11.998,24c-0.321,0-0.641-0.084-0.922-0.247l-2.936-1.737c-0.438-0.245-0.224-0.332-0.08-0.383 c0.585-0.203,0.703-0.25,1.328-0.604c0.065-0.037,0.151-0.023,0.218,0.017l2.256,1.339c0.082,0.045,0.197,0.045,0.272,0l8.795-5.076 c0.082-0.047,0.134-0.141,0.134-0.238V6.921c0-0.099-0.053-0.192-0.137-0.242l-8.791-5.072c-0.081-0.047-0.189-0.047-0.271,0 L3.075,6.68C2.99,6.729,2.936,6.825,2.936,6.921v10.15c0,0.097,0.054,0.189,0.139,0.235l2.409,1.392 c1.307,0.654,2.108-0.116,2.108-0.89V7.787c0-0.142,0.114-0.253,0.256-0.253h1.115c0.139,0,0.255,0.112,0.255,0.253v10.021 c0,1.745-0.95,2.745-2.604,2.745c-0.508,0-0.909,0-2.026-0.551L2.28,18.675c-0.57-0.329-0.922-0.945-0.922-1.604V6.921 c0-0.659,0.353-1.275,0.922-1.603l8.795-5.082c0.557-0.315,1.296-0.315,1.848,0l8.794,5.082c0.57,0.329,0.924,0.944,0.924,1.603 v10.15c0,0.659-0.354,1.273-0.924,1.604l-8.794,5.078C12.643,23.916,12.324,24,11.998,24z M19.099,13.993 c0-1.9-1.284-2.406-3.987-2.763c-2.731-0.361-3.009-0.548-3.009-1.187c0-0.528,0.235-1.233,2.258-1.233 c1.807,0,2.473,0.389,2.747,1.607c0.024,0.115,0.129,0.199,0.247,0.199h1.141c0.071,0,0.138-0.031,0.186-0.081 c0.048-0.054,0.074-0.123,0.067-0.196c-0.177-2.098-1.571-3.076-4.388-3.076c-2.508,0-4.004,1.058-4.004,2.833 c0,1.925,1.488,2.457,3.895,2.695c2.88,0.282,3.103,0.703,3.103,1.269c0,0.983-0.789,1.402-2.642,1.402 c-2.327,0-2.839-0.584-3.011-1.742c-0.02-0.124-0.126-0.215-0.253-0.215h-1.137c-0.141,0-0.254,0.112-0.254,0.253 c0,1.482,0.806,3.248,4.655,3.248C17.501,17.007,19.099,15.91,19.099,13.993z\"/></svg>".into(), inks: Some(vec![Ink { light: "#579348".into(), dark: "#5fa04e".into() }]), source: "https://github.com/simple-icons/simple-icons/blob/16.30.0/icons/nodedotjs.svg".into(), license: "CC0-1.0".into() },
+            tools: strs(&["node"]),
+            hosts: strs(&[]),
+            packages: strs(&[]),
+        },
+        BrandMark {
+            id: "github".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12\"/></svg>".into(), inks: None, source: "https://github.com/simple-icons/simple-icons/blob/16.30.0/icons/github.svg".into(), license: "CC0-1.0".into() },
+            tools: strs(&["gh"]),
+            hosts: strs(&["github.com", "githubcopilot.com"]),
+            packages: strs(&["@modelcontextprotocol/server-github", "ghcr.io/github/github-mcp-server", "github-mcp-server"]),
+        },
+        BrandMark {
+            id: "cloudflare".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M16.5088 16.8447c.1475-.5068.0908-.9707-.1553-1.3154-.2246-.3164-.6045-.499-1.0615-.5205l-8.6592-.1123a.1559.1559 0 0 1-.1333-.0713c-.0283-.042-.0351-.0986-.021-.1553.0278-.084.1123-.1484.2036-.1562l8.7359-.1123c1.0351-.0489 2.1601-.8868 2.5537-1.9136l.499-1.3013c.0215-.0561.0293-.1128.0147-.168-.5625-2.5463-2.835-4.4453-5.5499-4.4453-2.5039 0-4.6284 1.6177-5.3876 3.8614-.4927-.3658-1.1187-.5625-1.794-.499-1.2026.119-2.1665 1.083-2.2861 2.2856-.0283.31-.0069.6128.0635.894C1.5683 13.171 0 14.7754 0 16.752c0 .1748.0142.3515.0352.5273.0141.083.0844.1475.1689.1475h15.9814c.0909 0 .1758-.0645.2032-.1553l.12-.4268zm2.7568-5.5634c-.0771 0-.1611 0-.2383.0112-.0566 0-.1054.0415-.127.0976l-.3378 1.1744c-.1475.5068-.0918.9707.1543 1.3164.2256.3164.6055.498 1.0625.5195l1.8437.1133c.0557 0 .1055.0263.1329.0703.0283.043.0351.1074.0214.1562-.0283.084-.1132.1485-.204.1553l-1.921.1123c-1.041.0488-2.1582.8867-2.5527 1.914l-.1406.3585c-.0283.0713.0215.1416.0986.1416h6.5977c.0771 0 .1474-.0489.169-.126.1122-.4082.1757-.837.1757-1.2803 0-2.6025-2.125-4.727-4.7344-4.727\"/></svg>".into(), inks: Some(vec![Ink { light: "#cf6d1b".into(), dark: "#f38020".into() }]), source: "https://github.com/simple-icons/simple-icons/blob/16.30.0/icons/cloudflare.svg".into(), license: "CC0-1.0".into() },
+            tools: strs(&["wrangler", "cloudflared"]),
+            hosts: strs(&["cloudflare.com"]),
+            packages: strs(&["@cloudflare/mcp-server-cloudflare"]),
+        },
+        BrandMark {
+            id: "linear".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z\"/></svg>".into(), inks: Some(vec![Ink { light: "#5e6ad2".into(), dark: "#5e6ad2".into() }]), source: "https://github.com/simple-icons/simple-icons/blob/16.30.0/icons/linear.svg".into(), license: "CC0-1.0".into() },
+            tools: strs(&[]),
+            hosts: strs(&["linear.app"]),
+            packages: strs(&[]),
+        },
+    ]
+});
+
+#[cfg(not(feature = "public-build"))]
+static PROVIDER_MARKS: LazyLock<Vec<ProviderMark>> =
+    LazyLock::new(|| vec![solari_mark(), boat_mark()]);
+#[cfg(feature = "public-build")]
+static PROVIDER_MARKS: LazyLock<Vec<ProviderMark>> = LazyLock::new(|| vec![boat_mark()]);
+
+#[cfg(not(feature = "public-build"))]
+fn solari_mark() -> ProviderMark {
+    ProviderMark { id: "solari".into(), mark: AgentMark { svg: "<svg viewBox=\"0 0 24 24\"><path fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" d=\"M19.97 11.27A8 8 0 0 1 9.07 19.45M4.97 15.82A8 8 0 0 1 17.63 6.32M2 19C9 18.5 16 13.5 22 5\"/></svg>".into(), inks: None, source: "https://getsolari.com (read 2026-09-28, traced from its favicon)".into(), license: "Solari's trademark, drawn to name its service".into() }, provider: "solari".into() }
+}
+
+fn boat_mark() -> ProviderMark {
+    ProviderMark { id: "boat".into(), mark: AgentMark { svg: "<svg viewBox=\"0 0 35.5 35.5\"><path transform=\"translate(4.6 0)\" d=\"M20.9863 0C20.9693 0.0677594 16.9743 16.0113 18.71 19.7461C20.4455 23.4795 26.2361 27.1194 26.2637 27.1367C26.248 27.1345 20.1121 26.2731 16.2959 27.6826V22.666H11.2637V27.6982H16.2549C16.0728 27.7666 15.895 27.8378 15.7246 27.917C11.9935 29.6513 8.3558 35.436 8.33398 35.4707C8.34016 35.4268 9.28754 28.6619 7.55371 24.9316C5.81721 21.1961 0.0210234 17.5542 0 17.541C0.024656 17.5445 6.80349 18.4971 10.5391 16.7607C14.2749 15.0235 20.9628 0.0527921 20.9863 0Z\"/></svg>".into(), inks: None, source: "https://boat.dev/icon.svg (read 2026-09-28)".into(), license: "Boat's trademark, drawn to name its service".into() }, provider: "box".into() }
+}
+
+static EDITOR_MARKS: LazyLock<Vec<EditorMark>> = LazyLock::new(|| {
+    vec![
+        EditorMark {
+            id: "vscode".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 100 100\"><mask id=\"a\" width=\"100\" height=\"100\" x=\"0\" y=\"0\" maskUnits=\"userSpaceOnUse\"><path fill=\"#fff\" fill-rule=\"evenodd\" d=\"M70.912 99.317a6.223 6.223 0 0 0 4.96-.19l20.589-9.907A6.25 6.25 0 0 0 100 83.587V16.413a6.25 6.25 0 0 0-3.54-5.632L75.874.874a6.226 6.226 0 0 0-7.104 1.21L29.355 38.04 12.187 25.01a4.162 4.162 0 0 0-5.318.236l-5.506 5.009a4.168 4.168 0 0 0-.004 6.162L16.247 50 1.36 63.583a4.168 4.168 0 0 0 .004 6.162l5.506 5.01a4.162 4.162 0 0 0 5.318.236l17.168-13.032L68.77 97.917a6.217 6.217 0 0 0 2.143 1.4ZM75.015 27.3 45.11 50l29.906 22.701V27.3Z\"/></mask><g mask=\"url(#a)\"><path fill=\"#0065A9\" d=\"M96.461 10.796 75.857.876a6.23 6.23 0 0 0-7.107 1.207l-67.451 61.5a4.167 4.167 0 0 0 .004 6.162l5.51 5.009a4.167 4.167 0 0 0 5.32.236l81.228-61.62c2.725-2.067 6.639-.124 6.639 3.297v-.24a6.25 6.25 0 0 0-3.539-5.63Z\"/><path fill=\"#007ACC\" d=\"m96.461 89.204-20.604 9.92a6.229 6.229 0 0 1-7.107-1.207l-67.451-61.5a4.167 4.167 0 0 1 .004-6.162l5.51-5.009a4.167 4.167 0 0 1 5.32-.236l81.228 61.62c2.725 2.067 6.639.124 6.639-3.297v.24a6.25 6.25 0 0 1-3.539 5.63Z\"/><path fill=\"#1F9CF0\" d=\"M75.858 99.126a6.232 6.232 0 0 1-7.108-1.21c2.306 2.307 6.25.674 6.25-2.588V4.672c0-3.262-3.944-4.895-6.25-2.589a6.232 6.232 0 0 1 7.108-1.21l20.6 9.908A6.25 6.25 0 0 1 100 16.413v67.174a6.25 6.25 0 0 1-3.541 5.633l-20.601 9.906Z\"/></g></svg>".into(), inks: None, source: "https://github.com/pingdotgg/t3code/blob/d15210c/apps/web/src/components/Icons.tsx".into(), license: "MIT".into() },
+            editors: vec![EditorId::Vscode],
+        },
+        EditorMark {
+            id: "cursor".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 24 24\"><path fill-rule=\"evenodd\" d=\"M22.106 5.68L12.5.135a.998.998 0 00-.998 0L1.893 5.68a.84.84 0 00-.419.726v11.186c0 .3.16.577.42.727l9.607 5.547a.999.999 0 00.998 0l9.608-5.547a.84.84 0 00.42-.727V6.407a.84.84 0 00-.42-.726zm-.603 1.176L12.228 22.92c-.063.108-.228.064-.228-.061V12.34a.59.59 0 00-.295-.51l-9.11-5.26c-.107-.062-.063-.228.062-.228h18.55c.264 0 .428.286.296.514z\"/></svg>".into(), inks: None, source: "https://github.com/lobehub/lobe-icons/blob/329f378cbd1a88f45b60cd096b9111ce16f3ea39/src/Cursor/components/Mono.tsx".into(), license: "MIT".into() },
+            editors: vec![EditorId::Cursor],
+        },
+        EditorMark {
+            id: "vscode-insiders".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 100 100\"><mask id=\"a\" width=\"100\" height=\"100\" x=\"0\" y=\"0\" maskUnits=\"userSpaceOnUse\"><path fill=\"#fff\" fill-rule=\"evenodd\" d=\"M70.912 99.317a6.223 6.223 0 0 0 4.96-.19l20.589-9.907A6.25 6.25 0 0 0 100 83.587V16.413a6.25 6.25 0 0 0-3.54-5.632L75.874.874a6.226 6.226 0 0 0-7.104 1.21L29.355 38.04 12.187 25.01a4.162 4.162 0 0 0-5.318.236l-5.506 5.009a4.168 4.168 0 0 0-.004 6.162L16.247 50 1.36 63.583a4.168 4.168 0 0 0 .004 6.162l5.506 5.01a4.162 4.162 0 0 0 5.318.236l17.168-13.032L68.77 97.917a6.217 6.217 0 0 0 2.143 1.4ZM75.015 27.3 45.11 50l29.906 22.701V27.3Z\"/></mask><g mask=\"url(#a)\"><path fill=\"#009a7c\" d=\"M96.461 10.796 75.857.876a6.23 6.23 0 0 0-7.107 1.207l-67.451 61.5a4.167 4.167 0 0 0 .004 6.162l5.51 5.009a4.167 4.167 0 0 0 5.32.236l81.228-61.62c2.725-2.067 6.639-.124 6.639 3.297v-.24a6.25 6.25 0 0 0-3.539-5.63Z\"/><path fill=\"#00b294\" d=\"m96.461 89.204-20.604 9.92a6.229 6.229 0 0 1-7.107-1.207l-67.451-61.5a4.167 4.167 0 0 1 .004-6.162l5.51-5.009a4.167 4.167 0 0 1 5.32-.236l81.228 61.62c2.725 2.067 6.639.124 6.639-3.297v.24a6.25 6.25 0 0 1-3.539 5.63Z\"/><path fill=\"#24bfa5\" d=\"M75.858 99.126a6.232 6.232 0 0 1-7.108-1.21c2.306 2.307 6.25.674 6.25-2.588V4.672c0-3.262-3.944-4.895-6.25-2.589a6.232 6.232 0 0 1 7.108-1.21l20.6 9.908A6.25 6.25 0 0 1 100 16.413v67.174a6.25 6.25 0 0 1-3.541 5.633l-20.601 9.906Z\"/></g></svg>".into(), inks: None, source: "https://github.com/pingdotgg/t3code/blob/d15210c/apps/web/src/components/Icons.tsx".into(), license: "MIT".into() },
+            editors: vec![EditorId::VscodeInsiders],
+        },
+        EditorMark {
+            id: "zed".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 96 96\"><path fill-rule=\"evenodd\" d=\"M9 6a3 3 0 0 0-3 3v66H0V9a9 9 0 0 1 9-9h80.379c4.009 0 6.016 4.847 3.182 7.682L43.055 57.187H57V51h6v7.688a4.5 4.5 0 0 1-4.5 4.5H37.055L26.743 73.5H73.5V36h6v37.5a6 6 0 0 1-6 6H20.743L10.243 90H87a3 3 0 0 0 3-3V21h6v66a9 9 0 0 1-9 9H6.621c-4.009 0-6.016-4.847-3.182-7.682L52.757 39H39v6h-6v-7.5a4.5 4.5 0 0 1 4.5-4.5h21.257l10.5-10.5H22.5V60h-6V22.5a6 6 0 0 1 6-6h52.757L85.757 6H9Z\"/></svg>".into(), inks: None, source: "https://github.com/pingdotgg/t3code/blob/d15210c/apps/web/src/components/Icons.tsx".into(), license: "MIT".into() },
+            editors: vec![EditorId::Zed],
+        },
+        EditorMark {
+            id: "idea".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M0 0v24h24V0zm3.723 3.111h5v1.834h-1.39v6.277h1.39v1.834h-5v-1.834h1.444V4.945H3.723zm11.055 0H17v6.5c0 .612-.055 1.111-.222 1.556-.167.444-.39.777-.723 1.11-.277.279-.666.557-1.11.668a3.933 3.933 0 0 1-1.445.278c-.778 0-1.444-.167-1.944-.445a4.81 4.81 0 0 1-1.279-1.056l1.39-1.555c.277.334.555.555.833.722.277.167.611.278.945.278.389 0 .721-.111 1-.389.221-.278.333-.667.333-1.278zM2.222 19.5h9V21h-9z\"/></svg>".into(), inks: None, source: "https://github.com/simple-icons/simple-icons/blob/16.30.0/icons/intellijidea.svg".into(), license: "CC0-1.0".into() },
+            editors: vec![EditorId::Idea],
+        },
+        EditorMark {
+            id: "webstorm".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M0 0v24h24V0H0zm17.889 2.889c1.444 0 2.667.444 3.667 1.278l-1.111 1.667c-.889-.611-1.722-1-2.556-1s-1.278.389-1.278.889v.056c0 .667.444.889 2.111 1.333 2 .556 3.111 1.278 3.111 3v.056c0 2-1.5 3.111-3.611 3.111-1.5-.056-3-.611-4.167-1.667l1.278-1.556c.889.722 1.833 1.222 2.944 1.222.889 0 1.389-.333 1.389-.944v-.056c0-.556-.333-.833-2-1.278-2-.5-3.222-1.056-3.222-3.056v-.056c0-1.833 1.444-3 3.444-3zm-16.111.222h2.278l1.5 5.778 1.722-5.778h1.667l1.667 5.778 1.5-5.778h2.333l-2.833 9.944H9.723L8.112 7.277l-1.667 5.778H4.612L1.779 3.111zm.5 16.389h9V21h-9v-1.5z\"/></svg>".into(), inks: None, source: "https://github.com/simple-icons/simple-icons/blob/16.30.0/icons/webstorm.svg".into(), license: "CC0-1.0".into() },
+            editors: vec![EditorId::Webstorm],
+        },
+        EditorMark {
+            id: "pycharm".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M7.833 6.666v-.055c0-1-.667-1.5-1.778-1.5H4.389v3.055h1.723c1.111 0 1.721-.666 1.721-1.5zM0 0v24h24V0H0zm2.223 3.167h4c2.389 0 3.833 1.389 3.833 3.445v.055c0 2.278-1.778 3.5-4.001 3.5H4.389v2.945H2.223V3.167zM11.277 21h-9v-1.5h9V21zm4.779-7.777c-2.944.055-5.111-2.223-5.111-5.057C10.944 5.333 13.056 3 16.111 3c1.889 0 3 .611 3.944 1.556l-1.389 1.61c-.778-.722-1.556-1.111-2.556-1.111-1.658 0-2.873 1.375-2.887 3.084.014 1.709 1.174 3.083 2.887 3.083 1.111 0 1.833-.445 2.61-1.167l1.39 1.389c-.999 1.112-2.166 1.779-4.054 1.779z\"/></svg>".into(), inks: None, source: "https://github.com/simple-icons/simple-icons/blob/16.30.0/icons/pycharm.svg".into(), license: "CC0-1.0".into() },
+            editors: vec![EditorId::Pycharm],
+        },
+        EditorMark {
+            id: "goland".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M0 0v24h24V0Zm6.764 3a5.448 5.448 0 0 1 3.892 1.356L9.284 6.012A3.652 3.652 0 0 0 6.696 5c-1.6 0-2.844 1.4-2.844 3.08v.028c0 1.812 1.244 3.14 3 3.14a3.468 3.468 0 0 0 2.048-.596V9.228H6.708v-1.88H11v4.296a6.428 6.428 0 0 1-4.228 1.572c-3.076 0-5.196-2.164-5.196-5.092v-.028A5.08 5.08 0 0 1 6.764 3Zm10.432 0c3.052 0 5.244 2.276 5.244 5.088v.028a5.116 5.116 0 0 1-5.272 5.12c-3.056-.02-5.248-2.296-5.248-5.112v-.028A5.116 5.116 0 0 1 17.196 3Zm-.028 2A2.96 2.96 0 0 0 14.2 8.068v.028a3.008 3.008 0 0 0 3 3.112 2.96 2.96 0 0 0 2.964-3.084v-.028A3.004 3.004 0 0 0 17.168 5ZM2.252 19.5h9V21h-9z\"/></svg>".into(), inks: None, source: "https://github.com/simple-icons/simple-icons/blob/16.30.0/icons/goland.svg".into(), license: "CC0-1.0".into() },
+            editors: vec![EditorId::Goland],
+        },
+        EditorMark {
+            id: "clion".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M0 0v24h24V0H0zm7.041 3a5.049 5.049 0 0 1 .219 0c1.86 0 3 .6 3.9 1.56L9.78 6.18C9 5.46 8.22 5.04 7.26 5.04c-1.68 0-2.88 1.38-2.88 3.12 0 1.68 1.2 3.12 2.88 3.12 1.14 0 1.86-.48 2.64-1.14l1.38 1.38c-1.02 1.08-2.16 1.8-4.08 1.8a5.1 5.1 0 0 1-5.1-5.16A5.049 5.049 0 0 1 7.04 3zm5.738.12H15v8.1h4.32v1.86h-6.54V3.12zM2.28 19.5h9V21h-9v-1.5Z\"/></svg>".into(), inks: None, source: "https://github.com/simple-icons/simple-icons/blob/16.30.0/icons/clion.svg".into(), license: "CC0-1.0".into() },
+            editors: vec![EditorId::Clion],
+        },
+        EditorMark {
+            id: "phpstorm".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M7.833 6.611v-.055c0-1-.667-1.5-1.778-1.5H4.389v3.056h1.722c1.111-.001 1.722-.668 1.722-1.501zM0 0v24h24V0H0zm2.167 3.111h4.056c2.389 0 3.833 1.389 3.833 3.445v.055c0 2.333-1.778 3.5-4.056 3.5H4.333v3H2.167v-10zM11.278 21h-9v-1.5h9V21zM18.5 10.222c0 2-1.5 3.111-3.667 3.111-1.5-.056-3-.611-4.222-1.667l1.278-1.556c.89.722 1.833 1.222 3 1.222.889 0 1.444-.333 1.444-.944v-.056c0-.555-.333-.833-2-1.277C12.333 8.555 11 8 11 6v-.056c0-1.833 1.444-3 3.5-3 1.444 0 2.723.444 3.723 1.278l-1.167 1.667c-.889-.611-1.777-1-2.611-1-.833 0-1.278.389-1.278.889v.056c0 .667.445.889 2.167 1.333 2 .556 3.167 1.278 3.167 3v.055z\"/></svg>".into(), inks: None, source: "https://github.com/simple-icons/simple-icons/blob/16.30.0/icons/phpstorm.svg".into(), license: "CC0-1.0".into() },
+            editors: vec![EditorId::Phpstorm],
+        },
+        EditorMark {
+            id: "rubymine".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M0 0v24h24V0Zm3.056 3H6.92q.945 0 1.665.347t1.106.977c.262.42.392.902.392 1.46q0 .835-.399 1.478a2.6 2.6 0 0 1-1.125.99 2 2 0 0 1-.297.103q-.066.02-.13.04L10.276 12H8.264l-1.94-3.4H4.811V12H3.056Zm8.51 0h2.444l1.851 5.907.154.773.136-.773L17.937 3h2.482v9h-1.736V5.578l.026-.47L16.613 12H15.34l-2.07-6.846.026.424V12h-1.73ZM4.812 4.459V7.14h1.993q.444-.001.771-.161.335-.167.515-.47c.12-.205.18-.439.18-.713q0-.411-.18-.707a1.17 1.17 0 0 0-.515-.462 1.7 1.7 0 0 0-.77-.168ZM2.996 19.2h9.6V21h-9.6z\"/></svg>".into(), inks: None, source: "https://github.com/simple-icons/simple-icons/blob/16.30.0/icons/rubymine.svg".into(), license: "CC0-1.0".into() },
+            editors: vec![EditorId::Rubymine],
+        },
+        EditorMark {
+            id: "rider".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M0 0v24h24V0zm7.031 3.113A4.063 4.063 0 0 1 9.72 4.14a3.23 3.23 0 0 1 .84 2.28A3.16 3.16 0 0 1 8.4 9.54l2.46 3.6H8.28L6.12 9.9H4.38v3.24H2.16V3.12c1.61-.004 3.281.009 4.871-.007zm5.509.007h3.96c3.18 0 5.34 2.16 5.34 5.04 0 2.82-2.16 5.04-5.34 5.04h-3.96zm4.069 1.976c-.607.01-1.235.004-1.849.004v6.06h1.74a2.882 2.882 0 0 0 3.06-3 2.897 2.897 0 0 0-2.951-3.064zM4.319 5.1v2.88H6.6c1.08 0 1.68-.6 1.68-1.44 0-.96-.66-1.44-1.74-1.44zM2.16 19.5h9V21h-9Z\"/></svg>".into(), inks: None, source: "https://github.com/simple-icons/simple-icons/blob/16.30.0/icons/rider.svg".into(), license: "CC0-1.0".into() },
+            editors: vec![EditorId::Rider],
+        },
+        EditorMark {
+            id: "jetbrains".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M2.345 23.997A2.347 2.347 0 0 1 0 21.652V10.988C0 9.665.535 8.37 1.473 7.433l5.965-5.961A5.01 5.01 0 0 1 10.989 0h10.666A2.347 2.347 0 0 1 24 2.345v10.664a5.056 5.056 0 0 1-1.473 3.554l-5.965 5.965A5.017 5.017 0 0 1 13.007 24v-.003H2.345Zm8.969-6.854H5.486v1.371h5.828v-1.371ZM3.963 6.514h13.523v13.519l4.257-4.257a3.936 3.936 0 0 0 1.146-2.767V2.345c0-.678-.552-1.234-1.234-1.234H10.989a3.897 3.897 0 0 0-2.767 1.145L3.963 6.514Zm-.192.192L2.256 8.22a3.944 3.944 0 0 0-1.145 2.768v10.664c0 .678.552 1.234 1.234 1.234h10.666a3.9 3.9 0 0 0 2.767-1.146l1.512-1.511H3.771V6.706Z\"/></svg>".into(), inks: None, source: "https://github.com/simple-icons/simple-icons/blob/16.30.0/icons/jetbrains.svg".into(), license: "CC0-1.0".into() },
+            editors: vec![EditorId::Rustrover],
+        },
+        EditorMark {
+            id: "finder".into(),
+            mark: AgentMark { svg: "<svg viewBox=\"0 0 24 24\"><path fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\"/></svg>".into(), inks: None, source: "https://github.com/lucide-icons/lucide/blob/0.564.0/icons/folder.svg".into(), license: "ISC".into() },
+            editors: vec![EditorId::Finder],
+        },
+    ]
+});
+
 /// node, github, cloudflare, linear (marks/index.ts:33).
 pub fn brand_marks() -> &'static [BrandMark] {
-    todo!()
+    &BRAND_MARKS
 }
 
 /// solari then boat; boat alone with the `public-build` feature (marks/index.ts:39).
 pub fn provider_marks() -> &'static [ProviderMark] {
-    todo!()
+    &PROVIDER_MARKS
 }
 
 /// vscode, cursor, vscode-insiders, zed, idea, webstorm, pycharm, goland, clion, phpstorm, rubymine, rider, jetbrains,
 /// finder (marks/index.ts:41).
 pub fn editor_marks() -> &'static [EditorMark] {
-    todo!()
+    &EDITOR_MARKS
 }
 
 /// marks/index.ts:44.
 pub fn editor_mark(editor: EditorId) -> Option<&'static EditorMark> {
-    todo!()
+    editor_marks()
+        .iter()
+        .find(|mark| mark.editors.contains(&editor))
 }
 
 /// marks/index.ts:49.
 pub fn provider_mark(provider: &str) -> Option<&'static ProviderMark> {
-    todo!()
+    provider_marks()
+        .iter()
+        .find(|mark| mark.provider == provider)
 }
 
 /// marks/index.ts:56.
 pub fn tool_mark(id: &str) -> Option<&'static BrandMark> {
-    todo!()
+    brand_marks()
+        .iter()
+        .find(|mark| mark.tools.iter().any(|tool| tool == id))
 }
 
 /// A word with its version cut: `@scope/name@1.2` is `@scope/name`, `image:tag` is `image` (marks/index.ts:69).
 pub fn package_of_word(word: &str) -> String {
-    todo!()
+    let mut name = word;
+    if let Some(at) = word.rfind('@') {
+        if at > 0 && !word[at + 1..].contains('/') {
+            name = &word[..at];
+        }
+    }
+    if let Some(colon) = name.rfind(':') {
+        if !name[colon + 1..].contains('/') {
+            name = &name[..colon];
+        }
+    }
+    name.to_string()
+}
+
+/// The host of a word that is an http or https address, and nothing for one that does not parse as a URL.
+fn address_host(word: &str) -> Option<String> {
+    let lower = word.to_ascii_lowercase();
+    if !(lower.starts_with("http://") || lower.starts_with("https://")) {
+        return None;
+    }
+    host_of(word)
+}
+
+fn mark_for_host(host: &str) -> Option<&'static BrandMark> {
+    brand_marks()
+        .iter()
+        .find(|mark| mark.hosts.iter().any(|domain| host_under(host, domain)))
 }
 
 /// A server's mark off its address's host, or the first word of its line naming a package or an address a mark
 /// claims (marks/index.ts:72).
 pub fn server_mark(transport: &McpRowTransport) -> Option<&'static BrandMark> {
-    todo!()
+    match transport {
+        McpRowTransport::Http(http) => mark_for_host(&http.host),
+        McpRowTransport::Stdio(stdio) => {
+            stdio
+                .line
+                .split(is_js_whitespace)
+                .find_map(|word| match address_host(word) {
+                    Some(host) => mark_for_host(&host),
+                    None => {
+                        let name = package_of_word(word);
+                        brand_marks()
+                            .iter()
+                            .find(|mark| mark.packages.contains(&name))
+                    }
+                })
+        }
+    }
 }
