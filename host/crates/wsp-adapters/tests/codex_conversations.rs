@@ -347,3 +347,26 @@ mod rules_added {
         assert_eq!(opened(r#"{"cwd":"/w","name":"","preview":"P"}"#), Opened::Read { cwd: Some("/w".into()), title: Some("P".into()) });
     }
 }
+
+/// Rule CV4 of spec/codex_conversations.md, printed by the TS at 65f6b89c7.
+mod rules_added_newest {
+    use wsp_adapters::codex::conversations::newest_lines;
+    use wsp_adapters::port::ConversationLine;
+
+    #[test]
+    fn the_newest_lines_keep_every_tool_line_back_to_the_last_message_kept() {
+        // CV4; conversations.ts:200-213, over [t0, p1, t1, a1, t2, p2, a2, t3] with a total of 10.
+        let line = |who: &str, text: &str| ConversationLine { who: who.into(), text: text.into(), tool: None, at: None };
+        let items = [line("tool", "t0"), line("person", "p1"), line("tool", "t1"), line("agent", "a1"), line("tool", "t2"), line("person", "p2"), line("agent", "a2"), line("tool", "t3")];
+        let kept = |last: u32| {
+            let r = newest_lines(&items, 10, last);
+            (r.lines.into_iter().map(|l| l.text).collect::<Vec<_>>(), r.earlier)
+        };
+        assert_eq!(kept(0), (vec![], 10));
+        assert_eq!(kept(1), (vec!["a2".to_string(), "t3".into()], 9));
+        assert_eq!(kept(3), (["a1", "t2", "p2", "a2", "t3"].map(String::from).to_vec(), 7));
+        let all = ["p1", "t1", "a1", "t2", "p2", "a2", "t3"].map(String::from).to_vec();
+        assert_eq!(kept(4), (all.clone(), 6));
+        assert_eq!(kept(9), (all, 6));
+    }
+}
