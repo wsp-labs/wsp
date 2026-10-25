@@ -43,16 +43,6 @@ const REPLAY_BOUND: Duration = Duration::from_secs(2);
 /// The drag strip over the drawer's top border, `h-1.5`.
 pub const STRIP: f32 = 6.;
 
-/// The terminal config each host last answered, by the side of the theme it was read for.
-#[derive(Default)]
-struct KeptConfig(HashMap<(Option<String>, bool), protocol::TerminalConfig>);
-
-impl gpui_kit::Global for KeptConfig {}
-
-fn kept_config(host: &Host, dark: bool, cx: &App) -> Option<protocol::TerminalConfig> {
-    cx.try_global::<KeptConfig>()?.0.get(&(host.client().alias(), dark)).cloned()
-}
-
 /// The drawer's height within the window's: at least 180 px, at most 75% of the window, whole pixels.
 pub fn clamp_height(height: f32, window: f32) -> f32 {
     let max = (window * 0.75).floor().max(MIN_HEIGHT);
@@ -175,15 +165,13 @@ impl Drawer {
             zoom: mode.key().workspace_id().and_then(|w| hub::zoom(w, cx)).unwrap_or(0.),
             ..Choices::default()
         };
-        // A drawer opened again starts in the config the last one read, so its first frame lays out the grid it left.
-        let config = kept_config(&host, dark, cx);
-        let look = Look::with(config.as_ref(), &choices, cx);
+        let look = Look::with(None, &choices, cx);
         let mut this = Drawer {
             host,
             mode,
             link,
             views: Vec::new(),
-            config,
+            config: None,
             dark,
             theme: crate::ui::theme::current(cx).id,
             choices,
@@ -293,8 +281,6 @@ impl Drawer {
             let read = reading.await;
             _ = this.update_in(cx, |this, _, cx| match read {
                 Ok(config) if this.dark == dark => {
-                    let key = (this.host.client().alias(), dark);
-                    cx.default_global::<KeptConfig>().0.insert(key, config.clone());
                     this.config = Some(config);
                     this.relook(cx);
                 }
