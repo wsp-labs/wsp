@@ -159,3 +159,60 @@ fn a_page_on_a_machine_deleted_with_its_sub_thread_says_so(cx: &mut TestAppConte
     assert!(cx.debug_bounds("sub-thread-deleted").is_some(), "the page says its sub-thread was deleted");
     assert!(!page.read_with(cx, |p, cx| p.hero().read(cx).follows()), "and draws no New thread field");
 }
+
+/// Catches: with the list narrowed to one computer, the Boat machines of threads on another drawn after Settled as
+/// cards of their own, the computer pick applied to the threads but not to the workspaces that hold none of them,
+/// where today's sidebar narrows every row to the picked computer's.
+#[gpui_kit::test]
+fn a_computer_pick_draws_nothing_of_another_computer(cx: &mut TestAppContext) {
+    let now = now_ms();
+    let (sidebar, cx) = drawn(cx);
+    let place = |id: &str| json!({ "id": id, "kind": "computer", "name": id });
+    let on = |id: &str, place: &str, kind: &str| json!({ "id": id, "name": id, "kind": kind, "place": place, "project": { "id": "p1" } });
+    let row = |id: &str, workspace: &str, parent: Option<&str>| {
+        let mut r = json!({ "id": format!("r-{id}"), "threadId": id, "workspaceId": workspace, "harness": "claude", "status": "running",
+            "prompt": id, "project": { "id": "p1", "name": "repo" }, "startedAt": now - 60_000. });
+        if let Some(parent) = parent {
+            r["parentThreadId"] = json!(parent);
+            r["rootThreadId"] = json!(parent);
+        }
+        r
+    };
+    let mut boat_machine = on("w-boat", "boat", "cloud");
+    boat_machine["parentThreadId"] = json!("t-b");
+    let mut empty_machine = on("w-empty", "boat", "cloud");
+    empty_machine["parentThreadId"] = json!("t-b");
+    let snap = Snapshot {
+        sessions: crate::screens::sidebar::shared::rows_of(vec![
+            row("t-a", "w-a", None),
+            row("t-b", "w-b", None),
+            row("t-sub", "w-boat", Some("t-b")),
+        ]),
+        workspaces: vec![on("w-a", "mumbai", "place"), on("w-b", "boat", "place"), boat_machine, empty_machine],
+        projects: vec![json!({ "id": "p1", "name": "repo", "path": "/repo", "computer": "mumbai" })],
+        places: vec![place("mumbai"), place("boat")],
+        preferences: json!({}),
+        ..Snapshot::default()
+    };
+    push(&sidebar, Change::Whole(Box::new(snap)), cx);
+    sidebar.update(cx, |s, cx| {
+        s.computer = Some("mumbai".into());
+        s.refold(cx);
+    });
+    cx.run_until_parked();
+    let drawn = sidebar.read_with(cx, |s, _| {
+        s.drawn_rows
+            .iter()
+            .filter_map(|d| match d {
+                Drawn::Line(ix) => match &s.lines[*ix].item {
+                    Item::Tile(t) => Some(s.threads[t.thread].key.clone()),
+                    Item::Machine { workspace } => Some(format!("machine {workspace}")),
+                    _ => None,
+                },
+                Drawn::Workspace(id) => Some(format!("card {id}")),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    });
+    assert_eq!(drawn, ["t-a"], "only the picked computer's rows");
+}
