@@ -1,3 +1,3 @@
 {"meta":{"door":"ws","source":"packages/host/test/place-door.test.ts > a request that arrives on the door > still answers the door's own ops from 127.0.0.1: a pairing code, a join and a place's dial back","outs":"recorded"}}
-{"in":{"placeId":"p_nobody","nonce":"T1ZxX6v+j3/iUnCyhbrUeWsKAIunNrWweE0Sb8d4djY=","ephemeral":"W+3EguyqXrtnf3e7ZASTPIh/s69rgcFzKlo5kzEkvQQ=","id":1,"op":"place.auth"}}
-{"out":{"id":1,"ok":false,"error":"this host holds no place by that id; join it with a code from wsp add","kind":"auth","hostPublicKey":"MCowBQYDK2VwAyEAEsRqA5gKDogKIfbWAfDFVt5A+IFnB76GGu1CovmW85k=","signature":"VnTUayhaWNEXklp2Ujbot7AlT+rydllpewHU8I2NCJP6v+4oAHD9kS/CgkXI9wyb9LdQ56qL1bhpAoodknkVAg=="}}
+{"in":{"placeId":"p_nobody","nonce":"2hC92Vn51ozFz/jMQ23uGeO2EOiCZUX6Xv95l30DtT8=","ephemeral":"Y5P+u7CyIbeAhjsxQ3y/WwSca99WY75jtKv5G86N0S8=","id":1,"op":"place.auth"}}
+{"out":{"id":1,"ok":false,"error":"this host holds no place by that id; join it with a code from wsp add","kind":"auth","hostPublicKey":"MCowBQYDK2VwAyEA3J5woXxx1ubfZaY+t6AithIS5ubdL/2wTtO0nn7jdfE=","signature":"UmN8s/J8kNx4naj9Dhn2llhF5nvrD7QKolx95p3LgaaljSPxVYppE1bJKUGfd16IZ2lT0K1/bsvgF8UA/IQiAw=="}}

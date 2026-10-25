@@ -1,5 +1,5 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/places-agents.test.ts > the agents on a computer you own > run a sign-in over that computer's link, push its steps to the asking socket alone, type its code, keep it going when that socket goes, and keep keys to the host's own socket","outs":"recorded"}}
-{"in":{"token":"<<host-token>>","id":1,"op":"auth"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"id":2,"op":"events.subscribe"}}
 {"out":{"id":2,"ok":true,"seq":2,"stream":"00000000-0000-4000-8000-000000000001"}}

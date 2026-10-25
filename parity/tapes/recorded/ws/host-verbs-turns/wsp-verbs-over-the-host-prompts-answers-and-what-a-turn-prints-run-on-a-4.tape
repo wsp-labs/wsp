@@ -2,7 +2,7 @@
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true,"version":"0.3.8","road":"init"}}
 {"in":{"ref":"stub-4","id":2,"op":"projects.resolve"}}
-{"out":{"id":2,"ok":true,"project":{"id":"pr_00000001","name":"stub-4","computer":"default","source":{"kind":"git","url":"https://github.com/wsp/stub-4.git"},"path":"/root/stub-4","remote":"https://github.com/wsp/stub-4.git","defaultBranch":"main","memoryKey":"-root-stub-4","memoryDir":"/root/.claude-cfg/projects/-root-stub-4/memory","createdAt":"2026-10-25T11:39:58.151Z"}}}
+{"out":{"id":2,"ok":true,"project":{"id":"pr_00000001","name":"stub-4","computer":"default","source":{"kind":"git","url":"https://github.com/wsp/stub-4.git"},"path":"/root/stub-4","remote":"https://github.com/wsp/stub-4.git","defaultBranch":"main","memoryKey":"-root-stub-4","memoryDir":"/root/.claude-cfg/projects/-root-stub-4/memory","createdAt":"2026-10-25T15:21:33.366Z"}}}
 {"in":{"project":"pr_00000001","id":3,"op":"workspaces.landing"}}
 {"out":{"id":3,"ok":true,"name":"default","capabilities":{"liveCloneForks":true,"pauseMode":"memory","replacesMachine":true,"previewUrls":true,"signedUrls":true,"callbackRelay":true,"diskSnapshots":true,"images":true,"snapshotsAnyLife":false,"snapshotListing":true,"templates":false,"kept":false,"copies":true,"ownNetwork":true,"sizes":[{"cpu":2,"memMb":4096,"rateUsdPerHour":0.11},{"cpu":2,"memMb":8192,"rateUsdPerHour":0.15},{"cpu":4,"memMb":8192,"rateUsdPerHour":0.22}]},"kind":"cloud"}}
 {"in":{"id":4,"op":"harnesses.list"}}

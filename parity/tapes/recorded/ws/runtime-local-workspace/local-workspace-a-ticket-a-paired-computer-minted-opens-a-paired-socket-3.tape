@@ -4,4 +4,4 @@
 {"in":{"workspaceId":"ws_00000001","prompt":"hi","id":2,"op":"sessions.start"}}
 {"out":{"id":2,"ok":false,"error":"sessions.start is not a paired computer's to ask for until the owner gives this device a role; run it on the computer the host runs on"}}
 {"in":{"id":3,"op":"workspaces.list"}}
-{"out":{"id":3,"ok":true,"workspaces":[{"id":"ws_00000001","name":"mac","machineId":"local","phase":"running","kind":"local","golden":"","createdAt":"2026-10-25T11:38:14.243Z","project":{"id":"pr_00000002","name":"mac","path":"<run>/wsp-project-000001","computer":"here"},"folder":"<run>/wsp-project-000001","home":"<run>/wsp-localws-000002","agents":{"spawn":true,"maxMachines":3,"maxDepth":2}}]}}
+{"out":{"id":3,"ok":true,"workspaces":[{"id":"ws_00000001","name":"mac","machineId":"local","phase":"running","kind":"local","golden":"","createdAt":"2026-10-25T15:20:23.811Z","project":{"id":"pr_00000002","name":"mac","path":"<run>/wsp-project-000001","computer":"here"},"folder":"<run>/wsp-project-000001","home":"<run>/wsp-localws-000002","agents":{"spawn":true,"maxMachines":3,"maxDepth":2}}]}}

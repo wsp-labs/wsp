@@ -1,5 +1,5 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/places-settings.test.ts > a place's cap and what runs there > refuses a number the row's kind does not take, a place this host does not hold and a set with no number, as usage, and writes nothing","outs":"recorded"}}
-{"in":{"token":"<<host-token>>","id":1,"op":"auth"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"placeId":"here","machines":2,"id":2,"op":"places.set"}}
 {"out":{"id":2,"ok":false,"error":"zingzys-mac takes threads at once, turn limit, agents may start agents and levels deep, not machines at once","kind":"usage"}}

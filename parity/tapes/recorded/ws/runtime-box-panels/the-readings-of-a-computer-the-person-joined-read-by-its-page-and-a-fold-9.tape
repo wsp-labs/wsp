@@ -1,5 +1,5 @@
 {"meta":{"door":"ws","source":"packages/runtime/test/box-panels.test.ts > the readings of a computer the person joined, read by its page and a folder's panes at once > share the one watch with a channel to that computer, whose sys.unwatch never goes up the link under another reader","outs":"recorded"}}
-{"in":{"token":"<<host-token>>","id":1,"op":"auth"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"placeId":"p_00000001","id":2,"op":"sys.subscribe"}}
 {"out":{"id":2,"ok":true}}

@@ -2,6 +2,6 @@
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"id":2,"op":"pair.issue"}}
-{"out":{"id":2,"ok":true,"code":"<redacted>","expiresAt":1792928894258}}
+{"out":{"id":2,"ok":true,"code":"<redacted>","expiresAt":1792942223826}}
 {"in":{"purpose":"connect","id":3,"op":"ticket.issue"}}
-{"out":{"id":3,"ok":true,"ticket":"<redacted>","expiresAt":1792928594285}}
+{"out":{"id":3,"ok":true,"ticket":"<redacted>","expiresAt":1792941923842}}
