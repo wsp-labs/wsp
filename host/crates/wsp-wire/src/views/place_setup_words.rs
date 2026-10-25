@@ -11,7 +11,7 @@ use crate::types::check::{Check, SchemaError};
 pub struct PlaceEstimate {
     pub needed_bytes: i64,
     pub kept_bytes: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub free_bytes: Option<i64>,
     pub unmeasured: i64,
 }

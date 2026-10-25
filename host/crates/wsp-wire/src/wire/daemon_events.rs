@@ -31,37 +31,37 @@ pub enum DaemonEvent {
     PtyExit {
         pty_id: String,
         exit_code: JsNumber,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         signal: Option<JsNumber>,
     },
     #[serde(rename = "port.open", rename_all = "camelCase")]
     PortOpen {
         port: JsNumber,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         pid: Option<JsNumber>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         process: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         loopback: Option<bool>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         watch: Option<String>,
     },
     #[serde(rename = "port.close", rename_all = "camelCase")]
     PortClose {
         port: JsNumber,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         pid: Option<JsNumber>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         process: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         command: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         exited: Option<bool>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         left: Option<bool>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         at: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         watch: Option<String>,
     },
     #[serde(rename = "inbox.file", rename_all = "camelCase")]
@@ -71,7 +71,7 @@ pub enum DaemonEvent {
     #[serde(rename = "browser.open", rename_all = "camelCase")]
     BrowserOpen {
         url: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         port: Option<RelayPort>,
     },
     #[serde(rename = "callback.port", rename_all = "camelCase")]
@@ -80,13 +80,13 @@ pub enum DaemonEvent {
     TunnelData {
         tunnel_id: String,
         data: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         machine_id: Option<String>,
     },
     #[serde(rename = "tunnel.end", rename_all = "camelCase")]
     TunnelEnd {
         tunnel_id: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         machine_id: Option<String>,
     },
     #[serde(rename = "stdio.out", rename_all = "camelCase")]
@@ -96,7 +96,7 @@ pub enum DaemonEvent {
     #[serde(rename = "stdio.exit", rename_all = "camelCase")]
     StdioExit {
         stdio_id: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         code: Option<i64>,
     },
     #[serde(rename = "localhost.url", rename_all = "camelCase")]
@@ -113,26 +113,26 @@ pub enum DaemonEvent {
         life: String,
         kind: GuestKind,
         token: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         turn_token: Option<String>,
         argv: Vec<String>,
         cwd: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         machine_id: Option<String>,
     },
     #[serde(rename = "guest.message", rename_all = "camelCase")]
     GuestMessage {
         session: String,
         message: Value,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         machine_id: Option<String>,
     },
     #[serde(rename = "guest.closed", rename_all = "camelCase")]
     GuestClosed {
         session: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         error: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         machine_id: Option<String>,
     },
 }

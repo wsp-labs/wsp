@@ -89,7 +89,7 @@ impl Check for LimitKind {
 pub struct LimitWindow {
     pub kind: LimitKind,
     pub used_percent: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub resets_at: Option<JsNumber>,
 }
 
@@ -154,7 +154,7 @@ impl Check for ResetCreditStatus {
 pub struct ResetCredit {
     pub id: String,
     pub status: ResetCreditStatus,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub expires_at: Option<JsNumber>,
 }
 
@@ -182,7 +182,7 @@ impl Check for ResetCredit {
 #[serde(rename_all = "camelCase")]
 pub struct BankedResets {
     pub count: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub credits: Option<Vec<ResetCredit>>,
 }
 
@@ -211,7 +211,7 @@ impl Check for BankedResets {
 #[serde(rename_all = "camelCase")]
 pub struct HarnessLimitAccount {
     pub id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub label: Option<String>,
 }
 
@@ -237,15 +237,15 @@ impl Check for HarnessLimitAccount {
 #[serde(rename_all = "camelCase")]
 pub struct HarnessLimit {
     pub windows: Vec<LimitWindow>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub plan: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub status: Option<LimitStatus>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub account: Option<HarnessLimitAccount>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub keyed: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub credits: Option<BankedResets>,
 }
 
@@ -296,10 +296,10 @@ impl Check for AccountRoad {
 #[serde(rename_all = "camelCase")]
 pub struct AccountLimitCredits {
     pub count: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub credits: Option<Vec<ResetCredit>>,
     pub read_at: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub detail_at: Option<JsNumber>,
 }
 
@@ -333,18 +333,18 @@ pub struct AccountLimit {
     pub key: String,
     pub agent: String,
     pub label: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub road: Option<AccountRoad>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub plan: Option<String>,
     pub windows: Vec<LimitWindow>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub status: Option<LimitStatus>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub keyed: Option<bool>,
     pub read_at: JsNumber,
     pub computers: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub credits: Option<AccountLimitCredits>,
 }
 
@@ -424,12 +424,12 @@ impl Check for AccountRowBurn {
 #[serde(rename_all = "camelCase")]
 pub struct AccountRowCredits {
     pub count: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub credits: Option<Vec<ResetCredit>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub next_expires_at: Option<JsNumber>,
     pub read_at: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub detail_at: Option<JsNumber>,
 }
 
@@ -465,21 +465,21 @@ pub struct AccountRow {
     pub agent: String,
     pub label: String,
     pub computers: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub plan: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub windows: Option<Vec<LimitWindow>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub status: Option<LimitStatus>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub read_at: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub note: Option<AccountNote>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub burn: Option<AccountRowBurn>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub address: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub credits: Option<AccountRowCredits>,
 }
 
@@ -602,7 +602,7 @@ impl Check for ResetOutcome {
 pub struct ResetAnswer {
     pub outcome: ResetOutcome,
     pub said: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub account: Option<AccountRow>,
 }
 
@@ -780,9 +780,9 @@ pub struct UsageRow {
     pub model: String,
     pub turns: i64,
     pub tokens: UsageTokens,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cost_reported: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub unreported: Option<UsageTokens>,
     pub source: UsageRowSource,
 }
@@ -824,7 +824,7 @@ impl Check for UsageRow {
 pub struct UsageDay {
     pub day: String,
     pub rows: Vec<UsageRow>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub sessions: Option<Vec<String>>,
 }
 
@@ -854,9 +854,9 @@ pub struct UsedRowTokens {
     pub input: JsNumber,
     pub output: JsNumber,
     pub cached: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cache_write: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub reasoning: Option<JsNumber>,
 }
 
@@ -886,19 +886,19 @@ impl Check for UsedRowTokens {
 pub struct UsedRow {
     pub key: String,
     pub label: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub agent: Option<String>,
     pub tokens: UsedRowTokens,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cost_reported: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cost_list: Option<JsNumber>,
     pub priced: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub estimate: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub saved: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub turns: Option<i64>,
 }
 
@@ -1013,9 +1013,9 @@ pub struct UsedAnswer {
     pub series: Vec<UsedAnswerSeriesItem>,
     pub since: JsNumber,
     pub until: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub logs: Option<UsedAnswerLogs>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub lines: Option<Vec<UsedAnswerLinesItem>>,
 }
 
@@ -1053,7 +1053,7 @@ impl Check for UsedAnswer {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TurnLimit {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub resets_at: Option<JsNumber>,
 }
 

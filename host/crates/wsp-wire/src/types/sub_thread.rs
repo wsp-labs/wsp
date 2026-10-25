@@ -100,7 +100,7 @@ impl Check for SubOutSent {
 #[serde(rename_all = "camelCase")]
 pub struct SubOutNotSent {
     pub uncommitted: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub why: Option<String>,
 }
 

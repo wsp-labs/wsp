@@ -23,23 +23,23 @@ pub struct WorkspaceSize {
 pub struct InitSetupPricing {
     pub size: WorkspaceSize,
     pub rate_usd_per_hour: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub builder_disk_gb: Option<JsNumber>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InitSetup {
     pub keys: InitKeys,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub key_provider: Option<String>,
     pub home: String,
     pub agents: Vec<InitAgent>,
     pub pricing: Option<InitSetupPricing>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub place: Option<SetupPlace>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub forks_on: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub build_refusal: Option<String>,
     pub job: Option<InitJob>,
 }
@@ -49,7 +49,7 @@ pub struct MachineSizeOffer {
     pub cpu: JsNumber,
     pub mem_mb: JsNumber,
     pub rate_usd_per_hour: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub name: Option<String>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -63,7 +63,7 @@ pub enum PauseMode {
 #[serde(rename_all = "camelCase")]
 pub struct Capabilities {
     pub live_clone_forks: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub pause_mode: Option<PauseMode>,
     pub replaces_machine: bool,
     pub preview_urls: bool,
@@ -82,18 +82,18 @@ pub struct Capabilities {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceLanding {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub place: Option<String>,
     pub name: String,
     pub capabilities: Capabilities,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub kind: Option<WorkspaceKind>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaceCapacityImage {
     pub id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub name: Option<String>,
     pub size_bytes: JsNumber,
 }
@@ -110,9 +110,9 @@ pub struct PlaceCapacity {
     pub mem_mb: JsNumber,
     pub mem_room_mb: JsNumber,
     pub machine_mem_mb: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cpu_taken: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub mem_taken_mb: Option<JsNumber>,
     pub disk_free_bytes: JsNumber,
     pub images: Vec<PlaceCapacityImage>,

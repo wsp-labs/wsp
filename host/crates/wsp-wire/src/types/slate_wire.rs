@@ -23,18 +23,18 @@ pub const SLATE_BY: &[&str] = &["agent", "person", "host", "reaction", "timer"];
 pub struct SessionSlateEvent {
     pub workspace_id: String,
     pub session_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub at: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub turn_id: Option<String>,
     pub thread_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub pos: Option<i64>,
     pub cause: SlateCause,
     pub version: i64,
     pub by: SlateBy,
     pub pieces: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub run: Option<String>,
 }
 

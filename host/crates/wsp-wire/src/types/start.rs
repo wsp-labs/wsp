@@ -105,9 +105,9 @@ impl Check for WorkspaceFromHeadFork {
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceFromHead {
     pub branch: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub oid: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub fork: Option<WorkspaceFromHeadFork>,
 }
 
@@ -140,9 +140,9 @@ pub struct WorkspaceFrom {
     pub number: i64,
     pub url: String,
     pub title: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub base: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub head: Option<WorkspaceFromHead>,
 }
 
@@ -441,7 +441,7 @@ pub struct ReviewDraftComment {
     pub side: ReviewDraftCommentSide,
     pub body: String,
     pub on: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub in_summary: Option<bool>,
 }
 
@@ -521,7 +521,7 @@ pub struct ReviewDraftV0 {
     pub head_oid: String,
     pub thread_id: String,
     pub at: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub posted: Option<ReviewDraftV0Posted>,
 }
 
@@ -556,7 +556,7 @@ impl Check for ReviewDraftV0 {
 pub struct ReviewDraftV1 {
     pub note: String,
     pub at: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub reasked: Option<bool>,
 }
 

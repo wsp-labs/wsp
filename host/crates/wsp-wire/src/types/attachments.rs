@@ -35,7 +35,7 @@ pub const FILES_DIR: &str = ".wsp-files";
 pub struct Attachment {
     pub media_type: String,
     pub bytes: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub name: Option<String>,
 }
 
@@ -63,7 +63,7 @@ impl Check for Attachment {
 pub struct AttachmentRecord {
     pub media_type: String,
     pub bytes: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub name: Option<String>,
 }
 

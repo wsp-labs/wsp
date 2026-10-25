@@ -33,7 +33,7 @@ impl Check for ThreadVoice {
 #[serde(rename_all = "camelCase")]
 pub struct ThreadMessage {
     pub who: ThreadVoice,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub at: Option<JsNumber>,
     pub text: String,
 }

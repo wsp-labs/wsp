@@ -20,8 +20,8 @@ pub struct ProjectImportRequest {
     pub dest: String,
     pub carry: Vec<String>,
     pub rewrite: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub agents: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub replace: Option<wsp_frames::True>,
 }

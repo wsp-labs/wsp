@@ -16,7 +16,7 @@ pub struct OutsideLine {
     pub body: String,
     pub show: bool,
     pub sound: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub id: Option<String>,
 }
 

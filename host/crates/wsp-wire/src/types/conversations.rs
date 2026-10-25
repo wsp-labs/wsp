@@ -77,19 +77,19 @@ pub struct OutsideConversation {
     pub agent: String,
     pub id: String,
     pub title: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub first_prompt: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub branch: Option<String>,
     pub cwd: String,
     pub last_at: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub bytes: Option<JsNumber>,
     pub origin: ConversationOrigin,
     pub live: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub thread: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub lets_go: Option<String>,
 }
 
@@ -129,7 +129,7 @@ pub struct ConversationsHeld {
     pub agent: String,
     pub said: String,
     pub fix: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub why: Option<String>,
 }
 
@@ -185,7 +185,7 @@ impl Check for ConversationsAnswer {
 #[serde(rename_all = "camelCase")]
 pub struct ResumeAsk {
     pub id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub copy: Option<bool>,
 }
 
@@ -232,7 +232,7 @@ impl Check for ConversationReadRowsItemWho {
 pub struct ConversationReadRowsItem {
     pub who: ConversationReadRowsItemWho,
     pub text: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub at: Option<JsNumber>,
 }
 
@@ -259,7 +259,7 @@ impl Check for ConversationReadRowsItem {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConversationRead {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub cwd: Option<String>,
     pub title: String,
     pub rows: Vec<ConversationReadRowsItem>,

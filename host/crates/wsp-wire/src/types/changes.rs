@@ -26,13 +26,13 @@ pub struct Checkout {
     pub ahead: i64,
     pub behind: i64,
     pub changed: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub edits_unread: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub counts_unknown: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub stashes: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub head: Option<String>,
     pub read_at: JsNumber,
 }
@@ -69,7 +69,7 @@ impl Check for Checkout {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CheckoutReply {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub checkout: Option<Checkout>,
 }
 
@@ -97,7 +97,7 @@ impl Check for CheckoutReply {
 pub struct CommitDraft {
     #[serde(deserialize_with = "crate::types::check::nullable")]
     pub message: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub note: Option<String>,
 }
 
@@ -122,6 +122,7 @@ impl Check for CommitDraft {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ViewedMarks {
+    #[serde(serialize_with = "crate::types::check::js_record")]
     pub viewed: IndexMap<String, String>,
 }
 

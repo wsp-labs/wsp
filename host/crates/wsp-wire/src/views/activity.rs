@@ -178,7 +178,7 @@ pub struct LeftThread {
     pub memory: JsNumber,
     pub cpu: JsNumber,
     pub processes: Vec<ActivityProc>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub on: Option<String>,
 }
 
@@ -214,7 +214,7 @@ pub struct ActivityEnded {
     pub ended: Vec<ActivityProc>,
     pub forced: Vec<i64>,
     pub left: Vec<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub freed: Option<String>,
 }
 
