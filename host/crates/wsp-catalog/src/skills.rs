@@ -51,9 +51,7 @@ pub struct PluginSkills {
 
 /// skills.ts:54.
 pub fn claude_plugin_skills() -> PluginSkills {
-    PluginSkills {
-        index: "~/.claude/plugins/installed_plugins.json".to_string(),
-    }
+    PluginSkills { index: "~/.claude/plugins/installed_plugins.json".to_string() }
 }
 
 /// One module per agent whose install seeds skills (skills.ts:66).
@@ -104,25 +102,17 @@ pub trait SeedReader {
 }
 
 /// `OWNER_REPO` as the TS tests it: ASCII word characters only.
-static OWNER_REPO_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!("(?-u){OWNER_REPO}")).expect("OWNER_REPO is a valid pattern")
-});
+static OWNER_REPO_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(&format!("(?-u){OWNER_REPO}")).expect("OWNER_REPO is a valid pattern"));
 
 /// The `shownCommand` sha256 of a plugin install that asks to run a command (skills.ts:153).
 static SHOWN_COMMAND_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(
-        r#""shownCommand"[{WS}]*:[{WS}]*\{{[^}}]*"sha256"[{WS}]*:[{WS}]*"([0-9a-f]{{64}})""#,
-        WS = WS
-    ))
-    .expect("the shownCommand pattern is valid")
+    Regex::new(&format!(r#""shownCommand"[{WS}]*:[{WS}]*\{{[^}}]*"sha256"[{WS}]*:[{WS}]*"([0-9a-f]{{64}})""#, WS = WS))
+        .expect("the shownCommand pattern is valid")
 });
 
 /// The twelve-hex prefix of a pinned commit, the folder a turn looks for it under (skills.ts:192).
 fn is_twelve_hex(sha: &str) -> bool {
-    sha.len() == 12
-        && sha
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    sha.len() == 12 && sha.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 impl PluginRoad {
@@ -144,16 +134,9 @@ impl PluginRoad {
         match self {
             PluginRoad::Claude => {
                 let parsed: Option<Value> = serde_json::from_str(text).ok();
-                let on = parsed
-                    .as_ref()
-                    .and_then(|v| v.get("enabledPlugins"))
-                    .and_then(Value::as_object);
+                let on = parsed.as_ref().and_then(|v| v.get("enabledPlugins")).and_then(Value::as_object);
                 on.map_or_else(Vec::new, |on| {
-                    js_entries(on)
-                        .into_iter()
-                        .filter(|(_, v)| v.as_bool() == Some(true))
-                        .map(|(k, _)| k.clone())
-                        .collect()
+                    js_entries(on).into_iter().filter(|(_, v)| v.as_bool() == Some(true)).map(|(k, _)| k.clone()).collect()
                 })
             }
         }
@@ -165,11 +148,7 @@ impl PluginRoad {
             PluginRoad::Claude => {
                 let parsed: Value = serde_json::from_str(text).ok()?;
                 let at = parsed.get(marketplace)?.get("source")?;
-                let value = if at.get("source").and_then(Value::as_str) == Some("github") {
-                    at.get("repo")
-                } else {
-                    at.get("url")
-                };
+                let value = if at.get("source").and_then(Value::as_str) == Some("github") { at.get("repo") } else { at.get("url") };
                 value?.as_str().map(String::from)
             }
         }
@@ -204,14 +183,8 @@ impl PluginRoad {
     pub fn install(self, plugin: &str, source: &str) -> String {
         match self {
             PluginRoad::Claude => [
-                format!(
-                    "claude plugin marketplace add {} || true",
-                    shell_quote(source)
-                ),
-                format!(
-                    "claude plugin install {} --json </dev/null",
-                    shell_quote(plugin)
-                ),
+                format!("claude plugin marketplace add {} || true", shell_quote(source)),
+                format!("claude plugin install {} --json </dev/null", shell_quote(plugin)),
             ]
             .join("\n"),
         }
@@ -260,10 +233,7 @@ impl PluginRoad {
                 let Ok(parsed) = serde_json::from_str::<Value>(text) else {
                     return text.to_string();
                 };
-                let Some(known) = parsed
-                    .get("extraKnownMarketplaces")
-                    .and_then(Value::as_object)
-                else {
+                let Some(known) = parsed.get("extraKnownMarketplaces").and_then(Value::as_object) else {
                     return text.to_string();
                 };
                 let on = self.enabled(text);
@@ -277,15 +247,7 @@ impl PluginRoad {
                 }
                 let edits: Vec<JsonEdit> = unused
                     .iter()
-                    .map(|m| {
-                        (
-                            vec![
-                                PathSeg::Key("extraKnownMarketplaces".to_string()),
-                                PathSeg::Key(m.clone()),
-                            ],
-                            None,
-                        )
-                    })
+                    .map(|m| (vec![PathSeg::Key("extraKnownMarketplaces".to_string()), PathSeg::Key(m.clone())], None))
                     .collect();
                 edit_json(text, &edits).unwrap_or_else(|_| text.to_string())
             }
@@ -326,8 +288,7 @@ impl PluginSeed {
     /// reading each marketplace's file once (skills.ts:177).
     pub async fn links(self, read: &impl SeedReader) -> Vec<(String, String)> {
         let index_text = read.read("installed_plugins.json").await;
-        let Some(index) = json_of(index_text.as_deref()).and_then(|v| v.get("plugins").cloned())
-        else {
+        let Some(index) = json_of(index_text.as_deref()).and_then(|v| v.get("plugins").cloned()) else {
             return vec![];
         };
         let Some(index) = index.as_object() else {
@@ -339,29 +300,20 @@ impl PluginSeed {
             let Some(at) = id.rfind('@').filter(|&at| at > 0) else {
                 continue;
             };
-            let Some(install_path) = records
-                .as_array()
-                .and_then(|r| r.first())
-                .and_then(|r| r.get("installPath"))
-                .and_then(Value::as_str)
+            let Some(install_path) = records.as_array().and_then(|r| r.first()).and_then(|r| r.get("installPath")).and_then(Value::as_str)
             else {
                 continue;
             };
             let (name, marketplace) = (&id[..at], &id[at + 1..]);
             if !manifests.contains_key(marketplace) {
-                let text = read
-                    .read(&format!(
-                        "marketplaces/{marketplace}/.claude-plugin/marketplace.json"
-                    ))
-                    .await;
+                let text = read.read(&format!("marketplaces/{marketplace}/.claude-plugin/marketplace.json")).await;
                 manifests.insert(marketplace.to_string(), text);
             }
-            let listed = json_of(manifests.get(marketplace).and_then(|t| t.as_deref()))
-                .and_then(|m| m.get("plugins").cloned());
-            let entry = listed.as_ref().and_then(Value::as_array).and_then(|ps| {
-                ps.iter()
-                    .find(|p| p.get("name").and_then(Value::as_str) == Some(name))
-            });
+            let listed = json_of(manifests.get(marketplace).and_then(|t| t.as_deref())).and_then(|m| m.get("plugins").cloned());
+            let entry = listed
+                .as_ref()
+                .and_then(Value::as_array)
+                .and_then(|ps| ps.iter().find(|p| p.get("name").and_then(Value::as_str) == Some(name)));
             let sha: Option<String> = entry
                 .and_then(|e| e.get("source"))
                 .and_then(|s| s.get("sha"))
@@ -369,10 +321,7 @@ impl PluginSeed {
                 .map(|s| s.chars().take(12).collect());
             let folder = install_path.rsplit('/').next().unwrap_or("");
             if let Some(sha) = sha.filter(|s| is_twelve_hex(s) && s != folder) {
-                out.push((
-                    format!("cache/{marketplace}/{name}/{sha}"),
-                    folder.to_string(),
-                ));
+                out.push((format!("cache/{marketplace}/{name}/{sha}"), folder.to_string()));
             }
         }
         out
@@ -382,11 +331,7 @@ impl PluginSeed {
 /// Where an install puts a skill for one agent, a project's with `project`: nothing where the agent reads the shared
 /// folder already, else its own folder with how that folder takes a skill (skills.ts:218).
 pub fn own_skill_folder(roots: &SkillRoots, project: bool) -> Option<SkillRoot> {
-    let (folders, shared) = if project {
-        (&roots.project, PROJECT_SHARED_SKILLS)
-    } else {
-        (&roots.user, SHARED_SKILLS)
-    };
+    let (folders, shared) = if project { (&roots.project, PROJECT_SHARED_SKILLS) } else { (&roots.user, SHARED_SKILLS) };
     if folders.iter().any(|r| r.dir == shared) {
         return None;
     }

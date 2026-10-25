@@ -25,5 +25,10 @@ pub fn s(v: &Value) -> &str {
 /// Compares and names the case in the failure, since one test walks many cases.
 #[track_caller]
 pub fn same(case: &str, got: Value, want: &Value) {
-    assert!(&got == want, "{case}\n got: {}\nwant: {}", serde_json::to_string_pretty(&got).unwrap(), serde_json::to_string_pretty(want).unwrap());
+    assert!(
+        &got == want,
+        "{case}\n got: {}\nwant: {}",
+        serde_json::to_string_pretty(&got).unwrap(),
+        serde_json::to_string_pretty(want).unwrap()
+    );
 }

@@ -6,9 +6,9 @@ use serde_json::{Map, Value};
 
 use crate::jsonc::{is_js_space, js_string, js_stringify, js_stringify_pretty, json_object, read_jsonc};
 use crate::jsonc_tree::{comments_of, find_member, find_node_at_location, parse_tree, Comment, JsonPath, Node, NodeType, PathSeg};
+use wsp_words::exit::HostError;
 use wsp_words::js::js_trim;
 use wsp_words::js::utf16;
-use wsp_words::exit::HostError;
 
 /// One change: the value at the path set, or taken out where it is `None` (mcp.ts:486). A last step of `Index(-1)`
 /// puts the value after an array's last element.
@@ -91,7 +91,7 @@ pub fn edit_once(text: &str, edit: &JsonEdit) -> Result<String, HostError> {
             let (container, index) = find_member(&doc, path).ok_or_else(not_in_place)?;
             let (mut cuts, span) = member_cuts(text, &container.children, index, &comments);
             own = span;
-            cuts.sort_by(|x, y| y.0.cmp(&x.0));
+            cuts.sort_by_key(|cut| std::cmp::Reverse(cut.0));
             let mut out = text.to_string();
             for (from, to) in cuts {
                 out.replace_range(from..to, "");

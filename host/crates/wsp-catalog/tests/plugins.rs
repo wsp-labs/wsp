@@ -11,12 +11,14 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use wsp_catalog::catalog::catalog_entry;
-use wsp_words::agents_report::config_changed_refusal;
-use wsp_words::exit::HostError;
+use wsp_catalog::plugins::{
+    in_store, join_path, plain_values, FoundPlugin, PeekGroup, Peeked, PluginIo, PluginProject, PluginShelf, PluginSkillDirs, PluginsFound,
+};
 use wsp_wire::types::agents_report::PluginBrings;
 use wsp_wire::types::agents_report::PluginMissing;
 use wsp_wire::types::agents_report::PluginScope;
-use wsp_catalog::plugins::{in_store, join_path, plain_values, FoundPlugin, PeekGroup, Peeked, PluginIo, PluginProject, PluginShelf, PluginSkillDirs, PluginsFound};
+use wsp_words::agents_report::config_changed_refusal;
+use wsp_words::exit::HostError;
 
 #[derive(Deserialize)]
 
@@ -154,7 +156,9 @@ impl PluginIo for FilesIo {
         let mut looked = HashSet::new();
         for g in groups {
             let from = match &g.roots_from {
-                Some(rf) => unique(rf.files.iter().flat_map(|f| plain_values(self.files.get(f).map(String::as_str).unwrap_or(""), &rf.key))),
+                Some(rf) => {
+                    unique(rf.files.iter().flat_map(|f| plain_values(self.files.get(f).map(String::as_str).unwrap_or(""), &rf.key)))
+                }
                 None => vec![],
             };
             let roots: Vec<String> = g.roots.iter().flatten().cloned().chain(from).collect();
@@ -231,7 +235,15 @@ fn named<'a>(read: &'a PluginsFound, name: &str) -> &'a FoundPlugin {
     read.plugins.iter().find(|r| r.name == name).unwrap_or_else(|| panic!("no plugin named {name}"))
 }
 
-fn brings(skills: &[&str], commands: &[&str], subagents: &[&str], hooks: &[&str], servers: &[&str], lsp: &[&str], apps: &[&str]) -> PluginBrings {
+fn brings(
+    skills: &[&str],
+    commands: &[&str],
+    subagents: &[&str],
+    hooks: &[&str],
+    servers: &[&str],
+    lsp: &[&str],
+    apps: &[&str],
+) -> PluginBrings {
     PluginBrings {
         skills: strings(skills),
         commands: strings(commands),
@@ -284,7 +296,14 @@ mod claude_codes_plugins_off_its_files {
         let on: Vec<&FoundPlugin> = read.plugins.iter().filter(|r| r.on).collect();
         assert_eq!(
             ids(&on),
-            strings(&["brag@brag", "code-simplifier@claude-plugins-official", "no-claude-coauthor@acme", "rust-analyzer-lsp@claude-plugins-official", "skill-creator@claude-plugins-official", "vercel@claude-plugins-official"])
+            strings(&[
+                "brag@brag",
+                "code-simplifier@claude-plugins-official",
+                "no-claude-coauthor@acme",
+                "rust-analyzer-lsp@claude-plugins-official",
+                "skill-creator@claude-plugins-official",
+                "vercel@claude-plugins-official"
+            ])
         );
         assert!(!read.plugins.iter().any(|r| r.id == "code-review@claude-plugins-official"));
         assert_eq!(read.refused, Vec::<String>::new());
@@ -309,12 +328,20 @@ mod claude_codes_plugins_off_its_files {
         assert_eq!(ids(&standing), sorted(loaded.iter().map(|p| p.source.clone()).collect()));
         for p in &loaded {
             let row = read.plugins.iter().find(|r| r.id == p.source).unwrap();
-            let own = |names: &[String]| -> Vec<String> { sorted(names.iter().filter(|n| n.starts_with(&format!("{}:", p.name))).cloned().collect()) };
+            let own = |names: &[String]| -> Vec<String> {
+                sorted(names.iter().filter(|n| n.starts_with(&format!("{}:", p.name))).cloned().collect())
+            };
             assert_eq!(row.brings.skills, own(&fx.init.skills), "{}", p.name);
             assert_eq!(row.brings.subagents, own(&fx.init.agents), "{}", p.name);
             let got: Vec<String> = sorted(unique(row.brings.skills.iter().chain(row.brings.commands.iter()).cloned()));
             assert_eq!(got, sorted(unique(own(&fx.init.slash_commands))), "{}", p.name);
-            let servers: Vec<String> = fx.init.mcp_servers.iter().filter(|s| s.source == "plugin" && s.name.starts_with(&format!("plugin:{}:", p.name))).map(|s| s.name.clone()).collect();
+            let servers: Vec<String> = fx
+                .init
+                .mcp_servers
+                .iter()
+                .filter(|s| s.source == "plugin" && s.name.starts_with(&format!("plugin:{}:", p.name)))
+                .map(|s| s.name.clone())
+                .collect();
             assert_eq!(row.brings.servers, sorted(servers), "{}", p.name);
             assert_eq!(row.path.as_deref(), Some(p.path.as_str()));
         }
@@ -326,7 +353,10 @@ mod claude_codes_plugins_off_its_files {
         assert_eq!(vercel.brings.servers, strings(&["plugin:vercel:vercel"]));
         assert_eq!(vercel.source.as_deref(), Some("anthropics/claude-plugins-official"));
         assert_eq!(vercel.description.as_deref(), Some("Build and deploy web apps and agents"));
-        assert_eq!(named(&read, "brag").skills, Some(PluginSkillDirs { dirs: strings(&["/x/claude/plugins/cache/brag/brag/0.4.0/skills"]), prefix: "brag".into() }));
+        assert_eq!(
+            named(&read, "brag").skills,
+            Some(PluginSkillDirs { dirs: strings(&["/x/claude/plugins/cache/brag/brag/0.4.0/skills"]), prefix: "brag".into() })
+        );
         assert_eq!(named(&read, "no-claude-coauthor").brings.hooks, strings(&["PreToolUse"]));
     }
 
@@ -361,7 +391,10 @@ mod claude_codes_plugins_off_its_files {
         assert!(!shared.on);
         assert_eq!(shared.set_in.as_deref(), Some("/x/lab/.claude/settings.json"));
         assert_eq!(shared.missing, Some(PluginMissing::Folder));
-        files.insert("/x/lab/.claude/settings.local.json".into(), json!({ "enabledPlugins": { "posthog-lab@lab-local": true } }).to_string());
+        files.insert(
+            "/x/lab/.claude/settings.local.json".into(),
+            json!({ "enabledPlugins": { "posthog-lab@lab-local": true } }).to_string(),
+        );
         let found = read(PluginShelf::Claude, &files_io(files, Some("/x/claude")), std::slice::from_ref(&project));
         let local = found.plugins.iter().find(|r| r.scope == PluginScope::Local).unwrap();
         assert!(local.on);
@@ -372,7 +405,10 @@ mod claude_codes_plugins_off_its_files {
     fn falls_back_to_the_plugins_defaultenabled_where_no_settings_file_names_it() {
         let mut files = claude().files;
         files.insert("/x/claude/settings.json".into(), "{}".into());
-        files.insert("/x/claude/plugins/cache/brag/brag/0.4.0/.claude-plugin/plugin.json".into(), json!({ "name": "brag", "defaultEnabled": false }).to_string());
+        files.insert(
+            "/x/claude/plugins/cache/brag/brag/0.4.0/.claude-plugin/plugin.json".into(),
+            json!({ "name": "brag", "defaultEnabled": false }).to_string(),
+        );
         let read = read(PluginShelf::Claude, &files_io(files, Some("/x/claude")), &[]);
         assert!(!named(&read, "brag").on);
         assert!(named(&read, "vercel").on);
@@ -380,7 +416,8 @@ mod claude_codes_plugins_off_its_files {
 
     #[test]
     fn reads_under_the_home_where_no_store_is_named() {
-        let home: IndexMap<String, String> = claude().files.into_iter().map(|(path, text)| (path.replacen("/x/claude/", "/x/.claude/", 1), text)).collect();
+        let home: IndexMap<String, String> =
+            claude().files.into_iter().map(|(path, text)| (path.replacen("/x/claude/", "/x/.claude/", 1), text)).collect();
         let read = read(PluginShelf::Claude, &files_io(home, None), &[]);
         assert_eq!(read.plugins.len(), 13);
         let state_home = catalog_entry("claude").unwrap().as_agent().unwrap().state_home.clone();
@@ -396,10 +433,16 @@ mod claude_codes_plugins_off_its_files {
         assert_eq!(block_on(PluginShelf::Claude.turn(&io, &row, false, &no_read())), None);
         {
             let edits = io.edits.lock().unwrap();
-            assert_eq!(edits.iter().map(|e| (e.file.as_str(), e.base.as_str())).collect::<Vec<_>>(), vec![("/x/claude/settings.json", "/x")]);
+            assert_eq!(
+                edits.iter().map(|e| (e.file.as_str(), e.base.as_str())).collect::<Vec<_>>(),
+                vec![("/x/claude/settings.json", "/x")]
+            );
         }
         let text = io.text.lock().unwrap().clone().unwrap_or_default();
-        assert_eq!(serde_json::from_str::<Value>(&text).unwrap(), json!({ "model": "opus", "enabledPlugins": { "brag@brag": false, "vercel@claude-plugins-official": true } }));
+        assert_eq!(
+            serde_json::from_str::<Value>(&text).unwrap(),
+            json!({ "model": "opus", "enabledPlugins": { "brag@brag": false, "vercel@claude-plugins-official": true } })
+        );
         // Already off is done: the same text again.
         let before = io.text.lock().unwrap().clone();
         block_on(PluginShelf::Claude.turn(&io, &row, false, &no_read()));
@@ -470,10 +513,17 @@ fn codex_io(o: CodexOpts) -> FilesIo {
                     }
                     ("result", Some(list))
                 }
-                "plugin/list" if o.old => ("error", Some(json!({ "code": -32600, "message": "Invalid request: unknown variant `plugin/list`, expected one of `initialize`, `thread/start`" }))),
+                "plugin/list" if o.old => (
+                    "error",
+                    Some(
+                        json!({ "code": -32600, "message": "Invalid request: unknown variant `plugin/list`, expected one of `initialize`, `thread/start`" }),
+                    ),
+                ),
                 "plugin/list" => ("result", Some(fx.plugin_list.clone())),
                 "config/read" => ("result", Some(fx.config_read.clone())),
-                "plugin/read" => ("result", fx.plugin_read.values().find(|r| r["plugin"]["summary"]["name"] == params["pluginName"]).cloned()),
+                "plugin/read" => {
+                    ("result", fx.plugin_read.values().find(|r| r["plugin"]["summary"]["name"] == params["pluginName"]).cloned())
+                }
                 "config/value/write" if o.stale => ("error", Some(fx.write_stale.clone())),
                 "config/value/write" => ("result", Some(fx.write_ok.clone())),
                 _ => ("error", Some(json!({ "message": "unknown" }))),
@@ -510,7 +560,8 @@ mod codexs_plugins_through_its_app_server {
         assert_eq!(brag.missing, None);
         assert_eq!(brag.brings, brings(&["brag:brag", "brag:brag-slim"], &[], &[], &[], &[], &[], &[]));
         assert_eq!(read.plugins.iter().find(|r| r.id == "no-claude-coauthor@acme").unwrap().brings.hooks, strings(&["preToolUse"]));
-        let paths: Vec<Value> = sent_of(&io).into_iter().filter(|(m, _)| m == "plugin/read").map(|(_, p)| p["marketplacePath"].clone()).collect();
+        let paths: Vec<Value> =
+            sent_of(&io).into_iter().filter(|(m, _)| m == "plugin/read").map(|(_, p)| p["marketplacePath"].clone()).collect();
         assert_eq!(paths, vec![json!("/x/mk/brag/.claude-plugin/marketplace.json"), json!("/x/mk/acme/.claude-plugin/marketplace.json")]);
         assert!(read.version.unwrap().starts_with("sha256:"));
     }
@@ -518,7 +569,8 @@ mod codexs_plugins_through_its_app_server {
     #[test]
     fn reads_the_six_codex_app_plugins_config_toml_names_and_plugin_list_does_not_retur() {
         let read = read(PluginShelf::Codex, &codex_io(CodexOpts::default()), &[]);
-        let missing: Vec<(String, bool, Option<PluginMissing>)> = read.plugins.iter().filter(|r| r.missing.is_some()).map(|r| (r.id.clone(), r.on, r.missing)).collect();
+        let missing: Vec<(String, bool, Option<PluginMissing>)> =
+            read.plugins.iter().filter(|r| r.missing.is_some()).map(|r| (r.id.clone(), r.on, r.missing)).collect();
         let m = Some(PluginMissing::Marketplace);
         assert_eq!(
             missing,
@@ -552,7 +604,12 @@ mod codexs_plugins_through_its_app_server {
     fn says_codexs_plugins_were_not_read_where_its_app_server_did_not_answer_and_nothin() {
         assert_eq!(
             read(PluginShelf::Codex, &codex_io(CodexOpts { dead: true, ..CodexOpts::default() }), &[]),
-            PluginsFound { plugins: vec![], refused: strings(&["plugins: Codex's app server did not answer, so Codex's plugins were not read"]), version: None, file: None }
+            PluginsFound {
+                plugins: vec![],
+                refused: strings(&["plugins: Codex's app server did not answer, so Codex's plugins were not read"]),
+                version: None,
+                file: None
+            }
         );
         assert_eq!(read(PluginShelf::Codex, &codex_io(CodexOpts { none: true, ..CodexOpts::default() }), &[]), no_read());
         // A Codex older than its plugins answers plugin/list as a method it does not know, the way 0.162.1 answers any such.
@@ -566,9 +623,18 @@ mod codexs_plugins_through_its_app_server {
         let brag = read.plugins.iter().find(|r| r.id == "brag@brag").unwrap();
         assert_eq!(block_on(PluginShelf::Codex.turn(&io, brag, false, &read)), None);
         let last = sent_of(&io).pop().unwrap();
-        assert_eq!(last, ("config/value/write".to_string(), json!({ "keyPath": "plugins.brag@brag.enabled", "value": false, "mergeStrategy": "upsert", "expectedVersion": read.version })));
+        assert_eq!(
+            last,
+            (
+                "config/value/write".to_string(),
+                json!({ "keyPath": "plugins.brag@brag.enabled", "value": false, "mergeStrategy": "upsert", "expectedVersion": read.version })
+            )
+        );
         let stale = codex_io(CodexOpts { stale: true, ..CodexOpts::default() });
-        assert_eq!(block_on(PluginShelf::Codex.turn(&stale, brag, true, &read)), Some(config_changed_refusal(read.file.as_deref().unwrap())));
+        assert_eq!(
+            block_on(PluginShelf::Codex.turn(&stale, brag, true, &read)),
+            Some(config_changed_refusal(read.file.as_deref().unwrap()))
+        );
     }
 }
 
@@ -610,7 +676,10 @@ mod the_whole_read_is_the_ts_read {
     #[test]
     fn codexs_read_is_every_ts_row_with_its_config_version_and_file() {
         same(&read(PluginShelf::Codex, &codex_io(CodexOpts::default()), &[]), "codex");
-        same(&read(PluginShelf::Codex, &codex_io(CodexOpts { uninstalled: Some("brag@brag"), ..CodexOpts::default() }), &[]), "codexUninstalled");
+        same(
+            &read(PluginShelf::Codex, &codex_io(CodexOpts { uninstalled: Some("brag@brag"), ..CodexOpts::default() }), &[]),
+            "codexUninstalled",
+        );
     }
 }
 
@@ -627,7 +696,15 @@ fn brag_row(found: &FoundPlugin) -> wsp_wire::types::agents_report::PluginRow {
         missing: found.missing,
         description: None,
         source: found.source.clone(),
-        brings: PluginBrings { skills: none(), commands: none(), subagents: none(), hooks: none(), servers: none(), lsp: none(), apps: none() },
+        brings: PluginBrings {
+            skills: none(),
+            commands: none(),
+            subagents: none(),
+            hooks: none(),
+            servers: none(),
+            lsp: none(),
+            apps: none(),
+        },
         project: None,
         path: None,
         set_in: None,

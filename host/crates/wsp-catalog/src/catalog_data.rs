@@ -6,9 +6,8 @@ use indexmap::IndexMap;
 
 use crate::bwrap_apparmor::BWRAP_APPARMOR;
 use crate::catalog::{
-    AgentAbout, AgentEntry, AgentMark, AptNeed, Brings, EntryKind, Evidence, HistoryFormat, Ink,
-    LatestSource, Major, ProjectState, RoadEvidence, SessionHistory, Size, SizeMethod, StateStatus,
-    ToolEntry, ToolHook, UsageLog,
+    AgentAbout, AgentEntry, AgentMark, AptNeed, Brings, EntryKind, Evidence, HistoryFormat, Ink, LatestSource, Major, ProjectState,
+    RoadEvidence, SessionHistory, Size, SizeMethod, StateStatus, ToolEntry, ToolHook, UsageLog,
 };
 use crate::context::AgentContext;
 use crate::hooks::HookCarry;
@@ -22,9 +21,8 @@ use crate::plugins::PluginShelf;
 use crate::release_pins::pinned_release;
 use crate::road_modules::{APT_BIN, APT_INDEX, CARGO_BIN};
 use crate::roads::{
-    node_install_script, node_release, InstallRoad, PackageRoad, RoadName, CLAUDE_CODE,
-    CLAUDE_INSTALL, DOCKER_INSTALL, FD_INSTALL, HERMES, HERMES_INSTALL, LOCAL_BIN, OP_INSTALL,
-    PLAYWRIGHT_INSTALL, PLAYWRIGHT_VERSION, PYTHON_INSTALL, RUSTUP_INSTALL, SWIFT, SWIFT_INSTALL,
+    node_install_script, node_release, InstallRoad, PackageRoad, RoadName, CLAUDE_CODE, CLAUDE_INSTALL, DOCKER_INSTALL, FD_INSTALL, HERMES,
+    HERMES_INSTALL, LOCAL_BIN, OP_INSTALL, PLAYWRIGHT_INSTALL, PLAYWRIGHT_VERSION, PYTHON_INSTALL, RUSTUP_INSTALL, SWIFT, SWIFT_INSTALL,
     UV_INSTALL, YARN_INSTALL,
 };
 use crate::signin::no_sign_in;
@@ -38,18 +36,12 @@ pub const SET_UP_WSP: &str = "set up wsp for me";
 
 /// `mib` MiB as df read them on 2026-09-05 (agents/entry.ts:13).
 pub fn df_size(mib: u64) -> Size {
-    Size::Measured {
-        bytes: mib * crate::roads::MIB,
-        on: "2026-09-05".into(),
-        method: SizeMethod::Df,
-    }
+    Size::Measured { bytes: mib * crate::roads::MIB, on: "2026-09-05".into(), method: SizeMethod::Df }
 }
 
 /// agents/entry.ts:20.
 pub fn not_measured() -> Size {
-    Size::Unmeasured {
-        unmeasured: "no machine has installed it yet, so nothing read its bytes".into(),
-    }
+    Size::Unmeasured { unmeasured: "no machine has installed it yet, so nothing read its bytes".into() }
 }
 
 fn pinned(repo: &str, go: Option<&str>) -> InstallRoad {
@@ -62,19 +54,7 @@ fn node_22_script() -> String {
 
 /// claude, codex, gemini, opencode, pi, hermes, crush, qwen, goose, amp, cursor (agents/index.ts:46).
 pub fn agent_modules() -> Vec<AgentEntry> {
-    vec![
-        claude(),
-        codex(),
-        gemini(),
-        opencode(),
-        pi(),
-        hermes(),
-        crush(),
-        qwen(),
-        goose(),
-        amp(),
-        cursor(),
-    ]
+    vec![claude(), codex(), gemini(), opencode(), pi(), hermes(), crush(), qwen(), goose(), amp(), cursor()]
 }
 
 /// The tool rows in catalog order, curl first (catalog.ts:239).
@@ -328,11 +308,7 @@ fn opencode() -> AgentEntry {
         kind: EntryKind::Agent,
         bin: "opencode".into(),
         install_road: InstallRoad::Npm {
-            package: PackageRoad {
-                package: "opencode-ai".into(),
-                version: Some("1.18.27".into()),
-                pin: None,
-            },
+            package: PackageRoad { package: "opencode-ai".into(), version: Some("1.18.27".into()), pin: None },
             ignore_scripts: None,
         },
         node: None,
@@ -349,12 +325,7 @@ fn opencode() -> AgentEntry {
             "~/.config/opencode/themes".into(),
         ],
         volatile: None,
-        source: Evidence {
-            sessions: 0,
-            images: 0,
-            road: RoadEvidence::Measured,
-            note: None,
-        },
+        source: Evidence { sessions: 0, images: 0, road: RoadEvidence::Measured, note: None },
         size: df_size(673),
         about: AgentAbout {
             creator: "Anomaly".into(),
@@ -364,16 +335,12 @@ fn opencode() -> AgentEntry {
             license: "MIT".into(),
         },
         mark: Some(AgentMark {
-            svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M22 24H2V0h20zM17 4.8H7v14.4h10z\"/></svg>"
-                .into(),
+            svg: "<svg viewBox=\"0 0 24 24\"><path d=\"M22 24H2V0h20zM17 4.8H7v14.4h10z\"/></svg>".into(),
             inks: None,
-            source: "https://github.com/simple-icons/simple-icons/blob/develop/icons/opencode.svg"
-                .into(),
+            source: "https://github.com/simple-icons/simple-icons/blob/develop/icons/opencode.svg".into(),
             license: "CC0-1.0".into(),
         }),
-        latest: Some(LatestSource::Npm {
-            package: "opencode-ai".into(),
-        }),
+        latest: Some(LatestSource::Npm { package: "opencode-ai".into() }),
         update_line: Some("opencode upgrade".into()),
         state_home: ".local/share/opencode".into(),
         guest_state_home: None,
@@ -408,16 +375,10 @@ fn opencode() -> AgentEntry {
         history: None,
         prints_limits: None,
         plan_brand: None,
-        usage_log: Some(UsageLog {
-            format: "opencode-sqlite".into(),
-            root: "~/.local/share/opencode/opencode.db".into(),
-        }),
+        usage_log: Some(UsageLog { format: "opencode-sqlite".into(), root: "~/.local/share/opencode/opencode.db".into() }),
         mcp: Some(McpConfig {
             format: McpFormat::OpencodeJson,
-            files: vec![
-                "~/.config/opencode/opencode.json".into(),
-                "~/.config/opencode/opencode.jsonc".into(),
-            ],
+            files: vec!["~/.config/opencode/opencode.json".into(), "~/.config/opencode/opencode.jsonc".into()],
             project_files: Some(vec!["opencode.json".into(), "opencode.jsonc".into()]),
             scope: "user scope".into(),
             http_auth: None,
@@ -431,32 +392,14 @@ fn opencode() -> AgentEntry {
         hooks: None,
         skill_roots: SkillRoots {
             user: vec![
-                SkillRoot {
-                    dir: "~/.config/opencode/skills".into(),
-                    lands: Lands::Copy,
-                },
-                SkillRoot {
-                    dir: "~/.claude/skills".into(),
-                    lands: Lands::Link,
-                },
-                SkillRoot {
-                    dir: "~/.agents/skills".into(),
-                    lands: Lands::Copy,
-                },
+                SkillRoot { dir: "~/.config/opencode/skills".into(), lands: Lands::Copy },
+                SkillRoot { dir: "~/.claude/skills".into(), lands: Lands::Link },
+                SkillRoot { dir: "~/.agents/skills".into(), lands: Lands::Copy },
             ],
             project: vec![
-                SkillRoot {
-                    dir: ".opencode/skills".into(),
-                    lands: Lands::Copy,
-                },
-                SkillRoot {
-                    dir: ".claude/skills".into(),
-                    lands: Lands::Link,
-                },
-                SkillRoot {
-                    dir: ".agents/skills".into(),
-                    lands: Lands::Copy,
-                },
+                SkillRoot { dir: ".opencode/skills".into(), lands: Lands::Copy },
+                SkillRoot { dir: ".claude/skills".into(), lands: Lands::Link },
+                SkillRoot { dir: ".agents/skills".into(), lands: Lands::Copy },
             ],
         },
         plugin_skills: None,

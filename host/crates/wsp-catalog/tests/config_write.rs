@@ -35,7 +35,8 @@ struct Written {
 
 fn write(file: &Path, base: &Path, sum: Option<String>, from: Option<&Path>, text: &str) -> Written {
     let line = config_write_line(&ConfigWrite { file: s(file), base: s(base), sum, bytes: text.len() as u64, from: from.map(s) });
-    let mut child = Command::new("/bin/sh").args(["-c", &line]).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+    let mut child =
+        Command::new("/bin/sh").args(["-c", &line]).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
     let mut stdin = child.stdin.take().unwrap();
     if from.is_none() {
         stdin.write_all(text.as_bytes()).unwrap();
@@ -46,8 +47,11 @@ fn write(file: &Path, base: &Path, sum: Option<String>, from: Option<&Path>, tex
 }
 
 fn temps(dir: &Path) -> Vec<String> {
-    let mut names: Vec<String> =
-        fs::read_dir(dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().to_string()).filter(|n| n.starts_with(".wsp-config-")).collect();
+    let mut names: Vec<String> = fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+        .filter(|n| n.starts_with(".wsp-config-"))
+        .collect();
     names.sort();
     names
 }
@@ -74,7 +78,7 @@ mod config_sum {
             let feeder = std::thread::spawn(move || stdin.write_all(&fed).unwrap());
             let out = child.wait_with_output().unwrap();
             feeder.join().unwrap();
-            let said = String::from_utf8(out.stdout).unwrap().trim().split_whitespace().collect::<Vec<_>>().join(" ");
+            let said = String::from_utf8(out.stdout).unwrap().split_whitespace().collect::<Vec<_>>().join(" ");
             let shown: String = text.chars().take(10).collect();
             assert_eq!(config_sum(bytes), said, "{shown:?}");
         }
@@ -92,7 +96,13 @@ mod under_base {
             String::from_utf8(out.stdout).unwrap().trim().to_string()
         };
         assert_eq!(
-            vec![at("/.mcp.json", "/"), at("/root/a.json", "/"), at("/root/a.json", "/root"), at("/rootx/a.json", "/root"), at("/root", "/root")],
+            vec![
+                at("/.mcp.json", "/"),
+                at("/root/a.json", "/"),
+                at("/root/a.json", "/root"),
+                at("/rootx/a.json", "/root"),
+                at("/root", "/root")
+            ],
             vec!["in", "in", "in", "out", "in"]
         );
     }
@@ -137,7 +147,11 @@ mod config_write_line {
         assert_eq!(res.status, Some(CONFIG_LINK_EXIT));
         assert_eq!(
             config_refusal(res.status.unwrap(), &res.stdout, &s(&linked), &|p| p.to_string()),
-            Some(format!("{} is a link to {}, outside the folder it belongs to, so wsp does not write through it.", s(&linked), s(&out.join("x.json"))))
+            Some(format!(
+                "{} is a link to {}, outside the folder it belongs to, so wsp does not write through it.",
+                s(&linked),
+                s(&out.join("x.json"))
+            ))
         );
         assert_eq!(fs::read_to_string(out.join("x.json")).unwrap(), "{}\n");
     }
@@ -150,7 +164,10 @@ mod config_write_line {
         fs::hard_link(&file, h.join("twin.json")).unwrap();
         let res = write(&file, &h, Some(sum_of(&file)), None, "{ \"mcp\": {} }\n");
         assert_eq!(res.status, Some(CONFIG_LINKS_EXIT));
-        assert_eq!(config_refusal(res.status.unwrap(), &res.stdout, &s(&file), &|_| "~/opencode.json".to_string()), Some(config_hard_link_refusal("~/opencode.json")));
+        assert_eq!(
+            config_refusal(res.status.unwrap(), &res.stdout, &s(&file), &|_| "~/opencode.json".to_string()),
+            Some(config_hard_link_refusal("~/opencode.json"))
+        );
         assert!(config_hard_link_refusal("~/opencode.json").contains("find / -xdev -samefile ~/opencode.json"));
         assert_eq!(fs::read_to_string(&file).unwrap(), "{}\n");
         assert_eq!(fs::read_to_string(h.join("twin.json")).unwrap(), "{}\n");
@@ -193,8 +210,16 @@ mod config_write_line {
         let old = format!("{}\n", serde_json::json!({ "keep": "x".repeat(1000) }));
         fs::write(&file, &old).unwrap();
         let next = format!("{}\n", serde_json::json!({ "next": "y".repeat(200_000) })).into_bytes();
-        let line = config_write_line(&ConfigWrite { file: s(&file), base: s(&h), sum: Some(sum_of(&file)), bytes: next.len() as u64, from: None });
-        let mut child = Command::new("/bin/sh").args(["-c", &line]).process_group(0).stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().unwrap();
+        let line =
+            config_write_line(&ConfigWrite { file: s(&file), base: s(&h), sum: Some(sum_of(&file)), bytes: next.len() as u64, from: None });
+        let mut child = Command::new("/bin/sh")
+            .args(["-c", &line])
+            .process_group(0)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
         let mut stdin = child.stdin.take().unwrap();
         stdin.write_all(&next[..next.len() / 2]).unwrap();
         for _ in 0..200 {
@@ -231,7 +256,12 @@ mod config_write_line {
             ".wsp-config-tmp.0123456789aZ",
             ".wsp-config-tmp.0123456789ab.parts",
         ];
-        let ours = [".wsp-config-tmp.aB3xY9", ".wsp-config-tmp.0123456789ab", ".wsp-config-tmp.0123456789ab.part0", ".wsp-config-tmp.0123456789ab.part12"];
+        let ours = [
+            ".wsp-config-tmp.aB3xY9",
+            ".wsp-config-tmp.0123456789ab",
+            ".wsp-config-tmp.0123456789ab.part0",
+            ".wsp-config-tmp.0123456789ab.part12",
+        ];
         for n in theirs.iter().chain(ours.iter()) {
             fs::write(h.join(n), "kept").unwrap();
             age(&h.join(n), Duration::from_secs(60 * 60));
@@ -254,7 +284,11 @@ mod config_write_line {
         assert_eq!(res.status, Some(CONFIG_LINK_EXIT));
         assert_eq!(
             config_refusal(res.status.unwrap(), &res.stdout, &s(&linked), &|p| p.to_string()),
-            Some(format!("{} is a link to {}, outside the folder it belongs to, so wsp does not write through it.", s(&linked), s(&target)))
+            Some(format!(
+                "{} is a link to {}, outside the folder it belongs to, so wsp does not write through it.",
+                s(&linked),
+                s(&target)
+            ))
         );
     }
 
@@ -264,7 +298,8 @@ mod config_write_line {
         let file = h.join("settings.json");
         fs::write(&file, "old\n").unwrap();
         let line = config_write_line(&ConfigWrite { file: s(&file), base: s(&h), sum: Some(sum_of(&file)), bytes: 100, from: None });
-        let mut child = Command::new("/bin/sh").args(["-c", &line]).stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().unwrap();
+        let mut child =
+            Command::new("/bin/sh").args(["-c", &line]).stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().unwrap();
         let mut stdin = child.stdin.take().unwrap();
         stdin.write_all(b"cut\n").unwrap();
         drop(stdin);

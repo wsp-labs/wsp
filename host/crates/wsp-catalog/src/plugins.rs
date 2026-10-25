@@ -44,31 +44,7 @@ pub trait Peeked {
     fn looked(&self, root: &str) -> bool;
 }
 
-/// The JavaScript `\s` set, for the patterns that read JSON text.
-pub(crate) const WS: &str = "\t\n\u{b}\u{c}\r \u{a0}\u{1680}\u{2000}-\u{200a}\u{2028}\u{2029}\u{202f}\u{205f}\u{3000}\u{feff}";
-
-/// JavaScript's whitespace and line terminators, which `trim()` and `\s` both take.
-pub(crate) fn js_space(c: char) -> bool {
-    matches!(
-        c,
-        '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
-            ..='\u{200a}'
-                | '\u{2028}'
-                | '\u{2029}'
-                | '\u{202f}'
-                | '\u{205f}'
-                | '\u{3000}'
-                | '\u{feff}'
-    )
-}
-
-pub(crate) fn js_trim(s: &str) -> &str {
-    s.trim_matches(js_space)
-}
-
-pub(crate) fn js_trim_start(s: &str) -> &str {
-    s.trim_start_matches(js_space)
-}
+pub(crate) use wsp_words::js::{is_js_whitespace as js_space, js_trim, js_trim_start, JS_WS as WS};
 
 /// The entries of a JSON object in JavaScript's order: whole-number keys first, ascending, then the rest as written.
 pub(crate) fn js_entries(map: &Map<String, Value>) -> Vec<(&String, &Value)> {
@@ -87,26 +63,18 @@ fn array_index(key: &str) -> Option<u32> {
 
 /// Each string of a list, the list's order, sorted in UTF-16 order as JavaScript's `sort()` sorts.
 pub(crate) fn sorted(mut items: Vec<String>) -> Vec<String> {
-    items.sort_by(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
+    items.sort_by(|a, b| wsp_words::js::utf16::cmp(a, b));
     items
 }
 
 /// Each item once, the first place it stands kept.
 pub(crate) fn unique(items: impl IntoIterator<Item = String>) -> Vec<String> {
-    items
-        .into_iter()
-        .collect::<IndexSet<String>>()
-        .into_iter()
-        .collect()
+    items.into_iter().collect::<IndexSet<String>>().into_iter().collect()
 }
 
 /// The plain string values of `"key": "..."` with no escape inside (plugins.ts:294).
 pub fn plain_values(text: &str, key: &str) -> Vec<String> {
-    let pattern = format!(
-        r#""{}"[{WS}]*:[{WS}]*"([^"\\]*)""#,
-        regex::escape(key),
-        WS = WS
-    );
+    let pattern = format!(r#""{}"[{WS}]*:[{WS}]*"([^"\\]*)""#, regex::escape(key), WS = WS);
     let re = Regex::new(&pattern).expect("an escaped key is a valid pattern");
     re.captures_iter(text).map(|c| c[1].to_string()).collect()
 }
@@ -124,12 +92,7 @@ pub trait PluginIo {
     /// Whether this road writes config files; the TS `edit?` being there.
     fn can_edit(&self) -> bool;
     /// The file changed to what `change` makes of it, inside `base`; the write's refusal is the error.
-    async fn edit(
-        &self,
-        file: &str,
-        base: &str,
-        change: &dyn Fn(Option<&str>) -> Result<String, HostError>,
-    ) -> Result<(), HostError>;
+    async fn edit(&self, file: &str, base: &str, change: &dyn Fn(Option<&str>) -> Result<String, HostError>) -> Result<(), HostError>;
 }
 
 /// plugins.ts:314.
@@ -203,13 +166,7 @@ impl PluginShelf {
     }
 
     /// One plugin turned on or off for the login; the sentence where it did not take, `None` where it did.
-    pub async fn turn(
-        self,
-        io: &impl PluginIo,
-        plugin: &FoundPlugin,
-        on: bool,
-        read: &PluginsFound,
-    ) -> Option<String> {
+    pub async fn turn(self, io: &impl PluginIo, plugin: &FoundPlugin, on: bool, read: &PluginsFound) -> Option<String> {
         match self {
             PluginShelf::Claude => turn_claude(io, plugin, on).await,
             PluginShelf::Codex => turn_codex(io, plugin, on, read).await,
@@ -219,15 +176,7 @@ impl PluginShelf {
 
 /// Every list empty (plugins.ts:356).
 pub fn nothing_brought() -> PluginBrings {
-    PluginBrings {
-        skills: vec![],
-        commands: vec![],
-        subagents: vec![],
-        hooks: vec![],
-        servers: vec![],
-        lsp: vec![],
-        apps: vec![],
-    }
+    PluginBrings { skills: vec![], commands: vec![], subagents: vec![], hooks: vec![], servers: vec![], lsp: vec![], apps: vec![] }
 }
 
 /// Split at the last `@`, an `@` at index 0 or none giving the whole id as the name (plugins.ts:359).
@@ -278,11 +227,7 @@ pub fn join_path(parts: &[&str]) -> String {
 
 /// The last part after trailing slashes are taken off (plugins.ts:396).
 pub fn base_name(path: &str) -> String {
-    path.trim_end_matches('/')
-        .rsplit('/')
-        .next()
-        .unwrap_or("")
-        .to_string()
+    path.trim_end_matches('/').rsplit('/').next().unwrap_or("").to_string()
 }
 
 /// Codex's and Claude Code's `enabledPlugins`-free install record, read off installed_plugins.json (plugins-claude.ts:28).
@@ -334,14 +279,10 @@ fn both<'a>(base: &'a dyn Peeked, top: Option<&'a dyn Peeked>) -> Both<'a> {
 
 impl Peeked for Both<'_> {
     fn text(&self, path: &str) -> Option<String> {
-        self.top
-            .and_then(|t| t.text(path))
-            .or_else(|| self.base.text(path))
+        self.top.and_then(|t| t.text(path)).or_else(|| self.base.text(path))
     }
     fn list(&self, dir: &str) -> Option<Vec<String>> {
-        self.top
-            .and_then(|t| t.list(dir))
-            .or_else(|| self.base.list(dir))
+        self.top.and_then(|t| t.list(dir)).or_else(|| self.base.list(dir))
     }
     fn looked(&self, root: &str) -> bool {
         self.top.is_some_and(|t| t.looked(root)) || self.base.looked(root)
@@ -356,12 +297,7 @@ const SETTINGS: &str = "~/.claude/settings.json";
 const PROJECT_SETTINGS: &str = ".claude/settings.json";
 const LOCAL_SETTINGS: &str = ".claude/settings.local.json";
 /// What a plugin's folder holds where Claude Code looks by default (plugins-claude.ts:93).
-const FOLDER_FILES: [&str; 4] = [
-    ".claude-plugin/plugin.json",
-    "hooks/hooks.json",
-    ".mcp.json",
-    ".lsp.json",
-];
+const FOLDER_FILES: [&str; 4] = [".claude-plugin/plugin.json", "hooks/hooks.json", ".mcp.json", ".lsp.json"];
 const MARKETPLACE_FILE: &str = ".claude-plugin/marketplace.json";
 /// A seed folder holds what the config folder's plugins folder does (code.claude.com/docs/en/plugins/org).
 const SEED_INDEX: &str = "installed_plugins.json";
@@ -370,10 +306,7 @@ const SEED_MARKETPLACES: &str = "known_marketplaces.json";
 fn folder_dirs() -> Vec<PeekDir> {
     [(".", 1), ("skills", 2), ("commands", 1), ("agents", 1)]
         .into_iter()
-        .map(|(path, depth)| PeekDir {
-            path: path.to_string(),
-            depth,
-        })
+        .map(|(path, depth)| PeekDir { path: path.to_string(), depth })
         .collect()
 }
 
@@ -385,10 +318,7 @@ fn strings(items: &[&str]) -> Vec<String> {
 fn strings_of(field: Option<&Value>) -> Vec<String> {
     match field {
         Some(Value::String(s)) => vec![s.clone()],
-        Some(Value::Array(items)) => items
-            .iter()
-            .filter_map(|v| v.as_str().map(String::from))
-            .collect(),
+        Some(Value::Array(items)) => items.iter().filter_map(|v| v.as_str().map(String::from)).collect(),
         _ => vec![],
     }
 }
@@ -401,10 +331,7 @@ fn inside(root: &str, path: &str) -> Option<String> {
 
 /// A manifest's paths for one component, inside the plugin (plugins-claude.ts:102).
 fn paths_of(root: &str, field: Option<&Value>) -> Vec<String> {
-    strings_of(field)
-        .iter()
-        .filter_map(|p| inside(root, p))
-        .collect()
+    strings_of(field).iter().filter_map(|p| inside(root, p)).collect()
 }
 
 /// The `.json` files a hooks, servers or language servers field names (plugins-claude.ts:105).
@@ -414,28 +341,16 @@ fn json_files(root: &str, field: Option<&Value>) -> Vec<String> {
         Some(Value::Array(items)) => items.iter().collect(),
         Some(v) => vec![v],
     };
-    items
-        .into_iter()
-        .filter_map(Value::as_str)
-        .filter(|p| p.ends_with(".json"))
-        .filter_map(|p| inside(root, p))
-        .collect()
+    items.into_iter().filter_map(Value::as_str).filter(|p| p.ends_with(".json")).filter_map(|p| inside(root, p)).collect()
 }
 
 fn stem(file: &str) -> String {
     let base = base_name(file);
-    base.strip_suffix(".md")
-        .map_or(base.clone(), str::to_string)
+    base.strip_suffix(".md").map_or(base.clone(), str::to_string)
 }
 
 fn markdown(names: &[String]) -> Vec<String> {
-    sorted(
-        names
-            .iter()
-            .filter(|n| n.ends_with(".md"))
-            .cloned()
-            .collect(),
-    )
+    sorted(names.iter().filter(|n| n.ends_with(".md")).cloned().collect())
 }
 
 /// The folder's listing, nothing where the peek has none.
@@ -445,11 +360,7 @@ fn listing(seen: &dyn Peeked, dir: &str) -> Vec<String> {
 
 fn installs_of(index: Option<&Value>) -> IndexMap<String, Vec<Install>> {
     let mut out: IndexMap<String, Vec<Install>> = IndexMap::new();
-    let Some(plugins) = index
-        .and_then(Value::as_object)
-        .and_then(|o| o.get("plugins"))
-        .and_then(Value::as_object)
-    else {
+    let Some(plugins) = index.and_then(Value::as_object).and_then(|o| o.get("plugins")).and_then(Value::as_object) else {
         return out;
     };
     for (id, records) in js_entries(plugins) {
@@ -460,11 +371,7 @@ fn installs_of(index: Option<&Value>) -> IndexMap<String, Vec<Install>> {
             let Some(r) = record.as_object() else {
                 continue;
             };
-            let Some(install_path) = r
-                .get("installPath")
-                .and_then(Value::as_str)
-                .filter(|p| p.starts_with('/'))
-            else {
+            let Some(install_path) = r.get("installPath").and_then(Value::as_str).filter(|p| p.starts_with('/')) else {
                 continue;
             };
             let scope = match r.get("scope").and_then(Value::as_str) {
@@ -477,10 +384,7 @@ fn installs_of(index: Option<&Value>) -> IndexMap<String, Vec<Install>> {
                 scope,
                 install_path: install_path.trim_end_matches('/').to_string(),
                 version: r.get("version").and_then(Value::as_str).map(String::from),
-                project_path: r
-                    .get("projectPath")
-                    .and_then(Value::as_str)
-                    .map(String::from),
+                project_path: r.get("projectPath").and_then(Value::as_str).map(String::from),
             });
         }
     }
@@ -489,20 +393,12 @@ fn installs_of(index: Option<&Value>) -> IndexMap<String, Vec<Install>> {
 
 /// What a settings file says of a plugin: on, off, or nothing (plugins-claude.ts:51).
 fn switch_in(settings: Option<&Value>, id: &str) -> Option<bool> {
-    settings?
-        .get("enabledPlugins")?
-        .as_object()?
-        .get(id)?
-        .as_bool()
+    settings?.get("enabledPlugins")?.as_object()?.get(id)?.as_bool()
 }
 
 /// Where a marketplace comes from, as known_marketplaces.json says (plugins-claude.ts:57).
 fn source_of(known: &Map<String, Value>, marketplace: &str) -> Option<String> {
-    let source = known
-        .get(marketplace)?
-        .as_object()?
-        .get("source")?
-        .as_object()?;
+    let source = known.get(marketplace)?.as_object()?.get("source")?.as_object()?;
     let value = match source.get("source").and_then(Value::as_str) {
         Some("github") => source.get("repo"),
         Some("directory") => source.get("path"),
@@ -513,10 +409,7 @@ fn source_of(known: &Map<String, Value>, marketplace: &str) -> Option<String> {
 
 /// The manifest Claude Code loads: plugin.json with a marketplace entry's commands, agents and skills appended and its
 /// hooks merged where the entry is not `strict: false`; the entry alone where the plugin has no plugin.json (plugins-claude.ts:79).
-fn effective(
-    manifest: Option<&Map<String, Value>>,
-    entry: Option<&Map<String, Value>>,
-) -> Map<String, Value> {
+fn effective(manifest: Option<&Map<String, Value>>, entry: Option<&Map<String, Value>>) -> Map<String, Value> {
     let Some(manifest) = manifest else {
         return entry.cloned().unwrap_or_default();
     };
@@ -558,13 +451,7 @@ fn effective(
 
 /// The keys of the maps a field names, its default file first: inline maps, and `.json` files holding the map under
 /// `wrap` or bare (plugins-claude.ts:119).
-fn keys_of(
-    root: &str,
-    field: Option<&Value>,
-    file: &str,
-    wrap: &str,
-    seen: &dyn Peeked,
-) -> Vec<String> {
+fn keys_of(root: &str, field: Option<&Value>, file: &str, wrap: &str, seen: &dyn Peeked) -> Vec<String> {
     let parts: Vec<&Value> = match field {
         None => vec![],
         Some(Value::Array(items)) => items.iter().collect(),
@@ -577,19 +464,11 @@ fn keys_of(
         .filter_map(|p| {
             let json = json_of(seen.text(p).as_deref())?;
             let obj = json.as_object()?;
-            Some(
-                obj.get(wrap)
-                    .and_then(Value::as_object)
-                    .unwrap_or(obj)
-                    .clone(),
-            )
+            Some(obj.get(wrap).and_then(Value::as_object).unwrap_or(obj).clone())
         })
         .collect();
     maps.extend(parts.into_iter().filter_map(|p| p.as_object().cloned()));
-    unique(
-        maps.iter()
-            .flat_map(|m| js_entries(m).into_iter().map(|(k, _)| k.clone())),
-    )
+    unique(maps.iter().flat_map(|m| js_entries(m).into_iter().map(|(k, _)| k.clone())))
 }
 
 /// The skills a folder holds: itself where it holds a SKILL.md, else each folder in it that does (plugins-claude.ts:129).
@@ -598,100 +477,44 @@ fn skills_in(dir: &str, seen: &dyn Peeked) -> Vec<String> {
     if names.iter().any(|n| n == "SKILL.md") {
         return vec![base_name(dir)];
     }
-    names
-        .iter()
-        .filter(|n| {
-            !n.contains('/') && !n.starts_with('.') && names.contains(&format!("{n}/SKILL.md"))
-        })
-        .cloned()
-        .collect()
+    names.iter().filter(|n| !n.contains('/') && !n.starts_with('.') && names.contains(&format!("{n}/SKILL.md"))).cloned().collect()
 }
 
 /// What one plugin's folder brings, each by the name a turn gives it, off what the peeks read (plugins-claude.ts:136).
 fn brought_by(root: &str, prefix: &str, m: &Map<String, Value>, seen: &dyn Peeked) -> Brought {
-    let named = |names: Vec<String>| -> Vec<String> {
-        unique(names)
-            .into_iter()
-            .map(|n| format!("{prefix}:{n}"))
-            .collect()
-    };
-    let skill_dirs: Vec<String> = std::iter::once(join_path(&[root, "skills"]))
-        .chain(paths_of(root, m.get("skills")))
-        .collect();
+    let named = |names: Vec<String>| -> Vec<String> { unique(names).into_iter().map(|n| format!("{prefix}:{n}")).collect() };
+    let skill_dirs: Vec<String> = std::iter::once(join_path(&[root, "skills"])).chain(paths_of(root, m.get("skills"))).collect();
     let mut skills: Vec<String> = skill_dirs.iter().flat_map(|d| skills_in(d, seen)).collect();
-    if skills.is_empty()
-        && m.get("skills").is_none()
-        && listing(seen, root).iter().any(|n| n == "SKILL.md")
-    {
+    if skills.is_empty() && m.get("skills").is_none() && listing(seen, root).iter().any(|n| n == "SKILL.md") {
         skills.push(prefix.to_string());
     }
-    let md_in = |dir: &str| -> Vec<String> {
-        markdown(&listing(seen, dir))
-            .iter()
-            .map(|f| stem(f))
-            .collect()
-    };
+    let md_in = |dir: &str| -> Vec<String> { markdown(&listing(seen, dir)).iter().map(|f| stem(f)).collect() };
     let commands: Vec<String> = match m.get("commands") {
         None => md_in(&join_path(&[root, "commands"])),
-        Some(Value::Object(map)) => js_entries(map)
-            .into_iter()
-            .map(|(k, _)| k.clone())
-            .collect(),
-        Some(v) => paths_of(root, Some(v))
-            .iter()
-            .flat_map(|p| {
-                if p.ends_with(".md") {
-                    vec![stem(p)]
-                } else {
-                    md_in(p)
-                }
-            })
-            .collect(),
+        Some(Value::Object(map)) => js_entries(map).into_iter().map(|(k, _)| k.clone()).collect(),
+        Some(v) => paths_of(root, Some(v)).iter().flat_map(|p| if p.ends_with(".md") { vec![stem(p)] } else { md_in(p) }).collect(),
     };
     let subagents: Vec<String> = match m.get("agents") {
         None => md_in(&join_path(&[root, "agents"])),
-        Some(Value::Object(map)) => js_entries(map)
-            .into_iter()
-            .map(|(k, _)| k.clone())
-            .collect(),
-        Some(v) => paths_of(root, Some(v))
-            .iter()
-            .filter(|p| p.ends_with(".md"))
-            .map(|p| stem(p))
-            .collect(),
+        Some(Value::Object(map)) => js_entries(map).into_iter().map(|(k, _)| k.clone()).collect(),
+        Some(v) => paths_of(root, Some(v)).iter().filter(|p| p.ends_with(".md")).map(|p| stem(p)).collect(),
     };
     let brings = PluginBrings {
         skills: sorted(named(skills)),
         commands: sorted(named(commands)),
         subagents: sorted(named(subagents)),
-        hooks: sorted(keys_of(
-            root,
-            m.get("hooks"),
-            "hooks/hooks.json",
-            "hooks",
-            seen,
-        )),
+        hooks: sorted(keys_of(root, m.get("hooks"), "hooks/hooks.json", "hooks", seen)),
         servers: sorted(
             keys_of(root, m.get("mcpServers"), ".mcp.json", "mcpServers", seen)
                 .into_iter()
                 .map(|s| format!("plugin:{prefix}:{s}"))
                 .collect(),
         ),
-        lsp: sorted(keys_of(
-            root,
-            m.get("lspServers"),
-            ".lsp.json",
-            "lspServers",
-            seen,
-        )),
+        lsp: sorted(keys_of(root, m.get("lspServers"), ".lsp.json", "lspServers", seen)),
         apps: vec![],
     };
-    let skill_dirs = skill_dirs
-        .into_iter()
-        .filter(|d| {
-            !skills_in(d, seen).is_empty() && !listing(seen, d).iter().any(|n| n == "SKILL.md")
-        })
-        .collect();
+    let skill_dirs =
+        skill_dirs.into_iter().filter(|d| !skills_in(d, seen).is_empty() && !listing(seen, d).iter().any(|n| n == "SKILL.md")).collect();
     Brought { brings, skill_dirs }
 }
 
@@ -705,59 +528,28 @@ fn declared(root: &str, m: &Map<String, Value>) -> (Vec<PeekDir>, Vec<String>) {
             p[root.len() + 1..].to_string()
         }
     };
-    let mut dirs: Vec<PeekDir> = paths_of(root, m.get("skills"))
-        .iter()
-        .map(|p| PeekDir {
-            path: rel(p),
-            depth: 2,
-        })
-        .collect();
+    let mut dirs: Vec<PeekDir> = paths_of(root, m.get("skills")).iter().map(|p| PeekDir { path: rel(p), depth: 2 }).collect();
     if !matches!(m.get("commands"), Some(Value::Object(_))) {
-        dirs.extend(
-            paths_of(root, m.get("commands"))
-                .iter()
-                .filter(|p| !p.ends_with(".md"))
-                .map(|p| PeekDir {
-                    path: rel(p),
-                    depth: 1,
-                }),
-        );
+        dirs.extend(paths_of(root, m.get("commands")).iter().filter(|p| !p.ends_with(".md")).map(|p| PeekDir { path: rel(p), depth: 1 }));
     }
-    let files = [m.get("hooks"), m.get("mcpServers"), m.get("lspServers")]
-        .into_iter()
-        .flat_map(|f| json_files(root, f))
-        .map(|p| rel(&p))
-        .collect();
+    let files =
+        [m.get("hooks"), m.get("mcpServers"), m.get("lspServers")].into_iter().flat_map(|f| json_files(root, f)).map(|p| rel(&p)).collect();
     (dirs, files)
 }
 
 /// A marketplace's own folder, as known_marketplaces.json says (plugins-claude.ts:165).
 fn location_of(known: &Map<String, Value>, marketplace: &str) -> Option<String> {
     let at = known.get(marketplace)?.as_object()?;
-    at.get("installLocation")?
-        .as_str()
-        .filter(|p| p.starts_with('/'))
-        .map(String::from)
+    at.get("installLocation")?.as_str().filter(|p| p.starts_with('/')).map(String::from)
 }
 
 /// One marketplace's plugin entries by name, off the marketplace.json in its folder (plugins-claude.ts:171).
-fn entries_of(
-    known: &Map<String, Value>,
-    marketplace: &str,
-    seen: &dyn Peeked,
-) -> IndexMap<String, Map<String, Value>> {
+fn entries_of(known: &Map<String, Value>, marketplace: &str, seen: &dyn Peeked) -> IndexMap<String, Map<String, Value>> {
     let Some(at) = location_of(known, marketplace) else {
         return IndexMap::new();
     };
-    let json = json_of(
-        seen.text(&join_path(&[at.as_str(), MARKETPLACE_FILE]))
-            .as_deref(),
-    );
-    let plugins: &[Value] = json
-        .as_ref()
-        .and_then(|j| j.get("plugins"))
-        .and_then(Value::as_array)
-        .map_or(&[], Vec::as_slice);
+    let json = json_of(seen.text(&join_path(&[at.as_str(), MARKETPLACE_FILE])).as_deref());
+    let plugins: &[Value] = json.as_ref().and_then(|j| j.get("plugins")).and_then(Value::as_array).map_or(&[], Vec::as_slice);
     plugins
         .iter()
         .filter_map(|p| {
@@ -793,32 +585,16 @@ struct SettingsOf {
 pub async fn read_claude(io: &impl PluginIo, projects: &[PluginProject]) -> PluginsFound {
     let (home, store) = (io.home(), io.store());
     let path = |p: &str| in_store(CLAUDE_STATE, p, home, store);
-    let seeds: Vec<String> = io
-        .seed()
-        .unwrap_or("")
-        .split(':')
-        .filter(|d| d.starts_with('/'))
-        .map(String::from)
-        .collect();
+    let seeds: Vec<String> = io.seed().unwrap_or("").split(':').filter(|d| d.starts_with('/')).map(String::from).collect();
     let index_path = path(INDEX);
     let marketplaces_path = path(MARKETPLACES);
     let settings_path = path(SETTINGS);
-    let seed_index: Vec<String> = seeds
-        .iter()
-        .map(|s| join_path(&[s.as_str(), SEED_INDEX]))
-        .collect();
-    let seed_marketplaces: Vec<String> = seeds
-        .iter()
-        .map(|s| join_path(&[s.as_str(), SEED_MARKETPLACES]))
-        .collect();
+    let seed_index: Vec<String> = seeds.iter().map(|s| join_path(&[s.as_str(), SEED_INDEX])).collect();
+    let seed_marketplaces: Vec<String> = seeds.iter().map(|s| join_path(&[s.as_str(), SEED_MARKETPLACES])).collect();
     let groups = [
         PeekGroup {
             roots: Some(strings(&["/"])),
-            files: Some(vec![
-                index_path.clone(),
-                marketplaces_path.clone(),
-                settings_path.clone(),
-            ]),
+            files: Some(vec![index_path.clone(), marketplaces_path.clone(), settings_path.clone()]),
             ..Default::default()
         },
         PeekGroup {
@@ -827,10 +603,7 @@ pub async fn read_claude(io: &impl PluginIo, projects: &[PluginProject]) -> Plug
             ..Default::default()
         },
         PeekGroup {
-            roots_from: Some(RootsFrom {
-                files: [vec![index_path.clone()], seed_index.clone()].concat(),
-                key: "installPath".to_string(),
-            }),
+            roots_from: Some(RootsFrom { files: [vec![index_path.clone()], seed_index.clone()].concat(), key: "installPath".to_string() }),
             files: Some(strings(&FOLDER_FILES)),
             dirs: Some(folder_dirs()),
             ..Default::default()
@@ -843,50 +616,30 @@ pub async fn read_claude(io: &impl PluginIo, projects: &[PluginProject]) -> Plug
             files: Some(strings(&[MARKETPLACE_FILE])),
             ..Default::default()
         },
-        PeekGroup {
-            roots: Some(seeds.clone()),
-            files: Some(strings(&[SEED_INDEX, SEED_MARKETPLACES])),
-            ..Default::default()
-        },
+        PeekGroup { roots: Some(seeds.clone()), files: Some(strings(&[SEED_INDEX, SEED_MARKETPLACES])), ..Default::default() },
     ];
-    let refused = |message: String| PluginsFound {
-        plugins: vec![],
-        refused: vec![message],
-        version: None,
-        file: None,
-    };
+    let refused = |message: String| PluginsFound { plugins: vec![], refused: vec![message], version: None, file: None };
     let Some(first) = io.peek(&groups).await else {
         return refused("plugins: Claude Code's plugin files could not be read".to_string());
     };
     let index_text = first.text(&index_path);
-    let seed_indexes: Vec<Option<Value>> = seed_index
-        .iter()
-        .map(|p| json_of(first.text(p).as_deref()))
-        .collect();
+    let seed_indexes: Vec<Option<Value>> = seed_index.iter().map(|p| json_of(first.text(p).as_deref())).collect();
     // Before its first turn a machine's config folder has no index, and every plugin it loads is in the seed.
     if index_text.is_none() && seed_indexes.iter().all(Option::is_none) {
         return PluginsFound::default();
     }
-    let index =
-        match index_text {
-            None => Value::Object(Map::new()),
-            Some(text) => match json_of(Some(&text)) {
-                Some(index) => index,
-                None => return refused(format!(
-                    "plugins: {index_path} does not parse, so Claude Code's plugins were not read"
-                )),
-            },
-        };
+    let index = match index_text {
+        None => Value::Object(Map::new()),
+        Some(text) => match json_of(Some(&text)) {
+            Some(index) => index,
+            None => return refused(format!("plugins: {index_path} does not parse, so Claude Code's plugins were not read")),
+        },
+    };
     // Each startup a seed's marketplace overwrites the config folder's entry of that name, the first seed's winning.
     let mut known: Map<String, Value> = Map::new();
     let config_known = json_of(first.text(&marketplaces_path).as_deref());
-    let seed_known = seed_marketplaces
-        .iter()
-        .map(|p| json_of(first.text(p).as_deref()));
-    for source in std::iter::once(config_known)
-        .chain(seed_known.collect::<Vec<_>>().into_iter().rev())
-        .flatten()
-    {
+    let seed_known = seed_marketplaces.iter().map(|p| json_of(first.text(p).as_deref()));
+    for source in std::iter::once(config_known).chain(seed_known.collect::<Vec<_>>().into_iter().rev()).flatten() {
         if let Value::Object(m) = source {
             known.extend(m);
         }
@@ -894,39 +647,20 @@ pub async fn read_claude(io: &impl PluginIo, projects: &[PluginProject]) -> Plug
     let in_seed = seed_installs(&seed_indexes);
     let user = json_of(first.text(&settings_path).as_deref());
     let settings_of = |p: &PluginProject| SettingsOf {
-        shared: json_of(
-            first
-                .text(&join_path(&[p.path.as_str(), PROJECT_SETTINGS]))
-                .as_deref(),
-        ),
-        local: json_of(
-            first
-                .text(&join_path(&[p.path.as_str(), LOCAL_SETTINGS]))
-                .as_deref(),
-        ),
+        shared: json_of(first.text(&join_path(&[p.path.as_str(), PROJECT_SETTINGS])).as_deref()),
+        local: json_of(first.text(&join_path(&[p.path.as_str(), LOCAL_SETTINGS])).as_deref()),
     };
     // A project or local install is a row only in a project the read covers; one for a folder gone is dropped. A user
     // install the seed also holds keeps the seed's beside it, which a turn loads where the config folder's is gone.
     let mut listed: Vec<Listed> = Vec::new();
     for (id, installs) in installs_of(Some(&index)) {
-        let mine = installs
-            .iter()
-            .find(|i| i.scope == PluginScope::User)
-            .cloned();
+        let mine = installs.iter().find(|i| i.scope == PluginScope::User).cloned();
         if let Some(mine) = mine {
-            listed.push(Listed {
-                id: id.clone(),
-                install: mine,
-                project: None,
-                seed: in_seed.get(&id).cloned(),
-                seed_only: false,
-            });
+            listed.push(Listed { id: id.clone(), install: mine, project: None, seed: in_seed.get(&id).cloned(), seed_only: false });
         }
         for scope in [PluginScope::Project, PluginScope::Local] {
             for p in projects {
-                if let Some(install) = installs.iter().find(|i| {
-                    i.scope == scope && i.project_path.as_deref() == Some(p.path.as_str())
-                }) {
+                if let Some(install) = installs.iter().find(|i| i.scope == scope && i.project_path.as_deref() == Some(p.path.as_str())) {
                     listed.push(Listed {
                         id: id.clone(),
                         install: install.clone(),
@@ -940,45 +674,25 @@ pub async fn read_claude(io: &impl PluginIo, projects: &[PluginProject]) -> Plug
     }
     for (id, seed) in &in_seed {
         if !listed.iter().any(|r| &r.id == id && r.project.is_none()) {
-            listed.push(Listed {
-                id: id.clone(),
-                install: seed.clone(),
-                project: None,
-                seed: Some(seed.clone()),
-                seed_only: true,
-            });
+            listed.push(Listed { id: id.clone(), install: seed.clone(), project: None, seed: Some(seed.clone()), seed_only: true });
         }
     }
-    let unread: Vec<String> = unique(listed.iter().flat_map(|r| {
-        std::iter::once(r.install.install_path.clone())
-            .chain(r.seed.iter().map(|s| s.install_path.clone()))
-    }))
-    .into_iter()
-    .filter(|r| !first.looked(r))
-    .collect();
-    let unknown: Vec<String> = unique(
-        listed
-            .iter()
-            .filter_map(|r| location_of(&known, &plugin_id_parts(&r.id).1)),
+    let unread: Vec<String> = unique(
+        listed.iter().flat_map(|r| std::iter::once(r.install.install_path.clone()).chain(r.seed.iter().map(|s| s.install_path.clone()))),
     )
     .into_iter()
     .filter(|r| !first.looked(r))
     .collect();
+    let unknown: Vec<String> = unique(listed.iter().filter_map(|r| location_of(&known, &plugin_id_parts(&r.id).1)))
+        .into_iter()
+        .filter(|r| !first.looked(r))
+        .collect();
     let folder_peek = if unread.is_empty() && unknown.is_empty() {
         None
     } else {
         io.peek(&[
-            PeekGroup {
-                roots: Some(unread),
-                files: Some(strings(&FOLDER_FILES)),
-                dirs: Some(folder_dirs()),
-                ..Default::default()
-            },
-            PeekGroup {
-                roots: Some(unknown),
-                files: Some(strings(&[MARKETPLACE_FILE])),
-                ..Default::default()
-            },
+            PeekGroup { roots: Some(unread), files: Some(strings(&FOLDER_FILES)), dirs: Some(folder_dirs()), ..Default::default() },
+            PeekGroup { roots: Some(unknown), files: Some(strings(&[MARKETPLACE_FILE])), ..Default::default() },
         ])
         .await
     };
@@ -986,21 +700,10 @@ pub async fn read_claude(io: &impl PluginIo, projects: &[PluginProject]) -> Plug
     let rows: Vec<Row> = listed
         .into_iter()
         .map(|r| {
-            let seeded = r.seed.is_some()
-                && (r.seed_only || folders.list(&r.install.install_path).is_none());
+            let seeded = r.seed.is_some() && (r.seed_only || folders.list(&r.install.install_path).is_none());
             match r.seed {
-                Some(seed) if seeded => Row {
-                    id: r.id,
-                    install: seed,
-                    project: r.project,
-                    seeded: true,
-                },
-                _ => Row {
-                    id: r.id,
-                    install: r.install,
-                    project: r.project,
-                    seeded: false,
-                },
+                Some(seed) if seeded => Row { id: r.id, install: seed, project: r.project, seeded: true },
+                _ => Row { id: r.id, install: r.install, project: r.project, seeded: false },
             }
         })
         .collect();
@@ -1009,20 +712,11 @@ pub async fn read_claude(io: &impl PluginIo, projects: &[PluginProject]) -> Plug
         .iter()
         .map(|row| {
             let (name, marketplace) = plugin_id_parts(&row.id);
-            let marketplace_entries = entries
-                .entry(marketplace.clone())
-                .or_insert_with(|| entries_of(&known, &marketplace, &folders));
+            let marketplace_entries = entries.entry(marketplace.clone()).or_insert_with(|| entries_of(&known, &marketplace, &folders));
             let entry = marketplace_entries.get(&name).cloned();
             let there = folders.list(&row.install.install_path).is_some();
             let manifest = if there {
-                json_of(
-                    folders
-                        .text(&join_path(&[
-                            row.install.install_path.as_str(),
-                            FOLDER_FILES[0],
-                        ]))
-                        .as_deref(),
-                )
+                json_of(folders.text(&join_path(&[row.install.install_path.as_str(), FOLDER_FILES[0]])).as_deref())
             } else {
                 None
             };
@@ -1032,11 +726,7 @@ pub async fn read_claude(io: &impl PluginIo, projects: &[PluginProject]) -> Plug
         .collect();
     let mut extra: Vec<PeekGroup> = Vec::new();
     for (row, manifest) in rows.iter().zip(&manifests) {
-        let (dirs, files) = if manifest.there {
-            declared(&row.install.install_path, &manifest.m)
-        } else {
-            (vec![], vec![])
-        };
+        let (dirs, files) = if manifest.there { declared(&row.install.install_path, &manifest.m) } else { (vec![], vec![]) };
         if !dirs.is_empty() || !files.is_empty() {
             extra.push(PeekGroup {
                 roots: Some(vec![row.install.install_path.clone()]),
@@ -1046,11 +736,7 @@ pub async fn read_claude(io: &impl PluginIo, projects: &[PluginProject]) -> Plug
             });
         }
     }
-    let extra_peek = if extra.is_empty() {
-        None
-    } else {
-        io.peek(&extra).await
-    };
+    let extra_peek = if extra.is_empty() { None } else { io.peek(&extra).await };
     let seen = both(&folders, extra_peek.as_deref());
     let plugins: Vec<FoundPlugin> = rows
         .iter()
@@ -1059,11 +745,7 @@ pub async fn read_claude(io: &impl PluginIo, projects: &[PluginProject]) -> Plug
             let (name, marketplace) = plugin_id_parts(&row.id);
             let m = &manifest.m;
             let entry = manifest.entry.as_ref();
-            let prefix = m
-                .get("name")
-                .and_then(Value::as_str)
-                .filter(|s| !s.is_empty())
-                .map_or(name.clone(), String::from);
+            let prefix = m.get("name").and_then(Value::as_str).filter(|s| !s.is_empty()).map_or(name.clone(), String::from);
             // A seed's plugins are not on of themselves: a turn loads one only where a settings file switches it on (2.1.296).
             let fallback = if row.seeded {
                 false
@@ -1075,33 +757,18 @@ pub async fn read_claude(io: &impl PluginIo, projects: &[PluginProject]) -> Plug
                     .unwrap_or(true)
             };
             let set = row.project.as_ref().map(&settings_of);
-            let local = set
-                .as_ref()
-                .and_then(|s| switch_in(s.local.as_ref(), &row.id));
-            let shared = set
-                .as_ref()
-                .and_then(|s| switch_in(s.shared.as_ref(), &row.id));
+            let local = set.as_ref().and_then(|s| switch_in(s.local.as_ref(), &row.id));
+            let shared = set.as_ref().and_then(|s| switch_in(s.shared.as_ref(), &row.id));
             // The order Claude Code merges in, measured on 2.1.296: local over project over user, then the plugin's default.
-            let on = local
-                .or(shared)
-                .or(switch_in(user.as_ref(), &row.id))
-                .unwrap_or(fallback);
-            let read = manifest
-                .there
-                .then(|| brought_by(&row.install.install_path, &prefix, m, &seen));
+            let on = local.or(shared).or(switch_in(user.as_ref(), &row.id)).unwrap_or(fallback);
+            let read = manifest.there.then(|| brought_by(&row.install.install_path, &prefix, m, &seen));
             let description = m
                 .get("description")
                 .and_then(Value::as_str)
-                .or_else(|| {
-                    entry
-                        .and_then(|e| e.get("description"))
-                        .and_then(Value::as_str)
-                })
+                .or_else(|| entry.and_then(|e| e.get("description")).and_then(Value::as_str))
                 .map(String::from);
             let set_in = row.project.as_ref().map(|p| {
-                let file = if local.is_some()
-                    || (shared.is_none() && row.install.scope == PluginScope::Local)
-                {
+                let file = if local.is_some() || (shared.is_none() && row.install.scope == PluginScope::Local) {
                     LOCAL_SETTINGS
                 } else {
                     PROJECT_SETTINGS
@@ -1110,10 +777,7 @@ pub async fn read_claude(io: &impl PluginIo, projects: &[PluginProject]) -> Plug
             });
             let (brings, skills) = match read {
                 Some(read) => {
-                    let skills = (!read.skill_dirs.is_empty()).then(|| PluginSkillDirs {
-                        dirs: read.skill_dirs,
-                        prefix: prefix.clone(),
-                    });
+                    let skills = (!read.skill_dirs.is_empty()).then(|| PluginSkillDirs { dirs: read.skill_dirs, prefix: prefix.clone() });
                     (read.brings, skills)
                 }
                 None => (nothing_brought(), None),
@@ -1126,11 +790,7 @@ pub async fn read_claude(io: &impl PluginIo, projects: &[PluginProject]) -> Plug
                 scope: row.install.scope,
                 project: row.project.clone(),
                 on,
-                missing: if manifest.there {
-                    None
-                } else {
-                    Some(PluginMissing::Folder)
-                },
+                missing: if manifest.there { None } else { Some(PluginMissing::Folder) },
                 path: Some(row.install.install_path.clone()),
                 set_in,
                 description,
@@ -1140,36 +800,20 @@ pub async fn read_claude(io: &impl PluginIo, projects: &[PluginProject]) -> Plug
             }
         })
         .collect();
-    PluginsFound {
-        plugins,
-        refused: vec![],
-        version: None,
-        file: None,
-    }
+    PluginsFound { plugins, refused: vec![], version: None, file: None }
 }
 
 /// The switch (plugins-claude.ts:281): the store's settings get `enabledPlugins[id]` set, inside the store's base.
 /// A refused write answers its sentence, the one the TS throws.
 pub async fn turn_claude(io: &impl PluginIo, plugin: &FoundPlugin, on: bool) -> Option<String> {
     if !io.can_edit() {
-        return Some(format!(
-            "{} was not switched: this road writes no settings file.",
-            plugin.id
-        ));
+        return Some(format!("{} was not switched: this road writes no settings file.", plugin.id));
     }
     let (home, store) = (io.home(), io.store());
     let file = in_store(CLAUDE_STATE, SETTINGS, home, store);
     let base = store_base(&in_store(CLAUDE_STATE, "~/.claude", home, store), home);
-    let edit = vec![(
-        vec![
-            PathSeg::Key("enabledPlugins".to_string()),
-            PathSeg::Key(plugin.id.clone()),
-        ],
-        Some(Value::Bool(on)),
-    )];
-    let change = move |text: Option<&str>| -> Result<String, HostError> {
-        edit_json(text.unwrap_or("{}"), &edit)
-    };
+    let edit = vec![(vec![PathSeg::Key("enabledPlugins".to_string()), PathSeg::Key(plugin.id.clone())], Some(Value::Bool(on)))];
+    let change = move |text: Option<&str>| -> Result<String, HostError> { edit_json(text.unwrap_or("{}"), &edit) };
     match io.edit(&file, &base, &change).await {
         Ok(()) => None,
         Err(e) => Some(e.message),

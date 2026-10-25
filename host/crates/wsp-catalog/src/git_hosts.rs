@@ -46,13 +46,7 @@ impl GitHost {
 
     /// `[<cli>, "repo", "clone", ownerRepo, dest]`.
     pub fn clone_argv(&self, owner_repo: &str, dest: &str) -> Vec<String> {
-        vec![
-            self.cli.to_string(),
-            "repo".to_string(),
-            "clone".to_string(),
-            owner_repo.to_string(),
-            dest.to_string(),
-        ]
+        vec![self.cli.to_string(), "repo".to_string(), "clone".to_string(), owner_repo.to_string(), dest.to_string()]
     }
 }
 
@@ -86,20 +80,14 @@ pub fn git_host(id: &str) -> Option<&'static GitHost> {
 /// git-hosts.ts:51.
 pub fn git_host_of(remote: &str) -> Option<&'static GitHost> {
     let host = remote_host(remote)?;
-    git_hosts()
-        .iter()
-        .find(|row| row.ssh_hosts.contains(&host.as_str()))
+    git_hosts().iter().find(|row| row.ssh_hosts.contains(&host.as_str()))
 }
 
 /// The lowercase host a remote names; nothing for none (git-hosts.ts:57).
 pub fn remote_host(remote: &str) -> Option<String> {
     let mut rest = remote;
     if let Some(at) = rest.find("://") {
-        if at > 0
-            && rest[..at]
-                .chars()
-                .all(|c| c.is_ascii_lowercase() || c == '+')
-        {
+        if at > 0 && rest[..at].chars().all(|c| c.is_ascii_lowercase() || c == '+') {
             rest = &rest[at + 3..];
         }
     }
@@ -108,11 +96,7 @@ pub fn remote_host(remote: &str) -> Option<String> {
             rest = &rest[at + 1..];
         }
     }
-    let host = rest
-        .split(['/', ':'])
-        .next()
-        .unwrap_or_default()
-        .to_lowercase();
+    let host = rest.split(['/', ':']).next().unwrap_or_default().to_lowercase();
     (!host.is_empty()).then_some(host)
 }
 
@@ -231,13 +215,7 @@ pub static ECOSYSTEM_MODULES: LazyLock<Vec<EcosystemModule>> = LazyLock::new(|| 
             rebuild: "cargo fetch --locked".into(),
         },
         EcosystemModule {
-            carry: CarryModule {
-                id: "go".into(),
-                lockfiles: strs(&["go.sum"]),
-                carry: strs(&[]),
-                never: strs(&[]),
-                installed: None,
-            },
+            carry: CarryModule { id: "go".into(), lockfiles: strs(&["go.sum"]), carry: strs(&[]), never: strs(&[]), installed: None },
             rebuild: "go list -mod=readonly -deps -test ./... > /dev/null".into(),
         },
     ]

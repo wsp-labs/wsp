@@ -7,10 +7,10 @@ use std::sync::LazyLock;
 use serde::{Deserialize, Serialize};
 
 use crate::linux_casks::LinuxCask;
-use wsp_words::words::image::pin_mismatch_line;
 use wsp_wire::types::shell_quote::shell_quote;
-use wsp_words::words::image::short_sum;
 use wsp_wire::views::golden_image::ToolPin;
+use wsp_words::words::image::pin_mismatch_line;
+use wsp_words::words::image::short_sum;
 use wsp_words::words::image::SUM_SHOWN;
 
 pub const MIB: u64 = 1024 * 1024;

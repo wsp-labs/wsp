@@ -9,8 +9,13 @@ use serde_json::Value;
 use crate::json_edit::json_canonical;
 use crate::jsonc_tree::PathSeg;
 use crate::mcp::{KnownValue, McpReferred, McpTransport, ReferredServer};
-use crate::mcp_refs::{arg_strings, codex_headers, known_hits, known_stands, oauth_secret_keys, readable, shape_refusal, still_stands, unread_line};
-use crate::mcp_toml::{codex_owners, read_codex, toml_header, toml_inline, toml_open_array, toml_string, toml_strings, toml_value, unquote_key, uncomment_toml, TomlValue};
+use crate::mcp_refs::{
+    arg_strings, codex_headers, known_hits, known_stands, oauth_secret_keys, readable, shape_refusal, still_stands, unread_line,
+};
+use crate::mcp_toml::{
+    codex_owners, read_codex, toml_header, toml_inline, toml_open_array, toml_string, toml_strings, toml_value, uncomment_toml,
+    unquote_key, TomlValue,
+};
 use wsp_words::exit::HostError;
 use wsp_words::js::js_trim;
 
@@ -58,7 +63,12 @@ fn refer_lines(text: &str, only: Option<&str>) -> Result<String, HostError> {
 }
 
 /// One server's lines rewritten: its headers and env lines go, its names move to `env_http_headers` and `env_vars`.
-fn edit_server(refs: &[&str], name: &str, headers: &IndexMap<String, String>, env: &IndexMap<String, String>) -> Result<Vec<String>, HostError> {
+fn edit_server(
+    refs: &[&str],
+    name: &str,
+    headers: &IndexMap<String, String>,
+    env: &IndexMap<String, String>,
+) -> Result<Vec<String>, HostError> {
     let n = refs.len();
     let owner = codex_owners(refs);
     let subs: Vec<Option<String>> = refs
@@ -85,9 +95,8 @@ fn edit_server(refs: &[&str], name: &str, headers: &IndexMap<String, String>, en
         })
         .collect();
     let mine = |i: usize| owner[i].as_deref() == Some(name);
-    let head: i64 = (0..n)
-        .find(|&i| mine(i) && js_trim(&uncomment_toml(refs[i])).starts_with('[') && subs[i].is_none())
-        .map_or(-1, |i| i as i64);
+    let head: i64 =
+        (0..n).find(|&i| mine(i) && js_trim(&uncomment_toml(refs[i])).starts_with('[') && subs[i].is_none()).map_or(-1, |i| i as i64);
     let main_key = |key_name: &str| -> Option<usize> {
         (0..n).find(|&i| mine(i) && (i as i64) > head && sub_of[i].is_none() && toml_key(refs[i]).as_deref() == Some(key_name))
     };
@@ -98,14 +107,17 @@ fn edit_server(refs: &[&str], name: &str, headers: &IndexMap<String, String>, en
             mine(i)
                 && (sub_of[i].as_deref() == Some("http_headers")
                     || sub_of[i].as_deref() == Some("env")
-                    || (sub_of[i].is_none() && (i as i64) > head && matches!(toml_key(refs[i]).as_deref(), Some("http_headers") | Some("env"))))
+                    || (sub_of[i].is_none()
+                        && (i as i64) > head
+                        && matches!(toml_key(refs[i]).as_deref(), Some("http_headers") | Some("env"))))
         })
         .collect();
     let mut replace: HashMap<usize, Vec<String>> = HashMap::new();
     let mut added: Vec<String> = Vec::new();
     if !env_headers.is_empty() {
         let inline = main_key("env_http_headers");
-        let table_at = (0..n).find(|&i| mine(i) && subs[i].as_deref() == Some("env_http_headers") && js_trim(&uncomment_toml(refs[i])).starts_with('['));
+        let table_at = (0..n)
+            .find(|&i| mine(i) && subs[i].as_deref() == Some("env_http_headers") && js_trim(&uncomment_toml(refs[i])).starts_with('['));
         if let Some(inline) = inline {
             let mut merged: IndexMap<String, String> = match toml_value(&rhs(refs[inline])) {
                 Some(TomlValue::Table(t)) => t,
@@ -219,15 +231,18 @@ pub fn refer_codex(text: &str, only: Option<&str>, known: &[KnownValue], outside
                 )));
             }
         }
-        let mut reads: Vec<(Vec<String>, Option<String>)> = vec![(
-            vec!["bearer_token_env_var".to_string()],
-            raw.get("bearer_token_env_var").and_then(|v| v.as_str()).map(str::to_string),
-        )];
+        let mut reads: Vec<(Vec<String>, Option<String>)> =
+            vec![(vec!["bearer_token_env_var".to_string()], raw.get("bearer_token_env_var").and_then(|v| v.as_str()).map(str::to_string))];
         reads.extend(strings_of(raw.get("env_http_headers")).into_iter().map(|(h, v)| (vec!["env_http_headers".to_string(), h], Some(v))));
         if let Some((path, _)) = reads.iter().find(|(_, n)| n.as_ref().is_some_and(|n| !held(n))) {
             let mut at = at_server.clone();
             at.extend(path.iter().map(|s| key(s)));
-            servers.push(ReferredServer { name: name.clone(), values: IndexMap::new(), unread: Some(unread_line(&at)), ..Default::default() });
+            servers.push(ReferredServer {
+                name: name.clone(),
+                values: IndexMap::new(),
+                unread: Some(unread_line(&at)),
+                ..Default::default()
+            });
             continue;
         }
         let headers = strings_of(raw.get("http_headers"));

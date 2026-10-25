@@ -12,8 +12,7 @@ use wsp_words::agents_report::config_changed_refusal;
 
 use crate::jsonc::js_stringify;
 use crate::plugins::{
-    join_path, js_trim, nothing_brought, plugin_id_parts, sorted, unique, FoundPlugin, PeekDir,
-    PeekGroup, PluginIo, PluginsFound,
+    join_path, js_trim, nothing_brought, plugin_id_parts, sorted, unique, FoundPlugin, PeekDir, PeekGroup, PluginIo, PluginsFound,
 };
 
 /// codex-app-server.ts:448.
@@ -31,19 +30,12 @@ pub fn request(id: i64, method: &str, params: Value) -> String {
 
 /// codex-app-server.ts:452.
 pub fn notification(method: &str) -> String {
-    format!(
-        "{{\"jsonrpc\":\"2.0\",\"method\":{},\"params\":{{}}}}",
-        js_stringify(&Value::String(method.to_string()))
-    )
+    format!("{{\"jsonrpc\":\"2.0\",\"method\":{},\"params\":{{}}}}", js_stringify(&Value::String(method.to_string())))
 }
 
 /// codex-app-server.ts:454.
 pub fn initialize_request(id: i64) -> String {
-    request(
-        id,
-        "initialize",
-        json!({ "clientInfo": { "name": "wsp", "version": "0" } }),
-    )
+    request(id, "initialize", json!({ "clientInfo": { "name": "wsp", "version": "0" } }))
 }
 
 /// codex-app-server.ts:457.
@@ -79,8 +71,7 @@ pub fn app_server_script(codex: &str, stages: &[ServerStage]) -> String {
     let mut lines = vec![
         // Two named pipes rather than a coprocess: the Mac's own bash is 3.2, which has none, and the tests prove this
         // script on whatever bash runs them.
-        "WSP_PROBE_DIR=$(mktemp -d) && mkfifo \"$WSP_PROBE_DIR/in\" \"$WSP_PROBE_DIR/out\""
-            .to_string(),
+        "WSP_PROBE_DIR=$(mktemp -d) && mkfifo \"$WSP_PROBE_DIR/in\" \"$WSP_PROBE_DIR/out\"".to_string(),
         format!("{codex} app-server <\"$WSP_PROBE_DIR/in\" >\"$WSP_PROBE_DIR/out\" &"),
         "WSP_APP_SERVER_PID=$!".to_string(),
         "exec 3>\"$WSP_PROBE_DIR/in\" 4<\"$WSP_PROBE_DIR/out\"".to_string(),
@@ -100,18 +91,13 @@ pub fn app_server_script(codex: &str, stages: &[ServerStage]) -> String {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ServerAnswer {
     Result(Map<String, Value>),
-    Error {
-        code: Option<i64>,
-        message: String,
-        data: Option<Map<String, Value>>,
-    },
+    Error { code: Option<i64>, message: String, data: Option<Map<String, Value>> },
 }
 
 /// A JSON number as a request id: whole numbers only, as JavaScript's Map keys them.
 fn id_of(value: &Value) -> Option<i64> {
     let n = value.as_number()?;
-    n.as_i64()
-        .or_else(|| n.as_f64().filter(|f| f.fract() == 0.0).map(|f| f as i64))
+    n.as_i64().or_else(|| n.as_f64().filter(|f| f.fract() == 0.0).map(|f| f as i64))
 }
 
 /// Each answer by its numeric id, the last of an id winning (codex-app-server.ts:500).
@@ -165,10 +151,7 @@ const CONFIG: i64 = 3;
 
 /// The requests as one script on the computer, or nothing said where codex is not there (plugins-codex.ts:22).
 async fn ask(io: &impl PluginIo, lines: &[String]) -> Option<String> {
-    let stage = ServerStage {
-        lines: lines.to_vec(),
-        answers: lines.len() as u64,
-    };
+    let stage = ServerStage { lines: lines.to_vec(), answers: lines.len() as u64 };
     io.run(&format!(
         "command -v codex >/dev/null 2>&1 || {{ echo {NO_CODEX}; exit 0; }}\ncd ~ || exit 1\n{}",
         app_server_script("codex", &[stage])
@@ -178,51 +161,30 @@ async fn ask(io: &impl PluginIo, lines: &[String]) -> Option<String> {
 
 /// A JSON string that is not empty (plugins-codex.ts:25).
 fn nonempty(value: Option<&Value>) -> Option<String> {
-    value
-        .and_then(Value::as_str)
-        .filter(|s| !s.is_empty())
-        .map(String::from)
+    value.and_then(Value::as_str).filter(|s| !s.is_empty()).map(String::from)
 }
 
 /// The objects of a list, in its order.
 fn records(value: Option<&Value>) -> Vec<&Map<String, Value>> {
-    value
-        .and_then(Value::as_array)
-        .map_or_else(Vec::new, |items| {
-            items.iter().filter_map(Value::as_object).collect()
-        })
+    value.and_then(Value::as_array).map_or_else(Vec::new, |items| items.iter().filter_map(Value::as_object).collect())
 }
 
 /// The distinct strings under `key` of a list's objects, sorted (plugins-codex.ts:26).
 fn names(value: Option<&Value>, key: &str) -> Vec<String> {
-    let found = value
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|item| item.get(key).and_then(Value::as_str).map(String::from));
+    let found =
+        value.and_then(Value::as_array).into_iter().flatten().filter_map(|item| item.get(key).and_then(Value::as_str).map(String::from));
     sorted(unique(found))
 }
 
 /// What one plugin/read answer says the plugin brings (plugins-codex.ts:30).
 fn brought_by(read: Option<&Map<String, Value>>) -> PluginBrings {
-    let Some(plugin) = read
-        .and_then(|r| r.get("plugin"))
-        .and_then(Value::as_object)
-    else {
+    let Some(plugin) = read.and_then(|r| r.get("plugin")).and_then(Value::as_object) else {
         return nothing_brought();
     };
     let servers = plugin
         .get("mcpServers")
         .and_then(Value::as_array)
-        .map_or_else(Vec::new, |items| {
-            sorted(
-                items
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .map(String::from)
-                    .collect(),
-            )
-        });
+        .map_or_else(Vec::new, |items| sorted(items.iter().filter_map(Value::as_str).map(String::from).collect()));
     PluginBrings {
         skills: names(plugin.get("skills"), "name"),
         commands: vec![],
@@ -237,9 +199,7 @@ fn brought_by(read: Option<&Map<String, Value>>) -> PluginBrings {
 /// A plugin's source: its url, path or package (plugins-codex.ts:42).
 fn source_of(source: Option<&Value>) -> Option<String> {
     let source = source?.as_object()?;
-    nonempty(source.get("url"))
-        .or_else(|| nonempty(source.get("path")))
-        .or_else(|| nonempty(source.get("package")))
+    nonempty(source.get("url")).or_else(|| nonempty(source.get("path"))).or_else(|| nonempty(source.get("package")))
 }
 
 /// The user layer of a config/read with its layers: its file and the version a write names (plugins-codex.ts:45).
@@ -247,14 +207,7 @@ fn user_layer(config: &Map<String, Value>) -> (Option<String>, Option<String>) {
     let user = config
         .get("layers")
         .and_then(Value::as_array)
-        .and_then(|layers| {
-            layers.iter().find(|l| {
-                l.get("name")
-                    .and_then(|n| n.get("type"))
-                    .and_then(Value::as_str)
-                    == Some("user")
-            })
-        });
+        .and_then(|layers| layers.iter().find(|l| l.get("name").and_then(|n| n.get("type")).and_then(Value::as_str) == Some("user")));
     let Some(user) = user else {
         return (None, None);
     };
@@ -268,20 +221,14 @@ fn local_source(known: Option<&Map<String, Value>>, id: &str) -> Option<String> 
     if at.get("source_type").and_then(Value::as_str) != Some("local") {
         return None;
     }
-    at.get("source")
-        .and_then(Value::as_str)
-        .filter(|s| s.starts_with('/'))
-        .map(String::from)
+    at.get("source").and_then(Value::as_str).filter(|s| s.starts_with('/')).map(String::from)
 }
 
 /// A process-level refusal of the read (plugins-codex.ts:66).
 fn unanswered() -> PluginsFound {
     PluginsFound {
         plugins: vec![],
-        refused: vec![
-            "plugins: Codex's app server did not answer, so Codex's plugins were not read"
-                .to_string(),
-        ],
+        refused: vec!["plugins: Codex's app server did not answer, so Codex's plugins were not read".to_string()],
         version: None,
         file: None,
     }
@@ -310,12 +257,12 @@ pub async fn read_codex_plugins(io: &impl PluginIo) -> PluginsFound {
             return PluginsFound::default();
         }
     }
-    let (Some(list), Some(config)) = (result_of(&answers, LIST), result_of(&answers, CONFIG))
-    else {
+    let (Some(list), Some(config)) = (result_of(&answers, LIST), result_of(&answers, CONFIG)) else {
         return unanswered();
     };
     let marketplaces = records(list.get("marketplaces"));
-    let mut installed: Vec<(&Map<String, Value>, &Map<String, Value>, &str)> = Vec::new();
+    type Installed<'a> = (&'a Map<String, Value>, &'a Map<String, Value>, &'a str);
+    let mut installed: Vec<Installed> = Vec::new();
     for mk in &marketplaces {
         for p in records(mk.get("plugins")) {
             if p.get("installed") == Some(&Value::Bool(true)) {
@@ -336,16 +283,9 @@ pub async fn read_codex_plugins(io: &impl PluginIo) -> PluginsFound {
                 params.insert("pluginName".to_string(), name.clone());
             }
             if let Some(path) = mk.get("path").and_then(Value::as_str) {
-                params.insert(
-                    "marketplacePath".to_string(),
-                    Value::String(path.to_string()),
-                );
+                params.insert("marketplacePath".to_string(), Value::String(path.to_string()));
             }
-            lines.push(request(
-                LIST + i as i64,
-                "plugin/read",
-                Value::Object(params),
-            ));
+            lines.push(request(LIST + i as i64, "plugin/read", Value::Object(params)));
         }
         Some(answers_of(ask(io, &lines).await.as_deref().unwrap_or("")))
     };
@@ -357,26 +297,17 @@ pub async fn read_codex_plugins(io: &impl PluginIo) -> PluginsFound {
             let face = p.get("interface").and_then(Value::as_object);
             let read = reads.as_ref().and_then(|r| result_of(r, LIST + i as i64));
             let version = nonempty(p.get("localVersion"));
-            let description = nonempty(
-                read.and_then(|r| r.get("plugin"))
-                    .and_then(Value::as_object)
-                    .and_then(|pl| pl.get("description")),
-            )
-            .or_else(|| nonempty(face.and_then(|f| f.get("shortDescription"))));
+            let description = nonempty(read.and_then(|r| r.get("plugin")).and_then(Value::as_object).and_then(|pl| pl.get("description")))
+                .or_else(|| nonempty(face.and_then(|f| f.get("shortDescription"))));
             FoundPlugin {
                 id: id.to_string(),
                 name: nonempty(p.get("name")).unwrap_or_else(|| name.clone()),
                 marketplace: nonempty(mk.get("name")).unwrap_or_else(|| marketplace.clone()),
                 // Where `codex plugin add` put it on 0.162.1, which plugin/list does not say.
                 path: match (&home, &version) {
-                    (Some(home), Some(version)) => Some(join_path(&[
-                        home.as_str(),
-                        "plugins",
-                        "cache",
-                        marketplace.as_str(),
-                        name.as_str(),
-                        version.as_str(),
-                    ])),
+                    (Some(home), Some(version)) => {
+                        Some(join_path(&[home.as_str(), "plugins", "cache", marketplace.as_str(), name.as_str(), version.as_str()]))
+                    }
                     _ => None,
                 },
                 version,
@@ -394,48 +325,26 @@ pub async fn read_codex_plugins(io: &impl PluginIo) -> PluginsFound {
         .collect();
     // A plugin config.toml names that plugin/list does not return loads nowhere, and Codex says nothing of it.
     let conf = config.get("config").and_then(Value::as_object);
-    let named = conf
-        .and_then(|c| c.get("plugins"))
-        .and_then(Value::as_object);
-    let known = conf
-        .and_then(|c| c.get("marketplaces"))
-        .and_then(Value::as_object);
+    let named = conf.and_then(|c| c.get("plugins")).and_then(Value::as_object);
+    let known = conf.and_then(|c| c.get("marketplaces")).and_then(Value::as_object);
     let listed: Vec<&str> = marketplaces
         .iter()
-        .flat_map(|mk| {
-            records(mk.get("plugins"))
-                .into_iter()
-                .filter_map(|p| p.get("id").and_then(Value::as_str))
-        })
+        .flat_map(|mk| records(mk.get("plugins")).into_iter().filter_map(|p| p.get("id").and_then(Value::as_str)))
         .collect();
-    let mut absent: Vec<String> = named.map_or_else(Vec::new, |n| {
-        n.keys()
-            .filter(|k| !listed.contains(&k.as_str()))
-            .cloned()
-            .collect()
-    });
+    let mut absent: Vec<String> = named.map_or_else(Vec::new, |n| n.keys().filter(|k| !listed.contains(&k.as_str())).cloned().collect());
     absent = sorted(absent);
     let sources = unique(absent.iter().filter_map(|id| local_source(known, id)));
     let seen = if sources.is_empty() {
         None
     } else {
-        io.peek(&[PeekGroup {
-            roots: Some(sources),
-            dirs: Some(vec![PeekDir {
-                path: ".".to_string(),
-                depth: 1,
-            }]),
-            ..Default::default()
-        }])
-        .await
+        io.peek(&[PeekGroup { roots: Some(sources), dirs: Some(vec![PeekDir { path: ".".to_string(), depth: 1 }]), ..Default::default() }])
+            .await
     };
     for id in &absent {
         let (name, marketplace) = plugin_id_parts(id);
         let setting = named.and_then(|n| n.get(id));
         let source = local_source(known, id);
-        let folder_there = source
-            .as_ref()
-            .map(|s| seen.as_ref().and_then(|p| p.list(s)).is_some());
+        let folder_there = source.as_ref().map(|s| seen.as_ref().and_then(|p| p.list(s)).is_some());
         plugins.push(FoundPlugin {
             id: id.clone(),
             name,
@@ -444,11 +353,7 @@ pub async fn read_codex_plugins(io: &impl PluginIo) -> PluginsFound {
             scope: PluginScope::User,
             project: None,
             on: setting.and_then(|s| s.get("enabled")) == Some(&Value::Bool(true)),
-            missing: Some(if folder_there == Some(false) {
-                PluginMissing::Marketplace
-            } else {
-                PluginMissing::Unlisted
-            }),
+            missing: Some(if folder_there == Some(false) { PluginMissing::Marketplace } else { PluginMissing::Unlisted }),
             path: None,
             set_in: None,
             description: None,
@@ -463,9 +368,7 @@ pub async fn read_codex_plugins(io: &impl PluginIo) -> PluginsFound {
             let Some(id) = p.get("id").and_then(Value::as_str) else {
                 continue;
             };
-            if p.get("installed") == Some(&Value::Bool(true))
-                || !named.is_some_and(|n| n.contains_key(id))
-            {
+            if p.get("installed") == Some(&Value::Bool(true)) || !named.is_some_and(|n| n.contains_key(id)) {
                 continue;
             }
             let (name, marketplace) = plugin_id_parts(id);
@@ -497,59 +400,33 @@ pub async fn read_codex_plugins(io: &impl PluginIo) -> PluginsFound {
         .map(|m| format!("plugins: Codex could not load a marketplace: {m}"))
         .collect();
     let (file, version) = user_layer(config);
-    PluginsFound {
-        plugins,
-        refused,
-        version,
-        file,
-    }
+    PluginsFound { plugins, refused, version, file }
 }
 
 /// The switch (plugins-codex.ts:421): the app server's `config/value/write` on `plugins.<id>.enabled`, checked against
 /// the config version the read named.
-pub async fn turn_codex(
-    io: &impl PluginIo,
-    plugin: &FoundPlugin,
-    on: bool,
-    read: &PluginsFound,
-) -> Option<String> {
+pub async fn turn_codex(io: &impl PluginIo, plugin: &FoundPlugin, on: bool, read: &PluginsFound) -> Option<String> {
     let mut params = Map::new();
-    params.insert(
-        "keyPath".to_string(),
-        Value::String(format!("plugins.{}.enabled", plugin.id)),
-    );
+    params.insert("keyPath".to_string(), Value::String(format!("plugins.{}.enabled", plugin.id)));
     params.insert("value".to_string(), Value::Bool(on));
-    params.insert(
-        "mergeStrategy".to_string(),
-        Value::String("upsert".to_string()),
-    );
+    params.insert("mergeStrategy".to_string(), Value::String("upsert".to_string()));
     if let Some(version) = &read.version {
-        params.insert(
-            "expectedVersion".to_string(),
-            Value::String(version.clone()),
-        );
+        params.insert("expectedVersion".to_string(), Value::String(version.clone()));
     }
     let write = request(LIST, "config/value/write", Value::Object(params));
     let said = ask(io, &[initialize_request(INIT), write]).await;
     let answers = answers_of(said.as_deref().unwrap_or(""));
-    if result_of(&answers, LIST).and_then(|r| r.get("status"))
-        == Some(&Value::String("ok".to_string()))
-    {
+    if result_of(&answers, LIST).and_then(|r| r.get("status")) == Some(&Value::String("ok".to_string())) {
         return None;
     }
     let error = match answers.get(&LIST) {
         Some(ServerAnswer::Error { message, data, .. }) => Some((message.as_str(), data.as_ref())),
         _ => None,
     };
-    let conflict = error
-        .and_then(|(_, data)| data)
-        .and_then(|d| d.get("config_write_error_code"))
-        .and_then(Value::as_str)
+    let conflict = error.and_then(|(_, data)| data).and_then(|d| d.get("config_write_error_code")).and_then(Value::as_str)
         == Some("configVersionConflict");
     if conflict {
-        return Some(config_changed_refusal(
-            read.file.as_deref().unwrap_or("config.toml"),
-        ));
+        return Some(config_changed_refusal(read.file.as_deref().unwrap_or("config.toml")));
     }
     let said = match error {
         Some((message, _)) => message.strip_suffix('.').unwrap_or(message).to_string(),

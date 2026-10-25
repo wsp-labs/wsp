@@ -57,24 +57,15 @@ impl StatusCheck {
             StatusReader::Aws => exit_ok && says(r#""Arn""#),
             StatusReader::Wrangler => says("You are logged in"),
             StatusReader::Vercel => exit_ok && !says("No existing credentials"),
-            StatusReader::Netlify => {
-                exit_ok && !JsRegex::with_flags("Not logged in", "i").is_match(output)
-            }
-            StatusReader::Supabase
-            | StatusReader::Doppler
-            | StatusReader::Gemini
-            | StatusReader::Cloudflared => exit_ok,
+            StatusReader::Netlify => exit_ok && !JsRegex::with_flags("Not logged in", "i").is_match(output),
+            StatusReader::Supabase | StatusReader::Doppler | StatusReader::Gemini | StatusReader::Cloudflared => exit_ok,
             StatusReader::Railway => exit_ok && says("Logged in as"),
             StatusReader::Claude => claude_signed_in(output),
             StatusReader::Codex => exit_ok && says("Logged in using"),
-            StatusReader::Opencode => {
-                exit_ok && says(r"[1-9]\d* (credentials|environment variable)")
-            }
+            StatusReader::Opencode => exit_ok && says(r"[1-9]\d* (credentials|environment variable)"),
             StatusReader::Cursor => exit_ok && says("Logged in as|Login successful"),
             StatusReader::Kubectl => exit_ok && says(r"\S"),
-            StatusReader::Pi => {
-                exit_ok && JsRegex::with_flags(r"^provider\s+model\b", "m").is_match(output)
-            }
+            StatusReader::Pi => exit_ok && JsRegex::with_flags(r"^provider\s+model\b", "m").is_match(output),
             StatusReader::Hermes => exit_ok && says(r"\(\d+ credentials\):"),
         }
     }
@@ -371,16 +362,12 @@ pub fn token_in(s: &TokenSignIn, pasted: &str) -> Option<String> {
 
 /// signin.ts:185.
 pub fn questions_of(s: &SignIn) -> Vec<Question> {
-    has_login(s)
-        .and_then(|l| l.questions.clone())
-        .unwrap_or_default()
+    has_login(s).and_then(|l| l.questions.clone()).unwrap_or_default()
 }
 
 /// signin.ts:191.
 pub fn asks_the_person(s: &SignIn) -> bool {
-    has_login(s)
-        .and_then(|l| l.questions.as_deref())
-        .is_some_and(|qs| qs.iter().any(|q| matches!(q.settle, Settle::Person(_))))
+    has_login(s).and_then(|l| l.questions.as_deref()).is_some_and(|qs| qs.iter().any(|q| matches!(q.settle, Settle::Person(_))))
 }
 
 /// signin.ts:199.
@@ -440,28 +427,17 @@ pub fn keys_row_of(keys: &KeyFiles, status: Option<&StatusCheck>) -> SignIn {
 
 /// `/root/<p>` for each of the row's `stateOnMachine` (signin.ts:239).
 pub fn login_state_paths(sign_in: &SignIn) -> Vec<String> {
-    sign_in
-        .state_on_machine()
-        .iter()
-        .map(|p| format!("{GUEST_HOME}/{p}"))
-        .collect()
+    sign_in.state_on_machine().iter().map(|p| format!("{GUEST_HOME}/{p}")).collect()
 }
 
 /// signin.ts:244.
 pub fn no_sign_in() -> SignIn {
-    SignIn::None(NoSignIn {
-        kind: SignInKind::None,
-        note: None,
-        sources: Vec::new(),
-        status: None,
-        state_on_machine: None,
-    })
+    SignIn::None(NoSignIn { kind: SignInKind::None, note: None, sources: Vec::new(), status: None, state_on_machine: None })
 }
 
 pub const AWS_STATUS: &str = "sh -c 'for p in $(aws configure list-profiles 2>/dev/null); do aws sts get-caller-identity --profile \"$p\" 2>/dev/null && exit 0; done; exit 1'";
 pub const GEMINI_STATUS: &str = "if test -s \"$HOME/.gemini/oauth_creds.json\"; then echo oauth_creds.json; elif test -n \"$GEMINI_API_KEY\"; then echo GEMINI_API_KEY; elif test -n \"$GOOGLE_API_KEY\"; then echo GOOGLE_API_KEY; else false; fi";
-pub const CLOUDFLARED_STATUS: &str =
-    "if test -s \"$HOME/.cloudflared/cert.pem\"; then echo cert.pem; else false; fi";
+pub const CLOUDFLARED_STATUS: &str = "if test -s \"$HOME/.cloudflared/cert.pem\"; then echo cert.pem; else false; fi";
 pub const TOKEN_SOURCE: &str = "the token from this computer";
 
 fn js_trim(s: &str) -> &str {
@@ -480,17 +456,13 @@ fn key_from(name: &str, secrets: &IndexMap<String, String>) -> String {
 pub fn secret_named(output: &str, secrets: &IndexMap<String, String>) -> Option<String> {
     secrets
         .iter()
-        .find(|(name, _)| {
-            output
-                .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
-                .any(|word| word == name.as_str())
-        })
+        .find(|(name, _)| output.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).any(|word| word == name.as_str()))
         .map(|(_, from)| format!("API key from {from}, set on the machine as a secret"))
 }
 
 /// The one word the gemini line echoed last: the cached sign-in's file, or the key's name.
 fn gemini_found(output: &str) -> Option<&str> {
-    js_trim(output).split(is_js_space).last()
+    js_trim(output).split(is_js_space).next_back()
 }
 
 /// signin.ts:277.
@@ -555,9 +527,7 @@ fn claude_plan(output: &str) -> Option<String> {
     if status.get("apiKeySource").is_some() {
         return None;
     }
-    field(&status, "subscriptionType")
-        .filter(|plan| !plan.is_empty())
-        .map(str::to_string)
+    field(&status, "subscriptionType").filter(|plan| !plan.is_empty()).map(str::to_string)
 }
 
 /// A key where the status names one; the long-lived token only a plan mints, and a browser sign-in whose account names

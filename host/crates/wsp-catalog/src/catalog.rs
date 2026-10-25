@@ -17,8 +17,7 @@ use crate::plugins::PluginShelf;
 use crate::road_modules::{road_module, InstallHomes};
 use crate::roads::{InstallRoad, RoadName};
 use crate::signin::{
-    has_login, key_env_of, keys_id_of, keys_row_of, login_id_of, login_there, mints_token,
-    shared_login_of, KeyFiles, SharedLogin, SignIn,
+    has_login, key_env_of, keys_id_of, keys_row_of, login_id_of, login_there, mints_token, shared_login_of, KeyFiles, SharedLogin, SignIn,
 };
 use crate::skills::{BundledSkills, PluginRoad, PluginSkills, SkillRoots};
 use wsp_wire::types::agents_report::PageReach;
@@ -30,13 +29,8 @@ use wsp_words::semver::compare_versions;
 use wsp_words::views::place_setup_words::SignInWay;
 use wsp_words::words::computer::{this_computer, Platform};
 
-static CATALOG: LazyLock<Vec<CatalogEntry>> = LazyLock::new(|| {
-    agent_modules()
-        .into_iter()
-        .map(CatalogEntry::Agent)
-        .chain(tool_rows().into_iter().map(CatalogEntry::Tool))
-        .collect()
-});
+static CATALOG: LazyLock<Vec<CatalogEntry>> =
+    LazyLock::new(|| agent_modules().into_iter().map(CatalogEntry::Agent).chain(tool_rows().into_iter().map(CatalogEntry::Tool)).collect());
 
 static LOGIN_ROWS: LazyLock<Vec<LoginRow>> = LazyLock::new(|| {
     let mut rows = Vec::new();
@@ -45,21 +39,11 @@ static LOGIN_ROWS: LazyLock<Vec<LoginRow>> = LazyLock::new(|| {
         match has_login(s) {
             None => {
                 if mints_token(s).is_some() || s.note().is_some() {
-                    rows.push(LoginRow {
-                        id: login_id_of(e.id()),
-                        entry: e,
-                        sign_in: s.clone(),
-                        keys: None,
-                    });
+                    rows.push(LoginRow { id: login_id_of(e.id()), entry: e, sign_in: s.clone(), keys: None });
                 }
             }
             Some(login) => {
-                rows.push(LoginRow {
-                    id: login_id_of(e.id()),
-                    entry: e,
-                    sign_in: s.clone(),
-                    keys: None,
-                });
+                rows.push(LoginRow { id: login_id_of(e.id()), entry: e, sign_in: s.clone(), keys: None });
                 if let Some(keys) = &login.keys {
                     rows.push(LoginRow {
                         id: keys_id_of(e.id()),
@@ -97,12 +81,7 @@ fn store_line(agent_id: &str, stores: Option<&IndexMap<String, String>>) -> Stri
 }
 
 fn no_pin(road: &InstallRoad) -> AtPin {
-    AtPin {
-        road: road.clone(),
-        pinned: None,
-        note: None,
-        below: None,
-    }
+    AtPin { road: road.clone(), pinned: None, note: None, below: None }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -158,11 +137,7 @@ pub enum HistoryFormat {
 }
 
 /// catalog.ts:66, in this order.
-pub const HISTORY_FORMATS: [HistoryFormat; 3] = [
-    HistoryFormat::ClaudeJsonl,
-    HistoryFormat::CodexRollout,
-    HistoryFormat::HermesSqlite,
-];
+pub const HISTORY_FORMATS: [HistoryFormat; 3] = [HistoryFormat::ClaudeJsonl, HistoryFormat::CodexRollout, HistoryFormat::HermesSqlite];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SessionHistory {
@@ -351,6 +326,7 @@ pub struct ToolEntry {
 /// catalog.ts:201, serialized as the entry itself.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
 pub enum CatalogEntry {
     Agent(AgentEntry),
     Tool(ToolEntry),
@@ -438,14 +414,8 @@ pub fn size_method_words(method: SizeMethod) -> &'static str {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum Size {
-    Measured {
-        bytes: u64,
-        on: String,
-        method: SizeMethod,
-    },
-    Unmeasured {
-        unmeasured: String,
-    },
+    Measured { bytes: u64, on: String, method: SizeMethod },
+    Unmeasured { unmeasured: String },
 }
 
 /// catalog.ts:218.
@@ -463,18 +433,12 @@ pub fn catalog() -> &'static [CatalogEntry] {
 
 /// catalog.ts:315.
 pub fn catalog_agents() -> Vec<&'static AgentEntry> {
-    catalog()
-        .iter()
-        .filter_map(CatalogEntry::as_agent)
-        .collect()
+    catalog().iter().filter_map(CatalogEntry::as_agent).collect()
 }
 
 /// The first agent (catalog.ts:320).
 pub fn default_agent() -> &'static AgentEntry {
-    catalog()
-        .iter()
-        .find_map(CatalogEntry::as_agent)
-        .expect("the catalog has no agent")
+    catalog().iter().find_map(CatalogEntry::as_agent).expect("the catalog has no agent")
 }
 
 /// catalog.ts:321.
@@ -496,51 +460,28 @@ pub fn guest_env(a: &AgentEntry) -> IndexMap<String, String> {
 
 /// The agents whose config the catalog knows, in catalog order (catalog.ts:333).
 pub fn mcp_agents() -> Vec<&'static AgentEntry> {
-    catalog_agents()
-        .into_iter()
-        .filter(|a| a.mcp.is_some())
-        .collect()
+    catalog_agents().into_iter().filter(|a| a.mcp.is_some()).collect()
 }
 
 /// Their ids joined by ", " (catalog.ts:335).
 pub fn mcp_agent_ids() -> String {
-    mcp_agents()
-        .iter()
-        .map(|a| a.id.as_str())
-        .collect::<Vec<_>>()
-        .join(", ")
+    mcp_agents().iter().map(|a| a.id.as_str()).collect::<Vec<_>>().join(", ")
 }
 
 /// catalog.ts:337.
 pub fn mcp_switch(id: &str) -> bool {
-    agent_entry(id)
-        .and_then(|a| a.mcp.as_ref())
-        .is_some_and(|m| m.format.has_enable())
+    agent_entry(id).and_then(|a| a.mcp.as_ref()).is_some_and(|m| m.format.has_enable())
 }
 
 /// catalog.ts:351.
-pub fn harness_line(
-    agent_id: &str,
-    line: &str,
-    stores: Option<&IndexMap<String, String>>,
-    folder: Option<&str>,
-) -> String {
-    let folder_part = folder
-        .map(|f| format!("cd {} 2>/dev/null; ", shell_quote(f)))
-        .unwrap_or_default();
+pub fn harness_line(agent_id: &str, line: &str, stores: Option<&IndexMap<String, String>>, folder: Option<&str>) -> String {
+    let folder_part = folder.map(|f| format!("cd {} 2>/dev/null; ", shell_quote(f))).unwrap_or_default();
     format!("{folder_part}{}{line}", store_line(agent_id, stores))
 }
 
 /// `None` for an agent with no MCP login (catalog.ts:357).
-pub fn server_sign_in_road(
-    agent_id: &str,
-    name: &str,
-    reach: PageReach,
-    brokered: bool,
-) -> Option<Result<ServerSignInRoad, HostError>> {
-    let login = agent_entry(agent_id)
-        .and_then(|a| a.mcp.as_ref())
-        .and_then(|m| m.login)?;
+pub fn server_sign_in_road(agent_id: &str, name: &str, reach: PageReach, brokered: bool) -> Option<Result<ServerSignInRoad, HostError>> {
+    let login = agent_entry(agent_id).and_then(|a| a.mcp.as_ref()).and_then(|m| m.login)?;
     Some(login_road(login, name, reach, brokered))
 }
 
@@ -553,30 +494,19 @@ pub const COMPILER_ROW: &str = "build-essential";
 
 /// catalog.ts:371.
 pub fn floor_bytes(compiler: bool) -> u64 {
-    base_floor()
-        .iter()
-        .filter(|t| compiler || t.id != COMPILER_ROW)
-        .map(|t| size_bytes(&t.size).unwrap_or(0))
-        .sum()
+    base_floor().iter().filter(|t| compiler || t.id != COMPILER_ROW).map(|t| size_bytes(&t.size).unwrap_or(0)).sum()
 }
 
 /// catalog.ts:375.
 pub fn install_after(e: &ToolEntry) -> Option<String> {
-    road_module(&e.install_road)
-        .after()
-        .map(str::to_string)
-        .or_else(|| e.after.clone())
+    road_module(&e.install_road).after().map(str::to_string).or_else(|| e.after.clone())
 }
 
 /// catalog.ts:382.
 pub fn catalog_tool_by_road(road: RoadName, pkg: &str) -> Option<&'static ToolEntry> {
-    catalog_tools().into_iter().find(|e| {
-        e.install_road.name() == road
-            && road_module(&e.install_road)
-                .names(&e.install_road)
-                .iter()
-                .any(|n| n == pkg)
-    })
+    catalog_tools()
+        .into_iter()
+        .find(|e| e.install_road.name() == road && road_module(&e.install_road).names(&e.install_road).iter().any(|n| n == pkg))
 }
 
 /// catalog.ts:392.
@@ -592,12 +522,7 @@ pub fn catalog_id_of_row(id: &str) -> Option<String> {
 
 /// catalog.ts:400.
 pub fn catalog_tool_for_dependency(road: RoadName, pkg: &str) -> Option<&'static ToolEntry> {
-    catalog_tools().into_iter().find(|e| {
-        e.depends
-            .as_ref()
-            .and_then(|d| d.get(&road))
-            .is_some_and(|names| names.iter().any(|n| n == pkg))
-    })
+    catalog_tools().into_iter().find(|e| e.depends.as_ref().and_then(|d| d.get(&road)).is_some_and(|names| names.iter().any(|n| n == pkg)))
 }
 
 /// catalog.ts:406.
@@ -605,16 +530,9 @@ pub fn catalog_tool_for(pkg: &str) -> Option<&'static ToolEntry> {
     catalog_tools().into_iter().find(|e| {
         e.id == pkg
             || e.bin == pkg
-            || road_module(&e.install_road)
-                .names(&e.install_road)
-                .iter()
-                .any(|n| n == pkg)
-            || e.covers
-                .as_ref()
-                .is_some_and(|c| c.iter().any(|n| n == pkg))
-            || e.brings
-                .as_ref()
-                .is_some_and(|b| b.iter().any(|x| x.bin == pkg))
+            || road_module(&e.install_road).names(&e.install_road).iter().any(|n| n == pkg)
+            || e.covers.as_ref().is_some_and(|c| c.iter().any(|n| n == pkg))
+            || e.brings.as_ref().is_some_and(|b| b.iter().any(|x| x.bin == pkg))
     })
 }
 
@@ -656,11 +574,9 @@ pub fn at_catalog_pin(road: &InstallRoad, asked: Option<&str>) -> AtPin {
     if road.package().is_none() {
         return no_pin(road);
     }
-    let entry = catalog_tools().into_iter().find(|e| {
-        e.install_road.name() == road.name()
-            && e.install_road.package() == road.package()
-            && e.install_road.version().is_some()
-    });
+    let entry = catalog_tools()
+        .into_iter()
+        .find(|e| e.install_road.name() == road.name() && e.install_road.package() == road.package() && e.install_road.version().is_some());
     let found = entry.and_then(|e| e.install_road.version().map(|v| (e, v.to_string())));
     let Some((entry, version)) = found else {
         return no_pin(road);
@@ -668,9 +584,7 @@ pub fn at_catalog_pin(road: &InstallRoad, asked: Option<&str>) -> AtPin {
     if asked.is_some_and(|a| compare_versions(a, &version) != Ordering::Less) {
         return no_pin(road);
     }
-    let pinned_road = road_module(road)
-        .at(road, &version)
-        .unwrap_or_else(|| road.clone());
+    let pinned_road = road_module(road).at(road, &version).unwrap_or_else(|| road.clone());
     let pinned = Some(version.clone());
     match (asked, &entry.pin_node) {
         (None, _) => AtPin { road: pinned_road, pinned, note: None, below: None },
@@ -689,23 +603,9 @@ pub fn at_catalog_pin(road: &InstallRoad, asked: Option<&str>) -> AtPin {
 }
 
 /// catalog.ts:436; errors "<bin>: <note>" where a road has no line.
-pub fn below_line(
-    road: &InstallRoad,
-    below: &Below,
-    bin: &str,
-    homes: &InstallHomes,
-) -> Result<String, HostError> {
-    let line = |r: &InstallRoad| {
-        road_module(r)
-            .install(r, bin, Some(homes))
-            .map_err(|n| HostError::new(format!("{bin}: {}", n.0)))
-    };
-    Ok(format!(
-        "if {}; then\n{}\nelse\n{}\nfi",
-        node_at_least(&below.node),
-        line(road)?,
-        line(&below.road)?
-    ))
+pub fn below_line(road: &InstallRoad, below: &Below, bin: &str, homes: &InstallHomes) -> Result<String, HostError> {
+    let line = |r: &InstallRoad| road_module(r).install(r, bin, Some(homes)).map_err(|n| HostError::new(format!("{bin}: {}", n.0)));
+    Ok(format!("if {}; then\n{}\nelse\n{}\nfi", node_at_least(&below.node), line(road)?, line(&below.road)?))
 }
 
 /// catalog.ts:446.
@@ -729,13 +629,7 @@ pub fn base_note(e: &ToolEntry, here_version: Option<&str>, platform: Platform) 
     if here == major.version {
         own
     } else {
-        format!(
-            "{} {} is part of the base; {} runs {} {here}",
-            major.name,
-            major.version,
-            this_computer(platform),
-            major.name
-        )
+        format!("{} {} is part of the base; {} runs {} {here}", major.name, major.version, this_computer(platform), major.name)
     }
 }
 
@@ -746,18 +640,14 @@ pub fn catalog_entry(id: &str) -> Option<&'static CatalogEntry> {
 
 /// catalog.ts:468.
 pub fn agent_name(id: &str) -> String {
-    catalog_entry(id)
-        .map(|e| e.name().to_string())
-        .unwrap_or_else(|| id.to_string())
+    catalog_entry(id).map(|e| e.name().to_string()).unwrap_or_else(|| id.to_string())
 }
 
 pub const UNMARKED_AGENTS: [&str; 1] = ["crush"];
 
 /// catalog.ts:477.
 pub fn agent_mark(id: &str) -> Option<&'static AgentMark> {
-    catalog_entry(id)
-        .and_then(|e| e.as_agent())
-        .and_then(|a| a.mark.as_ref())
+    catalog_entry(id).and_then(|e| e.as_agent()).and_then(|a| a.mark.as_ref())
 }
 
 /// catalog.ts:484.
@@ -800,11 +690,7 @@ pub fn setup_need_rows(agent: &str) -> Vec<SetupNeed> {
         .map(|needs| {
             needs
                 .iter()
-                .map(|n| SetupNeed {
-                    id: format!("agents/{agent}/{}", n.id),
-                    after: format!("agents/{agent}/{}", n.after),
-                    ..n.clone()
-                })
+                .map(|n| SetupNeed { id: format!("agents/{agent}/{}", n.id), after: format!("agents/{agent}/{}", n.after), ..n.clone() })
                 .collect()
         })
         .unwrap_or_default()
@@ -824,11 +710,7 @@ pub fn apt_need_rows(agent: &str) -> Vec<AptNeedRow> {
         .map(|needs| {
             needs
                 .iter()
-                .map(|n| AptNeedRow {
-                    id: format!("agents/{agent}/{}", n.package),
-                    package: n.package.clone(),
-                    command: n.command.clone(),
-                })
+                .map(|n| AptNeedRow { id: format!("agents/{agent}/{}", n.package), package: n.package.clone(), command: n.command.clone() })
                 .collect()
         })
         .unwrap_or_default()
@@ -854,11 +736,7 @@ pub fn sign_in_ways_of(agent: &str) -> Vec<SignInWay> {
 
 /// catalog.ts:553.
 pub fn shared_agents_on(agents: &[String]) -> Vec<String> {
-    agents
-        .iter()
-        .filter(|id| shared_on(id).is_some())
-        .cloned()
-        .collect()
+    agents.iter().filter(|id| shared_on(id).is_some()).cloned().collect()
 }
 
 /// `<bin> --version` (catalog.ts:558).
@@ -886,16 +764,10 @@ pub fn install_shown(e: &CatalogEntry) -> Result<InstallShown, HostError> {
         Some(line) => line,
         None => install_line(e)?,
     };
-    Ok(if line.contains('\n') {
-        InstallShown::Words(module.words())
-    } else {
-        InstallShown::Line(line)
-    })
+    Ok(if line.contains('\n') { InstallShown::Words(module.words()) } else { InstallShown::Line(line) })
 }
 
 /// catalog.ts:574; errors "<id>: <note>".
 pub fn install_line(e: &CatalogEntry) -> Result<String, HostError> {
-    road_module(e.install_road())
-        .install(e.install_road(), e.bin(), None)
-        .map_err(|n| HostError::new(format!("{}: {}", e.id(), n.0)))
+    road_module(e.install_road()).install(e.install_road(), e.bin(), None).map_err(|n| HostError::new(format!("{}: {}", e.id(), n.0)))
 }

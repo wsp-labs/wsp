@@ -3,6 +3,7 @@
 //! JavaScript writes it. Port of packages/catalog/src/jsonc.ts at a3b870a6e; the spec is spec/jsonc.md.
 use serde_json::{Map, Number, Value};
 
+use wsp_wire::types::js_number::JsNumber;
 use wsp_words::exit::HostError;
 
 /// A JSON object as the catalog reads one: keys in the order the text names them first.
@@ -40,14 +41,7 @@ pub fn js_stringify_pretty(value: &Value) -> String {
     out
 }
 
-/// JavaScript's `/\s/`: spec rule 8.7.
-pub(crate) fn is_js_space(c: char) -> bool {
-    matches!(
-        c,
-        '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
-            ..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'
-    )
-}
+pub(crate) use wsp_words::js::is_js_whitespace as is_js_space;
 
 /// The index just past the string whose opening quote stands at `open`, or nothing where it never closes.
 pub(crate) fn string_end(bytes: &[u8], open: usize) -> Option<usize> {
@@ -182,33 +176,5 @@ fn newline(pretty: bool, depth: usize, out: &mut String) {
 
 /// `Number.prototype.toString` of the number a JSON text read as a double.
 fn number_text(n: &Number) -> String {
-    let x = n.as_f64().unwrap_or(f64::NAN);
-    if x.is_nan() {
-        return "null".to_string();
-    }
-    if x == 0.0 {
-        return "0".to_string();
-    }
-    if x.is_infinite() {
-        return if x > 0.0 { "Infinity".to_string() } else { "-Infinity".to_string() };
-    }
-    let sign = if x < 0.0 { "-" } else { "" };
-    let sci = format!("{:e}", x.abs());
-    let (mantissa, exponent) = sci.split_once('e').unwrap_or((sci.as_str(), "0"));
-    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
-    let k = digits.len() as i64;
-    let e: i64 = exponent.parse().unwrap_or(0);
-    let point = e + 1;
-    let body = if k <= point && point <= 21 {
-        format!("{digits}{}", "0".repeat((point - k) as usize))
-    } else if 0 < point && point <= 21 {
-        format!("{}.{}", &digits[..point as usize], &digits[point as usize..])
-    } else if -6 < point && point <= 0 {
-        format!("0.{}{digits}", "0".repeat((-point) as usize))
-    } else {
-        let exp = point - 1;
-        let fraction = if k == 1 { String::new() } else { format!(".{}", &digits[1..]) };
-        format!("{}{fraction}e{}{}", &digits[..1], if exp < 0 { "-" } else { "+" }, exp.abs())
-    };
-    format!("{sign}{body}")
+    JsNumber(n.as_f64().unwrap_or(f64::NAN)).js_string()
 }

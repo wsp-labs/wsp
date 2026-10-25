@@ -32,7 +32,14 @@ impl McpOAuthStore {
     /// `{home}/.credentials.json`, at `["mcpOAuth", "<name>|<first 16 hex of sha256(JSON of {type:"http",url,headers})>"]`,
     /// field `accessToken`; `sha256` answers hex (mcp-oauth.ts:205). The JSON is `JSON.stringify` of the three keys in
     /// that order, the headers in their own order.
-    pub fn bearer(self, name: &str, url: &str, headers: &IndexMap<String, String>, home: &str, sha256: &dyn Fn(&str) -> String) -> HttpBearer {
+    pub fn bearer(
+        self,
+        name: &str,
+        url: &str,
+        headers: &IndexMap<String, String>,
+        home: &str,
+        sha256: &dyn Fn(&str) -> String,
+    ) -> HttpBearer {
         let mut header_map = Map::new();
         for (k, v) in headers {
             header_map.insert(k.clone(), Value::String(v.clone()));

@@ -6,8 +6,7 @@ use serde_json::{json, Value};
 
 use wsp_wire::types::shell_quote::shell_quote;
 
-pub const CONTEXT_MARKER: &str =
-    "wsp writes this file when a workspace is forked; edits are overwritten.";
+pub const CONTEXT_MARKER: &str = "wsp writes this file when a workspace is forked; edits are overwritten.";
 pub const SKILL_NAME: &str = "wsp-machine";
 /// The mode of every file the context lands (context.ts:293).
 pub const MODE: u32 = 0o644;
@@ -101,11 +100,7 @@ const CLAUDE_CD_FACT: &str = "- Every agent session starts in the thread's folde
 const CLAUDE_CD_HOWTO: &str = "- Work in a folder: cd <dir> in your shell and it stays there across your tool calls; the thread's folder does not move. Absolute paths work from anywhere.";
 
 fn file(path: &str, content: &str) -> GuestFile {
-    GuestFile {
-        path: path.to_string(),
-        mode: MODE,
-        content: content.to_string(),
-    }
+    GuestFile { path: path.to_string(), mode: MODE, content: content.to_string() }
 }
 
 fn skill_at(dir: &str, skill: &str) -> GuestFile {
@@ -114,20 +109,14 @@ fn skill_at(dir: &str, skill: &str) -> GuestFile {
 
 /// JSON.stringify(value, null, 2) with the trailing newline the TS files end with.
 fn pretty_json(value: &Value) -> String {
-    format!(
-        "{}\n",
-        serde_json::to_string_pretty(value).expect("a JSON value serializes")
-    )
+    format!("{}\n", serde_json::to_string_pretty(value).expect("a JSON value serializes"))
 }
 
 impl AgentContext {
     /// Claude Code's alone.
     pub fn cd(self) -> Option<CdFacts> {
         match self {
-            AgentContext::Claude => Some(CdFacts {
-                fact: CLAUDE_CD_FACT.to_string(),
-                howto: CLAUDE_CD_HOWTO.to_string(),
-            }),
+            AgentContext::Claude => Some(CdFacts { fact: CLAUDE_CD_FACT.to_string(), howto: CLAUDE_CD_HOWTO.to_string() }),
             _ => None,
         }
     }
@@ -136,22 +125,23 @@ impl AgentContext {
     pub fn conflict(self, roots: &GuestRoots) -> Option<String> {
         let home = &roots.home;
         match self {
-            AgentContext::Gemini => Some(format!("[ -f {home}/.gemini/settings.json ] && node -e {} {home}/.gemini/settings.json 2>/dev/null", shell_quote(GEMINI_FILENAME_CHECK))),
-            AgentContext::Pi => Some(format!("[ -f {home}/.pi/agent/APPEND_SYSTEM.md ] && ! head -n 1 {home}/.pi/agent/APPEND_SYSTEM.md | grep -qF {}", shell_quote(CONTEXT_MARKER))),
-            AgentContext::Hermes => Some(format!("[ -f {home}/.hermes/config.yaml ] && awk {} {home}/.hermes/config.yaml", shell_quote(HERMES_HINT_CHECK))),
+            AgentContext::Gemini => Some(format!(
+                "[ -f {home}/.gemini/settings.json ] && node -e {} {home}/.gemini/settings.json 2>/dev/null",
+                shell_quote(GEMINI_FILENAME_CHECK)
+            )),
+            AgentContext::Pi => Some(format!(
+                "[ -f {home}/.pi/agent/APPEND_SYSTEM.md ] && ! head -n 1 {home}/.pi/agent/APPEND_SYSTEM.md | grep -qF {}",
+                shell_quote(CONTEXT_MARKER)
+            )),
+            AgentContext::Hermes => {
+                Some(format!("[ -f {home}/.hermes/config.yaml ] && awk {} {home}/.hermes/config.yaml", shell_quote(HERMES_HINT_CHECK)))
+            }
             AgentContext::Claude | AgentContext::Codex | AgentContext::Opencode => None,
         }
     }
 
     pub fn hooks(self, input: &ContextHookInput) -> ContextHooks {
-        let ContextHookInput {
-            short,
-            skill,
-            source,
-            roots,
-            conflict,
-            fish,
-        } = input;
+        let ContextHookInput { short, skill, source, roots, conflict, fish } = input;
         let (etc, home) = (roots.etc.as_str(), roots.home.as_str());
         match self {
             AgentContext::Claude => {
@@ -168,10 +158,7 @@ impl AgentContext {
             AgentContext::Codex => {
                 let s = skill_at(&format!("{etc}/codex/skills"), skill);
                 let path = format!("{etc}/codex/requirements.toml");
-                let content = format!(
-                    "# {CONTEXT_MARKER}\nadditional_developer_instructions = {}\n",
-                    toml_doc_string(short)
-                );
+                let content = format!("# {CONTEXT_MARKER}\nadditional_developer_instructions = {}\n", toml_doc_string(short));
                 ContextHooks {
                     outcome: ContextOutcomeKind::Written,
                     files: vec![file(&path, &content), s.clone()],
@@ -184,9 +171,7 @@ impl AgentContext {
                 let s = skill_at(&format!("{home}/.gemini/skills"), skill);
                 if *conflict {
                     let dir = format!("{home}/.gemini/extensions/{SKILL_NAME}");
-                    let manifest = pretty_json(
-                        &json!({ "name": SKILL_NAME, "version": "1.0.0", "contextFileName": "WSP-MACHINE.md" }),
-                    );
+                    let manifest = pretty_json(&json!({ "name": SKILL_NAME, "version": "1.0.0", "contextFileName": "WSP-MACHINE.md" }));
                     return ContextHooks {
                         outcome: ContextOutcomeKind::Fallback,
                         files: vec![
@@ -199,17 +184,11 @@ impl AgentContext {
                         skill: s.path,
                     };
                 }
-                let defaults = pretty_json(
-                    &json!({ "context": { "fileName": ["GEMINI.md", "WSP-MACHINE.md"] } }),
-                );
+                let defaults = pretty_json(&json!({ "context": { "fileName": ["GEMINI.md", "WSP-MACHINE.md"] } }));
                 let path = format!("{home}/.gemini/WSP-MACHINE.md");
                 ContextHooks {
                     outcome: ContextOutcomeKind::Written,
-                    files: vec![
-                        file(&format!("{etc}/gemini-cli/system-defaults.json"), &defaults),
-                        file(&path, short),
-                        s.clone(),
-                    ],
+                    files: vec![file(&format!("{etc}/gemini-cli/system-defaults.json"), &defaults), file(&path, short), s.clone()],
                     path: Some(path),
                     note: None,
                     skill: s.path,
@@ -269,23 +248,15 @@ impl AgentContext {
                     };
                 }
                 let profile = format!("{etc}/profile.d/wsp-machine.sh");
-                let mut files = vec![file(
-                    &profile,
-                    &format!(
-                        "# {CONTEXT_MARKER}\nexport HERMES_ENVIRONMENT_HINT=\"$(cat {source})\"\n"
-                    ),
-                )];
+                let mut files = vec![file(&profile, &format!("# {CONTEXT_MARKER}\nexport HERMES_ENVIRONMENT_HINT=\"$(cat {source})\"\n"))];
                 if *fish {
-                    files.push(file(&format!("{etc}/fish/conf.d/wsp-machine.fish"), &format!("# {CONTEXT_MARKER}\nset -gx HERMES_ENVIRONMENT_HINT (cat {source} | string collect)\n")));
+                    files.push(file(
+                        &format!("{etc}/fish/conf.d/wsp-machine.fish"),
+                        &format!("# {CONTEXT_MARKER}\nset -gx HERMES_ENVIRONMENT_HINT (cat {source} | string collect)\n"),
+                    ));
                 }
                 files.push(s.clone());
-                ContextHooks {
-                    outcome: ContextOutcomeKind::Written,
-                    files,
-                    path: Some(profile),
-                    note: None,
-                    skill: s.path,
-                }
+                ContextHooks { outcome: ContextOutcomeKind::Written, files, path: Some(profile), note: None, skill: s.path }
             }
         }
     }

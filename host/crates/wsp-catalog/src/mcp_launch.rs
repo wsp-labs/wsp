@@ -9,8 +9,8 @@ use indexmap::{IndexMap, IndexSet};
 use serde_json::{Map, Value};
 
 use crate::config_write::store_base;
-use crate::jsonc::{js_stringify_pretty, json_object, read_jsonc};
 use crate::json_edit::{edit_json, JsonEdit};
+use crate::jsonc::{js_stringify_pretty, json_object, read_jsonc};
 use crate::jsonc_tree::PathSeg;
 use crate::mcp::{McpFormat, McpServer, McpServerScope};
 use crate::mcp_codex::codex_trusts;
@@ -107,7 +107,7 @@ pub fn claude_launch_servers(configs: &LaunchConfigs, values: &IndexMap<String, 
         let Some(text) = texts.get(&s.file) else {
             continue;
         };
-        let project = (s.scope == TurnScope::Local).then(|| key.as_str());
+        let project = (s.scope == TurnScope::Local).then_some(key.as_str());
         let Some(entry) = entry_of(McpFormat::McpServersJson, text, &s.server.name, project) else {
             continue;
         };
@@ -442,13 +442,12 @@ impl LaunchServerRoad {
 
     pub fn carry(self, folder: &str, own_files: &[String], own_base: &str) -> CarriedServers {
         match self {
-            LaunchServerRoad::Claude => CarriedServers { files: own_files.to_vec(), base: own_base.to_string(), folder: Some(folder.to_string()), trust: false },
-            LaunchServerRoad::Codex => CarriedServers {
-                files: vec![join(folder, ".codex/config.toml")],
-                base: folder.to_string(),
-                folder: None,
-                trust: true,
-            },
+            LaunchServerRoad::Claude => {
+                CarriedServers { files: own_files.to_vec(), base: own_base.to_string(), folder: Some(folder.to_string()), trust: false }
+            }
+            LaunchServerRoad::Codex => {
+                CarriedServers { files: vec![join(folder, ".codex/config.toml")], base: folder.to_string(), folder: None, trust: true }
+            }
         }
     }
 
@@ -561,11 +560,8 @@ pub fn launch_misses(agent: &str, format: McpFormat, server: &McpServer, held: &
         Some(String::new())
     });
     let road = launch_server_road(agent);
-    let mut out: Vec<String> = read
-        .into_inner()
-        .into_iter()
-        .filter(|name| held.contains(name) && road.is_none_or(|r| !r.hands(server, name)))
-        .collect();
+    let mut out: Vec<String> =
+        read.into_inner().into_iter().filter(|name| held.contains(name) && road.is_none_or(|r| !r.hands(server, name))).collect();
     out.sort();
     out
 }

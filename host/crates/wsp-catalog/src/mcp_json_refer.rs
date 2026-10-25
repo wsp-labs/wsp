@@ -8,11 +8,20 @@ use crate::json_edit::{edit_jsonc, JsonEdit};
 use crate::jsonc_tree::{JsonPath, PathSeg};
 use crate::mcp::{KnownValue, McpFormat, McpReferred, ReferredServer, WholeRef};
 use crate::mcp_json::{dict, env_key, has_projects, json_root, oauth_secret_names, ref_of, ref_re, servers_key, whole_ref};
-use crate::mcp_refs::{arg_strings, header_variables, known_hits, known_stands, mcp_header_variable, oauth_secret_keys, readable, refers, shape_refusal, spliced, still_stands, unread_line, bearer_token};
+use crate::mcp_refs::{
+    arg_strings, bearer_token, header_variables, known_hits, known_stands, mcp_header_variable, oauth_secret_keys, readable, refers,
+    shape_refusal, spliced, still_stands, unread_line,
+};
 use wsp_words::exit::HostError;
 
 /// `format.refer` for a JSON format (mcp.ts:957).
-pub fn refer(format: McpFormat, text: &str, only: Option<&str>, known: &[KnownValue], outside: &IndexSet<String>) -> Result<McpReferred, HostError> {
+pub fn refer(
+    format: McpFormat,
+    text: &str,
+    only: Option<&str>,
+    known: &[KnownValue],
+    outside: &IndexSet<String>,
+) -> Result<McpReferred, HostError> {
     let root = json_root(Some(text))?;
     let beside = if only.is_none() { elsewhere(format, &root) } else { None };
     if let Some(at) = beside {
@@ -46,7 +55,15 @@ pub fn refer(format: McpFormat, text: &str, only: Option<&str>, known: &[KnownVa
         let table = &tables[*ti];
         let base = path_with(&table.at, name);
         let ctx = Ctx { format, name, held: &held, base: base.clone() };
-        let mut w = Weighed { table: *ti, name: name.clone(), values: IndexMap::new(), mine: Vec::new(), shown: def.clone(), lost: Vec::new(), unread: None };
+        let mut w = Weighed {
+            table: *ti,
+            name: name.clone(),
+            values: IndexMap::new(),
+            mine: Vec::new(),
+            shown: def.clone(),
+            lost: Vec::new(),
+            unread: None,
+        };
 
         put_entries(&ctx, &mut w, "headers", &dict(def.get("headers")), &whole, true, &|k| minted_header(name, k))?;
         put_entries(&ctx, &mut w, env_key(format), &dict(def.get(env_key(format))), &whole, false, &|k| k.to_string())?;
@@ -101,10 +118,8 @@ pub fn refer(format: McpFormat, text: &str, only: Option<&str>, known: &[KnownVa
         let mut root_value = Value::Object(root);
         edit_jsonc(text, &mut root_value, &edits)?
     };
-    let entries: Vec<Value> = server_tables(format, &json_root(Some(&out))?, true)?
-        .into_iter()
-        .flat_map(|t| t.servers.into_values())
-        .collect();
+    let entries: Vec<Value> =
+        server_tables(format, &json_root(Some(&out))?, true)?.into_iter().flat_map(|t| t.servers.into_values()).collect();
     still_stands(&entries, &servers)?;
     Ok(McpReferred { text: out, servers, entries })
 }
@@ -231,7 +246,13 @@ fn elsewhere(format: McpFormat, root: &Map<String, Value>) -> Option<String> {
 }
 
 /// The names a server's literal headers, env keys and OAuth secrets travel under (mcp.ts:939).
-fn literal_names(format: McpFormat, name: &str, def: &Map<String, Value>, whole: &dyn Fn(&str) -> Option<WholeRef>, bare: &dyn Fn(&str) -> Option<WholeRef>) -> Vec<String> {
+fn literal_names(
+    format: McpFormat,
+    name: &str,
+    def: &Map<String, Value>,
+    whole: &dyn Fn(&str) -> Option<WholeRef>,
+    bare: &dyn Fn(&str) -> Option<WholeRef>,
+) -> Vec<String> {
     let secrets: Vec<String> = match def.get("oauth").and_then(|o| o.as_object()) {
         None => Vec::new(),
         Some(oauth) => oauth_secret_keys(oauth)
@@ -241,11 +262,8 @@ fn literal_names(format: McpFormat, name: &str, def: &Map<String, Value>, whole:
     };
     let headers = dict(def.get("headers"));
     let env = dict(def.get(env_key(format)));
-    let mut out: Vec<String> = headers
-        .iter()
-        .filter(|(_, v)| !v.is_empty() && whole(v).is_none())
-        .map(|(h, _)| mcp_header_variable(name, h))
-        .collect();
+    let mut out: Vec<String> =
+        headers.iter().filter(|(_, v)| !v.is_empty() && whole(v).is_none()).map(|(h, _)| mcp_header_variable(name, h)).collect();
     out.extend(env.iter().filter(|(_, v)| !v.is_empty() && whole(v).is_none()).map(|(k, _)| k.clone()));
     out.extend(secrets.iter().map(|k| mcp_header_variable(name, &format!("oauth.{k}"))));
     out
@@ -253,7 +271,14 @@ fn literal_names(format: McpFormat, name: &str, def: &Map<String, Value>, whole:
 
 /// What a literal value becomes: `None` where it stands as written or is handled, else the text that travels
 /// (mcp.ts:979).
-fn literal_of(ctx: &Ctx<'_>, w: &mut Weighed, v: &str, path: &JsonPath, form: &dyn Fn(&str) -> Option<WholeRef>, where_: &str) -> Result<Option<String>, HostError> {
+fn literal_of(
+    ctx: &Ctx<'_>,
+    w: &mut Weighed,
+    v: &str,
+    path: &JsonPath,
+    form: &dyn Fn(&str) -> Option<WholeRef>,
+    where_: &str,
+) -> Result<Option<String>, HostError> {
     let format = ctx.format;
     let reads = |n: &str| (ctx.held)(n, false);
     let named = form(v);
@@ -316,7 +341,12 @@ fn put_entries(
 
 /// OAuth: the table must be absent, false or an object; each secret the agent reads is written by its variable
 /// (mcp.ts:1008).
-fn oauth_entries(ctx: &Ctx<'_>, w: &mut Weighed, def: &Map<String, Value>, bare: &dyn Fn(&str) -> Option<WholeRef>) -> Result<(), HostError> {
+fn oauth_entries(
+    ctx: &Ctx<'_>,
+    w: &mut Weighed,
+    def: &Map<String, Value>,
+    bare: &dyn Fn(&str) -> Option<WholeRef>,
+) -> Result<(), HostError> {
     let format = ctx.format;
     let oauth = def.get("oauth");
     let shape_ok = match oauth {

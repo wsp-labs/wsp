@@ -9,8 +9,8 @@ use regex::Regex;
 
 use crate::jsonc::js_string;
 use crate::mcp::{
-    EditOutcome, McpEditResult, McpEditScope, McpEdited, McpMergeResult, McpMergeScope, McpMerged, McpReads, McpServer,
-    McpServerScope, McpTransport, MergeOutcome, RewriteString,
+    EditOutcome, McpEditResult, McpEditScope, McpEdited, McpMergeResult, McpMergeScope, McpMerged, McpReads, McpServer, McpServerScope,
+    McpTransport, MergeOutcome, RewriteString,
 };
 use wsp_words::exit::HostError;
 use wsp_words::js::js_trim;
@@ -407,8 +407,11 @@ pub fn read_codex(text: &str) -> Vec<McpServer> {
         env_refs.extend(env_headers.values().cloned());
         let disabled = t.disabled.then_some(true);
         let passed = list_of(t.values.get("env_vars"));
-        let reads = (!passed.is_empty() || !env_headers.is_empty() || bearer.is_some())
-            .then(|| McpReads { env: passed, headers: env_headers.clone(), bearer: bearer.clone() });
+        let reads = (!passed.is_empty() || !env_headers.is_empty() || bearer.is_some()).then(|| McpReads {
+            env: passed,
+            headers: env_headers.clone(),
+            bearer: bearer.clone(),
+        });
         if let Some(command) = command {
             let mut env = table_of(t.values.get("env"));
             for (k, v) in &t.env {
@@ -427,7 +430,14 @@ pub fn read_codex(text: &str) -> Vec<McpServer> {
             for (k, v) in &t.headers {
                 headers.insert(k.clone(), v.clone());
             }
-            out.push(McpServer { name, scope: McpServerScope::User, transport: McpTransport::Http { url, headers }, env_refs, reads, disabled });
+            out.push(McpServer {
+                name,
+                scope: McpServerScope::User,
+                transport: McpTransport::Http { url, headers },
+                env_refs,
+                reads,
+                disabled,
+            });
         }
     }
     out
@@ -486,12 +496,8 @@ pub fn codex_editor(lib: RewriteString<'_>, scope: &McpEditScope, before: &str) 
             results.push(McpEditResult { name: name.clone(), outcome: EditOutcome::Missing, command: None });
             continue;
         }
-        let mine: Vec<&str> = out
-            .iter()
-            .zip(&out_owner)
-            .filter(|(_, o)| o.as_deref() == Some(name.as_str()))
-            .map(|(l, _)| l.as_str())
-            .collect();
+        let mine: Vec<&str> =
+            out.iter().zip(&out_owner).filter(|(_, o)| o.as_deref() == Some(name.as_str())).map(|(l, _)| l.as_str()).collect();
         results.push(McpEditResult { name: name.clone(), outcome: EditOutcome::Written, command: codex_command(&mine) });
     }
     for name in &scope.drop {

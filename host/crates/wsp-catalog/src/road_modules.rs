@@ -8,13 +8,13 @@ use indexmap::IndexMap;
 use regex::Regex;
 use serde::Serialize;
 
-use wsp_wire::types::shell_quote::shell_quote;
-use wsp_wire::types::daemon_contract::PNPM_HOME;
-use wsp_wire::types::daemon_contract::TOOL_PREFIX;
 use crate::road_release::{asset_install, release_install};
 use crate::roads::{
     is_road, standing_pin, version_of, InstallRoad, PackageRoad, RoadName, APT_ENV, GUEST_HOME, HOME_BIN, LOCAL_BIN, ROADS,
 };
+use wsp_wire::types::daemon_contract::PNPM_HOME;
+use wsp_wire::types::daemon_contract::TOOL_PREFIX;
+use wsp_wire::types::shell_quote::shell_quote;
 
 /// A recipe's tools row as a manager road reads it (road-modules.ts:19).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
