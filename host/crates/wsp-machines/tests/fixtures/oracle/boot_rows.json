@@ -1,0 +1,2112 @@
+{
+ "T0": 1790000000000,
+ "scenes": [
+  {
+   "name": "listed rows: every fact a listing carries, and none a row does not",
+   "given": {
+    "live": {
+     "a": {}
+    },
+    "pids": {
+     "run-1": 4242
+    },
+    "readsSince": 1789999999000,
+    "rows": [
+     {
+      "view": {
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "status": "running",
+       "startedAt": 1789999999950
+      },
+      "pid": 77,
+      "run": "run-1"
+     },
+     {
+      "view": {
+       "id": "r2",
+       "workspaceId": "a",
+       "threadId": "t2",
+       "status": "completed",
+       "endedAt": 1789999995000
+      },
+      "replaces": "t-gone"
+     },
+     {
+      "view": {
+       "id": "r3",
+       "workspaceId": "a",
+       "threadId": "t3",
+       "status": "completed",
+       "endedAt": 1789999999990
+      },
+      "turnId": "turn-r3"
+     },
+     {
+      "view": {
+       "id": "r4",
+       "workspaceId": "a",
+       "status": "failed"
+      },
+      "pid": 9
+     }
+    ],
+    "records": {
+     "t1": {
+      "workspaceId": "a",
+      "harness": "claude",
+      "readAt": 5,
+      "settledAt": 6,
+      "pinnedAt": 7,
+      "order": 8,
+      "foldedAt": 9,
+      "snoozedUntil": 1790000000001,
+      "section": {
+       "name": "done",
+       "whileState": "idle"
+      },
+      "rewound": {
+       "before": "e",
+       "at": 3
+      },
+      "limitResume": {
+       "at": 1790000000009,
+       "turnId": "turn-r1"
+      }
+     },
+     "t2": {
+      "workspaceId": "a",
+      "harness": "claude",
+      "snoozedUntil": 1789999999999,
+      "replaces": "t1",
+      "limitResume": {
+       "at": 1,
+       "turnId": "other"
+      }
+     },
+     "t3": {
+      "workspaceId": "a",
+      "harness": "claude",
+      "forkedFrom": {
+       "threadId": "t-src",
+       "title": "old title"
+      }
+     }
+    },
+    "ctx": {
+     "capHeld": {},
+     "setupRefusals": {}
+    }
+   },
+   "log": [
+    [
+     "agentPidOf",
+     "run-1"
+    ]
+   ],
+   "answer": [
+    {
+     "harness": "claude",
+     "status": "running",
+     "id": "r1",
+     "workspaceId": "a",
+     "threadId": "t1",
+     "startedAt": 1789999999950,
+     "pid": 77,
+     "agentPid": 4242,
+     "waitingOn": {
+      "threadId": "t9",
+      "title": "x"
+     },
+     "capped": {
+      "place": "box",
+      "running": 2,
+      "limit": 2
+     },
+     "readAt": 5,
+     "settledAt": 6,
+     "pinnedAt": 7,
+     "order": 8,
+     "foldedAt": 9,
+     "snoozedUntil": 1790000000001,
+     "section": {
+      "name": "done",
+      "whileState": "idle"
+     },
+     "rewoundAt": 3,
+     "resumeAt": 1790000000009
+    },
+    {
+     "harness": "claude",
+     "status": "completed",
+     "id": "r2",
+     "workspaceId": "a",
+     "threadId": "t2",
+     "endedAt": 1789999995000,
+     "readAt": 1789999995000,
+     "replaces": "t1",
+     "replacedBy": "t2-new",
+     "wokeAt": 1789999999999
+    },
+    {
+     "harness": "claude",
+     "status": "completed",
+     "id": "r3",
+     "workspaceId": "a",
+     "threadId": "t3",
+     "endedAt": 1789999999990,
+     "readAt": 1789999999990,
+     "forkedFrom": {
+      "threadId": "t-src",
+      "title": "src"
+     }
+    },
+    {
+     "harness": "claude",
+     "status": "failed",
+     "id": "r4",
+     "workspaceId": "a",
+     "readAt": 1790000000000
+    }
+   ],
+   "records": [
+    [
+     "t1",
+     {
+      "workspaceId": "a",
+      "harness": "claude",
+      "readAt": 5,
+      "settledAt": 6,
+      "pinnedAt": 7,
+      "order": 8,
+      "foldedAt": 9,
+      "snoozedUntil": 1790000000001,
+      "section": {
+       "name": "done",
+       "whileState": "idle"
+      },
+      "rewound": {
+       "before": "e",
+       "at": 3
+      },
+      "limitResume": {
+       "at": 1790000000009,
+       "turnId": "turn-r1"
+      }
+     }
+    ],
+    [
+     "t2",
+     {
+      "workspaceId": "a",
+      "harness": "claude",
+      "snoozedUntil": 1789999999999,
+      "replaces": "t1",
+      "limitResume": {
+       "at": 1,
+       "turnId": "other"
+      }
+     }
+    ],
+    [
+     "t3",
+     {
+      "workspaceId": "a",
+      "harness": "claude",
+      "forkedFrom": {
+       "threadId": "t-src",
+       "title": "old title"
+      }
+     }
+    ]
+   ]
+  },
+  {
+   "name": "thread facts: the listing's thread with the latest row's model and the running turn",
+   "given": {
+    "live": {
+     "a": {
+      "phase": "napping",
+      "nappedAt": 1789999999900
+     }
+    },
+    "rows": [
+     {
+      "view": {
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "status": "completed",
+       "model": "m1",
+       "effort": "low",
+       "startedAt": 1
+      }
+     },
+     {
+      "view": {
+       "id": "r2",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "status": "running",
+       "model": "m2",
+       "contextWindow": 200000,
+       "startedAt": 2
+      },
+      "turnId": "turn-run"
+     },
+     {
+      "view": {
+       "id": "r3",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "status": "completed",
+       "startedAt": 3
+      }
+     }
+    ]
+   },
+   "log": [],
+   "answer": {
+    "facts": {
+     "id": "t1",
+     "threadId": "t1",
+     "workspaceId": "a",
+     "harness": "claude",
+     "startedBy": "person",
+     "status": "completed",
+     "title": "r1",
+     "sessionId": "r3",
+     "startedAt": 3,
+     "readAt": 1790000000000,
+     "turns": 3,
+     "ran": true,
+     "turnId": "turn-run"
+    },
+    "none": null
+   },
+   "records": []
+  },
+  {
+   "name": "settled now: by hand, by quiet, or by the stamp alone with no row",
+   "given": {
+    "rows": [
+     {
+      "view": {
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "status": "completed",
+       "startedAt": 1789992800000,
+       "endedAt": 1789992800000
+      }
+     }
+    ],
+    "records": {
+     "t1": {
+      "workspaceId": "a",
+      "harness": "claude",
+      "readAt": 1789992800000
+     },
+     "t-norow": {
+      "workspaceId": "a",
+      "harness": "claude",
+      "settledAt": 1
+     }
+    },
+    "live": {
+     "a": {}
+    }
+   },
+   "log": [],
+   "answer": {
+    "quiet": true,
+    "off": false,
+    "stampOnly": true,
+    "nothing": false
+   },
+   "records": [
+    [
+     "t1",
+     {
+      "workspaceId": "a",
+      "harness": "claude",
+      "readAt": 1789992800000
+     }
+    ],
+    [
+     "t-norow",
+     {
+      "workspaceId": "a",
+      "harness": "claude",
+      "settledAt": 1
+     }
+    ]
+   ]
+  },
+  {
+   "name": "entry of: refusals by caller, a create still landing, and the boot work waited",
+   "given": {
+    "live": {
+     "a": {},
+     "c": {}
+    }
+   },
+   "log": [
+    [
+     "refuseRelayed",
+     "c",
+     null,
+     null,
+     null
+    ],
+    [
+     "drivesThread",
+     "t-a1",
+     {
+      "origin": "here",
+      "by": {
+       "kind": "thread",
+       "threadId": "t-a",
+       "workspaceId": "a",
+       "rootThreadId": "t-a"
+      }
+     }
+    ],
+    [
+     "refuseRelayed",
+     "a",
+     {
+      "origin": "here",
+      "by": {
+       "kind": "thread",
+       "threadId": "t-a",
+       "workspaceId": "a",
+       "rootThreadId": "t-a"
+      }
+     },
+     "merge",
+     "t-a1"
+    ],
+    [
+     "refuseRelayed",
+     "a",
+     {
+      "origin": "here",
+      "by": {
+       "kind": "thread",
+       "threadId": "t-a",
+       "workspaceId": "a",
+       "rootThreadId": "t-a"
+      }
+     },
+     null,
+     null
+    ],
+    [
+     "refuseRelayed",
+     "a",
+     null,
+     null,
+     null
+    ],
+    [
+     "refuseRelayed",
+     "a",
+     null,
+     null,
+     null
+    ]
+   ],
+   "answer": [
+    {
+     "threw": "no such workspace: zzz",
+     "kind": "not-found"
+    },
+    {
+     "threw": "no such workspace",
+     "kind": "not-found"
+    },
+    {
+     "threw": "no such workspace: c",
+     "kind": "not-found"
+    },
+    "entry:c",
+    "entry:a",
+    "entry:a",
+    [
+     "now answered first",
+     "entry:a"
+    ],
+    [
+     "after boot work",
+     "entry:a",
+     "w-a2"
+    ]
+   ],
+   "records": [
+    [
+     "t-a1",
+     {
+      "workspaceId": "a",
+      "harness": "claude"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "child of: a lead's own child by lead or by parent, else refused naming both",
+   "given": {
+    "live": {
+     "lead": {},
+     "kid": {
+      "lead": {
+       "workspaceId": "lead"
+      }
+     },
+     "kid2": {
+      "parentWorkspaceId": "lead"
+     },
+     "other": {}
+    },
+    "ctx": {
+     "workspaces": {}
+    }
+   },
+   "log": [
+    [
+     "refuseRelayed",
+     "kid",
+     null,
+     null,
+     null
+    ],
+    [
+     "refuseRelayed",
+     "kid2",
+     null,
+     null,
+     null
+    ],
+    [
+     "refuseRelayed",
+     "other",
+     null,
+     null,
+     null
+    ],
+    [
+     "refuseRelayed",
+     "other",
+     null,
+     null,
+     null
+    ]
+   ],
+   "answer": [
+    "entry:kid",
+    "entry:kid2",
+    {
+     "threw": "w-other is not a child of w-lead; a lead merges only its own children",
+     "kind": "invalid"
+    },
+    {
+     "threw": "thread t-kid000 is not a child of thread t-lead00; a lead merges only its own children"
+    }
+   ],
+   "records": []
+  },
+  {
+   "name": "entry of row: a thread caller reaches only its tree, and answers nothing otherwise",
+   "given": {
+    "live": {
+     "a": {}
+    }
+   },
+   "log": [
+    [
+     "drivesThread",
+     "t-a-own",
+     {
+      "origin": "here",
+      "by": {
+       "kind": "thread",
+       "threadId": "t-a",
+       "workspaceId": "a",
+       "rootThreadId": "t-a"
+      }
+     }
+    ],
+    [
+     "actsOn",
+     "a",
+     {
+      "origin": "here",
+      "by": {
+       "kind": "thread",
+       "threadId": "t-a",
+       "workspaceId": "a",
+       "rootThreadId": "t-a"
+      }
+     }
+    ],
+    [
+     "drivesThread",
+     "t-b",
+     {
+      "origin": "here",
+      "by": {
+       "kind": "thread",
+       "threadId": "t-a",
+       "workspaceId": "a",
+       "rootThreadId": "t-a"
+      }
+     }
+    ],
+    [
+     "refuseRelayed",
+     "a",
+     null,
+     null,
+     null
+    ]
+   ],
+   "answer": [
+    "entry:a",
+    null,
+    null,
+    "entry:a"
+   ],
+   "records": []
+  },
+  {
+   "name": "mark: every thread is checked before any moves, then stamps land, each workspace written and told once",
+   "given": {
+    "live": {
+     "a": {},
+     "b": {}
+    },
+    "rows": [
+     {
+      "view": {
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1"
+      }
+     },
+     {
+      "view": {
+       "id": "r2",
+       "workspaceId": "b",
+       "threadId": "t2"
+      }
+     },
+     {
+      "view": {
+       "id": "r3",
+       "workspaceId": "a",
+       "threadId": "t3"
+      }
+     }
+    ],
+    "records": {
+     "t1": {
+      "workspaceId": "a",
+      "harness": "claude",
+      "pinnedAt": 4,
+      "snoozedUntil": 9
+     },
+     "t-armed": {
+      "workspaceId": "a",
+      "harness": "claude",
+      "limitResume": {
+       "at": 5,
+       "turnId": "x"
+      }
+     }
+    }
+   },
+   "log": [
+    [
+     "refuseRelayed",
+     "a",
+     null,
+     null,
+     null
+    ],
+    [
+     "refuseRelayed",
+     "b",
+     null,
+     null,
+     null
+    ],
+    [
+     "refuseRelayed",
+     "a",
+     null,
+     null,
+     null
+    ],
+    [
+     "reapKept",
+     "t1"
+    ],
+    [
+     "wakeAt",
+     "t1",
+     9
+    ],
+    [
+     "reapKept",
+     "t2"
+    ],
+    [
+     "reapKept",
+     "t3"
+    ],
+    [
+     "persistSessions",
+     "a"
+    ],
+    [
+     "emit",
+     {
+      "type": "thread.marked",
+      "workspaceId": "a",
+      "threadIds": [
+       "t1",
+       "t3"
+      ]
+     }
+    ],
+    [
+     "persistSessions",
+     "b"
+    ],
+    [
+     "emit",
+     {
+      "type": "thread.marked",
+      "workspaceId": "b",
+      "threadIds": [
+       "t2"
+      ]
+     }
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "a",
+      "threadId": "t1",
+      "id": "r1",
+      "row": {
+       "harness": "claude",
+       "status": "completed",
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "readAt": 1790000000000,
+       "settledAt": 1790000000000,
+       "wokeAt": 9,
+       "project": {
+        "id": "p1",
+        "name": "site"
+       },
+       "computerName": "hetzner"
+      }
+     }
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "a",
+      "threadId": "t3",
+      "id": "r3",
+      "row": {
+       "harness": "claude",
+       "status": "completed",
+       "id": "r3",
+       "workspaceId": "a",
+       "threadId": "t3",
+       "readAt": 1790000000000,
+       "settledAt": 1790000000000,
+       "project": {
+        "id": "p1",
+        "name": "site"
+       },
+       "computerName": "hetzner"
+      }
+     }
+    ],
+    [
+     "refuseRelayed",
+     "a",
+     null,
+     null,
+     null
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "b",
+      "threadId": "t2",
+      "id": "r2",
+      "row": {
+       "harness": "claude",
+       "status": "completed",
+       "id": "r2",
+       "workspaceId": "b",
+       "threadId": "t2",
+       "readAt": 1790000000000,
+       "settledAt": 1790000000000,
+       "project": {
+        "id": "p1",
+        "name": "site"
+       },
+       "computerName": "hetzner"
+      }
+     }
+    ],
+    [
+     "reapKept",
+     "t1"
+    ],
+    [
+     "wakeAt",
+     "t1",
+     1790000000005
+    ],
+    [
+     "persistSessions",
+     "a"
+    ],
+    [
+     "emit",
+     {
+      "type": "thread.marked",
+      "workspaceId": "a",
+      "threadIds": [
+       "t1"
+      ]
+     }
+    ],
+    [
+     "refuseRelayed",
+     "a",
+     null,
+     null,
+     null
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "a",
+      "threadId": "t1",
+      "id": "r1",
+      "row": {
+       "harness": "claude",
+       "status": "completed",
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "readAt": 1790000000000,
+       "settledAt": 1790000000000,
+       "snoozedUntil": 1790000000005,
+       "project": {
+        "id": "p1",
+        "name": "site"
+       },
+       "computerName": "hetzner"
+      }
+     }
+    ],
+    [
+     "resume timer cancelled",
+     "t-armed"
+    ],
+    [
+     "persistSessions",
+     "a"
+    ],
+    [
+     "emit",
+     {
+      "type": "thread.marked",
+      "workspaceId": "a",
+      "threadIds": [
+       "t-armed"
+      ]
+     }
+    ],
+    [
+     "refuseRelayed",
+     "a",
+     null,
+     null,
+     null
+    ],
+    [
+     "rejected",
+     "no thread t-nobody",
+     "not-found"
+    ]
+   ],
+   "answer": null,
+   "records": [
+    [
+     "t1",
+     {
+      "workspaceId": "a",
+      "harness": "claude",
+      "snoozedUntil": 1790000000005,
+      "settledAt": 1790000000000,
+      "readAt": 1790000000000,
+      "note": "t1"
+     }
+    ],
+    [
+     "t-armed",
+     {
+      "workspaceId": "a",
+      "harness": "claude"
+     }
+    ],
+    [
+     "t2",
+     {
+      "workspaceId": "b",
+      "harness": "claude",
+      "settledAt": 1790000000000,
+      "readAt": 1790000000000
+     }
+    ],
+    [
+     "t3",
+     {
+      "workspaceId": "a",
+      "harness": "claude",
+      "settledAt": 1790000000000,
+      "readAt": 1790000000000
+     }
+    ]
+   ]
+  },
+  {
+   "name": "end snooze: only a standing snooze of the thread or its root ends, as now",
+   "given": {
+    "live": {
+     "a": {}
+    },
+    "rows": [
+     {
+      "view": {
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1"
+      }
+     }
+    ],
+    "records": {
+     "t1": {
+      "workspaceId": "a",
+      "harness": "claude",
+      "snoozedUntil": 1790000000010
+     },
+     "root": {
+      "workspaceId": "a",
+      "harness": "claude",
+      "snoozedUntil": 1790000000000
+     },
+     "other": {
+      "workspaceId": "a",
+      "harness": "claude",
+      "snoozedUntil": 1790000000010
+     }
+    }
+   },
+   "log": [
+    [
+     "refuseRelayed",
+     "a",
+     null,
+     null,
+     null
+    ],
+    [
+     "wakeAt",
+     "t1",
+     1790000000000
+    ],
+    [
+     "persistSessions",
+     "a"
+    ],
+    [
+     "emit",
+     {
+      "type": "thread.marked",
+      "workspaceId": "a",
+      "threadIds": [
+       "t1"
+      ]
+     }
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "a",
+      "threadId": "t1",
+      "id": "r1",
+      "row": {
+       "harness": "claude",
+       "status": "completed",
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "readAt": 1790000000000,
+       "wokeAt": 1790000000000,
+       "project": {
+        "id": "p1",
+        "name": "site"
+       },
+       "computerName": "hetzner"
+      }
+     }
+    ]
+   ],
+   "answer": null,
+   "records": [
+    [
+     "t1",
+     {
+      "workspaceId": "a",
+      "harness": "claude",
+      "snoozedUntil": 1790000000000
+     }
+    ],
+    [
+     "root",
+     {
+      "workspaceId": "a",
+      "harness": "claude",
+      "snoozedUntil": 1790000000000
+     }
+    ],
+    [
+     "other",
+     {
+      "workspaceId": "a",
+      "harness": "claude",
+      "snoozedUntil": 1790000000010
+     }
+    ]
+   ]
+  },
+  {
+   "name": "arm resume: off clears, on needs a known reset on the latest row",
+   "given": {
+    "live": {
+     "a": {}
+    },
+    "rows": [
+     {
+      "view": {
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "limit": {
+        "resetsAt": 1790003600000
+       }
+      },
+      "turnId": "turn-1"
+     },
+     {
+      "view": {
+       "id": "r2",
+       "workspaceId": "a",
+       "threadId": "t2"
+      }
+     }
+    ],
+    "records": {
+     "t1": {
+      "workspaceId": "a",
+      "harness": "claude"
+     }
+    }
+   },
+   "log": [
+    [
+     "refuseRelayed",
+     "a",
+     null,
+     null,
+     null
+    ],
+    [
+     "refuseRelayed",
+     "a",
+     null,
+     null,
+     null
+    ],
+    [
+     "resumeOnReset",
+     "t1",
+     1790003600000
+    ],
+    [
+     "persistSessions",
+     "a"
+    ],
+    [
+     "emit",
+     {
+      "type": "thread.marked",
+      "workspaceId": "a",
+      "threadIds": [
+       "t1"
+      ]
+     }
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "a",
+      "threadId": "t1",
+      "id": "r1",
+      "row": {
+       "harness": "claude",
+       "status": "completed",
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "limit": {
+        "resetsAt": 1790003600000
+       },
+       "readAt": 1790000000000,
+       "resumeAt": 1790003600000,
+       "project": {
+        "id": "p1",
+        "name": "site"
+       },
+       "computerName": "hetzner"
+      }
+     }
+    ],
+    [
+     "refuseRelayed",
+     "a",
+     null,
+     null,
+     null
+    ],
+    [
+     "rejected",
+     "thread t2 is not stopped at a usage limit with a known reset,. so there is nothing to resume at; send it a message to go on now.",
+     "usage"
+    ],
+    [
+     "rejected",
+     "no thread t-none",
+     "not-found"
+    ],
+    [
+     "refuseRelayed",
+     "a",
+     null,
+     null,
+     null
+    ],
+    [
+     "persistSessions",
+     "a"
+    ],
+    [
+     "emit",
+     {
+      "type": "thread.marked",
+      "workspaceId": "a",
+      "threadIds": [
+       "t1"
+      ]
+     }
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "a",
+      "threadId": "t1",
+      "id": "r1",
+      "row": {
+       "harness": "claude",
+       "status": "completed",
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "limit": {
+        "resetsAt": 1790003600000
+       },
+       "readAt": 1790000000000,
+       "project": {
+        "id": "p1",
+        "name": "site"
+       },
+       "computerName": "hetzner"
+      }
+     }
+    ]
+   ],
+   "answer": null,
+   "records": [
+    [
+     "t1",
+     {
+      "workspaceId": "a",
+      "harness": "claude"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "resume after limit: the stopped turn goes on at the reset",
+   "given": {
+    "live": {
+     "a": {}
+    },
+    "rows": [
+     {
+      "view": {
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "harness": "claude",
+       "limit": {
+        "resetsAt": 1790000000000
+       }
+      },
+      "turnId": "turn-1"
+     }
+    ],
+    "records": {
+     "t1": {
+      "workspaceId": "a",
+      "harness": "claude"
+     }
+    },
+    "ctx": {
+     "leadAsks": {},
+     "ledger": {},
+     "sessionsApi": {}
+    }
+   },
+   "log": [
+    [
+     "persistSessions",
+     "a"
+    ],
+    [
+     "emit",
+     {
+      "type": "thread.marked",
+      "workspaceId": "a",
+      "threadIds": [
+       "t1"
+      ]
+     }
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "a",
+      "threadId": "t1",
+      "id": "r1",
+      "row": {
+       "harness": "claude",
+       "status": "completed",
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "limit": {
+        "resetsAt": 1790000000000
+       },
+       "readAt": 1790000000000,
+       "project": {
+        "id": "p1",
+        "name": "site"
+       },
+       "computerName": "hetzner"
+      }
+     }
+    ]
+   ],
+   "answer": null,
+   "records": [
+    [
+     "t1",
+     {
+      "workspaceId": "a",
+      "harness": "claude"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "resume after limit: a newer turn takes the arm off and sends nothing",
+   "given": {
+    "live": {
+     "a": {}
+    },
+    "rows": [
+     {
+      "view": {
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "harness": "claude",
+       "limit": {
+        "resetsAt": 1790000000000
+       }
+      },
+      "turnId": "turn-1"
+     },
+     {
+      "view": {
+       "id": "r2",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "harness": "claude"
+      },
+      "turnId": "turn-2"
+     }
+    ],
+    "records": {
+     "t1": {
+      "workspaceId": "a",
+      "harness": "claude"
+     }
+    },
+    "ctx": {
+     "leadAsks": {},
+     "ledger": {},
+     "sessionsApi": {}
+    }
+   },
+   "log": [
+    [
+     "persistSessions",
+     "a"
+    ],
+    [
+     "emit",
+     {
+      "type": "thread.marked",
+      "workspaceId": "a",
+      "threadIds": [
+       "t1"
+      ]
+     }
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "a",
+      "threadId": "t1",
+      "id": "r2",
+      "row": {
+       "harness": "claude",
+       "status": "completed",
+       "id": "r2",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "readAt": 1790000000000,
+       "project": {
+        "id": "p1",
+        "name": "site"
+       },
+       "computerName": "hetzner"
+      }
+     }
+    ]
+   ],
+   "answer": null,
+   "records": [
+    [
+     "t1",
+     {
+      "workspaceId": "a",
+      "harness": "claude"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "resume after limit: a thread waiting on the person sends nothing",
+   "given": {
+    "live": {
+     "a": {}
+    },
+    "rows": [
+     {
+      "view": {
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "harness": "claude",
+       "limit": {
+        "resetsAt": 1790000000000
+       }
+      },
+      "turnId": "turn-1"
+     }
+    ],
+    "records": {
+     "t1": {
+      "workspaceId": "a",
+      "harness": "claude"
+     }
+    },
+    "ctx": {
+     "leadAsks": {},
+     "ledger": {},
+     "sessionsApi": {}
+    }
+   },
+   "log": [
+    [
+     "persistSessions",
+     "a"
+    ],
+    [
+     "emit",
+     {
+      "type": "thread.marked",
+      "workspaceId": "a",
+      "threadIds": [
+       "t1"
+      ]
+     }
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "a",
+      "threadId": "t1",
+      "id": "r1",
+      "row": {
+       "harness": "claude",
+       "status": "completed",
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "limit": {
+        "resetsAt": 1790000000000
+       },
+       "readAt": 1790000000000,
+       "project": {
+        "id": "p1",
+        "name": "site"
+       },
+       "computerName": "hetzner"
+      }
+     }
+    ]
+   ],
+   "answer": null,
+   "records": [
+    [
+     "t1",
+     {
+      "workspaceId": "a",
+      "harness": "claude"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "resume after limit: a plan still held past the reset moves the row's reset",
+   "given": {
+    "live": {
+     "a": {}
+    },
+    "rows": [
+     {
+      "view": {
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "harness": "claude",
+       "limit": {
+        "resetsAt": 1790000000000
+       }
+      },
+      "turnId": "turn-1"
+     }
+    ],
+    "records": {
+     "t1": {
+      "workspaceId": "a",
+      "harness": "claude"
+     }
+    },
+    "ctx": {
+     "leadAsks": {},
+     "ledger": {},
+     "sessionsApi": {}
+    }
+   },
+   "log": [
+    [
+     "persistSessions",
+     "a"
+    ],
+    [
+     "emit",
+     {
+      "type": "thread.marked",
+      "workspaceId": "a",
+      "threadIds": [
+       "t1"
+      ]
+     }
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "a",
+      "threadId": "t1",
+      "id": "r1",
+      "row": {
+       "harness": "claude",
+       "status": "completed",
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "limit": {
+        "resetsAt": 1790007200000
+       },
+       "readAt": 1790000000000,
+       "project": {
+        "id": "p1",
+        "name": "site"
+       },
+       "computerName": "hetzner"
+      }
+     }
+    ]
+   ],
+   "answer": null,
+   "records": [
+    [
+     "t1",
+     {
+      "workspaceId": "a",
+      "harness": "claude"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "resume after limit: a settled thread sends nothing",
+   "given": {
+    "live": {
+     "a": {}
+    },
+    "rows": [
+     {
+      "view": {
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "harness": "claude",
+       "limit": {
+        "resetsAt": 1790000000000
+       }
+      },
+      "turnId": "turn-1"
+     }
+    ],
+    "records": {
+     "t1": {
+      "workspaceId": "a",
+      "harness": "claude",
+      "settledAt": 1
+     }
+    },
+    "ctx": {
+     "leadAsks": {},
+     "ledger": {},
+     "sessionsApi": {}
+    }
+   },
+   "log": [
+    [
+     "persistSessions",
+     "a"
+    ],
+    [
+     "emit",
+     {
+      "type": "thread.marked",
+      "workspaceId": "a",
+      "threadIds": [
+       "t1"
+      ]
+     }
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "a",
+      "threadId": "t1",
+      "id": "r1",
+      "row": {
+       "harness": "claude",
+       "status": "completed",
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "limit": {
+        "resetsAt": 1790000000000
+       },
+       "readAt": 1790000000000,
+       "settledAt": 1,
+       "project": {
+        "id": "p1",
+        "name": "site"
+       },
+       "computerName": "hetzner"
+      }
+     }
+    ]
+   ],
+   "answer": null,
+   "records": [
+    [
+     "t1",
+     {
+      "workspaceId": "a",
+      "harness": "claude",
+      "settledAt": 1
+     }
+    ]
+   ]
+  },
+  {
+   "name": "resume after limit: no arm does nothing",
+   "given": {
+    "live": {
+     "a": {}
+    },
+    "rows": [
+     {
+      "view": {
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "harness": "claude",
+       "limit": {
+        "resetsAt": 1790000000000
+       }
+      },
+      "turnId": "turn-1"
+     }
+    ],
+    "records": {
+     "t1": {
+      "workspaceId": "a",
+      "harness": "claude"
+     }
+    },
+    "ctx": {
+     "leadAsks": {},
+     "ledger": {},
+     "sessionsApi": {}
+    }
+   },
+   "log": [],
+   "answer": null,
+   "records": [
+    [
+     "t1",
+     {
+      "workspaceId": "a",
+      "harness": "claude"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "row push: one row per moved thread after the tick, the prompt on its first push only, gone ids last",
+   "given": {
+    "live": {
+     "a": {}
+    },
+    "rows": [
+     {
+      "view": {
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "prompt": "the brief"
+      }
+     },
+     {
+      "view": {
+       "id": "r2",
+       "workspaceId": "a",
+       "threadId": "t2",
+       "prompt": "other"
+      }
+     }
+    ],
+    "ctx": {}
+   },
+   "log": [
+    [
+     "emit",
+     {
+      "type": "session.held",
+      "workspaceId": "a",
+      "threadId": "t1"
+     }
+    ],
+    [
+     "emit",
+     {
+      "type": "session.held",
+      "workspaceId": "a",
+      "threadId": "t1"
+     }
+    ],
+    [
+     "emit",
+     {
+      "type": "thread.marked",
+      "workspaceId": "a",
+      "threadIds": [
+       "t2"
+      ]
+     }
+    ],
+    [
+     "emit",
+     {
+      "type": "session.start",
+      "workspaceId": "a",
+      "sessionId": "s-new",
+      "turnId": "turn-old",
+      "threadId": "t1"
+     }
+    ],
+    [
+     "mark",
+     "before the tick"
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "a",
+      "threadId": "t1",
+      "id": "turn-old"
+     }
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "a",
+      "threadId": "t1",
+      "id": "r1",
+      "row": {
+       "harness": "claude",
+       "status": "completed",
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "prompt": "the brief",
+       "readAt": 1790000000000,
+       "project": {
+        "id": "p1",
+        "name": "site"
+       },
+       "computerName": "hetzner"
+      }
+     }
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "a",
+      "threadId": "t2",
+      "id": "r2",
+      "row": {
+       "harness": "claude",
+       "status": "completed",
+       "id": "r2",
+       "workspaceId": "a",
+       "threadId": "t2",
+       "prompt": "other",
+       "readAt": 1790000000000,
+       "project": {
+        "id": "p1",
+        "name": "site"
+       },
+       "computerName": "hetzner"
+      }
+     }
+    ],
+    [
+     "mark",
+     "second push"
+    ],
+    [
+     "emit",
+     {
+      "type": "session.capped",
+      "workspaceId": "a",
+      "threadId": "t1"
+     }
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "a",
+      "threadId": "t1",
+      "id": "r1",
+      "row": {
+       "harness": "claude",
+       "status": "completed",
+       "id": "r1",
+       "workspaceId": "a",
+       "threadId": "t1",
+       "readAt": 1790000000000,
+       "project": {
+        "id": "p1",
+        "name": "site"
+       },
+       "computerName": "hetzner"
+      }
+     }
+    ],
+    [
+     "emit",
+     {
+      "type": "session.end",
+      "workspaceId": "a",
+      "sessionId": "s-ended",
+      "turnId": "turn-ended",
+      "threadId": "t9"
+     }
+    ],
+    [
+     "emit",
+     {
+      "type": "session.end",
+      "workspaceId": "a",
+      "sessionId": "r1",
+      "turnId": "turn-r1",
+      "threadId": "t1"
+     }
+    ],
+    [
+     "pass",
+     {
+      "type": "session.row",
+      "workspaceId": "a",
+      "threadId": "t9",
+      "id": "s-ended"
+     }
+    ]
+   ],
+   "answer": null,
+   "records": []
+  },
+  {
+   "name": "computer rows: with no door this computer and the wired provider",
+   "given": {},
+   "log": [],
+   "answer": {
+    "rows": [
+     {
+      "id": "here",
+      "name": "ip-172-31-35-82",
+      "kind": "computer"
+     },
+     {
+      "id": "solari",
+      "name": "solari",
+      "kind": "provider"
+     }
+    ],
+    "named": "Box",
+    "unnamed": "y"
+   },
+   "records": []
+  },
+  {
+   "name": "computer rows: a door that lists the provider is read as it is",
+   "given": {
+    "ctx": {
+     "placeDoor": {}
+    }
+   },
+   "log": [],
+   "answer": [
+    {
+     "id": "here",
+     "name": "Mac",
+     "kind": "computer"
+    },
+    {
+     "id": "solari",
+     "name": "Solari",
+     "kind": "provider"
+    }
+   ],
+   "records": []
+  },
+  {
+   "name": "image head: none sealed refuses with no image yet",
+   "given": {
+    "ctx": {}
+   },
+   "log": [],
+   "answer": {
+    "none": null,
+    "head": {
+     "threw": "no image yet"
+    }
+   },
+   "records": []
+  },
+  {
+   "name": "tree records: a thread's tree by root, on live workspaces it reaches",
+   "given": {
+    "live": {
+     "a": {}
+    },
+    "records": {
+     "t-a": {
+      "workspaceId": "a",
+      "harness": "claude"
+     },
+     "t-a-kid": {
+      "workspaceId": "a",
+      "harness": "claude",
+      "rootThreadId": "t-a"
+     },
+     "t-b": {
+      "workspaceId": "a",
+      "harness": "claude",
+      "rootThreadId": "t-b"
+     },
+     "t-a-gone": {
+      "workspaceId": "gone",
+      "harness": "claude",
+      "rootThreadId": "t-a"
+     }
+    }
+   },
+   "log": [
+    [
+     "drivesThread",
+     "t-a",
+     {
+      "origin": "here",
+      "by": {
+       "kind": "thread",
+       "threadId": "t-a",
+       "workspaceId": "a",
+       "rootThreadId": "t-a"
+      }
+     }
+    ],
+    [
+     "actsOn",
+     "a",
+     {
+      "origin": "here",
+      "by": {
+       "kind": "thread",
+       "threadId": "t-a",
+       "workspaceId": "a",
+       "rootThreadId": "t-a"
+      }
+     }
+    ],
+    [
+     "drivesThread",
+     "t-a-kid",
+     {
+      "origin": "here",
+      "by": {
+       "kind": "thread",
+       "threadId": "t-a",
+       "workspaceId": "a",
+       "rootThreadId": "t-a"
+      }
+     }
+    ],
+    [
+     "actsOn",
+     "a",
+     {
+      "origin": "here",
+      "by": {
+       "kind": "thread",
+       "threadId": "t-a",
+       "workspaceId": "a",
+       "rootThreadId": "t-a"
+      }
+     }
+    ],
+    [
+     "drivesThread",
+     "t-a",
+     null
+    ],
+    [
+     "actsOn",
+     "a",
+     null
+    ],
+    [
+     "drivesThread",
+     "t-a-kid",
+     null
+    ],
+    [
+     "actsOn",
+     "a",
+     null
+    ],
+    [
+     "drivesThread",
+     "t-b",
+     null
+    ],
+    [
+     "actsOn",
+     "a",
+     null
+    ],
+    [
+     "drivesThread",
+     "t-a",
+     {
+      "origin": "here",
+      "by": {
+       "kind": "thread",
+       "threadId": "t-a",
+       "workspaceId": "a",
+       "rootThreadId": "t-a"
+      }
+     }
+    ],
+    [
+     "actsOn",
+     "a",
+     {
+      "origin": "here",
+      "by": {
+       "kind": "thread",
+       "threadId": "t-a",
+       "workspaceId": "a",
+       "rootThreadId": "t-a"
+      }
+     }
+    ],
+    [
+     "drivesThread",
+     "t-a-kid",
+     {
+      "origin": "here",
+      "by": {
+       "kind": "thread",
+       "threadId": "t-a",
+       "workspaceId": "a",
+       "rootThreadId": "t-a"
+      }
+     }
+    ],
+    [
+     "actsOn",
+     "a",
+     {
+      "origin": "here",
+      "by": {
+       "kind": "thread",
+       "threadId": "t-a",
+       "workspaceId": "a",
+       "rootThreadId": "t-a"
+      }
+     }
+    ]
+   ],
+   "answer": {
+    "tree": [
+     "t-a",
+     "t-a-kid"
+    ],
+    "all": [
+     "t-a",
+     "t-a-kid",
+     "t-b"
+    ],
+    "on": true,
+    "person": false,
+    "talks": false
+   },
+   "records": [
+    [
+     "t-a",
+     {
+      "workspaceId": "a",
+      "harness": "claude"
+     }
+    ],
+    [
+     "t-a-kid",
+     {
+      "workspaceId": "a",
+      "harness": "claude",
+      "rootThreadId": "t-a"
+     }
+    ],
+    [
+     "t-b",
+     {
+      "workspaceId": "a",
+      "harness": "claude",
+      "rootThreadId": "t-b"
+     }
+    ],
+    [
+     "t-a-gone",
+     {
+      "workspaceId": "gone",
+      "harness": "claude",
+      "rootThreadId": "t-a"
+     }
+    ]
+   ]
+  }
+ ]
+}
