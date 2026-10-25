@@ -4,11 +4,14 @@
 #
 #   curl --proto '=https' --tlsv1.2 -fsSL https://usewsp.com/install | sh
 #
-# On a Mac it puts wsp.app in /Applications, or ~/Applications where that is not writable, and opens it once. On
-# Linux (x64) it puts the AppImage in ~/Applications and the files the command runs under ~/.wsp/app, and on a desktop
-# adds the app to its menu and opens it once. On both it quits a wsp that is open before replacing its files, writes
-# the wsp command at ~/.wsp/bin/wsp and puts that folder on PATH for new shells, and npm's link of an older wsp on
-# PATH becomes a link to it.
+# It installs whichever app the release's wsp-<version>-mac.zip or wsp-<version>.AppImage holds, told apart by the
+# files in it: the wsp app, or the classic app, which every release before the wsp app's first carries under those
+# names. It never reads the wsp-classic-* downloads, and takes the place of either app. On a Mac it puts wsp.app in
+# /Applications, or ~/Applications where that is not writable, and opens it once. On Linux (x64) it puts the AppImage
+# in ~/Applications and the files the command runs under ~/.wsp/app, and on a desktop adds the app to its menu, which
+# runs the AppImage so that it updates itself in place, and opens it once. On both it quits a wsp that is open before
+# replacing its files, writes the wsp command at ~/.wsp/bin/wsp and puts that folder on PATH for new shells, and npm's
+# link of an older wsp on PATH becomes a link to it.
 #
 # Every download is an asset of a release of github.com/wsp-labs/wsp, checked against the sha256 GitHub publishes
 # for it before anything is unpacked. The release is read off api.github.com and nothing else is asked of anything,
@@ -23,7 +26,10 @@ set -eu
 REPO="wsp-labs/wsp"
 BUNDLE_ID="wsp.desktop"
 SHIM_HEAD="# The wsp app writes this on each launch; it runs the wsp the app bundles."
-# The V8 flag the app's shim puts between its binary and the script (apps/desktop/src/shim.ts).
+# The app's own executable and the lock it holds in ~/.wsp while it runs (apps/desktop-gpui).
+APP_BIN="desktop-gpui"
+APP_LOCK="desktop-gpui.lock"
+# The V8 flag the classic app's command puts between its binary and the script (apps/desktop/src/shim.ts).
 V8_FLAGS="--no-memory-pool"
 
 step=""
@@ -63,8 +69,11 @@ need() { command -v "$1" >/dev/null 2>&1 || die "$1 is not installed"; }
 
 last_line() { tail -n 1 "$1" 2>/dev/null || true; }
 
-# One word for a shell, in single quotes, as the app quotes the paths in the command it writes.
+# One word for a shell, in single quotes, as the host quotes the command in its service.
 quote() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+
+# One word as the app quotes the paths in the command it writes (shim.rs quote): bare where sh reads it as itself.
+word() { case "$1" in '' | *[!A-Za-z0-9_./:=@,+-]*) quote "$1" ;; *) printf '%s' "$1" ;; esac; }
 
 # The release workflow's own rule for a version: v1.2.3 carries 1.2.3, with an optional prerelease part.
 valid_version() {
@@ -122,14 +131,57 @@ sha256_of() {
   if [ "$os" = Darwin ] || ! command -v sha256sum >/dev/null 2>&1; then shasum -a 256 "$1"; else sha256sum "$1"; fi | cut -d ' ' -f 1
 }
 
-# Writes the command at ~/.wsp/bin/wsp the way the app does, so it works before the app has ever opened, and asks it
-# for its version before it takes the place of the one there. The app rewrites it on each launch. Fails with why set,
-# for the caller to put things back first.
+holds() {
+  root=$1
+  shift
+  for path in "$@"; do [ -f "$root/$path" ] || return 1; done
+}
+
+# Which app the bundle unpacked at $1 holds, by its files, and the paths below it that its command runs: the app's
+# daemon, Node and command, or the classic app's Electron binary, which runs the command as Node, and the command. Sets
+# kind, bin (what ldd reads), node, cli, daemon and libs (apt_packages' list), or fails.
+bundle_kind() {
+  if [ "$os" = Darwin ]; then
+    kind=app bin="Contents/MacOS/$APP_BIN" node=Contents/MacOS/node cli=Contents/Resources/app/main/cli.mjs
+    daemon="Contents/Resources/app/assets/daemon/$chip-apple-darwin/wsp-daemon"
+    holds "$1" "$bin" "$node" "$cli" "$daemon" && return 0
+    kind=classic bin=Contents/MacOS/wsp node=Contents/MacOS/wsp daemon=""
+  else
+    kind=app bin="usr/bin/$APP_BIN" node=usr/bin/node cli=usr/lib/wsp/app/main/cli.mjs
+    daemon=usr/lib/wsp/app/assets/daemon/x86_64-unknown-linux-musl/wsp-daemon
+    # WebKitGTK's package brings GTK and the rest of what it links.
+    libs="libwebkit2gtk-4.1-0 libxkbcommon-x11-0"
+    holds "$1" "$bin" "$node" "$cli" "$daemon" && return 0
+    kind=classic bin=wsp node=wsp cli=resources/app/main/cli.mjs daemon=""
+    # Ubuntu 24.04 renamed two of these with a t64 suffix and keeps no package under the old name.
+    libs="libgtk-3-0t64,libgtk-3-0 libnss3 libasound2t64,libasound2 libgbm1"
+  fi
+  holds "$1" "$bin" "$cli"
+}
+
+# Whether the bundle at $1 answers --version as this release's wsp, its command run straight through its Node.
+bundle_answers() {
+  if [ "$kind" = app ]; then answers "$1/$node" "$1/$cli"; else answers env ELECTRON_RUN_AS_NODE=1 "$1/$node" "$V8_FLAGS" "$1/$cli"; fi
+}
+
+# The command's last line as the app writes it for the bundle at $1: the app's runs its daemon's forwarder (shim.rs
+# text), the classic app's runs its own binary as Node (apps/desktop/src/shim.ts shimText).
+command_line() {
+  if [ "$kind" = app ]; then
+    printf 'exec %s forward --wsp-argv %s --wsp-argv %s -- "$@"\n' "$(word "$1/$daemon")" "$(word "$1/$node")" "$(word "$1/$cli")"
+  else
+    printf 'ELECTRON_RUN_AS_NODE=1 exec %s %s %s "$@"\n' "$(quote "$1/$node")" "$(quote "$V8_FLAGS")" "$(quote "$1/$cli")"
+  fi
+}
+
+# Writes the command at ~/.wsp/bin/wsp for the bundle installed at $1, the app's byte for byte and the classic app's in
+# the form its shimText writes with no daemon, so it works before the app has ever opened, and asks it for its version before it takes the place of the one there. The app
+# rewrites it on each launch. Fails with why set, for the caller to put things back first.
 write_command() {
   step="writing the wsp command"
   parts="$shim.part
 $parts"
-  if ! { make_dir "$HOME/.wsp/bin" && printf '#!/bin/sh\n%s\nELECTRON_RUN_AS_NODE=1 exec %s %s %s "$@"\n' "$SHIM_HEAD" "$(quote "$1")" "$(quote "$V8_FLAGS")" "$(quote "$2")" >"$shim.part" && chmod 755 "$shim.part"; } 2>/dev/null; then
+  if ! { make_dir "$HOME/.wsp/bin" && printf '#!/bin/sh\n%s\n%s\n' "$SHIM_HEAD" "$(command_line "$1")" >"$shim.part" && chmod 755 "$shim.part"; } 2>/dev/null; then
     why="could not be written at $shim"
     return 1
   fi
@@ -324,10 +376,12 @@ install_mac() {
   new="$stage/new/wsp.app"
   got=$(plutil -extract CFBundleShortVersionString raw -o - "$new/Contents/Info.plist" 2>/dev/null </dev/null || true)
   [ "$got" = "$version" ] || die "it is version ${got:-unknown}, not $version"
-  [ -f "$new/Contents/MacOS/wsp" ] && [ -f "$new/Contents/Resources/app/main/cli.mjs" ] || die "it holds no wsp command"
+  # The daemon the app picks is its own slice's, which on Apple silicon is arm64 even from a terminal under Rosetta.
+  if [ "$(sysctl -n hw.optional.arm64 2>/dev/null </dev/null)" = 1 ]; then chip=aarch64; else chip=x86_64; fi
+  bundle_kind "$new" || die "it holds no wsp command"
   codesign --verify --deep --strict "$new" 2>/dev/null </dev/null || die "its signature does not verify"
   # The new copy runs once where it was unpacked, before anything installed moves.
-  answers env ELECTRON_RUN_AS_NODE=1 "$new/Contents/MacOS/wsp" "$V8_FLAGS" "$new/Contents/Resources/app/main/cli.mjs" || die "its wsp command $why; nothing was changed"
+  bundle_answers "$new" || die "its wsp command $why; nothing was changed"
 
   if app_running; then
     step="quitting wsp"
@@ -349,7 +403,7 @@ install_mac() {
   mv "$new" "$app" || put_back "$app" "$stage/old.app" "the new app could not be moved in"
   # The installed copy goes only once the command the new one carries answers from where it now stands.
   step="writing the wsp command"
-  write_command "$app/Contents/MacOS/wsp" "$app/Contents/Resources/app/main/cli.mjs" ||
+  write_command "$app" ||
     put_back "$app" "$stage/old.app" "the wsp command $why"
   rm -rf "$stage"
   stage=""
@@ -365,12 +419,12 @@ install_mac() {
   open "$app" 2>"$tmp/open.err" </dev/null || say "wsp did not open here ($(last_line "$tmp/open.err")); open $app yourself"
 }
 
-# The packages that carry the libraries the app links, by the names this computer's apt knows them by: Ubuntu 24.04
-# renamed two of them with a t64 suffix and keeps no package under the old name.
+# The packages that carry the libraries the app links, by the first name this computer's apt knows in each of libs'
+# comma-separated choices.
 apt_packages() {
-  for want in "libgtk-3-0t64 libgtk-3-0" libnss3 "libasound2t64 libasound2" libgbm1; do
+  for want in $libs; do
     pick=""
-    for name in $want; do
+    for name in $(printf '%s' "$want" | tr ',' ' '); do
       if apt-cache show "$name" >/dev/null 2>&1 </dev/null; then
         pick=$name
         break
@@ -382,7 +436,8 @@ apt_packages() {
 
 missing_libraries() { ldd "$1" 2>/dev/null </dev/null | sed -n 's/^[[:space:]]*\([^[:space:]]*\) => not found.*/\1/p' | tr '\n' ' '; }
 
-# Electron links GTK and the libraries beside it, which a desktop has and a server usually lacks.
+# The app links WebKitGTK, GTK and xkbcommon, and the classic app GTK and the libraries Electron links beside it, which
+# a desktop has and a server usually lacks.
 ensure_libraries() {
   missing=$(missing_libraries "$1")
   [ -n "$missing" ] || return 0
@@ -392,7 +447,7 @@ ensure_libraries() {
     need sudo
     sudo=sudo
   fi
-  say "this computer lacks $(printf '%s\n' "$missing" | wc -w | tr -d ' ') libraries the app links, GTK among them; installing them with apt-get${sudo:+, which asks for sudo}"
+  say "this computer lacks $(printf '%s\n' "$missing" | wc -w | tr -d ' ') libraries the app links; installing them with apt-get${sudo:+, which asks for sudo}"
   $sudo apt-get update -qq >"$tmp/apt.log" 2>&1 </dev/null || die "apt-get update: $(last_line "$tmp/apt.log")"
   packages=$(apt_packages)
   # shellcheck disable=SC2086
@@ -406,40 +461,50 @@ ensure_libraries() {
 # backslash, a value doubles every backslash once more, and a % is doubled.
 exec_word() { printf '"%s"' "$(printf '%s' "$1" | sed -e 's/\\/\\\\\\\\/g' -e 's/["`$]/\\\\&/g' -e 's/%/%%/g')"; }
 
-# The wsp window open on this home: Chromium's lock in the app's folder names it host-pid, and it counts only while
-# that pid still runs a program named wsp. Sets pid.
+# The wsp window open on this home: the process holding the app's lock file open, or the one the classic app's
+# Chromium lock in its folder names as host-pid, and it counts only while that pid still runs the app. Sets pid.
 window_pid() {
+  held=$(printf '%s' "$HOME/.wsp/$APP_LOCK" | sed 's/[][*?\\]/\\&/g')
+  pid=$(find /proc/[0-9]*/fd -maxdepth 1 -lname "$held" 2>/dev/null </dev/null | while IFS= read -r fd; do
+    pid=${fd#/proc/}
+    pid=${pid%%/*}
+    if window_runs; then printf '%s' "$pid"; break; fi
+  done)
+  if [ -n "$pid" ]; then return 0; fi
   lock=$(readlink "$HOME/.wsp/desktop/SingletonLock" 2>/dev/null) || return 1
   pid=${lock##*-}
   case "$pid" in '' | *[!0-9]*) return 1 ;; esac
   window_runs
 }
 
-# Whether pid still runs a program named wsp. A quit is waited on by this and not the lock, which Chromium takes away
-# up to 0.1 s before its process ends.
-window_runs() { case "$(readlink "/proc/$pid/exe" 2>/dev/null)" in */wsp | */wsp" (deleted)") ;; *) return 1 ;; esac; }
+# Whether pid still runs the app or the classic app, named wsp. A quit is waited on by this and not the lock, which
+# Chromium takes away up to 0.1 s before its process ends.
+window_runs() { case "$(readlink "/proc/$pid/exe" 2>/dev/null)" in */"$APP_BIN" | */"$APP_BIN (deleted)" | */wsp | */wsp" (deleted)") ;; *) return 1 ;; esac; }
 
-# What the menu entry runs: the app from the newest folder under ~/.wsp/app, which the app's own copy of a later
-# release it opens joins, and whose older folders that copy cleans away.
+# What the menu entry runs: the AppImage in ~/Applications, since the app updates itself only when its AppImage runs
+# it, by replacing the file the runtime names in APPIMAGE. The runtime mounts the AppImage with FUSE, and where there is
+# none, or the mount fails, APPIMAGE_EXTRACT_AND_RUN=1 has it unpack itself into a temporary folder and run from there,
+# still naming itself in APPIMAGE.
 write_launcher() {
   cat <<'LAUNCHER'
 #!/bin/sh
-# The wsp install line writes this for the app menu: it opens wsp from the newest folder under ~/.wsp/app.
-newest=""
-for dir in "$HOME"/.wsp/app/*/; do
-  case "$dir" in *.part/) continue ;; esac
-  [ -x "${dir}AppRun" ] || continue
-  if [ -z "$newest" ] || ! [ "$newest" -nt "$dir" ]; then newest=$dir; fi
-done
-[ -n "$newest" ] || { echo "wsp: no app under ~/.wsp/app; run the install line again" >&2; exit 1; }
-exec "${newest}AppRun" "$@"
+# The wsp install line writes this for the app menu: it opens wsp from its AppImage, which updates itself in place.
+image="$HOME/Applications/wsp.AppImage"
+[ -f "$image" ] && [ -x "$image" ] || { echo "wsp: no app at $image; run the install line again" >&2; exit 1; }
+if [ -w /dev/fuse ] && { command -v fusermount3 || command -v fusermount; } >/dev/null 2>&1; then
+  # The runtime exits 127 when it cannot mount the image, before the app starts.
+  "$image" "$@" && exit 0 || code=$?
+  [ "$code" = 127 ] || exit "$code"
+fi
+APPIMAGE_EXTRACT_AND_RUN=1
+export APPIMAGE_EXTRACT_AND_RUN
+exec "$image" "$@"
 LAUNCHER
 }
 
 # The entry the AppImage carries, with its wsp:// handler, in the folder a desktop's app menu reads, with its icon
-# copied beside it. It runs the unpacked files through the launcher above: they need no FUSE, which the AppImage's
-# runtime does to mount itself, and nothing is unpacked again at each launch. The app opens once from there, as it
-# does on a Mac.
+# copied beside it. It runs the AppImage through the launcher above, which has it unpack itself where FUSE cannot
+# mount it. The app opens once from there, as it does on a Mac.
 add_to_menu() {
   step="adding wsp to the app menu"
   data=${XDG_DATA_HOME:-$HOME/.local/share}
@@ -455,7 +520,7 @@ $parts"
   if { write_launcher >"$launcher.part" && chmod 755 "$launcher.part" && mv -f "$launcher.part" "$launcher" &&
     make_dir "$(dirname "$icon")" && cp "$files/wsp.png" "$icon.part" && mv -f "$icon.part" "$icon" &&
     make_dir "$(dirname "$entry")" &&
-    run=$run icon=$named awk '/^Exec=AppRun/ { print "Exec=" ENVIRON["run"] substr($0, 12); next } /^Icon=/ { print "Icon=" ENVIRON["icon"]; next } { print }' "$files/wsp.desktop" >"$entry.part" &&
+    run=$run icon=$named awk '/^Exec=/ { sub(/^Exec=[^ ]*/, ""); print "Exec=" ENVIRON["run"] $0; next } /^Icon=/ { print "Icon=" ENVIRON["icon"]; next } { print }' "$files/wsp.desktop" >"$entry.part" &&
     mv -f "$entry.part" "$entry"; } 2>/dev/null; then
     opens="open wsp from your app menu, or run ~/Applications/wsp.AppImage"
   else
@@ -474,15 +539,15 @@ install_linux() {
   { cp "$tmp/$asset" "$stage/$asset" && chmod 755 "$stage/$asset"; } || die "$asset could not be copied into $stage"
   (cd "$stage" && "./$asset" --appimage-extract >/dev/null 2>"$tmp/extract.err" </dev/null) || die "$(last_line "$tmp/extract.err")"
   tree="$stage/squashfs-root"
-  [ -f "$tree/wsp" ] && [ -f "$tree/resources/app/main/cli.mjs" ] || die "$asset holds no wsp command"
+  bundle_kind "$tree" || die "$asset holds no wsp command"
 
-  ensure_libraries "$tree/wsp"
+  ensure_libraries "$tree/$bin"
 
   step="checking the app"
-  answers env ELECTRON_RUN_AS_NODE=1 "$tree/wsp" "$V8_FLAGS" "$tree/resources/app/main/cli.mjs" || die "its wsp command $why; nothing was changed"
+  bundle_answers "$tree" || die "its wsp command $why; nothing was changed"
 
-  # A window run from the files below would go on running from deleted ones, and the launch at the end would only
-  # bring it forward.
+  # A window run from the AppImage replaced below, or from the files an earlier install unpacked, would go on running
+  # the old release, and the launch at the end would only bring it forward.
   if window_pid; then
     step="quitting wsp"
     say "quitting wsp to replace it"
@@ -498,7 +563,7 @@ install_linux() {
     die "$files could not be moved aside; nothing was changed"
   fi
   mv "$tree" "$files" || put_back "$files" "$stage/old" "the new files could not be moved into $files"
-  write_command "$files/wsp" "$files/resources/app/main/cli.mjs" || put_back "$files" "$stage/old" "the wsp command $why"
+  write_command "$files" || put_back "$files" "$stage/old" "the wsp command $why"
   release_signals
   make_dir "$HOME/Applications" || die "$HOME/Applications could not be made"
   image="$HOME/Applications/wsp.AppImage"

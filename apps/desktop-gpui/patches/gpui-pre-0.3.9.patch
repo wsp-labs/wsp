@@ -1,0 +1,4526 @@
+diff --git a/src/app/context.rs b/src/app/context.rs
+index 7840c9f..21c1f23 100644
+--- a/src/app/context.rs
++++ b/src/app/context.rs
+@@ -222,6 +222,11 @@ impl<'a, T: 'static> Context<'a, T> {
+         self.app.notify(self.entity_state.entity_id);
+     }
+ 
++    /// Tell GPUI that only this view's own drawing changed: see [`App::notify_in_place`].
++    pub fn notify_in_place(&mut self) {
++        self.app.notify_in_place(self.entity_state.entity_id);
++    }
++
+     /// Spawn the future returned by the given function.
+     /// The function is provided a weak handle to the entity owned by this context and a context that can be held across await points.
+     /// The returned task must be held or detached.
+diff --git a/src/app/entity_map.rs b/src/app/entity_map.rs
+index 38ba760..8cf2d25 100644
+--- a/src/app/entity_map.rs
++++ b/src/app/entity_map.rs
+@@ -56,6 +56,8 @@ impl Display for EntityId {
+ pub(crate) struct EntityMap {
+     entities: SecondaryMap<EntityId, Box<dyn Any>>,
+     pub accessed_entities: RefCell<FxHashSet<EntityId>>,
++    /// What the cached views drawn inside the one drawing now read, apart from what it read itself.
++    pub accessed_below: FxHashSet<EntityId>,
+     ref_counts: Arc<RwLock<EntityRefCounts>>,
+ }
+ 
+@@ -76,6 +78,7 @@ impl EntityMap {
+         Self {
+             entities: SecondaryMap::new(),
+             accessed_entities: RefCell::new(FxHashSet::default()),
++            accessed_below: FxHashSet::default(),
+             ref_counts: Arc::new(RwLock::new(EntityRefCounts {
+                 counts: SlotMap::with_key(),
+                 dropped_entity_ids: Vec::new(),
+@@ -177,14 +180,14 @@ impl EntityMap {
+         );
+     }
+ 
++    /// Counts what a cached view reused here read as read by a cached view inside the one drawing now.
+     pub fn extend_accessed(&mut self, entities: &FxHashSet<EntityId>) {
+-        self.accessed_entities
+-            .get_mut()
+-            .extend(entities.iter().copied());
++        self.accessed_below.extend(entities.iter().copied());
+     }
+ 
+     pub fn clear_accessed(&mut self) {
+         self.accessed_entities.get_mut().clear();
++        self.accessed_below.clear();
+     }
+ 
+     pub fn take_dropped(&mut self) -> Vec<(EntityId, Box<dyn Any>)> {
+@@ -201,6 +204,7 @@ impl EntityMap {
+                     "dropped an entity that was referenced"
+                 );
+                 accessed_entities.remove(&entity_id);
++                self.accessed_below.remove(&entity_id);
+                 // If the EntityId was allocated with `Context::reserve`,
+                 // the entity may not have been inserted.
+                 Some((entity_id, self.entities.remove(entity_id)?))
+diff --git a/src/app/test_context.rs b/src/app/test_context.rs
+index 1632843..6d7233e 100644
+--- a/src/app/test_context.rs
++++ b/src/app/test_context.rs
+@@ -1052,6 +1052,45 @@ impl VisualTestContext {
+         })
+     }
+ 
++    /// The bounds the platform's input method reads for `range` of the focused input, in the
++    /// platform's pixels.
++    pub fn platform_bounds_for_range(
++        &mut self,
++        range: std::ops::Range<usize>,
++    ) -> Option<Bounds<Pixels>> {
++        use crate::PlatformWindow as _;
++        let mut window = self.test_window(self.window);
++        let mut handler = window.take_input_handler()?;
++        let bounds = handler.bounds_for_range(range);
++        window.set_input_handler(handler);
++        bounds
++    }
++
++    /// The character the platform's input method finds at `point`, in the platform's pixels.
++    pub fn platform_character_index_for_point(&mut self, point: Point<Pixels>) -> Option<usize> {
++        use crate::PlatformWindow as _;
++        let mut window = self.test_window(self.window);
++        let mut handler = window.take_input_handler()?;
++        let index = handler.character_index_for_point(point);
++        window.set_input_handler(handler);
++        index
++    }
++
++    /// The bounds the window last handed the platform for its input method's candidates.
++    pub fn platform_ime_position(&self) -> Option<Bounds<Pixels>> {
++        self.test_window(self.window).ime_position()
++    }
++
++    /// Simulates the platform leaving the window's frame to the app, or taking it back.
++    pub fn simulate_window_decorations(&self, decorations: crate::Decorations) {
++        self.test_window(self.window).simulate_decorations(decorations);
++    }
++
++    /// Each interactive resize the window asked the platform for, in order.
++    pub fn platform_window_resizes(&self) -> Vec<crate::ResizeEdge> {
++        self.test_window(self.window).window_resizes()
++    }
++
+     /// Simulate an event from the platform, e.g. a ScrollWheelEvent
+     /// Make sure you've called [VisualTestContext::draw] first!
+     pub fn simulate_event<E: InputEvent>(&mut self, event: E) {
+diff --git a/src/app.rs b/src/app.rs
+index cdbd559..b4c1a51 100644
+--- a/src/app.rs
++++ b/src/app.rs
+@@ -1344,20 +1344,20 @@ impl App {
+         })
+     }
+ 
++    /// Runs `callback`, returning the entities it read outside the cached views drawn in it, then all it read,
++    /// each whether or not anything earlier in the frame read it too.
+     pub(crate) fn detect_accessed_entities<R>(
+         &mut self,
+         callback: impl FnOnce(&mut App) -> R,
+-    ) -> (R, FxHashSet<EntityId>) {
+-        let accessed_entities_start = self.entities.accessed_entities.get_mut().clone();
++    ) -> (R, FxHashSet<EntityId>, FxHashSet<EntityId>) {
++        let outer = mem::take(self.entities.accessed_entities.get_mut());
++        let outer_below = mem::take(&mut self.entities.accessed_below);
+         let result = callback(self);
+-        let entities_accessed_in_callback = self
+-            .entities
+-            .accessed_entities
+-            .get_mut()
+-            .difference(&accessed_entities_start)
+-            .copied()
+-            .collect::<FxHashSet<EntityId>>();
+-        (result, entities_accessed_in_callback)
++        let own = mem::replace(self.entities.accessed_entities.get_mut(), outer);
++        let mut all = mem::replace(&mut self.entities.accessed_below, outer_below);
++        all.extend(own.iter().copied());
++        self.entities.accessed_below.extend(all.iter().copied());
++        (result, own, all)
+     }
+ 
+     pub(crate) fn record_entities_accessed(
+@@ -3050,6 +3050,18 @@ impl App {
+ 
+     /// Tell GPUI that an entity has changed and observers of it should be notified.
+     pub fn notify(&mut self, entity_id: EntityId) {
++        self.notify_view(entity_id, false);
++    }
++
++    /// Like [`App::notify`], but a view drawn cached draws again where it stands and nothing above it draws: for a
++    /// change only the view shows, such as a clock's text or an animation's next step. A view not drawn cached
++    /// draws again with the nearest cached view it sits in. No observer is told, so an entity that is not drawn as a
++    /// view, whose changes reach the screen through its observers, should notify as usual.
++    pub fn notify_in_place(&mut self, entity_id: EntityId) {
++        self.notify_view(entity_id, true);
++    }
++
++    fn notify_view(&mut self, entity_id: EntityId, in_place: bool) {
+         let window_invalidators = mem::take(
+             self.window_invalidators_by_entity
+                 .entry(entity_id)
+@@ -3071,13 +3083,18 @@ impl App {
+             .collect();
+ 
+         if live_invalidators.is_empty() {
+-            if self.pending_notifications.insert(entity_id) {
++            // A view not drawn has nothing to draw again in place.
++            if !in_place && self.pending_notifications.insert(entity_id) {
+                 self.pending_effects
+                     .push_back(Effect::Notify { emitter: entity_id });
+             }
+         } else {
+             for invalidator in &live_invalidators {
+-                invalidator.invalidate_view(entity_id, self);
++                if in_place {
++                    invalidator.invalidate_view_in_place(entity_id, self);
++                } else {
++                    invalidator.invalidate_view(entity_id, self);
++                }
+             }
+         }
+ 
+@@ -3452,6 +3469,10 @@ pub struct AnyTooltip {
+     /// The absolute position of the mouse when the tooltip was deployed.
+     pub mouse_position: Point<Pixels>,
+ 
++    /// The bounds of the element that owns the tooltip as last drawn, and the side of it the tooltip opens on, centred;
++    /// at the mouse when none.
++    pub owner: Option<(Bounds<Pixels>, crate::TooltipSide)>,
++
+     /// Given the bounds of the tooltip, checks whether the tooltip should still be visible and
+     /// updates its state accordingly. This is needed atop the hovered element's mouse move handler
+     /// to handle the case where the element is not painted (e.g. via use of `visible_on_hover`).
+diff --git a/src/debug_overlay.rs b/src/debug_overlay.rs
+index 0cca543..d8aab99 100644
+--- a/src/debug_overlay.rs
++++ b/src/debug_overlay.rs
+@@ -225,6 +225,8 @@ fn solid_quad(
+         border_color: transparent_black(),
+         corner_radii: Corners::default(),
+         border_widths: Edges::default(),
++        rounded_clip: 0,
++        pad: [0; 3],
+     }
+ }
+ 
+diff --git a/src/elements/animation.rs b/src/elements/animation.rs
+index e076893..b91c124 100644
+--- a/src/elements/animation.rs
++++ b/src/elements/animation.rs
+@@ -346,7 +346,7 @@ impl<E: IntoElement + 'static> Element for SpringAnimationElement<E> {
+             let mut element = animator(element, state.spring.position).into_any_element();
+ 
+             if !done {
+-                window.request_animation_frame();
++                window.request_animation_frame_in_place();
+             }
+ 
+             ((element.request_layout(window, cx), element), state)
+@@ -460,12 +460,12 @@ impl<E: IntoElement + 'static> Element for AnimationElement<E> {
+                                 .spawn(cx, async move |cx| {
+                                     cx.background_executor().timer(interval).await;
+                                     delayed_frame_pending.set(false);
+-                                    cx.update(move |_, cx| cx.notify(view)).ok();
++                                    cx.update(move |_, cx| cx.notify_in_place(view)).ok();
+                                 })
+                                 .detach();
+                         }
+                     }
+-                    _ => window.request_animation_frame(),
++                    _ => window.request_animation_frame_in_place(),
+                 }
+             }
+ 
+diff --git a/src/elements/div.rs b/src/elements/div.rs
+index fc292f2..cec8846 100644
+--- a/src/elements/div.rs
++++ b/src/elements/div.rs
+@@ -736,6 +736,12 @@ impl Interactivity {
+         self.tooltip_show_delay = Some(delay);
+     }
+ 
++    /// Sets the side of this element its tooltip opens on.
++    /// The imperative API equivalent to [`StatefulInteractiveElement::tooltip_side`].
++    pub fn tooltip_side(&mut self, side: TooltipSide) {
++        self.tooltip_side = side;
++    }
++
+     /// Block the mouse from all interactions with elements behind this element's hitbox. Typically
+     /// `block_mouse_except_scroll` should be preferred.
+     ///
+@@ -1712,6 +1718,31 @@ pub trait StatefulInteractiveElement: InteractiveElement {
+         self.interactivity().tooltip_show_delay(delay);
+         self
+     }
++
++    /// Sets the side of this element its tooltip opens on, above it by default.
++    /// The fluent API equivalent to [`Interactivity::tooltip_side`].
++    fn tooltip_side(mut self, side: TooltipSide) -> Self
++    where
++        Self: Sized,
++    {
++        self.interactivity().tooltip_side(side);
++        self
++    }
++}
++
++/// The side of its element a tooltip opens on, centred along it, as a web tooltip's `side`; it flips to the other side
++/// where the window has no room.
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++pub enum TooltipSide {
++    /// Above the element.
++    #[default]
++    Top,
++    /// Below the element.
++    Bottom,
++    /// Left of the element.
++    Left,
++    /// Right of the element.
++    Right,
+ }
+ 
+ pub(crate) type MouseDownListener =
+@@ -2184,6 +2215,7 @@ pub struct Interactivity {
+     pub(crate) hover_listener_mode: HoverListenerMode,
+     pub(crate) tooltip_builder: Option<TooltipBuilder>,
+     pub(crate) tooltip_show_delay: Option<Duration>,
++    pub(crate) tooltip_side: TooltipSide,
+     pub(crate) window_control: Option<WindowControlArea>,
+     pub(crate) hitbox_behavior: HitboxBehavior,
+     pub(crate) tab_index: Option<isize>,
+@@ -2370,7 +2402,8 @@ impl Interactivity {
+                     }
+                     if let Some(active_tooltip) = element_state.active_tooltip.as_ref() {
+                         if self.tooltip_builder.is_some() {
+-                            self.tooltip_id = set_tooltip_on_window(active_tooltip, window);
++                            self.tooltip_id =
++                                set_tooltip_on_window(active_tooltip, Some((bounds, self.tooltip_side)), window);
+                         } else {
+                             // If there is no longer a tooltip builder, remove the active tooltip.
+                             if let Some(long_press_tooltip_active) =
+@@ -2544,91 +2577,102 @@ impl Interactivity {
+                 window.with_element_opacity(style.opacity, |window| {
+                     style.paint(bounds, window, cx, |window: &mut Window, cx: &mut App| {
+                         window.with_text_style(style.text_style().cloned(), |window| {
+-                            window.with_content_mask(
+-                                style.overflow_mask(bounds, window.rem_size()),
+-                                |window| {
+-                                    window.with_tab_group(tab_group, |window| {
+-                                        // Register the container's own focus handle *inside* its
+-                                        // tab group, so that focusing the container and then
+-                                        // calling `focus_next` descends into this group's first
+-                                        // item. Inserting it before `with_tab_group` would give the
+-                                        // container a shallower tab path than its children; with
+-                                        // sibling groups every container would then sort ahead of
+-                                        // every item, and `focus_next` from a container would jump
+-                                        // to the first item in the whole window instead of its own.
+-                                        if let Some(focus_handle) = &self.tracked_focus_handle {
+-                                            window.next_frame.tab_stops.insert(focus_handle);
+-                                        }
+-                                        if let Some(hitbox) = hitbox {
+-                                            #[cfg(debug_assertions)]
+-                                            self.paint_debug_info(
+-                                                global_id, hitbox, &style, window, cx,
+-                                            );
+-
+-                                            if let Some(drag) = cx.active_drag.as_ref() {
+-                                                if let Some(mouse_cursor) = drag.cursor_style {
+-                                                    window.set_window_cursor_style(mouse_cursor);
++                            let rounded_clip =
++                                style.overflow_rounded_clip(bounds, window.rem_size());
++                            window.with_rounded_clip(rounded_clip, |window| {
++                                window.with_content_mask(
++                                    style.overflow_mask(bounds, window.rem_size()),
++                                    |window| {
++                                        window.with_tab_group(tab_group, |window| {
++                                            // Register the container's own focus handle *inside* its
++                                            // tab group, so that focusing the container and then
++                                            // calling `focus_next` descends into this group's first
++                                            // item. Inserting it before `with_tab_group` would give the
++                                            // container a shallower tab path than its children; with
++                                            // sibling groups every container would then sort ahead of
++                                            // every item, and `focus_next` from a container would jump
++                                            // to the first item in the whole window instead of its own.
++                                            if let Some(focus_handle) = &self.tracked_focus_handle {
++                                                window.next_frame.tab_stops.insert(focus_handle);
++                                            }
++                                            if let Some(hitbox) = hitbox {
++                                                #[cfg(debug_assertions)]
++                                                self.paint_debug_info(
++                                                    global_id, hitbox, &style, window, cx,
++                                                );
++
++                                                if let Some(drag) = cx.active_drag.as_ref() {
++                                                    if let Some(mouse_cursor) = drag.cursor_style {
++                                                        window
++                                                            .set_window_cursor_style(mouse_cursor);
++                                                    }
++                                                } else {
++                                                    if let Some(mouse_cursor) = style.mouse_cursor {
++                                                        window
++                                                            .set_cursor_style(mouse_cursor, hitbox);
++                                                    }
+                                                 }
+-                                            } else {
+-                                                if let Some(mouse_cursor) = style.mouse_cursor {
+-                                                    window.set_cursor_style(mouse_cursor, hitbox);
++
++                                                if let Some(group) = self.group.clone() {
++                                                    GroupHitboxes::push(group, hitbox.id, cx);
+                                                 }
+-                                            }
+ 
+-                                            if let Some(group) = self.group.clone() {
+-                                                GroupHitboxes::push(group, hitbox.id, cx);
+-                                            }
++                                                if let Some(area) = self.window_control {
++                                                    window.insert_window_control_hitbox(
++                                                        area,
++                                                        hitbox.clone(),
++                                                    );
++                                                }
+ 
+-                                            if let Some(area) = self.window_control {
+-                                                window.insert_window_control_hitbox(
+-                                                    area,
+-                                                    hitbox.clone(),
++                                                self.paint_mouse_listeners(
++                                                    hitbox,
++                                                    element_state.as_mut(),
++                                                    window,
++                                                    cx,
++                                                );
++                                                self.paint_scroll_listener(
++                                                    hitbox, &style, window, cx,
+                                                 );
+                                             }
+ 
+-                                            self.paint_mouse_listeners(
+-                                                hitbox,
+-                                                element_state.as_mut(),
+-                                                window,
+-                                                cx,
+-                                            );
+-                                            self.paint_scroll_listener(hitbox, &style, window, cx);
+-                                        }
+-
+-                                        self.paint_keyboard_listeners(window, cx);
+-
+-                                        if window.a11y.is_active() {
+-                                            if let Some(global_id) = global_id {
+-                                                if !self.a11y_action_listeners.is_empty() {
+-                                                    let node_id = global_id.accesskit_node_id();
+-                                                    for (action, listener) in
+-                                                        self.a11y_action_listeners.drain(..)
+-                                                    {
+-                                                        window.on_a11y_action(
+-                                                            node_id, action, listener,
+-                                                        );
++                                            self.paint_keyboard_listeners(window, cx);
++
++                                            if window.a11y.is_active() {
++                                                if let Some(global_id) = global_id {
++                                                    if !self.a11y_action_listeners.is_empty() {
++                                                        let node_id = global_id.accesskit_node_id();
++                                                        for (action, listener) in
++                                                            self.a11y_action_listeners.drain(..)
++                                                        {
++                                                            window.on_a11y_action(
++                                                                node_id, action, listener,
++                                                            );
++                                                        }
+                                                     }
+                                                 }
+                                             }
+-                                        }
+ 
+-                                        f(&style, window, cx);
+-
+-                                        if let Some(_hitbox) = hitbox {
+-                                            #[cfg(any(feature = "inspector", debug_assertions))]
+-                                            window.insert_inspector_hitbox(
+-                                                _hitbox.id,
+-                                                _inspector_id,
+-                                                cx,
+-                                            );
++                                            f(&style, window, cx);
++
++                                            if let Some(_hitbox) = hitbox {
++                                                #[cfg(any(
++                                                    feature = "inspector",
++                                                    debug_assertions
++                                                ))]
++                                                window.insert_inspector_hitbox(
++                                                    _hitbox.id,
++                                                    _inspector_id,
++                                                    cx,
++                                                );
+ 
+-                                            if let Some(group) = self.group.as_ref() {
+-                                                GroupHitboxes::pop(group, cx);
++                                                if let Some(group) = self.group.as_ref() {
++                                                    GroupHitboxes::pop(group, cx);
++                                                }
+                                             }
+-                                        }
+-                                    })
+-                                },
+-                            );
++                                        })
++                                    },
++                                )
++                            });
+                         });
+                     });
+                 });
+@@ -3698,14 +3742,16 @@ pub(crate) fn clear_active_tooltip_if_not_hoverable(
+ 
+ pub(crate) fn set_tooltip_on_window(
+     active_tooltip: &Rc<RefCell<Option<ActiveTooltip>>>,
++    owner: Option<(Bounds<Pixels>, TooltipSide)>,
+     window: &mut Window,
+ ) -> Option<TooltipId> {
+-    let tooltip = match active_tooltip.borrow().as_ref() {
++    let mut tooltip = match active_tooltip.borrow().as_ref() {
+         None => return None,
+         Some(ActiveTooltip::WaitingForShow { .. }) => return None,
+         Some(ActiveTooltip::Visible { tooltip, .. }) => tooltip.clone(),
+         Some(ActiveTooltip::WaitingForHide { tooltip, .. }) => tooltip.clone(),
+     };
++    tooltip.owner = owner;
+     Some(window.set_tooltip(tooltip))
+ }
+ 
+@@ -3926,6 +3972,7 @@ fn show_tooltip(
+             tooltip: AnyTooltip {
+                 view,
+                 mouse_position: window.mouse_position(),
++                owner: None,
+                 check_visible_and_update: Rc::new(move |tooltip_bounds, window, cx| {
+                     if long_press_tooltip_active
+                         .as_ref()
+diff --git a/src/elements/list.rs b/src/elements/list.rs
+index fa21d10..4116c64 100644
+--- a/src/elements/list.rs
++++ b/src/elements/list.rs
+@@ -73,6 +73,11 @@ struct StateInner {
+     measuring_behavior: ListMeasuringBehavior,
+     pending_scroll: Option<PendingScroll>,
+     follow_state: FollowState,
++    /// The height `with_uniform_item_height` or `reset_with_uniform_height` gave unmeasured items, which items spliced
++    /// in later take too: as 0 px rows, rows put in above the view never move the offset and the list loses its length.
++    uniform_hint: Option<Size<Pixels>>,
++    /// A scroll draws the view holding the list again in place: see [`ListState::scrolls_in_place`].
++    in_place: bool,
+ }
+ 
+ /// Deferred scroll adjustment applied after the scroll-top item has been remeasured.
+@@ -325,11 +330,20 @@ impl ListState {
+             measuring_behavior: ListMeasuringBehavior::default(),
+             pending_scroll: None,
+             follow_state: FollowState::default(),
++            uniform_hint: None,
++            in_place: false,
+         })));
+         this.splice(0..0, item_count);
+         this
+     }
+ 
++    /// A scroll of the list draws the view holding it again where it stands and nothing above it, as a scroll moves
++    /// nothing outside the list: for a list that is all its view draws, or whose view reads nothing else of it.
++    pub fn scrolls_in_place(self) -> Self {
++        self.0.borrow_mut().in_place = true;
++        self
++    }
++
+     /// Set the list to measure all items in the list in the first layout phase.
+     ///
+     /// This is useful for ensuring that the scrollbar size is correct instead of based on only rendered elements.
+@@ -380,6 +394,7 @@ impl ListState {
+             height,
+         };
+         let mut state = self.0.borrow_mut();
++        state.uniform_hint = Some(size_hint);
+         let new_items = state
+             .items
+             .iter()
+@@ -514,6 +529,7 @@ impl ListState {
+         focus_handles: impl IntoIterator<Item = Option<FocusHandle>>,
+     ) {
+         let state = &mut *self.0.borrow_mut();
++        let size_hint = state.uniform_hint;
+ 
+         let mut old_items = state.items.cursor::<Count>(());
+         let mut new_items = old_items.slice(&Count(old_range.start), Bias::Right);
+@@ -524,7 +540,7 @@ impl ListState {
+             focus_handles.into_iter().map(|focus_handle| {
+                 spliced_count += 1;
+                 ListItem::Unmeasured {
+-                    size_hint: None,
++                    size_hint,
+                     focus_handle,
+                 }
+             }),
+@@ -956,7 +972,11 @@ impl StateInner {
+             );
+         }
+ 
+-        cx.notify(current_view);
++        if self.in_place {
++            cx.notify_in_place(current_view);
++        } else {
++            cx.notify(current_view);
++        }
+     }
+ 
+     fn logical_scroll_top(&self) -> ListOffset {
+@@ -1545,9 +1565,10 @@ impl Element for List {
+             .last_layout_bounds
+             .is_none_or(|last_bounds| last_bounds.size.width != bounds.size.width)
+         {
++            // Old heights stay as hints: rows above the view are not laid out again, and as 0 px rows the list loses its length.
+             let new_items = SumTree::from_iter(
+                 state.items.iter().map(|item| ListItem::Unmeasured {
+-                    size_hint: None,
++                    size_hint: item.size_hint(),
+                     focus_handle: item.focus_handle(),
+                 }),
+                 (),
+diff --git a/src/elements/text.rs b/src/elements/text.rs
+index d1896ad..031bcf7 100644
+--- a/src/elements/text.rs
++++ b/src/elements/text.rs
+@@ -640,11 +640,9 @@ impl TextLayout {
+     ) -> LayoutId {
+         let text_style = window.text_style();
+         let font_size = text_style.font_size.to_pixels(window.rem_size());
+-        let line_height = window.pixel_snap(
+-            text_style
+-                .line_height
+-                .to_pixels(font_size.into(), window.rem_size()),
+-        );
++        let line_height = text_style
++            .line_height
++            .to_pixels(font_size.into(), window.rem_size());
+ 
+         let runs = if let Some(runs) = runs {
+             runs
+@@ -1138,7 +1136,7 @@ impl Element for InteractiveText {
+                 if let Some(interactive_state) = interactive_state.as_mut() {
+                     if self.tooltip_builder.is_some() {
+                         self.tooltip_id =
+-                            set_tooltip_on_window(&interactive_state.active_tooltip, window);
++                            set_tooltip_on_window(&interactive_state.active_tooltip, None, window);
+                     } else {
+                         // If there is no longer a tooltip builder, remove the active tooltip.
+                         interactive_state.long_press_tooltip_active.set(false);
+diff --git b/src/frame_timing.rs b/src/frame_timing.rs
+new file mode 100644
+index 0000000..fdb9977
+--- /dev/null
++++ b/src/frame_timing.rs
+@@ -0,0 +1,106 @@
++//! Where a frame spent its time below the app's own work, for a bench's trace: the parts of a window's draw, the
++//! renderer's wait for a drawable and for its command buffer to be scheduled, and the GPU's own time, which a
++//! completion handler reports later. Recorded only while a trace has asked for it.
++
++use parking_lot::Mutex;
++use std::collections::VecDeque;
++use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
++
++static ON: AtomicBool = AtomicBool::new(false);
++static PRESENTS: AtomicU64 = AtomicU64::new(0);
++static RECORDS: Mutex<VecDeque<Present>> = Mutex::new(VecDeque::new());
++static SPLIT: Mutex<DrawSplit> = Mutex::new(DrawSplit { before_ms: 0., roots_ms: 0., after_ms: 0. });
++
++/// So many presents kept, a minute's worth at 120 a second.
++const KEPT: usize = 8192;
++
++/// A renderer's present: its number, how long it waited for a drawable and for its commands to be scheduled, and
++/// once the GPU has run them, its time on the GPU.
++#[derive(Clone, Copy, Debug, Default, PartialEq)]
++pub struct Present {
++    /// Its number, from the first present the process made.
++    pub index: u64,
++    /// How long `nextDrawable` held the main thread.
++    pub drawable_wait_ms: f64,
++    /// How long waiting for the command buffer to be scheduled held it, when the present goes with a transaction.
++    pub scheduled_wait_ms: f64,
++    /// The GPU's own time on the commands, from `GPUStartTime` to `GPUEndTime`, once they have run.
++    pub gpu_ms: Option<f64>,
++}
++
++/// A window's last draw in three parts: what came before its roots (the invalidations, the input handler's return),
++/// laying out, prepainting and painting its roots, and what came after them (the input handler, the frame's swap, the
++/// focus listeners).
++#[derive(Clone, Copy, Debug, Default, PartialEq)]
++pub struct DrawSplit {
++    /// Before the roots.
++    pub before_ms: f64,
++    /// The roots' layout, prepaint and paint.
++    pub roots_ms: f64,
++    /// After the roots, to the drawn listeners.
++    pub after_ms: f64,
++}
++
++/// Starts or stops the recording.
++pub fn record(on: bool) {
++    ON.store(on, Ordering::SeqCst);
++    if !on {
++        RECORDS.lock().clear();
++    }
++}
++
++/// Whether a trace asked for the recording.
++pub fn recording() -> bool {
++    ON.load(Ordering::Relaxed)
++}
++
++/// A renderer starts a present, which it numbers.
++pub fn present_began() -> u64 {
++    let index = PRESENTS.fetch_add(1, Ordering::SeqCst) + 1;
++    let mut records = RECORDS.lock();
++    if records.len() == KEPT {
++        records.pop_front();
++    }
++    records.push_back(Present { index, ..Present::default() });
++    index
++}
++
++fn with(index: u64, f: impl FnOnce(&mut Present)) {
++    if let Some(present) = RECORDS.lock().iter_mut().rev().find(|p| p.index == index) {
++        f(present);
++    }
++}
++
++/// Present `index` waited `ms` for its drawable.
++pub fn drawable_waited(index: u64, ms: f64) {
++    with(index, |p| p.drawable_wait_ms = ms);
++}
++
++/// Present `index` waited `ms` for its commands to be scheduled.
++pub fn scheduled_waited(index: u64, ms: f64) {
++    with(index, |p| p.scheduled_wait_ms = ms);
++}
++
++/// The GPU ran present `index`'s commands in `ms`, from a completion handler on any thread.
++pub fn gpu_ran(index: u64, ms: f64) {
++    with(index, |p| p.gpu_ms = Some(ms));
++}
++
++/// The last present begun.
++pub fn last_present() -> u64 {
++    PRESENTS.load(Ordering::SeqCst)
++}
++
++/// Present `index`, while it is kept.
++pub fn present(index: u64) -> Option<Present> {
++    RECORDS.lock().iter().rev().find(|p| p.index == index).copied()
++}
++
++pub(crate) fn drew(split: DrawSplit) {
++    *SPLIT.lock() = split;
++}
++
++/// The parts of the last draw.
++pub fn last_draw() -> DrawSplit {
++    *SPLIT.lock()
++}
+diff --git a/src/gpui.rs b/src/gpui.rs
+index d4da5aa..70a2a38 100644
+--- a/src/gpui.rs
++++ b/src/gpui.rs
+@@ -21,6 +21,7 @@ mod debug_overlay;
+ mod element;
+ mod elements;
+ mod executor;
++pub mod frame_timing;
+ mod platform_scheduler;
+ pub(crate) use platform_scheduler::PlatformScheduler;
+ mod geometry;
+diff --git a/src/key_dispatch.rs b/src/key_dispatch.rs
+index 2f755b1..9f808c1 100644
+--- a/src/key_dispatch.rs
++++ b/src/key_dispatch.rs
+@@ -87,6 +87,8 @@ pub(crate) struct DispatchNode {
+     pub context: Option<KeyContext>,
+     pub focus_id: Option<FocusId>,
+     view_id: Option<EntityId>,
++    /// Whether the view at this node was drawn cached, so it can be drawn again where it stands.
++    view_cached: bool,
+     parent: Option<DispatchNodeId>,
+ }
+ 
+@@ -96,6 +98,26 @@ pub(crate) struct ReusedSubtree {
+     contains_focus: bool,
+ }
+ 
++/// A reuse of a cached view's nodes in parts, with views drawn again in place between them.
++#[derive(Default)]
++pub(crate) struct SplicedReuse {
++    source_stack: Vec<DispatchNodeId>,
++    parts: Vec<(Range<usize>, usize)>,
++    contains_focus: bool,
++}
++
++impl SplicedReuse {
++    pub fn refresh_node_id(&self, node_id: DispatchNodeId) -> DispatchNodeId {
++        let part = self.parts.iter().find(|(old, _)| old.contains(&node_id.0));
++        debug_assert!(part.is_some(), "node {} was not part of the reused parts", node_id.0);
++        part.map_or(node_id, |(old, new_start)| DispatchNodeId(new_start + node_id.0 - old.start))
++    }
++
++    pub fn contains_focus(&self) -> bool {
++        self.contains_focus
++    }
++}
++
+ impl ReusedSubtree {
+     pub fn refresh_node_id(&self, node_id: DispatchNodeId) -> DispatchNodeId {
+         debug_assert!(
+@@ -254,6 +276,9 @@ impl DispatchTree {
+         if let Some(view_id) = source.view_id {
+             self.set_view_id(view_id);
+         }
++        if source.view_cached {
++            self.set_view_cached();
++        }
+ 
+         let target = self.active_node();
+         target.key_listeners = mem::take(&mut source.key_listeners);
+@@ -307,6 +332,75 @@ impl DispatchTree {
+         }
+     }
+ 
++    /// Moves `old_range` of `source` here like `reuse_subtree`, leaving its open nodes open for the next part.
++    pub fn reuse_part(
++        &mut self,
++        old_range: Range<usize>,
++        source: &mut Self,
++        focus: Option<FocusId>,
++        reuse: &mut SplicedReuse,
++    ) {
++        let new_start = self.nodes.len();
++        for (source_node_id, source_node) in source
++            .nodes
++            .iter_mut()
++            .enumerate()
++            .skip(old_range.start)
++            .take(old_range.len())
++        {
++            while let Some(source_ancestor) = reuse.source_stack.last() {
++                if source_node.parent == Some(*source_ancestor) {
++                    break;
++                }
++                reuse.source_stack.pop();
++                self.pop_node();
++            }
++            reuse.source_stack.push(DispatchNodeId(source_node_id));
++            if source_node.focus_id.is_some() && source_node.focus_id == focus {
++                reuse.contains_focus = true;
++            }
++            self.move_node(source_node);
++        }
++        reuse.parts.push((old_range, new_start));
++    }
++
++    /// Closes the reused nodes opened after the source's node `old_node`, so what is drawn next goes under it.
++    pub fn reuse_open_at(&mut self, old_node: usize, reuse: &mut SplicedReuse) {
++        while let Some(top) = reuse.source_stack.last() {
++            if top.0 == old_node {
++                break;
++            }
++            reuse.source_stack.pop();
++            self.pop_node();
++        }
++    }
++
++    pub fn reuse_close(&mut self, reuse: &mut SplicedReuse) {
++        while reuse.source_stack.pop().is_some() {
++            self.pop_node();
++        }
++    }
++
++    /// The view drawn at node `index`, if one was.
++    pub fn view_at(&self, index: usize) -> Option<EntityId> {
++        self.nodes.get(index).and_then(|node| node.view_id)
++    }
++
++    pub fn set_view_cached(&mut self) {
++        let node_id = *self.node_stack.last().unwrap();
++        self.nodes[node_id.0].view_cached = true;
++    }
++
++    /// The views from `view_id` up to the root that were drawn cached, nearest first.
++    pub fn cached_view_path(&self, view_id: EntityId) -> impl Iterator<Item = EntityId> + '_ {
++        let node_id = self.view_node_ids.get(&view_id).copied();
++        std::iter::successors(node_id.map(|node_id| self.node(node_id)), |node| {
++            Some(self.node(node.parent?))
++        })
++        .filter(|node| node.view_cached)
++        .filter_map(|node| node.view_id)
++    }
++
+     pub fn truncate(&mut self, index: usize) {
+         for node in &self.nodes[index..] {
+             if let Some(focus_id) = node.focus_id {
+diff --git a/src/platform/test/window.rs b/src/platform/test/window.rs
+index 5692b1e..f68f458 100644
+--- a/src/platform/test/window.rs
++++ b/src/platform/test/window.rs
+@@ -1,10 +1,10 @@
+ use crate::{
+-    AnyWindowHandle, Bounds, DevicePixels, DispatchEventResult, DisplayId, GpuSpecs, HeadlessAtlas,
+-    Pixels, PlatformAtlas, PlatformDisplay, PlatformHeadlessRenderer, PlatformInput,
+-    PlatformInputHandler, PlatformWindow, Point, PromptButton, RequestFrameOptions, Scene, Size,
+-    TestDisplay, TestPlatform, TextInputConfiguration, TextInputStateChange, WindowAppearance,
+-    WindowBackgroundAppearance, WindowBounds, WindowControlArea, WindowInsets, WindowParams,
+-    WindowVisibility,
++    AnyWindowHandle, Bounds, Decorations, DevicePixels, DispatchEventResult, DisplayId, GpuSpecs,
++    HeadlessAtlas, Pixels, PlatformAtlas, PlatformDisplay, PlatformHeadlessRenderer, PlatformInput,
++    PlatformInputHandler, PlatformWindow, Point, PromptButton, RequestFrameOptions, ResizeEdge,
++    Scene, Size, TestDisplay, TestPlatform, TextInputConfiguration, TextInputStateChange,
++    WindowAppearance, WindowBackgroundAppearance, WindowBounds, WindowControlArea, WindowInsets,
++    WindowParams, WindowVisibility,
+ };
+ use gpui_util::ResultExt as _;
+ #[cfg(any(test, feature = "test-support"))]
+@@ -51,6 +51,9 @@ pub(crate) struct TestWindowState {
+     frame_scheduled: bool,
+     frame_callback_pending: bool,
+     input_handler: Option<PlatformInputHandler>,
++    ime_position: Option<Bounds<Pixels>>,
++    decorations: Decorations,
++    resizes: Vec<ResizeEdge>,
+     text_input_configurations: Vec<TextInputConfiguration>,
+     text_input_state_changes: Vec<TextInputStateChange>,
+     is_fullscreen: bool,
+@@ -125,6 +128,9 @@ impl TestWindow {
+             frame_scheduled: false,
+             frame_callback_pending: false,
+             input_handler: None,
++            ime_position: None,
++            decorations: Decorations::Server,
++            resizes: Vec::new(),
+             text_input_configurations: Vec::new(),
+             text_input_state_changes: Vec::new(),
+             is_fullscreen: false,
+@@ -285,6 +291,21 @@ impl TestWindow {
+         self.0.lock().request_frame_callback = Some(callback);
+     }
+ 
++    /// The bounds the window last handed the platform for its input method's candidates.
++    pub fn ime_position(&self) -> Option<Bounds<Pixels>> {
++        self.0.lock().ime_position
++    }
++
++    /// Reports `decorations` from now on, as a compositor that left the frame to the app would.
++    pub fn simulate_decorations(&self, decorations: Decorations) {
++        self.0.lock().decorations = decorations;
++    }
++
++    /// Each interactive resize the window asked the platform for, in order.
++    pub fn window_resizes(&self) -> Vec<ResizeEdge> {
++        self.0.lock().resizes.clone()
++    }
++
+     pub fn simulate_input(&mut self, event: PlatformInput) -> bool {
+         let mut lock = self.0.lock();
+         let Some(mut callback) = lock.input_callback.take() else {
+@@ -559,6 +580,10 @@ impl PlatformWindow for TestWindow {
+         self.0.lock().sprite_atlas.clone()
+     }
+ 
++    fn gpu_usage(&self) -> Option<crate::GpuUsage> {
++        self.0.lock().renderer.as_ref().and_then(|r| r.gpu_usage())
++    }
++
+     #[cfg(any(test, feature = "test-support"))]
+     fn render_to_image(&self, scene: &Scene) -> anyhow::Result<RgbaImage> {
+         let scale_factor = self.scale_factor();
+@@ -603,7 +628,17 @@ impl PlatformWindow for TestWindow {
+         state.start_external_drag_result
+     }
+ 
+-    fn update_ime_position(&self, _bounds: Bounds<Pixels>) {}
++    fn window_decorations(&self) -> Decorations {
++        self.0.lock().decorations
++    }
++
++    fn start_window_resize(&self, edge: ResizeEdge) {
++        self.0.lock().resizes.push(edge);
++    }
++
++    fn update_ime_position(&self, bounds: Bounds<Pixels>) {
++        self.0.lock().ime_position = Some(bounds);
++    }
+ 
+     fn gpu_specs(&self) -> Option<GpuSpecs> {
+         None
+diff --git a/src/platform.rs b/src/platform.rs
+index c08d964..3ab5a4a 100644
+--- a/src/platform.rs
++++ b/src/platform.rs
+@@ -1276,6 +1276,10 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
+     fn draw(&self, scene: &Scene);
+     fn schedule_frame(&self) {}
+     fn sprite_atlas(&self) -> Arc<dyn PlatformAtlas>;
++    /// What the window's renderer holds beside its atlas, where the platform reads it.
++    fn gpu_usage(&self) -> Option<GpuUsage> {
++        None
++    }
+     fn is_subpixel_rendering_supported(&self) -> bool;
+ 
+     // macOS specific methods
+@@ -1425,6 +1429,11 @@ pub trait PlatformHeadlessRenderer {
+ 
+     /// Returns the sprite atlas used by this renderer.
+     fn sprite_atlas(&self) -> Arc<dyn PlatformAtlas>;
++
++    /// What this renderer holds beside its atlas, where it reads it.
++    fn gpu_usage(&self) -> Option<GpuUsage> {
++        None
++    }
+ }
+ 
+ /// Type alias for runnables with metadata.
+@@ -1749,12 +1758,38 @@ pub trait PlatformAtlas {
+     ) -> Result<Option<AtlasTile>>;
+     fn remove(&self, key: &AtlasKey);
+ 
++    /// The bytes the atlas's textures hold now.
++    fn usage(&self) -> AtlasUsage {
++        AtlasUsage::default()
++    }
++
++    /// Lets go of every glyph and SVG tile; the next paint rasterizes again the ones it draws.
++    fn sweep_glyphs(&self) {}
++
+     #[cfg(any(test, feature = "test-support", feature = "bench-support"))]
+     fn contains(&self, _key: &AtlasKey) -> bool {
+         false
+     }
+ }
+ 
++/// What a window's renderer holds on the GPU beside its sprite atlas, in bytes.
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++pub struct GpuUsage {
++    /// The textures paths are drawn through, as large as the window while it draws a path.
++    pub path_textures: u64,
++    /// The buffers a frame's instances are written to.
++    pub instance_data: u64,
++}
++
++/// What a sprite atlas's textures hold, in bytes.
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++pub struct AtlasUsage {
++    /// The pages of glyphs and SVGs.
++    pub glyphs: u64,
++    /// The pages of images and emoji.
++    pub images: u64,
++}
++
+ #[doc(hidden)]
+ pub trait AtlasBackend {
+     fn insert(
+@@ -1824,6 +1859,18 @@ impl<Backend: AtlasBackend> AtlasState<Backend> {
+             self.backend.remove(tile);
+         }
+     }
++
++    /// Removes every tile but those of images, which their owners drop themselves.
++    pub fn remove_glyphs(&mut self) {
++        let backend = &mut self.backend;
++        self.tiles_by_key.retain(|key, tile| {
++            let image = matches!(key, AtlasKey::Image(_));
++            if !image {
++                backend.remove(*tile);
++            }
++            image
++        });
++    }
+ }
+ 
+ /// A sprite atlas for windows without a GPU. It hands out uniquely identified
+@@ -1836,6 +1883,17 @@ pub struct HeadlessAtlas(parking_lot::Mutex<AtlasState<HeadlessAtlasBackend>>);
+ #[derive(Default)]
+ pub struct HeadlessAtlasBackend {
+     next_id: u32,
++    /// The bytes its tiles would take; a real atlas counts its whole pages instead.
++    usage: AtlasUsage,
++}
++
++impl HeadlessAtlasBackend {
++    fn count(&mut self, kind: AtlasTextureKind, size: Size<DevicePixels>, more: bool) {
++        let texel = if kind == AtlasTextureKind::Monochrome { 1 } else { 4 };
++        let bytes = size.width.0.max(0) as u64 * size.height.0.max(0) as u64 * texel;
++        let held = if kind == AtlasTextureKind::Polychrome { &mut self.usage.images } else { &mut self.usage.glyphs };
++        *held = if more { *held + bytes } else { held.saturating_sub(bytes) };
++    }
+ }
+ 
+ impl AtlasBackend for HeadlessAtlasBackend {
+@@ -1845,6 +1903,7 @@ impl AtlasBackend for HeadlessAtlasBackend {
+         size: Size<DevicePixels>,
+         _bytes: &[u8],
+     ) -> Result<AtlasTile> {
++        self.count(kind, size, true);
+         self.next_id += 1;
+         let texture_id = self.next_id;
+         self.next_id += 1;
+@@ -1863,7 +1922,9 @@ impl AtlasBackend for HeadlessAtlasBackend {
+         })
+     }
+ 
+-    fn remove(&mut self, _tile: AtlasTile) {}
++    fn remove(&mut self, tile: AtlasTile) {
++        self.count(tile.texture_id.kind, tile.bounds.size, false);
++    }
+ }
+ 
+ impl PlatformAtlas for HeadlessAtlas {
+@@ -1879,6 +1940,14 @@ impl PlatformAtlas for HeadlessAtlas {
+         self.0.lock().remove(key);
+     }
+ 
++    fn usage(&self) -> AtlasUsage {
++        self.0.lock().backend.usage
++    }
++
++    fn sweep_glyphs(&self) {
++        self.0.lock().remove_glyphs();
++    }
++
+     #[cfg(any(test, feature = "test-support", feature = "bench-support"))]
+     fn contains(&self, key: &AtlasKey) -> bool {
+         self.0.lock().contains(key)
+@@ -2077,7 +2146,10 @@ impl PlatformInputHandler {
+ 
+     pub fn bounds_for_range(&mut self, range_utf16: Range<usize>) -> Option<Bounds<Pixels>> {
+         self.cx
+-            .update(|window, cx| self.handler.bounds_for_range(range_utf16, window, cx))
++            .update(|window, cx| {
++                let bounds = self.handler.bounds_for_range(range_utf16, window, cx)?;
++                Some(bounds.map(|v| v * window.zoom))
++            })
+             .ok()
+             .flatten()
+     }
+@@ -2145,7 +2217,10 @@ impl PlatformInputHandler {
+     #[allow(unused)]
+     pub fn character_index_for_point(&mut self, point: Point<Pixels>) -> Option<usize> {
+         self.cx
+-            .update(|window, cx| self.handler.character_index_for_point(point, window, cx))
++            .update(|window, cx| {
++                let point = point / window.zoom;
++                self.handler.character_index_for_point(point, window, cx)
++            })
+             .ok()
+             .flatten()
+     }
+@@ -2163,7 +2238,10 @@ impl PlatformInputHandler {
+     /// See [`InputHandler::element_bounds`].
+     pub fn element_bounds(&mut self) -> Option<Bounds<Pixels>> {
+         self.cx
+-            .update(|window, cx| self.handler.element_bounds(window, cx))
++            .update(|window, cx| {
++                let bounds = self.handler.element_bounds(window, cx)?;
++                Some(bounds.map(|v| v * window.zoom))
++            })
+             .ok()
+             .flatten()
+     }
+diff --git a/src/scene.rs b/src/scene.rs
+index be37813..068bc72 100644
+--- a/src/scene.rs
++++ b/src/scene.rs
+@@ -6,8 +6,9 @@ use serde::{Deserialize, Serialize};
+ 
+ use crate::{
+     AtlasTextureId, AtlasTile, Background, Bounds, ContentMask, Corners, Edges, Hsla, Pixels,
+-    Point, Radians, ScaledPixels, Size, bounds_tree::BoundsTree, point,
++    Point, Radians, RoundedClip, ScaledPixels, Size, bounds_tree::BoundsTree, point,
+ };
++use collections::FxHashMap;
+ use std::{
+     fmt::Debug,
+     iter::Peekable,
+@@ -22,6 +23,28 @@ pub type PathVertex_ScaledPixels = PathVertex<ScaledPixels>;
+ #[expect(missing_docs)]
+ pub type DrawOrder = u32;
+ 
++/// An index into [`Scene::rounded_clips`]; 0 means the primitive has no rounded clip.
++pub type RoundedClipId = u32;
++
++/// A rounded clip as the renderers read it: a primitive's alpha is multiplied by its coverage, then by its
++/// parent's, and so on up the chain.
++#[derive(Clone, Copy, Debug, Default, PartialEq)]
++#[repr(C)]
++pub struct SceneRoundedClip {
++    /// The bounds
++    pub bounds: Bounds<ScaledPixels>,
++    /// The radius of each corner
++    pub corner_radii: Corners<ScaledPixels>,
++    /// The next clip out that also cuts what this one clips, or 0.
++    pub parent: RoundedClipId,
++    /// Where the alpha ramp starts, as [`RoundedClip`] has it.
++    pub fade_top: ScaledPixels,
++    /// Where it reaches nothing; equal to `fade_top`, no ramp.
++    pub fade_bottom: ScaledPixels,
++    /// Pads the record to whole 16-byte texels for the WebGL instance texture.
++    pub pad: u32,
++}
++
+ /// A boolean stored as a `u32` so that GPU-facing structs contain no
+ /// compiler-inserted padding bytes, which would be undefined behavior to
+ /// reinterpret as `&[u8]` when writing instance buffers. Guaranteed to be
+@@ -50,6 +73,10 @@ pub struct Scene {
+     pub subpixel_sprites: Vec<SubpixelSprite>,
+     pub polychrome_sprites: Vec<PolychromeSprite>,
+     pub surfaces: Vec<PaintSurface>,
++    pub backdrop_blurs: Vec<BackdropBlur>,
++    /// Every rounded clip the primitives point at. Entry 0 stands for no clip once any clip is pushed.
++    pub rounded_clips: Vec<SceneRoundedClip>,
++    rounded_clip_ids: FxHashMap<[u32; 11], RoundedClipId>,
+ }
+ 
+ #[expect(missing_docs)]
+@@ -66,6 +93,9 @@ impl Scene {
+         self.subpixel_sprites.clear();
+         self.polychrome_sprites.clear();
+         self.surfaces.clear();
++        self.backdrop_blurs.clear();
++        self.rounded_clips.clear();
++        self.rounded_clip_ids.clear();
+     }
+ 
+     pub fn len(&self) -> usize {
+@@ -84,21 +114,105 @@ impl Scene {
+         self.paint_operations.push(PaintOperation::EndLayer);
+     }
+ 
++    /// Adds a rounded clip whose coverage multiplies that of `parent`, returning its id. The same clip under the
++    /// same parent gets the same id.
++    pub fn push_rounded_clip(
++        &mut self,
++        clip: RoundedClip<ScaledPixels>,
++        parent: RoundedClipId,
++    ) -> RoundedClipId {
++        let bounds = clip.bounds;
++        let radii = clip.corner_radii;
++        let [
++            x,
++            y,
++            width,
++            height,
++            top_left,
++            top_right,
++            bottom_right,
++            bottom_left,
++            fade_top,
++            fade_bottom,
++        ] = [
++            bounds.origin.x,
++            bounds.origin.y,
++            bounds.size.width,
++            bounds.size.height,
++            radii.top_left,
++            radii.top_right,
++            radii.bottom_right,
++            radii.bottom_left,
++            clip.fade_top,
++            clip.fade_bottom,
++        ]
++        .map(|value| value.0.to_bits());
++        let key = [
++            x,
++            y,
++            width,
++            height,
++            top_left,
++            top_right,
++            bottom_right,
++            bottom_left,
++            fade_top,
++            fade_bottom,
++            parent,
++        ];
++        if let Some(id) = self.rounded_clip_ids.get(&key) {
++            return *id;
++        }
++        if self.rounded_clips.is_empty() {
++            self.rounded_clips.push(SceneRoundedClip::default());
++        }
++        let id = self.rounded_clips.len() as RoundedClipId;
++        self.rounded_clips.push(SceneRoundedClip {
++            bounds,
++            corner_radii: radii,
++            parent,
++            fade_top: clip.fade_top,
++            fade_bottom: clip.fade_bottom,
++            pad: 0,
++        });
++        self.rounded_clip_ids.insert(key, id);
++        id
++    }
++
++    /// Copies the chain of rounded clips at `id` in `scene` into this scene and returns its id here.
++    fn import_rounded_clip(&mut self, id: RoundedClipId, scene: &Scene) -> RoundedClipId {
++        if id == 0 {
++            return 0;
++        }
++        let clip = scene.rounded_clips[id as usize];
++        let parent = self.import_rounded_clip(clip.parent, scene);
++        self.push_rounded_clip(
++            RoundedClip {
++                bounds: clip.bounds,
++                corner_radii: clip.corner_radii,
++                fade_top: clip.fade_top,
++                fade_bottom: clip.fade_bottom,
++            },
++            parent,
++        )
++    }
++
+     pub fn insert_primitive(&mut self, primitive: impl Into<Primitive>) {
+         let mut primitive = primitive.into();
+         let clipped_bounds = primitive
+-            .bounds()
++            .painted_bounds()
+             .intersect(&primitive.content_mask().bounds);
+ 
+         if clipped_bounds.is_empty() {
+             return;
+         }
+ 
+-        let order = self
+-            .layer_stack
+-            .last()
+-            .copied()
+-            .unwrap_or_else(|| self.primitive_bounds.insert(clipped_bounds));
++        // A blur reads all of its bounds, so it orders above everything there, which a layer's order cannot.
++        let order = match (&primitive, self.layer_stack.last()) {
++            (Primitive::BackdropBlur(blur), _) => self.primitive_bounds.insert(blur.bounds),
++            (_, None) => self.primitive_bounds.insert(clipped_bounds),
++            (_, Some(order)) => *order,
++        };
+         match &mut primitive {
+             Primitive::Shadow(shadow) => {
+                 shadow.order = order;
+@@ -133,15 +247,28 @@ impl Scene {
+                 surface.order = order;
+                 self.surfaces.push(surface.clone());
+             }
++            Primitive::BackdropBlur(blur) => {
++                blur.order = order;
++                self.backdrop_blurs.push(*blur);
++            }
+         }
+         self.paint_operations
+             .push(PaintOperation::Primitive(primitive));
+     }
+ 
+     pub fn replay(&mut self, range: Range<usize>, prev_scene: &Scene) {
++        let mut imported = FxHashMap::default();
+         for operation in &prev_scene.paint_operations[range] {
+             match operation {
+-                PaintOperation::Primitive(primitive) => self.insert_primitive(primitive.clone()),
++                PaintOperation::Primitive(primitive) => {
++                    let mut primitive = primitive.clone();
++                    if let Some(id) = primitive.rounded_clip_mut() {
++                        *id = *imported
++                            .entry(*id)
++                            .or_insert_with(|| self.import_rounded_clip(*id, prev_scene));
++                    }
++                    self.insert_primitive(primitive)
++                }
+                 PaintOperation::StartLayer(bounds) => self.push_layer(*bounds),
+                 PaintOperation::EndLayer => self.pop_layer(),
+             }
+@@ -160,6 +287,7 @@ impl Scene {
+         self.polychrome_sprites
+             .sort_by_key(|sprite| (sprite.order, sprite.tile.tile_id));
+         self.surfaces.sort_by_key(|surface| surface.order);
++        self.backdrop_blurs.sort_by_key(|blur| blur.order);
+     }
+ 
+     #[cfg_attr(
+@@ -187,6 +315,8 @@ impl Scene {
+             polychrome_sprites_iter: self.polychrome_sprites.iter().peekable(),
+             surfaces_start: 0,
+             surfaces_iter: self.surfaces.iter().peekable(),
++            backdrop_blurs_start: 0,
++            backdrop_blurs_iter: self.backdrop_blurs.iter().peekable(),
+         }
+     }
+ }
+@@ -209,6 +339,7 @@ pub(crate) enum PrimitiveKind {
+     SubpixelSprite,
+     PolychromeSprite,
+     Surface,
++    BackdropBlur,
+ }
+ 
+ pub(crate) enum PaintOperation {
+@@ -228,6 +359,7 @@ pub enum Primitive {
+     SubpixelSprite(SubpixelSprite),
+     PolychromeSprite(PolychromeSprite),
+     Surface(PaintSurface),
++    BackdropBlur(BackdropBlur),
+ }
+ 
+ #[expect(missing_docs)]
+@@ -242,6 +374,32 @@ impl Primitive {
+             Primitive::SubpixelSprite(sprite) => &sprite.bounds,
+             Primitive::PolychromeSprite(sprite) => &sprite.bounds,
+             Primitive::Surface(surface) => &surface.bounds,
++            Primitive::BackdropBlur(blur) => &blur.bounds,
++        }
++    }
++
++    /// The bounds the primitive can paint inside: a drop shadow's blur reaches three standard deviations past
++    /// its rect, and an inset shadow paints over its element.
++    pub fn painted_bounds(&self) -> Bounds<ScaledPixels> {
++        match self {
++            Primitive::Shadow(shadow) if shadow.inset != 0 => shadow.element_bounds,
++            Primitive::Shadow(shadow) => shadow.bounds.dilate(shadow.blur_radius * 3.),
++            primitive => *primitive.bounds(),
++        }
++    }
++
++    /// The primitive's rounded clip, for the kinds that take one.
++    pub fn rounded_clip_mut(&mut self) -> Option<&mut RoundedClipId> {
++        match self {
++            Primitive::Shadow(shadow) => Some(&mut shadow.rounded_clip),
++            Primitive::Quad(quad) => Some(&mut quad.rounded_clip),
++            Primitive::Path(path) => Some(&mut path.rounded_clip),
++            Primitive::Underline(underline) => Some(&mut underline.rounded_clip),
++            Primitive::MonochromeSprite(sprite) => Some(&mut sprite.rounded_clip),
++            Primitive::SubpixelSprite(sprite) => Some(&mut sprite.rounded_clip),
++            Primitive::PolychromeSprite(sprite) => Some(&mut sprite.rounded_clip),
++            Primitive::Surface(_) => None,
++            Primitive::BackdropBlur(blur) => Some(&mut blur.rounded_clip),
+         }
+     }
+ 
+@@ -255,6 +413,7 @@ impl Primitive {
+             Primitive::SubpixelSprite(sprite) => &sprite.content_mask,
+             Primitive::PolychromeSprite(sprite) => &sprite.content_mask,
+             Primitive::Surface(surface) => &surface.content_mask,
++            Primitive::BackdropBlur(blur) => &blur.content_mask,
+         }
+     }
+ }
+@@ -283,6 +442,8 @@ struct BatchIterator<'a> {
+     polychrome_sprites_iter: Peekable<slice::Iter<'a, PolychromeSprite>>,
+     surfaces_start: usize,
+     surfaces_iter: Peekable<slice::Iter<'a, PaintSurface>>,
++    backdrop_blurs_start: usize,
++    backdrop_blurs_iter: Peekable<slice::Iter<'a, BackdropBlur>>,
+ }
+ 
+ impl<'a> Iterator for BatchIterator<'a> {
+@@ -316,6 +477,10 @@ impl<'a> Iterator for BatchIterator<'a> {
+                 self.surfaces_iter.peek().map(|s| s.order),
+                 PrimitiveKind::Surface,
+             ),
++            (
++                self.backdrop_blurs_iter.peek().map(|b| b.order),
++                PrimitiveKind::BackdropBlur,
++            ),
+         ];
+         orders_and_kinds.sort_by_key(|(order, kind)| (order.unwrap_or(u32::MAX), *kind));
+ 
+@@ -461,6 +626,20 @@ impl<'a> Iterator for BatchIterator<'a> {
+                 self.surfaces_start = surfaces_end;
+                 Some(PrimitiveBatch::Surfaces(surfaces_start..surfaces_end))
+             }
++            PrimitiveKind::BackdropBlur => {
++                let blurs_start = self.backdrop_blurs_start;
++                let mut blurs_end = blurs_start + 1;
++                self.backdrop_blurs_iter.next();
++                while self
++                    .backdrop_blurs_iter
++                    .next_if(|blur| (blur.order, batch_kind) < max_order_and_kind)
++                    .is_some()
++                {
++                    blurs_end += 1;
++                }
++                self.backdrop_blurs_start = blurs_end;
++                Some(PrimitiveBatch::BackdropBlurs(blurs_start..blurs_end))
++            }
+         }
+     }
+ }
+@@ -493,6 +672,8 @@ pub enum PrimitiveBatch {
+         range: Range<usize>,
+     },
+     Surfaces(Range<usize>),
++    /// Each blur reads what the batches before it drew, so a renderer draws them one at a time, in order.
++    BackdropBlurs(Range<usize>),
+ }
+ 
+ impl PrimitiveBatch {
+@@ -525,6 +706,7 @@ impl PrimitiveBatch {
+                 )
+             }
+             Self::Surfaces(range) => format!("surfaces ({})", range.len()),
++            Self::BackdropBlurs(range) => format!("backdrop blurs ({})", range.len()),
+         }
+     }
+ }
+@@ -541,6 +723,8 @@ pub struct Quad {
+     pub border_color: Hsla,
+     pub corner_radii: Corners<ScaledPixels>,
+     pub border_widths: Edges<ScaledPixels>,
++    pub rounded_clip: RoundedClipId,
++    pub pad: [u32; 3],
+ }
+ 
+ impl From<Quad> for Primitive {
+@@ -554,7 +738,7 @@ impl From<Quad> for Primitive {
+ #[expect(missing_docs)]
+ pub struct Underline {
+     pub order: DrawOrder,
+-    pub pad: u32, // align to 8 bytes
++    pub rounded_clip: RoundedClipId,
+     pub bounds: Bounds<ScaledPixels>,
+     pub content_mask: ContentMask<ScaledPixels>,
+     pub color: Hsla,
+@@ -582,7 +766,7 @@ pub struct Shadow {
+     pub element_corner_radii: Corners<ScaledPixels>,
+     /// 0 = drop shadow (rendered outside the element), 1 = inset shadow (rendered inside).
+     pub inset: u32,
+-    pub pad: u32, // align to 8 bytes
++    pub rounded_clip: RoundedClipId,
+ }
+ 
+ impl From<Shadow> for Primitive {
+@@ -710,7 +894,7 @@ impl Default for TransformationMatrix {
+ #[expect(missing_docs)]
+ pub struct MonochromeSprite {
+     pub order: DrawOrder,
+-    pub pad: u32,
++    pub rounded_clip: RoundedClipId,
+     pub bounds: Bounds<ScaledPixels>,
+     pub content_mask: ContentMask<ScaledPixels>,
+     pub color: Hsla,
+@@ -729,7 +913,7 @@ impl From<MonochromeSprite> for Primitive {
+ #[expect(missing_docs)]
+ pub struct SubpixelSprite {
+     pub order: DrawOrder,
+-    pub pad: u32, // align to 8 bytes
++    pub rounded_clip: RoundedClipId,
+     pub bounds: Bounds<ScaledPixels>,
+     pub content_mask: ContentMask<ScaledPixels>,
+     pub color: Hsla,
+@@ -748,7 +932,7 @@ impl From<SubpixelSprite> for Primitive {
+ #[expect(missing_docs)]
+ pub struct PolychromeSprite {
+     pub order: DrawOrder,
+-    pub pad: u32,
++    pub rounded_clip: RoundedClipId,
+     pub grayscale: PaddedBool32,
+     pub opacity: f32,
+     pub bounds: Bounds<ScaledPixels>,
+@@ -779,6 +963,45 @@ impl From<PaintSurface> for Primitive {
+     }
+ }
+ 
++/// Blurs what is already drawn under `bounds` and draws it back clipped to `corner_radii`, like CSS's
++/// `backdrop-filter: blur(blur_radius) saturate(saturation)`: only pixels inside `bounds` are read, and the
++/// blur mirrors them at its edges.
++#[derive(Debug, Clone, Copy, Default, PartialEq)]
++#[repr(C)]
++#[expect(missing_docs)]
++pub struct BackdropBlur {
++    pub order: DrawOrder,
++    /// The element's opacity, which fades the blurred backdrop as CSS's `opacity` does.
++    pub opacity: f32,
++    pub bounds: Bounds<ScaledPixels>,
++    pub content_mask: ContentMask<ScaledPixels>,
++    pub corner_radii: Corners<ScaledPixels>,
++    /// The Gaussian's standard deviation, as CSS's `blur()` takes it.
++    pub blur_radius: ScaledPixels,
++    pub saturation: f32,
++    pub rounded_clip: RoundedClipId,
++    /// What the blurred copy is laid over, as CSS's `backdrop-filter` ending in an SVG filter that floods a color
++    /// under its input: [`pack_ground`]'s sRGB bytes, red lowest, straight alpha; 0 lays nothing. A copy of a
++    /// see-through page is see-through too, and without an opaque ground under it the sharp page shows through.
++    pub ground: u32,
++}
++
++/// A [`BackdropBlur`]'s ground: the color's sRGB bytes, red in the lowest and alpha in the highest.
++pub fn pack_ground(color: Hsla) -> u32 {
++    let rgba = color.to_rgb();
++    [rgba.r, rgba.g, rgba.b, rgba.a]
++        .iter()
++        .enumerate()
++        .map(|(i, channel)| ((channel.clamp(0., 1.) * 255.).round() as u32) << (8 * i))
++        .sum()
++}
++
++impl From<BackdropBlur> for Primitive {
++    fn from(blur: BackdropBlur) -> Self {
++        Primitive::BackdropBlur(blur)
++    }
++}
++
+ #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+ #[expect(missing_docs)]
+ pub struct PathId(pub usize);
+@@ -793,6 +1016,7 @@ pub struct Path<P: Clone + Debug + Default + PartialEq> {
+     pub content_mask: ContentMask<P>,
+     pub vertices: Vec<PathVertex<P>>,
+     pub color: Background,
++    pub rounded_clip: RoundedClipId,
+     start: Point<P>,
+     current: Point<P>,
+     contour_count: usize,
+@@ -813,6 +1037,7 @@ impl Path<Pixels> {
+             },
+             content_mask: Default::default(),
+             color: Default::default(),
++            rounded_clip: 0,
+             contour_count: 0,
+         }
+     }
+@@ -833,6 +1058,7 @@ impl Path<Pixels> {
+             current: self.current.scale(factor),
+             contour_count: self.contour_count,
+             color: self.color,
++            rounded_clip: self.rounded_clip,
+         }
+     }
+ 
+diff --git a/src/style.rs b/src/style.rs
+index 9150fdd..467cfe1 100644
+--- a/src/style.rs
++++ b/src/style.rs
+@@ -8,8 +8,8 @@ use crate::{
+     AbsoluteLength, App, Background, BackgroundTag, BorderStyle, Bounds, ContentMask, Corners,
+     CornersRefinement, CursorStyle, DefiniteLength, DevicePixels, Edges, EdgesRefinement, Font,
+     FontFallbacks, FontFeatures, FontStyle, FontWeight, GridLocation, Hsla, Length, Pixels, Point,
+-    PointRefinement, Rgba, SharedString, Size, SizeRefinement, Styled, TextRun, Window, black, phi,
+-    point, px, quad, rems, size,
++    PointRefinement, Rgba, RoundedClip, SharedString, Size, SizeRefinement, Styled, TextRun,
++    Window, black, phi, point, px, quad, rems, size,
+ };
+ use collections::HashSet;
+ use refineable::Refineable;
+@@ -301,6 +301,21 @@ pub struct Style {
+     /// The opacity of this element
+     pub opacity: Option<f32>,
+ 
++    /// Blurs what is painted behind this element, inside its bounds, like CSS's `backdrop-filter: blur()`:
++    /// the Gaussian's standard deviation
++    pub backdrop_blur: Option<Pixels>,
++
++    /// Saturates what is painted behind this element, like CSS's `backdrop-filter: saturate()`
++    pub backdrop_saturation: Option<f32>,
++
++    /// The color the blurred backdrop is laid over, like an SVG filter flooding it under `backdrop-filter`'s copy
++    pub backdrop_ground: Option<Hsla>,
++
++    /// Fades what this element's children paint toward its bottom, like CSS's
++    /// `mask-image: linear-gradient(to bottom, black, transparent)`: whole above the first length, gone below the
++    /// second, both measured up from the bottom edge, and clipped to the element's box; its own fill does not fade
++    pub mask_fade_bottom: Option<(DefiniteLength, DefiniteLength)>,
++
+     /// The grid columns of this element
+     /// Roughly equivalent to the Tailwind `grid-cols-<number>`
+     pub grid_cols: Option<GridTemplate>,
+@@ -684,6 +699,64 @@ impl Style {
+         }
+     }
+ 
++    /// Get the rounded clip for this element style: like CSS, an element that hides its overflow on either axis
++    /// clips its children to its rounded padding box, and one with a mask clips them to its box under the mask's
++    /// ramp. Returns `None` when it does neither, or hides its overflow with square corners and no mask.
++    pub fn overflow_rounded_clip(
++        &self,
++        bounds: Bounds<Pixels>,
++        rem_size: Pixels,
++    ) -> Option<RoundedClip<Pixels>> {
++        let (fade_top, fade_bottom) = self.mask_fade_bottom.map_or((Pixels::ZERO, Pixels::ZERO), |(whole, gone)| {
++            let height = AbsoluteLength::Pixels(bounds.size.height);
++            (
++                bounds.bottom() - whole.to_pixels(height, rem_size),
++                bounds.bottom() - gone.to_pixels(height, rem_size),
++            )
++        });
++        if self.overflow.x == Overflow::Visible && self.overflow.y == Overflow::Visible {
++            return self.mask_fade_bottom.map(|_| RoundedClip {
++                bounds,
++                corner_radii: Corners::default(),
++                fade_top,
++                fade_bottom,
++            });
++        }
++        let mut corner_radii = self
++            .corner_radii
++            .to_pixels(rem_size)
++            .clamp_radii_for_quad_size(bounds.size);
++        let mut bounds = bounds;
++        if self.is_border_visible() {
++            let border = self.border_widths.to_pixels(rem_size);
++            bounds = Bounds::from_corners(
++                point(bounds.left() + border.left, bounds.top() + border.top),
++                point(
++                    bounds.right() - border.right,
++                    bounds.bottom() - border.bottom,
++                ),
++            );
++            let inner =
++                |radius: Pixels, a: Pixels, b: Pixels| (radius - a.max(b)).max(Pixels::ZERO);
++            corner_radii = Corners {
++                top_left: inner(corner_radii.top_left, border.top, border.left),
++                top_right: inner(corner_radii.top_right, border.top, border.right),
++                bottom_right: inner(corner_radii.bottom_right, border.bottom, border.right),
++                bottom_left: inner(corner_radii.bottom_left, border.bottom, border.left),
++            };
++        }
++        // Square corners clip no more than the content mask does.
++        if corner_radii == Corners::default() && self.mask_fade_bottom.is_none() {
++            return None;
++        }
++        Some(RoundedClip {
++            bounds,
++            corner_radii,
++            fade_top,
++            fade_bottom,
++        })
++    }
++
+     /// Paints the background of an element styled with this style.
+     pub fn paint(
+         &self,
+@@ -710,6 +783,16 @@ impl Style {
+ 
+         window.paint_drop_shadows(bounds, corner_radii, &self.box_shadow);
+ 
++        if self.backdrop_blur.is_some() || self.backdrop_saturation.is_some() {
++            window.paint_backdrop_blur(
++                bounds,
++                corner_radii,
++                self.backdrop_blur.unwrap_or_default(),
++                self.backdrop_saturation.unwrap_or(1.),
++                self.backdrop_ground,
++            );
++        }
++
+         let background_color = self.background.as_ref().and_then(Fill::color);
+         if background_color.is_some_and(|color| !color.is_transparent()) {
+             let mut border_color = match background_color {
+@@ -809,6 +892,10 @@ impl Default for Style {
+             text: TextStyleRefinement::default(),
+             mouse_cursor: None,
+             opacity: None,
++            backdrop_blur: None,
++            backdrop_saturation: None,
++            backdrop_ground: None,
++            mask_fade_bottom: None,
+             grid_rows: None,
+             grid_cols: None,
+             grid_location: None,
+diff --git a/src/styled.rs b/src/styled.rs
+index a24982a..a26f11c 100644
+--- a/src/styled.rs
++++ b/src/styled.rs
+@@ -2,7 +2,7 @@ use crate::{
+     self as gpui, AbsoluteLength, AlignContent, AlignItems, AlignSelf, BorderStyle, CursorStyle,
+     DefiniteLength, Display, Fill, FlexDirection, FlexWrap, Font, FontFeatures, FontStyle,
+     FontWeight, GridPlacement, GridTemplate, GridTemplateMinSize, Hsla, JustifyContent, Length,
+-    SharedString, StrikethroughStyle, StyleRefinement, TextAlign, TextOverflow,
++    Pixels, SharedString, StrikethroughStyle, StyleRefinement, TextAlign, TextOverflow,
+     TextStyleRefinement, UnderlineStyle, WhiteSpace, px, relative, rems,
+ };
+ pub use gpui_macros::{
+@@ -748,6 +748,33 @@ pub trait Styled: Sized {
+         self
+     }
+ 
++    /// Blurs what is painted behind this element, inside its bounds, like CSS's `backdrop-filter: blur()`.
++    /// Give the element a translucent background to tint the blur.
++    fn backdrop_blur(mut self, radius: impl Into<Pixels>) -> Self {
++        self.style().backdrop_blur = Some(radius.into());
++        self
++    }
++
++    /// Saturates what is painted behind this element, like CSS's `backdrop-filter: saturate()`.
++    fn backdrop_saturation(mut self, saturation: f32) -> Self {
++        self.style().backdrop_saturation = Some(saturation);
++        self
++    }
++
++    /// Lays the blurred backdrop over `color`, so a see-through page under it cannot show through the copy.
++    fn backdrop_ground(mut self, color: impl Into<Hsla>) -> Self {
++        self.style().backdrop_ground = Some(color.into());
++        self
++    }
++
++    /// Fades what this element's children paint toward its bottom, like CSS's `mask-image: linear-gradient(to bottom,
++    /// black, transparent)`: whole above `whole`, gone below `gone`, both measured up from the bottom edge. The
++    /// element's own fill, border and shadow do not fade, and each child fades on its own rather than composited.
++    fn mask_fade_bottom(mut self, whole: impl Into<DefiniteLength>, gone: impl Into<DefiniteLength>) -> Self {
++        self.style().mask_fade_bottom = Some((whole.into(), gone.into()));
++        self
++    }
++
+     /// Sets the grid columns of this element.
+     fn grid_cols(mut self, cols: u16) -> Self {
+         self.style().grid_cols = Some(GridTemplate {
+diff --git a/src/taffy.rs b/src/taffy.rs
+index b9e583a..3428e5e 100644
+--- a/src/taffy.rs
++++ b/src/taffy.rs
+@@ -2,7 +2,7 @@ use crate::{
+     AbsoluteLength, App, Bounds, DefiniteLength, Edges, GridTemplate, Length, Pixels, Point, Size,
+     Style, Window, size,
+     util::{
+-        ceil_to_device_pixel, round_half_toward_zero, round_stroke_to_device_pixel,
++        ceil_to_device_pixel, round_half_up, round_stroke_to_device_pixel,
+         round_to_device_pixel,
+     },
+ };
+@@ -284,17 +284,18 @@ impl TaffyLayoutEngine {
+     // by `scale_factor`, so that snapping targets physical pixels. Bounds
+     // are divided by `scale_factor` before being returned to GPUI.
+     //
+-    // Midpoints are rounded toward zero. This is a stylistic choice: a
+-    // 1-logical-pixel line at 150% scale should render as 1 dp rather than
+-    // 2 dp.
++    // Midpoints are rounded up, as Chromium rounds them, so a box on half a
++    // device pixel lands where Chromium paints it. Stroke widths still round
++    // midpoints toward zero: a 1-logical-pixel border at 150% scale renders
++    // as 1 dp rather than 2 dp.
+     //
+     // Pixel snapping is done in two phases:
+     //
+     //  1. Pre-layout metric snapping. Before Taffy computes layout, all
+     //     authored absolute lengths are rounded in `to_taffy`. This
+     //     includes borders, padding, gaps, and explicit sizes.
+-    //     Custom-measured leaf nodes have their measured sizes rounded up
+-    //     to integer device-pixel lengths.
++    //     Custom-measured leaf nodes have their measured widths rounded up
++    //     to integer device-pixel lengths; their heights stay fractional.
+     //
+     //  2. Post-layout edge snapping. After Taffy resolves the tree, layout
+     //     relationships such as flex shares, grid tracks, percentages, and
+@@ -369,8 +370,8 @@ impl TaffyLayoutEngine {
+ 
+         let absolute_far = absolute_outer_origin + Point::from(Size::from(layout_size));
+         let snapped_bounds = Bounds::from_corners(
+-            absolute_outer_origin.map(round_half_toward_zero),
+-            absolute_far.map(round_half_toward_zero),
++            absolute_outer_origin.map(round_half_up),
++            absolute_far.map(round_half_up),
+         );
+ 
+         let bounds = (snapped_bounds / scale_factor).map(Pixels);
+@@ -410,7 +411,11 @@ impl From<LayoutId> for NodeId {
+ }
+ 
+ fn snap_measured_size_to_device_pixels(size: Size<Pixels>, scale_factor: f32) -> Size<f32> {
+-    size.map(|d| ceil_to_device_pixel(d.0.max(0.0), scale_factor))
++    // A stack of text lines keeps its fractional height, as in Chromium; rounding each up would drift the stack.
++    Size {
++        width: ceil_to_device_pixel(size.width.0.max(0.0), scale_factor),
++        height: size.height.0.max(0.0) * scale_factor,
++    }
+ }
+ 
+ fn border_widths_to_taffy(
+diff --git a/src/text_system/line.rs b/src/text_system/line.rs
+index f521005..6150ea4 100644
+--- a/src/text_system/line.rs
++++ b/src/text_system/line.rs
+@@ -1,7 +1,7 @@
+ use crate::{
+     App, Bounds, DevicePixels, Half, Hsla, LineLayout, Pixels, Point, RenderGlyphParams, Result,
+     SharedString, StrikethroughStyle, TextAlign, UnderlineStyle, Window, WrapBoundary,
+-    WrappedLineLayout, black, fill, point, px, size, underline_y_offset,
++    WrappedLineLayout, black, fill, line_baseline, point, px, size, underline_y_offset,
+ };
+ use derive_more::{Deref, DerefMut};
+ use smallvec::SmallVec;
+@@ -545,9 +545,13 @@ fn paint_line(
+         wrap_boundaries,
+     );
+     window.paint_layer(line_bounds, |window| {
+-        let padding_top = (line_height - layout.ascent - layout.descent) / 2.;
+-        let baseline_offset = point(px(0.), padding_top + layout.ascent);
+-        let underline_y_offset = underline_y_offset(line_height, layout.ascent, layout.descent);
++        let scale_factor = window.scale_factor();
++        let baseline_offset = point(
++            px(0.),
++            line_baseline(line_height, layout.ascent, layout.descent, scale_factor),
++        );
++        let underline_y_offset =
++            underline_y_offset(line_height, layout.ascent, layout.descent, scale_factor);
+         let mut decoration_runs = decoration_runs.iter();
+         let mut wraps = wrap_boundaries.iter().peekable();
+         let mut run_end = 0;
+@@ -1213,7 +1217,7 @@ mod tests {
+                     )
+                     .unwrap();
+                     let start = px(origin_x + offset);
+-                    let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent);
++                    let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent, window.scale_factor());
+                     assert_eq!(
+                         strokes,
+                         [
+@@ -1299,7 +1303,7 @@ mod tests {
+                 / 2.;
+             let origin = point(px(40.25), px(10.25));
+             let line_height = px(20.);
+-            let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent);
++            let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent, window.scale_factor());
+             for (align, offset) in [
+                 (TextAlign::Left, 0.),
+                 (TextAlign::Center, 16.),
+@@ -1368,7 +1372,7 @@ mod tests {
+                     / 2.;
+                 let origin = point(px(40.25), px(10.25));
+                 let line_height = px(20.);
+-                let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent);
++                let y = origin.y + underline_y_offset(line_height, line.ascent, line.descent, window.scale_factor());
+                 let wrapped = WrappedLine {
+                     layout: Arc::new(WrappedLineLayout {
+                         unwrapped_layout: line.layout,
+diff --git a/src/text_system.rs b/src/text_system.rs
+index cf6bb10..596d839 100644
+--- a/src/text_system.rs
++++ b/src/text_system.rs
+@@ -55,9 +55,38 @@ pub const SUBPIXEL_VARIANTS_Y: u8 = 1;
+ const UNDERLINE_DESCENT_OFFSET_FACTOR: f32 = 0.618;
+ 
+ /// Returns the vertical offset used to paint an underline within a line.
+-pub fn underline_y_offset(line_height: Pixels, ascent: Pixels, descent: Pixels) -> Pixels {
+-    let padding_top = (line_height - ascent - descent) / 2.;
+-    padding_top + ascent + descent * UNDERLINE_DESCENT_OFFSET_FACTOR
++pub fn underline_y_offset(
++    line_height: Pixels,
++    ascent: Pixels,
++    descent: Pixels,
++    scale_factor: f32,
++) -> Pixels {
++    line_baseline(line_height, ascent, descent, scale_factor)
++        + descent * UNDERLINE_DESCENT_OFFSET_FACTOR
++}
++
++/// A font's ascent and descent as Chromium lays text out: each rounded to whole device pixels.
++pub fn device_font_height(ascent: Pixels, descent: Pixels, scale_factor: f32) -> (Pixels, Pixels) {
++    let exact_descent = descent.0 * scale_factor;
++    let (mut ascent, mut descent) = ((ascent.0 * scale_factor).round(), exact_descent.round());
++    // Chromium on Linux, placing glyphs at subpixel offsets above scale 1, moves a pixel to a rounded-down descent.
++    if cfg!(any(target_os = "linux", target_os = "freebsd"))
++        && scale_factor > 1.
++        && descent < exact_descent
++        && ascent >= 1.
++    {
++        ascent -= 1.;
++        descent += 1.;
++    }
++    (px(ascent / scale_factor), px(descent / scale_factor))
++}
++
++/// How far below a line's top Chromium puts its baseline: metrics rounded to device pixels, half-leading floored.
++pub fn line_baseline(line_height: Pixels, ascent: Pixels, descent: Pixels, scale_factor: f32) -> Pixels {
++    let (ascent, descent) = device_font_height(ascent, descent, scale_factor);
++    let (ascent, descent) = (ascent.0 * scale_factor, descent.0 * scale_factor);
++    let leading = line_height.0 * scale_factor - ascent - descent;
++    px(((leading / 2.).floor() + ascent) / scale_factor)
+ }
+ 
+ const MAX_REPORTED_MISSING_GLYPHS: usize = 1024;
+@@ -514,19 +543,6 @@ impl TextSystem {
+         self.read_metrics(font_id, |metrics| metrics.descent(font_size))
+     }
+ 
+-    /// Get the recommended baseline offset for the given font and line height.
+-    pub fn baseline_offset(
+-        &self,
+-        font_id: FontId,
+-        font_size: Pixels,
+-        line_height: Pixels,
+-    ) -> Pixels {
+-        let ascent = self.ascent(font_id, font_size);
+-        let descent = self.descent(font_id, font_size);
+-        let padding_top = (line_height - ascent - descent) / 2.;
+-        padding_top + ascent
+-    }
+-
+     fn read_metrics<T>(&self, font_id: FontId, read: impl FnOnce(&FontMetrics) -> T) -> T {
+         let lock = self.font_metrics.upgradable_read();
+ 
+diff --git a/src/util.rs b/src/util.rs
+index 13ee752..14432ba 100644
+--- a/src/util.rs
++++ b/src/util.rs
+@@ -131,14 +131,15 @@ pub(crate) fn round_half_toward_zero(value: f32) -> f32 {
+     (value.abs() - 0.5).ceil().copysign(value)
+ }
+ 
++/// Rounds to the nearest integer with 0.5 ties up, as Chromium snaps lengths and edges.
+ #[inline]
+-pub(crate) fn round_half_toward_zero_f64(value: f64) -> f64 {
+-    (value.abs() - 0.5).ceil().copysign(value)
++pub(crate) fn round_half_up(value: f32) -> f32 {
++    (value + 0.5).floor()
+ }
+ 
+ #[inline]
+ pub(crate) fn round_to_device_pixel(logical: f32, scale_factor: f32) -> f32 {
+-    round_half_toward_zero(logical * scale_factor)
++    round_half_up(logical * scale_factor)
+ }
+ 
+ #[inline]
+@@ -146,7 +147,8 @@ pub(crate) fn round_stroke_to_device_pixel(logical: f32, scale_factor: f32) -> f
+     if logical == 0.0 {
+         0.0
+     } else {
+-        round_to_device_pixel(logical.max(0.0), scale_factor).max(1.0)
++        // Blink floors widths (min 1 dp); for whole-pixel widths ties toward zero match it at 1x, 1.5x and 2x only.
++        round_half_toward_zero(logical.max(0.0) * scale_factor).max(1.0)
+     }
+ }
+ 
+@@ -190,14 +192,14 @@ mod tests {
+ 
+     #[test]
+     fn test_device_pixel_helpers() {
+-        // Snap uses half-toward-zero: 1.0 * 1.5 = 1.5 ties toward 1.0.
+-        assert_eq!(round_to_device_pixel(1.0, 1.5), 1.0);
++        // Snap uses half-up: 1.0 * 1.5 = 1.5 ties up to 2.0.
++        assert_eq!(round_to_device_pixel(1.0, 1.5), 2.0);
+         // Below the tie rounds down, above rounds up.
+         assert_eq!(round_to_device_pixel(0.3, 2.0), 1.0);
+         assert_eq!(round_to_device_pixel(1.4, 1.0), 1.0);
+         assert_eq!(round_to_device_pixel(1.6, 1.0), 2.0);
+ 
+-        // Stroke uses snap, but clamps non-zero input up to at least 1dp.
++        // Stroke ties toward zero, and clamps non-zero input up to at least 1dp.
+         assert_eq!(round_stroke_to_device_pixel(0.0, 1.0), 0.0);
+         assert_eq!(round_stroke_to_device_pixel(0.4, 1.0), 1.0);
+         assert_eq!(round_stroke_to_device_pixel(0.5, 1.0), 1.0);
+@@ -216,15 +218,6 @@ mod tests {
+         assert_eq!(ceil_to_device_pixel(2.0, 2.0), 4.0);
+     }
+ 
+-    #[test]
+-    fn test_round_half_toward_zero_f64() {
+-        assert_eq!(round_half_toward_zero_f64(0.5), 0.0);
+-        assert_eq!(round_half_toward_zero_f64(-0.5), 0.0);
+-        assert_eq!(round_half_toward_zero_f64(1.5), 1.0);
+-        assert_eq!(round_half_toward_zero_f64(-1.5), -1.0);
+-        assert_eq!(round_half_toward_zero_f64(2.5001), 3.0);
+-    }
+-
+     #[gpui::test]
+     async fn test_with_timeout(cx: &mut TestAppContext) {
+         Task::ready(())
+diff --git a/src/view.rs b/src/view.rs
+index 081edd9..0de4a93 100644
+--- a/src/view.rs
++++ b/src/view.rs
+@@ -1,13 +1,14 @@
+ use crate::{
+-    AnyElement, AnyEntity, AnyWeakEntity, App, AvailableSpace, Bounds, ContentMask, Context,
+-    Element, ElementId, Entity, EntityId, GlobalElementId, InspectorElementId, IntoElement,
+-    LayoutId, PaintIndex, Pixels, PrepaintStateIndex, Render, RenderOnce, Size, Style,
+-    StyleRefinement, TextStyle, WeakEntity,
++    AnyElement, AnyEntity, AnyWeakEntity, App, AvailableSpace, Bounds, CachedChild, ContentMask,
++    Context, DrawContext, Element, ElementId, Entity, EntityId, GlobalElementId,
++    InspectorElementId, IntoElement, LayoutId, PaintIndex, Pixels, PrepaintStateIndex, Render,
++    RenderOnce, Size, Style, StyleRefinement, TextStyle, WeakEntity,
+ };
+ use crate::{Empty, Window};
+ use anyhow::Result;
+-use collections::FxHashSet;
++use collections::{FxHashMap, FxHashSet};
+ use refineable::Refineable;
++use smallvec::SmallVec;
+ use std::mem;
+ use std::{
+     any::{TypeId, type_name},
+@@ -47,6 +48,15 @@ impl AnyView {
+         self.into_element().cached(style)
+     }
+ 
++    /// Like [`AnyView::cached`], but drawn as if not cached on every frame where anything changed other than views
++    /// notified in place, for a view that reads more than it observes. On a frame where only those views changed
++    /// it keeps its output and draws only them again.
++    pub fn cached_for_in_place(self, style: StyleRefinement) -> ViewElement<AnyView> {
++        let mut element = self.into_element().cached(style);
++        element.between_in_place = true;
++        element
++    }
++
+     /// Convert this to a weak handle.
+     pub fn downgrade(&self) -> AnyWeakView {
+         AnyWeakView {
+@@ -96,6 +106,10 @@ impl View for AnyView {
+         Some(self.entity.entity_id())
+     }
+ 
++    fn weak_view(&self) -> Option<AnyWeakView> {
++        Some(self.downgrade())
++    }
++
+     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+         (self.render)(&self, window, cx)
+     }
+@@ -131,6 +145,11 @@ pub struct AnyWeakView {
+ }
+ 
+ impl AnyWeakView {
++    /// The view's entity id, alive or not.
++    pub fn entity_id(&self) -> EntityId {
++        self.entity.entity_id
++    }
++
+     /// Upgrade to a strong `AnyView` handle, if the view is still alive.
+     pub fn upgrade(&self) -> Option<AnyView> {
+         let entity = self.entity.upgrade()?;
+@@ -182,6 +201,8 @@ mod any_view {
+             .a11y
+             .view_type_names
+             .insert(view.entity_id(), std::any::type_name::<V>());
++        #[cfg(any(test, feature = "test-support"))]
++        window.count_render(view.entity_id());
+         view.update(cx, |view, cx| view.render(window, cx).into_any_element())
+     }
+ }
+@@ -210,6 +231,11 @@ pub trait View: 'static + Sized {
+ 
+     /// Render this view into an element tree, consuming `self`.
+     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement;
++
++    /// The view to draw again where it stands, for a view drawn cached.
++    fn weak_view(&self) -> Option<AnyWeakView> {
++        None
++    }
+ }
+ 
+ /// A stateless component (`RenderOnce`) is a `View` with no identity.
+@@ -230,8 +256,14 @@ impl<T: Render> View for Entity<T> {
+         Some(Entity::entity_id(self))
+     }
+ 
++    fn weak_view(&self) -> Option<AnyWeakView> {
++        Some(self.downgrade().into())
++    }
++
+     #[inline]
+     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
++        #[cfg(any(test, feature = "test-support"))]
++        window.count_render(Entity::entity_id(&self));
+         self.update(cx, |this, cx| {
+             Render::render(this, window, cx).into_any_element()
+         })
+@@ -259,6 +291,7 @@ pub struct ViewElement<V: View> {
+     view: Option<V>,
+     entity_id: Option<EntityId>,
+     cached_style: Option<StyleRefinement>,
++    between_in_place: bool,
+     #[cfg(feature = "profiler")]
+     view_type_name: &'static str,
+     #[cfg(debug_assertions)]
+@@ -281,6 +314,7 @@ impl<V: View> ViewElement<V> {
+         ViewElement {
+             entity_id,
+             cached_style: None,
++            between_in_place: false,
+             #[cfg(feature = "profiler")]
+             view_type_name,
+             view: Some(view),
+@@ -317,6 +351,21 @@ struct ViewElementState {
+     paint_range: Range<PaintIndex>,
+     cache_key: ViewElementCacheKey,
+     accessed_entities: FxHashSet<EntityId>,
++    /// What its own render, layout, prepaint and paint read, apart from the cached views drawn inside it.
++    read_entities: FxHashSet<EntityId>,
++    /// The cached views drawn inside this one, in order, for drawing one again in place.
++    children: Vec<CachedChild>,
++    prepaint_context: DrawContext,
++    paint_context: Option<DrawContext>,
++    /// Whether this frame's prepaint drew views inside this one again in place, for its paint to do the same.
++    spliced: bool,
++    /// Drawn as if uncached between in-place frames, so its children reuse their output by their own records.
++    between_in_place: bool,
++    /// Prepainted and not yet painted: a parent that skips painting it (a hidden one) leaves its paint record stale.
++    paint_pending: bool,
++    /// The frame its ranges were last placed in: reused by them only the frame after, as a view drawn cached in one
++    /// frame and inside another view's reused output the next is not placed.
++    placed: u64,
+ }
+ 
+ struct ViewElementCacheKey {
+@@ -392,8 +441,15 @@ impl<V: View> Element for ViewElement<V> {
+             // Stateful path.
+             #[cfg(feature = "profiler")]
+             let start = window.window_profiler.begin_view();
++            let weak_view = self
++                .cached_style
++                .is_some()
++                .then(|| self.view.as_ref().and_then(View::weak_view))
++                .flatten();
+             let prepainted = prepaint_view(
+                 entity_id,
++                weak_view,
++                self.between_in_place,
+                 global_id,
+                 bounds,
+                 element,
+@@ -505,8 +561,11 @@ fn request_layout_component(
+ }
+ 
+ #[inline(never)]
++#[allow(clippy::too_many_arguments)]
+ fn prepaint_view(
+     entity_id: EntityId,
++    weak_view: Option<AnyWeakView>,
++    between_in_place: bool,
+     global_id: Option<&GlobalElementId>,
+     bounds: Bounds<Pixels>,
+     element: &mut Option<AnyElement>,
+@@ -521,57 +580,283 @@ fn prepaint_view(
+             return Some(element);
+         }
+ 
+-        window.with_element_state::<ViewElementState, _>(
+-            global_id.unwrap(),
+-            |element_state, window| {
+-                let content_mask = window.content_mask();
+-                let text_style = window.text_style();
+-
+-                if let Some(mut element_state) = element_state
+-                    && element_state.cache_key.bounds == bounds
+-                    && element_state.cache_key.content_mask == content_mask
+-                    && element_state.cache_key.text_style == text_style
+-                    && !window.dirty_views.contains(&entity_id)
+-                    && !window.refreshing
+-                {
+-                    let prepaint_start = window.prepaint_index();
+-                    window.reuse_prepaint(element_state.prepaint_range.clone());
+-                    cx.entities
+-                        .extend_accessed(&element_state.accessed_entities);
+-                    let prepaint_end = window.prepaint_index();
+-                    element_state.prepaint_range = prepaint_start..prepaint_end;
+-
+-                    return (None, element_state);
+-                }
++        window.next_frame.dispatch_tree.set_view_cached();
++        let global_id = global_id.unwrap();
++        let (element, range) =
++            window.with_element_state::<ViewElementState, _>(global_id, |element_state, window| {
++                prepaint_cached(
++                    entity_id,
++                    bounds,
++                    element_state,
++                    None,
++                    between_in_place,
++                    window,
++                    cx,
++                    render,
++                )
++            });
++        if let Some(view) = weak_view
++            && let Some(siblings) = window.cached_children.last_mut()
++        {
++            siblings.push(CachedChild {
++                view,
++                global_id: global_id.clone(),
++                prepaint: range,
++                paint: None,
++            });
++        }
++        element
++    })
++}
+ 
+-                let refreshing = mem::replace(&mut window.refreshing, true);
+-                let prepaint_start = window.prepaint_index();
+-                let (element, accessed_entities) = cx.detect_accessed_entities(|cx| {
+-                    let mut element = render(window, cx);
+-                    element.layout_as_root(Size::<AvailableSpace>::from(bounds.size), window, cx);
+-                    element.prepaint_at(bounds.origin, window, cx);
+-                    element
+-                });
++/// The cached views whose last draw read `entity` themselves, not only in a cached view drawn inside them.
++pub(crate) fn readers_of(window: &Window, entity: EntityId) -> SmallVec<[EntityId; 2]> {
++    window
++        .rendered_frame
++        .element_states
++        .iter()
++        .filter(|((_, ty), _)| *ty == TypeId::of::<ViewElementState>())
++        .filter_map(|((id, _), state)| {
++            let state = state.inner.downcast_ref::<Option<ViewElementState>>()?.as_ref()?;
++            match id.last() {
++                Some(ElementId::View(view)) if state.read_entities.contains(&entity) => Some(*view),
++                _ => None,
++            }
++        })
++        .collect()
++}
++
++/// The innermost cached views whose record holds `entity` though none of them read it last, as a record drawn again
++/// in place only grows: drawn again, each records what it reads now.
++pub(crate) fn holders_of(window: &Window, entity: EntityId) -> SmallVec<[EntityId; 2]> {
++    let frame = &window.rendered_frame;
++    let held: SmallVec<[EntityId; 2]> = frame
++        .element_states
++        .iter()
++        .filter(|((_, ty), _)| *ty == TypeId::of::<ViewElementState>())
++        .filter_map(|((id, _), state)| {
++            let state = state.inner.downcast_ref::<Option<ViewElementState>>()?.as_ref()?;
++            match id.last() {
++                Some(ElementId::View(view)) if state.accessed_entities.contains(&entity) => Some(*view),
++                _ => None,
++            }
++        })
++        .collect();
++    let around = |outer: EntityId| {
++        held.iter()
++            .any(|&inner| inner != outer && frame.dispatch_tree.cached_view_path(inner).any(|v| v == outer))
++    };
++    held.iter().copied().filter(|&view| !around(view)).collect()
++}
+ 
+-                let prepaint_end = window.prepaint_index();
+-                window.refreshing = refreshing;
++/// What a cached view and the cached views drawn in it read, from its own reads and its children's records, or
++/// none when a child's record is gone.
++fn reads_within(window: &Window, element_state: &ViewElementState) -> Option<FxHashSet<EntityId>> {
++    let mut reads = element_state.read_entities.clone();
++    for child in &element_state.children {
++        let key = (child.global_id.clone(), TypeId::of::<ViewElementState>());
++        let state = window
++            .next_frame
++            .element_states
++            .get(&key)
++            .or_else(|| window.rendered_frame.element_states.get(&key))?;
++        let state = state.inner.downcast_ref::<Option<ViewElementState>>()?.as_ref()?;
++        reads.extend(state.accessed_entities.iter().copied());
++    }
++    Some(reads)
++}
+ 
+-                (
+-                    Some(element),
+-                    ViewElementState {
++/// Prepaints a cached view: reuses last frame's output, drawing again in place any views inside it notified in
++/// place, or renders it. `old` is where its output sat last frame when a parent draws it in place.
++#[allow(clippy::too_many_arguments)]
++fn prepaint_cached(
++    entity_id: EntityId,
++    bounds: Bounds<Pixels>,
++    element_state: Option<ViewElementState>,
++    old: Option<Range<PrepaintStateIndex>>,
++    between_in_place: bool,
++    window: &mut Window,
++    cx: &mut App,
++    render: &mut dyn FnMut(&mut Window, &mut App) -> AnyElement,
++) -> (
++    (Option<AnyElement>, Range<PrepaintStateIndex>),
++    ViewElementState,
++) {
++    let content_mask = window.content_mask();
++    let text_style = window.text_style();
++
++    let mut element_state = element_state;
++    let mut reused = None;
++    if let Some(element_state) = &mut element_state
++        && (old.is_some()
++            || element_state.cache_key.bounds == bounds
++                && element_state.cache_key.content_mask == content_mask
++                && element_state.cache_key.text_style == text_style)
++        && !window.dirty_views.contains(&entity_id)
++        && !window.refreshing
++        && (!between_in_place || window.in_place_frame)
++        && !element_state.paint_pending
++        && (old.is_some() || element_state.placed + 1 == window.frame_index)
++    {
++        let in_place = old.is_some();
++        let old = old.unwrap_or_else(|| element_state.prepaint_range.clone());
++        let plan = match window.in_place_routes.get(&entity_id) {
++            None => Some(None),
++            Some(route) => window
++                .splice_plan(route, &element_state.children, &old, std::any::TypeId::of::<ViewElementState>())
++                .map(Some),
++        };
++        if let Some(plan) = plan {
++            if !in_place {
++                element_state.prepaint_context = window.draw_context();
++            }
++            element_state.between_in_place = between_in_place;
++            let range = match plan {
++                None => {
++                    let start = window.prepaint_index();
++                    let fonts_kept = old.start.same_fonts(&start);
++                    window.reuse_prepaint(old);
++                    if !fonts_kept {
++                        element_state.children.clear();
++                    }
++                    start..window.prepaint_index()
++                }
++                Some(plan) => {
++                    let ViewElementState {
++                        children,
+                         accessed_entities,
+-                        prepaint_range: prepaint_start..prepaint_end,
+-                        paint_range: PaintIndex::default()..PaintIndex::default(),
+-                        cache_key: ViewElementCacheKey {
+-                            bounds,
+-                            content_mask,
+-                            text_style,
+-                        },
+-                    },
+-                )
++                        ..
++                    } = element_state;
++                    let range =
++                        window.splice_prepaint(children, &old, &plan, |child, child_old, window| {
++                            accessed_entities.extend(prepaint_in_place(child, child_old, window, cx));
++                        });
++                    element_state.spliced = true;
++                    // A child drawn again may read less than it did: what nothing reads now is no longer heard.
++                    if let Some(reads) = reads_within(window, element_state) {
++                        element_state.accessed_entities = reads;
++                    }
++                    // A font a child loaded while drawn again emptied the line layouts its siblings' records count.
++                    if !range.start.same_fonts(&range.end) {
++                        element_state.children.clear();
++                    }
++                    range
++                }
++            };
++            cx.entities
++                .extend_accessed(&element_state.accessed_entities);
++            element_state.prepaint_range = range.clone();
++            element_state.paint_pending = true;
++            element_state.placed = window.frame_index;
++            reused = Some(range);
++        }
++    }
++    if let Some(range) = reused
++        && let Some(element_state) = element_state
++    {
++        return ((None, range), element_state);
++    }
++    // Painted before, so a parent can still place it by last frame's paint once it is drawn in place.
++    let paint_context = element_state.and_then(|element_state| element_state.paint_context);
++
++    // A view drawn between in-place frames draws as if not cached, its cached children reused as they would be.
++    let refreshing = window.refreshing;
++    window.refreshing = refreshing || !between_in_place;
++    let prepaint_context = window.draw_context();
++    let prepaint_start = window.prepaint_index();
++    window.cached_children.push(Vec::new());
++    let (element, read_entities, accessed_entities) = cx.detect_accessed_entities(|cx| {
++        let mut element = render(window, cx);
++        element.layout_as_root(Size::<AvailableSpace>::from(bounds.size), window, cx);
++        element.prepaint_at(bounds.origin, window, cx);
++        element
++    });
++    let children = window
++        .cached_children
++        .pop()
++        .unwrap_or_default()
++        .into_iter()
++        .map(|mut child| {
++            child.prepaint = child.prepaint.start.offset_from(&prepaint_start)
++                ..child.prepaint.end.offset_from(&prepaint_start);
++            child
++        })
++        .collect();
++    let prepaint_end = window.prepaint_index();
++    window.refreshing = refreshing;
++    let children = if prepaint_start.same_fonts(&prepaint_end) {
++        children
++    } else {
++        Vec::new()
++    };
++
++    (
++        (Some(element), prepaint_start.clone()..prepaint_end.clone()),
++        ViewElementState {
++            accessed_entities,
++            read_entities,
++            prepaint_range: prepaint_start..prepaint_end,
++            paint_range: PaintIndex::default()..PaintIndex::default(),
++            cache_key: ViewElementCacheKey {
++                bounds,
++                content_mask,
++                text_style,
+             },
+-        )
+-    })
++            children,
++            prepaint_context,
++            paint_context,
++            spliced: false,
++            between_in_place,
++            paint_pending: true,
++            placed: window.frame_index,
++        },
++    )
++}
++
++/// Prepaints a cached view inside one being reused, where it stood last frame and under what it was drawn under
++/// then, returning the entities it read.
++fn prepaint_in_place(
++    child: &CachedChild,
++    old: Range<PrepaintStateIndex>,
++    window: &mut Window,
++    cx: &mut App,
++) -> FxHashSet<EntityId> {
++    let Some(view) = child.view.upgrade() else {
++        return FxHashSet::default();
++    };
++    let entity_id = view.entity_id();
++    let (element, accessed) = window.with_element_state_in_place::<ViewElementState, _>(
++        &child.global_id,
++        |element_state, window| {
++            let element_state =
++                element_state.expect("a cached view drawn last frame keeps its state");
++            let bounds = element_state.cache_key.bounds;
++            let context = element_state.prepaint_context.clone();
++            let ((element, _), element_state) =
++                window.with_draw_context(&child.global_id, &context, cx, |window, cx| {
++                    window.with_rendered_view(entity_id, |window| {
++                        prepaint_cached(
++                            entity_id,
++                            bounds,
++                            Some(element_state),
++                            Some(old),
++                            false,
++                            window,
++                            cx,
++                            &mut |window, cx| (view.render)(&view, window, cx),
++                        )
++                    })
++                });
++            (
++                (element, element_state.accessed_entities.clone()),
++                element_state,
++            )
++        },
++    );
++    window
++        .spliced_elements
++        .insert(child.global_id.clone(), element);
++    accessed
+ }
+ 
+ #[inline(never)]
+@@ -599,33 +884,123 @@ fn paint_view(
+     window.with_rendered_view(entity_id, |window| {
+         let caching_disabled = window.is_inspector_picking(cx);
+         if cached && !caching_disabled {
+-            window.with_element_state::<ViewElementState, _>(
+-                global_id.unwrap(),
++            let global_id = global_id.unwrap();
++            let range = window.with_element_state::<ViewElementState, _>(
++                global_id,
+                 |element_state, window| {
+                     let mut element_state = element_state.unwrap();
+-
+-                    let paint_start = window.paint_index();
+-
+-                    if let Some(element) = element {
+-                        let refreshing = mem::replace(&mut window.refreshing, true);
+-                        element.paint(window, cx);
+-                        window.refreshing = refreshing;
+-                    } else {
+-                        window.reuse_paint(element_state.paint_range.clone());
+-                    }
+-
+-                    let paint_end = window.paint_index();
+-                    element_state.paint_range = paint_start..paint_end;
+-
+-                    ((), element_state)
++                    element_state.paint_context = Some(window.draw_context());
++                    let old = element_state.paint_range.clone();
++                    let range = paint_cached(&mut element_state, element.take(), old, window, cx);
++                    (range, element_state)
+                 },
+-            )
++            );
++            if let Some(siblings) = window.cached_paints.last_mut() {
++                siblings.push((global_id.clone(), range));
++            }
+         } else {
+             element.as_mut().unwrap().paint(window, cx);
+         }
+     });
+ }
+ 
++/// Paints a cached view: the element its prepaint rendered, or last frame's paint at `old` with the views inside it
++/// drawn again in place painted again.
++fn paint_cached(
++    element_state: &mut ViewElementState,
++    element: Option<AnyElement>,
++    old: Range<PaintIndex>,
++    window: &mut Window,
++    cx: &mut App,
++) -> Range<PaintIndex> {
++    let paint_start = window.paint_index();
++    let moved = if let Some(mut element) = element {
++        let refreshing = mem::replace(&mut window.refreshing, true);
++        window.cached_paints.push(Vec::new());
++        let ((), read, accessed) = cx.detect_accessed_entities(|cx| element.paint(window, cx));
++        element_state.read_entities.extend(read);
++        element_state.accessed_entities.extend(accessed);
++        let painted: FxHashMap<GlobalElementId, Range<PaintIndex>> = window
++            .cached_paints
++            .pop()
++            .unwrap_or_default()
++            .into_iter()
++            .collect();
++        for child in &mut element_state.children {
++            child.paint = painted.get(&child.global_id).map(|range| {
++                range.start.offset_from(&paint_start)..range.end.offset_from(&paint_start)
++            });
++        }
++        window.refreshing = refreshing;
++        false
++    } else if mem::take(&mut element_state.spliced) {
++        let ViewElementState {
++            children,
++            accessed_entities,
++            ..
++        } = element_state;
++        window.splice_paint(children, &old, |child, child_old, window| {
++            accessed_entities.extend(paint_in_place(child, child_old, window, cx));
++        });
++        true
++    } else {
++        let fonts_kept = old.start.same_fonts(&paint_start);
++        window.reuse_paint(old);
++        if !fonts_kept {
++            element_state.children.iter_mut().for_each(|child| child.paint = None);
++        }
++        element_state.between_in_place
++    };
++    let paint_end = window.paint_index();
++    if !paint_start.same_fonts(&paint_end) {
++        element_state.children.iter_mut().for_each(|child| child.paint = None);
++    } else if moved {
++        // Each child's output moved, and a parent drawing it next may reuse it by its own record.
++        let frame_index = window.frame_index;
++        for child in &element_state.children {
++            let Some(paint) = &child.paint else { continue };
++            let prepaint_range = element_state.prepaint_range.start.offset_by(&child.prepaint.start)
++                ..element_state.prepaint_range.start.offset_by(&child.prepaint.end);
++            let paint_range = paint_start.offset_by(&paint.start)..paint_start.offset_by(&paint.end);
++            window.update_element_state::<ViewElementState>(&child.global_id, |state| {
++                state.prepaint_range = prepaint_range;
++                state.paint_range = paint_range;
++                state.paint_pending = false;
++                state.placed = frame_index;
++            });
++        }
++    }
++    element_state.paint_range = paint_start.clone()..paint_end.clone();
++    element_state.paint_pending = false;
++    paint_start..paint_end
++}
++
++/// Paints a cached view its parent drew again in place, under what it was painted under last frame, returning the
++/// entities it read.
++fn paint_in_place(
++    child: &CachedChild,
++    old: Range<PaintIndex>,
++    window: &mut Window,
++    cx: &mut App,
++) -> FxHashSet<EntityId> {
++    let element = window.spliced_elements.remove(&child.global_id).flatten();
++    let entity_id = child.view.entity_id();
++    window.with_element_state_in_place::<ViewElementState, _>(&child.global_id, |element_state, window| {
++        let mut element_state =
++            element_state.expect("a cached view prepainted this frame keeps its state");
++        let context = element_state
++            .paint_context
++            .clone()
++            .expect("a cached view its parent placed was painted");
++        window.with_draw_context(&child.global_id, &context, cx, |window, cx| {
++            window.with_rendered_view(entity_id, |window| {
++                paint_cached(&mut element_state, element, old, window, cx);
++            })
++        });
++        (element_state.accessed_entities.clone(), element_state)
++    })
++}
++
+ #[inline(never)]
+ fn paint_component(
+     name: &'static str,
+diff --git a/src/window/a11y.rs b/src/window/a11y.rs
+index 5b63821..7b481ae 100644
+--- a/src/window/a11y.rs
++++ b/src/window/a11y.rs
+@@ -213,6 +213,21 @@ impl A11y {
+         self.active_this_frame = self.is_enabled() && self.active_flag.load(Ordering::SeqCst);
+     }
+ 
++    /// Builds and sends no tree this frame, leaving the platform's as it is.
++    pub(crate) fn hold_frame(&mut self) {
++        self.active_this_frame = false;
++    }
++
++    /// Whether a screen reader is reading, as the next frame will find it, whatever this frame did.
++    pub(crate) fn wanted(&self) -> bool {
++        self.is_enabled() && self.active_flag.load(Ordering::SeqCst)
++    }
++
++    #[cfg(any(test, feature = "test-support"))]
++    pub(crate) fn simulate_active(&self, active: bool) {
++        self.active_flag.store(active, Ordering::SeqCst);
++    }
++
+     pub(crate) fn is_enabled(&self) -> bool {
+         !self.force_disabled
+     }
+diff --git a/src/window.rs b/src/window.rs
+index 1214b03..478b228 100644
+--- a/src/window.rs
++++ b/src/window.rs
+@@ -5,10 +5,11 @@ use crate::Inspector;
+ #[cfg(feature = "profiler")]
+ use crate::profiler;
+ use crate::{
+-    Action, AnyDrag, AnyElement, AnyImageCache, AnyTooltip, AnyView, App, AppContext, Arena, Asset,
+-    AsyncWindowContext, AtlasTile, AvailableSpace, Background, BorderStyle, Bounds, BoxShadow,
++    Action, AnyDrag, AnyElement, AnyImageCache, AnyTooltip, AnyView, AnyWeakView, App, AppContext, Arena, Asset,
++    AsyncWindowContext, AtlasTile, AtlasUsage, AvailableSpace, GpuUsage, BackdropBlur, Background, BorderStyle, Bounds,
++    BoxShadow, Primitive, RoundedClipId,
+     Capslock, Context, Corners, CursorHideMode, CursorStyle, Decorations, DevicePixels,
+-    DispatchActionListener, DispatchNodeId, DispatchTree, DisplayId, Edges, Effect, Entity,
++    DispatchActionListener, DispatchNodeId, DispatchTree, SplicedReuse, DisplayId, Edges, Effect, Entity,
+     EntityId, EventEmitter, FileDropEvent, FontId, Global, GlobalElementId, GlyphId, GpuSpecs,
+     Hsla, InputHandler, InputPreference, IsZero, KeyBinding, KeyContext, KeyDownEvent, KeyEvent,
+     Keystroke, KeystrokeEvent, LayoutId, LineLayoutIndex, Modifiers, ModifiersChangedEvent,
+@@ -74,8 +75,8 @@ use self::a11y::A11y;
+ #[cfg(not(target_family = "wasm"))]
+ use self::a11y::ROOT_NODE_ID;
+ use crate::util::{
+-    atomic_incr_if_not_zero, ceil_to_device_pixel, floor_to_device_pixel, round_half_toward_zero,
+-    round_half_toward_zero_f64, round_stroke_to_device_pixel, round_to_device_pixel,
++    atomic_incr_if_not_zero, ceil_to_device_pixel, floor_to_device_pixel, round_half_toward_zero, round_half_up,
++    round_stroke_to_device_pixel, round_to_device_pixel,
+ };
+ pub use prompts::*;
+ 
+@@ -126,6 +127,8 @@ struct WindowInvalidatorInner {
+     pub dirty: bool,
+     pub draw_phase: DrawPhase,
+     pub dirty_views: FxHashSet<EntityId>,
++    /// Views notified to draw again where they stand, their ancestors' output kept.
++    pub in_place_views: FxHashSet<EntityId>,
+     pub update_count: usize,
+     #[cfg(feature = "profiler")]
+     pub frame_dirty: FrameDirtyAccumulator,
+@@ -167,6 +170,7 @@ impl WindowInvalidator {
+                 dirty: true,
+                 draw_phase: DrawPhase::None,
+                 dirty_views: FxHashSet::default(),
++                in_place_views: FxHashSet::default(),
+                 update_count: 0,
+                 #[cfg(feature = "profiler")]
+                 frame_dirty: FrameDirtyAccumulator::default(),
+@@ -176,9 +180,21 @@ impl WindowInvalidator {
+     }
+ 
+     pub fn invalidate_view(&self, entity: EntityId, cx: &mut App) -> bool {
++        self.invalidate(entity, false, cx)
++    }
++
++    pub fn invalidate_view_in_place(&self, entity: EntityId, cx: &mut App) -> bool {
++        self.invalidate(entity, true, cx)
++    }
++
++    fn invalidate(&self, entity: EntityId, in_place: bool, cx: &mut App) -> bool {
+         let mut inner = self.inner.borrow_mut();
+         inner.update_count += 1;
+-        inner.dirty_views.insert(entity);
++        if in_place {
++            inner.in_place_views.insert(entity);
++        } else {
++            inner.dirty_views.insert(entity);
++        }
+         if inner.draw_phase == DrawPhase::None {
+             #[cfg(feature = "profiler")]
+             let dirty_at = Self::record_frame_dirty(&mut inner);
+@@ -192,7 +208,10 @@ impl WindowInvalidator {
+             if became_dirty {
+                 profiler::journal::record_frame_pending(window_id, dirty_at);
+             }
+-            cx.push_effect(Effect::Notify { emitter: entity });
++            // Drawing again in place changes nothing an observer reads.
++            if !in_place {
++                cx.push_effect(Effect::Notify { emitter: entity });
++            }
+             if let Some(waker) = waker {
+                 waker();
+             }
+@@ -276,6 +295,10 @@ impl WindowInvalidator {
+         self.inner.borrow_mut().dirty_views = views;
+     }
+ 
++    pub fn take_in_place_views(&self) -> FxHashSet<EntityId> {
++        mem::take(&mut self.inner.borrow_mut().in_place_views)
++    }
++
+     pub fn not_drawing(&self) -> bool {
+         self.inner.borrow().draw_phase == DrawPhase::None
+     }
+@@ -961,6 +984,44 @@ impl TooltipId {
+     }
+ }
+ 
++/// Where a tooltip of `size` opens on an element at `owner`: on its `side`, centred along it, 4 px off, as a Base UI
++/// tooltip's positioner sets it; on the other side where the window has no room on that one, and shifted along the
++/// side to stay 5 px inside the window.
++fn tooltip_at(
++    owner: Bounds<Pixels>,
++    side: crate::TooltipSide,
++    size: Size<Pixels>,
++    window: Size<Pixels>,
++) -> Point<Pixels> {
++    const OFFSET: Pixels = px(4.);
++    const MARGIN: Pixels = px(5.);
++    let along = |centre: Pixels, length: Pixels, room: Pixels| {
++        (centre - length / 2.).min(room - MARGIN - length).max(MARGIN)
++    };
++    // The side asked for, else the other where only it has room.
++    let across = |before: Pixels, after: Pixels, length: Pixels, room: Pixels, first: bool| {
++        let (lead, other) = ((before - OFFSET - length), (after + OFFSET));
++        let lead_fits = lead >= MARGIN;
++        let other_fits = other + length <= room - MARGIN;
++        match (first, lead_fits, other_fits) {
++            (true, false, true) => other,
++            (true, _, _) => lead,
++            (false, true, false) => lead,
++            (false, _, _) => other,
++        }
++    };
++    match side {
++        crate::TooltipSide::Top | crate::TooltipSide::Bottom => point(
++            along(owner.center().x, size.width, window.width),
++            across(owner.top(), owner.bottom(), size.height, window.height, side == crate::TooltipSide::Top),
++        ),
++        crate::TooltipSide::Left | crate::TooltipSide::Right => point(
++            across(owner.left(), owner.right(), size.width, window.width, side == crate::TooltipSide::Left),
++            along(owner.center().y, size.height, window.height),
++        ),
++    }
++}
++
+ pub(crate) struct TooltipBounds {
+     id: TooltipId,
+     bounds: Bounds<Pixels>,
+@@ -1032,6 +1093,10 @@ pub(crate) struct DeferredDraw {
+     absolute_offset: Point<Pixels>,
+     prepaint_range: Range<PrepaintStateIndex>,
+     paint_range: Range<PaintIndex>,
++    /// What its element read while prepainted and painted, kept while its owner's output is reused.
++    reads: FxHashSet<EntityId>,
++    /// That and what the cached views drawn in it read, which the window keeps hearing while it is reused.
++    heard: FxHashSet<EntityId>,
+ }
+ 
+ pub(crate) struct Frame {
+@@ -1082,6 +1147,129 @@ pub(crate) struct PaintIndex {
+     line_layout_index: LineLayoutIndex,
+ }
+ 
++impl PrepaintStateIndex {
++    /// This index as a count of entries past `base`, an index at or before it.
++    pub(crate) fn offset_from(&self, base: &Self) -> Self {
++        Self {
++            hitboxes_index: self.hitboxes_index - base.hitboxes_index,
++            tooltips_index: self.tooltips_index - base.tooltips_index,
++            deferred_draws_index: self.deferred_draws_index - base.deferred_draws_index,
++            dispatch_tree_index: self.dispatch_tree_index - base.dispatch_tree_index,
++            accessed_element_states_index: self.accessed_element_states_index
++                - base.accessed_element_states_index,
++            line_layout_index: line_layouts_from(&self.line_layout_index, &base.line_layout_index),
++        }
++    }
++
++    /// Whether both indices count line layouts made with the same fonts: a font loaded between them emptied the
++    /// layouts, so no count of layouts between them holds.
++    pub(crate) fn same_fonts(&self, other: &Self) -> bool {
++        self.line_layout_index
++            .same_generation(&other.line_layout_index)
++    }
++
++    /// The index `offset` entries past this one.
++    pub(crate) fn offset_by(&self, offset: &Self) -> Self {
++        Self {
++            hitboxes_index: self.hitboxes_index + offset.hitboxes_index,
++            tooltips_index: self.tooltips_index + offset.tooltips_index,
++            deferred_draws_index: self.deferred_draws_index + offset.deferred_draws_index,
++            dispatch_tree_index: self.dispatch_tree_index + offset.dispatch_tree_index,
++            accessed_element_states_index: self.accessed_element_states_index
++                + offset.accessed_element_states_index,
++            line_layout_index: self.line_layout_index.offset_by(&offset.line_layout_index),
++        }
++    }
++
++    fn at_or_before(&self, other: &Self) -> bool {
++        self.hitboxes_index <= other.hitboxes_index
++            && self.tooltips_index <= other.tooltips_index
++            && self.deferred_draws_index <= other.deferred_draws_index
++            && self.dispatch_tree_index <= other.dispatch_tree_index
++            && self.accessed_element_states_index <= other.accessed_element_states_index
++    }
++}
++
++impl PaintIndex {
++    /// This index as a count of entries past `base`, an index at or before it.
++    pub(crate) fn offset_from(&self, base: &Self) -> Self {
++        Self {
++            scene_index: self.scene_index - base.scene_index,
++            #[cfg(any(test, feature = "test-support"))]
++            debug_bounds_index: self.debug_bounds_index - base.debug_bounds_index,
++            mouse_listeners_index: self.mouse_listeners_index - base.mouse_listeners_index,
++            input_handlers_index: self.input_handlers_index - base.input_handlers_index,
++            cursor_styles_index: self.cursor_styles_index - base.cursor_styles_index,
++            accessed_element_states_index: self.accessed_element_states_index
++                - base.accessed_element_states_index,
++            tab_handle_index: self.tab_handle_index - base.tab_handle_index,
++            line_layout_index: line_layouts_from(&self.line_layout_index, &base.line_layout_index),
++        }
++    }
++
++    pub(crate) fn same_fonts(&self, other: &Self) -> bool {
++        self.line_layout_index
++            .same_generation(&other.line_layout_index)
++    }
++
++    /// The index `offset` entries past this one.
++    pub(crate) fn offset_by(&self, offset: &Self) -> Self {
++        Self {
++            scene_index: self.scene_index + offset.scene_index,
++            #[cfg(any(test, feature = "test-support"))]
++            debug_bounds_index: self.debug_bounds_index + offset.debug_bounds_index,
++            mouse_listeners_index: self.mouse_listeners_index + offset.mouse_listeners_index,
++            input_handlers_index: self.input_handlers_index + offset.input_handlers_index,
++            cursor_styles_index: self.cursor_styles_index + offset.cursor_styles_index,
++            accessed_element_states_index: self.accessed_element_states_index
++                + offset.accessed_element_states_index,
++            tab_handle_index: self.tab_handle_index + offset.tab_handle_index,
++            line_layout_index: self.line_layout_index.offset_by(&offset.line_layout_index),
++        }
++    }
++
++    fn at_or_before(&self, other: &Self) -> bool {
++        self.scene_index <= other.scene_index
++            && self.mouse_listeners_index <= other.mouse_listeners_index
++            && self.input_handlers_index <= other.input_handlers_index
++            && self.cursor_styles_index <= other.cursor_styles_index
++            && self.accessed_element_states_index <= other.accessed_element_states_index
++            && self.tab_handle_index <= other.tab_handle_index
++    }
++}
++
++/// The line layouts from `base` to `index`, none across a font change, which empties them.
++fn line_layouts_from(index: &LineLayoutIndex, base: &LineLayoutIndex) -> LineLayoutIndex {
++    if index.same_generation(base) {
++        index.offset_from(base)
++    } else {
++        LineLayoutIndex::default()
++    }
++}
++
++/// A cached view drawn inside another, with where its output sits in that view's, counted from the start of it.
++pub(crate) struct CachedChild {
++    pub(crate) view: AnyWeakView,
++    pub(crate) global_id: GlobalElementId,
++    pub(crate) prepaint: Range<PrepaintStateIndex>,
++    pub(crate) paint: Option<Range<PaintIndex>>,
++}
++
++/// Runs what an element draws inside the app state it sets for it, a palette or a theme in a global: `body` draws.
++pub type DrawScope = Rc<dyn Fn(&mut Window, &mut App, &mut dyn FnMut(&mut Window, &mut App))>;
++
++/// What a view was drawn under, to draw it again where it stands with nothing above it drawn.
++#[derive(Clone)]
++pub(crate) struct DrawContext {
++    draw_scopes: Vec<DrawScope>,
++    text_style_stack: Vec<TextStyleRefinement>,
++    rem_size: Pixels,
++    content_mask: ContentMask<Pixels>,
++    rounded_clip_stack: Vec<RoundedClip<ScaledPixels>>,
++    opacity: f32,
++    image_cache_stack: Vec<AnyImageCache>,
++}
++
+ impl Frame {
+     #[cfg(any(test, feature = "test-support"))]
+     pub(crate) fn record_debug_bounds(&mut self, selector: String, bounds: Bounds<Pixels>) {
+@@ -1240,6 +1428,7 @@ pub struct Window {
+     pub(crate) element_offset_stack: Vec<Point<Pixels>>,
+     pub(crate) element_opacity: f32,
+     pub(crate) content_mask_stack: Vec<ContentMask<Pixels>>,
++    pub(crate) rounded_clip_stack: Vec<RoundedClip<ScaledPixels>>,
+     pub(crate) requested_autoscroll: Option<Bounds<Pixels>>,
+     /// The [`TextInputConfiguration`] most recently forwarded to the platform
+     /// window, so that only actual changes are forwarded (reconfiguring a live
+@@ -1254,7 +1443,25 @@ pub struct Window {
+     pub(crate) tooltip_bounds: Option<TooltipBounds>,
+     pub(crate) next_frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
+     pub(crate) dirty_views: FxHashSet<EntityId>,
++    /// Each cached view with a view notified in place inside it, and its cached views on the way there.
++    pub(crate) in_place_routes: FxHashMap<EntityId, SmallVec<[EntityId; 2]>>,
++    /// Whether this frame draws only because views were notified in place.
++    pub(crate) in_place_frame: bool,
++    /// The entities the last frame read outside every cached view and deferred draw: content every frame draws
++    /// again, in place or whole, or none at all (a focus listener's).
++    uncached_reads: FxHashSet<EntityId>,
++    pub(crate) draw_scopes: Vec<DrawScope>,
++    #[cfg(any(test, feature = "test-support"))]
++    renders: FxHashMap<EntityId, usize>,
++    /// The frames drawn so far, by which a cached view knows whether its record of last frame's output is last frame's.
++    pub(crate) frame_index: u64,
++    /// The cached views met while a cached view draws, one list per view drawing.
++    pub(crate) cached_children: Vec<Vec<CachedChild>>,
++    pub(crate) cached_paints: Vec<Vec<(GlobalElementId, Range<PaintIndex>)>>,
++    /// What each view drawn again in place prepainted, none when only views inside it were, until its paint.
++    pub(crate) spliced_elements: FxHashMap<GlobalElementId, Option<AnyElement>>,
+     focus_listeners: SubscriberSet<(), AnyWindowFocusListener>,
++    drawn_listeners: SubscriberSet<(), AnyObserver>,
+     pub(crate) focus_lost_listeners: SubscriberSet<(), AnyObserver>,
+     focus_lost_path: SmallVec<[FocusId; 8]>,
+     default_prevented: bool,
+@@ -1263,6 +1470,7 @@ pub struct Window {
+     modifiers: Modifiers,
+     capslock: Capslock,
+     scale_factor: f32,
++    pub(crate) zoom: f32,
+     pub(crate) bounds_observers: SubscriberSet<(), AnyObserver>,
+     appearance: WindowAppearance,
+     pub(crate) appearance_observers: SubscriberSet<(), AnyObserver>,
+@@ -1505,6 +1713,108 @@ pub(crate) struct ElementStateBox {
+     pub(crate) type_name: &'static str,
+ }
+ 
++/// The zoom a window opens at.
++struct WindowZoom(f32);
++
++impl Global for WindowZoom {}
++
++impl App {
++    /// Zooms every window, and each opened after, by `zoom`; see [`Window::zoom`].
++    pub fn set_window_zoom(&mut self, zoom: f32) {
++        self.set_global(WindowZoom(zoom));
++        // Deferred, as a window being updated is out of reach until its update returns.
++        self.defer(|cx| {
++            let zoom = cx.window_zoom();
++            for handle in cx.windows() {
++                handle
++                    .update(cx, |_, window, cx| window.set_zoom(zoom, cx))
++                    .log_err();
++            }
++        });
++    }
++
++    /// The zoom [`Self::set_window_zoom`] last set, 1 before it is called.
++    pub fn window_zoom(&self) -> f32 {
++        self.try_global::<WindowZoom>().map_or(1., |zoom| zoom.0)
++    }
++}
++
++/// The platform's input with its positions taken into the window's zoomed pixels.
++fn unzoom_input(event: PlatformInput, zoom: f32) -> PlatformInput {
++    if zoom == 1. {
++        return event;
++    }
++    let at = |position: Point<Pixels>| position / zoom;
++    match event {
++        PlatformInput::MouseDown(mut e) => {
++            e.position = at(e.position);
++            PlatformInput::MouseDown(e)
++        }
++        PlatformInput::MouseUp(mut e) => {
++            e.position = at(e.position);
++            PlatformInput::MouseUp(e)
++        }
++        PlatformInput::MousePressure(mut e) => {
++            e.position = at(e.position);
++            PlatformInput::MousePressure(e)
++        }
++        PlatformInput::MouseMove(mut e) => {
++            e.position = at(e.position);
++            PlatformInput::MouseMove(e)
++        }
++        PlatformInput::MouseExited(mut e) => {
++            e.position = at(e.position);
++            PlatformInput::MouseExited(e)
++        }
++        PlatformInput::ScrollWheel(mut e) => {
++            e.position = at(e.position);
++            if let crate::ScrollDelta::Pixels(delta) = e.delta {
++                e.delta = crate::ScrollDelta::Pixels(at(delta));
++            }
++            PlatformInput::ScrollWheel(e)
++        }
++        PlatformInput::Pinch(mut e) => {
++            e.position = at(e.position);
++            PlatformInput::Pinch(e)
++        }
++        PlatformInput::LongPress(mut e) => {
++            e.start_position = at(e.start_position);
++            e.position = at(e.position);
++            PlatformInput::LongPress(e)
++        }
++        PlatformInput::TouchDrag(mut e) => {
++            e.start_position = at(e.start_position);
++            e.position = at(e.position);
++            PlatformInput::TouchDrag(e)
++        }
++        PlatformInput::Touch(mut e) => {
++            e.position = at(e.position);
++            e.predicted_position = e.predicted_position.map(at);
++            PlatformInput::Touch(e)
++        }
++        PlatformInput::FileDrop(FileDropEvent::Entered { position, paths }) => {
++            PlatformInput::FileDrop(FileDropEvent::Entered {
++                position: at(position),
++                paths,
++            })
++        }
++        PlatformInput::FileDrop(FileDropEvent::Pending { position }) => {
++            PlatformInput::FileDrop(FileDropEvent::Pending {
++                position: at(position),
++            })
++        }
++        PlatformInput::FileDrop(FileDropEvent::Submit { position }) => {
++            PlatformInput::FileDrop(FileDropEvent::Submit {
++                position: at(position),
++            })
++        }
++        PlatformInput::FileDrop(_)
++        | PlatformInput::KeyDown(_)
++        | PlatformInput::KeyUp(_)
++        | PlatformInput::ModifiersChanged(_) => event,
++    }
++}
++
+ fn default_bounds(display_id: Option<DisplayId>, cx: &mut App) -> WindowBounds {
+     // TODO, BUG: if you open a window with the currently active window
+     // on the stack, this will erroneously fallback to `None`
+@@ -1635,11 +1945,12 @@ impl Window {
+ 
+         let display_id = platform_window.display().map(|display| display.id());
+         let sprite_atlas = platform_window.sprite_atlas();
+-        let mouse_position = platform_window.mouse_position();
++        let zoom = cx.window_zoom();
++        let mouse_position = platform_window.mouse_position() / zoom;
+         let modifiers = platform_window.modifiers();
+         let capslock = platform_window.capslock();
+-        let content_size = platform_window.content_size();
+-        let scale_factor = platform_window.scale_factor();
++        let content_size = platform_window.content_size().map(|v| v / zoom);
++        let scale_factor = platform_window.scale_factor() * zoom;
+         let appearance = platform_window.appearance();
+         let text_system = Arc::new(WindowTextSystem::new(cx.text_system().clone()));
+         let invalidator = WindowInvalidator::new(handle.window_id());
+@@ -2042,7 +2353,10 @@ impl Window {
+             let mut cx = cx.to_async();
+             Box::new(move |event| {
+                 handle
+-                    .update(&mut cx, |_, window, cx| window.dispatch_event(event, cx))
++                    .update(&mut cx, |_, window, cx| {
++                        let event = unzoom_input(event, window.zoom);
++                        window.dispatch_event(event, cx)
++                    })
+                     .log_err()
+                     .unwrap_or(DispatchEventResult::default())
+             })
+@@ -2143,6 +2457,7 @@ impl Window {
+             rendered_entity_stack: Vec::new(),
+             element_offset_stack: Vec::new(),
+             content_mask_stack: Vec::new(),
++            rounded_clip_stack: Vec::new(),
+             element_opacity: 1.0,
+             requested_autoscroll: None,
+             last_text_input_configuration: None,
+@@ -2154,7 +2469,18 @@ impl Window {
+             next_tooltip_id: TooltipId::default(),
+             tooltip_bounds: None,
+             dirty_views: FxHashSet::default(),
++            in_place_routes: FxHashMap::default(),
++            in_place_frame: false,
++            uncached_reads: FxHashSet::default(),
++            draw_scopes: Vec::new(),
++            #[cfg(any(test, feature = "test-support"))]
++            renders: FxHashMap::default(),
++            frame_index: 0,
++            cached_children: Vec::new(),
++            cached_paints: Vec::new(),
++            spliced_elements: FxHashMap::default(),
+             focus_listeners: SubscriberSet::new(),
++            drawn_listeners: SubscriberSet::new(),
+             focus_lost_listeners: SubscriberSet::new(),
+             focus_lost_path: SmallVec::new(),
+             default_prevented: true,
+@@ -2163,6 +2489,7 @@ impl Window {
+             modifiers,
+             capslock,
+             scale_factor,
++            zoom,
+             bounds_observers: SubscriberSet::new(),
+             appearance,
+             appearance_observers: SubscriberSet::new(),
+@@ -2248,6 +2575,68 @@ impl ContentMask<Pixels> {
+     }
+ }
+ 
++/// A rounded rectangle that clips what is painted inside it, antialiased, on top of the content mask, which
++/// carries its bounds. Nested clips all apply.
++#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
++#[repr(C)]
++pub struct RoundedClip<P: Clone + Debug + Default + PartialEq> {
++    /// The bounds
++    pub bounds: Bounds<P>,
++    /// The radius of each corner
++    pub corner_radii: Corners<P>,
++    /// Where an alpha ramp starts and ends, top to bottom: whole above `fade_top`, gone below `fade_bottom`, like
++    /// CSS's `mask-image: linear-gradient(to bottom, black, transparent)` between them. Equal, the clip fades nothing.
++    pub fade_top: P,
++    /// Where the ramp reaches nothing.
++    pub fade_bottom: P,
++}
++
++impl<P: Clone + Debug + Default + PartialEq + PartialOrd> RoundedClip<P> {
++    /// Whether the clip fades what it clips.
++    pub fn fades(&self) -> bool {
++        self.fade_bottom > self.fade_top
++    }
++}
++
++impl RoundedClip<ScaledPixels> {
++    /// Whether the clip cuts any of `bounds` that its own bounds do not: where `bounds` reaches into a rounded
++    /// corner or past the clip's edges.
++    fn cuts(&self, bounds: &Bounds<ScaledPixels>) -> bool {
++        let clip = self.bounds;
++        let radii = self.corner_radii;
++        let corner = |x, y, radius: ScaledPixels| Bounds {
++            origin: point(x, y),
++            size: size(radius, radius),
++        };
++        bounds.intersect(&clip) != *bounds
++            || self.fades() && bounds.bottom() > self.fade_top
++            || [
++                corner(clip.left(), clip.top(), radii.top_left),
++                corner(clip.right() - radii.top_right, clip.top(), radii.top_right),
++                corner(
++                    clip.right() - radii.bottom_right,
++                    clip.bottom() - radii.bottom_right,
++                    radii.bottom_right,
++                ),
++                corner(clip.left(), clip.bottom() - radii.bottom_left, radii.bottom_left),
++            ]
++            .iter()
++            .any(|corner| corner.intersects(bounds))
++    }
++}
++
++impl RoundedClip<Pixels> {
++    /// Scale the clip's pixel units by the given scaling factor.
++    pub fn scale(&self, factor: f32) -> RoundedClip<ScaledPixels> {
++        RoundedClip {
++            bounds: self.bounds.scale(factor),
++            corner_radii: self.corner_radii.scale(factor),
++            fade_top: self.fade_top.scale(factor),
++            fade_bottom: self.fade_bottom.scale(factor),
++        }
++    }
++}
++
+ impl Window {
+     fn mark_view_dirty(&mut self, view_id: EntityId) {
+         // Mark ancestor views as dirty. If already in the `dirty_views` set, then all its ancestors
+@@ -2490,7 +2879,7 @@ impl Window {
+     /// surface be moved out of others' exclusive zones, and -1 ignores reserved
+     /// space and may extend under other surfaces. (Wayland layer-shell windows only)
+     pub fn set_exclusive_zone(&self, zone: Pixels) {
+-        self.platform_window.set_exclusive_zone(zone);
++        self.platform_window.set_exclusive_zone(zone * self.zoom);
+     }
+ 
+     /// Set which anchored edge a layer-shell surface's exclusive zone applies to.
+@@ -2516,7 +2905,13 @@ impl Window {
+     /// - `Some(&[])` is an empty region, so the window receives no pointer or touch input.
+     /// - `None` resets the region to the default, so the whole window receives input again.
+     pub fn set_input_region(&self, region: Option<&[Bounds<Pixels>]>) {
+-        self.platform_window.set_input_region(region);
++        let region = region.map(|rects| {
++            rects
++                .iter()
++                .map(|r| r.map(|v| v * self.zoom))
++                .collect::<Vec<_>>()
++        });
++        self.platform_window.set_input_region(region.as_deref());
+     }
+ 
+     /// Return the `WindowBounds` to indicate that how a window should be opened
+@@ -2732,6 +3127,13 @@ impl Window {
+         self.on_next_frame(move |_, cx| cx.notify(entity));
+     }
+ 
++    /// Like [`Window::request_animation_frame`], but the current view draws again in place, as
++    /// [`App::notify_in_place`] does: for an animation, whose steps change nothing above the view.
++    pub fn request_animation_frame_in_place(&self) {
++        let entity = self.current_view();
++        self.on_next_frame(move |_, cx| cx.notify_in_place(entity));
++    }
++
+     /// Runs all callbacks scheduled via [`Self::on_next_frame`], returning how many ran.
+     ///
+     /// Tests have no platform frame loop, so this simulates the delivery of the
+@@ -2789,9 +3191,10 @@ impl Window {
+     /// the platform window, then notifies observers. Normally called automatically
+     /// by the platform's resize callback, but exposed publicly for test infrastructure.
+     pub fn bounds_changed(&mut self, cx: &mut App) {
+-        self.scale_factor = self.platform_window.scale_factor();
+-        self.viewport_size = self.platform_window.content_size();
+-        self.mouse_position = self.platform_window.mouse_position();
++        let zoom = self.zoom;
++        self.scale_factor = self.platform_window.scale_factor() * zoom;
++        self.viewport_size = self.platform_window.content_size().map(|v| v / zoom);
++        self.mouse_position = self.platform_window.mouse_position() / zoom;
+ 
+         self.refresh();
+ 
+@@ -2860,8 +3263,10 @@ impl Window {
+     }
+ 
+     /// Returns the bounds of the current window in the global coordinate space, which could span across multiple displays.
++    /// The size is in the window's own pixels, which [`Self::zoom`] makes larger than the screen's.
+     pub fn bounds(&self) -> Bounds<Pixels> {
+-        self.platform_window.bounds()
++        let bounds = self.platform_window.bounds();
++        Bounds::new(bounds.origin, bounds.size.map(|v| v / self.zoom))
+     }
+ 
+     /// Renders the current frame's scene to a texture and returns the pixel data as an RGBA image.
+@@ -2882,6 +3287,24 @@ impl Window {
+         self.rendered_frame.scene.quads.clone()
+     }
+ 
++    /// Returns the rounded clips in the most recently rendered frame's scene, by their ids; id 0 is no clip.
++    #[cfg(any(test, feature = "test-support"))]
++    pub fn painted_rounded_clips(&self) -> Vec<crate::SceneRoundedClip> {
++        self.rendered_frame.scene.rounded_clips.clone()
++    }
++
++    /// Returns the backdrop blurs in the most recently rendered frame's scene.
++    #[cfg(any(test, feature = "test-support"))]
++    pub fn painted_backdrop_blurs(&self) -> Vec<BackdropBlur> {
++        self.rendered_frame.scene.backdrop_blurs.clone()
++    }
++
++    /// Returns the glyphs and icons in the most recently rendered frame's scene, each in the color it is drawn in.
++    #[cfg(any(test, feature = "test-support"))]
++    pub fn painted_monochrome_sprites(&self) -> Vec<MonochromeSprite> {
++        self.rendered_frame.scene.monochrome_sprites.clone()
++    }
++
+     /// Returns the underlines in the most recently rendered frame's scene.
+     #[cfg(any(test, feature = "test-support"))]
+     pub fn painted_underlines(&self) -> Vec<Underline> {
+@@ -2935,7 +3358,7 @@ impl Window {
+     /// During drawing this is a consistent frame snapshot. Outside drawing it
+     /// reflects the latest platform sample, not a synchronous geometry query.
+     pub fn visual_viewport_bounds(&self) -> Bounds<Pixels> {
+-        self.platform_window.visual_viewport_bounds()
++        self.platform_window.visual_viewport_bounds().map(|v| v / self.zoom)
+     }
+ 
+     /// Returns a conservative rectangle avoiding platform-known obscured content.
+@@ -2943,7 +3366,7 @@ impl Window {
+     /// Intersects the visual viewport with the full layout area inset by system
+     /// safe areas and keyboard occlusion. Unknown overlays cannot be excluded.
+     pub fn fully_visible_bounds(&self) -> Bounds<Pixels> {
+-        let insets = self.platform_window.insets().effective();
++        let insets = self.platform_window.insets().effective().map(|v| *v / self.zoom);
+         let viewport = self.viewport_size();
+         let left = insets.left.max(Pixels::ZERO).min(viewport.width);
+         let top = insets.top.max(Pixels::ZERO).min(viewport.height);
+@@ -2996,7 +3419,7 @@ impl Window {
+ 
+     /// Opens the native title bar context menu, useful when implementing client side decorations (Wayland and X11)
+     pub fn show_window_menu(&self, position: Point<Pixels>) {
+-        self.platform_window.show_window_menu(position)
++        self.platform_window.show_window_menu(position * self.zoom)
+     }
+ 
+     /// Handle window movement for Linux and macOS.
+@@ -3010,7 +3433,7 @@ impl Window {
+     /// When using client side decorations, set this to the width of the invisible decorations (Wayland and X11)
+     pub fn set_client_inset(&mut self, inset: Pixels) {
+         self.client_inset = Some(inset);
+-        self.platform_window.set_client_inset(inset);
++        self.platform_window.set_client_inset(inset * self.zoom);
+     }
+ 
+     /// Returns the client_inset value by [`Self::set_client_inset`].
+@@ -3085,6 +3508,21 @@ impl Window {
+         self.platform_window.show_character_palette();
+     }
+ 
++    /// How much larger than the screen's pixels this window draws its own, as a browser's page
++    /// zoom does: the scale factor grows by it and the viewport, the mouse and every position
++    /// read from the platform shrink by it.
++    pub fn zoom(&self) -> f32 {
++        self.zoom
++    }
++
++    /// Zooms this window; [`App::set_window_zoom`] zooms every window.
++    pub fn set_zoom(&mut self, zoom: f32, cx: &mut App) {
++        if zoom != self.zoom {
++            self.zoom = zoom;
++            self.bounds_changed(cx);
++        }
++    }
++
+     /// The scale factor of the display associated with the window. For example, it could
+     /// return 2.0 for a "retina" display, indicating that each logical pixel should actually
+     /// be rendered as two pixels on screen.
+@@ -3174,13 +3612,6 @@ impl Window {
+         px(round_to_device_pixel(value.0, self.scale_factor()) / self.scale_factor())
+     }
+ 
+-    /// f64 variant of [`Self::pixel_snap`].
+-    #[inline]
+-    pub fn pixel_snap_f64(&self, value: f64) -> f64 {
+-        let scale_factor = f64::from(self.scale_factor());
+-        round_half_toward_zero_f64(value * scale_factor) / scale_factor
+-    }
+-
+     /// Snaps a bounds' origin and size to the nearest device pixel.
+     #[inline]
+     pub fn pixel_snap_bounds(&self, bounds: Bounds<Pixels>) -> Bounds<Pixels> {
+@@ -3224,7 +3655,7 @@ impl Window {
+         self.invalidator.debug_assert_paint();
+         let underline = self.underline(origin, width, style);
+         if exclusions.is_empty() {
+-            self.next_frame.scene.insert_primitive(underline);
++            self.insert_primitive(underline);
+             return;
+         }
+ 
+@@ -3242,13 +3673,13 @@ impl Window {
+             })
+             .collect::<SmallVec<[_; 4]>>();
+         if exclusions.is_empty() {
+-            self.next_frame.scene.insert_primitive(underline);
++            self.insert_primitive(underline);
+             return;
+         }
+         exclusions.sort_unstable_by_key(|span| span.start);
+ 
+         let mut paint_span = |start, end| {
+-            self.next_frame.scene.insert_primitive(Underline {
++            self.insert_primitive(Underline {
+                 content_mask: ContentMask {
+                     bounds: Bounds::from_corners(
+                         point(start, bounds.top()),
+@@ -3273,9 +3704,9 @@ impl Window {
+     fn underline(&self, origin: Point<Pixels>, width: Pixels, style: &UnderlineStyle) -> Underline {
+         Underline {
+             order: 0,
+-            pad: 0,
+             bounds: self.underline_bounds(origin, width, style),
+             content_mask: self.snapped_content_mask(),
++            rounded_clip: 0,
+             color: style
+                 .color
+                 .unwrap_or_default()
+@@ -3323,6 +3754,44 @@ impl Window {
+         )
+     }
+ 
++    /// Inserts a primitive into the next frame's scene under the rounded clips that cut it, outermost first, so
++    /// a primitive clear of every rounded corner costs the renderer nothing extra.
++    fn insert_primitive(&mut self, primitive: impl Into<Primitive>) {
++        let mut primitive = primitive.into();
++        if primitive.rounded_clip_mut().is_some() {
++            let rounded_clip = self.rounded_clip_for(&primitive);
++            if let Some(id) = primitive.rounded_clip_mut() {
++                *id = rounded_clip;
++            }
++        }
++        self.next_frame.scene.insert_primitive(primitive);
++    }
++
++    fn rounded_clip_for(&mut self, primitive: &Primitive) -> RoundedClipId {
++        let mut rounded_clip = 0;
++        if !self.rounded_clip_stack.is_empty() {
++            let bounds = primitive
++                .painted_bounds()
++                .intersect(&primitive.content_mask().bounds);
++            // A transformed sprite can paint outside its untransformed bounds.
++            let transformed = match primitive {
++                Primitive::MonochromeSprite(sprite) => {
++                    sprite.transformation != TransformationMatrix::unit()
++                }
++                Primitive::SubpixelSprite(sprite) => {
++                    sprite.transformation != TransformationMatrix::unit()
++                }
++                _ => false,
++            };
++            for clip in &self.rounded_clip_stack {
++                if transformed || clip.cuts(&bounds) {
++                    rounded_clip = self.next_frame.scene.push_rounded_clip(*clip, rounded_clip);
++                }
++            }
++        }
++        rounded_clip
++    }
++
+     #[inline]
+     fn snapped_content_mask(&self) -> ContentMask<ScaledPixels> {
+         ContentMask {
+@@ -3421,6 +3890,7 @@ impl Window {
+     /// the contents of the new [`Scene`], use [`Self::present`].
+     #[profiling::function]
+     pub fn draw(&mut self, cx: &mut App) -> ArenaClearNeeded {
++        let draw_began = crate::frame_timing::recording().then(std::time::Instant::now);
+         // Drain every draw in profiler builds so a previous frame's
+         // first-invalidation timestamp can't be attributed to this one.
+         #[cfg(feature = "profiler")]
+@@ -3458,6 +3928,7 @@ impl Window {
+                 self.rendered_frame.input_handlers.push(Some(input_handler));
+             }
+         }
++        let roots_began = crate::frame_timing::recording().then(std::time::Instant::now);
+         if !cx.mode.skip_drawing() {
+             self.draw_roots(cx);
+             #[cfg(feature = "profiler")]
+@@ -3471,7 +3942,10 @@ impl Window {
+                 );
+             }
+         }
++        let roots_ended = roots_began.map(|_| std::time::Instant::now());
+         self.dirty_views.clear();
++        self.in_place_routes.clear();
++        self.spliced_elements.clear();
+         self.next_frame.window_active = self.active.get();
+ 
+         // Register requested input handler with the platform window.
+@@ -3562,6 +4036,15 @@ impl Window {
+             self.refresh();
+         }
+         self.needs_present.set(true);
++        if let (Some(began), Some(roots_began), Some(roots_ended)) = (draw_began, roots_began, roots_ended) {
++            let ms = |from: std::time::Instant, to: std::time::Instant| to.duration_since(from).as_secs_f64() * 1000.;
++            crate::frame_timing::drew(crate::frame_timing::DrawSplit {
++                before_ms: ms(began, roots_began),
++                roots_ms: ms(roots_began, roots_ended),
++                after_ms: ms(roots_ended, std::time::Instant::now()),
++            });
++        }
++        self.drawn_listeners.clone().retain(&(), |listener| listener(self, cx));
+ 
+         #[cfg(feature = "profiler")]
+         {
+@@ -3579,8 +4062,13 @@ impl Window {
+     }
+ 
+     fn record_entities_accessed(&mut self, cx: &mut App) {
+-        let mut entities_ref = cx.entities.accessed_entities.get_mut();
+-        let mut entities = mem::take(entities_ref.deref_mut());
++        let uncached = mem::take(cx.entities.accessed_entities.get_mut());
++        let mut entities = mem::take(&mut cx.entities.accessed_below);
++        entities.extend(uncached.iter().copied());
++        for deferred_draw in &self.rendered_frame.deferred_draws {
++            entities.extend(deferred_draw.heard.iter().copied());
++        }
++        self.uncached_reads = uncached;
+         let handle = self.handle;
+         cx.record_entities_accessed(
+             handle,
+@@ -3594,10 +4082,352 @@ impl Window {
+ 
+     fn invalidate_entities(&mut self) {
+         let mut views = self.invalidator.take_views();
++        let in_place = self.invalidator.take_in_place_views();
++        // An entity that is no view draws again, where they stand, every cached view whose last draw read it and the
++        // owner of every deferred draw that read it. Content outside them draws again on every frame, so one only it
++        // read needs no whole frame; one only a record kept from before reads draws that record's view again; one
++        // nothing recorded draws the frame whole.
++        let mut readers = SmallVec::<[EntityId; 4]>::new();
++        let mut outside = false;
++        views.retain(|entity| {
++            if self.rendered_frame.dispatch_tree.view_path_reversed(*entity).next().is_some() {
++                return true;
++            }
++            let mut read = crate::view::readers_of(self, *entity);
++            read.extend(
++                self.rendered_frame
++                    .deferred_draws
++                    .iter()
++                    .filter(|deferred_draw| deferred_draw.reads.contains(entity))
++                    .map(|deferred_draw| deferred_draw.current_view),
++            );
++            if read.is_empty() && self.uncached_reads.contains(entity) {
++                outside = true;
++                return false;
++            }
++            if read.is_empty() {
++                read = crate::view::holders_of(self, *entity);
++            }
++            let whole = read.is_empty();
++            readers.extend(read);
++            whole
++        });
++        // A screen reader's tree is built only on a frame that draws whole, so with one reading, a frame for content
++        // outside every cached view draws whole as it did.
++        let spliced = !(in_place.is_empty() && readers.is_empty());
++        self.in_place_frame =
++            views.is_empty() && (spliced || outside && !self.a11y.wanted()) && !self.refreshing;
++        self.frame_index += 1;
+         for entity in views.drain() {
+             self.mark_view_dirty(entity);
+         }
+         self.invalidator.replace_views(views);
++        for entity in in_place.into_iter().chain(readers) {
++            self.mark_view_dirty_in_place(entity);
++        }
++    }
++
++    /// Marks the nearest cached view at or above `view_id` to draw again, where it stands: its box is its cached
++    /// style's, so nothing above it lays out again, and each cached view above it keeps its output around it.
++    fn mark_view_dirty_in_place(&mut self, view_id: EntityId) {
++        let cached: SmallVec<[EntityId; 8]> = self
++            .rendered_frame
++            .dispatch_tree
++            .cached_view_path(view_id)
++            .collect();
++        let Some((&nearest, above)) = cached.split_first() else {
++            self.mark_view_dirty(view_id);
++            return;
++        };
++        if !self.dirty_views.insert(nearest) {
++            return;
++        }
++        let mut below = nearest;
++        for &view in above {
++            let route = self.in_place_routes.entry(view).or_default();
++            if !route.contains(&below) {
++                route.push(below);
++            }
++            below = view;
++        }
++    }
++
++    pub(crate) fn draw_context(&self) -> DrawContext {
++        DrawContext {
++            draw_scopes: self.draw_scopes.clone(),
++            text_style_stack: self.text_style_stack.clone(),
++            rem_size: self.rem_size(),
++            content_mask: self.content_mask(),
++            rounded_clip_stack: self.rounded_clip_stack.clone(),
++            opacity: self.element_opacity,
++            image_cache_stack: self.image_cache_stack.clone(),
++        }
++    }
++
++    /// Runs `f` inside `scope`; a view drawn in `f` and drawn again in place later, with nothing above it drawn,
++    /// runs inside it again.
++    pub fn with_draw_scope<R>(
++        &mut self,
++        scope: &DrawScope,
++        cx: &mut App,
++        f: impl FnOnce(&mut Self, &mut App) -> R,
++    ) -> R {
++        self.draw_scopes.push(scope.clone());
++        let out = self.within_scopes(std::slice::from_ref(scope), cx, f);
++        self.draw_scopes.pop();
++        out
++    }
++
++    fn within_scopes<R>(
++        &mut self,
++        scopes: &[DrawScope],
++        cx: &mut App,
++        f: impl FnOnce(&mut Self, &mut App) -> R,
++    ) -> R {
++        let Some((outer, inner)) = scopes.split_first() else {
++            return f(self, cx);
++        };
++        let (mut f, mut out) = (Some(f), None);
++        outer(self, cx, &mut |window, cx| {
++            if let Some(f) = f.take() {
++                out = Some(window.within_scopes(inner, cx, f));
++            }
++        });
++        out.expect("a draw scope runs its body")
++    }
++
++    /// Runs `f` as the element at `global_id` ran under `context`, with nothing above it on the stacks.
++    pub(crate) fn with_draw_context<R>(
++        &mut self,
++        global_id: &GlobalElementId,
++        context: &DrawContext,
++        cx: &mut App,
++        f: impl FnOnce(&mut Self, &mut App) -> R,
++    ) -> R {
++        let mut element_id_stack = ElementIdStack::default();
++        for id in global_id.iter() {
++            element_id_stack.push(id.clone());
++        }
++        let element_id_stack = mem::replace(&mut self.element_id_stack, element_id_stack);
++        let text_style_stack =
++            mem::replace(&mut self.text_style_stack, context.text_style_stack.clone());
++        let rem_size_override_stack = mem::replace(
++            &mut self.rem_size_override_stack,
++            SmallVec::from_slice(&[context.rem_size]),
++        );
++        let content_mask_stack = mem::replace(&mut self.content_mask_stack, vec![context.content_mask]);
++        let rounded_clip_stack =
++            mem::replace(&mut self.rounded_clip_stack, context.rounded_clip_stack.clone());
++        let opacity = mem::replace(&mut self.element_opacity, context.opacity);
++        let image_cache_stack =
++            mem::replace(&mut self.image_cache_stack, context.image_cache_stack.clone());
++        let element_offset_stack = mem::take(&mut self.element_offset_stack);
++        // A scope this one's parent drawn in place already entered stays entered: entering it again would undo it.
++        let entered = self
++            .draw_scopes
++            .iter()
++            .zip(&context.draw_scopes)
++            .take_while(|(active, saved)| Rc::ptr_eq(active, saved))
++            .count();
++        let draw_scopes = mem::replace(&mut self.draw_scopes, context.draw_scopes.clone());
++        let result = self.within_scopes(&context.draw_scopes[entered..], cx, f);
++        self.draw_scopes = draw_scopes;
++        self.element_id_stack = element_id_stack;
++        self.text_style_stack = text_style_stack;
++        self.rem_size_override_stack = rem_size_override_stack;
++        self.content_mask_stack = content_mask_stack;
++        self.rounded_clip_stack = rounded_clip_stack;
++        self.element_opacity = opacity;
++        self.image_cache_stack = image_cache_stack;
++        self.element_offset_stack = element_offset_stack;
++        result
++    }
++
++    /// Which of a cached view's `children` to draw again in place for `route`, or none when one is not among
++    /// them (drawn deferred, or not cached) or its output cannot be placed, and the view must draw whole.
++    pub(crate) fn splice_plan(
++        &self,
++        route: &[EntityId],
++        children: &[CachedChild],
++        old: &Range<PrepaintStateIndex>,
++        state_type: TypeId,
++    ) -> Option<SmallVec<[usize; 2]>> {
++        if !old
++            .start
++            .line_layout_index
++            .same_generation(&self.text_system.layout_index())
++        {
++            return None;
++        }
++        let mut plan = SmallVec::<[usize; 2]>::new();
++        for wanted in route {
++            let ix = children
++                .iter()
++                .position(|child| child.view.entity_id() == *wanted)?;
++            let child = &children[ix];
++            child.paint.as_ref()?;
++            child.view.upgrade()?;
++            plan.push(ix);
++        }
++        plan.sort_unstable();
++        plan.dedup();
++        let mut cursor = PrepaintStateIndex::default();
++        for child in children {
++            if !cursor.at_or_before(&child.prepaint.start)
++                || !child.prepaint.start.at_or_before(&child.prepaint.end)
++                || child.prepaint.start.dispatch_tree_index == 0
++                || !old.start.offset_by(&child.prepaint.end).at_or_before(&old.end)
++            {
++                return None;
++            }
++            cursor = child.prepaint.end.clone();
++        }
++        // Each child's record must still point at its own output last frame: its view's node just before it, and
++        // its state's key just before it or first in it.
++        for &ix in &plan {
++            let child = &children[ix];
++            let start = old.start.offset_by(&child.prepaint.start);
++            if self.rendered_frame.dispatch_tree.view_at(start.dispatch_tree_index - 1) != Some(child.view.entity_id()) {
++                return None;
++            }
++            let keys = &self.rendered_frame.accessed_element_states;
++            let at = start.accessed_element_states_index;
++            let own = |ix: usize| keys.get(ix).is_some_and(|(id, ty)| *ty == state_type && *id == child.global_id);
++            if !(at > 0 && own(at - 1) || own(at)) {
++                return None;
++            }
++        }
++        // A parent that paints its children in another order than it prepainted them cannot be painted in parts.
++        let mut painted = PaintIndex::default();
++        for paint in children.iter().filter_map(|child| child.paint.as_ref()) {
++            if !painted.at_or_before(&paint.start) || !paint.start.at_or_before(&paint.end) {
++                return None;
++            }
++            painted = paint.end.clone();
++        }
++        Some(plan)
++    }
++
++    /// Reuses a cached view's prepaint from last frame at `old`, drawing the planned children again in place with
++    /// `prepaint_child`, given each one's own output last frame.
++    pub(crate) fn splice_prepaint(
++        &mut self,
++        children: &mut [CachedChild],
++        old: &Range<PrepaintStateIndex>,
++        plan: &[usize],
++        mut prepaint_child: impl FnMut(&CachedChild, Range<PrepaintStateIndex>, &mut Self),
++    ) -> Range<PrepaintStateIndex> {
++        let start = self.prepaint_index();
++        let mut reuse = SplicedReuse::default();
++        let mut cursor = old.start.clone();
++        let (mut part_old, mut part_new) = (old.start.clone(), start.clone());
++        for (ix, child) in children.iter_mut().enumerate() {
++            let child_old =
++                old.start.offset_by(&child.prepaint.start)..old.start.offset_by(&child.prepaint.end);
++            if !plan.contains(&ix) {
++                child.prepaint = child_old.start.offset_from(&part_old).offset_by(&part_new.offset_from(&start))
++                    ..child_old.end.offset_from(&part_old).offset_by(&part_new.offset_from(&start));
++                continue;
++            }
++            self.reuse_prepaint_part(cursor..child_old.start.clone(), &mut reuse);
++            // The view's own node is the last one before its output, pushed for it by its parent.
++            self.next_frame
++                .dispatch_tree
++                .reuse_open_at(child_old.start.dispatch_tree_index - 1, &mut reuse);
++            let child_start = self.prepaint_index();
++            prepaint_child(child, child_old.clone(), self);
++            let child_end = self.prepaint_index();
++            child.prepaint = child_start.offset_from(&start)..child_end.offset_from(&start);
++            cursor = child_old.end;
++            part_old = cursor.clone();
++            part_new = child_end;
++        }
++        self.reuse_prepaint_part(cursor..old.end.clone(), &mut reuse);
++        self.next_frame.dispatch_tree.reuse_close(&mut reuse);
++        if reuse.contains_focus() {
++            self.next_frame.focus = self.focus;
++        }
++        start..self.prepaint_index()
++    }
++
++    /// Reuses a cached view's paint from last frame at `old`, painting again in place each child prepainted again.
++    pub(crate) fn splice_paint(
++        &mut self,
++        children: &mut [CachedChild],
++        old: &Range<PaintIndex>,
++        mut paint_child: impl FnMut(&CachedChild, Range<PaintIndex>, &mut Self),
++    ) {
++        let start = self.paint_index();
++        let mut cursor = old.start.clone();
++        let (mut part_old, mut part_new) = (old.start.clone(), start.clone());
++        for child in children.iter_mut() {
++            let Some(paint) = &child.paint else { continue };
++            let child_old = old.start.offset_by(&paint.start)..old.start.offset_by(&paint.end);
++            if !self.spliced_elements.contains_key(&child.global_id) {
++                child.paint = Some(
++                    child_old.start.offset_from(&part_old).offset_by(&part_new.offset_from(&start))
++                        ..child_old.end.offset_from(&part_old).offset_by(&part_new.offset_from(&start)),
++                );
++                continue;
++            }
++            self.reuse_paint(cursor..child_old.start.clone());
++            let child_start = self.paint_index();
++            paint_child(child, child_old.clone(), self);
++            let child_end = self.paint_index();
++            child.paint = Some(child_start.offset_from(&start)..child_end.offset_from(&start));
++            cursor = child_old.end;
++            part_old = cursor.clone();
++            part_new = child_end;
++        }
++        self.reuse_paint(cursor..old.end.clone());
++    }
++
++    fn reuse_prepaint_part(&mut self, range: Range<PrepaintStateIndex>, reuse: &mut SplicedReuse) {
++        self.next_frame.hitboxes.extend(
++            self.rendered_frame.hitboxes[range.start.hitboxes_index..range.end.hitboxes_index]
++                .iter()
++                .cloned(),
++        );
++        self.next_frame.tooltip_requests.extend(
++            self.rendered_frame.tooltip_requests
++                [range.start.tooltips_index..range.end.tooltips_index]
++                .iter_mut()
++                .map(|request| request.take()),
++        );
++        self.next_frame.accessed_element_states.extend(
++            self.rendered_frame.accessed_element_states[range.start.accessed_element_states_index
++                ..range.end.accessed_element_states_index]
++                .iter()
++                .map(|(id, type_id)| (id.clone(), *type_id)),
++        );
++        self.text_system
++            .reuse_layouts(range.start.line_layout_index..range.end.line_layout_index);
++        self.next_frame.dispatch_tree.reuse_part(
++            range.start.dispatch_tree_index..range.end.dispatch_tree_index,
++            &mut self.rendered_frame.dispatch_tree,
++            self.focus,
++            reuse,
++        );
++        self.next_frame.deferred_draws.extend(
++            self.rendered_frame.deferred_draws
++                [range.start.deferred_draws_index..range.end.deferred_draws_index]
++                .iter()
++                .map(|deferred_draw| DeferredDraw {
++                    current_view: deferred_draw.current_view,
++                    parent_node: reuse.refresh_node_id(deferred_draw.parent_node),
++                    element_id_stack: deferred_draw.element_id_stack.clone(),
++                    text_style_stack: deferred_draw.text_style_stack.clone(),
++                    content_mask: deferred_draw.content_mask,
++                    rem_size: deferred_draw.rem_size,
++                    priority: deferred_draw.priority,
++                    element: None,
++                    absolute_offset: deferred_draw.absolute_offset,
++                    prepaint_range: deferred_draw.prepaint_range.clone(),
++                    paint_range: deferred_draw.paint_range.clone(),
++                    reads: deferred_draw.reads.clone(),
++                    heard: deferred_draw.heard.clone(),
++                }),
++        );
+     }
+ 
+     #[profiling::function]
+@@ -3671,7 +4501,10 @@ impl Window {
+         self.tooltip_bounds.take();
+ 
+         self.a11y.sync_active_flag();
+-        if self.a11y.is_active() {
++        if self.in_place_frame {
++            // Output reused in place pushes no nodes, so the tree the last whole frame sent stands.
++            self.a11y.hold_frame();
++        } else if self.a11y.is_active() {
+             self.a11y.begin_frame();
+         }
+ 
+@@ -3820,7 +4653,9 @@ impl Window {
+                 size: self.viewport_size(),
+             };
+ 
+-            if tooltip_bounds.right() > window_bounds.right() {
++            if let Some((owner, side)) = tooltip_request.tooltip.owner {
++                tooltip_bounds.origin = tooltip_at(owner, side, tooltip_size, window_bounds.size);
++            } else if tooltip_bounds.right() > window_bounds.right() {
+                 let new_x = mouse_position.x - tooltip_bounds.size.width - px(1.);
+                 if new_x >= Pixels::ZERO {
+                     tooltip_bounds.origin.x = new_x;
+@@ -3832,7 +4667,9 @@ impl Window {
+                 }
+             }
+ 
+-            if tooltip_bounds.bottom() > window_bounds.bottom() {
++            if tooltip_request.tooltip.owner.is_none()
++                && tooltip_bounds.bottom() > window_bounds.bottom()
++            {
+                 let new_y = mouse_position.y - tooltip_bounds.size.height - px(1.);
+                 if new_y >= Pixels::ZERO {
+                     tooltip_bounds.origin.y = new_y;
+@@ -3914,14 +4751,19 @@ impl Window {
+ 
+                 let prepaint_start = self.prepaint_index();
+                 if let Some(mut element) = element {
+-                    self.with_rendered_view(current_view, |window| {
+-                        window.with_rem_size(Some(rem_size), |window| {
+-                            window.with_absolute_element_offset(absolute_offset, |window| {
+-                                element.prepaint(window, cx);
++                    let ((), reads, heard) = cx.detect_accessed_entities(|cx| {
++                        self.with_rendered_view(current_view, |window| {
++                            window.with_rem_size(Some(rem_size), |window| {
++                                window.with_absolute_element_offset(absolute_offset, |window| {
++                                    element.prepaint(window, cx);
++                                });
+                             });
+-                        });
++                        })
+                     });
+-                    self.next_frame.deferred_draws[deferred_draw_ix].element = Some(element);
++                    let deferred_draw = &mut self.next_frame.deferred_draws[deferred_draw_ix];
++                    deferred_draw.element = Some(element);
++                    deferred_draw.reads = reads;
++                    deferred_draw.heard = heard;
+                 } else {
+                     self.reuse_prepaint(prepaint_range);
+                 }
+@@ -3958,13 +4800,18 @@ impl Window {
+             let paint_start = self.paint_index();
+             let content_mask = deferred_draw.content_mask;
+             if let Some(element) = deferred_draw.element.as_mut() {
+-                self.with_rendered_view(deferred_draw.current_view, |window| {
+-                    window.with_content_mask(content_mask, |window| {
+-                        window.with_rem_size(Some(deferred_draw.rem_size), |window| {
+-                            element.paint(window, cx);
+-                        });
++                let rem_size = deferred_draw.rem_size;
++                let ((), reads, heard) = cx.detect_accessed_entities(|cx| {
++                    self.with_rendered_view(deferred_draw.current_view, |window| {
++                        window.with_content_mask(content_mask, |window| {
++                            window.with_rem_size(Some(rem_size), |window| {
++                                element.paint(window, cx);
++                            });
++                        })
+                     })
+-                })
++                });
++                deferred_draw.reads.extend(reads);
++                deferred_draw.heard.extend(heard);
+             } else {
+                 self.reuse_paint(deferred_draw.paint_range.clone());
+             }
+@@ -4040,6 +4887,8 @@ impl Window {
+                     absolute_offset: deferred_draw.absolute_offset,
+                     prepaint_range: deferred_draw.prepaint_range.clone(),
+                     paint_range: deferred_draw.paint_range.clone(),
++                    reads: deferred_draw.reads.clone(),
++                    heard: deferred_draw.heard.clone(),
+                 }),
+         );
+     }
+@@ -4177,6 +5026,34 @@ impl Window {
+         }
+     }
+ 
++    /// Invoke the given function with the given rounded clip inside the current ones, and its bounds intersected
++    /// with the current content mask. This method should only be called during element painting.
++    pub fn with_rounded_clip<R>(
++        &mut self,
++        clip: Option<RoundedClip<Pixels>>,
++        f: impl FnOnce(&mut Self) -> R,
++    ) -> R {
++        self.invalidator.debug_assert_paint();
++        let Some(clip) = clip else {
++            return f(self);
++        };
++        let scale_factor = self.scale_factor();
++        self.rounded_clip_stack.push(RoundedClip {
++            bounds: self.snap_bounds(clip.bounds),
++            corner_radii: clip.corner_radii.scale(scale_factor),
++            fade_top: clip.fade_top.scale(scale_factor),
++            fade_bottom: clip.fade_bottom.scale(scale_factor),
++        });
++        let result = self.with_content_mask(
++            Some(ContentMask {
++                bounds: clip.bounds,
++            }),
++            f,
++        );
++        self.rounded_clip_stack.pop();
++        result
++    }
++
+     /// Updates the global element offset relative to the current offset. This is used to implement
+     /// scrolling. This method should only be called during the prepaint phase of element drawing.
+     pub fn with_element_offset<R>(
+@@ -4235,8 +5112,12 @@ impl Window {
+     pub fn transact<T, U>(&mut self, f: impl FnOnce(&mut Self) -> Result<T, U>) -> Result<T, U> {
+         self.invalidator.debug_assert_prepaint();
+         let index = self.prepaint_index();
++        let children = self.cached_children.last().map(Vec::len);
+         let result = f(self);
+         if result.is_err() {
++            if let (Some(len), Some(siblings)) = (children, self.cached_children.last_mut()) {
++                siblings.truncate(len);
++            }
+             self.next_frame.hitboxes.truncate(index.hitboxes_index);
+             self.next_frame
+                 .tooltip_requests
+@@ -4447,6 +5328,65 @@ impl Window {
+         }
+     }
+ 
++    /// Like `with_element_state`, recording no access: for a cached view drawn again in place, whose key its parent's
++    /// reused output already carries just before its own.
++    pub(crate) fn with_element_state_in_place<S: 'static, R>(
++        &mut self,
++        global_id: &GlobalElementId,
++        f: impl FnOnce(Option<S>, &mut Self) -> (R, S),
++    ) -> R {
++        let key = (global_id.clone(), TypeId::of::<S>());
++        let state = self
++            .next_frame
++            .element_states
++            .remove(&key)
++            .or_else(|| self.rendered_frame.element_states.remove(&key));
++        let state = state.and_then(|state| {
++            #[cfg(debug_assertions)]
++            let type_name = state.type_name;
++            let inner = state.inner.downcast::<Option<S>>().ok()?;
++            Some((
++                *inner,
++                #[cfg(debug_assertions)]
++                type_name,
++            ))
++        });
++        #[cfg(debug_assertions)]
++        let (state, type_name) = match state {
++            Some((state, type_name)) => (state, type_name),
++            None => (None, std::any::type_name::<S>()),
++        };
++        #[cfg(not(debug_assertions))]
++        let state = state.and_then(|(state,)| state);
++        let (result, state) = f(state, self);
++        self.insert_element_state(
++            key,
++            ElementStateBox {
++                inner: Box::new(Some(state)),
++                #[cfg(debug_assertions)]
++                type_name,
++            },
++        );
++        result
++    }
++
++    /// Updates the state of type `S` an element keeps under `global_id`, if it keeps one, recording no access: the
++    /// element's own output already carries its access into the next frame.
++    pub(crate) fn update_element_state<S: 'static>(
++        &mut self,
++        global_id: &GlobalElementId,
++        f: impl FnOnce(&mut S),
++    ) {
++        let key = (global_id.clone(), TypeId::of::<S>());
++        let state = match self.next_frame.element_states.get_mut(&key) {
++            Some(state) => Some(state),
++            None => self.rendered_frame.element_states.get_mut(&key),
++        };
++        if let Some(Some(inner)) = state.and_then(|state| state.inner.downcast_mut::<Option<S>>()).map(Option::as_mut) {
++            f(inner);
++        }
++    }
++
+     /// A variant of `with_element_state` that allows the element's id to be optional. This is a convenience
+     /// method for elements where the element id may or may not be assigned. Prefer using `with_element_state`
+     /// when the element is guaranteed to have an id.
+@@ -4522,6 +5462,8 @@ impl Window {
+             absolute_offset,
+             prepaint_range: PrepaintStateIndex::default()..PrepaintStateIndex::default(),
+             paint_range: PaintIndex::default()..PaintIndex::default(),
++            reads: FxHashSet::default(),
++            heard: FxHashSet::default(),
+         });
+     }
+ 
+@@ -4566,24 +5508,42 @@ impl Window {
+         let scale_factor = self.scale_factor();
+         let content_mask = self.snapped_content_mask();
+         let opacity = self.element_opacity();
+-        let element_bounds = self.cover_bounds(bounds);
++        // The quad drawn for the element snaps its bounds this way, and the shadow stops at its edge.
++        let element_bounds = self.snap_bounds(bounds);
+         let element_corner_radii = corner_radii.scale(scale_factor);
+         for shadow in shadows {
+             if shadow.inset {
+                 continue;
+             }
+             let shadow_bounds = (bounds + shadow.offset).dilate(shadow.spread_radius);
+-            self.next_frame.scene.insert_primitive(Shadow {
++            // CSS grows or shrinks each corner with the spread, and eases the growth of a corner smaller than it.
++            let spread = shadow.spread_radius;
++            let spread_corner = |radius: Pixels| {
++                if radius <= Pixels::ZERO {
++                    radius
++                } else if spread > Pixels::ZERO && radius < spread {
++                    radius + spread * (1. + (radius / spread - 1.).powi(3))
++                } else {
++                    (radius + spread).max(Pixels::ZERO)
++                }
++            };
++            let shadow_corner_radii = Corners {
++                top_left: spread_corner(corner_radii.top_left),
++                top_right: spread_corner(corner_radii.top_right),
++                bottom_right: spread_corner(corner_radii.bottom_right),
++                bottom_left: spread_corner(corner_radii.bottom_left),
++            };
++            self.insert_primitive(Shadow {
+                 order: 0,
+                 blur_radius: shadow.blur_radius.scale(scale_factor),
+                 bounds: self.cover_bounds(shadow_bounds),
+                 content_mask,
+-                corner_radii: corner_radii.scale(scale_factor),
++                rounded_clip: 0,
++                corner_radii: shadow_corner_radii.scale(scale_factor),
+                 color: shadow.color.opacity(opacity),
+                 element_bounds,
+                 element_corner_radii,
+                 inset: 0,
+-                pad: 0,
+             });
+         }
+     }
+@@ -4602,7 +5562,7 @@ impl Window {
+         let scale_factor = self.scale_factor();
+         let content_mask = self.snapped_content_mask();
+         let opacity = self.element_opacity();
+-        let element_bounds = self.cover_bounds(bounds);
++        let element_bounds = self.snap_bounds(bounds);
+         let element_corner_radii = corner_radii.scale(scale_factor);
+         for shadow in shadows {
+             if !shadow.inset {
+@@ -4618,17 +5578,17 @@ impl Window {
+                 bottom_right: (corner_radii.bottom_right - shadow.spread_radius).max(zero),
+                 bottom_left: (corner_radii.bottom_left - shadow.spread_radius).max(zero),
+             };
+-            self.next_frame.scene.insert_primitive(Shadow {
++            self.insert_primitive(Shadow {
+                 order: 0,
+                 blur_radius: shadow.blur_radius.scale(scale_factor),
+                 bounds: self.cover_bounds(hole),
+                 content_mask,
++                rounded_clip: 0,
+                 corner_radii: hole_corner_radii.scale(scale_factor),
+                 color: shadow.color.opacity(opacity),
+                 element_bounds,
+                 element_corner_radii,
+                 inset: 1,
+-                pad: 0,
+             });
+         }
+     }
+@@ -4691,6 +5651,8 @@ impl Window {
+             order: 0,
+             bounds: snapped_bounds,
+             content_mask: self.snapped_content_mask(),
++            rounded_clip: 0,
++            pad: [0; 3],
+             background: quad.background.opacity(opacity),
+             border_color: quad.border_color.opacity(opacity),
+             corner_radii: quad.corner_radii.scale(self.scale_factor()),
+@@ -4699,7 +5661,7 @@ impl Window {
+         };
+ 
+         if !quad.background.is_transparent() {
+-            self.next_frame.scene.insert_primitive(quad);
++            self.insert_primitive(quad);
+             return;
+         }
+ 
+@@ -4709,7 +5671,7 @@ impl Window {
+         let inner_bounds = Self::largest_border_interior(&quad);
+ 
+         if inner_bounds.is_empty() {
+-            self.next_frame.scene.insert_primitive(quad);
++            self.insert_primitive(quad);
+             return;
+         }
+ 
+@@ -4739,7 +5701,7 @@ impl Window {
+         for strip in strips {
+             let content_mask_bounds = quad.content_mask.bounds.intersect(&strip);
+             if !content_mask_bounds.is_empty() {
+-                self.next_frame.scene.insert_primitive(Quad {
++                self.insert_primitive(Quad {
+                     content_mask: ContentMask {
+                         bounds: content_mask_bounds,
+                     },
+@@ -4749,6 +5711,41 @@ impl Window {
+         }
+     }
+ 
++    /// Paint a backdrop blur: what is already painted under `bounds` is blurred by `blur_radius` (the Gaussian's
++    /// standard deviation, as CSS's `blur()` takes it), saturated by `saturation` and drawn back clipped to
++    /// `corner_radii`, over `ground` when one is given. Paint the element's own background after it, as a
++    /// translucent tint.
++    ///
++    /// This method should only be called as part of the paint phase of element drawing.
++    pub fn paint_backdrop_blur(
++        &mut self,
++        bounds: Bounds<Pixels>,
++        corner_radii: Corners<Pixels>,
++        blur_radius: Pixels,
++        saturation: f32,
++        ground: Option<Hsla>,
++    ) {
++        self.invalidator.debug_assert_paint();
++        let opacity = self.element_opacity();
++        let blur_radius = if blur_radius.0.is_finite() { blur_radius.max(px(0.)) } else { px(0.) };
++        let saturation = if saturation.is_finite() { saturation.max(0.) } else { 1. };
++        if blur_radius == px(0.) && saturation == 1. || opacity <= 0. {
++            return;
++        }
++        let scale_factor = self.scale_factor();
++        self.insert_primitive(BackdropBlur {
++            order: 0,
++            opacity,
++            bounds: self.snap_bounds(bounds),
++            content_mask: self.snapped_content_mask(),
++            corner_radii: corner_radii.scale(scale_factor),
++            blur_radius: blur_radius.scale(scale_factor),
++            saturation,
++            rounded_clip: 0,
++            ground: ground.map_or(0, crate::pack_ground),
++        });
++    }
++
+     /// Paint the given `Path` into the scene for the next frame at the current z-index.
+     ///
+     /// This method should only be called as part of the paint phase of element drawing.
+@@ -4761,9 +5758,10 @@ impl Window {
+         path.content_mask = content_mask;
+         let color: Background = color.into();
+         path.color = color.opacity(opacity);
+-        self.next_frame
+-            .scene
+-            .insert_primitive(path.scale(scale_factor));
++        let mut path = path.scale(scale_factor);
++        // The renderers composite a path over its bounds, which on half a device pixel would cut that pixel's ink.
++        path.bounds = Bounds::from_corners(path.bounds.origin.map(|c| c.floor()), path.bounds.bottom_right().map(|c| c.ceil()));
++        self.insert_primitive(path);
+     }
+ 
+     /// Paint an underline into the scene for the next frame at the current z-index.
+@@ -4777,7 +5775,7 @@ impl Window {
+     ) {
+         self.invalidator.debug_assert_paint();
+         let underline = self.underline(origin, width, style);
+-        self.next_frame.scene.insert_primitive(underline);
++        self.insert_primitive(underline);
+     }
+ 
+     /// Paint a strikethrough into the scene for the next frame at the current z-index.
+@@ -4799,11 +5797,11 @@ impl Window {
+         };
+         let opacity = self.element_opacity();
+ 
+-        self.next_frame.scene.insert_primitive(Underline {
++        self.insert_primitive(Underline {
+             order: 0,
+-            pad: 0,
+             bounds,
+             content_mask: self.snapped_content_mask(),
++            rounded_clip: 0,
+             thickness: self.snap_stroke(style.thickness),
+             color: style.color.unwrap_or_default().opacity(opacity),
+             wavy: false.into(),
+@@ -4835,8 +5833,8 @@ impl Window {
+         let quantized_origin = Point::new(
+             round_half_toward_zero(glyph_origin.x.0 * SUBPIXEL_VARIANTS_X as f32)
+                 / SUBPIXEL_VARIANTS_X as f32,
+-            round_half_toward_zero(glyph_origin.y.0 * SUBPIXEL_VARIANTS_Y as f32)
+-                / SUBPIXEL_VARIANTS_Y as f32,
++            // Half up, as Skia places a glyph on half a device pixel.
++            round_half_up(glyph_origin.y.0 * SUBPIXEL_VARIANTS_Y as f32) / SUBPIXEL_VARIANTS_Y as f32,
+         );
+         let subpixel_variant = Point::new(
+             (quantized_origin.x.fract() * SUBPIXEL_VARIANTS_X as f32) as u8,
+@@ -4872,21 +5870,21 @@ impl Window {
+             let content_mask = self.snapped_content_mask();
+ 
+             if subpixel_rendering {
+-                self.next_frame.scene.insert_primitive(SubpixelSprite {
++                self.insert_primitive(SubpixelSprite {
+                     order: 0,
+-                    pad: 0,
+                     bounds,
+                     content_mask,
++                    rounded_clip: 0,
+                     color: color.opacity(element_opacity),
+                     tile,
+                     transformation: TransformationMatrix::unit(),
+                 });
+             } else {
+-                self.next_frame.scene.insert_primitive(MonochromeSprite {
++                self.insert_primitive(MonochromeSprite {
+                     order: 0,
+-                    pad: 0,
+                     bounds,
+                     content_mask,
++                    rounded_clip: 0,
+                     color: color.opacity(element_opacity),
+                     tile,
+                     transformation: TransformationMatrix::unit(),
+@@ -4934,7 +5932,11 @@ impl Window {
+ 
+         let scale_factor = self.scale_factor();
+         let glyph_origin = origin.scale(scale_factor);
+-        let integer_origin = glyph_origin.map(|c| ScaledPixels(round_half_toward_zero(c.0)));
++        // y ties up, as paint_glyph rounds the text beside it.
++        let integer_origin = point(
++            ScaledPixels(round_half_toward_zero(glyph_origin.x.0)),
++            ScaledPixels(round_half_up(glyph_origin.y.0)),
++        );
+         let params = RenderGlyphParams {
+             font_id,
+             glyph_id,
+@@ -4963,13 +5965,13 @@ impl Window {
+             let content_mask = self.snapped_content_mask();
+             let opacity = self.element_opacity();
+ 
+-            self.next_frame.scene.insert_primitive(PolychromeSprite {
++            self.insert_primitive(PolychromeSprite {
+                 order: 0,
+-                pad: 0,
+                 grayscale: false.into(),
+                 bounds,
+                 corner_radii: Default::default(),
+                 content_mask,
++                rounded_clip: 0,
+                 tile,
+                 opacity,
+             });
+@@ -5029,11 +6031,11 @@ impl Window {
+             .map_origin(|value| ScaledPixels(round_half_toward_zero(value.0)))
+             .map_size(|size| size.ceil());
+ 
+-        self.next_frame.scene.insert_primitive(MonochromeSprite {
++        self.insert_primitive(MonochromeSprite {
+             order: 0,
+-            pad: 0,
+             bounds: final_bounds,
+             content_mask,
++            rounded_clip: 0,
+             color: color.opacity(element_opacity),
+             tile,
+             transformation,
+@@ -5135,12 +6137,12 @@ impl Window {
+             .scale(self.scale_factor());
+         let opacity = self.element_opacity();
+ 
+-        self.next_frame.scene.insert_primitive(PolychromeSprite {
++        self.insert_primitive(PolychromeSprite {
+             order: 0,
+-            pad: 0,
+             grayscale: grayscale.into(),
+             bounds: visible_bounds_snapped,
+             content_mask,
++            rounded_clip: 0,
+             corner_radii,
+             tile: sub_tile,
+             opacity,
+@@ -5163,7 +6165,7 @@ impl Window {
+ 
+         let bounds = self.snap_bounds(bounds);
+         let content_mask = self.snapped_content_mask();
+-        self.next_frame.scene.insert_primitive(PaintSurface {
++        self.insert_primitive(PaintSurface {
+             order: 0,
+             bounds,
+             content_mask,
+@@ -5171,6 +6173,27 @@ impl Window {
+         });
+     }
+ 
++    /// What this window's renderer holds beside its sprite atlas, where the platform reads it.
++    pub fn gpu_usage(&self) -> Option<GpuUsage> {
++        self.platform_window.gpu_usage()
++    }
++
++    /// What this window's sprite atlas holds.
++    pub fn atlas_usage(&self) -> AtlasUsage {
++        self.sprite_atlas.usage()
++    }
++
++    /// Lets go of the glyph and SVG tiles of this window's sprite atlas and draws every view again, so no cached view
++    /// paints a tile that is gone; true where it did, since nothing changes while the window draws.
++    pub fn sweep_glyph_atlas(&mut self) -> bool {
++        let idle = self.invalidator.not_drawing();
++        if idle {
++            self.sprite_atlas.sweep_glyphs();
++            self.refresh();
++        }
++        idle
++    }
++
+     /// Removes an image from the sprite atlas.
+     pub fn drop_image(&mut self, data: Arc<RenderImage>) -> Result<()> {
+         for frame_index in 0..data.frame_count() {
+@@ -5287,6 +6310,31 @@ impl Window {
+         bounds
+     }
+ 
++    /// Where the last frame drew `hitbox`, clipped to its content mask, and what it drew over it there: each hitbox
++    /// inserted after it that blocks the mouse, and the tooltip. None when the frame did not draw it. A native view laid
++    /// over that hitbox cuts these out of itself so the overlays show.
++    pub fn drawn_over(&self, hitbox: HitboxId) -> Option<(Bounds<Pixels>, Vec<Bounds<Pixels>>)> {
++        let hitboxes = &self.rendered_frame.hitboxes;
++        let at = hitboxes.iter().position(|h| h.id == hitbox)?;
++        let under = hitboxes[at].bounds.intersect(&hitboxes[at].content_mask.bounds);
++        let over = hitboxes[at + 1..]
++            .iter()
++            .filter(|h| h.behavior == HitboxBehavior::BlockMouse)
++            .map(|h| h.bounds.intersect(&h.content_mask.bounds))
++            .chain(self.tooltip_bounds.as_ref().map(|t| t.bounds))
++            .map(|b| b.intersect(&under))
++            .filter(|b| !b.is_empty())
++            .collect();
++        Some((under, over))
++    }
++
++    /// Runs `listener` after every frame this window draws, while it returns true.
++    pub fn on_drawn(&self, listener: impl FnMut(&mut Window, &mut App) -> bool + 'static) -> Subscription {
++        let (subscription, activate) = self.drawn_listeners.insert((), Box::new(listener));
++        activate();
++        subscription
++    }
++
+     /// This method should be called during `prepaint`. You can use
+     /// the returned [Hitbox] during `paint` or in an event handler
+     /// to determine whether the inserted hitbox was the topmost.
+@@ -6654,7 +7702,7 @@ impl Window {
+         self.on_next_frame(|window, cx| {
+             if let Some(mut input_handler) = window.platform_window.take_input_handler() {
+                 if let Some(bounds) = input_handler.selected_bounds(window, cx) {
+-                    window.platform_window.update_ime_position(bounds);
++                    window.platform_window.update_ime_position(bounds.map(|v| v * window.zoom));
+                 }
+                 window.platform_window.set_input_handler(input_handler);
+             }
+@@ -7007,6 +8055,24 @@ impl Window {
+         self.a11y.is_active()
+     }
+ 
++    #[cfg(any(test, feature = "test-support"))]
++    pub(crate) fn count_render(&mut self, view: EntityId) {
++        *self.renders.entry(view).or_default() += 1;
++    }
++
++    /// How many times each view rendered since the last take.
++    #[cfg(any(test, feature = "test-support"))]
++    pub fn take_renders(&mut self) -> FxHashMap<EntityId, usize> {
++        mem::take(&mut self.renders)
++    }
++
++    /// Turns accessibility on or off as a screen reader connecting or leaving does.
++    #[cfg(any(test, feature = "test-support"))]
++    pub fn simulate_a11y_active(&mut self, active: bool) {
++        self.a11y.simulate_active(active);
++        self.refresh();
++    }
++
+     /// Debug representation of the last frame's accessibility information.
+     pub fn debug_a11y_tree_json(&self) -> Option<String> {
+         self.a11y.debug_tree_json()
+@@ -7337,8 +8403,9 @@ impl Window {
+ 
+     #[inline(never)]
+     fn observe_keyed_state<S: 'static>(state: &Entity<S>, current_view: EntityId, cx: &mut App) {
++        // A keyed state is an element's own, which only the view drawing it draws from.
+         cx.observe(state, move |_, cx| {
+-            cx.notify(current_view);
++            cx.notify_in_place(current_view);
+         })
+         .detach();
+     }

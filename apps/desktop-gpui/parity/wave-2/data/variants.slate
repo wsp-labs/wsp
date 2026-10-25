@@ -1,0 +1,36 @@
+<slate title="Layout variants">
+  <value name="pick" start="Done" />
+  <value name="failed" start={false} />
+  <value name="last" start="" />
+  <column>
+    <row>
+      <select label="Hide" value={$pick}><option value="Done" /><option value="Canceled" /></select>
+      <toggle label="Failed only" value={$failed} />
+    </row>
+    <grid columns={3}>
+      <number label="Open" value={3} />
+      <status tone="warning">slow</status>
+      <text>since 10:04</text>
+      <number label="Done" value={1290} format="integer" />
+      <number label="Failed" value={0} unit="runs" />
+    </grid>
+    <bars label="CPU (15m)" items={[{ n: "node", v: 42 }, { n: "vite", v: 18 }]} name={item.n} value={item.v} />
+    <bars label="Memory (15m)" items={[{ n: "node", v: 900 }, { n: "git", v: 120 }]} name={item.n} value={item.v} />
+    <chart label="Requests, per minute" items={[{ at: "2026-10-18T10:00:00Z", ok: 40, bad: 4, err: 1 }, { at: "2026-10-18T10:01:00Z", ok: 52, bad: 3, err: 0 }, { at: "2026-10-18T10:02:00Z", ok: 47, bad: 6, err: 2 }, { at: "2026-10-18T10:03:00Z", ok: 60, bad: 2, err: 1 }]} x={item.at} stack>
+      <series label="2xx" value={item.ok} />
+      <series label="4xx" value={item.bad} />
+      <series label="5xx" value={item.err} />
+    </chart>
+    <table items={[{ name: "long", turns: 900 }, { name: "short-1", turns: 3 }]} key={item.name}>
+      <col title="Thread" value={item.name} />
+      <col title="Turns" value={item.turns} />
+      <action label="Open" onPress={set($last, item.name)} />
+    </table>
+    <facts>
+      <fact label="Branch" value="main" />
+      <fact label="Ahead" value="3" />
+    </facts>
+    <images layout="compare" items={[{ p: "shots/before.png", c: "Before" }, { p: "shots/after.png", c: "After" }]} src={item.p} caption={item.c} />
+    <images layout="strip" items={[{ p: "shots/before.png", c: "Before" }, { p: "shots/after.png", c: "After" }, { p: "shots/plot.png", c: "Plot" }, { p: "shots/before.png", c: "Again" }]} src={item.p} caption={item.c} />
+  </column>
+</slate>

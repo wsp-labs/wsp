@@ -68,8 +68,8 @@ pub struct Labels {
     pub access: String,
 }
 
-fn words() -> Words {
-    record::words().defaults
+fn words() -> &'static Words {
+    &record::words().defaults
 }
 
 /// What a line calls an agent: its catalog name, else its id.
@@ -263,7 +263,7 @@ async fn agents_set(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused
         patch.insert("models".to_owned(), models);
     }
     if patch.is_empty() {
-        return Err(Failure::usage(words().agent_set_nothing).into());
+        return Err(Failure::usage(words().agent_set_nothing.clone()).into());
     }
     #[derive(Deserialize)]
     struct Kept {
@@ -373,7 +373,7 @@ async fn agents_setup(host: Arc<Host>, arguments: Value) -> Result<Answer, Refus
     let client = host.client().await?;
     let place = match &on {
         Some(on) => place_named(&client, on).await?.0,
-        None => record::words().here_place_id,
+        None => record::words().here_place_id.clone(),
     };
     let w = words();
     let mut env = Map::new();
@@ -398,7 +398,7 @@ async fn agents_setup(host: Arc<Host>, arguments: Value) -> Result<Answer, Refus
         change.insert("env".to_owned(), Value::Object(env));
     }
     if change.is_empty() {
-        return Err(Failure::usage(w.agent_setup_nothing).into());
+        return Err(Failure::usage(w.agent_setup_nothing.clone()).into());
     }
     let mut asked = params([("placeId", Value::from(place)), ("agent", Value::from(agent.as_str()))]);
     asked.extend(change);
@@ -485,7 +485,7 @@ fn defaults_lines(d: &Resolved) -> Vec<String> {
 async fn projects_set(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     let ProjectIn { project, agent, model, effort, access, after_worktree, trackers, reset } = input(PROJECT_NAME, arguments)?;
     if after_worktree.as_deref().is_some_and(|command| command.trim().is_empty()) {
-        return Err(Failure::usage(words().after_worktree_blank).into());
+        return Err(Failure::usage(words().after_worktree_blank.clone()).into());
     }
     if let Some(word) = trackers.iter().flatten().find(|word| !names_repo(word)) {
         let quoted = serde_json::to_string(word).unwrap_or_default();
@@ -507,7 +507,7 @@ async fn projects_set(host: Arc<Host>, arguments: Value) -> Result<Answer, Refus
     });
     patched(&mut patch, "trackers", trackers, resets("trackers"));
     if patch.is_empty() {
-        return Err(Failure::usage(words().project_set_nothing).into());
+        return Err(Failure::usage(words().project_set_nothing.clone()).into());
     }
     #[derive(Deserialize)]
     struct Found {

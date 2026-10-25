@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// What usewsp.com answers before its files: the waitlist, the docs Scalar hosts, the install script as text, and the
-// other names it answers to (www, usewsp.dev) sent home.
+// What usewsp.com answers before its files: the waitlist, the docs Scalar hosts, the install script as text, the classic
+// app's downloads, and the other names it answers to (www, usewsp.dev) sent home.
+import { CLASSIC_FALLBACK_TAG, CLASSIC_STABLE_NAMES, downloadUrl, REPO, STABLE_NAMES } from "../../../packages/protocol/src/bundles.mjs";
+
 const CANONICAL = "usewsp.com";
 /** Scalar's host for the docs. It serves them at its root and writes its own links with the /docs subpath. */
 const DOCS_ORIGIN = "wsp.apidocumentation.com";
@@ -61,6 +63,22 @@ async function inDocs(url: URL): Promise<boolean> {
   return res.status === 200 || (res.status >= 300 && res.status < 400);
 }
 
+/** The classic app's download for each of the site's paths to one, and the app's name for it on the last release that
+ * carried the classic app under the app's names. */
+const CLASSIC_DOWNLOADS: Record<string, { asset: string; before: string }> = {
+  "/download/classic/mac": { asset: CLASSIC_STABLE_NAMES.mac, before: STABLE_NAMES.mac },
+  "/download/classic/linux": { asset: CLASSIC_STABLE_NAMES.appImage, before: STABLE_NAMES.appImage },
+};
+
+/** The newest release's copy of a classic download where it has one, else the last release that carried the classic
+ * app under the app's names. GitHub answers releases/latest/download with a redirect whether the asset is there or
+ * not, and the 404 comes only on the second hop, so the check follows both, and only a 404 or no answer at all falls back. */
+export async function classic(download: { asset: string; before: string }): Promise<Response> {
+  const latest = downloadUrl(download.asset);
+  const found = await fetch(latest, { method: "HEAD" }).then(res => res.status !== 404, () => false);
+  return Response.redirect(found ? latest : `${REPO}/releases/download/${CLASSIC_FALLBACK_TAG}/${download.before}`, 302);
+}
+
 /** Scalar's address, wherever it is written, as ours. */
 const ours = (text: string): string => text.replace(SCALAR_URL, `https://${CANONICAL}${DOCS}`);
 
@@ -74,6 +92,8 @@ export default {
     if (url.pathname === "/.well-known/security.txt") return new Response(SECURITY_TXT, { headers: { "content-type": "text/plain; charset=utf-8" } });
     if (url.pathname === "/api/waitlist") return waitlist(request, env);
     if (url.pathname === "/docs" || url.pathname.startsWith("/docs/")) return docs(request, url);
+    const download = CLASSIC_DOWNLOADS[url.pathname];
+    if (download !== undefined) return classic(download);
     const served = await env.ASSETS.fetch(request);
     if (served.status === 404 && request.method === "GET" && (await inDocs(url))) return Response.redirect(`https://${CANONICAL}${DOCS}${url.pathname}${url.search}`, 307);
     if (url.pathname === "/install" && served.ok) {

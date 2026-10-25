@@ -1,0 +1,33 @@
+<slate title="Bench runs">
+  <value name="target" start="ftp://example.com/file" />
+  <secret name="token" />
+  <run name="quick" cmd="echo hello from bench" timeout={10} />
+  <run name="slow" cmd="for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do echo line $i; sleep 2; done" stream timeout={120} />
+  <run name="broken" cmd="echo boom >&2; exit 3" timeout={10} />
+  <run name="danger" cmd="echo pretend cleanup" confirm="This only prints a line." timeout={10} />
+  <run name="s1" cmd="sleep 60" />
+  <run name="s2" cmd="sleep 60" />
+  <run name="s3" cmd="sleep 60" />
+  <run name="s4" cmd="sleep 60" />
+  <run name="s5" cmd="sleep 60" />
+  <column>
+    <row>
+      <button id="go-quick" label="Run quick" onPress={start($quick)} />
+      <button id="go-slow" label="Run slow" onPress={start($slow)} />
+      <button id="go-broken" label="Run broken" onPress={start($broken)} />
+      <button id="go-danger" label="Run danger" onPress={start($danger)} />
+      <button id="go-five" label="Start five" onPress={[start($s1), start($s2), start($s3), start($s4), start($s5)]} />
+    </row>
+    <row>
+      <button id="send" label="Send to the agent" onPress={send("Hello from the bench slate.")} />
+      <button id="bad-link" label="Open the ftp link" onPress={open($target)} />
+      <button id="good-link" label="Open example.com" onPress={open("https://example.com")} />
+    </row>
+    <input id="token" label="Token" value={$token} kind="password" />
+    <output run={$quick} />
+    <output run={$slow} lines={8} />
+    <output run={$broken} />
+    <output run={$danger} />
+    <output run={$s5} />
+  </column>
+</slate>
