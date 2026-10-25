@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // One slate drawn by the real renderer with fixed values, for the #2439 shots: ?slate=<name>&theme=graphite|paper.
 // The slate's text comes from slates/ here or the glance test's own files, its values from the glance test's.
+// ?runs=<name> draws a cold writer's slate (cold/written/) with its runs.json as the runs' results instead.
 import { createRoot } from "react-dom/client";
 import { parseSlate, slateStartValues, type SlateJson } from "@wsp/protocol/slate";
 import "../../src/index.css";
@@ -9,14 +10,18 @@ import { ActionRunner, StateSender, type SlateLink } from "../../src/slate/actio
 import { SlateEngine, type Scheduler } from "../../src/slate/engine.js";
 import { SLATE_VIEWS } from "../../src/slate/pieces/index.js";
 import { SlateView } from "../../src/slate/SlateView.js";
+import { runResults } from "./cold/run-results.js";
 import data from "../../../../packages/protocol/test/slate/glance/values.json";
 
 const texts = {
   ...import.meta.glob("../../../../packages/protocol/test/slate/glance/*.slate", { query: "?raw", import: "default", eager: true }),
   ...import.meta.glob("./slates/*.slate", { query: "?raw", import: "default", eager: true }),
+  ...import.meta.glob("./cold/written/*.slate", { query: "?raw", import: "default", eager: true }),
 } as Record<string, string>;
+const written = import.meta.glob("./cold/written/*.runs.json", { import: "default", eager: true }) as Record<string, Record<string, unknown>>;
 const at = new URLSearchParams(location.search);
 const name = at.get("slate") ?? "before";
+const runsName = at.get("runs");
 const theme = at.get("theme") ?? "graphite";
 document.documentElement.dataset["theme"] = theme;
 document.documentElement.classList.toggle("dark", theme === "graphite");
@@ -37,7 +42,8 @@ if (parsed?.document === undefined) {
   const set = JSON.parse(at.get("set") ?? "{}") as Record<string, SlateJson>;
   const sources: Record<string, SlateJson> = { "time.now": now, "thread.cost.usd": 4.82 };
   const engine = new SlateEngine("glance", path => sources[path], scheduler);
-  engine.setRecord(doc, { ...slateStartValues(doc), ...(data as { values: Record<string, SlateJson> }).values, ...set }, 25, 25);
+  const values = runsName === null ? (data as { values: Record<string, SlateJson> }).values : runResults(doc.runs, Object.entries(written).find(([path]) => path.endsWith(`/${runsName}.runs.json`))?.[1] ?? {}, now);
+  engine.setRecord(doc, { ...slateStartValues(doc), ...values, ...set }, 25, 25);
   const link: SlateLink = {
     event: async () => ({ outcome: "started" as const, said: "Sent to the agent" }),
     writeState: async () => ({ version: 26 }),
