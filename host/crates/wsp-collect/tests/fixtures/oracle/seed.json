@@ -1,0 +1,140 @@
+[
+ {
+  "name": "a folder git answers nothing for",
+  "folder": "/Users/dev/app",
+  "exec": {},
+  "plan": {
+   "source": "/Users/dev/app",
+   "remote": null,
+   "branch": "",
+   "defaultBranch": null,
+   "unpushed": null,
+   "uncommitted": 0,
+   "memory": null,
+   "files": [],
+   "remembered": false
+  },
+  "text": "{\"source\":\"/Users/dev/app\",\"remote\":null,\"branch\":\"\",\"defaultBranch\":null,\"unpushed\":null,\"uncommitted\":0,\"memory\":null,\"files\":[],\"remembered\":false}",
+  "calls": [
+   "run git -C /Users/dev/app ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+   "run git -C /Users/dev/app remote get-url origin (120000 ms)",
+   "run git -C /Users/dev/app rev-parse --abbrev-ref HEAD (120000 ms)",
+   "run git -C /Users/dev/app symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+   "run git -C /Users/dev/app rev-parse --abbrev-ref @{upstream} (120000 ms)",
+   "run git -C /Users/dev/app status --porcelain (120000 ms)"
+  ]
+ },
+ {
+  "name": "a trailing slash, du lines that do not parse and a negative remainder",
+  "folder": "/Users/dev/app/",
+  "exec": {
+   "git -C /Users/dev/app/ ls-files -z -o -i --exclude-standard --directory": ".claude/\u0000b.log\u0000Zeta/\u0000alpha/",
+   "git -C /Users/dev/app/ ls-files -z -o -i --exclude-standard -- .claude": ".claude/settings.local.json\u0000.claude/x.txt\u0000",
+   "du -sk /Users/dev/app/.claude /Users/dev/app/b.log /Users/dev/app/Zeta /Users/dev/app/alpha /Users/dev/app/.claude/settings.local.json": "4\t/Users/dev/app/.claude\nx\t/Users/dev/app/b.log\n8 /Users/dev/app/Zeta\n12\t/elsewhere/alpha\n16\t/Users/dev/app/.claude/settings.local.json\n",
+   "git -C /Users/dev/app/ rev-parse --abbrev-ref HEAD": "main\nextra\n",
+   "git -C /Users/dev/app/ rev-parse --abbrev-ref @{upstream}": "origin/main",
+   "git -C /Users/dev/app/ merge-base HEAD origin/main": "abc",
+   "git -C /Users/dev/app/ rev-list --count abc..HEAD": "two",
+   "git -C /Users/dev/app/ status --porcelain": "\n M a\n\n   \n?? b\n"
+  },
+  "plan": {
+   "source": "/Users/dev/app/",
+   "remote": null,
+   "branch": "main",
+   "defaultBranch": null,
+   "unpushed": null,
+   "uncommitted": 2,
+   "memory": null,
+   "files": [
+    {
+     "path": ".claude",
+     "dir": true,
+     "bytes": 0,
+     "kind": "unknown",
+     "ticked": false
+    },
+    {
+     "path": ".claude/settings.local.json",
+     "dir": false,
+     "bytes": 16384,
+     "kind": "config",
+     "row": {
+      "id": "agents",
+      "name": "agents"
+     },
+     "ticked": true
+    },
+    {
+     "path": "alpha",
+     "dir": true,
+     "bytes": 0,
+     "kind": "unknown",
+     "ticked": false
+    },
+    {
+     "path": "b.log",
+     "dir": false,
+     "bytes": 0,
+     "kind": "unknown",
+     "ticked": false
+    },
+    {
+     "path": "Zeta",
+     "dir": true,
+     "bytes": 0,
+     "kind": "unknown",
+     "ticked": false
+    }
+   ],
+   "remembered": false
+  },
+  "text": "{\"source\":\"/Users/dev/app/\",\"remote\":null,\"branch\":\"main\",\"defaultBranch\":null,\"unpushed\":null,\"uncommitted\":2,\"memory\":null,\"files\":[{\"path\":\".claude\",\"dir\":true,\"bytes\":0,\"kind\":\"unknown\",\"ticked\":false},{\"path\":\".claude/settings.local.json\",\"dir\":false,\"bytes\":16384,\"kind\":\"config\",\"row\":{\"id\":\"agents\",\"name\":\"agents\"},\"ticked\":true},{\"path\":\"alpha\",\"dir\":true,\"bytes\":0,\"kind\":\"unknown\",\"ticked\":false},{\"path\":\"b.log\",\"dir\":false,\"bytes\":0,\"kind\":\"unknown\",\"ticked\":false},{\"path\":\"Zeta\",\"dir\":true,\"bytes\":0,\"kind\":\"unknown\",\"ticked\":false}],\"remembered\":false}",
+  "calls": [
+   "run git -C /Users/dev/app/ ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+   "run git -C /Users/dev/app/ ls-files -z -o -i --exclude-standard -- .claude (120000 ms)",
+   "run du -sk /Users/dev/app/.claude /Users/dev/app/b.log /Users/dev/app/Zeta /Users/dev/app/alpha /Users/dev/app/.claude/settings.local.json (120000 ms)",
+   "run git -C /Users/dev/app/ remote get-url origin (120000 ms)",
+   "run git -C /Users/dev/app/ rev-parse --abbrev-ref HEAD (120000 ms)",
+   "run git -C /Users/dev/app/ symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+   "run git -C /Users/dev/app/ rev-parse --abbrev-ref @{upstream} (120000 ms)",
+   "run git -C /Users/dev/app/ merge-base HEAD origin/main (120000 ms)",
+   "run git -C /Users/dev/app/ rev-list --count abc..HEAD (120000 ms)",
+   "run git -C /Users/dev/app/ status --porcelain (120000 ms)"
+  ]
+ },
+ {
+  "name": "a remote default branch with nothing ahead and no upstream",
+  "folder": "/Users/dev/app",
+  "exec": {
+   "git -C /Users/dev/app symbolic-ref refs/remotes/origin/HEAD": "refs/remotes/origin/trunk\n",
+   "git -C /Users/dev/app merge-base HEAD origin/trunk": "def\n",
+   "git -C /Users/dev/app rev-list --count def..HEAD": "5\n",
+   "git -C /Users/dev/app remote get-url origin": "  git@github.com:o/r.git  \n"
+  },
+  "plan": {
+   "source": "/Users/dev/app",
+   "remote": "git@github.com:o/r.git",
+   "branch": "",
+   "defaultBranch": "trunk",
+   "unpushed": {
+    "commits": 5,
+    "base": "def"
+   },
+   "uncommitted": 0,
+   "memory": null,
+   "files": [],
+   "remembered": false
+  },
+  "text": "{\"source\":\"/Users/dev/app\",\"remote\":\"git@github.com:o/r.git\",\"branch\":\"\",\"defaultBranch\":\"trunk\",\"unpushed\":{\"commits\":5,\"base\":\"def\"},\"uncommitted\":0,\"memory\":null,\"files\":[],\"remembered\":false}",
+  "calls": [
+   "run git -C /Users/dev/app ls-files -z -o -i --exclude-standard --directory (120000 ms)",
+   "run git -C /Users/dev/app remote get-url origin (120000 ms)",
+   "run git -C /Users/dev/app rev-parse --abbrev-ref HEAD (120000 ms)",
+   "run git -C /Users/dev/app symbolic-ref refs/remotes/origin/HEAD (120000 ms)",
+   "run git -C /Users/dev/app rev-parse --abbrev-ref @{upstream} (120000 ms)",
+   "run git -C /Users/dev/app merge-base HEAD origin/trunk (120000 ms)",
+   "run git -C /Users/dev/app rev-list --count def..HEAD (120000 ms)",
+   "run git -C /Users/dev/app status --porcelain (120000 ms)"
+  ]
+ }
+]

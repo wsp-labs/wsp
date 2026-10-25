@@ -1,0 +1,132 @@
+{
+ "timeOf": [
+  {
+   "value": "2026-09-06T10:01:00.000Z",
+   "at": 1788688860000
+  },
+  {
+   "value": "2026-09-06T10:01:00Z",
+   "at": 1788688860000
+  },
+  {
+   "value": "2026-09-06T10:01:00.5+05:30",
+   "at": 1788669060500
+  },
+  {
+   "value": "2026-09-06T10:01:00",
+   "at": 1788688860000
+  },
+  {
+   "value": "2026-09-06",
+   "at": 1788652800000
+  },
+  {
+   "value": "2026-13-01T00:00:00Z",
+   "at": null
+  },
+  {
+   "value": "not a time",
+   "at": null
+  },
+  {
+   "value": "",
+   "at": null
+  },
+  {
+   "value": "1999-12-31T23:59:59.999Z",
+   "at": 946684799999
+  },
+  {
+   "value": 1757152860000,
+   "at": null
+  },
+  {
+   "value": null,
+   "at": null
+  },
+  {
+   "value": "<undefined>",
+   "at": null
+  },
+  {
+   "value": {},
+   "at": null
+  }
+ ],
+ "stem": [
+  {
+   "path": "/a/b/c.jsonl",
+   "stem": "c"
+  },
+  {
+   "path": "/a/b/.hidden",
+   "stem": ".hidden"
+  },
+  {
+   "path": "/a/b/c.d.jsonl",
+   "stem": "c.d"
+  },
+  {
+   "path": "c",
+   "stem": "c"
+  },
+  {
+   "path": "/a/b/",
+   "stem": ""
+  },
+  {
+   "path": "/a.b/c",
+   "stem": "c"
+  },
+  {
+   "path": "rollout-2026-06-01T10-00-00-t1.jsonl",
+   "stem": "rollout-2026-06-01T10-00-00-t1"
+  },
+  {
+   "path": ".jsonl",
+   "stem": ".jsonl"
+  }
+ ],
+ "claudeSession": [
+  {
+   "rel": "-p/abc.jsonl",
+   "session": "abc"
+  },
+  {
+   "rel": "-p/abc",
+   "session": "abc"
+  },
+  {
+   "rel": "-p/abc/subagents/a.jsonl",
+   "session": "abc"
+  },
+  {
+   "rel": "-p/_cleared_sessions/old.jsonl",
+   "session": "old"
+  },
+  {
+   "rel": "-p/_cleared_sessions",
+   "session": null
+  },
+  {
+   "rel": "-p/_cleared_sessions/x/y.jsonl",
+   "session": "x"
+  },
+  {
+   "rel": "-p",
+   "session": null
+  },
+  {
+   "rel": "",
+   "session": null
+  },
+  {
+   "rel": "-p/.jsonl",
+   "session": ".jsonl"
+  },
+  {
+   "rel": "-p/a.b.jsonl",
+   "session": "a.b"
+  }
+ ]
+}

@@ -1,0 +1,1086 @@
+{
+ "entries": [
+  {
+   "name": "a fresh row",
+   "data": {
+    "rung": "identity",
+    "id": "identity/git-user",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring"
+   },
+   "issues": null
+  },
+  {
+   "name": "no rung",
+   "data": {
+    "id": "identity/git-user",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring"
+   },
+   "issues": [
+    {
+     "path": [
+      "rung"
+     ],
+     "message": "Required"
+    }
+   ]
+  },
+  {
+   "name": "an unknown rung",
+   "data": {
+    "rung": "fonts",
+    "id": "identity/git-user",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring"
+   },
+   "issues": [
+    {
+     "path": [
+      "rung"
+     ],
+     "message": "Invalid enum value. Expected 'identity' | 'shell' | 'toolchains' | 'tools' | 'agents' | 'logins', received 'fonts'"
+    }
+   ]
+  },
+  {
+   "name": "a numeric rung",
+   "data": {
+    "rung": 3,
+    "id": "identity/git-user",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring"
+   },
+   "issues": [
+    {
+     "path": [
+      "rung"
+     ],
+     "message": "Expected 'identity' | 'shell' | 'toolchains' | 'tools' | 'agents' | 'logins', received number"
+    }
+   ]
+  },
+  {
+   "name": "an empty id",
+   "data": {
+    "rung": "identity",
+    "id": "",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring"
+   },
+   "issues": [
+    {
+     "path": [
+      "id"
+     ],
+     "message": "String must contain at least 1 character(s)"
+    },
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    }
+   ]
+  },
+  {
+   "name": "an id outside its rung",
+   "data": {
+    "rung": "identity",
+    "id": "shell/git-user",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring"
+   },
+   "issues": [
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    }
+   ]
+  },
+  {
+   "name": "an id outside its rung and a skip required row",
+   "data": {
+    "rung": "identity",
+    "id": "shell/x",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "skip",
+    "required": true
+   },
+   "issues": [
+    {
+     "path": [
+      "id"
+     ],
+     "message": "id must start with identity/"
+    },
+    {
+     "path": [
+      "required"
+     ],
+     "message": "a required row cannot default to skip"
+    }
+   ]
+  },
+  {
+   "name": "every rung-only field on an identity row",
+   "data": {
+    "rung": "identity",
+    "id": "identity/git-user",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "skip",
+    "choice": "copy",
+    "linux": "yes",
+    "version": "1",
+    "login": "zsh",
+    "font": "Hack",
+    "sources": [
+     "~/x"
+    ],
+    "required": true
+   },
+   "issues": [
+    {
+     "path": [
+      "choice"
+     ],
+     "message": "only a logins row or a consent row carries a choice"
+    },
+    {
+     "path": [
+      "linux"
+     ],
+     "message": "only a tools row carries a linux marker"
+    },
+    {
+     "path": [
+      "version"
+     ],
+     "message": "only a tools row carries a version"
+    },
+    {
+     "path": [
+      "login"
+     ],
+     "message": "only a shell row carries a login shell"
+    },
+    {
+     "path": [
+      "font"
+     ],
+     "message": "only a shell row carries a terminal font"
+    },
+    {
+     "path": [
+      "sources"
+     ],
+     "message": "only a shell row carries sourced files"
+    },
+    {
+     "path": [
+      "required"
+     ],
+     "message": "a required row cannot default to skip"
+    }
+   ]
+  },
+  {
+   "name": "a choice on a consent row",
+   "data": {
+    "rung": "agents",
+    "id": "agents/x",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring",
+    "consent": true,
+    "choice": "copy"
+   },
+   "issues": null
+  },
+  {
+   "name": "a choice on a consent: false row",
+   "data": {
+    "rung": "agents",
+    "id": "agents/x",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring",
+    "consent": false,
+    "choice": "copy"
+   },
+   "issues": [
+    {
+     "path": [
+      "choice"
+     ],
+     "message": "only a logins row or a consent row carries a choice"
+    }
+   ]
+  },
+  {
+   "name": "an unknown choice",
+   "data": {
+    "rung": "logins",
+    "id": "logins/x",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring",
+    "choice": "maybe"
+   },
+   "issues": [
+    {
+     "path": [
+      "choice"
+     ],
+     "message": "Invalid enum value. Expected 'copy' | 'machine' | 'later' | 'key' | 'skip' | 'token', received 'maybe'"
+    }
+   ]
+  },
+  {
+   "name": "a default outside bring or skip",
+   "data": {
+    "rung": "identity",
+    "id": "identity/git-user",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "maybe"
+   },
+   "issues": [
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Invalid enum value. Expected 'bring' | 'skip', received 'maybe'"
+    }
+   ]
+  },
+  {
+   "name": "a negative size",
+   "data": {
+    "rung": "identity",
+    "id": "identity/git-user",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": -1,
+    "default": "bring"
+   },
+   "issues": [
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Number must be greater than or equal to 0"
+    }
+   ]
+  },
+  {
+   "name": "a fractional size",
+   "data": {
+    "rung": "identity",
+    "id": "identity/git-user",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 1.5,
+    "default": "bring"
+   },
+   "issues": [
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Expected integer, received float"
+    }
+   ]
+  },
+  {
+   "name": "a size as text",
+   "data": {
+    "rung": "identity",
+    "id": "identity/git-user",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": "512",
+    "default": "bring"
+   },
+   "issues": [
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Expected number, received string"
+    }
+   ]
+  },
+  {
+   "name": "no paths",
+   "data": {
+    "rung": "identity",
+    "id": "identity/git-user",
+    "label": "git name and email",
+    "bytes": 512,
+    "default": "bring"
+   },
+   "issues": [
+    {
+     "path": [
+      "paths"
+     ],
+     "message": "Required"
+    }
+   ]
+  },
+  {
+   "name": "a path that is a number",
+   "data": {
+    "rung": "identity",
+    "id": "identity/git-user",
+    "label": "git name and email",
+    "paths": [
+     "~/a",
+     7
+    ],
+    "bytes": 512,
+    "default": "bring"
+   },
+   "issues": [
+    {
+     "path": [
+      "paths",
+      1
+     ],
+     "message": "Expected string, received number"
+    }
+   ]
+  },
+  {
+   "name": "an empty version on a tools row",
+   "data": {
+    "rung": "tools",
+    "id": "tools/x",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring",
+    "version": ""
+   },
+   "issues": [
+    {
+     "path": [
+      "version"
+     ],
+     "message": "String must contain at least 1 character(s)"
+    }
+   ]
+  },
+  {
+   "name": "an empty login on a shell row",
+   "data": {
+    "rung": "shell",
+    "id": "shell/x",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring",
+    "login": ""
+   },
+   "issues": [
+    {
+     "path": [
+      "login"
+     ],
+     "message": "String must contain at least 1 character(s)"
+    }
+   ]
+  },
+  {
+   "name": "an empty source on a shell row",
+   "data": {
+    "rung": "shell",
+    "id": "shell/x",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring",
+    "sources": [
+     ""
+    ]
+   },
+   "issues": [
+    {
+     "path": [
+      "sources",
+      0
+     ],
+     "message": "String must contain at least 1 character(s)"
+    }
+   ]
+  },
+  {
+   "name": "an empty key",
+   "data": {
+    "rung": "identity",
+    "id": "identity/git-user",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring",
+    "keys": [
+     ""
+    ]
+   },
+   "issues": [
+    {
+     "path": [
+      "keys",
+      0
+     ],
+     "message": "String must contain at least 1 character(s)"
+    }
+   ]
+  },
+  {
+   "name": "an unknown signIn",
+   "data": {
+    "rung": "identity",
+    "id": "identity/git-user",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring",
+    "signIn": "magic"
+   },
+   "issues": [
+    {
+     "path": [
+      "signIn"
+     ],
+     "message": "Invalid enum value. Expected 'none' | 'key' | 'token' | 'oauth', received 'magic'"
+    }
+   ]
+  },
+  {
+   "name": "a pin with an empty tag",
+   "data": {
+    "rung": "tools",
+    "id": "tools/x",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring",
+    "pin": {
+     "tag": ""
+    }
+   },
+   "issues": [
+    {
+     "path": [
+      "pin",
+      "tag"
+     ],
+     "message": "String must contain at least 1 character(s)"
+    }
+   ]
+  },
+  {
+   "name": "an unknown key and arch",
+   "data": {
+    "rung": "identity",
+    "id": "identity/git-user",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring",
+    "arch": "arm64",
+    "extra": 1
+   },
+   "issues": null
+  },
+  {
+   "name": "two bad fields",
+   "data": {
+    "rung": "identity",
+    "id": "identity/git-user",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": -1,
+    "default": "maybe"
+   },
+   "issues": [
+    {
+     "path": [
+      "bytes"
+     ],
+     "message": "Number must be greater than or equal to 0"
+    },
+    {
+     "path": [
+      "default"
+     ],
+     "message": "Invalid enum value. Expected 'bring' | 'skip', received 'maybe'"
+    }
+   ]
+  },
+  {
+   "name": "null",
+   "data": null,
+   "issues": [
+    {
+     "path": [],
+     "message": "Expected object, received null"
+    }
+   ]
+  },
+  {
+   "name": "an array",
+   "data": [],
+   "issues": [
+    {
+     "path": [],
+     "message": "Expected object, received array"
+    }
+   ]
+  }
+ ],
+ "manifests": [
+  {
+   "name": "one row",
+   "data": {
+    "entries": [
+     {
+      "rung": "identity",
+      "id": "identity/git-user",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     }
+    ]
+   },
+   "issues": null,
+   "error": null
+  },
+  {
+   "name": "entries as text",
+   "data": {
+    "entries": "nope"
+   },
+   "issues": [
+    {
+     "path": [
+      "entries"
+     ],
+     "message": "Expected array, received string"
+    }
+   ],
+   "error": "invalid manifest: entries: Expected array, received string"
+  },
+  {
+   "name": "no entries",
+   "data": {},
+   "issues": [
+    {
+     "path": [
+      "entries"
+     ],
+     "message": "Required"
+    }
+   ],
+   "error": "invalid manifest: entries: Required"
+  },
+  {
+   "name": "null",
+   "data": null,
+   "issues": [
+    {
+     "path": [],
+     "message": "Expected object, received null"
+    }
+   ],
+   "error": "invalid manifest: : Expected object, received null"
+  },
+  {
+   "name": "a duplicate id",
+   "data": {
+    "entries": [
+     {
+      "rung": "identity",
+      "id": "identity/git-user",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     },
+     {
+      "rung": "identity",
+      "id": "identity/git-user",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     }
+    ]
+   },
+   "issues": [
+    {
+     "path": [
+      "entries",
+      1,
+      "id"
+     ],
+     "message": "duplicate id identity/git-user"
+    }
+   ],
+   "error": "invalid manifest: entries.1.id: duplicate id identity/git-user"
+  },
+  {
+   "name": "a duplicate id three times",
+   "data": {
+    "entries": [
+     {
+      "rung": "identity",
+      "id": "identity/git-user",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     },
+     {
+      "rung": "identity",
+      "id": "identity/git-user",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     },
+     {
+      "rung": "identity",
+      "id": "identity/git-user",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     }
+    ]
+   },
+   "issues": [
+    {
+     "path": [
+      "entries",
+      1,
+      "id"
+     ],
+     "message": "duplicate id identity/git-user"
+    },
+    {
+     "path": [
+      "entries",
+      2,
+      "id"
+     ],
+     "message": "duplicate id identity/git-user"
+    }
+   ],
+   "error": "invalid manifest: entries.1.id: duplicate id identity/git-user; entries.2.id: duplicate id identity/git-user"
+  },
+  {
+   "name": "a duplicate id beside a custom issue",
+   "data": {
+    "entries": [
+     {
+      "rung": "identity",
+      "id": "identity/git-user",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     },
+     {
+      "rung": "identity",
+      "id": "shell/x",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     },
+     {
+      "rung": "identity",
+      "id": "identity/git-user",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     }
+    ]
+   },
+   "issues": [
+    {
+     "path": [
+      "entries",
+      1,
+      "id"
+     ],
+     "message": "id must start with identity/"
+    },
+    {
+     "path": [
+      "entries",
+      2,
+      "id"
+     ],
+     "message": "duplicate id identity/git-user"
+    }
+   ],
+   "error": "invalid manifest: entries.1.id: id must start with identity/; entries.2.id: duplicate id identity/git-user"
+  },
+  {
+   "name": "a duplicate id beside a type issue",
+   "data": {
+    "entries": [
+     {
+      "rung": "identity",
+      "id": "identity/git-user",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     },
+     {
+      "rung": 3,
+      "id": "identity/git-user",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     },
+     {
+      "rung": "identity",
+      "id": "identity/git-user",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     }
+    ]
+   },
+   "issues": [
+    {
+     "path": [
+      "entries",
+      1,
+      "rung"
+     ],
+     "message": "Expected 'identity' | 'shell' | 'toolchains' | 'tools' | 'agents' | 'logins', received number"
+    }
+   ],
+   "error": "invalid manifest: entries.1.rung: Expected 'identity' | 'shell' | 'toolchains' | 'tools' | 'agents' | 'logins', received number"
+  },
+  {
+   "name": "a bad second row",
+   "data": {
+    "entries": [
+     {
+      "rung": "identity",
+      "id": "identity/git-user",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     },
+     {
+      "rung": 3,
+      "id": "identity/git-user",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     }
+    ]
+   },
+   "issues": [
+    {
+     "path": [
+      "entries",
+      1,
+      "rung"
+     ],
+     "message": "Expected 'identity' | 'shell' | 'toolchains' | 'tools' | 'agents' | 'logins', received number"
+    }
+   ],
+   "error": "invalid manifest: entries.1.rung: Expected 'identity' | 'shell' | 'toolchains' | 'tools' | 'agents' | 'logins', received number"
+  },
+  {
+   "name": "a duplicate id beside a size as text",
+   "data": {
+    "entries": [
+     {
+      "rung": "identity",
+      "id": "identity/a",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     },
+     {
+      "rung": "identity",
+      "id": "identity/a",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": "0",
+      "default": "bring"
+     },
+     {
+      "rung": "identity",
+      "id": "identity/a",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     }
+    ]
+   },
+   "issues": [
+    {
+     "path": [
+      "entries",
+      1,
+      "bytes"
+     ],
+     "message": "Expected number, received string"
+    }
+   ],
+   "error": "invalid manifest: entries.1.bytes: Expected number, received string"
+  },
+  {
+   "name": "a duplicate id on a skip required row",
+   "data": {
+    "entries": [
+     {
+      "rung": "identity",
+      "id": "identity/a",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "bring"
+     },
+     {
+      "rung": "identity",
+      "id": "identity/a",
+      "label": "git name and email",
+      "paths": [
+       "~/.gitconfig"
+      ],
+      "bytes": 512,
+      "default": "skip",
+      "required": true
+     }
+    ]
+   },
+   "issues": [
+    {
+     "path": [
+      "entries",
+      1,
+      "required"
+     ],
+     "message": "a required row cannot default to skip"
+    },
+    {
+     "path": [
+      "entries",
+      1,
+      "id"
+     ],
+     "message": "duplicate id identity/a"
+    }
+   ],
+   "error": "invalid manifest: entries.1.required: a required row cannot default to skip; entries.1.id: duplicate id identity/a"
+  },
+  {
+   "name": "no rows",
+   "data": {
+    "entries": []
+   },
+   "issues": null,
+   "error": null
+  }
+ ],
+ "keyOrder": [
+  {
+   "data": {
+    "keys": [
+     "k"
+    ],
+    "signIn": "oauth",
+    "detail": "d",
+    "consent": true,
+    "choice": "copy",
+    "bring": true,
+    "required": true,
+    "group": "g",
+    "reason": "r",
+    "volatile": [
+     "~/v"
+    ],
+    "excludes": [
+     "~/e"
+    ],
+    "arch": "arm64",
+    "unknown": 1,
+    "secrets": [
+     "S"
+    ],
+    "rung": "logins",
+    "id": "logins/x",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring"
+   },
+   "parsed": "{\"rung\":\"logins\",\"id\":\"logins/x\",\"label\":\"git name and email\",\"paths\":[\"~/.gitconfig\"],\"excludes\":[\"~/e\"],\"volatile\":[\"~/v\"],\"bytes\":512,\"default\":\"bring\",\"reason\":\"r\",\"group\":\"g\",\"required\":true,\"bring\":true,\"choice\":\"copy\",\"consent\":true,\"detail\":\"d\",\"secrets\":[\"S\"],\"signIn\":\"oauth\",\"keys\":[\"k\"]}"
+  },
+  {
+   "data": {
+    "pin": {
+     "latest": true,
+     "tag": "v1"
+    },
+    "version": "1",
+    "linux": "yes",
+    "arch": "arm64",
+    "rung": "tools",
+    "id": "tools/x",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring"
+   },
+   "parsed": "{\"rung\":\"tools\",\"id\":\"tools/x\",\"label\":\"git name and email\",\"paths\":[\"~/.gitconfig\"],\"bytes\":512,\"default\":\"bring\",\"linux\":\"yes\",\"version\":\"1\",\"pin\":{\"tag\":\"v1\",\"latest\":true}}"
+  },
+  {
+   "data": {
+    "sources": [
+     "~/s"
+    ],
+    "font": "F",
+    "login": "zsh",
+    "rung": "shell",
+    "id": "shell/x",
+    "label": "git name and email",
+    "paths": [
+     "~/.gitconfig"
+    ],
+    "bytes": 512,
+    "default": "bring"
+   },
+   "parsed": "{\"rung\":\"shell\",\"id\":\"shell/x\",\"label\":\"git name and email\",\"paths\":[\"~/.gitconfig\"],\"bytes\":512,\"default\":\"bring\",\"login\":\"zsh\",\"font\":\"F\",\"sources\":[\"~/s\"]}"
+  }
+ ]
+}

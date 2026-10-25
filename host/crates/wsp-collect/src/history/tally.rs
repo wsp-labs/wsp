@@ -61,20 +61,21 @@ pub fn installed_name(key: &str) -> String {
     todo!()
 }
 
-/// What one session came to in one file (tally.ts:71): all a cache stores. Keys in this order on disk.
+/// What one session came to in one file (tally.ts:71): all a cache stores.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoryBucket {
     pub session: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub folder: Option<String>,
-    /// The newest call of that session in that file, ms epoch; written as JavaScript writes the number.
-    #[serde(default, skip_serializing_if = "Option::is_none", serialize_with = "wsp_words::js::serialize_opt_f64")]
-    pub at: Option<f64>,
     pub calls: u64,
     /// Command name to how often it ran, in first-seen order.
     pub commands: IndexMap<String, u64>,
     /// install_key to how often an installer was asked for it, in first-seen order.
     pub installs: IndexMap<String, u64>,
+    /// The newest call of that session in that file, ms epoch; written as JavaScript writes the number. Last: the TS
+    /// sets it after the bucket is made, so a freshly read bucket writes it last (spec/history_store.md rule 12).
+    #[serde(default, skip_serializing_if = "Option::is_none", serialize_with = "wsp_words::js::serialize_opt_f64")]
+    pub at: Option<f64>,
 }
 
 /// Whether a bucket's session ran at one of the folders or inside it (`underProject`); a bucket with no folder never.
