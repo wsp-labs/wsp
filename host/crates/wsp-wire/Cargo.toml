@@ -10,3 +10,5 @@ description = "The host's wire: the frames clients and computers send it, the vi
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+indexmap = { version = "2", features = ["serde"] }
+wsp-frames = { path = "../../../daemon/crates/wsp-frames" }
