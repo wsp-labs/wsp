@@ -15,15 +15,18 @@ restart by living there. Nothing is cached in the host.
   `<program>` is `program_word("claude", launch)`: the person's program quoted, never the pid wrapper.
 - `parse_version`: first `\d+\.\d+\.\d+` anywhere; `None` if none.
 - `parse_catalog_probe(stdout)`: split on the separator; fewer than 3 parts → `None`. The third part's first line that
-  parses as `{type:"control_response", response:{response:{...}}}` is the init; none → `None`. Models (`init.models`
+  parses as `{type:"control_response", response:{response:{...}}}` is the init (an array inner counts and stops the
+  walk; a string or null inner is skipped); none → `None`. Models (`init.models`
   must be an array, else `None`): each entry needs a non-empty string `value`; slug = (non-empty `resolvedModel` or
   value) less a trailing `[1m]`; 1M where value or resolvedModel ends `[1m]`. `value == "default"` names the default
   slug and adds no model. A repeat slug merges efforts (new ones appended) and gains both windows if 1M and it had
   none. label = non-empty displayName or slug, less a trailing ` (1M context)` (case-insensitive); description where
   non-empty; efforts the string items of supportedEffortLevels (`[]` where absent); contextWindows `["200k","1m"]` or
   `[]`; isDefault true only for the default slug. No model at all → `None`. `efforts` comes from `--help`: the text
-  after `--effort <level>` (300 chars) up to the first `(...)`, split on `,`, trimmed, kept where `^[a-z]+$`.
-  permissionModes: `"default"` then the quoted choices after `--permission-mode <mode>` (600 chars, `(choices: ...)`)
+  after `--effort <level>` (a window of 300 UTF-16 units starting at the flag, its own 16 counted) up to the first
+  `(...)` only, split on `,`, trimmed, kept where `^[a-z]+$`, no dedupe.
+  permissionModes: `"default"` then the quoted choices after `--permission-mode <mode>` (600 UTF-16 units from the
+  flag, `(choices: ...)`, no dedupe, case-sensitive)
   less default and plan. Version may be `None`; the probe still answers.
 
 ## session titles (session-title.ts)
@@ -31,7 +34,8 @@ restart by living there. Nothing is cached in the host.
 - `session_title_command`: `f=$(ls -1td '<config>/projects'/*/'<id>.jsonl' 2>/dev/null | head -n 1); [ -n "$f" ] || exit 0; grep -F '"type":"custom-title"' "$f" | tail -n 1; grep -F '"type":"ai-title"' "$f" | tail -n 1; true`.
 - `parse_session_title`: over trimmed lines that parse as objects, the last custom-title's `customTitle` and the last
   ai-title's `aiTitle` (strings only). The rename wins wherever it sits; a blank (trimmed empty) one gives way to the
-  generated; both blank or absent → `None`. Answers trimmed.
+  generated, even where an earlier rename was not blank; both blank or absent → `None`. Answers trimmed. Blank and
+  trimmed are by JS trim (claude-reading rule R1): U+FEFF is blank, U+0085 is not.
 - `title_for_command(prompt, model, launch, sign_in)`: `cd ~ && <CLEAN>; <sign_in or "">printf '%s' '<prompt>' | <program> -p --safe-mode --output-format json --tools '' --no-session-persistence[ --model '<m>']`,
   CLEAN = `unset ${!CLAUDE_CODE_@} CLAUDECODE FORCE_CODE_TERMINAL ANTHROPIC_API_KEY; <ENV_FROM_INPUT>`.
 - `draft_for_command`: `cd ~ && <CLEAN>; <sign_in>` + the same question line + ` < '<promptFile>'`.
@@ -39,9 +43,10 @@ restart by living there. Nothing is cached in the host.
   string `result`: `generated_title(result)`. Lines before it that fail any test are skipped. None → `None`.
 - `parse_draft_for`: same walk; answers the result whole (untrimmed), `None` where it trims empty.
 - `rename_command`: `f=$(ls -1td <glob> 2>/dev/null | head -n 1); [ -n "$f" ] || { echo no-session; exit 0; }; [ -z "$(tail -c 1 "$f")" ] || printf '\n' >> "$f" 2>/dev/null; e=$({ printf '%s\n' '<record>' >> "$f"; } 2>&1) && echo wrote || printf '%s %s\n' failed "$e"`,
-  record = `{"type":"custom-title","customTitle":<title>,"sessionId":<id>}` in that key order.
+  record = `{"type":"custom-title","customTitle":<title>,"sessionId":<id>}` in that key order. Each `\n` shown
+  here is a real line feed (the TS template's own), three in all; `present_command`'s is two characters.
 - `parse_rename`: any trimmed line `wrote` → Written; else any `no-session` → NoSession; else Failed with the text
-  after the first line starting `failed `, else the non-empty lines joined by `; `, else "the machine said nothing
+  after the first trimmed line starting `failed ` (`failed ` alone trims to `failed`, which is then a plain line), else the non-empty lines joined by `; `, else "the machine said nothing
   about the write". A stdout naming none of them is never NoSession.
 
 ## conversations (conversations.ts)
@@ -67,6 +72,21 @@ restart by living there. Nothing is cached in the host.
     message {who, text, tool?, at?}, earlier}`; none found → Gone. Never Open (the Claude store has no lock word).
     `probe` and `count` are not read.
 
+## Rules added for the port (numbered; each value printed by the TS at a3b870a6e)
+
+- **S1.** `rename_command("/c", "sid", "a \"q\"\nb")` is the TS bytes, three real line feeds.
+- **S2.** `parse_rename` over eleven answers, among them `failed  two spaces` → ` two spaces`, `failed ` → `failed`,
+  `failed x\nfailed y` → `x`, `\n\n` → the nothing-said line.
+- **S3.** A custom title of U+FEFF is blank and the generated one stands; U+0085 is a title.
+- **S4.** `keys_for` replaces each UTF-16 unit: `/w/😀` → `-w---`; `/a b` and `/a-b` share `-a-b`, kept once; a pinned
+  `""` is kept.
+- **S5.** `runs_of` sizes 0, 1, 64, 65, 128, 129 → `[]`, `[1]`, `[64]`, `[64,1]`, `[64,64]`, `[64,64,1]`.
+- **S6.** `parse_live`: non-empty string ids once, first-seen; `""`, `null`, `{}` and trailing text → None; `  []  `
+  and `[1,2]` → an empty set.
+- **S7.** `present_command("/r", [a, b], None)` is the TS bytes, its `\n` two characters.
+- **S8.** The first result that is no error decides the title even where it gives none: `Sure!\nHere` then a good
+  title → None.
+
 ## Rules against tests
 
 | Rule | Test |
@@ -80,3 +100,11 @@ restart by living there. Nothing is cached in the host.
 | list frames, keys, newest per id, runs of 64 | `claude_store` cases at conversations.test.ts:53-141 (ported) |
 | live None on a failed or non-list answer | `claude_store::live_is_none_where_the_command_answers_no_list` (ported) |
 | earlier gone where no folder holds it, tail passed | `claude_store` cases at conversations.test.ts:101-118 (ported) |
+| S1 | `claude_store::the_rename_script_is_the_ts_bytes` |
+| S2 | `claude_store::a_rename_reads_its_answer_line_by_line` |
+| S3 | `claude_store::a_title_is_blank_by_javascript_trim` |
+| S4 | `claude_store::folder_keys_count_utf16_units` |
+| S5 | `claude_store::runs_hold_at_most_64` |
+| S6 | `claude_store::the_live_list_reads_only_a_whole_array` |
+| S7 | `claude_store::the_presence_check_is_the_ts_bytes` |
+| S8 | `claude_store::the_first_good_result_decides_the_title` |

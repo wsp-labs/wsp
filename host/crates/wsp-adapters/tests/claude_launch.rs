@@ -144,3 +144,76 @@ fn a_user_line_is_byte_for_byte_the_ts_one() {
     assert_eq!(terminal_resume_command(Some(&base(&[("CLAUDE_CONFIG_DIR", Some("/root/.claude cfg"))])), None), "CLAUDE_CONFIG_DIR='/root/.claude cfg' claude --resume");
     assert_eq!(terminal_resume_command(Some(&base(&[("CLAUDE_CONFIG_DIR", None)])), None), "claude --resume");
 }
+
+const HEAD: &str = "--input-format stream-json --output-format stream-json --verbose";
+
+// Rule L1: a side question drops every --settings pair where any of them names a file, the JSON ones too.
+#[test]
+fn a_side_question_drops_every_settings_pair_where_one_is_a_file() {
+    let args = ["--settings", r#"{"a":1}"#, "--settings", "/f.json", "-x"].map(String::from).to_vec();
+    let line = build_command(&BuildCommandOptions { resume: Some(U.into()), aside: true, launch: Some(AgentLaunch { program: None, args: Some(args) }), ..Default::default() }).unwrap();
+    assert_eq!(line, format!(r#"cd ~ && {PID_WORD} -p '-x' {HEAD} --include-partial-messages --permission-mode 'default' --permission-prompt-tool stdio --settings '{{"disableAllHooks":true}}' --max-turns 2 --resume {U}"#));
+}
+
+// Rule L2: a side question always runs at the default mode, so its own permission mode is never read, a bad one included.
+#[test]
+fn a_side_question_never_reads_its_permission_mode() {
+    let line = build_command(&BuildCommandOptions { resume: Some(U.into()), aside: true, permission_mode: Some("bad mode".into()), ..Default::default() }).unwrap();
+    assert_eq!(line, format!(r#"cd ~ && {PID_WORD} -p {HEAD} --include-partial-messages --permission-mode 'default' --permission-prompt-tool stdio --settings '{{"disableAllHooks":true}}' --max-turns 2 --resume {U}"#));
+}
+
+// Rule L3: the model slug is checked with the window's suffix on; an empty slug, name or folder are values like any.
+#[test]
+fn empty_values_are_given_values() {
+    let refused = |o: BuildCommandOptions| build_command(&o).expect_err("refused").0;
+    assert_eq!(refused(BuildCommandOptions { session_id: Some(U.into()), model: Some("bad model".into()), context_window: Some("1m".into()), ..Default::default() }), r#"model must be a plain slug, got "bad model[1m]""#);
+    assert_eq!(refused(BuildCommandOptions { session_id: Some(U.into()), model: Some("".into()), ..Default::default() }), r#"model must be a plain slug, got """#);
+    let line = build_command(&BuildCommandOptions { session_id: Some(U.into()), name: Some("".into()), cwd: Some("".into()), ..Default::default() }).unwrap();
+    assert_eq!(line, format!("cd '' && {PID_WORD} -p {HEAD} --dangerously-skip-permissions --permission-prompt-tool stdio --name '' --session-id {U}"));
+}
+
+// Rule L4: a --settings value that is JSON but no object is a file to the TS: the words stay and nothing folds.
+#[test]
+fn settings_json_that_is_no_object_reads_as_a_file() {
+    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    for value in ["null", "\"abc\"", "5"] {
+        assert_eq!(person_settings(&s(&["--settings", value])), PersonSettings { words: s(&["--settings", value]), settings: Default::default(), file: true }, "{value}");
+    }
+    assert_eq!(person_settings(&s(&["--settings", "--debug", "x"])), PersonSettings { words: s(&["--settings", "--debug", "x"]), settings: Default::default(), file: true });
+    assert_eq!(person_settings(&s(&["--settings", "{}", "-a"])), PersonSettings { words: s(&["-a"]), settings: Default::default(), file: false });
+}
+
+// Rule L5: an empty key or project name is given: it is set, and the inherited token is not added behind it.
+#[test]
+fn an_empty_vault_key_is_still_the_key() {
+    let fixed = [("CLAUDE_CODE_AUTO_CONNECT_IDE", "0"), ("CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL", "1"), ("CLAUDE_CODE_ENABLE_TODO_TOOLS", "1"), ("CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS", "0"), ("CLAUDE_CODE_MCP_STARTUP_WAIT_MS", "0")];
+    let keyed = build_env(&ClaudeEnvOptions { base: Some(base(&[("CLAUDE_CODE_OAUTH_TOKEN", Some("t")), ("HOME", Some("/root"))])), api_key: Some("".into()), ..Default::default() });
+    let mut want = vec![("CLAUDE_STREAM_FIRST_BYTE_TIMEOUT_MS", "30000"), ("HOME", "/root")];
+    want.extend(fixed);
+    want.push(("ANTHROPIC_API_KEY", ""));
+    assert_eq!(entries(&keyed), want);
+    let named = build_env(&ClaudeEnvOptions { project_dir_name: Some("".into()), ..Default::default() });
+    let mut want = vec![("CLAUDE_STREAM_FIRST_BYTE_TIMEOUT_MS", "30000")];
+    want.extend(fixed);
+    want.push(("CLAUDE_CODE_PROJECT_DIR_NAME", ""));
+    assert_eq!(entries(&named), want);
+}
+
+// Rule L6: the version is read as the TS reads it, each part a JS number: leading zeros and a part past u64 read, a
+// leading space or a short version do not.
+#[test]
+fn subagent_text_reads_each_part_as_a_js_number() {
+    let cases = [("2.1.99999999999999999999", true), ("02.1.270", true), ("2.1.0270", true), ("2.1.270.5", true), (" 2.1.270", false), ("2.1", false), ("2.1.9a", false), ("2.1.27", false)];
+    for (version, takes) in cases {
+        assert_eq!(forwards_subagent_text(Some(version)), takes, "{version:?}");
+    }
+}
+
+// Rule L7: settings fold as a JS object does: keys that read as array indexes go first, ascending, then the rest in the
+// order they were set.
+#[test]
+fn settings_put_index_keys_first_as_a_js_object_does() {
+    let args = ["--settings", r#"{"b":1,"2":"x","1":"y"}"#].map(String::from).to_vec();
+    let line = build_command(&BuildCommandOptions { session_id: Some(U.into()), fast: Some(true), memory_dir: Some("/m".into()), launch: Some(AgentLaunch { program: None, args: Some(args) }), ..Default::default() }).unwrap();
+    assert_eq!(line, format!(r#"cd ~ && {PID_WORD} -p {HEAD} --dangerously-skip-permissions --permission-prompt-tool stdio --settings '{{"1":"y","2":"x","fastMode":true,"autoMemoryDirectory":"/m","b":1}}' --session-id {U}"#));
+}

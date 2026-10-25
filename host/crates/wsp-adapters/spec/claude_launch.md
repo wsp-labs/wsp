@@ -36,10 +36,13 @@ TS at a3b870a6e: `packages/adapter-claude/src/landmines.ts` (467 lines). Rust: `
   sessionId/resume ("buildCommand needs exactly one of sessionId or resume"); an id that is not a UUID ("session
   identifier must be a UUID, got \"<id>\""); a copyOf without a fresh sessionId or not a UUID ("a copy opens a new
   session of a session named by its UUID, got \"<copyOf>\""); an aside without resume ("a side question resumes the
-  copy it is asked on"); the permission mode slug; then contextWindow with no model ("contextWindow needs a model to
+  copy it is asked on"); the permission mode slug, read only off a turn (an aside runs at `default` and never reads
+  its own, a bad one included); then contextWindow with no model ("contextWindow needs a model to
   ride on") or not 200k/1m ("contextWindow must be \"200k\" or \"1m\", got \"<w>\""); then the model slug, then
   the effort slug. A slug must match `^[A-Za-z0-9][A-Za-z0-9._:\[\]-]*$`, else `<name> must be a plain slug, got
-  "<value>"` with name permissionMode, model or effort.
+  "<value>"` with name permissionMode, model or effort. The model is checked with `[1m]` already on where the window
+  is 1m (`got "bad model[1m]"`). `""` is a value like any: an empty slug is refused, an empty name is `--name ''`, an
+  empty cwd `cd '' && `.
 - Words, joined by one space: `<agent_word("claude", launch)> -p`; the person's words (less a JSON --settings) each
   shell-quoted; `--input-format stream-json`; `--output-format stream-json`; `--verbose`; `--forward-subagent-text`
   where subagentText; `--include-partial-messages` for an aside; permission flags; `--model '<m>'` (with `[1m]` for
@@ -50,7 +53,9 @@ TS at a3b870a6e: `packages/adapter-claude/src/landmines.ts` (467 lines). Rust: `
   any other → `--permission-mode '<mode>' --permission-prompt-tool stdio`. An aside is always `default`.
 - Settings object key order: fastMode (only `true`), autoMemoryDirectory, the person's keys, deniedMcpServers
   (`[{serverName}]` per off server, only when non-empty), disableAllHooks (aside). A person's key overrides an earlier
-  one in place. An aside drops a person's settings file and takes their JSON settings.
+  one in place, and so does a later host key over a person's (an aside's disableAllHooks over theirs). Keys that read
+  as array indexes go first, ascending, as a JS object holds them (wave 1's `js_key_order`). An aside drops every
+  person `--settings` pair where any of them is a file, the JSON ones too; with JSON ones alone it takes them.
 - Id flag: aside `--max-turns 2 --resume <id>`; resume `--resume <id>`; fresh `--session-id <id>` plus
   ` --resume <copyOf> --fork-session` for a copy.
 - Prefix: off servers `None` → nothing; `Some([])` → `rm -f <OFF_SERVERS_FILE> 2>/dev/null; `; else
@@ -59,9 +64,11 @@ TS at a3b870a6e: `packages/adapter-claude/src/landmines.ts` (467 lines). Rust: `
 - `mcp_config_flag`: `{"mcpServers":{name:{command,args[,alwaysLoad:true]}}}`, alwaysLoad only on the server named
   MCP_SERVER_NAME and only where launch_has_slate; noSlate never written. Empty or None map: no flag.
 - `person_settings`: `--settings X` and `--settings=X` both read; a value that is not a JSON object (missing, a path,
-  an array) makes `{words: args unchanged, settings: {}, file: true}` at once; the last JSON one wins.
+  an array, `null`, a string, a number, a flag) makes `{words: args unchanged, settings: {}, file: true}` at once;
+  the last JSON one wins.
 - `forwards_subagent_text`: `^(\d+)\.(\d+)\.(\d+)` (anchored: `v2.1.300` is false, `2.1.270-beta` true) compared
-  part by part to 2.1.270, equal counting as taken; None or no match is false.
+  part by part to 2.1.270, each part a JS number (`2.1.0270` and a part past u64 read, so parse as f64, never u32),
+  equal counting as taken; None or no match is false.
 - `launch_command`: resume → `resume`, else `sessionId = local_id`; title → name; valued → serverValues;
   forwards_subagent_text(version) → subagentText.
 - `saved_spend_command` (:441): `wsp_saved=$(ls -1td '<config>/projects'/*/'<id>.jsonl' 2>/dev/null | head -n 1); [ -z "$wsp_saved" ] || tail -c 8388608 "$wsp_saved" | grep -F '"type":"cost-state"' | tail -n 1; `.
@@ -69,6 +76,20 @@ TS at a3b870a6e: `packages/adapter-claude/src/landmines.ts` (467 lines). Rust: `
   each image `{"type":"image","source":{"type":"base64","media_type":..,"data":..}}` in the order given.
 - `server_values_file`: `None` for None or empty entries; else `ExecSecret{files: {WSP_MCP_VALUES: {"mcpServers":entries}}, input: false}`.
 - `new_session_id`: a fresh lower-case v4 UUID each call.
+
+## Rules added for the port (numbered; each value printed by the TS at a3b870a6e)
+
+- **L1.** An aside with a JSON and a file `--settings` drops both: `-p '-x' ... --settings '{"disableAllHooks":true}'`.
+- **L2.** An aside's own permission mode is never read: `bad mode` still gives `--permission-mode 'default'`.
+- **L3.** `""` is a given value: `got ""` for a model, `--name ''`, `cd '' && `; the window's `[1m]` is on before the
+  model's check.
+- **L4.** `--settings` followed by `null`, `"abc"`, `5` or a flag reads as a file; `--settings {} -a` folds `{}`.
+- **L5.** `build_env` with `api_key: Some("")` sets `ANTHROPIC_API_KEY=""` last and adds no inherited token; a
+  `project_dir_name` of `""` is set too. Empty strings are given (`??` in the TS, never `||`).
+- **L6.** `forwards_subagent_text`: `2.1.99999999999999999999`, `02.1.270`, `2.1.0270`, `2.1.270.5` true; ` 2.1.270`,
+  `2.1`, `2.1.9a`, `2.1.27` false.
+- **L7.** Person settings `{"b":1,"2":"x","1":"y"}` with fast and a memory folder fold to
+  `{"1":"y","2":"x","fastMode":true,"autoMemoryDirectory":"/m","b":1}`.
 
 ## Rules against tests
 
@@ -83,3 +104,10 @@ TS at a3b870a6e: `packages/adapter-claude/src/landmines.ts` (467 lines). Rust: `
 | version cut at 2.1.270 | `claude_launch::subagent_text_starts_at_2_1_270` |
 | user line bytes with images and uuid | `claude_launch::a_user_line_is_byte_for_byte_the_ts_one` |
 | the 52 TS cases | `claude_landmines::*` (ported) |
+| L1 | `claude_launch::a_side_question_drops_every_settings_pair_where_one_is_a_file` |
+| L2 | `claude_launch::a_side_question_never_reads_its_permission_mode` |
+| L3 | `claude_launch::empty_values_are_given_values` |
+| L4 | `claude_launch::settings_json_that_is_no_object_reads_as_a_file` |
+| L5 | `claude_launch::an_empty_vault_key_is_still_the_key` |
+| L6 | `claude_launch::subagent_text_reads_each_part_as_a_js_number` |
+| L7 | `claude_launch::settings_put_index_keys_first_as_a_js_object_does` |
