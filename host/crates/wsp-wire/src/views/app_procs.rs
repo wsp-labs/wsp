@@ -99,8 +99,20 @@ impl Check for AppProc {
         let mut out = Vec::new();
         crate::types::keys::req_key_with::<JsInt>(obj, "pid", &mut out, Self::rule_pid);
         crate::types::keys::req_key::<AppProcKind>(obj, "kind", &mut out);
-        crate::types::keys::opt_key_with::<Vec<String>>(obj, "origins", &mut out, Self::rule_origins);
-        crate::types::keys::opt_key_with::<Vec<JsInt>>(obj, "contents", &mut out, Self::rule_contents);
+        crate::types::keys::opt_arr_with::<String>(
+            obj,
+            "origins",
+            &mut out,
+            |n| crate::types::check::items_at_most(n, 20),
+            Self::rule_origins,
+        );
+        crate::types::keys::opt_arr_with::<JsInt>(
+            obj,
+            "contents",
+            &mut out,
+            |n| crate::types::check::items_at_most(n, 20),
+            Self::rule_contents,
+        );
         Some(out)
     }
 

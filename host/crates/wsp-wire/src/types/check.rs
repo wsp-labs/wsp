@@ -87,7 +87,9 @@ impl SchemaError {
             }
         };
         issue.extend(order);
-        serde_json::to_string_pretty(&Value::Array(vec![Value::Object(issue.into_iter().collect())])).expect("an issue writes as JSON")
+        let mut text = String::new();
+        write_pretty(&Value::Array(vec![Value::Object(issue.into_iter().collect())]), 0, &mut text);
+        text
     }
 
     /// The same issue one level down: `segment` goes in front of the path, so a struct's check names the field it
@@ -96,6 +98,38 @@ impl SchemaError {
         let mut path = self.path;
         path.insert(0, segment.into());
         SchemaError { path, ..self }
+    }
+}
+
+/// `JSON.stringify(value, null, 2)`: a number as `String(n)` and an object's keys in JavaScript's order, which serde_json's own
+/// pretty writer does neither of.
+fn write_pretty(value: &Value, depth: usize, out: &mut String) {
+    let pad = |out: &mut String, depth: usize| out.push_str(&"  ".repeat(depth));
+    match value {
+        Value::Array(items) if !items.is_empty() => {
+            out.push_str("[\n");
+            for (i, item) in items.iter().enumerate() {
+                pad(out, depth + 1);
+                write_pretty(item, depth + 1, out);
+                out.push_str(if i + 1 < items.len() { ",\n" } else { "\n" });
+            }
+            pad(out, depth);
+            out.push(']');
+        }
+        Value::Object(map) if !map.is_empty() => {
+            out.push_str("{\n");
+            let entries = crate::types::kept::js_order(map.iter().map(|(k, v)| (k.as_str(), v)));
+            for (i, (key, item)) in entries.iter().enumerate() {
+                pad(out, depth + 1);
+                out.push_str(&crate::text::json_stringify(&Value::from(*key)));
+                out.push_str(": ");
+                write_pretty(item, depth + 1, out);
+                out.push_str(if i + 1 < entries.len() { ",\n" } else { "\n" });
+            }
+            pad(out, depth);
+            out.push('}');
+        }
+        other => out.push_str(&crate::text::json_stringify(other)),
     }
 }
 
@@ -218,6 +252,11 @@ impl<T: Check> Check for Vec<T> {
             Some((_, rest)) => T::describe(rest),
         }
     }
+
+    fn dirty(value: &Value) -> Option<Self> {
+        let Value::Array(items) = value else { return None };
+        items.iter().map(dirty_of::<T>).collect()
+    }
 }
 
 impl<T: Check> Check for Option<T> {
@@ -257,9 +296,9 @@ impl<K: Check + Serialize + std::hash::Hash + Eq, V: Check> Check for IndexMap<K
     fn pass(value: &Value) -> Option<Vec<SchemaError>> {
         let Value::Object(map) = value else { return None };
         let mut out = Vec::new();
-        for (key, item) in map {
-            out.extend(issues_of::<K>(&Value::String(key.clone())).into_iter().map(|e| e.under(key.as_str())));
-            out.extend(issues_of::<V>(item).into_iter().map(|e| e.under(key.as_str())));
+        for (key, item) in crate::types::kept::js_order(map.iter().map(|(k, v)| (k.as_str(), v))) {
+            out.extend(issues_of::<K>(&Value::String(key.to_string())).into_iter().map(|e| e.under(key)));
+            out.extend(issues_of::<V>(item).into_iter().map(|e| e.under(key)));
         }
         Some(out)
     }
@@ -610,6 +649,15 @@ pub fn read<T: DeserializeOwned + Check>(value: &Value) -> Result<T, Vec<SchemaE
     serde_path_to_error::deserialize::<_, T>(value).map_err(|e| vec![serde_issue::<T>(&e.inner().to_string(), segments(e.path()), value)])
 }
 
+/// The value of a key whose only faults leave zod's parse dirty (an integer rule, a length or pattern refinement): zod goes on
+/// to the key's later rules with it, so a rule can still be run.
+pub fn dirty_of<T: DeserializeOwned + Check>(value: &Value) -> Option<T> {
+    T::dirty(value).or_else(|| {
+        let found = issues_of::<T>(value);
+        (!found.is_empty() && !found.iter().any(is_aborted)).then(|| serde_path_to_error::deserialize::<_, T>(value).ok()).flatten()
+    })
+}
+
 /// A field zod reads as `.optional()` alone: a value is read, and `null` is refused.
 pub fn read_present<T: DeserializeOwned + Check>(value: &Value) -> Result<Option<T>, Vec<SchemaError>> {
     if value.is_null() {
@@ -694,7 +742,7 @@ pub fn unknown_tag<T: Check>(key: &str, value: &Value) -> SchemaError {
 
 /// zod's issues that abort a parse, as opposed to the ones that leave a value dirty (its refinements, an unknown key
 /// and the integer check of a number).
-fn is_aborted(issue: &SchemaError) -> bool {
+pub(crate) fn is_aborted(issue: &SchemaError) -> bool {
     match issue.code.as_str() {
         "invalid_type" => issue.detail.get("expected") != Some(&Value::from("integer")),
         code => matches!(code, "invalid_enum_value" | "invalid_literal" | "invalid_union" | "invalid_union_discriminator"),
@@ -716,6 +764,8 @@ pub fn union_answer(members: Vec<Vec<SchemaError>>) -> Vec<SchemaError> {
 }
 
 pub fn unrecognized(path: Vec<Value>, keys: Vec<String>) -> SchemaError {
+    let keys: Vec<String> =
+        crate::types::kept::js_order(keys.iter().map(|k| (k.as_str(), ()))).into_iter().map(|(k, _)| k.to_string()).collect();
     let message = format!("Unrecognized key(s) in object: {}", keys.iter().map(|k| format!("'{k}'")).collect::<Vec<_>>().join(", "));
     let mut detail = IndexMap::new();
     detail.insert("keys".to_string(), Value::Array(keys.into_iter().map(Value::from).collect()));

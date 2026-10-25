@@ -93,7 +93,8 @@ written as JavaScript writes it. `literal!` types are kept `z.literal` keys.
 1. serde_json without `arbitrary_precision` cannot hold every JavaScript number's text in a `Value`: a number written
    through a `Value` (`to_value`, then `to_string`) is ryu's (`1e21` for `1e+21`, `1e-7`). Writing a `JsNumber` straight
    (`to_string`, `to_writer`, a derived `Serialize`) is exact everywhere. The wire's frames write straight; only a caller
-   that goes through a `Value` meets the difference, and only past 2^64 or below 1e-6.
+   that goes through a `Value` meets the difference, and only below 1e-5 in size (`0.000005` is `5e-6`), at 2^64 and
+   past, and at -2^63 and below.
 2. A lone surrogate (rule 8.5) cannot reach a Rust `String`; nothing here handles it.
 3. `serde_json` reads with `float_roundtrip`. Its default float reader is up to one unit in the last place off for a long
    mantissa (`123456789012345680000` came back as `123456789012345670000`), and the number text JavaScript writes from it
