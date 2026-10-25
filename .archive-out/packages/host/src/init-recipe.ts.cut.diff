@@ -1,0 +1,180 @@
+diff --git a/packages/host/src/init-recipe.ts b/packages/host/src/init-recipe.ts
+index cd206e8d5..6e357804d 100644
+--- a/packages/host/src/init-recipe.ts
++++ b/packages/host/src/init-recipe.ts
+@@ -7,23 +7,11 @@ import { basename, dirname, join } from "node:path";
+ import { writeOwn } from "@wsp/own-file";
+ import { LOGIN_CHOICES, type Manifest, type ManifestEntry, type Rung } from "@wsp/collect";
+ import { CATALOG_AGENTS, catalogEntry, catalogIdOfRow, catalogToolFor, guestEnv, hasLogin, loginIdOf, loginRow, loginSignIn, loginStatePaths, mintsToken } from "@wsp/catalog";
+-import { CATALOG_PREFIX, agentOwning, diffRecipes, isMcpRow, isTap, neverCopied, packageOf, parseMcpId, rowRoad, type BrewTable, type RecipeDigest } from "@wsp/engine";
++import { CATALOG_PREFIX, agentOwning, isMcpRow, isTap, neverCopied, packageOf, parseMcpId, rowRoad, type BrewTable, type RecipeDigest } from "@wsp/engine";
+ import { Recipe, SIGN_IN_ANSWERS, type LoginChoice, type RecipeRow } from "@wsp/protocol";
+ import type { GoldenImport, GoldenRecipe, Machine } from "@wsp/runtime";
+ import type { Keys } from "./cli.js";
+ import { GUEST_ENVS } from "./doctor.js";
+-import { outsideRow } from "./recipe-file.js";
+-import { FISH_FILE, SH_FILE } from "./init-secrets.js";
+-export { loadRecipe, outsideCatalog, outsideRowsOf, pinsOf, saveSmallRecipe, smallRecipePath, withPins, withTicksOf } from "./recipe-file.js";
+-
+-export const RUNG_TITLE: Record<Rung, string> = {
+-  identity: "Identity",
+-  shell: "Shell",
+-  toolchains: "Toolchains",
+-  tools: "Tools",
+-  agents: "Agents",
+-  logins: "Sign-ins",
+-};
+ 
+ /** The plan's note when every path of a row is refused by name, asked of the same rule the pack asks with the
+  * same answer about what is on disk (`isDir`: true, false, or undefined when the path is not there). */
+@@ -198,20 +186,6 @@ export function isLoginChoice(v: unknown): v is LoginChoice {
+   return LOGIN_CHOICES.includes(v as LoginChoice);
+ }
+ 
+-/** This computer's tools rows the catalog does not carry, as rows of the small recipe under the collector's own id,
+- * so the file and the Also screen tick them like any other row and the build installs each by the road
+- * the plan resolves for it: off until one ticks it, found here as its source. A tap itself, a row locked off with a
+- * reason and a row no road installs get none: nothing installs the first, nobody can tick the second, and a tick on
+- * the third would do nothing. A row the recipe already carries is left as it is. */
+-export function withOutsideRows(recipe: Recipe, manifest: Manifest, brew: BrewTable): Recipe {
+-  const named = new Set(recipe.rows.map(r => r.id));
+-  const rows = manifest.entries.flatMap((e): RecipeRow[] => {
+-    if (e.rung !== "tools" || named.has(e.id) || catalogIdOfRow(e) !== undefined || isTap(e) || !isTickable(e) || rowRoad(e, brew) === undefined) return [];
+-    return [outsideRow(e.id, e.paths)];
+-  });
+-  return rows.length === 0 ? recipe : { ...recipe, rows: [...recipe.rows, ...rows] };
+-}
+-
+ /** The collector's rows with the recipe's ticks written on: an agents or tools row is on when its catalog row is,
+  * a tools row the catalog does not carry when the recipe's row under its own id is, off when the recipe has no such
+  * row; an MCP row follows its agent; a saved sign-in answer lands on the login row it names. Every other row keeps
+@@ -246,11 +220,6 @@ export function applyRecipe(manifest: Manifest, recipe: Recipe): Manifest {
+   };
+ }
+ 
+-/** The catalog ids this computer has a collector row for. */
+-export function rowsHere(entries: readonly ManifestEntry[]): Set<string> {
+-  return new Set(entries.flatMap(e => catalogIdOfRow(e) ?? []));
+-}
+-
+ /** The manifest a run reads the recipe against: the catalog's bare rows joined to this computer's, the recipe
+  * applied. The screens as data, the run itself and a copy's build read it here, so a tick lands on the same rows
+  * wherever it was made. */
+@@ -258,23 +227,6 @@ export function manifestFor(reading: { manifest: Manifest }, recipe: Recipe): Ma
+   return applyRecipe(withCatalogAgents(reading.manifest), recipe);
+ }
+ 
+-export function recipePath(statePath: string): string {
+-  return join(dirname(statePath), "golden-recipe.json");
+-}
+-
+-/** The small recipe with the login answers written on: a row whose login rows were answered carries the word they
+- * add up to, a row nobody answered carries none. The ticks are the recipe's own, as the screens left them. */
+-export function recipeWithAnswers(recipe: Recipe, choices: ReadonlyMap<string, string>): Recipe {
+-  return {
+-    ...recipe,
+-    rows: recipe.rows.map(r => {
+-      const { signIn: _signIn, ...rest } = r;
+-      const answer = choices.get(`logins/${loginIdOf(r.id)}`);
+-      return { ...rest, ...(isLoginChoice(answer) ? { signIn: answer } : {}) };
+-    }),
+-  };
+-}
+-
+ /** The collector's rows as the screens left them: every row with its tick, and on each row that took an answer the
+  * word it got. The one reading of ticks and answers the build, the MCP plan and the saved recipe share. */
+ export function answeredRows(manifest: Manifest, ticks: ReadonlySet<string>, choices: ReadonlyMap<string, string>): ManifestEntry[] {
+@@ -284,93 +236,6 @@ export function answeredRows(manifest: Manifest, ticks: ReadonlySet<string>, cho
+   });
+ }
+ 
+-/** The rows as the screens left them, beside the state. The file holds every login answer and the detail of every
+- * definition the collector read, so it goes through the one writer for the owner's files, as every other file
+- * beside the state does. */
+-export function saveRecipe(path: string, manifest: Manifest, ticks: ReadonlySet<string>, choices: ReadonlyMap<string, string> = new Map()): void {
+-  writeOwn(dirname(path), basename(path), `${JSON.stringify({ entries: answeredRows(manifest, ticks, choices) }, null, 2)}\n`);
+-}
+-
+ export function agentName(e: ManifestEntry): string {
+   return e.id.split("/").at(-1) ?? e.id;
+ }
+-
+-/** What differs between the recipe a builder carries and this run's, in the
+- * person's words: a row ticked or unticked, a login answer or tool pin changed,
+- * a file added, gone or changed. A row whose tick changed is named once; the
+- * files that came or went with it are not listed again. */
+-export function recipeChanges(from: RecipeDigest, to: RecipeDigest, manifest: Manifest): string[] {
+-  const label = (id: string): string => manifest.entries.find(e => e.id === id)?.label ?? id;
+-  const word = (choice: string | undefined): string => (isLoginChoice(choice) ? SIGN_IN_ANSWERS[choice].short : (choice ?? "ticked"));
+-  const out: string[] = [];
+-  const noted = new Set<string>();
+-  const was = new Map(from.ticks.map(t => [t.id, t]));
+-  const now = new Map(to.ticks.map(t => [t.id, t]));
+-  // Why a tool installs differently under the same version is the diff's to say; this only names the rows.
+-  const moved = new Map(diffRecipes(from, to).tools.flatMap(t => (t.why === undefined ? [] : [[t.id, t.why]])));
+-  for (const [id, t] of now) {
+-    const b = was.get(id);
+-    const why = moved.get(id);
+-    if (b === undefined) out.push(`${label(id)} ticked`);
+-    else if (b.choice !== t.choice) out.push(`${label(id)} now ${word(t.choice)}`);
+-    else if (b.version !== t.version) out.push(`${label(id)} now ${t.version ?? "unpinned"}`);
+-    else if (why !== undefined) out.push(`${label(id)}: ${why}`);
+-    else continue;
+-    noted.add(id);
+-  }
+-  for (const id of was.keys()) {
+-    if (now.has(id)) continue;
+-    out.push(`${label(id)} unticked`);
+-    noted.add(id);
+-  }
+-  // Volatile entries are recorded, never hashed, so they never made the hash differ and are not named.
+-  const had = new Map(from.files.filter(f => f.volatile !== true).map(f => [f.path, f]));
+-  const has = new Map(to.files.filter(f => f.volatile !== true).map(f => [f.path, f]));
+-  for (const [path, f] of has) {
+-    if (noted.has(f.id)) continue;
+-    const b = had.get(path);
+-    if (b === undefined) out.push(`${path} added`);
+-    else if (b.digest !== f.digest || b.dest !== f.dest) out.push(`${path} changed`);
+-  }
+-  for (const [path, f] of had) if (!has.has(path) && !noted.has(f.id)) out.push(`${path} gone`);
+-  return out;
+-}
+-
+-/** What the builder runs. The harness line and smoke are bare: the import
+- * carries every ticked agent with its own installer and version check, and
+- * the builder's seal smokes the ones that installed. Nothing ticked means a
+- * bare machine that still has to fork and boot to seal. The envs are every
+- * guest's plus the state home variable each ticked agent's entry asks for. No
+- * key and no token is among them: a sign-in never sits in an image, and the
+- * vault sets both in the environment of each turn instead. */
+-export function goldenRecipeFor(
+-  bring: readonly ManifestEntry[],
+-  hooks: { deployDaemon?: (machine: Machine) => Promise<void | string>; import?: GoldenImport; source?: Recipe } = {},
+-): GoldenRecipe {
+-  const envs: Record<string, string> = { ...GUEST_ENVS };
+-  for (const e of bring) {
+-    const agent = e.rung === "agents" ? catalogEntry(agentName(e)) : undefined;
+-    if (agent?.kind !== "agent") continue;
+-    Object.assign(envs, guestEnv(agent));
+-  }
+-  return {
+-    setup: "true",
+-    smoke: "true",
+-    envs,
+-    vaultPaths: vaultPathsFor(bring),
+-    ...(hooks.source !== undefined ? { source: hooks.source } : {}),
+-    ...(hooks.deployDaemon !== undefined ? { deployDaemon: hooks.deployDaemon } : {}),
+-    ...(hooks.import !== undefined ? { import: hooks.import } : {}),
+-  };
+-}
+-
+-/** What the seal archives off the builder as the image vault: where each row that can sign in keeps its login on the
+- * machine, whether the sign-in was copied here or run there, and the two files the secrets step writes. Each path
+- * once, in the order the rows come. */
+-export function vaultPathsFor(bring: readonly ManifestEntry[]): string[] {
+-  const entries = bring.flatMap(e => {
+-    const row = loginRow(agentName(e));
+-    return row === undefined ? [] : [row.entry];
+-  });
+-  return [...new Set([...entries.flatMap(loginStatePaths), SH_FILE, FISH_FILE])];
+-}

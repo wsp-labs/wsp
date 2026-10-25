@@ -1,0 +1,63 @@
+diff --git a/packages/protocol/src/views/snapshot-lineage.ts b/packages/protocol/src/views/snapshot-lineage.ts
+index 65a45fa06..2b561c33b 100644
+--- a/packages/protocol/src/views/snapshot-lineage.ts
++++ b/packages/protocol/src/views/snapshot-lineage.ts
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ 
+ import { z } from "zod";
+-import { WorkspaceProject, WorkspaceView } from "./workspace.js";
++import { WorkspaceView } from "./workspace.js";
+ import { GoldenVersion, SealedImage, SealedImageCopy } from "./golden-image.js";
+ 
+ // --- snapshot lineage (golden manifest as the rollback UI reads it) -----------
+@@ -16,39 +16,10 @@ export const SnapshotLineage = z.object({
+ });
+ export type SnapshotLineage = z.infer<typeof SnapshotLineage>;
+ 
+-/** A workspace's disk with its project loaded, snapshotted so forks start a task with the project in place and no
+- * upload. `golden` is the snapshot of the golden version at the root of its lineage, whatever it was forked from, so the
+- * Lineage section lists it under that version; `version` is that version's number when a manifest knows the snapshot. */
+-export const ProjectGolden = z.object({
+-  snapshotId: z.string(),
+-  /** Every project on the disk when it was taken, oldest import first: a snapshot is the whole machine, so a fork of
+-   * it starts with all of them. The snapshot is named after the one the default folder rule would start a thread in. */
+-  projects: z.array(WorkspaceProject),
+-  golden: z.string(),
+-  version: z.number().int().optional(),
+-  workspaceId: z.string(),
+-  workspaceName: z.string(),
+-  createdAt: z.string(),
+-  /** The place whose provider holds the snapshot; absent on one taken before places, which is the wired provider's. */
+-  place: z.string().optional(),
+-});
+-export type ProjectGolden = z.infer<typeof ProjectGolden>;
+-
+-/** What a project golden's removal answers: the record that left, and whether the provider had already lost the
+- * snapshot rather than deleting it now. */
+-export const ProjectGoldenRemoved = z.object({ projectGolden: ProjectGolden, alreadyGone: z.boolean() });
+-export type ProjectGoldenRemoved = z.infer<typeof ProjectGoldenRemoved>;
+-
+-/** A project golden as the image view lists it: the record, and its size where the place's provider lists one. */
+-export const SealedProjectImage = ProjectGolden.extend({ sizeBytes: z.number().optional() });
+-export type SealedProjectImage = z.infer<typeof SealedProjectImage>;
+-
+-/** What Settings > Image and `wsp image` draw: the record, every copy at every place, the project goldens under it.
+- * Beside ProjectGolden because it carries them; the rest of the image shapes sit with the golden ones above. */
++/** What Settings > Image and `wsp image` draw: the record and every copy at every place. */
+ export const SealedImageView = z.object({
+   image: SealedImage.nullable(),
+   copies: z.array(SealedImageCopy),
+-  projects: z.array(SealedProjectImage),
+ });
+ export type SealedImageView = z.infer<typeof SealedImageView>;
+ 
+@@ -70,7 +41,7 @@ export const SnapshotStorage = z.object({
+   /** On a provider that bills named snapshots by count: how many there are and how many are free. monthlyUsd is
+    * what the ones past those cost. Its own unnamed history is free and not read, so the counts above are these too. */
+   named: z.object({ count: z.number(), free: z.number() }).optional(),
+-  /** This host's and in use: a golden version, a project golden or a live workspace names it, or this host took it
++  /** This host's and in use: a golden version or a live workspace names it, or this host took it
+    * inside the grace a seal needs before the manifest records it. */
+   kept: SnapshotGroup,
+   /** This host's mark on the name and nothing names the id: what wsp doctor offers to delete. */

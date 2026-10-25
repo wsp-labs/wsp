@@ -1,0 +1,262 @@
+diff --git a/packages/host/test/host.test.ts b/packages/host/test/host.test.ts
+index 8175d01bb..b7fcd1347 100644
+--- a/packages/host/test/host.test.ts
++++ b/packages/host/test/host.test.ts
+@@ -5,7 +5,6 @@ import { hostname, tmpdir } from "node:os";
+ import { join } from "node:path";
+ import { DAEMON_VERSION, probePath, RecipeFile, type AdapterEvent, type TurnResult } from "@wsp/protocol";
+ import { CATALOG, GUEST_HOME } from "@wsp/catalog";
+-import { allRows, type RecipeAnswer } from "../src/recipe-answer.js";
+ import { HERE } from "./recipe-fixture.js";
+ import { BOX_PRICING, BUILDER_IDLE_MS, goldenName, NoProviderBackend, type GoldenImport } from "@wsp/engine";
+ import { copyKey, createRuntime, memoryStore, type HarnessAdapterFactory, type ReapResult, type Runtime, type Store } from "@wsp/runtime";
+@@ -153,112 +152,6 @@ describe("wsp cli", () => {
+     expect(pkg.bin["wsp"]).toBe("./dist/bin.js");
+   });
+ 
+-  it("recipe writes the file, prints the table on stdout and the reading on stderr, and refuses a --tick word it does not know", async () => {
+-    const box = fixtureMachine();
+-    const out = join(box.dir, "recipe.json");
+-    const logs: string[] = [];
+-    const errs: string[] = [];
+-    const io: CliIO = { log: l => logs.push(l), error: l => errs.push(l), ask: noPrompt, askSecret: noPrompt };
+-    const row = (id: string) => JSON.parse(readFileSync(out, "utf8")).rows.find((r: { id: string }) => r.id === id);
+-
+-    expect(await cli(["recipe", "--out", out, "--state", box.state, "--tick", "default", "--json"], io)).toBe(0);
+-    const table = JSON.parse(logs.at(-1)!) as RecipeAnswer;
+-    expect(table).toMatchObject({ tick: "default", out });
+-    expect(logs).toHaveLength(1);
+-    expect(errs[0]).toContain("Nothing leaves this computer");
+-    // The catalog's own default, so the rows are the catalog's and nothing of this computer moves them.
+-    // The table puts heavy rows first inside a group, so the two sides compare as sets.
+-    expect(allRows(table).filter(r => r.on).map(r => r.id).sort()).toEqual(CATALOG.flatMap(e => (e.kind === "tool" && e.defaultOn ? [e.id] : [])).sort());
+-    expect(readFileSync(out, "utf8")).toContain('"tick": "default"');
+-
+-    logs.length = 0;
+-    errs.length = 0;
+-    expect(await cli(["recipe", "--out", out, "--state", box.state, "--tick", "used", "--set", "java=on"], io)).toBe(0);
+-    // The wizard's own two tables, drawn by the one renderer both it and this verb call.
+-    expect(logs[0]).toBe("Agents");
+-    expect(logs).toContain("Tools");
+-    expect(logs.filter(l => l.startsWith("On: "))).toHaveLength(2);
+-    expect(logs.at(-1)).toContain(`wsp init --recipe ${out}`);
+-    // What the fixture's own history and PATH say, the same on any box: two tools run in two sessions above the floor, one
+-    // installed and never run, and one flipped on by hand.
+-    expect(row("node")).toMatchObject({ on: true, source: { kind: "used", sessions: 2, calls: 6 } });
+-    expect(row("pnpm")).toMatchObject({ on: true, source: { kind: "used", sessions: 2, calls: 5 } });
+-    expect(row("java")).toMatchObject({ on: true, source: { kind: "installed", bin: true } });
+-    expect(row("gradle")).toMatchObject({ on: false, source: { kind: "popular" } });
+-    expect(logs.find(l => l.includes("Java 21"))).toMatch(/^● {2}Java 21\s+installed\s+installed here, never used\s+585 MB$/);
+-    expect(logs.find(l => l.includes("Node 22"))).toMatch(/^● {2}Node 22 with npm\s+used\s+6 commands in 2 sessions\s+199 MB$/);
+-    expect(logs).toContain("  pulumi       2         2");
+-
+-    errs.length = 0;
+-    expect(await cli(["recipe", "--out", out, "--state", box.state, "--tick", "everything"], io)).toBe(3);
+-    expect(errs.at(-1)).toBe('wsp recipe: --tick takes one of used, installed, default, and got "everything". Name one of those.');
+-    box.close();
+-  });
+-
+-  it("recipe scan prints every section and writes nothing; an unknown subverb is one usage line", async () => {
+-    const box = fixtureMachine();
+-    // scan takes no --out, so its state file is what says where a recipe would have gone.
+-    const state = box.state;
+-    const out = join(box.dir, "recipe.json");
+-    const logs: string[] = [];
+-    const errs: string[] = [];
+-    const io: CliIO = { log: l => logs.push(l), error: l => errs.push(l), ask: noPrompt, askSecret: noPrompt };
+-    expect(await cli(["recipe", "scan", "--state", state], io)).toBe(0);
+-    expect(existsSync(out)).toBe(false);
+-    expect(logs[0]).toBe("Agents");
+-    expect(logs).toContain("Tools");
+-    expect(logs).toContain(`Also on ${HERE}`);
+-    // The scanner runs on the command line, and the fixture PATH has no package manager on it.
+-    expect(logs).toContain("  none");
+-    expect(logs.at(-1)).toContain("Nothing was written.");
+-    expect(errs[0]).toContain("Nothing leaves this computer");
+-    // The fixture's own rows, the same on any box.
+-    expect(logs.find(l => l.includes("Node 22"))).toMatch(/^● {2}Node 22 with npm\s+used\s+6 commands in 2 sessions\s+199 MB {2}on$/);
+-    expect(logs.find(l => l.includes("Java 21"))).toMatch(/^○ {2}Java 21\s+installed\s+installed here, never used\s+585 MB {2}off$/);
+-    expect(logs).toContain("  pulumi       2         2");
+-
+-    logs.length = 0;
+-    expect(await cli(["recipe", "scan", "--state", state, "--json"], io)).toBe(0);
+-    expect(logs).toHaveLength(1);
+-    const scan = JSON.parse(logs[0]!) as {
+-      tick: string;
+-      agents: { id: string; on: boolean }[];
+-      tools: { id: string; on: boolean; recommended: { value: string; why: string } }[];
+-      commands: { name: string; calls: number; sessions: number }[];
+-      signIns: { id: string; recommended: { value: string } }[];
+-    };
+-    expect(scan.tick).toBe("used");
+-    for (const row of scan.tools) expect(row.recommended.why.length, row.id).toBeGreaterThan(0);
+-    expect(scan.tools.filter(r => r.on).map(r => r.id).sort()).toEqual(["build-essential", "curl", "fd", "git", "jq", "node", "pnpm", "python", "ripgrep", "rsync", "sqlite3", "uv", "wget", "xz", "zip"]);
+-    expect(scan.agents.filter(r => r.on).map(r => r.id)).toEqual(["claude"]);
+-    expect(scan.commands).toEqual([{ name: "pulumi", calls: 2, sessions: 2 }]);
+-    expect(scan.signIns.map(r => [r.id, r.recommended.value])).toEqual([["claude", "token"]]);
+-    expect(existsSync(out)).toBe(false);
+-
+-    errs.length = 0;
+-    expect(await cli(["recipe", "sniff"], io)).toBe(3);
+-    expect(errs.at(-1)).toMatch(/^wsp recipe takes no positional arguments; wsp recipe scan is its one subcommand\. usage: wsp recipe /);
+-
+-    // scan reads none of the write verb's flags, so one on its line is refused naming the verb it belongs to, with scan's own usage.
+-    logs.length = 0;
+-    errs.length = 0;
+-    expect(await cli(["recipe", "scan", "--state", state, "--tick", "installed", "--set", "go=on", "--out", out], io)).toBe(3);
+-    expect(errs[0]).toBe("--tick belongs to wsp recipe; wsp recipe scan does not read it. usage: wsp recipe scan [--project <folder>]");
+-    expect(logs).toEqual([]);
+-    errs.length = 0;
+-    expect(await cli(["recipe", "scan", "--add", "jj"], io)).toBe(3);
+-    expect(errs[0]).toContain("--add belongs to wsp recipe; wsp recipe scan does not read it");
+-    errs.length = 0;
+-    expect(await cli(["recipe", "scan", "--signin", "gh=copy"], io)).toBe(3);
+-    expect(errs[0]).toContain("--signin belongs to wsp recipe; wsp recipe scan does not read it");
+-    // A flag no verb reads keeps the parser's own refusal.
+-    errs.length = 0;
+-    expect(await cli(["recipe", "scan", "--nope"], io)).toBe(3);
+-    expect(errs[0]).toContain("Unknown option '--nope'");
+-    // What scan does take stays taken.
+-    expect(await cli(["recipe", "scan", "--project", box.project, "--json"], io)).toBe(0);
+-    box.close();
+-  });
+ });
+ 
+ describe("host serves the app", () => {
+@@ -314,42 +207,7 @@ describe("host serves the app", () => {
+     const bare = testRuntime(false);
+     handle = await startHost({ runtime: bare.rt, port: 0, webDir: webDir() });
+     await handle.addProject("https://github.com/dev/first.git", "default");
+-    await expect(handle.createWorkspace("first")).rejects.toThrow("no image yet; run wsp init first");
+-  });
+-
+-  it("carries the terminal font the saved recipe ticks, read on every page load; an unticked or absent row carries none", async () => {
+-    const { rt } = testRuntime(false);
+-    const dir = mkdtempSync(join(tmpdir(), "wsp-host-recipe-"));
+-    dirs.push(dir);
+-    const recipePath = join(dir, "golden-recipe.json");
+-    const font = (bring: boolean) => ({ rung: "shell", id: "shell/terminal-font", label: "terminal font: Hack (Ghostty)", paths: [], bytes: 0, default: "bring", bring, font: "Hack" });
+-    writeFileSync(recipePath, JSON.stringify({ entries: [{ rung: "shell", id: "shell/zshrc", label: "~/.zshrc", paths: ["~/.zshrc"], bytes: 10, default: "bring", bring: true }, font(true)] }));
+-    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), recipePath });
+-    const boot = async () => inlineScripts(await (await fetch(`http://127.0.0.1:${handle!.port}/`)).text())[0];
+-    expect(await boot()).toBe(`window.__WSP__ = {"tokenHash":"${createHash("sha256").update(handle.authToken).digest("hex")}","wsPath":"/ws","paired":true,"version":"${VERSION}","terminalFont":"Hack"};`);
+-    writeFileSync(recipePath, JSON.stringify({ entries: [font(false)] }));
+-    expect(await boot()).not.toContain("terminalFont");
+-    writeFileSync(recipePath, "not json");
+-    expect(await boot()).not.toContain("terminalFont");
+-    rmSync(recipePath);
+-    expect(await boot()).not.toContain("terminalFont");
+-  });
+-
+-  it("a font family from a config file cannot end the page's inline script", async () => {
+-    const { rt } = testRuntime(false);
+-    const dir = mkdtempSync(join(tmpdir(), "wsp-host-recipe-"));
+-    dirs.push(dir);
+-    const recipePath = join(dir, "golden-recipe.json");
+-    const family = "Hack</script><script>alert(1)</script>&\u2028";
+-    writeFileSync(recipePath, JSON.stringify({ entries: [{ rung: "shell", id: "shell/terminal-font", label: "terminal font", paths: [], bytes: 0, default: "bring", bring: true, font: family }] }));
+-    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), recipePath });
+-    const html = await (await fetch(`http://127.0.0.1:${handle.port}/`)).text();
+-    expect(html).not.toContain("<script>alert");
+-    expect(html).not.toContain("\u2028");
+-    const scripts = inlineScripts(html);
+-    expect(scripts).toHaveLength(1);
+-    const boot = JSON.parse(scripts[0]!.replace(/^window\.__WSP__ = /, "").replace(/;$/, "")) as { terminalFont?: string };
+-    expect(boot.terminalFont).toBe(family);
++    await expect(handle.createWorkspace("first")).rejects.toThrow("no image yet");
+   });
+ 
+   it("through the cli, the page never carries a key value", async () => {
+@@ -678,11 +536,11 @@ describe("host sweeps orphaned machines", () => {
+     const kept = await crashed.golden.prepare();
+     const lines: string[] = [];
+ 
+-    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), log: l => lines.push(l), recipePath: "/home/me/.wsp/state/golden-recipe.json" });
++    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), log: l => lines.push(l)});
+ 
+     expect(backend.machines[0]!.killed).toBe(false);
+     expect(lines).toEqual([
+-      `reap: left alone ${kept.id}: your earlier builder from this setup, still sealable, 0 s old, $0.11/h (about $0.00 so far); reuse it with wsp init, or it is stopped at six hours`,
++      `reap: left alone ${kept.id}: your earlier builder from this setup, still sealable, 0 s old, $0.11/h (about $0.00 so far); it is stopped at six hours`,
+     ]);
+     expect(await store.get("builders", kept.id)).toMatchObject({ firstLife: true });
+   });
+@@ -699,7 +557,7 @@ describe("host sweeps orphaned machines", () => {
+     handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), log: l => lines.push(l) });
+     expect(backend.machines[0]!.killed).toBe(false);
+     expect(lines).toHaveLength(2);
+-    expect(lines[0]).toMatch(new RegExp(`^reap: left alone ${b.id}: your builder saved as image v1, kept \\d+ s since the save and holding one of the account's machine slots, \\$0\\.11/h \\(about \\$0\\.00 so far\\); wsp init updates your image on it, or it is stopped ten minutes after the save$`));
++    expect(lines[0]).toMatch(new RegExp(`^reap: left alone ${b.id}: your builder saved as image v1, kept \\d+ s since the save and holding one of the account's machine slots, \\$0\\.11/h \\(about \\$0\\.00 so far\\); it is stopped ten minutes after the save$`));
+     // The seal's snapshot is on the account now, so the storage line follows the sweep.
+     expect(lines[1]).toBe("storage: 1 snapshot, 8.0 GB; inside the free 10 GB, nothing to pay from 2026-10-01");
+     await handle.close();
+@@ -740,7 +598,7 @@ describe("host sweeps orphaned machines", () => {
+     backend.machines[0]!.spec.labels!["wsp-owner"] = "h_other";
+     const lines: string[] = [];
+ 
+-    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), log: l => lines.push(l), recipePath: "/home/me/.wsp/state/golden-recipe.json" });
++    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), log: l => lines.push(l)});
+ 
+     expect(backend.machines[0]!.killed).toBe(false);
+     expect(lines).toEqual([`reap: left alone ${foreign.id}: recorded builder wearing another setup's owner label (h_other); never touched by this host`]);
+@@ -754,7 +612,7 @@ describe("host sweeps orphaned machines", () => {
+     await store.put("builders", held.id, { ...record, heldBy: { ...record.heldBy, pid: process.ppid } });
+     const lines: string[] = [];
+ 
+-    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), log: l => lines.push(l), recipePath: "/home/me/.wsp/state/golden-recipe.json" });
++    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), log: l => lines.push(l)});
+ 
+     expect(backend.machines[0]!.killed).toBe(false);
+     expect(lines).toEqual([`reap: left alone ${held.id}: your earlier builder from this setup, in use by another wsp process (pid ${process.ppid}); never touched by this host`]);
+@@ -771,7 +629,7 @@ describe("host sweeps orphaned machines", () => {
+     await store.put("unrecorded-machines", old.id, { machineId: old.id, place: "default", seenAt: new Date(Date.now() - 25 * 3_600_000).toISOString() });
+     const lines: string[] = [];
+ 
+-    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), log: l => lines.push(l), recipePath: "/home/me/.wsp/state/golden-recipe.json" });
++    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), log: l => lines.push(l)});
+ 
+     expect(lines).toEqual([
+       `reap: deleting ${old.id} (wsp=1 wsp-owner=${owner} wsp-workspace=ws_old createdAt=${at}): a machine of yours no workspace of this host reaches, a day after the sweep first named it, 1.0 h old`,
+@@ -790,7 +648,7 @@ describe("host sweeps orphaned machines", () => {
+     await store.put("builders", "m1", { ...record, heldBy: { ...record.heldBy, pid: 999_999_999 } });
+     const lines: string[] = [];
+ 
+-    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), log: l => lines.push(l), recipePath: "/home/me/.wsp/state/golden-recipe.json" });
++    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), log: l => lines.push(l)});
+ 
+     expect(backend.machines[0]!.killed).toBe(true);
+     expect(lines).toEqual(["reap: stopping m1: your earlier builder from this setup; its setup never finished"]);
+@@ -808,7 +666,7 @@ describe("host sweeps orphaned machines", () => {
+     backend.machines[0]!.kill = async () => { throw new Error("Bad Gateway"); };
+     const lines: string[] = [];
+ 
+-    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), log: l => lines.push(l), recipePath: "/home/me/.wsp/state/golden-recipe.json" });
++    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), log: l => lines.push(l)});
+ 
+     expect(lines).toEqual([
+       "reap: m1: could not stop: Bad Gateway; stays recorded, retried next sweep",
+@@ -1037,24 +895,4 @@ describe("the doctor's computer road on the host that holds the link", () => {
+     c.close();
+   });
+ 
+-  it("reads the recipe through the planner the places wiring already holds, and no second one", async () => {
+-    const plan = { recipeAt: "2026-09-18T09:00:00.000Z", path: probePath(GUEST_HOME), skipped: [], steps: [], agents: 0, compiler: false };
+-    let asked = 0;
+-    const links = placeWiring(join(tmpdir(), `wsp-doctor-planner-${Date.now()}`, "state.json"));
+-    const fromPicks = { ...plan, recipeAt: "laptop" };
+-    const picked: unknown[] = [];
+-    links.provision = { plan: async () => (asked++, plan), setup: async picks => (picked.push(picks), fromPicks), floor: async () => [], step: async () => [] };
+-    const readers = hostDoctorReaders(links, join(tmpdir(), "wsp-doctor-planner", "state.json"));
+-    expect(await readers.plan!()).toBe(plan);
+-    expect(asked).toBe(1);
+-    // A computer set up from picks is read against what it was set up with, planned by the same road its setup took.
+-    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: {} } });
+-    expect(await readers.plan!({ id: "p_1", kind: "computer", name: "spoo", default: false, picks })).toBe(fromPicks);
+-    expect(picked).toEqual([picks]);
+-    expect(asked).toBe(1);
+-    // A wiring that plans no recipe hands the road no reader at all, and the tools step says so in its own words.
+-    const bare = placeWiring(join(tmpdir(), `wsp-doctor-bare-${Date.now()}`, "state.json"));
+-    delete bare.provision;
+-    expect(hostDoctorReaders(bare, join(tmpdir(), "wsp-doctor-bare", "state.json")).plan).toBeUndefined();
+-  });
+ });

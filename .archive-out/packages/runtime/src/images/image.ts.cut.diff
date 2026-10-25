@@ -1,0 +1,75 @@
+diff --git a/packages/runtime/src/images/image.ts b/packages/runtime/src/images/image.ts
+index d20ad3339..bdd35afad 100644
+--- a/packages/runtime/src/images/image.ts
++++ b/packages/runtime/src/images/image.ts
+@@ -9,7 +9,7 @@ import {
+   type MachineBackend,
+   isPlaceAbsent,
+ } from "@wsp/engine";
+-import type { SealedImage, SealedImageBuilt, SealedImageCopy, SealedProjectImage } from "@wsp/protocol";
++import type { SealedImage, SealedImageBuilt, SealedImageCopy } from "@wsp/protocol";
+ import {
+   vaultUnlistedRefusal,
+   COPY_BUILD_FIX,
+@@ -68,23 +68,6 @@ export function imageArea(ctx: RuntimeContext): ImageArea {
+ 
+   const conflict = (message: string): Error => Object.assign(new Error(message), { kind: "conflict" });
+ 
+-  /** Every project golden, oldest first, with its size off the listing of the place each record names: one listing
+-   * per place, and none for a place this host no longer holds. */
+-  const projectImagesSized = async (): Promise<SealedProjectImage[]> => {
+-    const projects = await ctx.golden.projects();
+-    const sizes = new Map<string, number>();
+-    for (const place of new Set(projects.map(p => p.place ?? places.wired))) {
+-      let at: MachineBackend;
+-      try {
+-        at = ctx.backendAt(place);
+-      } catch {
+-        continue;
+-      }
+-      for (const [id, bytes] of await snapshotSizes(at, projects.filter(p => (p.place ?? places.wired) === place).map(p => p.snapshotId))) sizes.set(id, bytes);
+-    }
+-    return projects.map(p => (sizes.has(p.snapshotId) ? { ...p, sizeBytes: sizes.get(p.snapshotId)! } : p));
+-  };
+-
+   const image: Runtime["image"] = {
+     async get(name) {
+       await ctx.ready();
+@@ -92,7 +75,6 @@ export function imageArea(ctx: RuntimeContext): ImageArea {
+       return {
+         image: (await ctx.recordOf(key)) ?? null,
+         copies: await copiesOf(key),
+-        projects: await projectImagesSized(),
+       };
+     },
+ 
+@@ -100,7 +82,7 @@ export function imageArea(ctx: RuntimeContext): ImageArea {
+       await ctx.ready();
+       const key = name ?? "default";
+       const record = await ctx.recordOf(key);
+-      if (record === undefined) throw conflict(`this host owns no image named ${key} yet; wsp init seals one`);
++      if (record === undefined) throw conflict(`this host owns no image named ${key} yet`);
+       if (record.vault === undefined) throw conflict(`${key} v${record.version} was sealed before its sign-ins were held, so there is nothing to export; cut the next version to hold them`);
+       const tar = await store.getBlob(IMAGE_VAULTS, vaultKey(key, record.version));
+       if (tar === undefined) throw conflict(`the vault of ${key} v${record.version} is not on this computer any more; cut the next version to take it again`);
+@@ -244,15 +226,14 @@ export function imageArea(ctx: RuntimeContext): ImageArea {
+     return records.length === 1 ? records[0] : undefined;
+   };
+ 
+-  /** A fork at a provider boots only a version a provider's seal marked, or a project image taken from one: any other
+-   * may hold sign-ins. The refusal names the place the image was sealed at, where a rebuild clears it. A snapshot that
+-   * no manifest and no project image names is not one wsp sealed, and a host that owns no image record holds only
+-   * images from before records; neither is judged. */
++  /** A fork at a provider boots only a version a provider's seal marked: any other may hold sign-ins. The refusal
++   * names the place the image was sealed at, where a rebuild clears it. A snapshot no manifest names is not one wsp
++   * sealed, and a host that owns no image record holds only images from before records; neither is judged. */
+   const refuseHeldSignIns = async (snapshot: string, place: string): Promise<void> => {
+     const records = (await store.list(IMAGES)) as SealedImage[];
+     if (records.length === 0) return;
+-    const { version, projects } = await ctx.imageOf(snapshot);
+-    if (version?.noSecrets === true || (version === undefined && projects === undefined)) return;
++    const { version } = await ctx.imageOf(snapshot);
++    if (version?.noSecrets === true || version === undefined) return;
+     const record = await recordOfVersion(records, version);
+     const home = record === undefined ? place : (record.place ?? places.wired);
+     throw refusal(imageHeldSignInsLine(ctx.placeName(home)), imageRebuildFix(home), "conflict");

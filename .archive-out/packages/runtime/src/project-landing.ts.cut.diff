@@ -1,0 +1,98 @@
+diff --git a/packages/runtime/src/project-landing.ts b/packages/runtime/src/project-landing.ts
+index 53a57cffe..3ac775d71 100644
+--- a/packages/runtime/src/project-landing.ts
++++ b/packages/runtime/src/project-landing.ts
+@@ -7,7 +7,7 @@
+ // module and its row.
+ import { CLAUDE_CONFIG_DIR, GUEST_HOME } from "@wsp/catalog";
+ import { envInput, INLINE_EXEC_MS, INSTALL_MS, INSTALL_STORES, installScript, projectInstalls, withEnvFromInput, type Machine } from "@wsp/engine";
+-import { BROKER_PORT, claudeMemoryDir, claudeProjectKey, NO_IMAGE_FOR_SEED, placeDaemonPaths, placeInstallLog, projectLeftOnComputerLine, projectPathOn, projectRemovedAtProviderLine, projectRemovedHereLine, unpushedUnreadLine, seedBytes, seedCommitsLandedLine, seedCommitsLostLine, SEED_DIR, SEED_MEMORY_DIR, SEED_PATCH, seedingLine, seedMemoryKeptLine, SEEDED_REFS, projectFolderNamed, shellLine, shellQuote, unpushedLine, type BranchOfRecord, type ExecResult, type MachineBind, type ProjectAddStage, type ProjectBranch, type ProjectSource, type ProjectView, type SeedChoice, type SeedPlan } from "@wsp/protocol";
++import { BROKER_PORT, claudeMemoryDir, claudeProjectKey, placeDaemonPaths, placeInstallLog, projectLeftOnComputerLine, projectPathOn, projectRemovedAtProviderLine, projectRemovedHereLine, unpushedUnreadLine, seedBytes, seedCommitsLandedLine, seedCommitsLostLine, SEED_DIR, SEED_MEMORY_DIR, SEED_PATCH, seedingLine, seedMemoryKeptLine, SEEDED_REFS, projectFolderNamed, shellLine, shellQuote, unpushedLine, type BranchOfRecord, type ExecResult, type MachineBind, type ProjectAddStage, type ProjectBranch, type ProjectSource, type ProjectView, type SeedChoice, type SeedPlan } from "@wsp/protocol";
+ import type { ProjectSourceModule } from "./project-sources.js";
+ 
+ /** How far the add has got, as the door turns each one into an event. */
+@@ -42,24 +42,15 @@ export interface Landed {
+   git?: ProjectView["git"];
+   seeded?: ProjectView["seeded"];
+   installed?: ProjectView["installed"];
+-  image?: ProjectView["image"];
+   /** One sentence about a step of the landing that failed on its own without failing the add: the commits the
+    * remote has never seen, which stay on the person's own computer when git refuses them. */
+   notice?: string;
+ }
+ 
+ /** What a landing road may ask of the runtime: a short-lived machine of the computer's own image to work in, the
+- * road that puts a file's bytes on it, the snapshot a road that keeps an image takes, and the clock. */
++ * road that puts a file's bytes on it, and the clock. */
+ export interface LandingDeps {
+-  /** A machine to work in on that computer. `from` is the image it forks, which the add read once, and is empty on
+-   * a computer that keeps no image, where the machine is a copy of that computer's own directories; `image` says
+-   * whether this machine's disk becomes one, which keeps the computer's own logins out of it. Killed by the caller
+-   * whatever happens. */
+-  worker(o: { binds: readonly MachineBind[]; image: boolean; from: string }): Promise<Machine>;
+-  /** Stops a worker once its work is done, resolving once the provider takes the ask; the read-back runs behind it. */
+-  stop(machine: Machine): Promise<void>;
+   land(machine: Machine, path: string, bytes: Uint8Array): Promise<void>;
+-  checkpoint(machine: Machine, name: string): Promise<string>;
+   /** Where wsp writes its own working files on that machine. */
+   scratch(machine: Machine): string;
+   /** A computer the person joined, as its login runs every command there, and that login's home: where the add
+@@ -71,9 +62,6 @@ export interface LandingDeps {
+   branchHere(path: string): Promise<string | undefined>;
+   /** What this computer is called, since a record names it by its id and no sentence a person reads may. */
+   computerName: string;
+-  /** The head of this host's own image, or nothing where it has sealed none: read by the road that forks one to
+-   * work in, and by no other, so a computer that forks nothing is never refused for want of an image. */
+-  imageHead(): Promise<string | undefined>;
+   /** What a clone on a computer the person owns reads on its own input: the vault's GitHub token where it holds one,
+    * which is how a private repo clones there without a login of that computer's own. */
+   cloneEnv?(): Readonly<Record<string, string>>;
+@@ -579,41 +567,24 @@ const boxLanding: ProjectLanding = {
+   workspaceBinds: () => [],
+ };
+ 
+-/** A provider: nothing of the project sits on a disk of this person's there, so the clone, the seed and the
+- * install run on a fork of the image and that machine is snapshotted as the project's image. Every workspace of
+- * the project forks that image, which carries the memory as it was when the image was built and diverges from
+- * there; there is nothing to bind. */
++/** A provider: nothing of the project sits on a disk of this person's there, so the record stands alone and the
++ * first workspace of it clones inside its own copy; there is nothing to bind. */
+ const providerLanding: ProjectLanding = {
+   kind: "provider",
+   path: ({ source, name }) => projectPathOn(source, name, FORK_CHECKOUT_HOME),
+   places({ memoryKey }) {
+     return { memoryDir: guestMemoryDir(memoryKey) };
+   },
+-  // Only a seed lands here: it carries the person's own files, which only the add has. A repo this computer can
+-  // clone by itself is recorded and cloned inside the workspace's own copy, where the clone leaves nothing behind
+-  // because the copy is the machine.
+-  landsAtAdd: ({ seeding }) => seeding,
++  landsAtAdd: () => false,
+   refusal: () => undefined,
+   async remove(project, deps) {
+-    return projectRemovedAtProviderLine(project.name, deps.computerName, project.image?.snapshotId);
++    return projectRemovedAtProviderLine(project.name, deps.computerName);
+   },
+-  async land(o, deps) {
+-    // The seed lands inside a copy of this host's own image, so a host that has sealed none has nowhere to put it.
+-    const from = await deps.imageHead();
+-    if (from === undefined) throw Object.assign(new Error(NO_IMAGE_FOR_SEED), { kind: "invalid" });
+-    // A builder: its disk becomes an image, and a sign-in never sits in one.
+-    const machine = await deps.worker({ binds: [], image: true, from });
+-    try {
+-      const landed = await cloneSeedInstall(o, deps, machine, { checkout: o.project.path, holds: o.project.path, memoryDir: guestMemoryDir(o.project.memoryKey), log: `${deps.scratch(machine)}/install-${o.project.id}.log` });
+-      o.report("imaging", `Sealing ${o.project.name} as the image every workspace of it forks.`);
+-      const snapshotId = await deps.checkpoint(machine, `${o.project.name}-${o.project.id}`);
+-      return { ...landed, image: { snapshotId, builtAt: new Date(deps.now()).toISOString() } };
+-    } finally {
+-      await deps.stop(machine).catch((e: unknown) => console.warn(`the machine that built the image for ${o.project.name} was not stopped: ${e instanceof Error ? e.message : String(e)}`));
+-    }
++  async land() {
++    return {};
+   },
+   workspaceBinds: () => [],
+-  // A new copy forks the image, so its branch is the record's and no machine is asked.
++  // A new copy clones the record, so its branch is the record's and no machine is asked.
+   branch: async project => ({ branch: project.base ?? project.defaultBranch, folder: false }),
+ };
+ 
