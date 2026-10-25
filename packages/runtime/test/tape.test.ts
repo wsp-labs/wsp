@@ -271,4 +271,34 @@ describe("the tap", () => {
     const text = readFileSync(join(dir, readdirSync(dir)[0]!), "utf8");
     expect([aws, stripe, npm, hf, dbPass, mysqlPwd, header, pass].filter(s => text.includes(s))).toEqual([]);
   });
+
+  const value = "Zq9mK2vLpR7sTb4WnY8x0123456789ab";
+  it.each([
+    ["a field whose name ends in a secret's", {}, { op: "servers.add", server: { config: { awsSecretAccessKey: value } } }, value],
+    ["a Stripe key", {}, { op: "sessions.start", prompt: `use ${["sk", "live", value].join("_")}` }, ["sk", "live", value].join("_")],
+    ["an npm token", {}, { op: "sessions.start", prompt: `use ${["npm", value].join("_")}` }, ["npm", value].join("_")],
+    ["a Hugging Face token", {}, { op: "sessions.start", prompt: `use ${["hf", value].join("_")}` }, ["hf", value].join("_")],
+    ["a variable named for a password", { DB_PASS: value }, { op: "sessions.start", prompt: `the db takes ${value}` }, value],
+    ["a variable named PWD after a program", { MYSQL_PWD: value }, { op: "sessions.start", prompt: `mysql takes ${value}` }, value],
+    ["a variable named for a secret, a token or a key", { STRIPE_SECRET_X: value }, { op: "sessions.start", prompt: `KEYRING_DATA=${value}x ${value}` }, value],
+    ["an API key header", {}, { op: "sessions.start", prompt: `curl -H "X-Api-Key: ${value}" https://api.example/v1` }, value],
+    ["a pass query", {}, { op: "sessions.start", prompt: `https://api.example/v1?user=me&pass=${value}` }, value],
+  ])("blanks %s", (_, env: Record<string, string>, frame: Record<string, unknown>, secret: string) => {
+    dir = mkdtempSync(join(tmpdir(), "wsp-tape-"));
+    tapeOf({ [TAPE_DIR_ENV]: dir, ...env }, "ws", HOST_TOKEN)!.in({ id: 2, ...frame });
+    expect(readFileSync(join(dir, readdirSync(dir)[0]!), "utf8")).not.toContain(secret);
+  });
+
+  it("keeps the folder the shell's PWD and OLDPWD name", () => {
+    dir = mkdtempSync(join(tmpdir(), "wsp-tape-"));
+    tapeOf({ [TAPE_DIR_ENV]: dir, PWD: "/home/lab/project", OLDPWD: "/home/lab/elsewhere" }, "ws", HOST_TOKEN)!.in({
+      id: 2,
+      op: "projects.add",
+      source: "/home/lab/project",
+      prompt: "cd /home/lab/elsewhere; PWD=/home/lab/project make",
+    });
+    const text = readFileSync(join(dir, readdirSync(dir)[0]!), "utf8");
+    expect(text).toContain('"source":"/home/lab/project"');
+    expect(text).toContain("cd /home/lab/elsewhere; PWD=/home/lab/project make");
+  });
 });
