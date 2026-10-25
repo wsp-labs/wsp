@@ -240,9 +240,8 @@ impl PlaceSetupArea {
         todo!()
     }
 
-    /// The road the engine drives one place's machines over (setup.ts:1053). The engine's link is `Send + Sync` and
-    /// the door is one thread's, so the link is held in a `send_wrapper::SendWrapper`: it is only ever touched on
-    /// the host's own thread, and touching it anywhere else panics.
+    /// The road the engine drives one place's machines over (setup.ts:1053). The engine's `MachineLink` is not `Send`
+    /// (`#[async_trait(?Send)]`) and `LinkBackend` takes it as an `Arc`, so the link holds its state plainly.
     pub fn link_to(self: &Rc<Self>, place_id: &str) -> Arc<dyn MachineLink> {
         let _ = place_id;
         todo!()

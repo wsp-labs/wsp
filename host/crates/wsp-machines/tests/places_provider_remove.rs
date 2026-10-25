@@ -14,8 +14,8 @@ use futures::future::LocalBoxFuture;
 use futures::FutureExt;
 use indexmap::IndexMap;
 use serde_json::json;
-use tokio_util::sync::CancellationToken;
 
+use wsp_engine::cancel::Cancel;
 use wsp_engine::errors::{EngineError, ErrorKind, Result as EResult, WspError};
 use wsp_engine::labels::{OWNER_LABEL, WSP_LABEL};
 use wsp_engine::machine::{
@@ -105,7 +105,7 @@ impl FakeMachine {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Machine for FakeMachine {
     fn id(&self) -> &str {
         &self.id
@@ -135,7 +135,7 @@ impl Machine for FakeMachine {
         Err(unused())
     }
 
-    async fn resume(&self, _signal: Option<CancellationToken>) -> EResult<()> {
+    async fn resume(&self, _signal: Option<&Cancel>) -> EResult<()> {
         Err(unused())
     }
 
@@ -337,7 +337,7 @@ impl BackendPricing for FakePricing {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for FakeBox {
     fn capabilities(&self) -> Capabilities {
         Capabilities {

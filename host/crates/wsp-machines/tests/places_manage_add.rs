@@ -16,7 +16,12 @@ use serde_json::{json, Map, Value};
 use tokio::sync::{oneshot, Notify};
 use tokio::task::spawn_local;
 use wsp_core::place_forward::PlaceForward;
+use wsp_core::devices::{HeldDevice, MintMore};
+use wsp_core::reach::{ReachError, ReachStats};
 use wsp_core::types::pending::{DaemonReach, DeviceDoor, IssuedCode, PairedDevice};
+use wsp_wire::views::workspace_more::ThreadScope;
+use wsp_wire::wire::daemon::DaemonLinkStatus;
+use wsp_wire::wire::devices::DeviceView;
 use wsp_machines::places::context::PlaceDoorContext;
 use wsp_machines::places::helpers::{HeldForward, Live, ADD_RUNNING_FIX};
 use wsp_machines::places::manage::SetupStarted;
@@ -24,7 +29,7 @@ use wsp_machines::places::records::{AwaitingInstall, LocalFut, PlaceRecordsArea}
 use wsp_machines::places::types::*;
 use wsp_store::keys::key_fingerprint;
 use wsp_wire::views::place::{PlaceAddStep, PlaceBack};
-use wsp_wire::wire::devices::{join_token, read_join_token};
+use wsp_wire::wire::devices::{join_token, read_join_token, DeviceVia};
 use wsp_words::exit::{HostError, Kind};
 
 const ISO: &str = "2023-11-14T22:13:20.000Z";
@@ -47,7 +52,7 @@ fn cut_line(line: &str) -> String {
 // ---------------------------------------------------------------- errors
 
 fn plain(message: &str) -> HostError {
-    HostError { message: message.into(), fix: None, kind: None, errors: None, warnings: None, left: None, marks: vec![] }
+    HostError::new(message)
 }
 
 /// `refusal(happened, fix)`: the message is `happened. fix`, the fix beside it.
@@ -93,7 +98,31 @@ impl DeviceDoor for Mint {
         Ok(self.good.borrow_mut().shift_remove(code))
     }
     async fn admit(&self, name: &str, _now: i64) -> Result<PairedDevice, HostError> {
-        Ok(PairedDevice { device_id: format!("d_{name}"), device_token: format!("token-{name}"), device: Value::Null })
+        Ok(PairedDevice { device_id: format!("d_{name}"), device_token: format!("token-{name}"), device: device_view(name) })
+    }
+    async fn admit_account(&self, _name: &str, _via: DeviceVia, _now: i64) -> Result<PairedDevice, HostError> {
+        Err(plain("no account here"))
+    }
+    async fn refuses(&self, _fingerprint: &str) -> Result<bool, HostError> {
+        Ok(false)
+    }
+    async fn mint(&self, _name: &str, _scope: ThreadScope, _now: i64, _more: MintMore) -> Result<PairedDevice, HostError> {
+        Err(plain("no scoped tokens here"))
+    }
+    async fn revoke_asides(&self) -> Result<(), HostError> {
+        Ok(())
+    }
+    async fn r#match(&self, _token: &str) -> Result<Option<HeldDevice>, HostError> {
+        Ok(None)
+    }
+    async fn seen(&self, _id: &str, _now: i64) -> Result<Option<HeldDevice>, HostError> {
+        Ok(None)
+    }
+    async fn list(&self) -> Result<Vec<DeviceView>, HostError> {
+        Ok(Vec::new())
+    }
+    async fn revoke(&self, _id: &str) -> Result<bool, HostError> {
+        Ok(false)
     }
 }
 
@@ -1583,8 +1612,17 @@ struct HangReach;
 
 #[async_trait(?Send)]
 impl DaemonReach for HangReach {
-    async fn request(&self, _: &str, _: Map<String, Value>) -> Result<Map<String, Value>, HostError> {
+    async fn ready(&self) -> Result<(), ReachError> {
         std::future::pending().await
+    }
+    async fn request(&self, _: &str, _: Map<String, Value>) -> Result<Map<String, Value>, ReachError> {
+        std::future::pending().await
+    }
+    fn status(&self) -> Option<DaemonLinkStatus> {
+        None
+    }
+    fn stats(&self) -> ReachStats {
+        ReachStats::default()
     }
     fn close(&self) {}
 }
@@ -1641,7 +1679,7 @@ fn dial_link_ping_moves_last_seen() {
 fn dial_link_failure_says_what_it_said_and_keeps_last_seen() {
     run(async {
         let d = door(|_| {});
-        link(&d, PLACE, FakeReach::new(|_, _| Err(plain("socket hang up"))));
+        link(&d, PLACE, FakeReach::new(|_, _| Err(reach_err("socket hang up"))));
         let got = d.manage.dial(PLACE, NOW).await.unwrap();
         assert_eq!(js(&got.dialled), json!({ "at": ISO, "answered": false, "said": "socket hang up" }));
         assert_eq!(got.line, "socket hang up");
@@ -1902,11 +1940,11 @@ fn exec_stdin_base64_and_defaults() {
 fn exec_failure_on_open_socket_passes_on() {
     run(async {
         let d = door(|_| {});
-        let own = HostError { kind: Some(Kind::Usage), fix: Some("try again".into()), ..plain("the daemon refused that command") };
+        let own = ReachError { message: "the daemon refused that command".into(), kind: None, status: Some(400.0), code: Some("refused".into()) };
         let o = own.clone();
         link(&d, PLACE, FakeReach::new(move |_, _| Err(o.clone())));
         let e = d.manage.exec(PLACE, "ls", PlaceExecOpts::default()).await.unwrap_err();
-        assert_eq!(e, own);
+        assert_eq!(e.message, own.message);
     });
 }
 
@@ -1915,7 +1953,7 @@ fn exec_failure_on_open_socket_passes_on() {
 fn exec_failure_on_a_closed_socket_is_absent() {
     run(async {
         let d = door(|_| {});
-        let socket = link(&d, PLACE, FakeReach::new(|_, _| Err(plain("socket closed"))));
+        let socket = link(&d, PLACE, FakeReach::new(|_, _| Err(reach_err("socket closed"))));
         socket.0.shut.set(true);
         let e = d.manage.exec(PLACE, "ls", PlaceExecOpts::default()).await.unwrap_err();
         assert_eq!(e.message, format!("old-macbook {NOT_ANSWERING}"));
@@ -1932,7 +1970,7 @@ fn exec_failure_after_link_went_is_absent() {
         let ctx = d.ctx.clone();
         link(&d, PLACE, FakeReach::new(move |_, _| {
             ctx.live.borrow_mut().shift_remove(PLACE);
-            Err(plain("socket closed"))
+            Err(reach_err("socket closed"))
         }));
         let e = d.manage.exec(PLACE, "ls", PlaceExecOpts::default()).await.unwrap_err();
         assert_eq!(e.message, format!("old-macbook {NOT_ANSWERING}"));
@@ -1943,7 +1981,7 @@ fn exec_failure_after_link_went_is_absent() {
         let ctx = d.ctx.clone();
         link(&d, PLACE, FakeReach::new(move |_, _| {
             link_on(&ctx, PLACE, FakeReach::answering(vec![]));
-            Err(plain("socket closed"))
+            Err(reach_err("socket closed"))
         }));
         let e = d.manage.exec(PLACE, "ls", PlaceExecOpts::default()).await.unwrap_err();
         assert_eq!(e.message, format!("old-macbook {NOT_ANSWERING}"));
