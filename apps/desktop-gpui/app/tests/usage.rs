@@ -554,3 +554,93 @@ fn a_roll_step_draws_the_rolling_figures_alone(cx: &mut TestAppContext) {
         assert!(counts.contains_key("DigitRoll"), "step {step} rolled the figures: {counts:?}");
     }
 }
+
+/// Where the chart painted: the plot's bounds, the end dot's centre, and each tick label's bounds, left to right.
+fn painted_chart(cx: &mut VisualTestContext) -> (gpui_kit::Bounds<gpui_kit::Pixels>, f32, Vec<gpui_kit::Bounds<gpui_kit::Pixels>>) {
+    let plot = cx.debug_bounds("chart-plot").expect("the chart's plot");
+    let dots: Vec<f32> = cx.update(|window, _| {
+        let scale = window.scale_factor();
+        let near = plot.dilate(gpui_kit::px(4.)).scale(scale);
+        window
+            .painted_quads()
+            .into_iter()
+            .filter(|q| (q.bounds.size.width.0 - 6. * scale).abs() < 0.01 && (q.bounds.size.height.0 - 6. * scale).abs() < 0.01)
+            .filter(|q| near.contains(&q.bounds.center()))
+            .map(|q| q.bounds.center().x.0 / scale)
+            .collect()
+    });
+    assert_eq!(dots.len(), 1, "one end dot on the plot {plot:?}: {dots:?}");
+    let ticks = (0..)
+        .map_while(|i| cx.debug_bounds(leak(format!("chart-tick-{i}"))).filter(|b| plot.dilate(gpui_kit::px(40.)).intersects(b)))
+        .collect();
+    (plot, dots[0], ticks)
+}
+
+/// The chart's points span the plot from edge to edge and its labels stand apart, inside the chart's card.
+fn spread_across(cx: &mut VisualTestContext, page: &Entity<UsagePage>, when: &str) {
+    for _ in 0..12 {
+        cx.executor().advance_clock(Duration::from_millis(100));
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+    }
+    let card = cx.debug_bounds("usage-chart").expect("the chart's card");
+    let (plot, last, ticks) = painted_chart(cx);
+    let at = |x: gpui_kit::Pixels| f32::from(x);
+    assert!(at(plot.size.width) > at(card.size.width) - 120., "{when}: the plot {plot:?} spans its card {card:?}");
+    assert!((at(plot.right()) - at(card.right())).abs() < 1., "{when}: the plot {plot:?} reaches its card's right {card:?}");
+    assert!((last - at(plot.right())).abs() < 1., "{when}: the last point at {last} stands at the plot's right {plot:?}");
+    let y = plot.center().y;
+    cx.simulate_mouse_move(gpui_kit::point(plot.left() + gpui_kit::px(1.), y), None, Modifiers::none());
+    cx.run_until_parked();
+    let (_, first, _) = painted_chart(cx);
+    assert!((first - at(plot.left())).abs() < 1., "{when}: the first point at {first} stands at the plot's left {plot:?}");
+    cx.simulate_mouse_move(gpui_kit::point(card.right() + gpui_kit::px(200.), card.top() - gpui_kit::px(200.)), None, Modifiers::none());
+    cx.run_until_parked();
+    let (range, n) = cx.read(|cx| (page.read(cx).range, page.read(cx).used.value.as_ref().unwrap().series.len()));
+    let every = match range {
+        Range::Day => 6,
+        Range::Week => 1,
+        Range::Month => 5,
+    };
+    assert_eq!(ticks.len(), n.div_ceil(every), "{when}: {range:?}'s labels over {n} steps: {ticks:?}");
+    for (i, tick) in ticks.iter().enumerate() {
+        let share = (i * every) as f32 / (n - 1) as f32;
+        let (got, want) = match share {
+            0. => (at(tick.left()), at(plot.left())),
+            1. => (at(tick.right()), at(plot.right())),
+            _ => (at(tick.center().x), at(plot.left()) + share * at(plot.size.width)),
+        };
+        assert!((got - want).abs() < 1., "{when}: label {i} at {got}, not {want} on the plot {plot:?}: {ticks:?}");
+    }
+    for pair in ticks.windows(2) {
+        assert!(pair[0].right() < pair[1].left(), "{when}: labels apart, left to right: {ticks:?}");
+    }
+    let mix = cx.debug_bounds("usage-mix").expect("the token mix");
+    assert!((at(mix.size.width) - at(card.size.width)).abs() < 1., "{when}: the mix bar {mix:?} as wide as the chart {card:?}");
+}
+
+/// Catches: the tweened chart's cached box laying its row out as wide as the axis figures alone, which painted every
+/// point at the plot's left edge with its day labels on one another; on first open, after a resize and a range switch.
+#[gpui_kit::test]
+fn the_chart_spreads_its_points_and_labels_across_its_width(cx: &mut TestAppContext) {
+    let host = seeded();
+    let (_, page, cx) = in_settings(cx, &host);
+    cx.simulate_resize(gpui_kit::size(gpui_kit::px(1280.), gpui_kit::px(800.)));
+    until(cx, &page, "the first read", |p| landed(p, Range::Week, Split::Agent) && p.models.value.is_some());
+    spread_across(cx, &page, "7 days on first open");
+    cx.simulate_resize(gpui_kit::size(gpui_kit::px(960.), gpui_kit::px(800.)));
+    spread_across(cx, &page, "7 days after a resize");
+    for range in [Range::Month, Range::Day, Range::Week] {
+        cx.update(|_, cx| page.update(cx, |p, cx| p.pick_range(range, cx)));
+        until(cx, &page, "the range's read", |p| landed(p, range, Split::Agent));
+        spread_across(cx, &page, &format!("{range:?} after a range switch"));
+        cx.simulate_resize(gpui_kit::size(gpui_kit::px(1180.), gpui_kit::px(800.)));
+        spread_across(cx, &page, &format!("{range:?} after a range switch and a resize"));
+        cx.simulate_resize(gpui_kit::size(gpui_kit::px(960.), gpui_kit::px(800.)));
+    }
+    cx.update(|_, cx| page.update(cx, |p, cx| p.pick_tab(Tab::Limits, cx)));
+    cx.run_until_parked();
+    let (meter, segment) = (cx.debug_bounds("usage-meter").unwrap(), cx.debug_bounds("usage-segment").unwrap());
+    assert!(meter.size.width > gpui_kit::px(300.), "a window's meter takes the row's width: {meter:?}");
+    assert!((f32::from(segment.right()) - f32::from(meter.right())).abs() < 1., "its segments reach its end: {segment:?} {meter:?}");
+}
