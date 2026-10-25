@@ -300,5 +300,5 @@ pub fn empty_host() -> FakeHost {
 
 /// Runs a future to its end on this thread, as the TS tests await.
 pub fn block_on<F: std::future::Future>(f: F) -> F::Output {
-    futures::executor::block_on(f)
+    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(f)
 }

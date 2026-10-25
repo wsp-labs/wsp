@@ -556,7 +556,8 @@ mod w2_oracle {
                 .collect();
             assert_eq!(Value::Array(got), case["out"], "{}", case["name"]);
         }
-        let parsers: [(&str, fn(&str) -> Vec<Pkg>); 6] = [
+        type Parser = fn(&str) -> Vec<Pkg>;
+        let parsers: [(&str, Parser); 6] = [
             ("parse_npm_globals", parse_npm_globals),
             ("parse_pnpm_globals", parse_pnpm_globals),
             ("parse_pipx_list", parse_pipx_list),

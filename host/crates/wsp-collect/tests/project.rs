@@ -287,7 +287,8 @@ mod w2_oracle {
     #[test]
     fn every_reader_finds_what_the_ts_found_in_the_same_file() {
         let f = w2("project");
-        let readers: [(&str, fn(&ProjectFile) -> Vec<ProjectFinding>); 4] = [
+        type Reader = fn(&ProjectFile) -> Vec<ProjectFinding>;
+        let readers: [(&str, Reader); 4] = [
             ("package_json_read", package_json::read),
             ("toolchain_pins_read", toolchain_pins::read),
             ("marker_read", marker::read),
@@ -295,7 +296,10 @@ mod w2_oracle {
         ];
         for (key, read) in readers {
             for case in cases(&f, key) {
-                let file = ProjectFile { path: case["args"][0]["path"].as_str().unwrap().into(), text: case["args"][0]["text"].as_str().unwrap().into() };
+                let file = ProjectFile {
+                    path: case["args"][0]["path"].as_str().unwrap().into(),
+                    text: case["args"][0]["text"].as_str().unwrap().into(),
+                };
                 assert_eq!(findings(&read(&file)), case["out"], "{key}: {}", case["name"]);
             }
         }

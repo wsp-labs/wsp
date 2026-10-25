@@ -680,7 +680,9 @@ mod w2_oracle {
     use common::oracle::{cases, strs, w2};
     use serde_json::{json, Value};
     use std::cell::RefCell;
-    use wsp_collect::detect::shell_rc::{is_rc_path, is_secret_name, rc_files, simple_commands, source_command, sourced_path, sourced_paths};
+    use wsp_collect::detect::shell_rc::{
+        is_rc_path, is_secret_name, rc_files, simple_commands, source_command, sourced_path, sourced_paths,
+    };
     use wsp_collect::detect::shell_rc_strip::strip_exports;
 
     fn s(v: &Value) -> &str {
@@ -698,7 +700,12 @@ mod w2_oracle {
             holds.then(|| if rule["name"] == "$line" { line.to_string() } else { rule["name"].as_str().unwrap().to_string() })
         };
         let mut held = strs(&a[2]);
-        let r = strip_exports(s(&a[0]), (!rule.is_null()).then_some(&secret_in as &dyn Fn(&str) -> Option<String>), &mut held, a[3].as_bool().unwrap());
+        let r = strip_exports(
+            s(&a[0]),
+            (!rule.is_null()).then_some(&secret_in as &dyn Fn(&str) -> Option<String>),
+            &mut held,
+            a[3].as_bool().unwrap(),
+        );
         (json!({ "names": r.names, "carried": r.carried, "held": held }), seen.into_inner())
     }
 

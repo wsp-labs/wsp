@@ -568,7 +568,8 @@ mod w2_oracle {
     fn detect_mcp_writes_the_rows_the_ts_wrote_with_the_same_reads() {
         for case in cases(&w2("mcp"), "detect_mcp") {
             let h = host(&case["laptop"]);
-            let ids: Option<Vec<&'static AgentEntry>> = case["args"][0].as_array().map(|a| a.iter().map(|id| agent(id.as_str().unwrap())).collect());
+            let ids: Option<Vec<&'static AgentEntry>> =
+                case["args"][0].as_array().map(|a| a.iter().map(|id| agent(id.as_str().unwrap())).collect());
             assert_eq!(rows(&block_on(detect_mcp(&h, ids.as_deref()))), case["out"], "{}", case["name"]);
             assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
         }
@@ -594,7 +595,8 @@ mod w2_oracle {
             let h = host(&case["laptop"]);
             let a = &case["args"];
             let server: McpServer = serde_json::from_value(a[1].clone()).unwrap();
-            let tokens: IndexMap<String, u64> = a[2].as_object().into_iter().flatten().map(|(k, v)| (k.clone(), v.as_u64().unwrap())).collect();
+            let tokens: IndexMap<String, u64> =
+                a[2].as_object().into_iter().flatten().map(|(k, v)| (k.clone(), v.as_u64().unwrap())).collect();
             let row = block_on(mcp_server_row(&h, agent(a[0].as_str().unwrap()), &server, &tokens));
             assert_eq!(serde_json::to_value(&row).unwrap(), case["out"], "{}", case["name"]);
             assert_eq!(json!(h.calls()), case["calls"], "calls of {}", case["name"]);
