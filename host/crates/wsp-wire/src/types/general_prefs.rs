@@ -170,7 +170,17 @@ pub struct GeneralPatch {
 
 /// GENERAL_DEFAULTS: enter, queue, notify-sound, notify, true, 2h, true, ask, current.
 pub fn general_defaults() -> GeneralPreferences {
-    todo!()
+    GeneralPreferences {
+        send_with: SendKey::Enter,
+        mid_turn: MidTurn::Queue,
+        notify_needs: NotifyChoice::NotifySound,
+        notify_done: NotifyChoice::Notify,
+        plan_alerts: true,
+        settle_after: SettleAfter::V2h,
+        ask_delete: true,
+        on_quit: OnQuit::Ask,
+        new_thread_in: NewThreadIn::Current,
+    }
 }
 
 // general-prefs.ts:79 at a3b870a6e
@@ -188,5 +198,15 @@ pub fn general_defaults() -> GeneralPreferences {
 //   };
 // }
 pub fn patched_general(current: &GeneralPreferences, patch: &GeneralPatch) -> GeneralPreferences {
-    todo!()
+    GeneralPreferences {
+        send_with: patch.send_with.clone().unwrap_or_else(|| current.send_with.clone()),
+        mid_turn: patch.mid_turn.clone().unwrap_or_else(|| current.mid_turn.clone()),
+        notify_needs: patch.notify_needs.clone().unwrap_or_else(|| current.notify_needs.clone()),
+        notify_done: patch.notify_done.clone().unwrap_or_else(|| current.notify_done.clone()),
+        plan_alerts: patch.plan_alerts.unwrap_or(current.plan_alerts),
+        settle_after: patch.settle_after.clone().unwrap_or_else(|| current.settle_after.clone()),
+        ask_delete: patch.ask_delete.unwrap_or(current.ask_delete),
+        on_quit: patch.on_quit.clone().unwrap_or_else(|| current.on_quit.clone()),
+        new_thread_in: patch.new_thread_in.clone().unwrap_or_else(|| current.new_thread_in.clone()),
+    }
 }

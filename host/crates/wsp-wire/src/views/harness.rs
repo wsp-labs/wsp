@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::types::check::{Check, SchemaError};
+use crate::types::harness_picks::{efforts_for, every_model, marked_default, model_of};
 use crate::types::thread_defaults::AccessChoice;
 use crate::views::workspace::WorkspaceOut;
 use indexmap::IndexMap;
@@ -396,7 +397,7 @@ pub struct McpServerSpec {
 //   return `${harness} takes no MCP server with a launch, so its thread would run without them; open the thread on an agent that takes them`;
 // }
 pub fn no_mcp_servers_line(harness: &str) -> String {
-    todo!()
+    format!("{harness} takes no MCP server with a launch, so its thread would run without them; open the thread on an agent that takes them")
 }
 
 // views/harness.ts:179 at a3b870a6e
@@ -406,7 +407,10 @@ pub fn no_mcp_servers_line(harness: &str) -> String {
 // }
 /// None where no server is named (absent or empty) or the harness takes them; else `no_mcp_servers_line`.
 pub fn mcp_servers_blocked(servers: Option<&indexmap::IndexMap<String, McpServerSpec>>, takes: bool, harness: &str) -> Option<String> {
-    todo!()
+    match servers {
+        Some(servers) if !servers.is_empty() && !takes => Some(no_mcp_servers_line(harness)),
+        _ => None,
+    }
 }
 
 // views/harness.ts:187 at a3b870a6e
@@ -414,7 +418,7 @@ pub fn mcp_servers_blocked(servers: Option<&indexmap::IndexMap<String, McpServer
 //   return catalog === null || catalog === undefined || catalog.source === "table" || catalog.renames;
 // }
 pub fn keeps_rename(catalog: Option<&HarnessCatalog>) -> bool {
-    todo!()
+    catalog.map_or(true, |c| c.source == HarnessCatalogSource::Table || c.renames)
 }
 
 // views/harness.ts:194 at a3b870a6e
@@ -422,7 +426,7 @@ pub fn keeps_rename(catalog: Option<&HarnessCatalog>) -> bool {
 //   return catalog === null || catalog === undefined || catalog.source === "table" || catalog.images;
 // }
 pub fn reads_images(catalog: Option<&HarnessCatalog>) -> bool {
-    todo!()
+    catalog.map_or(true, |c| c.source == HarnessCatalogSource::Table || c.images)
 }
 
 // views/harness.ts:201 at a3b870a6e
@@ -430,7 +434,7 @@ pub fn reads_images(catalog: Option<&HarnessCatalog>) -> bool {
 //   return catalog?.mcpServers === true;
 // }
 pub fn takes_mcp_servers(catalog: Option<&HarnessCatalog>) -> bool {
-    todo!()
+    catalog.is_some_and(|c| c.mcp_servers == Some(true))
 }
 
 // views/harness.ts:240 at a3b870a6e
@@ -465,7 +469,7 @@ pub struct PickRefusal {
 // views/harness.ts:248 at a3b870a6e
 // export const noFastLine = (model: string): string => `${model} has no fast mode; pick a model that offers it, or send without it`;
 pub fn no_fast_line(model: &str) -> String {
-    todo!()
+    format!("{model} has no fast mode; pick a model that offers it, or send without it")
 }
 
 // views/harness.ts:250 at a3b870a6e (private)
@@ -501,5 +505,71 @@ pub fn start_picks(
     opens_thread: bool,
     runs_on: Option<&str>,
 ) -> Result<StartPicks, PickRefusal> {
-    todo!()
+    let opening = catalog.filter(|_| opens_thread);
+    let model = picks.model.clone().or_else(|| opening.and_then(|c| marked_default(&every_model(c)).map(|m| m.value.clone())));
+    if let Some(catalog) = catalog {
+        checked_against(catalog, picks, model.as_deref(), runs_on)?;
+    }
+    let effort = picks.effort.clone().or_else(|| opening.and_then(|c| marked_default(&efforts_for(c, model_of(c, model.as_deref()).as_ref())).map(|o| o.value.clone())));
+    let permission_mode = picks.permission_mode.clone().or_else(|| opening.and_then(|c| marked_default(&c.permission_modes).map(|o| o.value.clone())));
+    Ok(StartPicks {
+        model,
+        effort,
+        permission_mode,
+        fast: (picks.fast == Some(true)).then_some(true),
+    })
+}
+
+/// The TS's private `checkedAgainst`: each named pick must be one its list carries, and a fast asked of a model with
+/// no fast mode is refused.
+fn checked_against(catalog: &HarnessCatalog, picks: &StartPicks, model: Option<&str>, runs_on: Option<&str>) -> Result<(), PickRefusal> {
+    if !catalog.models.is_empty() {
+        let models: Vec<(&str, &str)> = catalog.models.iter().map(|m| (m.value.as_str(), m.label.as_str())).collect();
+        let legacy: Vec<(&str, &str)> = catalog.legacy_models.iter().flatten().map(|m| (m.value.as_str(), m.label.as_str())).collect();
+        let hidden: Vec<(&str, &str)> = catalog.hidden_models.iter().flatten().map(|m| (m.value.as_str(), m.label.as_str())).collect();
+        listed_refusal(&catalog.harness, "model", &models, picks.model.as_deref(), &legacy, &hidden)?;
+    }
+    let chosen = model_of(catalog, model);
+    if !catalog.efforts.is_empty() {
+        let subject = match &chosen {
+            Some(m) if m.efforts.is_some() => m.label.as_str(),
+            _ => catalog.harness.as_str(),
+        };
+        let efforts_of_model = efforts_for(catalog, chosen.as_ref());
+        let efforts: Vec<(&str, &str)> = efforts_of_model.iter().map(|o| (o.value.as_str(), o.label.as_str())).collect();
+        listed_refusal(subject, "effort", &efforts, picks.effort.as_deref(), &[], &[])?;
+    }
+    if !catalog.permission_modes.is_empty() {
+        let modes: Vec<(&str, &str)> = catalog.permission_modes.iter().map(|o| (o.value.as_str(), o.label.as_str())).collect();
+        listed_refusal(&catalog.harness, "access mode", &modes, picks.permission_mode.as_deref(), &[], &[])?;
+    }
+    let fast_on = model_of(catalog, model.or(runs_on));
+    if picks.fast == Some(true) {
+        if let Some(m) = fast_on.filter(|m| m.fast != Some(true)) {
+            return Err(PickRefusal {
+                message: no_fast_line(&m.label),
+                kind: "invalid",
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Wire's `listed` (helpers.ts:45), refusing a value none of the options, legacy or hidden ones carries. The helpers
+/// unit owns `crate::wire::helpers::listed`; this copy stands in until it lands, and must give the same words.
+fn listed_refusal(subject: &str, word: &str, options: &[(&str, &str)], value: Option<&str>, legacy: &[(&str, &str)], hidden: &[(&str, &str)]) -> Result<(), PickRefusal> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+    if [options, legacy, hidden].iter().any(|list| list.iter().any(|(v, _)| *v == value)) {
+        return Ok(());
+    }
+    let words = |list: &[(&str, &str)]| list.iter().map(|(v, l)| format!("{l} ({v})")).collect::<Vec<_>>().join(", ");
+    let older = if legacy.is_empty() { String::new() } else { format!("; legacy: {}", words(legacy)) };
+    let message = if options.is_empty() {
+        format!("{subject} takes no {word}")
+    } else {
+        format!("{word} \"{value}\" is not one {subject} takes; one of: {}{older}", words(options))
+    };
+    Err(PickRefusal { message, kind: "usage" })
 }

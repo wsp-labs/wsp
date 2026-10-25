@@ -469,7 +469,26 @@ where
     T: Serialize + serde::de::DeserializeOwned,
     P: Serialize,
 {
-    todo!()
+    let mut next = match kept.map(serde_json::to_value) {
+        Some(Ok(serde_json::Value::Object(fields))) => fields,
+        _ => serde_json::Map::new(),
+    };
+    if let Ok(serde_json::Value::Object(fields)) = serde_json::to_value(patch) {
+        for (key, value) in fields {
+            match value {
+                serde_json::Value::Null => {
+                    next.shift_remove(&key);
+                }
+                value => {
+                    next.insert(key, value);
+                }
+            }
+        }
+    }
+    if next.is_empty() {
+        return None;
+    }
+    serde_json::from_value(serde_json::Value::Object(next)).ok()
 }
 
 // thread-defaults.ts:81 at a3b870a6e
