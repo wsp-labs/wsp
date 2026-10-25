@@ -18,7 +18,7 @@ pub use crate::reach::DaemonReach;
 pub use crate::status::{StatusApi, StatusListOptions, StatusWatchOptions};
 
 /// Where the reads off a git host keep their bodies and ETags. TS runtime github-cache.ts, wsp-core's `github_cache`.
-pub trait GitHubCache {}
+pub use crate::github_cache::GitHubCache;
 
 /// TS engine golden-import.ts:817: `{ HOME: GUEST_HOME, USER: "root" }`. The engine has no Rust home for it yet.
 pub fn guest_user_env() -> IndexMap<String, String> {
@@ -74,6 +74,9 @@ pub struct SignInAsk {
     pub agent: String,
     pub server: Option<String>,
     pub terminal: Option<bool>,
+    /// The row a server's sign-in was started from, which the list of sign-ins hands back (agents-read.ts:105).
+    pub scope: Option<wsp_wire::types::agents_report::McpScope>,
+    pub project: Option<String>,
 }
 /// TS agents-read.ts:148.
 #[derive(Clone, Debug, Default, PartialEq)]

@@ -1,0 +1,194 @@
+{
+ "secrets": [
+  {
+   "name": "claude token",
+   "vault": {
+    "CLAUDE_CODE_OAUTH_TOKEN": "tok",
+    "ANTHROPIC_API_KEY": "key"
+   },
+   "id": "claude",
+   "stands": false,
+   "secrets": {
+    "oauthToken": "tok"
+   },
+   "env": {
+    "CLAUDE_CODE_OAUTH_TOKEN": "tok"
+   }
+  },
+  {
+   "name": "claude key",
+   "vault": {
+    "ANTHROPIC_API_KEY": "key"
+   },
+   "id": "claude",
+   "stands": false,
+   "secrets": {
+    "apiKey": "key",
+    "keyEnv": "ANTHROPIC_API_KEY"
+   },
+   "env": {
+    "ANTHROPIC_API_KEY": "key"
+   }
+  },
+  {
+   "name": "claude login stands",
+   "vault": {
+    "CLAUDE_CODE_OAUTH_TOKEN": "tok"
+   },
+   "id": "claude",
+   "stands": true,
+   "secrets": {},
+   "env": {}
+  },
+  {
+   "name": "claude empty",
+   "vault": {},
+   "id": "claude",
+   "stands": false,
+   "secrets": {},
+   "env": {}
+  },
+  {
+   "name": "claude empty token",
+   "vault": {
+    "CLAUDE_CODE_OAUTH_TOKEN": ""
+   },
+   "id": "claude",
+   "stands": false,
+   "secrets": {
+    "oauthToken": ""
+   },
+   "env": {
+    "CLAUDE_CODE_OAUTH_TOKEN": ""
+   }
+  },
+  {
+   "name": "codex key",
+   "vault": {
+    "OPENAI_API_KEY": "sk",
+    "CODEX_API_KEY": "ck"
+   },
+   "id": "codex",
+   "stands": false,
+   "secrets": {
+    "apiKey": "sk",
+    "keyEnv": "OPENAI_API_KEY"
+   },
+   "env": {
+    "OPENAI_API_KEY": "sk"
+   }
+  },
+  {
+   "name": "codex token",
+   "vault": {
+    "CODEX_OAUTH_TOKEN": "t"
+   },
+   "id": "codex",
+   "stands": false,
+   "secrets": {},
+   "env": {}
+  },
+  {
+   "name": "opencode",
+   "vault": {
+    "OPENROUTER_API_KEY": "or",
+    "OPENAI_API_KEY": "sk",
+    "ANTHROPIC_API_KEY": "a"
+   },
+   "id": "opencode",
+   "stands": false,
+   "secrets": {},
+   "env": {}
+  },
+  {
+   "name": "cursor",
+   "vault": {
+    "CURSOR_API_KEY": "key_x"
+   },
+   "id": "cursor",
+   "stands": false,
+   "secrets": {
+    "apiKey": "key_x",
+    "keyEnv": "CURSOR_API_KEY"
+   },
+   "env": {
+    "CURSOR_API_KEY": "key_x"
+   }
+  },
+  {
+   "name": "cursor stands",
+   "vault": {
+    "CURSOR_API_KEY": "key_x"
+   },
+   "id": "cursor",
+   "stands": true,
+   "secrets": {},
+   "env": {}
+  },
+  {
+   "name": "unknown",
+   "vault": {
+    "X": "y"
+   },
+   "id": "aider",
+   "stands": false,
+   "secrets": {},
+   "env": {}
+  },
+  {
+   "name": "gemini",
+   "vault": {
+    "GEMINI_API_KEY": "g"
+   },
+   "id": "gemini",
+   "stands": false,
+   "secrets": {
+    "apiKey": "g",
+    "keyEnv": "GEMINI_API_KEY"
+   },
+   "env": {
+    "GEMINI_API_KEY": "g"
+   }
+  }
+ ],
+ "adapters": [
+  "claude",
+  "codex",
+  "opencode",
+  "cursor"
+ ],
+ "brokered": [
+  "claude",
+  "codex"
+ ],
+ "planResets": [
+  "codex"
+ ],
+ "logLimits": [
+  "codex"
+ ],
+ "agentSetups": "agentSetups",
+ "keyOf": "here:claude",
+ "realFolderScript": [
+  [
+   "/srv/x/../y/./claude",
+   "p='/srv/y/claude'; rest=; n=0; while [ ! -e \"$p\" ] && [ \"$p\" != / ]; do if [ -L \"$p\" ]; then n=$((n+1)); if [ \"$n\" -gt 40 ]; then echo '/srv/x/../y/./claude goes round a loop of links' >&2; exit 3; fi; t=$(readlink \"$p\"); case $t in /*) p=$t ;; *) p=$(dirname \"$p\")/$t ;; esac; else rest=\"/$(basename \"$p\")$rest\"; p=$(dirname \"$p\"); fi; done; d=$(cd \"$p\" 2>/dev/null && pwd -P) || d=$p; printf '%s%s\\n' \"${d%/}\" \"$rest\"; cd ~ && pwd -P"
+  ],
+  [
+   "relative/dir",
+   "p='relative/dir'; rest=; n=0; while [ ! -e \"$p\" ] && [ \"$p\" != / ]; do if [ -L \"$p\" ]; then n=$((n+1)); if [ \"$n\" -gt 40 ]; then echo 'relative/dir goes round a loop of links' >&2; exit 3; fi; t=$(readlink \"$p\"); case $t in /*) p=$t ;; *) p=$(dirname \"$p\")/$t ;; esac; else rest=\"/$(basename \"$p\")$rest\"; p=$(dirname \"$p\"); fi; done; d=$(cd \"$p\" 2>/dev/null && pwd -P) || d=$p; printf '%s%s\\n' \"${d%/}\" \"$rest\"; cd ~ && pwd -P"
+  ],
+  [
+   "/",
+   "p='/'; rest=; n=0; while [ ! -e \"$p\" ] && [ \"$p\" != / ]; do if [ -L \"$p\" ]; then n=$((n+1)); if [ \"$n\" -gt 40 ]; then echo '/ goes round a loop of links' >&2; exit 3; fi; t=$(readlink \"$p\"); case $t in /*) p=$t ;; *) p=$(dirname \"$p\")/$t ;; esac; else rest=\"/$(basename \"$p\")$rest\"; p=$(dirname \"$p\"); fi; done; d=$(cd \"$p\" 2>/dev/null && pwd -P) || d=$p; printf '%s%s\\n' \"${d%/}\" \"$rest\"; cd ~ && pwd -P"
+  ],
+  [
+   "/a//b/",
+   "p='/a/b/'; rest=; n=0; while [ ! -e \"$p\" ] && [ \"$p\" != / ]; do if [ -L \"$p\" ]; then n=$((n+1)); if [ \"$n\" -gt 40 ]; then echo '/a//b/ goes round a loop of links' >&2; exit 3; fi; t=$(readlink \"$p\"); case $t in /*) p=$t ;; *) p=$(dirname \"$p\")/$t ;; esac; else rest=\"/$(basename \"$p\")$rest\"; p=$(dirname \"$p\"); fi; done; d=$(cd \"$p\" 2>/dev/null && pwd -P) || d=$p; printf '%s%s\\n' \"${d%/}\" \"$rest\"; cd ~ && pwd -P"
+  ],
+  [
+   "/it's here",
+   "p='/it'\\''s here'; rest=; n=0; while [ ! -e \"$p\" ] && [ \"$p\" != / ]; do if [ -L \"$p\" ]; then n=$((n+1)); if [ \"$n\" -gt 40 ]; then echo '/it'\\''s here goes round a loop of links' >&2; exit 3; fi; t=$(readlink \"$p\"); case $t in /*) p=$t ;; *) p=$(dirname \"$p\")/$t ;; esac; else rest=\"/$(basename \"$p\")$rest\"; p=$(dirname \"$p\"); fi; done; d=$(cd \"$p\" 2>/dev/null && pwd -P) || d=$p; printf '%s%s\\n' \"${d%/}\" \"$rest\"; cd ~ && pwd -P"
+  ]
+ ]
+}
