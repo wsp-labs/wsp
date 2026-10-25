@@ -10,6 +10,7 @@ use wsp_wire::types::agents_report::PluginScope;
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_words::agents_report::config_changed_refusal;
 
+use crate::json_parse::parse_json;
 use crate::jsonc::js_stringify;
 use crate::plugins::{
     join_path, js_trim, nothing_brought, plugin_id_parts, sorted, unique, FoundPlugin, PeekDir, PeekGroup, PluginIo, PluginsFound,
@@ -108,7 +109,7 @@ pub fn answers_of(text: &str) -> IndexMap<i64, ServerAnswer> {
         if !line.starts_with('{') {
             continue;
         }
-        let Ok(Value::Object(message)) = serde_json::from_str::<Value>(line) else {
+        let Ok(Value::Object(message)) = parse_json(line) else {
             continue;
         };
         let Some(id) = message.get("id").and_then(id_of) else {

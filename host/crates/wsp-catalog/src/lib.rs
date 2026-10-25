@@ -4,6 +4,7 @@
 pub mod pending;
 
 pub mod js_regex;
+pub mod json_parse;
 pub mod jsonc;
 pub mod jsonc_tree;
 pub mod mcp_bearer;

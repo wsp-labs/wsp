@@ -12,6 +12,7 @@ use wsp_wire::types::env::PLUGIN_SEED_ENV;
 use wsp_wire::types::projects::OWNER_REPO;
 use wsp_wire::types::shell_quote::shell_quote;
 
+use crate::json_parse::parse_json;
 use crate::context::SKILL_NAME;
 use crate::json_edit::{edit_json, JsonEdit};
 use crate::jsonc_tree::PathSeg;
@@ -133,7 +134,7 @@ impl PluginRoad {
     pub fn enabled(self, text: &str) -> Vec<String> {
         match self {
             PluginRoad::Claude => {
-                let parsed: Option<Value> = serde_json::from_str(text).ok();
+                let parsed: Option<Value> = parse_json(text).ok();
                 let on = parsed.as_ref().and_then(|v| v.get("enabledPlugins")).and_then(Value::as_object);
                 on.map_or_else(Vec::new, |on| {
                     js_entries(on).into_iter().filter(|(_, v)| v.as_bool() == Some(true)).map(|(k, _)| k.clone()).collect()
@@ -146,7 +147,7 @@ impl PluginRoad {
     pub fn source_of(self, text: &str, marketplace: &str) -> Option<String> {
         match self {
             PluginRoad::Claude => {
-                let parsed: Value = serde_json::from_str(text).ok()?;
+                let parsed = parse_json(text).ok()?;
                 let at = parsed.get(marketplace)?.get("source")?;
                 let value = if at.get("source").and_then(Value::as_str) == Some("github") { at.get("repo") } else { at.get("url") };
                 value?.as_str().map(String::from)
@@ -158,7 +159,7 @@ impl PluginRoad {
     pub fn github_repos(self, text: &str) -> Vec<String> {
         match self {
             PluginRoad::Claude => {
-                let Ok(known) = serde_json::from_str::<Value>(text) else {
+                let Ok(known) = parse_json(text) else {
                     return vec![];
                 };
                 let Some(known) = known.as_object() else {
@@ -230,7 +231,7 @@ impl PluginRoad {
     pub fn used_only(self, text: &str) -> String {
         match self {
             PluginRoad::Claude => {
-                let Ok(parsed) = serde_json::from_str::<Value>(text) else {
+                let Ok(parsed) = parse_json(text) else {
                     return text.to_string();
                 };
                 let Some(known) = parsed.get("extraKnownMarketplaces").and_then(Value::as_object) else {

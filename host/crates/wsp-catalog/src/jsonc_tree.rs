@@ -164,7 +164,7 @@ impl Parser<'_> {
             b'[' => self.array(),
             b'"' => {
                 let end = string_end(self.bytes, offset)?;
-                let text = serde_json::from_str::<String>(&self.text[offset..end]).ok()?;
+                let text = crate::json_parse::parse_json_string(&self.text[offset..end])?;
                 self.pos = end;
                 Some(leaf(NodeType::String, offset, end - offset, Some(text)))
             }

@@ -8,6 +8,7 @@ use std::collections::HashSet;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{Map, Value};
 
+use crate::json_parse::parse_json;
 use crate::config_write::store_base;
 use crate::json_edit::{edit_json, JsonEdit};
 use crate::jsonc::{js_stringify_pretty, json_object, read_jsonc};
@@ -111,7 +112,7 @@ pub fn claude_launch_servers(configs: &LaunchConfigs, values: &IndexMap<String, 
         let Some(entry) = entry_of(McpFormat::McpServersJson, text, &s.server.name, project) else {
             continue;
         };
-        let Ok(parsed) = serde_json::from_str::<Value>(&entry) else {
+        let Ok(parsed) = parse_json(&entry) else {
             continue;
         };
         let (value, any) = filled(&parsed, values);

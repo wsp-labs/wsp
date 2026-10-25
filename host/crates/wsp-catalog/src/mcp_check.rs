@@ -5,6 +5,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::js_regex::{compiled, JsRegex};
+use crate::json_parse::parse_json;
 use wsp_wire::types::agents_report::McpAuth;
 use wsp_wire::types::shell_quote::shell_quote;
 
@@ -76,7 +77,7 @@ fn claude_auth(output: &str) -> Option<McpCheckWord> {
 
 fn codex_auth(output: &str, name: &str) -> Option<McpCheckWord> {
     let at = compiled(r"^\[", "m").find(output)?.start;
-    let listed: Value = serde_json::from_str(&output[at..]).ok()?;
+    let listed = parse_json(&output[at..]).ok()?;
     let entries = listed.as_array()?;
     let entry = entries.iter().find(|s| s.get("name").and_then(Value::as_str) == Some(name));
     let Some(entry) = entry else {
