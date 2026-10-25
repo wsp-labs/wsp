@@ -22,6 +22,13 @@ wsp-engine = { path = "../wsp-engine" }
 wsp-store = { path = "../wsp-store" }
 wsp-wire = { path = "../wsp-wire" }
 wsp-words = { path = "../wsp-words" }
+wsp-adapters = { path = "../wsp-adapters" }
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+flate2 = "1"
+crc32fast = "1"
+tokio-util = "0.7"
 
 [dev-dependencies]
 tempfile = "3"
