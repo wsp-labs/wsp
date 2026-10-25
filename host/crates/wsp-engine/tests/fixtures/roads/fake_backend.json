@@ -1,0 +1,74 @@
+{
+ "records": "{\n  \"machines\": {\n    \"fk_abababababab\": {\n      \"state\": \"running\",\n      \"shape\": {\n        \"cpu\": 2,\n        \"memMb\": 8192,\n        \"diskGb\": 20,\n        \"createdAt\": \"2026-10-25T00:00:00.000Z\"\n      },\n      \"labels\": {\n        \"wsp-workspace\": \"w1\"\n      }\n    },\n    \"fk_c0ffee\": {\n      \"state\": \"paused\",\n      \"shape\": {\n        \"cpu\": 4,\n        \"memMb\": 8192,\n        \"diskGb\": 20,\n        \"createdAt\": \"2026-10-25T00:00:00.000Z\"\n      },\n      \"labels\": {}\n    }\n  },\n  \"snapshots\": [\n    {\n      \"id\": \"fksnap_abababababab\",\n      \"name\": \"v1\",\n      \"sizeBytes\": 8589934592,\n      \"restoredBytes\": 8589934592,\n      \"createdAt\": \"2026-10-25T00:00:00.000Z\"\n    }\n  ]\n}\n",
+ "list": [
+  {
+   "id": "fk_abababababab",
+   "state": "running",
+   "labels": {
+    "wsp-workspace": "w1"
+   }
+  },
+  {
+   "id": "fk_c0ffee",
+   "state": "paused",
+   "labels": {}
+  }
+ ],
+ "capabilities": {
+  "liveCloneForks": true,
+  "pauseMode": "memory",
+  "replacesMachine": true,
+  "previewUrls": false,
+  "signedUrls": false,
+  "callbackRelay": false,
+  "diskSnapshots": true,
+  "images": true,
+  "snapshotsAnyLife": true,
+  "snapshotListing": true,
+  "templates": false,
+  "sizes": [
+   {
+    "cpu": 2,
+    "memMb": 4096,
+    "rateUsdPerHour": 0.08
+   },
+   {
+    "cpu": 4,
+    "memMb": 8192,
+    "rateUsdPerHour": 0.16
+   },
+   {
+    "cpu": 8,
+    "memMb": 16384,
+    "rateUsdPerHour": 0.32
+   }
+  ],
+  "kept": false,
+  "copies": true,
+  "ownNetwork": true
+ },
+ "withGuest": true,
+ "rates": [
+  0.08,
+  0.16,
+  0.32,
+  0.0698,
+  0.02
+ ],
+ "seen": {
+  "state": "running",
+  "createdAt": "2026-10-25T00:00:00.000Z"
+ },
+ "describe": {
+  "cpu": 2,
+  "memMb": 8192,
+  "diskGb": 20,
+  "createdAt": "2026-10-25T00:00:00.000Z"
+ },
+ "facts": {
+  "os": "Debian GNU/Linux 12",
+  "uptimeMs": 10800000,
+  "folder": "/root"
+ },
+ "unreadable": "/r.json is not this stand-in provider's records: Unexpected end of JSON input"
+}
