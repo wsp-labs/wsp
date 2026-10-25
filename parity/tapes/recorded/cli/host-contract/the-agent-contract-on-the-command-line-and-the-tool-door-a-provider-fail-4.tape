@@ -1,0 +1,2 @@
+{"meta":{"door":"cli","source":"packages/host/test/contract.test.ts > the agent contract on the command line and the tool door > a provider failure exits 1: the machine cap, no host serving, and a turn that failed"}}
+{"in":{"argv":["threads","--json","--state","<run>/wsp-contract-2zYYa0/state/state.json"]}}

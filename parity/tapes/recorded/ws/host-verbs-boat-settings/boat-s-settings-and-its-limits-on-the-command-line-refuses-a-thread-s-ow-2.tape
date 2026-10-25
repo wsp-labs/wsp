@@ -1,0 +1,5 @@
+{"meta":{"door":"ws","source":"packages/host/test/verbs-boat-settings.test.ts > Boat's settings and its limits on the command line > refuses a thread's own token every set on Boat, and changes nothing"}}
+{"in":{"nonce":"otbaCS0ZWWEuIIU+iP4ezpru9vp2DgyLmrPlFQWUDuc=","ephemeral":"iKS2+aKkGld6Iw95XWECA4UKtlYB2Q5xIVOFsy2nemY=","id":1,"op":"seal.open"}}
+{"in":{"token":"<redacted>","id":2,"op":"auth"}}
+{"in":{"id":3,"op":"places.list"}}
+{"in":{"placeId":"box","deleteAfterMs":3600000,"id":4,"op":"places.set"}}

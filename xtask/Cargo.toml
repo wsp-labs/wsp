@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+description = "The repository's own tasks: cargo xtask parity replays the recorded tapes against a host and diffs its answers with the TS host's goldens"
+
+[dependencies]
+serde_json = { version = "1", features = ["preserve_order"] }
+clap = { version = "4", features = ["derive"] }
+regex = "1"
+libc = "0.2"
+tempfile = "3"
+tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+
+# Its own workspace, beside the daemon's rather than in it: the daemon's manifest and lock are what a deploy's
+# content hash reads, and a task of the repository's moves no version a box reads as behind.
+[workspace]

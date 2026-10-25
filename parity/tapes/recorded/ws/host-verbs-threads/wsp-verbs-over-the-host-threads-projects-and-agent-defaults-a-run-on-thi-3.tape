@@ -1,0 +1,7 @@
+{"meta":{"door":"ws","source":"packages/host/test/verbs-threads.test.ts > wsp verbs over the host: threads, projects and agent defaults > a run on this computer checks a model against the agent's own list there, the one its start and the composer read, before a worktree is made"}}
+{"in":{"token":"<redacted>","id":1,"op":"auth"}}
+{"in":{"ref":"mac","id":2,"op":"projects.resolve"}}
+{"in":{"ref":"pr_50d6b055","id":3,"op":"projects.resolve"}}
+{"in":{"id":4,"op":"harnesses.list"}}
+{"in":{"id":5,"op":"events.subscribe"}}
+{"in":{"project":"pr_50d6b055","branch":"feat/x","prompt":"go","model":"claude-opus-4-1","followed":true,"startedBy":"cli","requestId":"73cc5fdc-d98e-430e-9184-01c97ebd2bc3","answerHeld":true,"id":6,"op":"sessions.start"}}

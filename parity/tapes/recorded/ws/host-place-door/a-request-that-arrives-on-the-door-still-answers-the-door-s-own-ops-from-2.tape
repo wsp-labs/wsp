@@ -1,0 +1,2 @@
+{"meta":{"door":"ws","source":"packages/host/test/place-door.test.ts > a request that arrives on the door > still answers the door's own ops from 127.0.0.1: a pairing code, a join and a place's dial back"}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEAzwT1CBi2hX7+7qOcu6fnStwkLj/iF+/6F2oTKf9ih9M=","nonce":"PRU6H/EeFsiz8V6vQjmXFs7aYHRo0nIJ2ElgwppHYqQ=","ephemeral":"SGzLphGgWsepR5GMZ7A0kzU+L4+HIMuskMEk4g2iHmI=","id":1,"op":"place.join"}}

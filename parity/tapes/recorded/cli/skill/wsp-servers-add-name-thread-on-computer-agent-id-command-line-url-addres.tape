@@ -1,0 +1,2 @@
+{"meta":{"door":"cli","source":"skill > wsp servers add <name> <thread> --on <computer> --agent <id> (--command <line> \\| --url <address> --header <name>=<VARIABLE>...) --env <NAME>... --project <name>"}}
+{"in":{"argv":["servers","add","<name>","<thread>","--on","<computer>","--agent","<id>","(--command","<line>","\\|","--url","<address>","--header","<name>=<VARIABLE>...)","--env","<NAME>...","--project","<name>"]}}

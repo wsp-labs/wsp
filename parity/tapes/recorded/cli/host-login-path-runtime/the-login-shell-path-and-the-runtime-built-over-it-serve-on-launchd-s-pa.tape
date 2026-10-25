@@ -1,0 +1,2 @@
+{"meta":{"door":"cli","source":"packages/host/test/login-path-runtime.test.ts > the login shell PATH and the runtime built over it > serve on launchd's PATH builds its runtime after the read, so a turn on this computer runs under the person's PATH"}}
+{"in":{"argv":["exec","--state","<run>/wsp-login-runtime-N9FcA7/home/state.json","3064c99c-8b5c-495b-9a7f-85eae5bb2518","--","sh","-c","printf %s \"$PATH\""]}}
