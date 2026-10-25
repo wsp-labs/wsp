@@ -2,7 +2,8 @@
 //! The servers a turn of an agent gets in a folder, read off one Host by the catalog's resolver, keyed by the folder's
 //! checkout as git answers it on that Host. Port of packages/collect/src/detect/turn-servers.ts at a3b870a6e; the
 //! spec is spec/detect_turn_servers.md.
-use wsp_catalog::mcp_launch::{Checkout, TurnAgent, TurnServer};
+use wsp_catalog::catalog::AgentEntry;
+use wsp_catalog::mcp_launch::{Checkout, TurnServer};
 
 use crate::host::Host;
 
@@ -23,7 +24,9 @@ pub async fn read_checkout(host: &Host, folder: &str) -> Checkout {
     todo!()
 }
 
-/// Every server a turn of the agent in `folder` gets there, by scope, read off the files that Host holds.
+/// Every server a turn of the agent in `folder` gets there, by scope, read off the files that Host holds. The agent is
+/// TS `McpAgent` (an entry with `mcp` set); the resolver's TurnAgent is its id and its `mcp` format, files and
+/// project files. An entry with no `mcp` gets no servers.
 // detect/turn-servers.ts:11
 // /** Every server a turn of the agent in `folder` gets there, by scope, read off the files that Host holds. `checkout` is
 //  * the folder's, read off the Host where it is not handed in; `own` reads the agent's own file alone, keyed by the folder
@@ -41,6 +44,6 @@ pub async fn read_checkout(host: &Host, folder: &str) -> Checkout {
 //   const projects = o.own === true ? [] : (await Promise.all(files.projects.map(read))).filter(f => f !== undefined);
 //   return turnServers(agent, { ...(user !== undefined ? { user } : {}), projects, folder, key: checkout.key });
 // }
-pub async fn read_turn_servers(host: &Host, agent: &TurnAgent, folder: &str, o: TurnRead) -> Vec<TurnServer> {
+pub async fn read_turn_servers(host: &Host, agent: &AgentEntry, folder: &str, o: TurnRead) -> Vec<TurnServer> {
     todo!()
 }
