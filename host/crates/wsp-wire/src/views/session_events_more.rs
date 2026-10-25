@@ -142,6 +142,7 @@ impl Check for SessionPlanEvent {
         if let Some(v) = self.pos {
             crate::types::check::num_above(v as f64, 0.0).map_err(|e| e.under("pos"))?;
         }
+        self.steps.check().map_err(|e| e.under("steps"))?;
         Ok(())
     }
 

@@ -183,8 +183,21 @@ impl Check for PlaceAddStep {
 }
 
 /// TS: packages/protocol/src/views/place.ts:69 at a3b870a6e.
-pub type SudoPassword = String;
-// Rules: SudoPassword: at most 1024 UTF-16 units; SudoPassword: matches /^[^\n\r\0]*$/.
+/// TS: views/place.ts:69 at a3b870a6e..
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SudoPassword(pub String);
+
+impl Check for SudoPassword {
+    fn check(&self) -> Result<(), SchemaError> {
+        crate::types::check::text_at_most(&self.0, 1024)?;
+        crate::types::check::regex_check(crate::types::check::no_line_breaks(&self.0))
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Word("string"))
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PlaceStageEventState {

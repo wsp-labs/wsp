@@ -14,7 +14,7 @@ use crate::types::tree::TreeFact;
 use crate::types::workspace_look::WorkspaceGlyph;
 use crate::types::workspace_look::WorkspaceTheme;
 use crate::views::workspace_kind::WorkspaceKind;
-use wsp_frames::PauseMode;
+use crate::wire::capabilities::PauseMode;
 use wsp_frames::True;
 use crate::wire::capabilities::WorkspaceSize;
 

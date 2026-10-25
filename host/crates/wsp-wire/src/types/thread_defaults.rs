@@ -148,8 +148,20 @@ impl Check for AgentDefaultsPatch {
 }
 
 /// TS: packages/protocol/src/thread-defaults.ts:40 at a3b870a6e.
-pub type TrackerRepo = String;
-// Rules: TrackerRepo: matches /^[^/\s]+\/[^/\s]+$/.
+/// TS: thread-defaults.ts:40 at a3b870a6e..
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct TrackerRepo(pub String);
+
+impl Check for TrackerRepo {
+    fn check(&self) -> Result<(), SchemaError> {
+        crate::types::check::regex_check(crate::types::check::tracker_repo(&self.0))
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Word("string"))
+    }
+}
 
 /// TS: packages/protocol/src/thread-defaults.ts:41 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -176,13 +188,9 @@ impl Check for ProjectOverrides {
     fn check(&self) -> Result<(), SchemaError> {
         self.access.check().map_err(|e| e.under("access"))?;
         if let Some(v) = &self.after_worktree {
-            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("afterWorktree"))?;
+            crate::types::check::text_at_least_with(v, 1, "the after-worktree command is a shell line; --reset after-worktree takes it away").map_err(|e| e.under("afterWorktree"))?;
         }
-        if let Some(list) = &self.trackers {
-            for (i, item) in list.iter().enumerate() {
-                crate::types::check::regex_check(crate::types::check::tracker_repo(item)).map_err(|e| e.under(i).under("trackers"))?;
-            }
-        }
+        self.trackers.check().map_err(|e| e.under("trackers"))?;
         Ok(())
     }
 
@@ -227,13 +235,9 @@ impl Check for ProjectOverridesPatch {
     fn check(&self) -> Result<(), SchemaError> {
         self.access.check().map_err(|e| e.under("access"))?;
         if let Some(Some(v)) = &self.after_worktree {
-            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("afterWorktree"))?;
+            crate::types::check::text_at_least_with(v, 1, "the after-worktree command is a shell line; --reset after-worktree takes it away").map_err(|e| e.under("afterWorktree"))?;
         }
-        if let Some(Some(list)) = &self.trackers {
-            for (i, item) in list.iter().enumerate() {
-                crate::types::check::regex_check(crate::types::check::tracker_repo(item)).map_err(|e| e.under(i).under("trackers"))?;
-            }
-        }
+        self.trackers.check().map_err(|e| e.under("trackers"))?;
         Ok(())
     }
 
@@ -254,8 +258,20 @@ impl Check for ProjectOverridesPatch {
 }
 
 /// TS: packages/protocol/src/thread-defaults.ts:58 at a3b870a6e.
-pub type EnvName = String;
-// Rules: EnvName: matches /^[A-Za-z_][A-Za-z0-9_]*$/.
+/// TS: thread-defaults.ts:58 at a3b870a6e..
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct EnvName(pub String);
+
+impl Check for EnvName {
+    fn check(&self) -> Result<(), SchemaError> {
+        crate::types::check::regex_check_with(crate::types::check::env_name(&self.0), "a variable's name is letters, digits and _, not starting with a digit")
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        crate::types::check::leaf(path, crate::types::check::Zod::Word("string"))
+    }
+}
 
 /// TS: packages/protocol/src/thread-defaults.ts:63 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -263,6 +263,7 @@ impl Check for HarnessCatalog {
         self.context_windows.check().map_err(|e| e.under("contextWindows"))?;
         self.permission_modes.check().map_err(|e| e.under("permissionModes"))?;
         self.screen_commands.check().map_err(|e| e.under("screenCommands"))?;
+        self.access.check().map_err(|e| e.under("access"))?;
         Ok(())
     }
 

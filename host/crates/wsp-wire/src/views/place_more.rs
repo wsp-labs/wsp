@@ -791,6 +791,13 @@ impl Check for PlaceView {
         self.starts.check().map_err(|e| e.under("starts"))?;
         self.size.check().map_err(|e| e.under("size"))?;
         self.size_default.check().map_err(|e| e.under("sizeDefault"))?;
+        self.shape.check().map_err(|e| e.under("shape"))?;
+        self.copies.check().map_err(|e| e.under("copies"))?;
+        self.road.check().map_err(|e| e.under("road"))?;
+        self.dialled.check().map_err(|e| e.under("dialled"))?;
+        self.setup.check().map_err(|e| e.under("setup"))?;
+        self.applied.check().map_err(|e| e.under("applied"))?;
+        self.sync.check().map_err(|e| e.under("sync"))?;
         Ok(())
     }
 
@@ -874,6 +881,7 @@ impl Check for PlaceDial {
     /// Nested checks: dialled, place.
     fn check(&self) -> Result<(), SchemaError> {
         self.place.check().map_err(|e| e.under("place"))?;
+        self.dialled.check().map_err(|e| e.under("dialled"))?;
         Ok(())
     }
 
@@ -1328,6 +1336,7 @@ impl PlacePendingEvent {
 impl Check for PlacePendingEvent {
     /// Nested checks: pending.
     fn check(&self) -> Result<(), SchemaError> {
+        self.pending.check().map_err(|e| e.under("pending"))?;
         Ok(())
     }
 

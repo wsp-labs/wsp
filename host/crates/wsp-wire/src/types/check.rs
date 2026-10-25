@@ -150,10 +150,11 @@ impl<T: Check> Check for Option<T> {
     }
 }
 
-impl<K: Serialize, V: Check> Check for IndexMap<K, V> {
+impl<K: Check + Serialize, V: Check> Check for IndexMap<K, V> {
     fn check(&self) -> Result<(), SchemaError> {
         for (k, v) in self {
             let key = serde_json::to_value(k).expect("a map key writes as JSON");
+            k.check().map_err(|e| e.under(key.clone()))?;
             v.check().map_err(|e| e.under(key))?;
         }
         Ok(())
@@ -316,19 +317,37 @@ pub fn refine(ok: bool, message: &str) -> Result<(), SchemaError> {
     Err(SchemaError { code: "custom".into(), path: Vec::new(), message: message.into(), detail: IndexMap::new() })
 }
 
-/// A zod `.regex(r)` that failed: zod's `invalid_string` with validation `regex`.
+/// A zod `.regex(r)` that failed: zod's `invalid_string` with validation `regex`, and the message the rule gave.
 pub fn regex_check(ok: bool) -> Result<(), SchemaError> {
+    regex_check_with(ok, "Invalid")
+}
+
+pub fn regex_check_with(ok: bool, message: &str) -> Result<(), SchemaError> {
     if ok {
         return Ok(());
     }
     let mut detail = IndexMap::new();
     detail.insert("validation".to_string(), Value::from("regex"));
-    Err(SchemaError { code: "invalid_string".into(), path: Vec::new(), message: "Invalid".into(), detail })
+    Err(SchemaError { code: "invalid_string".into(), path: Vec::new(), message: message.into(), detail })
+}
+
+/// zod's `.min(n, message)` on a string, which answers the rule's own words.
+pub fn text_at_least_with(s: &str, min: usize, message: &str) -> Result<(), SchemaError> {
+    if utf16_len(s) >= min {
+        return Ok(());
+    }
+    Err(bound("too_small", Some(Value::from(min)), None, "string", true, false, message.to_string()))
+}
+
+/// JavaScript's `\s`: the white space and line terminators a JavaScript regex and `String.prototype.trim` take. Rust's
+/// `char::is_whitespace` is another set: it has U+0085 and lacks U+FEFF.
+pub fn js_space(c: char) -> bool {
+    matches!(c, '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
 }
 
 /// `/^[^/\s]+\/[^/\s]+$/`: one slash between two non-empty runs of non-space characters.
 pub fn tracker_repo(s: &str) -> bool {
-    let is_run = |p: &str| !p.is_empty() && !p.chars().any(|c| c == '/' || c.is_whitespace());
+    let is_run = |p: &str| !p.is_empty() && !p.chars().any(|c| c == '/' || js_space(c));
     s.split_once('/').is_some_and(|(a, b)| is_run(a) && is_run(b))
 }
 
@@ -350,7 +369,7 @@ pub fn no_line_breaks(s: &str) -> bool {
 
 /// JavaScript's `String.prototype.trim`: the white space and line terminators it strips, which is not Rust's set.
 pub fn js_trim(s: &str) -> &str {
-    s.trim_matches(|c: char| c.is_whitespace() && c != '\u{85}' || c == '\u{feff}')
+    s.trim_matches(js_space)
 }
 
 /// A zod `.trim()` on a string: the value is trimmed as it is read, so it is written trimmed too.
