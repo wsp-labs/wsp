@@ -26,9 +26,9 @@ use wsp_engine::provision::{presence_tests, Versions};
 use wsp_wire::types::daemon_contract::{HOMEBREW_PREFIX, TOOL_PREFIX};
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::views::golden_image::{CustomLit, RecipeCustomRow, ToolPin};
-use wsp_words::words::computer::Platform;
 use wsp_words::project_path::probe_path;
 use wsp_words::semver::compare_versions;
+use wsp_words::words::computer::Platform;
 
 // --- the TS file's helpers ---------------------------------------------------------------------------------------
 
