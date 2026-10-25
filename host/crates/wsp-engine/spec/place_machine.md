@@ -77,3 +77,21 @@ with `NOT_A_WORKSPACE`; `get(_)` answers `machine()`; `list` answers empty. No l
 | login read once, a failure read again | `the_login_is_read_once_and_a_failed_read_is_read_again` |
 | folder backend | `the_folder_backend_is_the_computer_as_one_machine` |
 | daemon frame names no machine | `a_daemon_frame_goes_up_naming_no_machine` |
+
+## Pins (wave 2)
+
+Scenes in `oracle/roads_scenes.oracle.ts` (`places`), replayed by `tests/place_machine_scenes.rs::<name>`: every
+frame byte for byte, the upload id as the TS's pinned one.
+
+- PL-1 No bytes are one part (`max(1, ceil(0 / 1 MiB))`): its frame carries `"stdin":""`, then the join, and the
+  answer is one piece (`no_bytes_are_one_part_with_an_empty_stdin`). The "absent without bytes" above means absent
+  where the caller gave no stdin, not where it gave an empty one.
+- PL-2 A folder machine does not override `put_bytes`, so every frame of an upload goes through its `exec`: each part,
+  the join and the cleanup after a refused part is wrapped as the login (`export HOME=... PATH=...; cd "$HOME"
+  2>/dev/null; ...`), the stdin never; the login is read first, once
+  (`a_folder_machines_parts_join_and_cleanup_ride_as_the_login`).
+- PL-3 `path_first` is tested against `None` only: `Some("")` writes the four zsh startup files and `.bash_env` under
+  `/` (`'/.zshenv'` and the rest) and puts `''` in front of PATH, as the TS does
+  (`an_empty_path_first_is_a_path_first`). After-port ticket: an empty folder should be no folder.
+- PL-4 `posix.dirname` names the parts' folder: the same table as exec_put.md's U-2 (`a.txt` is `.`, `a//b/c` is
+  `a//b`, `a/b/` is `a`).

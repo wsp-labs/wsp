@@ -4,11 +4,7 @@
    "name": "the_cut_keeps_a_lines_head",
    "steps": [
     {
-     "err": {
-      "len": 1001,
-      "head": "AAAAAAAAAAAAAAAAAAAA",
-      "tail": "BBBBBBBBBBBBBBBBBBB\n"
-     }
+     "err": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\n"
     },
     {
      "exit": {
@@ -54,11 +50,7 @@
      "err": "early 9\n"
     },
     {
-     "err": {
-      "len": 3550,
-      "head": "Warning: Permanently",
-      "tail": "ist of known hosts.\n"
-     }
+     "err": "Warning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\nWarning: Permanently added 'box' (ED25519) to the list of known hosts.\n"
     },
     {
      "exit": {
@@ -192,11 +184,7 @@
    "name": "a_flood_without_a_newline_keeps_only_its_last_4096_units",
    "steps": [
     {
-     "err": {
-      "len": 5000,
-      "head": "AAAAAAAAAAAAAAAAAAAA",
-      "tail": "AAAAAAAAAAAAAAAAAAAA"
-     }
+     "err": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
     },
     {
      "err": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\n"
@@ -690,6 +678,133 @@
    "forwarded": [],
    "answer": null,
    "err": "Invalid URL"
+  }
+ ],
+ "places": [
+  {
+   "name": "no_bytes_are_one_part_with_an_empty_stdin",
+   "partFails": false,
+   "frames": [
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "umask 077\nmkdir -p '/root'\ncat > '/root/empty'.part0",
+      "timeoutMs": 20000,
+      "stdin": ""
+     },
+     "opts": {
+      "timeoutMs": 25000,
+      "idempotencyKey": "abababababab/0"
+     }
+    },
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "umask 077; if [ -e '/root/empty'.part0 ]; then cat '/root/empty'.part{0..0} > '/root/empty' && rm -f '/root/empty'.part{0..0}; fi",
+      "timeoutMs": 20000
+     },
+     "opts": {
+      "timeoutMs": 25000,
+      "idempotencyKey": "abababababab/join"
+     }
+    }
+   ],
+   "answer": {
+    "pieces": 1
+   },
+   "err": null
+  },
+  {
+   "name": "a_folder_machines_parts_join_and_cleanup_ride_as_the_login",
+   "partFails": true,
+   "frames": [
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "uname -s; id -u; id -un; stat -L -c %U '/home/maya' 2>/dev/null || stat -L -f %Su '/home/maya' 2>/dev/null || echo; command -v runuser >/dev/null 2>&1 && echo 1 || echo 0; printf '%s\\n' \"$HOME\" \"$PATH\"",
+      "timeoutMs": 20000
+     },
+     "opts": {
+      "timeoutMs": 25000
+     }
+    },
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "export HOME='/home/maya' PATH='/usr/bin:/bin'; cd \"$HOME\" 2>/dev/null; s=$(getent passwd 'maya' | cut -d: -f7); timeout 15 \"${s:-/bin/sh}\" -ilc 'printf %s \"$PATH\"' < /dev/null 2> /dev/null",
+      "timeoutMs": 20000
+     },
+     "opts": {
+      "timeoutMs": 25000
+     }
+    },
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "export HOME='/home/maya' PATH='/usr/bin:/bin'; cd \"$HOME\" 2>/dev/null; umask 077\nmkdir -p '/home/maya'\ncat > '/home/maya/f'.part0",
+      "timeoutMs": 20000,
+      "stdin": "AQI="
+     },
+     "opts": {
+      "timeoutMs": 25000,
+      "idempotencyKey": "abababababab/0"
+     }
+    },
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "export HOME='/home/maya' PATH='/usr/bin:/bin'; cd \"$HOME\" 2>/dev/null; rm -f '/home/maya/f'.part{0..0}",
+      "timeoutMs": 20000
+     },
+     "opts": {
+      "timeoutMs": 25000
+     }
+    }
+   ],
+   "answer": null,
+   "err": "part 1 of 1 did not land at /home/maya/f on spoo: it exited 1 and said: disk full"
+  },
+  {
+   "name": "an_empty_path_first_is_a_path_first",
+   "partFails": false,
+   "frames": [
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "uname -s; id -u; id -un; stat -L -c %U '/home/maya' 2>/dev/null || stat -L -f %Su '/home/maya' 2>/dev/null || echo; command -v runuser >/dev/null 2>&1 && echo 1 || echo 0; printf '%s\\n' \"$HOME\" \"$PATH\"",
+      "timeoutMs": 20000
+     },
+     "opts": {
+      "timeoutMs": 25000
+     }
+    },
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "export HOME='/home/maya' PATH='/usr/bin:/bin'; cd \"$HOME\" 2>/dev/null; s=$(getent passwd 'maya' | cut -d: -f7); timeout 15 \"${s:-/bin/sh}\" -ilc 'printf %s \"$PATH\"' < /dev/null 2> /dev/null",
+      "timeoutMs": 20000
+     },
+     "opts": {
+      "timeoutMs": 25000
+     }
+    },
+    {
+     "op": "exec",
+     "params": {
+      "cmd": "[ -f /sys/fs/cgroup/cgroup.controllers ] && mkdir -p '/sys/fs/cgroup/wsp-threads/thread-1' 2>/dev/null && { echo '+memory +pids' > '/sys/fs/cgroup/wsp-threads'/cgroup.subtree_control; echo $$ > '/sys/fs/cgroup/wsp-threads/thread-1'/cgroup.procs; } 2>/dev/null; true\nexport HOME='/home/maya' PATH='/usr/bin:/bin'; cd \"$HOME\" 2>/dev/null; { mkdir -p '' && printf %s 'ZDOTDIR=${_wsp_zdotdir:-$HOME}\n[[ $ZDOTDIR -ef '\\'''\\'' ]] && ZDOTDIR=$HOME\n_wsp_zdotdir=\n[[ -r \"$ZDOTDIR/.zshenv\" ]] && source \"$ZDOTDIR/.zshenv\"\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\nZDOTDIR='\\'''\\''\n[[ :$PATH: == '\\''::'\\''* ]] || PATH='\\'''\\'':$PATH\n' > '/.zshenv'.$$ && mv -f '/.zshenv'.$$ '/.zshenv' && printf %s 'ZDOTDIR=${_wsp_zdotdir:-$HOME}\n[[ $ZDOTDIR -ef '\\'''\\'' ]] && ZDOTDIR=$HOME\n_wsp_zdotdir=\n[[ -r \"$ZDOTDIR/.zprofile\" ]] && source \"$ZDOTDIR/.zprofile\"\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\nZDOTDIR='\\'''\\''\n[[ :$PATH: == '\\''::'\\''* ]] || PATH='\\'''\\'':$PATH\n' > '/.zprofile'.$$ && mv -f '/.zprofile'.$$ '/.zprofile' && printf %s 'ZDOTDIR=${_wsp_zdotdir:-$HOME}\n[[ $ZDOTDIR -ef '\\'''\\'' ]] && ZDOTDIR=$HOME\n_wsp_zdotdir=\n[[ -r \"$ZDOTDIR/.zshrc\" ]] && source \"$ZDOTDIR/.zshrc\"\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\nZDOTDIR='\\'''\\''\n[[ :$PATH: == '\\''::'\\''* ]] || PATH='\\'''\\'':$PATH\n' > '/.zshrc'.$$ && mv -f '/.zshrc'.$$ '/.zshrc' && printf %s 'ZDOTDIR=${_wsp_zdotdir:-$HOME}\n[[ $ZDOTDIR -ef '\\'''\\'' ]] && ZDOTDIR=$HOME\n_wsp_zdotdir=\n[[ -r \"$ZDOTDIR/.zlogin\" ]] && source \"$ZDOTDIR/.zlogin\"\n_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}\nZDOTDIR='\\'''\\''\n[[ :$PATH: == '\\''::'\\''* ]] || PATH='\\'''\\'':$PATH\n' > '/.zlogin'.$$ && mv -f '/.zlogin'.$$ '/.zlogin' && printf %s 'case :$PATH: in '\\''::'\\''*) ;; *) PATH='\\'''\\'':$PATH ;; esac\n' > '/.bash_env'.$$ && mv -f '/.bash_env'.$$ '/.bash_env'; } 2>/dev/null && export ZDOTDIR='' BASH_ENV='/.bash_env'; export PATH='':\"$PATH\"; echo hi",
+      "timeoutMs": 20000
+     },
+     "opts": {
+      "timeoutMs": 25000
+     }
+    }
+   ],
+   "answer": {
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+   },
+   "err": null
   }
  ]
 }
