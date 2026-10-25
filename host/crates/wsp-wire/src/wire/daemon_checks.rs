@@ -6,8 +6,8 @@ use serde::de::{Deserialize, DeserializeOwned, Deserializer};
 use serde_json::Value;
 
 use crate::types::check::{
-    hex_64, issues_of, items_at_most, null_issue, num_above, num_at_least, num_at_most, read, refine, regex_check, required, text_at_least,
-    text_at_most, Check, SchemaError,
+    dirty_of, hex_64, issues_of, items_at_most, null_issue, num_above, num_at_least, num_at_most, read, refine, regex_check, required,
+    text_at_least, text_at_most, Check, SchemaError,
 };
 use crate::types::js_number::JsInt;
 use crate::types::keys::Obj;
@@ -20,10 +20,15 @@ fn issues(checks: impl IntoIterator<Item = Result<(), SchemaError>>) -> Vec<Sche
     checks.into_iter().filter_map(Result::err).collect()
 }
 
-fn push<R>(out: &mut Vec<SchemaError>, key: &str, got: Result<R, Vec<SchemaError>>, rules: Rules<R>) {
-    match got {
+fn push<T: DeserializeOwned + Check>(out: &mut Vec<SchemaError>, key: &str, value: &Value, rules: Rules<T>) {
+    match read::<T>(value) {
         Ok(x) => out.extend(rules(&x).into_iter().map(|e| e.under(key))),
-        Err(found) => out.extend(found.into_iter().map(|e| e.under(key))),
+        Err(found) => {
+            out.extend(found.into_iter().map(|e| e.under(key)));
+            if let Some(x) = dirty_of::<T>(value) {
+                out.extend(rules(&x).into_iter().map(|e| e.under(key)));
+            }
+        }
     }
 }
 
@@ -31,7 +36,7 @@ fn push<R>(out: &mut Vec<SchemaError>, key: &str, got: Result<R, Vec<SchemaError
 pub fn req_rules<T: DeserializeOwned + Check>(obj: &Obj, key: &str, out: &mut Vec<SchemaError>, rules: Rules<T>) {
     match obj.get(key) {
         None => out.push(required::<T>(key)),
-        Some(v) => push(out, key, read::<T>(v), rules),
+        Some(v) => push(out, key, v, rules),
     }
 }
 
@@ -40,7 +45,7 @@ pub fn opt_rules<T: DeserializeOwned + Check>(obj: &Obj, key: &str, out: &mut Ve
     match obj.get(key) {
         None => {}
         Some(Value::Null) => out.push(null_issue::<T>().under(key)),
-        Some(v) => push(out, key, read::<T>(v), rules),
+        Some(v) => push(out, key, v, rules),
     }
 }
 
@@ -52,7 +57,12 @@ fn list<T: DeserializeOwned + Check>(items: &[Value], max: Option<usize>, each: 
     for (i, item) in items.iter().enumerate() {
         match read::<T>(item) {
             Ok(x) => found.extend(each(&x).into_iter().map(|e| e.under(i))),
-            Err(more) => found.extend(more.into_iter().map(|e| e.under(i))),
+            Err(more) => {
+                found.extend(more.into_iter().map(|e| e.under(i)));
+                if let Some(x) = dirty_of::<T>(item) {
+                    found.extend(each(&x).into_iter().map(|e| e.under(i)));
+                }
+            }
         }
     }
     found

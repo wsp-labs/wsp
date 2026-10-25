@@ -65,10 +65,11 @@ pub enum PauseMode {
     #[serde(rename = "disk")]
     Disk,
 }
-/// A backend writes the keys in the order its code builds them, which is not the schema's: a box and Solari build
-/// `{ ...BOX_CAPABILITIES, sizes }` (engine/src/box-backend.ts:546), so `sizes` comes last; the local, no-provider, fake
-/// and place-machine backends list `sizes` after `templates` (engine/src/local-backend.ts:158-178). `sizes_last` is
-/// which of the two, read off the frame's own key order, and the host sends the object as built.
+/// A backend writes the keys in the order its code builds them, which is not the schema's, and `sizes_last` is which one it
+/// builds: a box and Solari build `{ ...BOX_CAPABILITIES, sizes }` (engine/src/box-backend.ts:546) and list `sizes` after
+/// `ownNetwork` (`true`); the local, no-provider, place-folder and fake backends list `sizes` after `templates` (`false`,
+/// engine/src/local-backend.ts:158, no-provider-backend.ts:50, place-machine.ts:248, fake-backend.ts:290). A frame read
+/// carries the order it came in.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(remote = "Self", rename_all = "camelCase")]
 pub struct Capabilities {

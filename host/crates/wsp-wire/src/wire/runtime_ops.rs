@@ -795,11 +795,11 @@ pub(super) fn env_key(obj: &Map<String, Value>, out: &mut Vec<SchemaError>) {
     let Some(Value::Object(vars)) = obj.get("env") else {
         return crate::types::keys::opt_key::<IndexMap<String, Option<String>>>(obj, "env", out);
     };
-    for (name, value) in vars {
+    for (name, value) in crate::types::kept::js_order(vars.iter().map(|(k, v)| (k.as_str(), v))) {
         if !crate::types::check::env_name(name) {
             out.push(env_name_issue(name).under("env"));
         }
-        out.extend(crate::types::check::issues_of::<Option<String>>(value).into_iter().map(|e| e.under(name.as_str()).under("env")));
+        out.extend(crate::types::check::issues_of::<Option<String>>(value).into_iter().map(|e| e.under(name).under("env")));
     }
 }
 

@@ -59,6 +59,13 @@ impl Check for RelayPort {
         crate::types::check::num_at_most(self.0.as_f64(), 65535.0)
     }
 
+    fn pass(value: &serde_json::Value) -> Option<Vec<SchemaError>> {
+        let mut found = crate::types::check::issues_of::<JsInt>(value);
+        let whole = JsInt::dirty(value).or_else(|| crate::types::check::read::<JsInt>(value).ok());
+        found.extend(whole.and_then(|n| RelayPort(n).check().err()));
+        Some(found)
+    }
+
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         crate::types::check::leaf(path, crate::types::check::Zod::Int)
     }

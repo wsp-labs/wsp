@@ -1142,12 +1142,12 @@ impl Check for ProcScope {
         let mut out = Vec::new();
         crate::types::keys::req_key_with::<String>(obj, "thread", &mut out, Self::rule_thread);
         crate::types::keys::opt_key_with::<String>(obj, "workspace", &mut out, Self::rule_workspace);
-        crate::types::keys::opt_key_with::<Vec<JsInt>>(obj, "agents", &mut out, Self::rule_agents);
-        crate::types::keys::opt_key_with::<Vec<JsInt>>(obj, "groups", &mut out, Self::rule_groups);
+        crate::types::keys::opt_arr_with::<JsInt>(obj, "agents", &mut out, |n| items_at_most(n, 64), Self::rule_agents);
+        crate::types::keys::opt_arr_with::<JsInt>(obj, "groups", &mut out, |n| items_at_most(n, 64), Self::rule_groups);
         crate::types::keys::opt_key_with::<String>(obj, "folder", &mut out, Self::rule_folder);
         crate::types::keys::opt_key::<bool>(obj, "warm", &mut out);
         crate::types::keys::opt_key_with::<String>(obj, "cgroup", &mut out, Self::rule_cgroup);
-        crate::types::keys::opt_key_with::<Vec<ProcScopePid>>(obj, "pids", &mut out, Self::rule_pids);
+        crate::types::keys::opt_arr_with::<ProcScopePid>(obj, "pids", &mut out, |n| items_at_most(n, 64), Self::rule_pids);
         Some(out)
     }
 

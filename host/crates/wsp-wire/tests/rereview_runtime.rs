@@ -250,17 +250,30 @@ fn a_pull_request_reply_answers_its_first_key_in_schema_order() {
     ]);
 }
 
-/// NIT (left from M5 and the first review's MINOR 13; spec/check.md Decision 1). Decision 1 says a number that goes through a
-/// `Value` differs "only past 2^64 or below 1e-6". serde_json writes a `Value` number with its own shortest form, which
-/// leaves decimal at 1e-5, not 1e-6, and an integer below -2^63 as a float: node writes 0.000005 and
-/// -9223372036854778000, a `Value` written by serde_json says `5e-6` and `-9.223372036854778e+18`. 12,470 of 257,791 doubles.
+/// NIT (left from M5 and the first review's MINOR 13; spec/check.md Decision 1). serde_json writes a `Value` number with its own
+/// shortest form, so a number that goes through a `Value` differs from node in the three places Decision 1 now lists: below
+/// 1e-5, at 2^64 and past, and at -2^63 and below. node 22.23.4 writes `String(0.000005)` as 0.000005, `String(0.0000012)` as
+/// 0.0000012, `String(-(2**63))` as -9223372036854776000 and `String(2**64)` as 18446744073709552000; a `Value`
+/// writes 5e-6, 1.2e-6, -9.223372036854776e+18 and 1.8446744073709552e+19. Between those, `String(0.00001)` is 0.00001,
+/// `String(0.000015)` is 0.000015 and `String(2**63)` is 9223372036854776000, and a `Value` writes the same text. Writing a `JsNumber` straight is exact everywhere.
 #[test]
 fn a_number_through_a_value_differs_only_where_decision_1_says() {
     let through = |n: f64| serde_json::to_string(&serde_json::to_value(JsNumber(n)).unwrap()).unwrap();
-    assert_eq!(
-        vec![through(0.000005), through(0.0000012), through(-9223372036854775808.0 - 2048.0), through(2f64.powi(63))],
-        vec!["0.000005", "0.0000012", "-9223372036854778000", "9223372036854776000"],
-    );
+    let straight = |n: f64| serde_json::to_string(&JsNumber(n)).unwrap();
+    let inside = [(0.00001, "0.00001"), (0.000015, "0.000015"), (2f64.powi(63), "9223372036854776000")];
+    for (n, node) in inside {
+        assert_eq!((through(n), straight(n)), (node.to_string(), node.to_string()));
+    }
+    let outside = [
+        (0.000005, "0.000005", "5e-6"),
+        (0.0000012, "0.0000012", "1.2e-6"),
+        (-(2f64.powi(63)), "-9223372036854776000", "-9.223372036854776e+18"),
+        (-9223372036854775808.0 - 2048.0, "-9223372036854778000", "-9.223372036854778e+18"),
+        (2f64.powi(64), "18446744073709552000", "1.8446744073709552e+19"),
+    ];
+    for (n, node, value) in outside {
+        assert_eq!((straight(n), through(n)), (node.to_string(), value.to_string()));
+    }
 }
 
 /// NIT (the first review's "issues_of lists every issue zod lists"). runtime.ts:1025 an intersection parses both sides, so a

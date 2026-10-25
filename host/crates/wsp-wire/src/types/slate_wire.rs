@@ -70,7 +70,13 @@ impl Check for SessionSlateEvent {
         crate::types::keys::req_key::<SlateCause>(obj, "cause", &mut out);
         crate::types::keys::req_key::<JsInt>(obj, "version", &mut out);
         crate::types::keys::req_key::<SlateBy>(obj, "by", &mut out);
-        crate::types::keys::req_key_with::<Vec<String>>(obj, "pieces", &mut out, Self::rule_pieces);
+        crate::types::keys::req_arr_with::<String>(
+            obj,
+            "pieces",
+            &mut out,
+            |n| crate::types::check::items_at_most(n, 20),
+            Self::rule_pieces,
+        );
         crate::types::keys::opt_key::<String>(obj, "run", &mut out);
         Some(out)
     }

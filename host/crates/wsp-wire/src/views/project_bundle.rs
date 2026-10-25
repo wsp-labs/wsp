@@ -988,7 +988,13 @@ impl Check for TerminalConfig {
         crate::types::keys::opt_key::<String>(obj, "theme", &mut out);
         crate::types::keys::opt_key::<TerminalRgb>(obj, "background", &mut out);
         crate::types::keys::opt_key::<TerminalRgb>(obj, "foreground", &mut out);
-        crate::types::keys::req_key_with::<Vec<Option<TerminalRgb>>>(obj, "palette", &mut out, Self::rule_palette);
+        crate::types::keys::req_arr_with::<Option<TerminalRgb>>(
+            obj,
+            "palette",
+            &mut out,
+            |n| crate::types::check::items_exactly(n, 16),
+            Self::rule_palette,
+        );
         crate::types::keys::opt_key::<TerminalRgb>(obj, "selectionBackground", &mut out);
         crate::types::keys::opt_key::<TerminalRgb>(obj, "cursorColor", &mut out);
         crate::types::keys::opt_key::<TerminalCursorStyle>(obj, "cursorStyle", &mut out);

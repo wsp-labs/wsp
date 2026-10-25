@@ -643,7 +643,7 @@ pub(super) fn runtime_op_pass_b(
         Some("projects.icons") => {
             let mut out = Vec::new();
             crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-            crate::types::keys::req_key_with::<Vec<ProjectIconHash>>(obj, "hashes", &mut out, |x| items_at_most(x.len(), 1000));
+            crate::types::keys::req_arr_with::<ProjectIconHash>(obj, "hashes", &mut out, |n| items_at_most(n, 1000), |_| Ok(()));
             Some(out)
         }
         Some("project.plan") => {
@@ -806,7 +806,7 @@ pub(super) fn runtime_op_pass_b(
             let mut out = Vec::new();
             crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
             crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
-            crate::types::keys::req_key_with::<Vec<String>>(obj, "paths", &mut out, |x| items_at_most(x.len(), 200));
+            crate::types::keys::req_arr_with::<String>(obj, "paths", &mut out, |n| items_at_most(n, 200), |_| Ok(()));
             Some(out)
         }
         Some("slates.image") => {
@@ -1054,6 +1054,7 @@ impl Check for RuntimeRequest {
     fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
         let mut out = crate::types::check::issues_of::<RuntimeOp>(value);
         let serde_json::Value::Object(obj) = value else {
+            out.push(crate::types::check::not_object(value));
             return Some(out);
         };
         if let Some(named) = obj.get("op").and_then(serde_json::Value::as_str).and_then(crate::wire::runtime_ops::strict_keys) {

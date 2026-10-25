@@ -571,9 +571,21 @@ impl Check for PlaceReport {
         crate::types::keys::req_key_with::<JsInt>(obj, "daemonVersion", &mut out, Self::rule_daemon_version);
         crate::types::keys::opt_key_with::<JsInt>(obj, "daemonPort", &mut out, Self::rule_daemon_port);
         crate::types::keys::req_key_with::<Vec<String>>(obj, "wsp", &mut out, Self::rule_wsp);
-        crate::types::keys::req_key_with::<Vec<String>>(obj, "agents", &mut out, Self::rule_agents);
-        crate::types::keys::opt_key_with::<IndexMap<String, String>>(obj, "agentVersions", &mut out, Self::rule_agent_versions);
-        crate::types::keys::opt_key_with::<Vec<String>>(obj, "logins", &mut out, Self::rule_logins);
+        crate::types::keys::req_arr_with::<String>(
+            obj,
+            "agents",
+            &mut out,
+            |n| crate::types::check::items_at_most(n, AGENTS_REPORTED_MAX),
+            Self::rule_agents,
+        );
+        crate::types::keys::opt_key_rules::<IndexMap<String, String>>(obj, "agentVersions", &mut out, Self::rules_agent_versions);
+        crate::types::keys::opt_arr_with::<String>(
+            obj,
+            "logins",
+            &mut out,
+            |n| crate::types::check::items_at_most(n, 64),
+            Self::rule_logins,
+        );
         crate::types::keys::opt_key::<bool>(obj, "wspDoor", &mut out);
         crate::types::keys::opt_key::<String>(obj, "wspDoorBlocked", &mut out);
         crate::types::keys::opt_key_with::<String>(obj, "daemonUnit", &mut out, Self::rule_daemon_unit);
@@ -678,14 +690,13 @@ impl PlaceReport {
         }
         Ok(())
     }
-    fn rule_agent_versions(x: &Option<IndexMap<String, String>>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(said) = x {
-            for (agent, version) in said {
-                text_at_most(version, 64).map_err(|e| e.under(agent.as_str()))?;
-            }
-            refine(said.len() <= AGENTS_REPORTED_MAX, &format!("at most {AGENTS_REPORTED_MAX} agents"))?;
-        }
-        Ok(())
+    fn rules_agent_versions(said: &IndexMap<String, String>) -> Vec<crate::types::check::SchemaError> {
+        let mut found: Vec<_> = crate::types::kept::js_order(said.iter().map(|(agent, version)| (agent.as_str(), version)))
+            .into_iter()
+            .filter_map(|(agent, version)| text_at_most(version, 64).map_err(|e| e.under(agent)).err())
+            .collect();
+        found.extend(refine(said.len() <= AGENTS_REPORTED_MAX, &format!("at most {AGENTS_REPORTED_MAX} agents")).err());
+        found
     }
     fn rule_logins(x: &Option<Vec<String>>) -> Result<(), crate::types::check::SchemaError> {
         if let Some(logins) = x {

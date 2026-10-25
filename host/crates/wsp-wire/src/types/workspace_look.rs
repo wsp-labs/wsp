@@ -225,7 +225,7 @@ impl Check for WorkspaceTheme {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        crate::types::keys::req_key_with::<Vec<ThemeDot>>(obj, "dots", &mut out, Self::rule_dots);
+        crate::types::keys::req_arr_with::<ThemeDot>(obj, "dots", &mut out, |n| crate::types::check::items_at_most(n, 3), Self::rule_dots);
         crate::types::keys::req_key::<ThemeHarmony>(obj, "harmony", &mut out);
         crate::types::keys::req_key_with::<JsNumber>(obj, "grain", &mut out, Self::rule_grain);
         crate::types::keys::req_key_with::<JsNumber>(obj, "opacity", &mut out, Self::rule_opacity);

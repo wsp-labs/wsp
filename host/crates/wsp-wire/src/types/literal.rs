@@ -65,7 +65,7 @@ impl LiteralValue for i64 {
     }
 
     fn is(self, v: &Value) -> bool {
-        v.as_i64() == Some(self)
+        v.as_f64() == Some(self as f64)
     }
 
     fn to_json(self) -> Value {
