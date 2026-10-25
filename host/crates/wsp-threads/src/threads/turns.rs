@@ -166,7 +166,7 @@ pub struct LimitAsk {
 pub struct BurnAsk {
     pub account: String,
     pub thread_id: String,
-    pub tokens: UsageTokens,
+    pub tokens: f64,
     /// `{ run: turnId, at }` on a re-opened turn whose event carries `at`.
     pub replayed: Option<(String, f64)>,
 }
