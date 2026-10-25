@@ -1,0 +1,1666 @@
+{
+ "T0": 1790000000000,
+ "scenes": [
+  {
+   "name": "a keyed create puts its attempt, creates under its key and drops the attempt",
+   "store": {},
+   "log": [
+    [
+     "store.put",
+     "creates",
+     "workspace/ws_1",
+     {
+      "key": "workspace/ws_1:0101010101010101",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "image": "img-1"
+     }
+    ],
+    [
+     "backend.create",
+     "workspace/ws_1:0101010101010101",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     },
+     null
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_1"
+    ],
+    [
+     "inflight inside",
+     [
+      "box-early",
+      "m-made"
+     ]
+    ]
+   ],
+   "answer": "m-made",
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "a create with a request reads it first and keeps it on the attempt",
+   "store": {},
+   "log": [
+    [
+     "createRequest",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     }
+    ],
+    [
+     "store.put",
+     "creates",
+     "workspace/ws_1",
+     {
+      "key": "workspace/ws_1:0101010101010101",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "img-1",
+      "place": "pl1"
+     }
+    ],
+    [
+     "backend.create",
+     "workspace/ws_1:0101010101010101",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     },
+     {
+      "body": "bytes"
+     }
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_1"
+    ],
+    [
+     "inflight inside",
+     [
+      "box-early",
+      "m-made"
+     ]
+    ]
+   ],
+   "answer": "m-made",
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "a held attempt of a dead pid of this host with the same body is replayed under its key and stamp",
+   "store": {
+    "creates": {
+     "workspace/ws_1": {
+      "key": "workspace/ws_1:aaaaaaaaaaaaaaaa",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "",
+      "host": "host:ABC-1",
+      "pid": "dead"
+     }
+    }
+   },
+   "log": [
+    [
+     "store.put",
+     "creates",
+     "workspace/ws_1",
+     {
+      "key": "workspace/ws_1:aaaaaaaaaaaaaaaa",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self"
+     }
+    ],
+    [
+     "backend.create",
+     "workspace/ws_1:aaaaaaaaaaaaaaaa",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:11:20.000Z"
+     },
+     null
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_1"
+    ],
+    [
+     "inflight inside",
+     [
+      "box-early",
+      "m-made"
+     ]
+    ]
+   ],
+   "answer": "m-made",
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "a held attempt of this very process is replayed",
+   "store": {
+    "creates": {
+     "workspace/ws_1": {
+      "key": "k:1",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "self"
+     }
+    }
+   },
+   "log": [
+    [
+     "store.put",
+     "creates",
+     "workspace/ws_1",
+     {
+      "key": "k:1",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self"
+     }
+    ],
+    [
+     "backend.create",
+     "k:1",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:11:20.000Z"
+     },
+     null
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_1"
+    ],
+    [
+     "inflight inside",
+     [
+      "box-early",
+      "m-made"
+     ]
+    ]
+   ],
+   "answer": "m-made",
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "an attempt another live process holds is never joined",
+   "store": {
+    "creates": {
+     "workspace/ws_1": {
+      "key": "k:1",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "alive"
+     }
+    }
+   },
+   "log": [
+    [
+     "store.put",
+     "creates",
+     "workspace/ws_1",
+     {
+      "key": "workspace/ws_1:0101010101010101",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "image": "img-1"
+     }
+    ],
+    [
+     "backend.create",
+     "workspace/ws_1:0101010101010101",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     },
+     null
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_1"
+    ],
+    [
+     "inflight inside",
+     [
+      "box-early",
+      "m-made"
+     ]
+    ]
+   ],
+   "answer": "m-made",
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "an attempt of another host is never joined",
+   "store": {
+    "creates": {
+     "workspace/ws_1": {
+      "key": "k:1",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:OTHER",
+      "pid": "dead"
+     }
+    }
+   },
+   "log": [
+    [
+     "store.put",
+     "creates",
+     "workspace/ws_1",
+     {
+      "key": "workspace/ws_1:0101010101010101",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "image": "img-1"
+     }
+    ],
+    [
+     "backend.create",
+     "workspace/ws_1:0101010101010101",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     },
+     null
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_1"
+    ],
+    [
+     "inflight inside",
+     [
+      "box-early",
+      "m-made"
+     ]
+    ]
+   ],
+   "answer": "m-made",
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "a changed request starts a new attempt",
+   "store": {
+    "creates": {
+     "workspace/ws_1": {
+      "key": "k:1",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "other body",
+      "host": "host:ABC-1",
+      "pid": "dead"
+     }
+    }
+   },
+   "log": [
+    [
+     "store.put",
+     "creates",
+     "workspace/ws_1",
+     {
+      "key": "workspace/ws_1:0101010101010101",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "image": "img-1"
+     }
+    ],
+    [
+     "backend.create",
+     "workspace/ws_1:0101010101010101",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     },
+     null
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_1"
+    ],
+    [
+     "inflight inside",
+     [
+      "box-early",
+      "m-made"
+     ]
+    ]
+   ],
+   "answer": "m-made",
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "an attempt held from before its bytes were kept is never replayed where the backend sends bytes",
+   "store": {
+    "creates": {
+     "workspace/ws_1": {
+      "key": "k:1",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead"
+     }
+    }
+   },
+   "log": [
+    [
+     "createRequest",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     }
+    ],
+    [
+     "store.put",
+     "creates",
+     "workspace/ws_1",
+     {
+      "key": "workspace/ws_1:0101010101010101",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "img-1"
+     }
+    ],
+    [
+     "backend.create",
+     "workspace/ws_1:0101010101010101",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     },
+     {
+      "body": "bytes"
+     }
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_1"
+    ],
+    [
+     "inflight inside",
+     [
+      "box-early",
+      "m-made"
+     ]
+    ]
+   ],
+   "answer": "m-made",
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "a refusal with a status ends the attempt",
+   "store": {},
+   "log": [
+    [
+     "store.put",
+     "creates",
+     "workspace/ws_1",
+     {
+      "key": "workspace/ws_1:0101010101010101",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "image": "img-1"
+     }
+    ],
+    [
+     "backend.create",
+     "workspace/ws_1:0101010101010101",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     },
+     null
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_1"
+    ]
+   ],
+   "answer": {
+    "threw": "conflict",
+    "kind": null
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "a failure with no status keeps the attempt for a retry",
+   "store": {},
+   "log": [
+    [
+     "store.put",
+     "creates",
+     "workspace/ws_1",
+     {
+      "key": "workspace/ws_1:0101010101010101",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "image": "img-1"
+     }
+    ],
+    [
+     "backend.create",
+     "workspace/ws_1:0101010101010101",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     },
+     null
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ]
+   ],
+   "answer": {
+    "threw": "socket hang up",
+    "kind": null
+   },
+   "creates": [
+    [
+     "workspace/ws_1",
+     {
+      "key": "workspace/ws_1:0101010101010101",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "image": "img-1"
+     }
+    ]
+   ],
+   "inflight": []
+  },
+  {
+   "name": "a replay naming a gone machine is created anew once",
+   "store": {},
+   "log": [
+    [
+     "store.put",
+     "creates",
+     "workspace/ws_1",
+     {
+      "key": "workspace/ws_1:0101010101010101",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "image": "img-1"
+     }
+    ],
+    [
+     "backend.create",
+     "workspace/ws_1:0101010101010101",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     },
+     null
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_1"
+    ],
+    [
+     "machine.state",
+     "m-corpse"
+    ],
+    [
+     "warn",
+     "create for workspace/ws_1: the replay under workspace/ws_1:0101010101010101 named m-corpse, which is gone; creating anew"
+    ],
+    [
+     "store.put",
+     "creates",
+     "workspace/ws_1",
+     {
+      "key": "workspace/ws_1:0202020202020202",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "image": "img-1"
+     }
+    ],
+    [
+     "backend.create",
+     "workspace/ws_1:0202020202020202",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     },
+     null
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_1"
+    ],
+    [
+     "inflight inside",
+     [
+      "box-early",
+      "m-fresh"
+     ]
+    ]
+   ],
+   "answer": "m-fresh",
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "a second gone replay is thrown",
+   "store": {},
+   "log": [
+    [
+     "store.put",
+     "creates",
+     "workspace/ws_1",
+     {
+      "key": "workspace/ws_1:0101010101010101",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "image": "img-1"
+     }
+    ],
+    [
+     "backend.create",
+     "workspace/ws_1:0101010101010101",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     },
+     null
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_1"
+    ],
+    [
+     "machine.state",
+     "m-corpse"
+    ],
+    [
+     "warn",
+     "create for workspace/ws_1: the replay under workspace/ws_1:0101010101010101 named m-corpse, which is gone; creating anew"
+    ],
+    [
+     "store.put",
+     "creates",
+     "workspace/ws_1",
+     {
+      "key": "workspace/ws_1:0202020202020202",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "image": "img-1"
+     }
+    ],
+    [
+     "backend.create",
+     "workspace/ws_1:0202020202020202",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     },
+     null
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_1"
+    ],
+    [
+     "machine.state",
+     "m-corpse2"
+    ]
+   ],
+   "answer": {
+    "threw": "create for workspace/ws_1: the provider replayed m-corpse2, which is gone, under a key it had never seen (workspace/ws_1:0202020202020202)",
+    "kind": null
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "a replay of a live machine is said and kept",
+   "store": {},
+   "log": [
+    [
+     "store.put",
+     "creates",
+     "workspace/ws_1",
+     {
+      "key": "workspace/ws_1:0101010101010101",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "image": "img-1"
+     }
+    ],
+    [
+     "backend.create",
+     "workspace/ws_1:0101010101010101",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     },
+     null
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_1"
+    ],
+    [
+     "machine.state",
+     "m-again"
+    ],
+    [
+     "warn",
+     "create for workspace/ws_1: m-again replayed from an earlier attempt under workspace/ws_1:0101010101010101"
+    ],
+    [
+     "inflight inside",
+     [
+      "box-early",
+      "m-again"
+     ]
+    ]
+   ],
+   "answer": "m-again",
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "a purpose past the key's room is hashed",
+   "store": {},
+   "log": [
+    [
+     "store.put",
+     "creates",
+     "workspace/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     {
+      "key": "50cd52aa12491851a054ee836cb856518f82039fbe9b80ab7d24cfb39b0d2483:0101010101010101",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "image": "img-1"
+     }
+    ],
+    [
+     "backend.create",
+     "50cd52aa12491851a054ee836cb856518f82039fbe9b80ab7d24cfb39b0d2483:0101010101010101",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     },
+     null
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    ],
+    [
+     "inflight inside",
+     [
+      "box-early",
+      "m-made"
+     ]
+    ]
+   ],
+   "answer": "m-made",
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "a purpose exactly at the key's room is kept",
+   "store": {},
+   "log": [
+    [
+     "store.put",
+     "creates",
+     "w/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     {
+      "key": "w/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:0101010101010101",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "804453eb87d7f86d442600031716f4ac877e8fb5cb66d405829dd816de8ca48c",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "image": "img-1"
+     }
+    ],
+    [
+     "backend.create",
+     "w/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:0101010101010101",
+     {
+      "a": "1",
+      "createdAt": "2026-09-21T14:13:20.000Z"
+     },
+     null
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "w/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    ],
+    [
+     "inflight inside",
+     [
+      "box-early",
+      "m-made"
+     ]
+    ]
+   ],
+   "answer": "m-made",
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "a spec with no created-at label is sent as it is",
+   "store": {},
+   "log": [
+    [
+     "store.put",
+     "creates",
+     "workspace/ws_1",
+     {
+      "key": "workspace/ws_1:0101010101010101",
+      "createdAt": "2026-09-21T14:13:20.000Z",
+      "body": "02c6968dfc7ebc75347c554106da7d18b8782f082dc73d4357439823d43e2bab",
+      "host": "host:ABC-1",
+      "pid": "self",
+      "image": "snap-9"
+     }
+    ],
+    [
+     "backend.create",
+     "workspace/ws_1:0101010101010101",
+     null,
+     null
+    ],
+    [
+     "waiting",
+     "waiting for a box",
+     "box-early"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_1"
+    ],
+    [
+     "inflight inside",
+     [
+      "box-early",
+      "m-made"
+     ]
+    ]
+   ],
+   "answer": "m-made",
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "replay: a lost attempt's machine no record waits for is stopped and reported lost",
+   "store": {
+    "creates": {
+     "workspace/ws_9": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     }
+    }
+   },
+   "log": [
+    [
+     "replayCreate",
+     "workspace/ws_9:0101010101010101",
+     {
+      "body": "bytes"
+     },
+     "2026-09-21T14:11:20.000Z"
+    ],
+    [
+     "gone.stop",
+     "m-lost"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_9"
+    ]
+   ],
+   "answer": {
+    "deleted": [
+     {
+      "id": "m-lost",
+      "builder": false,
+      "reason": "lost",
+      "ageMs": 120000,
+      "labels": {
+       "w": "1"
+      },
+      "name": "wsp-abc-img"
+     }
+    ],
+    "failed": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "replay: rows it may not touch are skipped",
+   "store": {
+    "creates": {
+     "a": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "image": "wsp-abc-img"
+     },
+     "b": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:OTHER",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     },
+     "c": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "alive",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     },
+     "d": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.001Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     },
+     "e": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img",
+      "place": "pl-none"
+     }
+    }
+   },
+   "log": [],
+   "answer": {
+    "deleted": [],
+    "failed": []
+   },
+   "creates": [
+    [
+     "a",
+     {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "image": "wsp-abc-img"
+     }
+    ],
+    [
+     "b",
+     {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:OTHER",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     }
+    ],
+    [
+     "c",
+     {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "alive",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     }
+    ],
+    [
+     "d",
+     {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.001Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     }
+    ],
+    [
+     "e",
+     {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img",
+      "place": "pl-none"
+     }
+    ]
+   ],
+   "inflight": []
+  },
+  {
+   "name": "replay: a row at its place is asked there",
+   "store": {
+    "creates": {
+     "workspace/ws_9": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img",
+      "place": "pl1"
+     }
+    }
+   },
+   "log": [
+    [
+     "replayCreate",
+     "workspace/ws_9:0101010101010101",
+     {
+      "body": "bytes"
+     },
+     "2026-09-21T14:11:20.000Z"
+    ],
+    [
+     "gone.stop",
+     "m-lost"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_9"
+    ]
+   ],
+   "answer": {
+    "deleted": [
+     {
+      "id": "m-lost",
+      "builder": false,
+      "reason": "lost",
+      "ageMs": 120000,
+      "name": "wsp-abc-img"
+     }
+    ],
+    "failed": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "replay: a backend with no replay keeps the row",
+   "store": {
+    "creates": {
+     "workspace/ws_9": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     }
+    }
+   },
+   "log": [],
+   "answer": {
+    "deleted": [],
+    "failed": []
+   },
+   "creates": [
+    [
+     "workspace/ws_9",
+     {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     }
+    ]
+   ],
+   "inflight": []
+  },
+  {
+   "name": "replay: missing drops the row, another failure keeps it and says so",
+   "store": {
+    "creates": {
+     "a": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     },
+     "b": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     }
+    }
+   },
+   "log": [
+    [
+     "replayCreate",
+     "workspace/ws_9:0101010101010101",
+     {
+      "body": "bytes"
+     },
+     "2026-09-21T14:11:20.000Z"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "a"
+    ],
+    [
+     "replayCreate",
+     "workspace/ws_9:0101010101010101",
+     {
+      "body": "bytes"
+     },
+     "2026-09-21T14:11:20.000Z"
+    ]
+   ],
+   "answer": {
+    "deleted": [],
+    "failed": [
+     {
+      "message": "the create under workspace/ws_9:0101010101010101 was asked again and not answered: timeout; asked again next sweep"
+     }
+    ]
+   },
+   "creates": [
+    [
+     "b",
+     {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     }
+    ]
+   ],
+   "inflight": []
+  },
+  {
+   "name": "replay: past the key's window the row goes and the box is the stray sweep's",
+   "store": {
+    "creates": {
+     "a": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     }
+    }
+   },
+   "log": [
+    [
+     "replayCreate",
+     "workspace/ws_9:0101010101010101",
+     {
+      "body": "bytes"
+     },
+     "2026-09-21T14:11:20.000Z"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "a"
+    ]
+   ],
+   "answer": {
+    "deleted": [],
+    "failed": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "replay: a known machine or one already gone is only forgotten",
+   "store": {
+    "creates": {
+     "a": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     },
+     "b": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     }
+    }
+   },
+   "log": [
+    [
+     "replayCreate",
+     "workspace/ws_9:0101010101010101",
+     {
+      "body": "bytes"
+     },
+     "2026-09-21T14:11:20.000Z"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "a"
+    ],
+    [
+     "replayCreate",
+     "workspace/ws_9:0101010101010101",
+     {
+      "body": "bytes"
+     },
+     "2026-09-21T14:11:20.000Z"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "b"
+    ]
+   ],
+   "answer": {
+    "deleted": [],
+    "failed": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "replay: a kept name whose project is held waits for the sweep to record it",
+   "store": {
+    "creates": {
+     "workspace/ws_9": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     }
+    },
+    "workspace-names": {
+     "ws_9": {
+      "workspaceId": "ws_9",
+      "name": "w9",
+      "project": "p_1"
+     }
+    }
+   },
+   "log": [
+    [
+     "replayCreate",
+     "workspace/ws_9:0101010101010101",
+     {
+      "body": "bytes"
+     },
+     "2026-09-21T14:11:20.000Z"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_9"
+    ]
+   ],
+   "answer": {
+    "deleted": [],
+    "failed": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "replay: a kept name whose project is gone is stopped",
+   "store": {
+    "creates": {
+     "workspace/ws_9": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     }
+    },
+    "workspace-names": {
+     "ws_9": {
+      "workspaceId": "ws_9",
+      "name": "w9",
+      "project": "p_gone"
+     }
+    }
+   },
+   "log": [
+    [
+     "replayCreate",
+     "workspace/ws_9:0101010101010101",
+     {
+      "body": "bytes"
+     },
+     "2026-09-21T14:11:20.000Z"
+    ],
+    [
+     "gone.stop",
+     "m-lost"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_9"
+    ]
+   ],
+   "answer": {
+    "deleted": [
+     {
+      "id": "m-lost",
+      "builder": false,
+      "reason": "lost",
+      "ageMs": 120000,
+      "name": "wsp-abc-img"
+     }
+    ],
+    "failed": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "replay: a stop that fails keeps the row",
+   "store": {
+    "creates": {
+     "workspace/ws_9": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     }
+    }
+   },
+   "log": [
+    [
+     "replayCreate",
+     "workspace/ws_9:0101010101010101",
+     {
+      "body": "bytes"
+     },
+     "2026-09-21T14:11:20.000Z"
+    ]
+   ],
+   "answer": {
+    "deleted": [],
+    "failed": [
+     {
+      "id": "m-lost",
+      "message": "could not stop: busy"
+     }
+    ]
+   },
+   "creates": [
+    [
+     "workspace/ws_9",
+     {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     }
+    ]
+   ],
+   "inflight": []
+  },
+  {
+   "name": "replay: a stop that finds it missing reports it",
+   "store": {
+    "creates": {
+     "workspace/ws_9": {
+      "key": "workspace/ws_9:0101010101010101",
+      "createdAt": "2026-09-21T14:11:20.000Z",
+      "body": "B",
+      "host": "host:ABC-1",
+      "pid": "dead",
+      "request": {
+       "body": "bytes"
+      },
+      "image": "wsp-abc-img"
+     }
+    }
+   },
+   "log": [
+    [
+     "replayCreate",
+     "workspace/ws_9:0101010101010101",
+     {
+      "body": "bytes"
+     },
+     "2026-09-21T14:11:20.000Z"
+    ],
+    [
+     "store.delete",
+     "creates",
+     "workspace/ws_9"
+    ]
+   ],
+   "answer": {
+    "deleted": [
+     {
+      "id": "m-lost",
+      "builder": false,
+      "reason": "lost",
+      "ageMs": 120000,
+      "name": "wsp-abc-img"
+     }
+    ],
+    "failed": []
+   },
+   "creates": [],
+   "inflight": []
+  },
+  {
+   "name": "strays: only this host's image names, never known or asked",
+   "store": {
+    "creates": {
+     "a": {
+      "image": "wsp-abc1h0a993e4c-asked"
+     }
+    }
+   },
+   "log": [
+    [
+     "mark",
+     "abc1h0a993e4c"
+    ],
+    [
+     "namedAfter",
+     [
+      "wsp-abc1h0a993e4c-kept",
+      "wsp-abc1h0a993e4c-asked"
+     ]
+    ],
+    [
+     "backend.get",
+     "s-old"
+    ],
+    [
+     "gone.stop",
+     "s-old"
+    ]
+   ],
+   "answer": {
+    "deleted": [
+     {
+      "id": "s-old",
+      "builder": false,
+      "reason": "stray",
+      "name": "wsp-abc1h0a993e4c-kept",
+      "ageMs": 600000
+     }
+    ],
+    "failed": []
+   },
+   "creates": [
+    [
+     "a",
+     {
+      "image": "wsp-abc1h0a993e4c-asked"
+     }
+    ]
+   ],
+   "inflight": []
+  },
+  {
+   "name": "strays: nothing asks with no backend that lists by name",
+   "store": {},
+   "log": [],
+   "answer": [],
+   "creates": [],
+   "inflight": []
+  }
+ ]
+}

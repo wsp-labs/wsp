@@ -1,0 +1,2823 @@
+{
+  "daemonVersion": 167,
+  "now": 1700000000000,
+  "types": {
+    "madeBySetup": [
+      "lint"
+    ],
+    "madeBySetupNoApplied": [],
+    "appliedView": {
+      "hash": "h1",
+      "at": "2026-10-02T00:00:00.000Z",
+      "rows": [
+        {
+          "id": "plugins/lint",
+          "label": "PLUGINS/LINT",
+          "outcome": "installed",
+          "step": "plugins"
+        },
+        {
+          "id": "plugins/fmt",
+          "label": "PLUGINS/FMT",
+          "outcome": "present",
+          "step": "plugins"
+        },
+        {
+          "id": "folders/site",
+          "label": "FOLDERS/SITE",
+          "outcome": "installed",
+          "step": "folders",
+          "project": {
+            "id": "pr_00000001"
+          }
+        },
+        {
+          "id": "clis/gh",
+          "label": "CLIS/GH",
+          "outcome": "failed",
+          "step": "clis",
+          "note": "no network"
+        }
+      ]
+    },
+    "projectsMade": [
+      "pr_00000001"
+    ],
+    "projectsMadeTwice": [
+      "pr_00000001",
+      "pr_00000002"
+    ],
+    "isPlaceRecord": [
+      {
+        "v": {
+          "id": "a",
+          "publicKey": "k",
+          "name": "n"
+        },
+        "out": true
+      },
+      {
+        "v": {
+          "id": "",
+          "publicKey": "",
+          "name": ""
+        },
+        "out": true
+      },
+      {
+        "v": {
+          "id": "a",
+          "publicKey": "k"
+        },
+        "out": false
+      },
+      {
+        "v": {
+          "id": 1,
+          "publicKey": "k",
+          "name": "n"
+        },
+        "out": false
+      },
+      {
+        "v": null,
+        "out": false
+      },
+      {
+        "v": [],
+        "out": false
+      },
+      {
+        "v": "a",
+        "out": false
+      },
+      {
+        "v": {
+          "id": "a",
+          "publicKey": "k",
+          "name": "n",
+          "extra": true
+        },
+        "out": true
+      }
+    ],
+    "lines": {
+      "NO_PLACE_DOOR": "this runtime holds no places; the host that serves the app wires them",
+      "NO_PLACE_UPDATER": "this runtime carries no daemon to put on a computer; the host that serves the app wires one",
+      "placeUpdateSlowLine": "old-macbook took the daemon and had not dialled back on it within 60s; its row reads the new version once it does",
+      "placeSweptOverSshLine": "wsp and the service that kept it running are removed from old-macbook",
+      "placeLoginRoadLine": "old-macbook did not answer the login at maya@10.0.0.5",
+      "placeLoginRoadLineSaid": "old-macbook ran the leave over the login at maya@10.0.0.5 and did not finish it (systemctl failed)",
+      "placeLoginRoadLineEmpty": "old-macbook ran the leave over the login at maya@10.0.0.5 and did not finish it ()",
+      "placeSweptOverLinkLine": "old-macbook ran the leave over the login at maya@10.0.0.5 and did not finish it (systemctl failed), so it swept itself over the link: its files came off and the service that starts the agent there did not",
+      "placeElsewhereSweptOverLinkLine": "maya@10.0.0.5 reaches another machine, so nothing was changed on the machine it reaches; old-macbook swept itself over the link: its files came off and the service that starts the agent there did not"
+    }
+  },
+  "rows": {
+    "plain": [
+      {
+        "id": "here",
+        "kind": "computer",
+        "name": "zingzys-mac",
+        "mac": "mac-mini",
+        "default": true,
+        "os": "macOS 15.0",
+        "shape": {
+          "cpu": 8,
+          "memMb": 16384
+        },
+        "home": "/home/dev",
+        "present": true,
+        "takesForks": false,
+        "buildsImages": false,
+        "cap": {
+          "threads": 8
+        },
+        "capDefault": {
+          "threads": 8
+        },
+        "turnLimitMs": null,
+        "turnLimitDefault": null,
+        "spawn": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 0
+      },
+      {
+        "id": "p_0000000000000001",
+        "kind": "computer",
+        "name": "old-macbook",
+        "default": false,
+        "os": "Ubuntu 24.04",
+        "shape": {
+          "cpu": 4,
+          "memMb": 4096
+        },
+        "diskFreeBytes": 1000,
+        "present": false,
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "daemonVersion": 167,
+        "agents": [
+          "claude",
+          "codex"
+        ],
+        "signIns": {
+          "claude": "vault-key",
+          "codex": "none"
+        },
+        "takesForks": true,
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "from": "10.0.0.5"
+        },
+        "home": "/home/maya",
+        "uptimeMs": 5000,
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "applied": {
+          "hash": "h1",
+          "at": "2026-10-02T00:00:00.000Z",
+          "rows": [
+            {
+              "id": "plugins/lint",
+              "label": "PLUGINS/LINT",
+              "outcome": "installed",
+              "step": "plugins"
+            },
+            {
+              "id": "plugins/fmt",
+              "label": "PLUGINS/FMT",
+              "outcome": "present",
+              "step": "plugins"
+            },
+            {
+              "id": "folders/site",
+              "label": "FOLDERS/SITE",
+              "outcome": "installed",
+              "step": "folders",
+              "project": {
+                "id": "pr_00000001"
+              }
+            },
+            {
+              "id": "clis/gh",
+              "label": "CLIS/GH",
+              "outcome": "failed",
+              "step": "clis",
+              "note": "no network"
+            }
+          ]
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {},
+            "fmt": {},
+            "old": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web",
+        "cap": {
+          "threads": 2
+        },
+        "capDefault": {
+          "threads": 2
+        },
+        "napMs": 1200000,
+        "napDefault": 1200000,
+        "turnLimitMs": null,
+        "turnLimitDefault": null,
+        "spawn": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 2
+      },
+      {
+        "id": "boat",
+        "kind": "provider",
+        "name": "boat",
+        "default": false,
+        "takesForks": true,
+        "rateUsdPerHour": 0.25,
+        "cap": {
+          "machines": 3,
+          "spendPerDayUsd": 10
+        },
+        "capDefault": {
+          "machines": 3,
+          "spendPerDayUsd": 10
+        },
+        "napMs": 1200000,
+        "napDefault": 1200000,
+        "turnLimitMs": 21600000,
+        "turnLimitDefault": 21600000,
+        "spawn": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 0,
+        "deleteAfterMs": 1800000
+      }
+    ],
+    "set": [
+      {
+        "id": "here",
+        "kind": "computer",
+        "name": "zingzys-mac",
+        "mac": "mac-mini",
+        "default": false,
+        "os": "macOS 15.0",
+        "shape": {
+          "cpu": 8,
+          "memMb": 16384
+        },
+        "home": "/home/dev",
+        "present": true,
+        "takesForks": false,
+        "buildsImages": false,
+        "cap": {
+          "threads": 8
+        },
+        "capDefault": {
+          "threads": 8
+        },
+        "turnLimitMs": null,
+        "turnLimitDefault": null,
+        "spawn": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 0
+      },
+      {
+        "id": "p_0000000000000001",
+        "kind": "computer",
+        "name": "old-macbook",
+        "default": true,
+        "os": "Ubuntu 24.04",
+        "shape": {
+          "cpu": 4,
+          "memMb": 4096
+        },
+        "diskFreeBytes": 1000,
+        "present": false,
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "daemonVersion": 167,
+        "agents": [
+          "claude",
+          "codex"
+        ],
+        "signIns": {
+          "claude": "vault-key",
+          "codex": "none"
+        },
+        "takesForks": true,
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "from": "10.0.0.5"
+        },
+        "home": "/home/maya",
+        "uptimeMs": 5000,
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "applied": {
+          "hash": "h1",
+          "at": "2026-10-02T00:00:00.000Z",
+          "rows": [
+            {
+              "id": "plugins/lint",
+              "label": "PLUGINS/LINT",
+              "outcome": "installed",
+              "step": "plugins"
+            },
+            {
+              "id": "plugins/fmt",
+              "label": "PLUGINS/FMT",
+              "outcome": "present",
+              "step": "plugins"
+            },
+            {
+              "id": "folders/site",
+              "label": "FOLDERS/SITE",
+              "outcome": "installed",
+              "step": "folders",
+              "project": {
+                "id": "pr_00000001"
+              }
+            },
+            {
+              "id": "clis/gh",
+              "label": "CLIS/GH",
+              "outcome": "failed",
+              "step": "clis",
+              "note": "no network"
+            }
+          ]
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {},
+            "fmt": {},
+            "old": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web",
+        "cap": {
+          "threads": 3
+        },
+        "capDefault": {
+          "threads": 2
+        },
+        "settings": {
+          "threads": 3,
+          "napMs": null
+        },
+        "napMs": null,
+        "napDefault": 1200000,
+        "turnLimitMs": null,
+        "turnLimitDefault": null,
+        "spawn": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 2
+      },
+      {
+        "id": "boat",
+        "kind": "provider",
+        "name": "boat",
+        "default": false,
+        "takesForks": true,
+        "rateUsdPerHour": 0.25,
+        "cap": {
+          "machines": 2,
+          "spendPerDayUsd": 10
+        },
+        "capDefault": {
+          "machines": 3,
+          "spendPerDayUsd": 10
+        },
+        "settings": {
+          "machines": 2,
+          "size": {
+            "cpu": 4,
+            "memMb": 8192
+          }
+        },
+        "napMs": 1200000,
+        "napDefault": 1200000,
+        "turnLimitMs": 21600000,
+        "turnLimitDefault": 21600000,
+        "spawn": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 0,
+        "deleteAfterMs": 1800000
+      }
+    ],
+    "goneMark": [
+      {
+        "id": "here",
+        "kind": "computer",
+        "name": "zingzys-mac",
+        "mac": "mac-mini",
+        "default": true,
+        "os": "macOS 15.0",
+        "shape": {
+          "cpu": 8,
+          "memMb": 16384
+        },
+        "home": "/home/dev",
+        "present": true,
+        "takesForks": false,
+        "buildsImages": false,
+        "cap": {
+          "threads": 8
+        },
+        "capDefault": {
+          "threads": 8
+        },
+        "turnLimitMs": null,
+        "turnLimitDefault": null,
+        "spawn": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 0
+      },
+      {
+        "id": "p_0000000000000001",
+        "kind": "computer",
+        "name": "old-macbook",
+        "default": false,
+        "os": "Ubuntu 24.04",
+        "shape": {
+          "cpu": 4,
+          "memMb": 4096
+        },
+        "diskFreeBytes": 1000,
+        "present": false,
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "daemonVersion": 167,
+        "agents": [
+          "claude",
+          "codex"
+        ],
+        "signIns": {
+          "claude": "vault-key",
+          "codex": "none"
+        },
+        "takesForks": true,
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "from": "10.0.0.5"
+        },
+        "home": "/home/maya",
+        "uptimeMs": 5000,
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "applied": {
+          "hash": "h1",
+          "at": "2026-10-02T00:00:00.000Z",
+          "rows": [
+            {
+              "id": "plugins/lint",
+              "label": "PLUGINS/LINT",
+              "outcome": "installed",
+              "step": "plugins"
+            },
+            {
+              "id": "plugins/fmt",
+              "label": "PLUGINS/FMT",
+              "outcome": "present",
+              "step": "plugins"
+            },
+            {
+              "id": "folders/site",
+              "label": "FOLDERS/SITE",
+              "outcome": "installed",
+              "step": "folders",
+              "project": {
+                "id": "pr_00000001"
+              }
+            },
+            {
+              "id": "clis/gh",
+              "label": "CLIS/GH",
+              "outcome": "failed",
+              "step": "clis",
+              "note": "no network"
+            }
+          ]
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {},
+            "fmt": {},
+            "old": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web",
+        "cap": {
+          "threads": 2
+        },
+        "capDefault": {
+          "threads": 2
+        },
+        "napMs": 1200000,
+        "napDefault": 1200000,
+        "turnLimitMs": null,
+        "turnLimitDefault": null,
+        "spawn": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 2
+      },
+      {
+        "id": "boat",
+        "kind": "provider",
+        "name": "boat",
+        "default": false,
+        "takesForks": true,
+        "rateUsdPerHour": 0.25,
+        "cap": {
+          "machines": 3,
+          "spendPerDayUsd": 10
+        },
+        "capDefault": {
+          "machines": 3,
+          "spendPerDayUsd": 10
+        },
+        "napMs": 1200000,
+        "napDefault": 1200000,
+        "turnLimitMs": 21600000,
+        "turnLimitDefault": 21600000,
+        "spawn": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 0,
+        "deleteAfterMs": 1800000
+      }
+    ],
+    "behind": [
+      {
+        "id": "here",
+        "kind": "computer",
+        "name": "zingzys-mac",
+        "mac": "mac-mini",
+        "default": true,
+        "os": "macOS 15.0",
+        "shape": {
+          "cpu": 8,
+          "memMb": 16384
+        },
+        "home": "/home/dev",
+        "present": true,
+        "takesForks": false,
+        "buildsImages": false,
+        "cap": {
+          "threads": 8
+        },
+        "capDefault": {
+          "threads": 8
+        },
+        "turnLimitMs": null,
+        "turnLimitDefault": null,
+        "spawn": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 0
+      },
+      {
+        "id": "p_0000000000000001",
+        "kind": "computer",
+        "name": "old-macbook",
+        "default": false,
+        "os": "Ubuntu 24.04",
+        "shape": {
+          "cpu": 4,
+          "memMb": 4096
+        },
+        "diskFreeBytes": 1000,
+        "present": false,
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "daemonVersion": 166,
+        "behind": {
+          "word": "daemon 166, host 167",
+          "fix": "wsp add old-macbook --update",
+          "act": "update"
+        },
+        "agents": [
+          "claude",
+          "codex"
+        ],
+        "signIns": {
+          "claude": "vault-key",
+          "codex": "signed-in"
+        },
+        "takesForks": true,
+        "road": {},
+        "home": "/home/maya",
+        "uptimeMs": 5000,
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "applied": {
+          "hash": "h1",
+          "at": "2026-10-02T00:00:00.000Z",
+          "rows": [
+            {
+              "id": "plugins/lint",
+              "label": "PLUGINS/LINT",
+              "outcome": "installed",
+              "step": "plugins"
+            },
+            {
+              "id": "plugins/fmt",
+              "label": "PLUGINS/FMT",
+              "outcome": "present",
+              "step": "plugins"
+            },
+            {
+              "id": "folders/site",
+              "label": "FOLDERS/SITE",
+              "outcome": "installed",
+              "step": "folders",
+              "project": {
+                "id": "pr_00000001"
+              }
+            },
+            {
+              "id": "clis/gh",
+              "label": "CLIS/GH",
+              "outcome": "failed",
+              "step": "clis",
+              "note": "no network"
+            }
+          ]
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {},
+            "fmt": {},
+            "old": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web",
+        "cap": {
+          "threads": 2
+        },
+        "capDefault": {
+          "threads": 2
+        },
+        "napMs": 1200000,
+        "napDefault": 1200000,
+        "turnLimitMs": null,
+        "turnLimitDefault": null,
+        "spawn": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 2
+      },
+      {
+        "id": "boat",
+        "kind": "provider",
+        "name": "boat",
+        "default": false,
+        "takesForks": true,
+        "rateUsdPerHour": 0.25,
+        "cap": {
+          "machines": 3,
+          "spendPerDayUsd": 10
+        },
+        "capDefault": {
+          "machines": 3,
+          "spendPerDayUsd": 10
+        },
+        "napMs": 1200000,
+        "napDefault": 1200000,
+        "turnLimitMs": 21600000,
+        "turnLimitDefault": 21600000,
+        "spawn": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 0,
+        "deleteAfterMs": 1800000
+      }
+    ],
+    "list": [
+      {
+        "id": "here",
+        "kind": "computer",
+        "name": "zingzys-mac",
+        "mac": "mac-mini",
+        "default": true,
+        "os": "macOS 15.0",
+        "shape": {
+          "cpu": 8,
+          "memMb": 16384
+        },
+        "home": "/home/dev",
+        "present": true,
+        "takesForks": false,
+        "buildsImages": false,
+        "cap": {
+          "threads": 8
+        },
+        "capDefault": {
+          "threads": 8
+        },
+        "turnLimitMs": null,
+        "turnLimitDefault": null,
+        "spawn": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 0
+      },
+      {
+        "id": "p_0000000000000001",
+        "kind": "computer",
+        "name": "old-macbook",
+        "default": false,
+        "os": "Ubuntu 24.04",
+        "shape": {
+          "cpu": 4,
+          "memMb": 4096
+        },
+        "diskFreeBytes": 1000,
+        "present": false,
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "daemonVersion": 167,
+        "agents": [
+          "claude",
+          "codex"
+        ],
+        "signIns": {
+          "claude": "vault-key",
+          "codex": "none"
+        },
+        "takesForks": true,
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "from": "10.0.0.5"
+        },
+        "home": "/home/maya",
+        "uptimeMs": 5000,
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "applied": {
+          "hash": "h1",
+          "at": "2026-10-02T00:00:00.000Z",
+          "rows": [
+            {
+              "id": "plugins/lint",
+              "label": "PLUGINS/LINT",
+              "outcome": "installed",
+              "step": "plugins"
+            },
+            {
+              "id": "plugins/fmt",
+              "label": "PLUGINS/FMT",
+              "outcome": "present",
+              "step": "plugins"
+            },
+            {
+              "id": "folders/site",
+              "label": "FOLDERS/SITE",
+              "outcome": "installed",
+              "step": "folders",
+              "project": {
+                "id": "pr_00000001"
+              }
+            },
+            {
+              "id": "clis/gh",
+              "label": "CLIS/GH",
+              "outcome": "failed",
+              "step": "clis",
+              "note": "no network"
+            }
+          ]
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {},
+            "fmt": {},
+            "old": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web",
+        "cap": {
+          "threads": 2
+        },
+        "capDefault": {
+          "threads": 2
+        },
+        "napMs": 1200000,
+        "napDefault": 1200000,
+        "turnLimitMs": null,
+        "turnLimitDefault": null,
+        "spawn": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 2
+      },
+      {
+        "id": "boat",
+        "kind": "provider",
+        "name": "boat",
+        "default": false,
+        "takesForks": true,
+        "rateUsdPerHour": 0.25,
+        "cap": {
+          "machines": 3,
+          "spendPerDayUsd": 10
+        },
+        "capDefault": {
+          "machines": 3,
+          "spendPerDayUsd": 10
+        },
+        "napMs": 1200000,
+        "napDefault": 1200000,
+        "turnLimitMs": 21600000,
+        "turnLimitDefault": 21600000,
+        "spawn": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 0,
+        "deleteAfterMs": 1800000
+      }
+    ]
+  },
+  "set": {
+    "patch": {
+      "ok": {
+        "place": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "old-macbook",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "road": {
+            "ssh": "maya@10.0.0.5",
+            "from": "10.0.0.5"
+          },
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "applied": {
+            "hash": "h1",
+            "at": "2026-10-02T00:00:00.000Z",
+            "rows": [
+              {
+                "id": "plugins/lint",
+                "label": "PLUGINS/LINT",
+                "outcome": "installed",
+                "step": "plugins"
+              },
+              {
+                "id": "plugins/fmt",
+                "label": "PLUGINS/FMT",
+                "outcome": "present",
+                "step": "plugins"
+              },
+              {
+                "id": "folders/site",
+                "label": "FOLDERS/SITE",
+                "outcome": "installed",
+                "step": "folders",
+                "project": {
+                  "id": "pr_00000001"
+                }
+              },
+              {
+                "id": "clis/gh",
+                "label": "CLIS/GH",
+                "outcome": "failed",
+                "step": "clis",
+                "note": "no network"
+              }
+            ]
+          },
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {},
+              "fmt": {},
+              "old": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "web",
+          "cap": {
+            "threads": 2
+          },
+          "capDefault": {
+            "threads": 2
+          },
+          "settings": {
+            "threads": 2,
+            "spawn": {
+              "maxMachines": 5,
+              "maxDepth": 1
+            }
+          },
+          "napMs": 1200000,
+          "napDefault": 1200000,
+          "turnLimitMs": null,
+          "turnLimitDefault": null,
+          "spawn": {
+            "maxMachines": 5,
+            "maxDepth": 1
+          },
+          "spawnDefault": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "running": 2
+        }
+      }
+    },
+    "patchCaps": {
+      "threads": 2,
+      "spawn": {
+        "maxMachines": 5,
+        "maxDepth": 1
+      }
+    },
+    "patchEvents": 1,
+    "resetAll": {
+      "ok": {
+        "place": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "old-macbook",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "road": {
+            "ssh": "maya@10.0.0.5",
+            "from": "10.0.0.5"
+          },
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "applied": {
+            "hash": "h1",
+            "at": "2026-10-02T00:00:00.000Z",
+            "rows": [
+              {
+                "id": "plugins/lint",
+                "label": "PLUGINS/LINT",
+                "outcome": "installed",
+                "step": "plugins"
+              },
+              {
+                "id": "plugins/fmt",
+                "label": "PLUGINS/FMT",
+                "outcome": "present",
+                "step": "plugins"
+              },
+              {
+                "id": "folders/site",
+                "label": "FOLDERS/SITE",
+                "outcome": "installed",
+                "step": "folders",
+                "project": {
+                  "id": "pr_00000001"
+                }
+              },
+              {
+                "id": "clis/gh",
+                "label": "CLIS/GH",
+                "outcome": "failed",
+                "step": "clis",
+                "note": "no network"
+              }
+            ]
+          },
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {},
+              "fmt": {},
+              "old": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "web",
+          "cap": {
+            "threads": 2
+          },
+          "capDefault": {
+            "threads": 2
+          },
+          "napMs": 1200000,
+          "napDefault": 1200000,
+          "turnLimitMs": null,
+          "turnLimitDefault": null,
+          "spawn": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "spawnDefault": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "running": 2
+        }
+      }
+    },
+    "resetAllCaps": null,
+    "nullNap": {
+      "ok": {
+        "place": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "old-macbook",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "road": {
+            "ssh": "maya@10.0.0.5",
+            "from": "10.0.0.5"
+          },
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "applied": {
+            "hash": "h1",
+            "at": "2026-10-02T00:00:00.000Z",
+            "rows": [
+              {
+                "id": "plugins/lint",
+                "label": "PLUGINS/LINT",
+                "outcome": "installed",
+                "step": "plugins"
+              },
+              {
+                "id": "plugins/fmt",
+                "label": "PLUGINS/FMT",
+                "outcome": "present",
+                "step": "plugins"
+              },
+              {
+                "id": "folders/site",
+                "label": "FOLDERS/SITE",
+                "outcome": "installed",
+                "step": "folders",
+                "project": {
+                  "id": "pr_00000001"
+                }
+              },
+              {
+                "id": "clis/gh",
+                "label": "CLIS/GH",
+                "outcome": "failed",
+                "step": "clis",
+                "note": "no network"
+              }
+            ]
+          },
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {},
+              "fmt": {},
+              "old": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "web",
+          "cap": {
+            "threads": 2
+          },
+          "capDefault": {
+            "threads": 2
+          },
+          "settings": {
+            "napMs": null
+          },
+          "napMs": null,
+          "napDefault": 1200000,
+          "turnLimitMs": null,
+          "turnLimitDefault": null,
+          "spawn": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "spawnDefault": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "running": 2
+        }
+      }
+    },
+    "nullNapCaps": {
+      "napMs": null
+    },
+    "unknown": {
+      "err": "no place named p_nope; you have zingzys-mac, old-macbook, boat",
+      "kind": "usage",
+      "fix": null
+    },
+    "providerThreads": {
+      "err": "boat takes machines at once, spend per day, delete after, nap after, turn limit, machines under a root thread and levels deep, not threads at once",
+      "kind": "usage",
+      "fix": null
+    },
+    "hereRecipe": {
+      "err": "no place named here; you have old-macbook",
+      "kind": "usage",
+      "fix": null
+    },
+    "renameToHere": {
+      "err": "zingzys-mac is already the name of another computer. Pick a name no other computer goes by.",
+      "kind": "usage",
+      "fix": "Pick a name no other computer goes by."
+    },
+    "rename": {
+      "ok": {
+        "place": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "new-name",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "road": {
+            "ssh": "maya@10.0.0.5",
+            "from": "10.0.0.5"
+          },
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "applied": {
+            "hash": "h1",
+            "at": "2026-10-02T00:00:00.000Z",
+            "rows": [
+              {
+                "id": "plugins/lint",
+                "label": "PLUGINS/LINT",
+                "outcome": "installed",
+                "step": "plugins"
+              },
+              {
+                "id": "plugins/fmt",
+                "label": "PLUGINS/FMT",
+                "outcome": "present",
+                "step": "plugins"
+              },
+              {
+                "id": "folders/site",
+                "label": "FOLDERS/SITE",
+                "outcome": "installed",
+                "step": "folders",
+                "project": {
+                  "id": "pr_00000001"
+                }
+              },
+              {
+                "id": "clis/gh",
+                "label": "CLIS/GH",
+                "outcome": "failed",
+                "step": "clis",
+                "note": "no network"
+              }
+            ]
+          },
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {},
+              "fmt": {},
+              "old": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "web",
+          "cap": {
+            "threads": 2
+          },
+          "capDefault": {
+            "threads": 2
+          },
+          "settings": {
+            "napMs": null
+          },
+          "napMs": null,
+          "napDefault": 1200000,
+          "turnLimitMs": null,
+          "turnLimitDefault": null,
+          "spawn": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "spawnDefault": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "running": 2
+        }
+      }
+    },
+    "renameRecord": {
+      "id": "p_0000000000000001",
+      "name": "new-name",
+      "publicKey": "PUBKEY",
+      "joinedAt": "2026-10-01T00:00:00.000Z",
+      "lastSeenAt": "2026-10-02T00:00:00.000Z",
+      "reportedAt": "2026-10-02T00:00:00.000Z",
+      "report": {
+        "name": "old-macbook",
+        "platform": "linux",
+        "arch": "x64",
+        "os": "Ubuntu 24.04",
+        "shape": {
+          "cpu": 4,
+          "memMb": 4096
+        },
+        "diskFreeBytes": 1000,
+        "diskSizeBytes": 50000000000,
+        "model": "Mac14,3",
+        "login": {
+          "HOME": "/home/maya",
+          "USER": "maya",
+          "PATH": "/usr/bin"
+        },
+        "runsWorkspaces": true,
+        "engine": "none",
+        "daemonVersion": 167,
+        "uptimeMs": 5000,
+        "agents": [
+          "claude",
+          "codex"
+        ],
+        "logins": [],
+        "wsp": [
+          "/home/maya/.npm-global/bin/wsp"
+        ],
+        "dialed": "http://192.168.1.20:14621"
+      },
+      "road": {
+        "ssh": "maya@10.0.0.5",
+        "keyPath": "/home/dev/.ssh/id",
+        "hostKey": "ssh-ed25519 AAAA",
+        "from": "10.0.0.5"
+      },
+      "applied": {
+        "hash": "h1",
+        "at": "2026-10-02T00:00:00.000Z",
+        "rows": [
+          {
+            "id": "plugins/lint",
+            "label": "PLUGINS/LINT",
+            "outcome": "installed",
+            "step": "plugins"
+          },
+          {
+            "id": "plugins/fmt",
+            "label": "PLUGINS/FMT",
+            "outcome": "present",
+            "step": "plugins"
+          },
+          {
+            "id": "folders/site",
+            "label": "FOLDERS/SITE",
+            "outcome": "installed",
+            "step": "folders",
+            "project": {
+              "id": "pr_00000001"
+            },
+            "pick": {
+              "from": "/home/dev/site",
+              "keep": []
+            },
+            "createdAt": "2026-10-01T00:00:00.000Z"
+          },
+          {
+            "id": "clis/gh",
+            "label": "CLIS/GH",
+            "outcome": "failed",
+            "step": "clis",
+            "note": "no network"
+          }
+        ]
+      },
+      "picks": {
+        "name": "web",
+        "agents": {},
+        "mcp": {},
+        "clis": {},
+        "skills": {},
+        "plugins": {
+          "lint": {},
+          "fmt": {},
+          "old": {}
+        },
+        "folders": {},
+        "configs": {}
+      },
+      "recipe": "web"
+    },
+    "renameCaps": {
+      "napMs": null
+    }
+  },
+  "dial": {
+    "noRoad": {
+      "ok": {
+        "dialled": {
+          "at": "2023-11-14T22:13:20.000Z",
+          "answered": false,
+          "said": "wsp has no road to dial old-macbook: it joined by typing a code, so it connects on its own when it is on."
+        },
+        "line": "wsp has no road to dial old-macbook: it joined by typing a code, so it connects on its own when it is on.",
+        "place": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "old-macbook",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "dialled": {
+            "at": "2023-11-14T22:13:20.000Z",
+            "answered": false,
+            "said": "wsp has no road to dial old-macbook: it joined by typing a code, so it connects on its own when it is on."
+          },
+          "applied": {
+            "hash": "h1",
+            "at": "2026-10-02T00:00:00.000Z",
+            "rows": [
+              {
+                "id": "plugins/lint",
+                "label": "PLUGINS/LINT",
+                "outcome": "installed",
+                "step": "plugins"
+              },
+              {
+                "id": "plugins/fmt",
+                "label": "PLUGINS/FMT",
+                "outcome": "present",
+                "step": "plugins"
+              },
+              {
+                "id": "folders/site",
+                "label": "FOLDERS/SITE",
+                "outcome": "installed",
+                "step": "folders",
+                "project": {
+                  "id": "pr_00000001"
+                }
+              },
+              {
+                "id": "clis/gh",
+                "label": "CLIS/GH",
+                "outcome": "failed",
+                "step": "clis",
+                "note": "no network"
+              }
+            ]
+          },
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {},
+              "fmt": {},
+              "old": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "web",
+          "cap": {
+            "threads": 2
+          },
+          "capDefault": {
+            "threads": 2
+          },
+          "napMs": 1200000,
+          "napDefault": 1200000,
+          "turnLimitMs": null,
+          "turnLimitDefault": null,
+          "spawn": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "spawnDefault": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "running": 2
+        }
+      }
+    },
+    "unknown": {
+      "err": "no place named p_nope; you have old-macbook",
+      "kind": null,
+      "fix": null
+    },
+    "sshOk": {
+      "ok": {
+        "dialled": {
+          "at": "2023-11-14T22:13:20.000Z",
+          "answered": true,
+          "roundTripMs": 0
+        },
+        "line": "maya@10.0.0.5 answered over ssh in 0 ms, so the computer is on; the agent on it is not dialling this host.",
+        "place": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "old-macbook",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "road": {
+            "ssh": "maya@10.0.0.5",
+            "from": "10.0.0.5"
+          },
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "dialled": {
+            "at": "2023-11-14T22:13:20.000Z",
+            "answered": true,
+            "roundTripMs": 0
+          },
+          "applied": {
+            "hash": "h1",
+            "at": "2026-10-02T00:00:00.000Z",
+            "rows": [
+              {
+                "id": "plugins/lint",
+                "label": "PLUGINS/LINT",
+                "outcome": "installed",
+                "step": "plugins"
+              },
+              {
+                "id": "plugins/fmt",
+                "label": "PLUGINS/FMT",
+                "outcome": "present",
+                "step": "plugins"
+              },
+              {
+                "id": "folders/site",
+                "label": "FOLDERS/SITE",
+                "outcome": "installed",
+                "step": "folders",
+                "project": {
+                  "id": "pr_00000001"
+                }
+              },
+              {
+                "id": "clis/gh",
+                "label": "CLIS/GH",
+                "outcome": "failed",
+                "step": "clis",
+                "note": "no network"
+              }
+            ]
+          },
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {},
+              "fmt": {},
+              "old": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "web",
+          "cap": {
+            "threads": 2
+          },
+          "capDefault": {
+            "threads": 2
+          },
+          "napMs": 1200000,
+          "napDefault": 1200000,
+          "turnLimitMs": null,
+          "turnLimitDefault": null,
+          "spawn": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "spawnDefault": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "running": 2
+        }
+      }
+    },
+    "sshOkRecord": {
+      "id": "p_0000000000000001",
+      "name": "old-macbook",
+      "publicKey": "PUBKEY",
+      "joinedAt": "2026-10-01T00:00:00.000Z",
+      "lastSeenAt": "2026-10-02T00:00:00.000Z",
+      "reportedAt": "2026-10-02T00:00:00.000Z",
+      "report": {
+        "name": "old-macbook",
+        "platform": "linux",
+        "arch": "x64",
+        "os": "Ubuntu 24.04",
+        "shape": {
+          "cpu": 4,
+          "memMb": 4096
+        },
+        "diskFreeBytes": 1000,
+        "diskSizeBytes": 50000000000,
+        "model": "Mac14,3",
+        "login": {
+          "HOME": "/home/maya",
+          "USER": "maya",
+          "PATH": "/usr/bin"
+        },
+        "runsWorkspaces": true,
+        "engine": "none",
+        "daemonVersion": 167,
+        "uptimeMs": 5000,
+        "agents": [
+          "claude",
+          "codex"
+        ],
+        "logins": [],
+        "wsp": [
+          "/home/maya/.npm-global/bin/wsp"
+        ],
+        "dialed": "http://192.168.1.20:14621"
+      },
+      "road": {
+        "ssh": "maya@10.0.0.5",
+        "keyPath": "/home/dev/.ssh/id",
+        "hostKey": "ssh-ed25519 AAAA",
+        "from": "10.0.0.5"
+      },
+      "applied": {
+        "hash": "h1",
+        "at": "2026-10-02T00:00:00.000Z",
+        "rows": [
+          {
+            "id": "plugins/lint",
+            "label": "PLUGINS/LINT",
+            "outcome": "installed",
+            "step": "plugins"
+          },
+          {
+            "id": "plugins/fmt",
+            "label": "PLUGINS/FMT",
+            "outcome": "present",
+            "step": "plugins"
+          },
+          {
+            "id": "folders/site",
+            "label": "FOLDERS/SITE",
+            "outcome": "installed",
+            "step": "folders",
+            "project": {
+              "id": "pr_00000001"
+            },
+            "pick": {
+              "from": "/home/dev/site",
+              "keep": []
+            },
+            "createdAt": "2026-10-01T00:00:00.000Z"
+          },
+          {
+            "id": "clis/gh",
+            "label": "CLIS/GH",
+            "outcome": "failed",
+            "step": "clis",
+            "note": "no network"
+          }
+        ]
+      },
+      "picks": {
+        "name": "web",
+        "agents": {},
+        "mcp": {},
+        "clis": {},
+        "skills": {},
+        "plugins": {
+          "lint": {},
+          "fmt": {},
+          "old": {}
+        },
+        "folders": {},
+        "configs": {}
+      },
+      "recipe": "web",
+      "dialled": {
+        "at": "2023-11-14T22:13:20.000Z",
+        "answered": true,
+        "roundTripMs": 0
+      }
+    },
+    "sshFails": {
+      "ok": {
+        "dialled": {
+          "at": "2023-11-14T22:13:20.000Z",
+          "answered": false,
+          "said": "ssh: connect to host 10.0.0.5 port 22: Connection refused"
+        },
+        "line": "ssh: connect to host 10.0.0.5 port 22: Connection refused",
+        "place": {
+          "id": "p_0000000000000001",
+          "kind": "computer",
+          "name": "old-macbook",
+          "default": false,
+          "os": "Ubuntu 24.04",
+          "shape": {
+            "cpu": 4,
+            "memMb": 4096
+          },
+          "diskFreeBytes": 1000,
+          "present": false,
+          "joinedAt": "2026-10-01T00:00:00.000Z",
+          "lastSeenAt": "2026-10-02T00:00:00.000Z",
+          "daemonVersion": 167,
+          "agents": [
+            "claude",
+            "codex"
+          ],
+          "signIns": {
+            "claude": "vault-key",
+            "codex": "none"
+          },
+          "takesForks": true,
+          "road": {
+            "ssh": "maya@10.0.0.5",
+            "from": "10.0.0.5"
+          },
+          "home": "/home/maya",
+          "uptimeMs": 5000,
+          "reportedAt": "2026-10-02T00:00:00.000Z",
+          "dialled": {
+            "at": "2023-11-14T22:13:20.000Z",
+            "answered": false,
+            "said": "ssh: connect to host 10.0.0.5 port 22: Connection refused"
+          },
+          "applied": {
+            "hash": "h1",
+            "at": "2026-10-02T00:00:00.000Z",
+            "rows": [
+              {
+                "id": "plugins/lint",
+                "label": "PLUGINS/LINT",
+                "outcome": "installed",
+                "step": "plugins"
+              },
+              {
+                "id": "plugins/fmt",
+                "label": "PLUGINS/FMT",
+                "outcome": "present",
+                "step": "plugins"
+              },
+              {
+                "id": "folders/site",
+                "label": "FOLDERS/SITE",
+                "outcome": "installed",
+                "step": "folders",
+                "project": {
+                  "id": "pr_00000001"
+                }
+              },
+              {
+                "id": "clis/gh",
+                "label": "CLIS/GH",
+                "outcome": "failed",
+                "step": "clis",
+                "note": "no network"
+              }
+            ]
+          },
+          "picks": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {},
+              "fmt": {},
+              "old": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "recipe": "web",
+          "cap": {
+            "threads": 2
+          },
+          "capDefault": {
+            "threads": 2
+          },
+          "napMs": 1200000,
+          "napDefault": 1200000,
+          "turnLimitMs": null,
+          "turnLimitDefault": null,
+          "spawn": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "spawnDefault": {
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "running": 2
+        }
+      }
+    }
+  },
+  "remove": {
+    "holdsAway": {
+      "ok": {
+        "forks": [],
+        "projects": [],
+        "unsaved": [],
+        "away": true
+      }
+    },
+    "holdsUnknown": {
+      "ok": {
+        "forks": [],
+        "projects": [],
+        "unsaved": []
+      }
+    },
+    "unknown": {
+      "ok": {
+        "removed": false,
+        "swept": []
+      }
+    },
+    "stillInstalled": {
+      "ok": {
+        "removed": true,
+        "took": {
+          "forks": [
+            {
+              "name": "f1",
+              "threads": 0
+            }
+          ],
+          "projects": []
+        },
+        "swept": [],
+        "note": "old-macbook is off this host, but the daemon on it is still installed; run wsp leave on that computer when it is back"
+      }
+    },
+    "log": [
+      "holdsOn read=false",
+      "holdsOn read=false",
+      "forgetOn"
+    ],
+    "events": [
+      {
+        "type": "place.removed",
+        "placeId": "p_0000000000000001"
+      }
+    ],
+    "after": {
+      "record": null,
+      "mark": null,
+      "pending": []
+    },
+    "awayWithForks": {
+      "err": "old-macbook is not answering, and its forks and projects go over its link. Turn old-macbook on and remove it again once it answers; if it never will, wsp remove old-macbook --forget takes it, its forks, projects and threads out of this wsp, with nothing done on it beyond a try at wsp's own leave over ssh.",
+      "kind": "usage",
+      "fix": "Turn old-macbook on and remove it again once it answers; if it never will, wsp remove old-macbook --forget takes it, its forks, projects and threads out of this wsp, with nothing done on it beyond a try at wsp's own leave over ssh."
+    },
+    "awayForget": {
+      "ok": {
+        "removed": true,
+        "took": {
+          "forks": [
+            {
+              "name": "f1",
+              "threads": 0
+            }
+          ],
+          "projects": []
+        },
+        "swept": [],
+        "note": "old-macbook is forgotten here and nothing was done on it; whatever of wsp's is still there, the copies its forks ran in among it, comes off with wsp leave run on that computer"
+      }
+    },
+    "unsaved": {
+      "err": "old-macbook holds work no remote has, which a remove would lose: site has 2 commits no remote has. Keep a fork's work with wsp export or by pushing its branch, and copy a project folder's off old-macbook from the path named; then remove old-macbook again, or wsp remove old-macbook --force removes it anyway.",
+      "kind": "usage",
+      "fix": "Keep a fork's work with wsp export or by pushing its branch, and copy a project folder's off old-macbook from the path named; then remove old-macbook again, or wsp remove old-macbook --force removes it anyway."
+    },
+    "providerForget": {
+      "ok": {
+        "removed": false,
+        "swept": []
+      }
+    },
+    "holdsProvider": {
+      "ok": {
+        "forks": [],
+        "projects": [],
+        "unsaved": []
+      }
+    }
+  },
+  "update": {
+    "current": {
+      "ok": {
+        "name": "old-macbook"
+      }
+    },
+    "behind": {
+      "err": "this runtime carries no daemon to put on a computer; the host that serves the app wires one",
+      "kind": null,
+      "fix": null
+    },
+    "unknown": {
+      "err": "no place named p_nope; you have old-macbook",
+      "kind": null,
+      "fix": null
+    }
+  },
+  "skip": {
+    "failed": {
+      "ok": {
+        "id": "p_0000000000000001",
+        "kind": "computer",
+        "name": "old-macbook",
+        "default": false,
+        "os": "Ubuntu 24.04",
+        "shape": {
+          "cpu": 4,
+          "memMb": 4096
+        },
+        "diskFreeBytes": 1000,
+        "present": false,
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "daemonVersion": 167,
+        "agents": [
+          "claude",
+          "codex"
+        ],
+        "signIns": {
+          "claude": "vault-key",
+          "codex": "none"
+        },
+        "takesForks": true,
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "from": "10.0.0.5"
+        },
+        "home": "/home/maya",
+        "uptimeMs": 5000,
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "setup": {
+          "state": "done",
+          "addId": "a_000000000009",
+          "startedAt": "2023-11-14T22:13:20.000Z",
+          "steps": [],
+          "waiting": []
+        },
+        "applied": {
+          "hash": "h1",
+          "at": "2026-10-02T00:00:00.000Z",
+          "rows": [
+            {
+              "id": "plugins/lint",
+              "label": "PLUGINS/LINT",
+              "outcome": "installed",
+              "step": "plugins"
+            },
+            {
+              "id": "plugins/fmt",
+              "label": "PLUGINS/FMT",
+              "outcome": "present",
+              "step": "plugins"
+            },
+            {
+              "id": "folders/site",
+              "label": "FOLDERS/SITE",
+              "outcome": "installed",
+              "step": "folders",
+              "project": {
+                "id": "pr_00000001"
+              }
+            },
+            {
+              "id": "clis/gh",
+              "label": "CLIS/GH",
+              "outcome": "skipped",
+              "note": "skipped for now; finish it from the computer's page in Settings",
+              "step": "clis"
+            }
+          ]
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {},
+            "fmt": {},
+            "old": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web"
+      }
+    },
+    "record": {
+      "id": "p_0000000000000001",
+      "name": "old-macbook",
+      "publicKey": "PUBKEY",
+      "joinedAt": "2026-10-01T00:00:00.000Z",
+      "lastSeenAt": "2026-10-02T00:00:00.000Z",
+      "reportedAt": "2026-10-02T00:00:00.000Z",
+      "report": {
+        "name": "old-macbook",
+        "platform": "linux",
+        "arch": "x64",
+        "os": "Ubuntu 24.04",
+        "shape": {
+          "cpu": 4,
+          "memMb": 4096
+        },
+        "diskFreeBytes": 1000,
+        "diskSizeBytes": 50000000000,
+        "model": "Mac14,3",
+        "login": {
+          "HOME": "/home/maya",
+          "USER": "maya",
+          "PATH": "/usr/bin"
+        },
+        "runsWorkspaces": true,
+        "engine": "none",
+        "daemonVersion": 167,
+        "uptimeMs": 5000,
+        "agents": [
+          "claude",
+          "codex"
+        ],
+        "logins": [],
+        "wsp": [
+          "/home/maya/.npm-global/bin/wsp"
+        ],
+        "dialed": "http://192.168.1.20:14621"
+      },
+      "road": {
+        "ssh": "maya@10.0.0.5",
+        "keyPath": "/home/dev/.ssh/id",
+        "hostKey": "ssh-ed25519 AAAA",
+        "from": "10.0.0.5"
+      },
+      "applied": {
+        "hash": "h1",
+        "at": "2026-10-02T00:00:00.000Z",
+        "rows": [
+          {
+            "id": "plugins/lint",
+            "label": "PLUGINS/LINT",
+            "outcome": "installed",
+            "step": "plugins"
+          },
+          {
+            "id": "plugins/fmt",
+            "label": "PLUGINS/FMT",
+            "outcome": "present",
+            "step": "plugins"
+          },
+          {
+            "id": "folders/site",
+            "label": "FOLDERS/SITE",
+            "outcome": "installed",
+            "step": "folders",
+            "project": {
+              "id": "pr_00000001"
+            },
+            "pick": {
+              "from": "/home/dev/site",
+              "keep": []
+            },
+            "createdAt": "2026-10-01T00:00:00.000Z"
+          },
+          {
+            "id": "clis/gh",
+            "label": "CLIS/GH",
+            "outcome": "skipped",
+            "note": "skipped for now; finish it from the computer's page in Settings",
+            "step": "clis"
+          }
+        ]
+      },
+      "picks": {
+        "name": "web",
+        "agents": {},
+        "mcp": {},
+        "clis": {},
+        "skills": {},
+        "plugins": {
+          "lint": {},
+          "fmt": {},
+          "old": {}
+        },
+        "folders": {},
+        "configs": {}
+      },
+      "recipe": "web",
+      "setup": {
+        "state": "done",
+        "addId": "a_000000000009",
+        "startedAt": "2023-11-14T22:13:20.000Z",
+        "steps": [],
+        "waiting": []
+      }
+    },
+    "setups": [
+      {
+        "type": "place.setup",
+        "addId": "a_000000000009",
+        "placeId": "p_0000000000000001",
+        "end": "ready"
+      }
+    ],
+    "nothing": {
+      "err": "nothing waits or failed under plugins/lint on old-macbook. Skip a row the computer's page shows waiting or failed.",
+      "kind": "usage",
+      "fix": "Skip a row the computer's page shows waiting or failed."
+    },
+    "unknown": {
+      "err": "no place named p_nope; you have old-macbook. Run wsp computers to read the ones this host holds.",
+      "kind": "usage",
+      "fix": "Run wsp computers to read the ones this host holds."
+    }
+  },
+  "pending": {
+    "pending": [
+      {
+        "id": "a_000000000001",
+        "address": "10.0.0.5",
+        "name": "old-macbook",
+        "placeId": "p_0000000000000001",
+        "step": "choosing",
+        "choices": {
+          "name": "x",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {},
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "web",
+        "startedAt": "2026-10-02T00:00:00.000Z"
+      },
+      {
+        "id": "a_000000000002",
+        "address": "10.0.0.9",
+        "step": "wsp",
+        "choices": {
+          "name": "10.0.0.9",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {},
+          "folders": {},
+          "configs": {}
+        },
+        "startedAt": "2026-10-03T00:00:00.000Z",
+        "failed": {
+          "said": "the host stopped while wsp was being installed there, and what the install put there could not be taken back",
+          "fix": "Add it again."
+        }
+      }
+    ],
+    "choose": {
+      "ok": {
+        "id": "a_000000000001",
+        "address": "10.0.0.5",
+        "name": "old-macbook",
+        "placeId": "p_0000000000000001",
+        "step": "choosing",
+        "choices": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {},
+            "fmt": {},
+            "old": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "startedAt": "2026-10-02T00:00:00.000Z"
+      }
+    },
+    "chooseStored": {
+      "id": "a_000000000001",
+      "address": "10.0.0.5",
+      "name": "old-macbook",
+      "placeId": "p_0000000000000001",
+      "step": "choosing",
+      "choices": {
+        "name": "web",
+        "agents": {},
+        "mcp": {},
+        "clis": {},
+        "skills": {},
+        "plugins": {
+          "lint": {},
+          "fmt": {},
+          "old": {}
+        },
+        "folders": {},
+        "configs": {}
+      },
+      "startedAt": "2026-10-02T00:00:00.000Z"
+    },
+    "chooseUnknown": {
+      "err": "no add of nobody is pending. Run wsp computers to read the adds still pending.",
+      "kind": "usage",
+      "fix": "Run wsp computers to read the adds still pending."
+    },
+    "setUpNotJoined": {
+      "err": "10.0.0.9 never joined, so there is nothing to set up. Add it again with wsp add 10.0.0.9.",
+      "kind": "usage",
+      "fix": "Add it again with wsp add 10.0.0.9."
+    },
+    "setUpUnknown": {
+      "err": "no place named nobody; you have old-macbook. Run wsp computers to read the ones this host holds.",
+      "kind": "usage",
+      "fix": "Run wsp computers to read the ones this host holds."
+    },
+    "setups": [
+      {
+        "type": "place.pending",
+        "id": "a_000000000002",
+        "pending": {
+          "id": "a_000000000002",
+          "address": "10.0.0.9",
+          "step": "wsp",
+          "choices": {
+            "name": "10.0.0.9",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {},
+            "folders": {},
+            "configs": {}
+          },
+          "startedAt": "2026-10-03T00:00:00.000Z",
+          "failed": {
+            "said": "the host stopped while wsp was being installed there, and what the install put there could not be taken back",
+            "fix": "Add it again."
+          }
+        }
+      },
+      {
+        "type": "place.pending",
+        "id": "a_000000000001",
+        "pending": {
+          "id": "a_000000000001",
+          "address": "10.0.0.5",
+          "name": "old-macbook",
+          "placeId": "p_0000000000000001",
+          "step": "choosing",
+          "choices": {
+            "name": "web",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {
+              "lint": {},
+              "fmt": {},
+              "old": {}
+            },
+            "folders": {},
+            "configs": {}
+          },
+          "startedAt": "2026-10-02T00:00:00.000Z"
+        }
+      }
+    ],
+    "setUpNoPicks": {
+      "err": "old-macbook has nothing picked to go on it: choose in the app's Add a computer, or run wsp add old-macbook --resume --recipe <name>. Choose what goes on it in the app's Add a computer, or name a saved recipe with --recipe <name>.",
+      "kind": "usage",
+      "fix": "Choose what goes on it in the app's Add a computer, or name a saved recipe with --recipe <name>."
+    },
+    "setUpTwo": {
+      "err": "old-macbook: this host holds 2 places by that name; name one by its id (p_0000000000000001, p_0000000000000002). Name it by its id.",
+      "kind": "usage",
+      "fix": "Name it by its id."
+    },
+    "find": [
+      "p_0000000000000001",
+      "p_0000000000000002"
+    ]
+  },
+  "estimate": {
+    "none": {
+      "err": "this runtime weighs no picks; the host that serves the app wires the reader",
+      "kind": null,
+      "fix": null
+    },
+    "weighed": {
+      "ok": {
+        "neededBytes": 123,
+        "keptBytes": 5000000000,
+        "unmeasured": 2,
+        "freeBytes": 1000
+      }
+    },
+    "nobody": {
+      "ok": {
+        "neededBytes": 123,
+        "keptBytes": 2147483648,
+        "unmeasured": 2
+      }
+    }
+  },
+  "follow": {
+    "followers": {
+      "web": [
+        "old-macbook"
+      ],
+      "api": [
+        "box2"
+      ]
+    },
+    "followNone": {
+      "ok": {
+        "id": "p_0000000000000001",
+        "kind": "computer",
+        "name": "old-macbook",
+        "default": false,
+        "os": "Ubuntu 24.04",
+        "shape": {
+          "cpu": 4,
+          "memMb": 4096
+        },
+        "diskFreeBytes": 1000,
+        "present": false,
+        "joinedAt": "2026-10-01T00:00:00.000Z",
+        "lastSeenAt": "2026-10-02T00:00:00.000Z",
+        "daemonVersion": 167,
+        "agents": [
+          "claude",
+          "codex"
+        ],
+        "signIns": {
+          "claude": "vault-key",
+          "codex": "none"
+        },
+        "takesForks": true,
+        "road": {
+          "ssh": "maya@10.0.0.5",
+          "from": "10.0.0.5"
+        },
+        "home": "/home/maya",
+        "uptimeMs": 5000,
+        "reportedAt": "2026-10-02T00:00:00.000Z",
+        "applied": {
+          "hash": "h1",
+          "at": "2026-10-02T00:00:00.000Z",
+          "rows": [
+            {
+              "id": "plugins/lint",
+              "label": "PLUGINS/LINT",
+              "outcome": "installed",
+              "step": "plugins"
+            },
+            {
+              "id": "plugins/fmt",
+              "label": "PLUGINS/FMT",
+              "outcome": "present",
+              "step": "plugins"
+            },
+            {
+              "id": "folders/site",
+              "label": "FOLDERS/SITE",
+              "outcome": "installed",
+              "step": "folders",
+              "project": {
+                "id": "pr_00000001"
+              }
+            },
+            {
+              "id": "clis/gh",
+              "label": "CLIS/GH",
+              "outcome": "failed",
+              "step": "clis",
+              "note": "no network"
+            }
+          ]
+        },
+        "picks": {
+          "name": "web",
+          "agents": {},
+          "mcp": {},
+          "clis": {},
+          "skills": {},
+          "plugins": {
+            "lint": {},
+            "fmt": {},
+            "old": {}
+          },
+          "folders": {},
+          "configs": {}
+        },
+        "recipe": "none"
+      }
+    },
+    "followNoneRecord": {
+      "id": "p_0000000000000001",
+      "name": "old-macbook",
+      "publicKey": "PUBKEY",
+      "joinedAt": "2026-10-01T00:00:00.000Z",
+      "lastSeenAt": "2026-10-02T00:00:00.000Z",
+      "reportedAt": "2026-10-02T00:00:00.000Z",
+      "report": {
+        "name": "old-macbook",
+        "platform": "linux",
+        "arch": "x64",
+        "os": "Ubuntu 24.04",
+        "shape": {
+          "cpu": 4,
+          "memMb": 4096
+        },
+        "diskFreeBytes": 1000,
+        "diskSizeBytes": 50000000000,
+        "model": "Mac14,3",
+        "login": {
+          "HOME": "/home/maya",
+          "USER": "maya",
+          "PATH": "/usr/bin"
+        },
+        "runsWorkspaces": true,
+        "engine": "none",
+        "daemonVersion": 167,
+        "uptimeMs": 5000,
+        "agents": [
+          "claude",
+          "codex"
+        ],
+        "logins": [],
+        "wsp": [
+          "/home/maya/.npm-global/bin/wsp"
+        ],
+        "dialed": "http://192.168.1.20:14621"
+      },
+      "road": {
+        "ssh": "maya@10.0.0.5",
+        "keyPath": "/home/dev/.ssh/id",
+        "hostKey": "ssh-ed25519 AAAA",
+        "from": "10.0.0.5"
+      },
+      "applied": {
+        "hash": "h1",
+        "at": "2026-10-02T00:00:00.000Z",
+        "rows": [
+          {
+            "id": "plugins/lint",
+            "label": "PLUGINS/LINT",
+            "outcome": "installed",
+            "step": "plugins"
+          },
+          {
+            "id": "plugins/fmt",
+            "label": "PLUGINS/FMT",
+            "outcome": "present",
+            "step": "plugins"
+          },
+          {
+            "id": "folders/site",
+            "label": "FOLDERS/SITE",
+            "outcome": "installed",
+            "step": "folders",
+            "project": {
+              "id": "pr_00000001"
+            },
+            "pick": {
+              "from": "/home/dev/site",
+              "keep": []
+            },
+            "createdAt": "2026-10-01T00:00:00.000Z"
+          },
+          {
+            "id": "clis/gh",
+            "label": "CLIS/GH",
+            "outcome": "failed",
+            "step": "clis",
+            "note": "no network"
+          }
+        ]
+      },
+      "picks": {
+        "name": "web",
+        "agents": {},
+        "mcp": {},
+        "clis": {},
+        "skills": {},
+        "plugins": {
+          "lint": {},
+          "fmt": {},
+          "old": {}
+        },
+        "folders": {},
+        "configs": {}
+      },
+      "recipe": "none"
+    },
+    "followApi": {
+      "ok": "api"
+    },
+    "unfollow": [
+      "old-macbook",
+      "box2"
+    ],
+    "afterUnfollow": [
+      [
+        "p_0000000000000001",
+        "none"
+      ],
+      [
+        "p_0000000000000002",
+        "none"
+      ]
+    ],
+    "followUnknown": {
+      "err": "no place named p_nope; you have old-macbook, box2",
+      "kind": "usage",
+      "fix": null
+    },
+    "setups": [
+      {
+        "type": "place.sync",
+        "placeId": "p_0000000000000001"
+      },
+      {
+        "type": "recipes.changed",
+        "slug": "web"
+      },
+      {
+        "type": "recipes.changed",
+        "slug": "api"
+      },
+      {
+        "type": "recipes.changed",
+        "slug": "api"
+      }
+    ]
+  },
+  "record": {
+    "id": "p_0000000000000001",
+    "name": "old-macbook",
+    "publicKey": "PUBKEY",
+    "joinedAt": "2026-10-01T00:00:00.000Z",
+    "lastSeenAt": "2026-10-02T00:00:00.000Z",
+    "reportedAt": "2026-10-02T00:00:00.000Z",
+    "report": {
+      "name": "old-macbook",
+      "platform": "linux",
+      "arch": "x64",
+      "os": "Ubuntu 24.04",
+      "shape": {
+        "cpu": 4,
+        "memMb": 4096
+      },
+      "diskFreeBytes": 1000,
+      "diskSizeBytes": 50000000000,
+      "model": "Mac14,3",
+      "login": {
+        "HOME": "/home/maya",
+        "USER": "maya",
+        "PATH": "/usr/bin"
+      },
+      "runsWorkspaces": true,
+      "engine": "none",
+      "daemonVersion": 167,
+      "uptimeMs": 5000,
+      "agents": [
+        "claude",
+        "codex"
+      ],
+      "logins": [],
+      "wsp": [
+        "/home/maya/.npm-global/bin/wsp"
+      ],
+      "dialed": "http://192.168.1.20:14621"
+    },
+    "road": {
+      "ssh": "maya@10.0.0.5",
+      "keyPath": "/home/dev/.ssh/id",
+      "hostKey": "ssh-ed25519 AAAA",
+      "from": "10.0.0.5"
+    },
+    "applied": {
+      "hash": "h1",
+      "at": "2026-10-02T00:00:00.000Z",
+      "rows": [
+        {
+          "id": "plugins/lint",
+          "label": "PLUGINS/LINT",
+          "outcome": "installed",
+          "step": "plugins"
+        },
+        {
+          "id": "plugins/fmt",
+          "label": "PLUGINS/FMT",
+          "outcome": "present",
+          "step": "plugins"
+        },
+        {
+          "id": "folders/site",
+          "label": "FOLDERS/SITE",
+          "outcome": "installed",
+          "step": "folders",
+          "project": {
+            "id": "pr_00000001"
+          },
+          "pick": {
+            "from": "/home/dev/site",
+            "keep": []
+          },
+          "createdAt": "2026-10-01T00:00:00.000Z"
+        },
+        {
+          "id": "clis/gh",
+          "label": "CLIS/GH",
+          "outcome": "failed",
+          "step": "clis",
+          "note": "no network"
+        }
+      ]
+    },
+    "picks": {
+      "name": "web",
+      "agents": {},
+      "mcp": {},
+      "clis": {},
+      "skills": {},
+      "plugins": {
+        "lint": {},
+        "fmt": {},
+        "old": {}
+      },
+      "folders": {},
+      "configs": {}
+    },
+    "recipe": "web"
+  }
+}

@@ -38,7 +38,10 @@ mod a_mise_wrapper {
     fn names_the_tool_its_script_installs_past_flags_quotes_and_a_version_and_nothing_f() {
         let mise = installer("mise");
         assert_eq!(mise.tool("#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet \"claude\" || exit 1\nexec mise x \"claude\" -- \"claude\" \"$@\"\n"), Some("claude".to_string()));
-        assert_eq!(mise.tool("#!/bin/sh\nmise install 'npm:@anthropic-ai/claude-code@2.1.289' && exec claude \"$@\"\n"), Some("npm:@anthropic-ai/claude-code@2.1.289".to_string()));
+        assert_eq!(
+            mise.tool("#!/bin/sh\nmise install 'npm:@anthropic-ai/claude-code@2.1.289' && exec claude \"$@\"\n"),
+            Some("npm:@anthropic-ai/claude-code@2.1.289".to_string())
+        );
         assert_eq!(mise.tool("#!/bin/sh\n# mise use -g claude\nexec \"$HOME/.local/share/claude/bin/claude\" \"$@\"\n"), None);
         assert_eq!(mise.tool("#!/usr/bin/env node\nrequire(\"./cli.js\")\n"), None);
     }
@@ -80,7 +83,11 @@ mod an_ascii_lazy_run_shim {
         let lazy_run = installer("lazy-run");
         assert_eq!(lazy_run.tool(&default_shim("cursor-agent")), Some("/usr/local/lib/ascii-harnesses/bin/cursor-agent".to_string()));
         assert_eq!(lazy_run.tool(&default_shim("hermes")), Some("/usr/local/lib/ascii-harnesses/bin/hermes".to_string()));
-        assert_eq!(lazy_run.tool("#!/bin/sh\n# ascii-lazy-harness cursor\nexec /usr/local/lib/ascii-harnesses/lazy-run cursor cursor-agent \"$@\"\n"), None);
+        assert_eq!(
+            lazy_run
+                .tool("#!/bin/sh\n# ascii-lazy-harness cursor\nexec /usr/local/lib/ascii-harnesses/lazy-run cursor cursor-agent \"$@\"\n"),
+            None
+        );
         assert_eq!(lazy_run.tool("#!/bin/sh\nexec /opt/cursor-agent/cursor-agent \"$@\"\n"), None);
         assert_eq!(mise.tool(&default_shim("cursor-agent")), None);
     }
@@ -99,7 +106,8 @@ mod an_ascii_lazy_run_shim {
         let dir_s = dir.to_str().unwrap();
         let shim = ascii_shim("cursor-agent", shims.to_str().unwrap(), launcher.to_str().unwrap());
         write_executable(&shims.join("cursor-agent"), &shim);
-        fs::write(&launcher, format!("#!/bin/sh\n# ascii-lazy-harness cursor\nexec {dir_s}/lazy-run cursor cursor-agent \"$@\"\n")).unwrap();
+        fs::write(&launcher, format!("#!/bin/sh\n# ascii-lazy-harness cursor\nexec {dir_s}/lazy-run cursor cursor-agent \"$@\"\n"))
+            .unwrap();
         let path = format!("{}:{}:/usr/bin:/bin", shims.display(), other.display());
         let check = || -> bool {
             let tool = lazy_run.tool(&shim).unwrap();

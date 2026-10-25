@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use wsp_catalog::catalog::mcp_agents;
 use wsp_catalog::mcp_check::{McpCheck, McpCheckWord};
-use wsp_catalog::pending::McpAuth;
+use wsp_wire::types::agents_report::McpAuth;
 
 const CLAUDE: McpCheck = McpCheck::Claude;
 const CODEX: McpCheck = McpCheck::Codex;
@@ -39,8 +39,14 @@ mod the_harness_s_own_word_on_one_server_s_sign_in {
 
     #[test]
     fn reads_claude_code_s_words_for_a_name_its_config_does_not_hold_as_not_set_up_in_b() {
-        assert_eq!(CLAUDE.auth("No MCP server named \"cloudflare\". Configured servers: plugin:context7:context7\n", "cloudflare"), Some(McpCheckWord::NotSetUp));
-        assert_eq!(CLAUDE.auth("No MCP server named \"cloudflare\". Run `claude mcp add` to add one.\n", "cloudflare"), Some(McpCheckWord::NotSetUp));
+        assert_eq!(
+            CLAUDE.auth("No MCP server named \"cloudflare\". Configured servers: plugin:context7:context7\n", "cloudflare"),
+            Some(McpCheckWord::NotSetUp)
+        );
+        assert_eq!(
+            CLAUDE.auth("No MCP server named \"cloudflare\". Run `claude mcp add` to add one.\n", "cloudflare"),
+            Some(McpCheckWord::NotSetUp)
+        );
         assert_eq!(CLAUDE.auth("No MCP server found with name: notion\n", "notion"), Some(McpCheckWord::NotSetUp));
     }
 
@@ -59,7 +65,8 @@ mod the_harness_s_own_word_on_one_server_s_sign_in {
 
     #[test]
     fn is_registered_on_the_agents_whose_check_was_measured_and_no_other_agent_guesses() {
-        let checks: BTreeMap<String, Option<McpCheck>> = mcp_agents().into_iter().map(|a| (a.id.clone(), a.mcp.as_ref().unwrap().check)).collect();
+        let checks: BTreeMap<String, Option<McpCheck>> =
+            mcp_agents().into_iter().map(|a| (a.id.clone(), a.mcp.as_ref().unwrap().check)).collect();
         let want = BTreeMap::from([
             ("claude".to_string(), Some(McpCheck::Claude)),
             ("codex".to_string(), Some(McpCheck::Codex)),

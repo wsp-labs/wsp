@@ -5,7 +5,7 @@ version = "0.0.0"
 edition = "2021"
 license = "AGPL-3.0-only"
 publish = false
-description = "The host's one writer under the owner's state folder, and the keys and seal of a wsp link"
+description = "The host's state: the store port, the SQLite store and its transcript rows, the one writer under the owner's state folder, and the keys and seal of a wsp link"
 
 [dependencies]
 base64 = "0.22"
@@ -14,8 +14,15 @@ ed25519-dalek = { version = "3", features = ["pem", "rand_core"] }
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 thiserror = "2"
-
-[dev-dependencies]
+wsp-wire = { path = "../wsp-wire" }
+wsp-words = { path = "../wsp-words" }
+async-trait = "0.1"
+indexmap = { version = "2", features = ["serde"] }
+jiff = "0.2"
+rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+libc = "0.2"
+
+[dev-dependencies]
 tempfile = "3"

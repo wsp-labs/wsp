@@ -5,12 +5,16 @@ mod oracle_common;
 
 use indexmap::IndexMap;
 use oracle_common::{fixture, json, opt, s, same};
-use serde_json::{json, Value};
+use serde_json::json;
 use wsp_catalog::signin::*;
 use wsp_catalog::signin_rows::*;
 
 fn secrets() -> IndexMap<String, String> {
-    IndexMap::from([("GEMINI_API_KEY".into(), "~/.zshrc".into()), ("OPENAI_API_KEY".into(), "~/.config/env".into()), ("ANTHROPIC_API_KEY".into(), "~/.zshrc".into())])
+    IndexMap::from([
+        ("GEMINI_API_KEY".into(), "~/.zshrc".into()),
+        ("OPENAI_API_KEY".into(), "~/.config/env".into()),
+        ("ANTHROPIC_API_KEY".into(), "~/.zshrc".into()),
+    ])
 }
 
 #[test]

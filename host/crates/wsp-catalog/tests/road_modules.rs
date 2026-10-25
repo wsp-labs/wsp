@@ -8,9 +8,13 @@ use indexmap::IndexMap;
 
 use wsp_catalog::catalog::catalog_tool_for;
 use wsp_catalog::linux_casks::{CaskSums, LinuxCask};
-use wsp_catalog::pending::{PNPM_HOME, TOOL_PREFIX};
-use wsp_catalog::road_modules::{as_linuxbrew, install_env, install_homes, road_module, road_module_named, InstallHomes, APT_BIN, BREW_PREFIX, CARGO_BIN, FROM_A_READABLE_DIR, INSTALL_HOMES};
+use wsp_catalog::road_modules::{
+    as_linuxbrew, install_env, install_homes, road_module, road_module_named, InstallHomes, APT_BIN, BREW_PREFIX, CARGO_BIN,
+    FROM_A_READABLE_DIR, INSTALL_HOMES,
+};
 use wsp_catalog::roads::{InstallRoad, PackageRoad, RoadName, GUEST_HOME, HOME_BIN, LOCAL_BIN, ROADS};
+use wsp_wire::types::daemon_contract::PNPM_HOME;
+use wsp_wire::types::daemon_contract::TOOL_PREFIX;
 
 fn pkg(name: &str) -> PackageRoad {
     PackageRoad { package: name.to_string(), version: None, pin: None }
@@ -25,7 +29,12 @@ fn go(module: &str, version: &str) -> InstallRoad {
 }
 
 fn script(text: &str, bins: Option<&[&str]>) -> InstallRoad {
-    InstallRoad::Script { script: text.to_string(), version: None, pin: None, bins: bins.map(|b| b.iter().map(|s| s.to_string()).collect()) }
+    InstallRoad::Script {
+        script: text.to_string(),
+        version: None,
+        pin: None,
+        bins: bins.map(|b| b.iter().map(|s| s.to_string()).collect()),
+    }
 }
 
 /// A road of each kind whose row names nothing beyond its kind, the TS `{ road } as never`.
@@ -137,9 +146,15 @@ mod the_directories_a_road_links_its_commands_into {
         // Homebrew's prefix is where a formula lands, and the road to /usr/local/bin is what a tap formula with no
         // Linux bottle takes; its roots are the trees a workspace has to see, which is the coarser question.
         assert_eq!(bins(&brew("go"), None), vec![format!("{BREW_PREFIX}/bin"), format!("{BREW_PREFIX}/sbin"), LOCAL_BIN.to_string()]);
-        assert_eq!(bins(&InstallRoad::Apt { packages: strs(&["ffmpeg"]), pin: None }, None), vec![APT_BIN.to_string(), "/usr/sbin".into(), "/bin".into(), "/sbin".into()]);
+        assert_eq!(
+            bins(&InstallRoad::Apt { packages: strs(&["ffmpeg"]), pin: None }, None),
+            vec![APT_BIN.to_string(), "/usr/sbin".into(), "/bin".into(), "/sbin".into()]
+        );
         assert_eq!(bins(&InstallRoad::Npm { package: pkg("pnpm"), ignore_scripts: None }, None), vec![LOCAL_BIN.to_string()]);
-        assert_eq!(bins(&InstallRoad::Release { repo: Some("cli/cli".into()), version: None, assets: None, pin: None, go: None }, None), vec![LOCAL_BIN.to_string()]);
+        assert_eq!(
+            bins(&InstallRoad::Release { repo: Some("cli/cli".into()), version: None, assets: None, pin: None, go: None }, None),
+            vec![LOCAL_BIN.to_string()]
+        );
         assert_eq!(bins(&InstallRoad::Pnpm(pkg("wrangler")), None), vec![PNPM_HOME.to_string()]);
         assert_eq!(bins(&InstallRoad::Uv(pkg("ruff")), None), vec![HOME_BIN.to_string()]);
         assert_eq!(bins(&InstallRoad::Cargo(pkg("ripgrep")), None), vec![CARGO_BIN.to_string()]);
@@ -187,7 +202,10 @@ mod where_a_jobs_managers_install {
         assert_eq!(bins(&InstallRoad::Pipx(pkg("black")), Some(&homes)), vec![LOCAL_BIN.to_string()]);
         assert_eq!(bins(&InstallRoad::Bun(pkg("wrangler")), Some(&homes)), vec![LOCAL_BIN.to_string()]);
         assert_eq!(bins(&go("github.com/x/y", "v1"), Some(&homes)), vec![LOCAL_BIN.to_string()]);
-        assert_eq!(bins(&InstallRoad::Cargo(pkg("ripgrep")), Some(&homes)), vec![format!("{TOOL_PREFIX}/cargo/bin"), LOCAL_BIN.to_string()]);
+        assert_eq!(
+            bins(&InstallRoad::Cargo(pkg("ripgrep")), Some(&homes)),
+            vec![format!("{TOOL_PREFIX}/cargo/bin"), LOCAL_BIN.to_string()]
+        );
         assert_eq!(bins(&InstallRoad::Pnpm(pkg("wrangler")), Some(&homes)), vec![format!("{TOOL_PREFIX}/pnpm/bin"), LOCAL_BIN.to_string()]);
     }
 
@@ -250,7 +268,10 @@ mod where_a_jobs_managers_install {
         assert!(pnpm.contains(&format!("export PATH={TOOL_PREFIX}/pnpm/bin:$PATH; pnpm add -g wrangler")));
         assert!(pnpm.ends_with(&format!("find {TOOL_PREFIX}/pnpm/bin -maxdepth 1 -type f -perm -u+x -exec ln -sfn {{}} {LOCAL_BIN}/ ';'")));
         // And the version read runs under the same folder, since pnpm refuses that line too.
-        assert!(road_module(&wrangler).installed(&wrangler, "wrangler", Some(&homes)).unwrap().contains(&format!("export PATH={TOOL_PREFIX}/pnpm/bin:$PATH; ")));
+        assert!(road_module(&wrangler)
+            .installed(&wrangler, "wrangler", Some(&homes))
+            .unwrap()
+            .contains(&format!("export PATH={TOOL_PREFIX}/pnpm/bin:$PATH; ")));
     }
 
     #[test]

@@ -3,16 +3,17 @@
 //!
 //! One workspace's machine through naps, wakes, rebuilds and upgrades. Each TS hook is an optional closure; absent
 //! is the TS's `undefined`, and the fallback the TS takes for a missing hook is the spec's.
+use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
 use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 
-use wsp_wire::wire::machine_link::{MachineLife, PreviewReach};
+use wsp_wire::wire::machine_link::MachineLife;
 use wsp_words::words::computer::wake_failed_line;
 
 use crate::errors::{is_missing, EngineError, RealRetryClock, Result, RetryClock};
-use crate::machine::{Machine, MachineSpec, SnapshotOptions};
+use crate::machine::{Machine, MachineSpec, PreviewReach, SnapshotOptions};
 use crate::preview::{refresh_preview_token, DAEMON_PORT};
 
 /// A machine handle as the workspace holds it.
@@ -82,38 +83,41 @@ pub struct WorkspaceInitial {
     pub first_life: Option<bool>,
 }
 
-/// lifecycle.ts:42. Every method takes `&mut self`: the TS object is driven by one caller at a time.
+/// lifecycle.ts:42. One object shared by everything that holds the workspace (wsp-core keeps it as `Rc<Workspace>`),
+/// as the TS shares one. Every method takes `&self` and the state sits in cells borrowed only between awaits (rule
+/// 3.3), so a hook can read the workspace while a wake runs.
 pub struct Workspace {
-    machine: MachineRef,
+    machine: RefCell<MachineRef>,
     hooks: WorkspaceHooks,
     /// Shared so a reader outside the workspace (a hook, the runtime's status) sees the phase while a wake runs.
     phase: Arc<std::sync::Mutex<WorkspacePhase>>,
-    first_life: bool,
+    first_life: Cell<bool>,
     /// The routes minted per port, and the machine id they were minted under.
-    preview_machine_id: String,
-    preview_by_port: IndexMap<u16, PreviewReach>,
+    preview_machine_id: RefCell<String>,
+    preview_by_port: RefCell<IndexMap<u16, PreviewReach>>,
 }
 
 impl Workspace {
     /// lifecycle.ts:51.
     pub fn new(machine: MachineRef, hooks: WorkspaceHooks, initial: WorkspaceInitial) -> Self {
         Workspace {
-            machine,
+            machine: RefCell::new(machine),
             hooks,
             phase: Arc::new(std::sync::Mutex::new(initial.phase.unwrap_or(WorkspacePhase::Running))),
-            first_life: initial.first_life.unwrap_or(true),
-            preview_machine_id: String::new(),
-            preview_by_port: IndexMap::new(),
+            first_life: Cell::new(initial.first_life.unwrap_or(true)),
+            preview_machine_id: RefCell::new(String::new()),
+            preview_by_port: RefCell::new(IndexMap::new()),
         }
     }
 
-    pub fn machine(&self) -> &MachineRef {
-        &self.machine
+    /// The machine now held; a rebuild or an upgrade replaces it.
+    pub fn machine(&self) -> MachineRef {
+        self.machine.borrow().clone()
     }
 
     /// lifecycle.ts:61.
     pub fn machine_id(&self) -> String {
-        self.machine.id().to_string()
+        self.machine().id().to_string()
     }
 
     /// lifecycle.ts:65.
@@ -128,7 +132,7 @@ impl Workspace {
 
     /// lifecycle.ts:69.
     pub fn is_first_life(&self) -> bool {
-        self.first_life
+        self.first_life.get()
     }
 
     /// lifecycle.ts:73.
@@ -137,37 +141,38 @@ impl Workspace {
     }
 
     /// lifecycle.ts:78. `port_reach(DAEMON_PORT)`.
-    pub async fn daemon_reach(&mut self) -> Result<PreviewReach> {
+    pub async fn daemon_reach(&self) -> Result<PreviewReach> {
         self.port_reach(DAEMON_PORT).await
     }
 
     /// lifecycle.ts:84. Through preview.rs's `refresh_preview_token(machine, port, cached)`.
-    pub async fn port_reach(&mut self, port: u16) -> Result<PreviewReach> {
-        if self.preview_machine_id != self.machine.id() {
-            self.preview_machine_id = self.machine.id().to_string();
-            self.preview_by_port.clear();
+    pub async fn port_reach(&self, port: u16) -> Result<PreviewReach> {
+        let machine = self.machine();
+        if *self.preview_machine_id.borrow() != machine.id() {
+            *self.preview_machine_id.borrow_mut() = machine.id().to_string();
+            self.preview_by_port.borrow_mut().clear();
         }
-        let cached = self.preview_by_port.get(&port).cloned();
-        let reach = refresh_preview_token(&*self.machine, port, cached.as_ref(), RealRetryClock.now()).await?;
-        self.preview_by_port.insert(port, reach.clone());
+        let cached = self.preview_by_port.borrow().get(&port).cloned();
+        let reach = refresh_preview_token(&*machine, port, cached.as_ref(), RealRetryClock.now()).await?;
+        self.preview_by_port.borrow_mut().insert(port, reach.clone());
         Ok(reach)
     }
 
     /// lifecycle.ts:93.
-    pub async fn remint_port_reach(&mut self, port: u16) -> Result<PreviewReach> {
-        if self.preview_machine_id == self.machine.id() {
-            self.preview_by_port.shift_remove(&port);
+    pub async fn remint_port_reach(&self, port: u16) -> Result<PreviewReach> {
+        if *self.preview_machine_id.borrow() == self.machine().id() {
+            self.preview_by_port.borrow_mut().shift_remove(&port);
         }
         self.port_reach(port).await
     }
 
     /// lifecycle.ts:98.
-    pub async fn nap(&mut self) -> Result<()> {
+    pub async fn nap(&self) -> Result<()> {
         if self.current_phase() == WorkspacePhase::Napping {
             return Ok(());
         }
         if let Some(stash) = &self.hooks.stash_vault {
-            stash(self.machine.clone()).await?;
+            stash(self.machine()).await?;
         }
         self.move_machine(ProviderMove::Pause).await?;
         self.set_phase(WorkspacePhase::Napping);
@@ -175,17 +180,17 @@ impl Workspace {
     }
 
     /// lifecycle.ts:111.
-    pub fn note_paused(&mut self) {
+    pub fn note_paused(&self) {
         self.set_phase(WorkspacePhase::Napping);
     }
 
     /// lifecycle.ts:117.
-    pub fn note_running(&mut self) {
+    pub fn note_running(&self) {
         self.set_phase(WorkspacePhase::Running);
     }
 
     /// lifecycle.ts:130. `landed`: a resume already sent that the provider took without its call answering.
-    pub async fn wake(&mut self, landed: bool) -> Result<WakeResult> {
+    pub async fn wake(&self, landed: bool) -> Result<WakeResult> {
         if self.current_phase() == WorkspacePhase::Running {
             return Ok(WakeResult { reason: None });
         }
@@ -197,16 +202,16 @@ impl Workspace {
         answer
     }
 
-    async fn wake_attempts(&mut self, landed: bool) -> Result<WakeResult> {
+    async fn wake_attempts(&self, landed: bool) -> Result<WakeResult> {
         let mut faults: Vec<String> = Vec::new();
         for attempt in 1..=self.hooks.wake_attempts {
             if attempt > 1 || !landed {
                 self.move_machine(ProviderMove::Resume).await?;
             }
-            self.preview_by_port.clear();
-            self.first_life = false;
+            self.preview_by_port.borrow_mut().clear();
+            self.first_life.set(false);
             let fault = match &self.hooks.wake_check {
-                Some(check) => check(self.machine.clone()).await?,
+                Some(check) => check(self.machine()).await?,
                 None => None,
             };
             let Some(fault) = fault else {
@@ -220,11 +225,11 @@ impl Workspace {
                 }
             }
         }
-        Err(EngineError::Other { message: wake_failed_line(self.machine.id(), &faults.join("; ")), code: None })
+        Err(EngineError::Other { message: wake_failed_line(self.machine().id(), &faults.join("; ")), code: None })
     }
 
     /// lifecycle.ts:167.
-    pub async fn rebuild(&mut self) -> Result<()> {
+    pub async fn rebuild(&self) -> Result<()> {
         let Some(resurrect) = self.hooks.resurrect.clone() else {
             return Err(EngineError::Other { message: "rebuild requires a resurrect hook".into(), code: None });
         };
@@ -234,37 +239,39 @@ impl Workspace {
     }
 
     /// lifecycle.ts:191.
-    pub async fn checkpoint(&mut self, name: &str) -> Result<String> {
-        let life = MachineLife { first_life: self.first_life };
-        self.machine.snapshot(name, life, SnapshotOptions { on_progress: None }).await
+    pub async fn checkpoint(&self, name: &str) -> Result<String> {
+        let life = MachineLife { first_life: self.first_life.get() };
+        self.machine().snapshot(name, life, SnapshotOptions { on_progress: None }).await
     }
 
     /// lifecycle.ts:196.
-    pub async fn upgrade(&mut self, spec: SpecOverride) -> Result<()> {
+    pub async fn upgrade(&self, spec: SpecOverride) -> Result<()> {
         let Some(resurrect) = self.hooks.resurrect.clone() else {
             return Err(EngineError::Other { message: "upgrade requires a resurrect hook".into(), code: None });
         };
         let payload = match &self.hooks.vault_export {
-            Some(export) => export(self.machine.clone()).await?,
+            Some(export) => export(self.machine()).await?,
             None => None,
         };
-        self.retire(self.machine.clone()).await?;
-        self.machine = resurrect(spec).await?;
+        self.retire(self.machine()).await?;
+        let fresh = resurrect(spec).await?;
+        *self.machine.borrow_mut() = fresh;
         if let (Some(payload), Some(import)) = (payload, &self.hooks.vault_import) {
-            import(self.machine.clone(), payload).await?;
+            import(self.machine(), payload).await?;
         }
         self.set_phase(WorkspacePhase::Running);
-        self.first_life = true;
+        self.first_life.set(true);
         Ok(())
     }
 
     /// Fork first, vault second, kill last: the old machine dies only once its replacement holds the files.
-    async fn replace(&mut self, resurrect: ResurrectHook) -> Result<()> {
-        let old = self.machine.clone();
-        self.machine = resurrect(None).await?;
-        self.first_life = true;
+    async fn replace(&self, resurrect: ResurrectHook) -> Result<()> {
+        let old = self.machine();
+        let fresh = resurrect(None).await?;
+        *self.machine.borrow_mut() = fresh;
+        self.first_life.set(true);
         if let Some(restore) = &self.hooks.restore_vault {
-            restore(self.machine.clone()).await?;
+            restore(self.machine()).await?;
         }
         match self.retire(old).await {
             Err(e) if !is_missing(&e) => Err(e),
@@ -273,11 +280,12 @@ impl Workspace {
     }
 
     async fn move_machine(&self, move_: ProviderMove) -> Result<()> {
+        let machine = self.machine();
         match &self.hooks.move_hook {
-            Some(hook) => hook(self.machine.clone(), move_).await,
+            Some(hook) => hook(machine, move_).await,
             None => match move_ {
-                ProviderMove::Pause => self.machine.pause(None).await,
-                ProviderMove::Resume => self.machine.resume(None).await,
+                ProviderMove::Pause => machine.pause(None).await,
+                ProviderMove::Resume => machine.resume(None).await,
             },
         }
     }

@@ -8,15 +8,16 @@ use oracle_common::{fixture, json, opt, s, same};
 use serde_json::{json, Value};
 use wsp_catalog::bwrap_apparmor::BWRAP_APPARMOR;
 use wsp_catalog::catalog::*;
-use wsp_catalog::pending::{PageReach, Platform};
 use wsp_catalog::road_modules::install_homes;
 use wsp_catalog::roads::{InstallRoad, RoadName};
+use wsp_wire::types::agents_report::PageReach;
+use wsp_words::words::computer::Platform;
 
 fn cat() -> Value {
     fixture("catalog.json")
 }
 
-fn ok_or_error<T: serde::Serialize>(r: Result<T, wsp_catalog::pending::HostError>) -> Value {
+fn ok_or_error<T: serde::Serialize>(r: Result<T, wsp_words::exit::HostError>) -> Value {
     match r {
         Ok(v) => json!({ "ok": json(v) }),
         Err(e) => json!({ "error": e.message }),
@@ -118,8 +119,16 @@ fn a_package_name_finds_the_ts_tool_by_every_road_it_is_known_by() {
         same(&format!("toolFor {pkg:?}"), opt(catalog_tool_for(pkg).map(|t| t.id.clone())), want);
     }
     for (pkg, want) in c["toolForDependency"].as_object().unwrap() {
-        same(&format!("toolForDependency npm {pkg}"), opt(catalog_tool_for_dependency(RoadName::Npm, pkg).map(|t| t.id.clone())), &want["npm"]);
-        same(&format!("toolForDependency pnpm {pkg}"), opt(catalog_tool_for_dependency(RoadName::Pnpm, pkg).map(|t| t.id.clone())), &want["pnpm"]);
+        same(
+            &format!("toolForDependency npm {pkg}"),
+            opt(catalog_tool_for_dependency(RoadName::Npm, pkg).map(|t| t.id.clone())),
+            &want["npm"],
+        );
+        same(
+            &format!("toolForDependency pnpm {pkg}"),
+            opt(catalog_tool_for_dependency(RoadName::Pnpm, pkg).map(|t| t.id.clone())),
+            &want["pnpm"],
+        );
     }
     for (key, want) in c["toolByRoad"].as_object().unwrap() {
         let (road, pkg) = key.split_once(' ').unwrap();
@@ -196,7 +205,7 @@ fn a_brokered_machine_refuses_every_servers_sign_in_as_a_usage_refusal() {
     let err = server_sign_in_road("claude", "linear", PageReach::Here, true).unwrap().unwrap_err();
     assert_eq!(err.message, "A cloud machine holds no sign-in, so linear cannot be signed in on it. Cloud threads run without its tools; sign it in on your own computer for the threads there.");
     assert_eq!(err.fix.as_deref(), Some("Cloud threads run without its tools; sign it in on your own computer for the threads there."));
-    assert_eq!(err.kind, Some(wsp_catalog::pending::Kind::Usage));
+    assert_eq!(err.kind, Some(wsp_words::exit::Kind::Usage));
 }
 
 #[test]

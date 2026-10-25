@@ -59,6 +59,10 @@ fn backgrounding() -> Launch {
 
 #[tokio::test]
 async fn a_kept_turn_that_leaves_a_command_running_holds_the_thread_and_lets_it_go_once_t() {
+    tokio::task::LocalSet::new().run_until(a_kept_turn_that_leaves_a_command_running_holds_the_thread_and_lets_it_go_once_t_body()).await
+}
+
+async fn a_kept_turn_that_leaves_a_command_running_holds_the_thread_and_lets_it_go_once_t_body() {
     // spec rule 11 and 22; adapter.ts:758-762, background.ts:15-24.
     let launch = backgrounding();
     let events = Events::default();
@@ -79,6 +83,10 @@ async fn a_kept_turn_that_leaves_a_command_running_holds_the_thread_and_lets_it_
 
 #[tokio::test]
 async fn a_failed_turn_releases_its_keeper_so_the_next_turn_launches_again() {
+    tokio::task::LocalSet::new().run_until(a_failed_turn_releases_its_keeper_so_the_next_turn_launches_again_body()).await
+}
+
+async fn a_failed_turn_releases_its_keeper_so_the_next_turn_launches_again_body() {
     // spec rule 11; adapter.ts:753-755.
     let launch = launcher(scripted_server(WireOpts {
         on_write: Some(Arc::new(|m: &Value, w: &Wire| match method_of(m).as_str() {
@@ -96,6 +104,10 @@ async fn a_failed_turn_releases_its_keeper_so_the_next_turn_launches_again() {
 
 #[tokio::test]
 async fn an_interrupt_with_a_command_running_takes_the_kept_server_down_with_the_turn() {
+    tokio::task::LocalSet::new().run_until(an_interrupt_with_a_command_running_takes_the_kept_server_down_with_the_turn_body()).await
+}
+
+async fn an_interrupt_with_a_command_running_takes_the_kept_server_down_with_the_turn_body() {
     // spec rule 20; adapter.ts:1200-1202.
     let launch = launcher(scripted_server(WireOpts {
         on_write: Some(Arc::new(|m: &Value, w: &Wire| match method_of(m).as_str() {
@@ -118,6 +130,10 @@ async fn an_interrupt_with_a_command_running_takes_the_kept_server_down_with_the
 
 #[tokio::test]
 async fn a_turn_joins_the_registry_under_its_local_id_and_a_side_question_never_does() {
+    tokio::task::LocalSet::new().run_until(a_turn_joins_the_registry_under_its_local_id_and_a_side_question_never_does_body()).await
+}
+
+async fn a_turn_joins_the_registry_under_its_local_id_and_a_side_question_never_does_body() {
     // spec rule 1; adapter.ts:1225.
     let launch = launcher(scripted_server(WireOpts {
         on_write: Some(Arc::new(|m: &Value, w: &Wire| match method_of(m).as_str() {
@@ -145,6 +161,10 @@ async fn a_turn_joins_the_registry_under_its_local_id_and_a_side_question_never_
 
 #[tokio::test]
 async fn notes_said_before_the_thread_is_announced_follow_its_session_start_in_order() {
+    tokio::task::LocalSet::new().run_until(notes_said_before_the_thread_is_announced_follow_its_session_start_in_order_body()).await
+}
+
+async fn notes_said_before_the_thread_is_announced_follow_its_session_start_in_order_body() {
     // spec rule 2; adapter.ts:637-652.
     let launch = launcher(scripted_server(WireOpts {
         on_write: Some(Arc::new(|m: &Value, w: &Wire| match method_of(m).as_str() {
@@ -171,6 +191,10 @@ async fn notes_said_before_the_thread_is_announced_follow_its_session_start_in_o
 
 #[tokio::test]
 async fn steers_and_interrupts_are_numbered_off_one_counter() {
+    tokio::task::LocalSet::new().run_until(steers_and_interrupts_are_numbered_off_one_counter_body()).await
+}
+
+async fn steers_and_interrupts_are_numbered_off_one_counter_body() {
     // spec rule 17; adapter.ts:604, 1137, 1157.
     let launch = launcher(scripted_server(WireOpts {
         on_write: Some(Arc::new(|m: &Value, w: &Wire| match method_of(m).as_str() {
@@ -200,6 +224,10 @@ async fn steers_and_interrupts_are_numbered_off_one_counter() {
 
 #[tokio::test]
 async fn a_kept_servers_next_turn_resumes_the_thread_with_the_first_turns_options_then_st() {
+    tokio::task::LocalSet::new().run_until(a_kept_servers_next_turn_resumes_the_thread_with_the_first_turns_options_then_st_body()).await
+}
+
+async fn a_kept_servers_next_turn_resumes_the_thread_with_the_first_turns_options_then_st_body() {
     // spec rule 21; adapter.ts:1238-1260: the resume and the turn go together, the resume first.
     let launch = launcher(scripted_server(WireOpts {
         on_write: Some(Arc::new(|m: &Value, w: &Wire| match method_of(m).as_str() {

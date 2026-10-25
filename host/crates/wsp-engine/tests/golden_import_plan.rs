@@ -82,7 +82,7 @@ impl Over for RecipeEntry {
         self
     }
     fn pin(mut self, tag: &str, sha256: &str) -> Self {
-        self.pin = Some(ToolPin { tag: tag.to_string(), sha256: Some(sha256.to_string()), ..ToolPin::default() });
+        self.pin = Some(ToolPin { tag: tag.to_string(), sha256: Some(sha256.to_string()), arch: None, latest: None });
         self
     }
 }
