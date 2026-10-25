@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[package]
+name = "wsp-words"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+description = "The host's words: every sentence a person reads, the refusal and exit contract, and JavaScript's text and number rules"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+indexmap = { version = "2", features = ["serde"] }
+regex = "1"
