@@ -244,7 +244,11 @@ fn json_asked_reads_json_before_the_first_double_dash() {
         let fx = fixture("lookup", cloud);
         for row in fx["commons"].as_array().unwrap() {
             let argv = argv_of(&row["argv"]);
-            assert_eq!(wsp_cli::verbs::client::json_asked(&argv), row["jsonAsked"].as_bool().unwrap(), "cloud {cloud}: json_asked for {argv:?}");
+            assert_eq!(
+                wsp_cli::verbs::client::json_asked(&argv),
+                row["jsonAsked"].as_bool().unwrap(),
+                "cloud {cloud}: json_asked for {argv:?}"
+            );
         }
     }
 }
@@ -320,7 +324,8 @@ fn parse_args_answers_node_values_in_order_and_positionals() {
         }
         ok_rows += 1;
         let parsed = got.unwrap_or_else(|e| panic!("parse_args for {args:?} refused: {e}"));
-        let want: Vec<(String, FlagValue)> = row["values"].as_array().unwrap().iter().map(|p| (p[0].as_str().unwrap().to_owned(), flag_value_of(&p[1]))).collect();
+        let want: Vec<(String, FlagValue)> =
+            row["values"].as_array().unwrap().iter().map(|p| (p[0].as_str().unwrap().to_owned(), flag_value_of(&p[1]))).collect();
         let have: Vec<(String, FlagValue)> = parsed.values.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         assert_eq!(have, want, "parse_args values for {args:?}");
         assert_eq!(parsed.positionals, strings(&row["positionals"]), "parse_args positionals for {args:?}");
@@ -435,7 +440,8 @@ fn own_flags_of_lists_the_verbs_flags_without_the_shared_four() {
         let mut named = 0;
         for verb in line_verbs(&table) {
             let name = line_name(verb);
-            let own: Vec<&str> = line_options(verb).0.iter().map(|(n, _)| *n).filter(|n| !["host", "state", "json", "help"].contains(n)).collect();
+            let own: Vec<&str> =
+                line_options(verb).0.iter().map(|(n, _)| *n).filter(|n| !["host", "state", "json", "help"].contains(n)).collect();
             assert_eq!(own_flags_of(verb), own, "cloud {cloud}: own_flags_of {name}");
             for flag in &own {
                 assert!(says.contains_key(&format!("{name} {flag}")), "cloud {cloud}: the fixture's says holds a row for {name} {flag}");
@@ -462,8 +468,17 @@ fn help_page_pads_the_flag_words_and_wraps_under_them() {
         let fx = fixture("pages", cloud);
         for case in fx["helpPages"].as_array().unwrap() {
             let usage = case["usage"].as_str().unwrap();
-            let rows: Vec<(String, String)> = case["rows"].as_array().unwrap().iter().map(|r| (r[0].as_str().unwrap().to_owned(), r[1].as_str().unwrap().to_owned())).collect();
-            assert_eq!(help_page(usage, &strings(&case["about"]), &rows), case["page"].as_str().unwrap(), "cloud {cloud}: help_page of {usage:?}");
+            let rows: Vec<(String, String)> = case["rows"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|r| (r[0].as_str().unwrap().to_owned(), r[1].as_str().unwrap().to_owned()))
+                .collect();
+            assert_eq!(
+                help_page(usage, &strings(&case["about"]), &rows),
+                case["page"].as_str().unwrap(),
+                "cloud {cloud}: help_page of {usage:?}"
+            );
         }
     }
 }
@@ -492,7 +507,8 @@ fn about_lines_wraps_the_about_behind_its_indent() {
 fn flag_words_is_the_raw_table_in_the_ts_objects_order() {
     for cloud in [false, true] {
         let fx = fixture("pages", cloud);
-        let want: Vec<(String, String)> = fx["flagWords"].as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_owned())).collect();
+        let want: Vec<(String, String)> =
+            fx["flagWords"].as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_owned())).collect();
         let have: Vec<(String, String)> = flag_words().into_iter().map(|(k, v)| (k.to_owned(), v)).collect();
         assert_eq!(have.len(), want.len(), "cloud {cloud}: the number of FLAG_WORDS rows");
         for (at, (h, w)) in have.iter().zip(&want).enumerate() {
@@ -628,7 +644,11 @@ fn the_cloud_off_table_holds_no_cloud_verb_and_no_cloud_flag() {
     let on = table_for(true);
     let off_names: Vec<&str> = off.iter().map(name_of).collect();
     let cloud_verbs: Vec<&str> = on.iter().filter(|v| cloud_of(v)).map(name_of).collect();
-    assert_eq!(cloud_verbs, ["rename", "fork", "pause", "wake", "rebuild", "forget", "ssh", "export"], "the cloud verbs of the cloud-on table, by the fixture");
+    assert_eq!(
+        cloud_verbs,
+        ["rename", "fork", "pause", "wake", "rebuild", "forget", "ssh", "export"],
+        "the cloud verbs of the cloud-on table, by the fixture"
+    );
     for name in &cloud_verbs {
         assert!(!off_names.contains(name), "cloud off: {name} is left out");
     }
@@ -640,8 +660,16 @@ fn the_cloud_off_table_holds_no_cloud_verb_and_no_cloud_flag() {
     let inputs = |v: &Verb| -> Vec<&'static str> { tool_of(v).unwrap().input.iter().map(|i| i.name).collect() };
     assert_eq!(inputs(off_delete), ["thread", "processes", "confirm"], "cloud off: delete's tool does not take workspace");
     assert_eq!(inputs(on_delete), ["thread", "workspace", "processes", "confirm"], "cloud on: delete's tool takes workspace");
-    assert_eq!(line_usage(line_of(off_delete).unwrap()), "wsp delete <thread> [--processes stop|keep] [--yes]", "cloud off: delete's usage");
-    assert_eq!(line_usage(line_of(on_delete).unwrap()), "wsp delete <thread>|<workspace> [--processes stop|keep] [--yes]", "cloud on: delete's usage");
+    assert_eq!(
+        line_usage(line_of(off_delete).unwrap()),
+        "wsp delete <thread> [--processes stop|keep] [--yes]",
+        "cloud off: delete's usage"
+    );
+    assert_eq!(
+        line_usage(line_of(on_delete).unwrap()),
+        "wsp delete <thread>|<workspace> [--processes stop|keep] [--yes]",
+        "cloud on: delete's usage"
+    );
 }
 
 fn line_usage(v: LineVerb<'_>) -> &str {
@@ -672,7 +700,12 @@ fn all_verbs_is_every_group_in_order_before_the_cloud_cut() {
             (Some(tool), Some(t)) => {
                 assert_eq!(tool.description, t["description"].as_str().unwrap(), "ALL_VERBS: {name} tool description");
                 let inputs: Vec<(&str, Value, bool)> = tool.input.iter().map(|i| (i.name, kind_json(&i.kind), i.optional)).collect();
-                let want_inputs: Vec<(&str, Value, bool)> = t["input"].as_array().unwrap().iter().map(|i| (i["name"].as_str().unwrap(), i["kind"].clone(), i["optional"].as_bool().unwrap())).collect();
+                let want_inputs: Vec<(&str, Value, bool)> = t["input"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|i| (i["name"].as_str().unwrap(), i["kind"].clone(), i["optional"].as_bool().unwrap()))
+                    .collect();
                 assert_eq!(inputs, want_inputs, "ALL_VERBS: {name} tool input");
             }
             (have, want) => panic!("ALL_VERBS: {name} has a tool {}, the fixture {}", have.is_some(), want.is_some()),
@@ -729,7 +762,11 @@ fn cli_verbs_are_the_line_entries_in_table_order() {
         let want: Vec<&str> = line_verbs(&table).into_iter().map(line_name).collect();
         let have: Vec<&str> = cli_verbs(&table).into_iter().map(line_name).collect();
         assert_eq!(have, want, "cloud {cloud}: cli_verbs names in order");
-        assert_eq!(have.len(), fixture("pages", cloud)["pages"].as_object().unwrap().len(), "cloud {cloud}: cli_verbs count against the fixture's pages");
+        assert_eq!(
+            have.len(),
+            fixture("pages", cloud)["pages"].as_object().unwrap().len(),
+            "cloud {cloud}: cli_verbs count against the fixture's pages"
+        );
     }
 }
 
@@ -761,7 +798,8 @@ async fn run_verb_answers_the_exit_code_and_the_lines_before_it_dials() {
             assert!(find_verb(&table, &argv).is_none(), "run_verb row {argv:?}: no verb is found");
             continue;
         };
-        let verb = find_verb(&table, &argv).unwrap_or_else(|| panic!("run_verb row {argv:?}: find_verb found no verb, the oracle found {want_verb}"));
+        let verb = find_verb(&table, &argv)
+            .unwrap_or_else(|| panic!("run_verb row {argv:?}: find_verb found no verb, the oracle found {want_verb}"));
         assert_eq!(line_name(verb), want_verb, "run_verb row {argv:?}: the verb found");
         let io = RecordingIo::new();
         let dial = Arc::new(CountingDial::default());

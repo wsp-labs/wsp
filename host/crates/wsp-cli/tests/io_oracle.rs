@@ -18,12 +18,12 @@ use wsp_cli::cloud_text::cloud_text;
 use wsp_cli::verbs::client::{CallToolResult, FlagRow, FlagValue, Flags, InputKind, ToolInput};
 use wsp_cli::verbs::io::{self, NotifyLength, TurnOut};
 use wsp_cli::verbs::turns_help::{Ended, Turn, Waited};
-use wsp_words::exit::{verb_failure, HostError, Kind};
 use wsp_wire::views::project_bundle::{HostFolderListing, ProjectPlan};
 use wsp_wire::views::session::{SessionView, ThreadView};
 use wsp_wire::views::session_events::TurnResult;
 use wsp_wire::views::sub_row::SubResult;
 use wsp_wire::wire::runtime::SessionStartOutcome;
+use wsp_words::exit::{verb_failure, HostError, Kind};
 
 // ---------------------------------------------------------------------------------------------------------------
 // The harness: every case checked, every mismatch named.
@@ -51,7 +51,11 @@ impl Misses {
 }
 
 fn panic_text(panic: &(dyn std::any::Any + Send)) -> String {
-    panic.downcast_ref::<String>().cloned().or_else(|| panic.downcast_ref::<&str>().map(|s| (*s).to_owned())).unwrap_or_else(|| "?".to_owned())
+    panic
+        .downcast_ref::<String>()
+        .cloned()
+        .or_else(|| panic.downcast_ref::<&str>().map(|s| (*s).to_owned()))
+        .unwrap_or_else(|| "?".to_owned())
 }
 
 fn same(got: &Value, want: &Value) -> Result<(), String> {
@@ -148,7 +152,10 @@ fn filled(v: &Value) -> Value {
             for (k, item) in o {
                 if k == "capped" {
                     let c = item.as_object().unwrap();
-                    out.insert(k.clone(), json!({ "placeId": "place-mini", "place": c["place"], "running": c["running"], "atOnce": c["atOnce"] }));
+                    out.insert(
+                        k.clone(),
+                        json!({ "placeId": "place-mini", "place": c["place"], "running": c["running"], "atOnce": c["atOnce"] }),
+                    );
                 } else {
                     out.insert(k.clone(), filled(item));
                 }
@@ -217,7 +224,10 @@ fn agents_chosen_takes_the_default_or_each_named_agent_that_travels() {
     }
     let empty = empty_plan();
     m.case("a plan with no agents, named claude", || {
-        same(&settled(io::agents_chosen(&empty, Some(&["claude".to_owned()])), |s| json!(s.into_iter().collect::<Vec<_>>())), &fx["agentsEmpty"])
+        same(
+            &settled(io::agents_chosen(&empty, Some(&["claude".to_owned()])), |s| json!(s.into_iter().collect::<Vec<_>>())),
+            &fx["agentsEmpty"],
+        )
     });
     m.done();
 }
@@ -229,7 +239,9 @@ fn plan_lines_are_the_oracles_lines() {
     let set = |words: &[&str]| words.iter().map(|w| (*w).to_owned()).collect::<BTreeSet<String>>();
     let mut m = Misses::default();
     // chosen[0] and agents[0] of the same fixture say what the defaults are.
-    m.case("planLines full (the default ticks and agents)", || same_lines(&io::plan_lines(&plan, &set(&[".git/config"]), &set(&["claude", "opencode"]), None), &fx["planLines"]["full"]));
+    m.case("planLines full (the default ticks and agents)", || {
+        same_lines(&io::plan_lines(&plan, &set(&[".git/config"]), &set(&["claude", "opencode"]), None), &fx["planLines"]["full"])
+    });
     m.case("planLines ticked (every secret ticked, no agent)", || {
         same_lines(&io::plan_lines(&plan, &set(&[".env", "deploy/key.pem", ".git/config"]), &set(&[]), None), &fx["planLines"]["ticked"])
     });
@@ -313,18 +325,24 @@ fn projects_flag_resolves_each_project_against_the_folder_the_line_runs_in() {
         flags
     };
     let mut m = Misses::default();
-    m.case("--project a /b ../c in the oracle's folder", || same(&json!(io::projects_flag(&list(&["a", "/b", "../c"]), &oracle_cwd)), &json!(want)));
+    m.case("--project a /b ../c in the oracle's folder", || {
+        same(&json!(io::projects_flag(&list(&["a", "/b", "../c"]), &oracle_cwd)), &json!(want))
+    });
     m.case("the absolute entry stays as it is", || {
         let got = io::projects_flag(&list(&["a", "/b", "../c"]), &oracle_cwd).ok_or("None for a list")?;
         same_text(&got[1], want[1].as_str().unwrap())
     });
-    m.case("--project a /b ../c in /root", || same(&json!(io::projects_flag(&list(&["a", "/b", "../c"]), "/root")), &json!(["/root/a", "/b", "/c"])));
+    m.case("--project a /b ../c in /root", || {
+        same(&json!(io::projects_flag(&list(&["a", "/b", "../c"]), "/root")), &json!(["/root/a", "/b", "/c"]))
+    });
     m.case("--project given once as a word is not a list", || {
         let mut flags = Flags::new();
         flags.insert("project".to_owned(), FlagValue::Str("a".to_owned()));
         same(&json!(io::projects_flag(&flags, "/root")), &fx["projectsFlag"][1].get("projects").cloned().unwrap_or(Value::Null))
     });
-    m.case("no --project", || same(&json!(io::projects_flag(&Flags::new(), "/root")), &fx["projectsFlag"][2].get("projects").cloned().unwrap_or(Value::Null)));
+    m.case("no --project", || {
+        same(&json!(io::projects_flag(&Flags::new(), "/root")), &fx["projectsFlag"][2].get("projects").cloned().unwrap_or(Value::Null))
+    });
     m.done();
 }
 
@@ -359,7 +377,10 @@ fn with_replace_hint_adds_the_hint_to_an_exists_error_and_keeps_the_rest() {
             let mut e = HostError::new(message);
             e.kind = c["kind"].as_str().map(Kind::parse);
             let r = io::with_replace_hint(e);
-            same(&json!({ "message": r.message, "kind": r.kind.as_ref().map(Kind::as_str) }), &json!({ "message": c["out"]["message"], "kind": c["out"]["kind"] }))
+            same(
+                &json!({ "message": r.message, "kind": r.kind.as_ref().map(Kind::as_str) }),
+                &json!({ "message": c["out"]["message"], "kind": c["out"]["kind"] }),
+            )
         });
     }
     m.done();
@@ -378,7 +399,8 @@ async fn confirmed_at_asks_once_at_a_terminal_and_refuses_off_one() {
         let name = format!("confirmedAt yes {yes} tty {tty} answer {answer:?}");
         let io = Arc::new(RecordingIo { tty, answer, ..RecordingIo::default() });
         let at = io.clone();
-        let joined = tokio::spawn(async move { io::confirmed_at(&*at, yes, "Remove the worktree for b in p?\nThe branch stays.", "b").await }).await;
+        let joined =
+            tokio::spawn(async move { io::confirmed_at(&*at, yes, "Remove the worktree for b in p?\nThe branch stays.", "b").await }).await;
         let got = match joined {
             Ok(r) => r,
             Err(e) => {
@@ -407,7 +429,11 @@ fn turn_out_is_the_turns_view_or_its_refusal() {
     let mut m = Misses::default();
     for (n, c) in fx["turnOuts"].as_array().unwrap().iter().enumerate() {
         let c = filled(c);
-        let name = format!("turn {n} ({} {})", c["turn"]["outcome"], c["turn"].get("result").map_or("no result".to_owned(), |r| r["status"].to_string()));
+        let name = format!(
+            "turn {n} ({} {})",
+            c["turn"]["outcome"],
+            c["turn"].get("result").map_or("no result".to_owned(), |r| r["status"].to_string())
+        );
         m.case(name, || {
             let out = io::turn_out(&turn_of(&c["turn"]));
             match (&out, c["out"].get("ok"), c["out"].get("err")) {
@@ -429,7 +455,9 @@ fn detached_out_names_the_thread_and_what_holds_a_start_back() {
         let c = filled(c);
         let turn = turn_of(&c["turn"]);
         let name = format!("turn {n} ({})", c["turn"]["outcome"]);
-        m.case(format!("{name} detached"), || same_in_order(&serde_json::to_value::<CallToolResult>(io::detached_out(&turn, None, None, None)).unwrap(), &c["detached"]));
+        m.case(format!("{name} detached"), || {
+            same_in_order(&serde_json::to_value::<CallToolResult>(io::detached_out(&turn, None, None, None)).unwrap(), &c["detached"])
+        });
         m.case(format!("{name} detached with a way to open it and the line a wake left"), || {
             let got = io::detached_out(&turn, Some(&opened), None, Some("the disk was gone"));
             same_in_order(&serde_json::to_value(got).unwrap(), &c["detachedOpened"])
@@ -446,7 +474,9 @@ fn turn_text_and_noticed_follow_the_oracle() {
     for (n, c) in fx["texts"].as_array().unwrap().iter().enumerate() {
         let out: TurnOut = parsed("turn out", &c["out"]);
         m.case(format!("text {n}: turnText"), || same_text(&io::turn_text(&out), c["text"].as_str().unwrap()));
-        m.case(format!("text {n}: noticed said"), || same(&serde_json::to_value(io::noticed(out.clone(), Some("said"))).unwrap(), &c["noticed"]));
+        m.case(format!("text {n}: noticed said"), || {
+            same(&serde_json::to_value(io::noticed(out.clone(), Some("said"))).unwrap(), &c["noticed"])
+        });
         m.case(format!("text {n}: noticed nothing"), || same(&serde_json::to_value(io::noticed(out.clone(), None)).unwrap(), &c["kept"]));
     }
     m.done();
@@ -582,7 +612,10 @@ fn every_shared_tool_input_is_the_field_the_oracle_recorded() {
         let fx = fixture("io", cloud);
         let shared = fx["shared"].as_array().unwrap();
         m.case(format!("shared (cloud {cloud}): the names, in the oracle's order"), || {
-            same(&json!(table.iter().map(|(n, _)| *n).collect::<Vec<_>>()), &json!(shared.iter().map(|s| s["name"].clone()).collect::<Vec<_>>()))
+            same(
+                &json!(table.iter().map(|(n, _)| *n).collect::<Vec<_>>()),
+                &json!(shared.iter().map(|s| s["name"].clone()).collect::<Vec<_>>()),
+            )
         });
         for want in shared {
             let name = want["name"].as_str().unwrap();

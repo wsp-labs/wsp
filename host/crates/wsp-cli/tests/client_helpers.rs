@@ -10,9 +10,10 @@ use serde_json::{json, Value};
 
 use common::{fixture, strings, RecordingIo};
 use wsp_cli::verbs::client::{
-    absolute_folder, absolute_path, access_word_of, cell, common as common_flags, failed, flag, flag_for, flag_list, flag_set, host_platform,
-    host_schema_refusal, opened_thread_line, opened_thread_said, other_version, pick, pick_options, printable, release_here_fix, release_refusal,
-    release_words, send_options, setting_resets, tool_failure, under, FlagKind, FlagTable, FlagValue, Flags, OpenedFn, ReleaseHost,
+    absolute_folder, absolute_path, access_word_of, cell, common as common_flags, failed, flag, flag_for, flag_list, flag_set,
+    host_platform, host_schema_refusal, opened_thread_line, opened_thread_said, other_version, pick, pick_options, printable,
+    release_here_fix, release_refusal, release_words, send_options, setting_resets, tool_failure, under, FlagKind, FlagTable, FlagValue,
+    Flags, OpenedFn, ReleaseHost,
 };
 use wsp_words::exit::{usage_refusal, HostError, Kind};
 
@@ -79,9 +80,18 @@ fn release_refusal_of_a_newer_host_reads_this_processs_road_for_its_fix() {
         let host = host_of(&row["host"]);
         let said = said_of(row["message"].as_str().unwrap(), recorded_fix);
         let roads = [
-            (vec!["node".to_owned(), "/usr/local/bin/wsp".to_owned()], format!("a pull of the checkout and a build on this computer brings this line to {theirs}.")),
-            (vec!["node".to_owned(), "/Applications/wsp.app/Contents/Resources/wsp".to_owned()], format!("updating the wsp app on this computer brings this line to {theirs}.")),
-            (vec!["node".to_owned(), "/usr/lib/node_modules/@wsp-labs/wsp/bin/wsp".to_owned()], format!("npm i -g @wsp-labs/wsp@{theirs} on this computer brings this line to {theirs}.")),
+            (
+                vec!["node".to_owned(), "/usr/local/bin/wsp".to_owned()],
+                format!("a pull of the checkout and a build on this computer brings this line to {theirs}."),
+            ),
+            (
+                vec!["node".to_owned(), "/Applications/wsp.app/Contents/Resources/wsp".to_owned()],
+                format!("updating the wsp app on this computer brings this line to {theirs}."),
+            ),
+            (
+                vec!["node".to_owned(), "/usr/lib/node_modules/@wsp-labs/wsp/bin/wsp".to_owned()],
+                format!("npm i -g @wsp-labs/wsp@{theirs} on this computer brings this line to {theirs}."),
+            ),
         ];
         for (argv, fix) in roads {
             let e = release_refusal(mine, theirs, &host, row["road"].as_str(), &argv);
@@ -104,13 +114,21 @@ fn release_words_say_the_pieces_the_refusal_is_built_from() {
             ReleaseHost::State(state) => release_words::host_here(&state),
             ReleaseHost::Where { r#where, .. } => release_words::host_at(&r#where),
         };
-        assert_eq!(release_words::said(mine, &host, theirs), said_of(message, fix), "release_words::said for {mine} vs {theirs}, host {}", row["host"]);
+        assert_eq!(
+            release_words::said(mine, &host, theirs),
+            said_of(message, fix),
+            "release_words::said for {mine} vs {theirs}, host {}",
+            row["host"]
+        );
     }
     assert_eq!(release_words::RESTART, "restart that host with wsp restart.");
     assert_eq!(release_words::reopen_app("0.3.8"), "quit and reopen the app that holds it once the app is on wsp 0.3.8.");
     assert_eq!(release_words::restart_up(), "Ctrl-C the terminal running wsp up and run it again.");
     assert_eq!(release_words::update_there("0.3.8"), "update wsp to 0.3.8 on that computer and restart its host there.");
-    assert_eq!(release_words::update_here("npm i -g @wsp-labs/wsp@0.3.10", "0.3.10"), "npm i -g @wsp-labs/wsp@0.3.10 on this computer brings this line to 0.3.10.");
+    assert_eq!(
+        release_words::update_here("npm i -g @wsp-labs/wsp@0.3.10", "0.3.10"),
+        "npm i -g @wsp-labs/wsp@0.3.10 on this computer brings this line to 0.3.10."
+    );
     assert_eq!(release_words::host_here("/s/state.json"), "the host serving /s/state.json");
     assert_eq!(release_words::host_at("mini"), "the host at mini");
 }
@@ -224,7 +242,9 @@ fn flag_for_names_the_flag_for_a_computer_where_one_is_named() {
 fn absolute_path_refuses_a_path_that_does_not_open_with_a_slash() {
     for row in client()["misc"]["absolutePath"].as_array().unwrap() {
         let path = row["path"].as_str().unwrap();
-        check_refusal(absolute_path("--cwd is a path on the machine", path), &row["out"], &format!("absolute_path {path:?}"), |v| v.as_str().unwrap().to_owned());
+        check_refusal(absolute_path("--cwd is a path on the machine", path), &row["out"], &format!("absolute_path {path:?}"), |v| {
+            v.as_str().unwrap().to_owned()
+        });
     }
 }
 
@@ -279,7 +299,11 @@ fn pick_drops_only_the_absent_fields_and_keeps_their_order() {
     let have = pick(vec![("a", Some(json!(1))), ("b", None), ("c", Some(Value::Null)), ("d", Some(json!(""))), ("e", Some(json!(false)))]);
     let fx = client();
     let want = &fx["misc"]["pick"][0];
-    assert_eq!(serde_json::to_string(&Value::Object(have)).unwrap(), serde_json::to_string(want).unwrap(), "pick of a, b absent, c null, d empty, e false");
+    assert_eq!(
+        serde_json::to_string(&Value::Object(have)).unwrap(),
+        serde_json::to_string(want).unwrap(),
+        "pick of a, b absent, c null, d empty, e false"
+    );
 }
 
 #[test]
@@ -290,7 +314,11 @@ fn opened_thread_line_and_said_name_the_thread_and_its_prefix_word() {
     let with_folder: OpenedFn<'_> = &|id: &str, folder: Option<&str>| format!("{id} in {}", folder.expect("a folder"));
     let dash: OpenedFn<'_> = &|id: &str, folder: Option<&str>| format!("{id} in {}", folder.unwrap_or("-"));
     assert_eq!(opened_thread_line("t-1", None, None), want[0].as_str().unwrap(), "opened_thread_line, no opening");
-    assert_eq!(opened_thread_line("t-1", Some(with_folder), Some("/x")), want[1].as_str().unwrap(), "opened_thread_line, an opening and a folder");
+    assert_eq!(
+        opened_thread_line("t-1", Some(with_folder), Some("/x")),
+        want[1].as_str().unwrap(),
+        "opened_thread_line, an opening and a folder"
+    );
     assert_eq!(opened_thread_said("t-1", None, None), want[2].as_str().unwrap(), "opened_thread_said, no opening");
     assert_eq!(opened_thread_said("t-1", Some(dash), None), want[3].as_str().unwrap(), "opened_thread_said, an opening and no folder");
 }
@@ -311,12 +339,16 @@ fn host_schema_refusal_turns_the_validators_issue_list_into_one_usage_line() {
     // validatorRefusal (thread.ts:79) and hostSchemaRefusal (client.ts:1099), not recorded.
     let usage = "wsp exec <thread>";
     let cases = [
-        (r#"[{"code":"invalid_union_discriminator","path":["op"]}]"#, "the host does not serve this line; it runs another version of wsp, restart it with wsp restart"),
+        (
+            r#"[{"code":"invalid_union_discriminator","path":["op"]}]"#,
+            "the host does not serve this line; it runs another version of wsp, restart it with wsp restart",
+        ),
         (r#"[{"code":"invalid_type","path":["zzz-not-a-request-field"]}]"#, "the host would not read this line"),
     ];
     for (message, said) in cases {
         let want = usage_refusal(said, &format!("usage: {usage}"));
-        let got = host_schema_refusal(&HostError::new(message), usage).unwrap_or_else(|| panic!("host_schema_refusal for {message}: nothing"));
+        let got =
+            host_schema_refusal(&HostError::new(message), usage).unwrap_or_else(|| panic!("host_schema_refusal for {message}: nothing"));
         assert_eq!(got.message, want.message, "host_schema_refusal message for {message}");
         assert_eq!(got.fix, want.fix, "host_schema_refusal fix for {message}");
         assert_eq!(got.kind, want.kind, "host_schema_refusal kind for {message}");
