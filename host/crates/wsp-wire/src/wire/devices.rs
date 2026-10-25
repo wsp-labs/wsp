@@ -119,13 +119,29 @@ pub struct AccountDevice {
 pub struct AccountDevices {
     pub devices: Vec<AccountDevice>,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DaemonFrame {
     pub op: String,
     /// zod passthrough: unknown keys kept, in the order read.
-    #[serde(flatten, serialize_with = "crate::types::check::js_record")]
+    #[serde(flatten)]
     pub rest: IndexMap<String, Value>,
+}
+
+/// A passthrough object as JavaScript writes it: the known key, then the rest, with every integer-like key first, and
+/// no `__proto__` key, which zod's parse never keeps.
+fn write_passthrough<S: serde::Serializer>(known: (&str, &str), rest: &IndexMap<String, Value>, s: S) -> Result<S::Ok, S::Error> {
+    let mut all = IndexMap::with_capacity(rest.len() + 1);
+    all.insert(known.0.to_string(), Value::from(known.1));
+    all.extend(rest.iter().filter(|(k, _)| *k != "__proto__").map(|(k, v)| (k.clone(), v.clone())));
+    crate::wire::helpers::js_key_order(&mut all);
+    all.serialize(s)
+}
+
+impl Serialize for DaemonFrame {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        write_passthrough(("op", &self.op), &self.rest, s)
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -137,13 +153,19 @@ pub struct DaemonOpenReply {
 pub struct DaemonSendReply {
     pub reply: DaemonResponse,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DaemonEventEvent {
     pub r#type: String,
     /// zod passthrough: unknown keys kept, in the order read.
-    #[serde(flatten, serialize_with = "crate::types::check::js_record")]
+    #[serde(flatten)]
     pub rest: IndexMap<String, Value>,
+}
+
+impl Serialize for DaemonEventEvent {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        write_passthrough(("type", &self.r#type), &self.rest, s)
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]

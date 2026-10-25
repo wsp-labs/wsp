@@ -250,20 +250,57 @@ pub struct ProcKillReply {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub left: Option<Vec<JsInt>>,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DaemonExecRequest {
     pub id: ReqId,
     pub cmd: String,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    #[serde(default, deserialize_with = "crate::types::check::present")]
     pub timeout_ms: Option<JsInt>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    #[serde(default, deserialize_with = "crate::types::check::present")]
     pub stdin: Option<String>,
 }
 
-/// A member of a union tagged on `op`: the union writes and reads the tag, so the struct holds none.
+crate::literal!(ExecLit, "exec");
+
+/// A member of a union tagged on `op`: the union reads the tag, so the struct holds none and writes it where it is
+/// written alone, in the order zod builds it.
 impl DaemonExecRequest {
     pub const OP: &str = "exec";
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExecAlone<'a> {
+    id: &'a ReqId,
+    op: &'static str,
+    cmd: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    timeout_ms: &'a Option<JsInt>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stdin: &'a Option<String>,
+}
+
+impl Serialize for DaemonExecRequest {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        ExecAlone { id: &self.id, op: Self::OP, cmd: &self.cmd, timeout_ms: &self.timeout_ms, stdin: &self.stdin }.serialize(s)
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExecCall<'a> {
+    cmd: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    timeout_ms: &'a Option<JsInt>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stdin: &'a Option<String>,
+    id: &'a ReqId,
+}
+
+/// Inside the `op` tag the call's keys come first and the id last, as the daemon channel writes a frame.
+fn exec_call<S: serde::Serializer>(exec: &DaemonExecRequest, s: S) -> Result<S::Ok, S::Error> {
+    ExecCall { cmd: &exec.cmd, timeout_ms: &exec.timeout_ms, stdin: &exec.stdin, id: &exec.id }.serialize(s)
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -311,7 +348,6 @@ pub struct GitPrReviewComment {
 pub enum DaemonRequest {
     #[serde(rename = "pty.create", rename_all = "camelCase")]
     PtyCreate {
-        id: ReqId,
         cols: Option<JsNumber>,
         rows: Option<JsNumber>,
         shell: Option<String>,
@@ -319,25 +355,26 @@ pub enum DaemonRequest {
         env: Option<IndexMap<String, String>>,
         run: Option<String>,
         machine_id: Option<String>,
+        id: ReqId,
     },
     #[serde(rename = "pty.attach", rename_all = "camelCase")]
-    PtyAttach { id: ReqId, pty_id: String, machine_id: Option<String> },
+    PtyAttach { pty_id: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "pty.detach", rename_all = "camelCase")]
-    PtyDetach { id: ReqId, pty_id: String, machine_id: Option<String> },
+    PtyDetach { pty_id: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "pty.write", rename_all = "camelCase")]
-    PtyWrite { id: ReqId, pty_id: String, data: String, machine_id: Option<String> },
+    PtyWrite { pty_id: String, data: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "pty.resize", rename_all = "camelCase")]
-    PtyResize { id: ReqId, pty_id: String, cols: JsNumber, rows: JsNumber, machine_id: Option<String> },
+    PtyResize { pty_id: String, cols: JsNumber, rows: JsNumber, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "pty.kill", rename_all = "camelCase")]
-    PtyKill { id: ReqId, pty_id: String, machine_id: Option<String> },
+    PtyKill { pty_id: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "pty.list", rename_all = "camelCase")]
-    PtyList { id: ReqId, machine_id: Option<String> },
+    PtyList { machine_id: Option<String>, id: ReqId },
     #[serde(rename = "ports.watch", rename_all = "camelCase")]
-    PortsWatch { id: ReqId, roots: Option<Vec<JsInt>>, folder: Option<String>, cgroups: Option<Vec<String>>, watch: Option<String> },
+    PortsWatch { roots: Option<Vec<JsInt>>, folder: Option<String>, cgroups: Option<Vec<String>>, watch: Option<String>, id: ReqId },
     #[serde(rename = "manifest.get", rename_all = "camelCase")]
     ManifestGet { id: ReqId },
     #[serde(rename = "manifest.record", rename_all = "camelCase")]
-    ManifestRecord { id: ReqId, cmd: String, cwd: String, port: Option<JsNumber> },
+    ManifestRecord { cmd: String, cwd: String, port: Option<JsNumber>, id: ReqId },
     #[serde(rename = "manifest.restartScript", rename_all = "camelCase")]
     ManifestRestartScript { id: ReqId },
     #[serde(rename = "inbox.watch", rename_all = "camelCase")]
@@ -349,26 +386,25 @@ pub enum DaemonRequest {
     #[serde(rename = "sys.unwatch", rename_all = "camelCase")]
     SysUnwatch { id: ReqId },
     #[serde(rename = "sys.history", rename_all = "camelCase")]
-    SysHistory { id: ReqId, from: JsInt, to: JsInt, step_ms: JsInt },
+    SysHistory { from: JsInt, to: JsInt, step_ms: JsInt, id: ReqId },
     #[serde(rename = "usage.logs", rename_all = "camelCase")]
-    UsageLogs { id: ReqId, stores: Vec<UsageStore> },
+    UsageLogs { stores: Vec<UsageStore>, id: ReqId },
     #[serde(rename = "transcripts.list", rename_all = "camelCase")]
-    TranscriptsList { id: ReqId, root: String, dirs: Vec<String>, cwds: Vec<String> },
+    TranscriptsList { root: String, dirs: Vec<String>, cwds: Vec<String>, id: ReqId },
     #[serde(rename = "transcripts.read", rename_all = "camelCase")]
-    TranscriptsRead { id: ReqId, root: String, dirs: Vec<String>, session: String, last: JsInt, tail: Option<JsInt> },
+    TranscriptsRead { root: String, dirs: Vec<String>, session: String, last: JsInt, tail: Option<JsInt>, id: ReqId },
     #[serde(rename = "proc.watch", rename_all = "camelCase")]
-    ProcWatch { id: ReqId, cgroups: Option<Vec<String>> },
+    ProcWatch { cgroups: Option<Vec<String>>, id: ReqId },
     #[serde(rename = "proc.unwatch", rename_all = "camelCase")]
     ProcUnwatch { id: ReqId },
     #[serde(rename = "proc.scopes", rename_all = "camelCase")]
-    ProcScopes { id: ReqId, scopes: Vec<ProcScope> },
+    ProcScopes { scopes: Vec<ProcScope>, id: ReqId },
     #[serde(rename = "proc.inspect", rename_all = "camelCase")]
-    ProcInspect { id: ReqId, pid: JsInt },
+    ProcInspect { pid: JsInt, id: ReqId },
     #[serde(rename = "proc.list", rename_all = "camelCase")]
     ProcList { id: ReqId },
     #[serde(rename = "proc.kill", rename_all = "camelCase")]
     ProcKill {
-        id: ReqId,
         pid: JsInt,
         signal: ProcSignal,
         mode: Option<KillMode>,
@@ -378,78 +414,78 @@ pub enum DaemonRequest {
         apps: Option<Vec<JsInt>>,
         agents: Option<Vec<JsInt>>,
         agent_bins: Option<Vec<String>>,
+        id: ReqId,
     },
     #[serde(rename = "container.stop", rename_all = "camelCase")]
-    ContainerStop { id: ReqId, container: String },
+    ContainerStop { container: String, id: ReqId },
     #[serde(rename = "ping", rename_all = "camelCase")]
     Ping { id: ReqId },
     #[serde(rename = "fs.list", rename_all = "camelCase")]
-    FsList { id: ReqId, path: String, gitignore: Option<bool>, machine_id: Option<String> },
+    FsList { path: String, gitignore: Option<bool>, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "fs.files", rename_all = "camelCase")]
-    FsFiles { id: ReqId, cwd: String, machine_id: Option<String> },
+    FsFiles { cwd: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "fs.read", rename_all = "camelCase")]
-    FsRead { id: ReqId, path: String, encoding: Option<FsReadEncoding>, machine_id: Option<String> },
+    FsRead { path: String, encoding: Option<FsReadEncoding>, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "fs.image", rename_all = "camelCase")]
-    FsImage { id: ReqId, path: String, machine_id: Option<String> },
+    FsImage { path: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "fs.hash", rename_all = "camelCase")]
-    FsHash { id: ReqId, root: String, paths: Vec<String>, machine_id: Option<String> },
+    FsHash { root: String, paths: Vec<String>, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "fs.write", rename_all = "camelCase")]
-    FsWrite { id: ReqId, path: String, contents: String, machine_id: Option<String> },
+    FsWrite { path: String, contents: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "pty.tab", rename_all = "camelCase")]
-    PtyTab { id: ReqId, pty_id: String, machine_id: Option<String> },
+    PtyTab { pty_id: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "fs.search", rename_all = "camelCase")]
-    FsSearch { id: ReqId, path: String, query: String, mode: FsSearchMode, machine_id: Option<String> },
+    FsSearch { path: String, query: String, mode: FsSearchMode, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.status", rename_all = "camelCase")]
-    GitStatus { id: ReqId, cwd: String, machine_id: Option<String> },
+    GitStatus { cwd: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.diff", rename_all = "camelCase")]
     GitDiff {
-        id: ReqId,
         cwd: String,
         scope: GitDiffScope,
         path: Option<String>,
         paths: Option<Vec<String>>,
         whole: Option<bool>,
         machine_id: Option<String>,
+        id: ReqId,
     },
     #[serde(rename = "git.discard", rename_all = "camelCase")]
-    GitDiscard { id: ReqId, cwd: String, path: String, machine_id: Option<String> },
+    GitDiscard { cwd: String, path: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.commit", rename_all = "camelCase")]
-    GitCommit { id: ReqId, cwd: String, message: String, paths: Vec<String>, machine_id: Option<String> },
+    GitCommit { cwd: String, message: String, paths: Vec<String>, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.snapshot", rename_all = "camelCase")]
-    GitSnapshot { id: ReqId, cwd: String, machine_id: Option<String> },
+    GitSnapshot { cwd: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.range", rename_all = "camelCase")]
-    GitRange { id: ReqId, cwd: String, from: String, to: String, path: Option<String>, machine_id: Option<String> },
+    GitRange { cwd: String, from: String, to: String, path: Option<String>, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.turn", rename_all = "camelCase")]
-    GitTurn { id: ReqId, cwd: String, from: String, to: String, path: Option<String>, machine_id: Option<String> },
+    GitTurn { cwd: String, from: String, to: String, path: Option<String>, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.push", rename_all = "camelCase")]
-    GitPush { id: ReqId, cwd: String, base: Option<String>, token: Option<String>, machine_id: Option<String> },
+    GitPush { cwd: String, base: Option<String>, token: Option<String>, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.pr", rename_all = "camelCase")]
     GitPr {
-        id: ReqId,
         cwd: String,
         base: Option<String>,
         title: Option<String>,
         body: Option<String>,
         token: Option<String>,
         machine_id: Option<String>,
+        id: ReqId,
     },
     #[serde(rename = "git.prRead", rename_all = "camelCase")]
     GitPrRead {
-        id: ReqId,
         cwd: String,
         remote: String,
         branch: Option<String>,
         number: Option<JsInt>,
         seen: Option<String>,
         machine_id: Option<String>,
+        id: ReqId,
     },
     #[serde(rename = "git.prView", rename_all = "camelCase")]
-    GitPrView { id: ReqId, cwd: String, remote: String, number: JsInt, machine_id: Option<String> },
+    GitPrView { cwd: String, remote: String, number: JsInt, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.runLog", rename_all = "camelCase")]
-    GitRunLog { id: ReqId, cwd: String, remote: String, run_id: JsInt, job_id: JsInt, machine_id: Option<String> },
+    GitRunLog { cwd: String, remote: String, run_id: JsInt, job_id: JsInt, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.prMerge", rename_all = "camelCase")]
     GitPrMerge {
-        id: ReqId,
         cwd: String,
         remote: String,
         number: JsInt,
@@ -457,16 +493,16 @@ pub enum DaemonRequest {
         auto: bool,
         head_oid: String,
         machine_id: Option<String>,
+        id: ReqId,
     },
     #[serde(rename = "git.issueRead", rename_all = "camelCase")]
-    GitIssueRead { id: ReqId, cwd: String, remote: String, number: JsInt, machine_id: Option<String> },
+    GitIssueRead { cwd: String, remote: String, number: JsInt, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.prCheckout", rename_all = "camelCase")]
-    GitPrCheckout { id: ReqId, cwd: String, number: JsInt, token: Option<String>, machine_id: Option<String> },
+    GitPrCheckout { cwd: String, number: JsInt, token: Option<String>, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.prDiff", rename_all = "camelCase")]
-    GitPrDiff { id: ReqId, cwd: String, remote: String, number: JsInt, max_bytes: Option<JsInt>, machine_id: Option<String> },
+    GitPrDiff { cwd: String, remote: String, number: JsInt, max_bytes: Option<JsInt>, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.prReview", rename_all = "camelCase")]
     GitPrReview {
-        id: ReqId,
         cwd: String,
         remote: String,
         number: JsInt,
@@ -475,10 +511,10 @@ pub enum DaemonRequest {
         body: String,
         comments: Vec<GitPrReviewComment>,
         machine_id: Option<String>,
+        id: ReqId,
     },
     #[serde(rename = "git.prReply", rename_all = "camelCase")]
     GitPrReply {
-        id: ReqId,
         cwd: String,
         remote: String,
         number: JsInt,
@@ -486,12 +522,12 @@ pub enum DaemonRequest {
         thread_id: Option<String>,
         body: String,
         machine_id: Option<String>,
+        id: ReqId,
     },
     #[serde(rename = "git.prResolve", rename_all = "camelCase")]
-    GitPrResolve { id: ReqId, cwd: String, remote: String, number: JsInt, thread_id: String, resolved: bool, machine_id: Option<String> },
+    GitPrResolve { cwd: String, remote: String, number: JsInt, thread_id: String, resolved: bool, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.prReact", rename_all = "camelCase")]
     GitPrReact {
-        id: ReqId,
         cwd: String,
         remote: String,
         number: JsInt,
@@ -499,74 +535,84 @@ pub enum DaemonRequest {
         content: ReactionContent,
         on: bool,
         machine_id: Option<String>,
+        id: ReqId,
     },
     #[serde(rename = "git.repoRead", rename_all = "camelCase")]
-    GitRepoRead { id: ReqId, cwd: String, remote: String, machine_id: Option<String> },
+    GitRepoRead { cwd: String, remote: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.update", rename_all = "camelCase")]
-    GitUpdate { id: ReqId, cwd: String, base: Option<String>, token: Option<String>, machine_id: Option<String> },
+    GitUpdate { cwd: String, base: Option<String>, token: Option<String>, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.startOn", rename_all = "camelCase")]
-    GitStartOn { id: ReqId, cwd: String, branch: String, token: Option<String>, machine_id: Option<String> },
+    GitStartOn { cwd: String, branch: String, token: Option<String>, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.branchCompare", rename_all = "camelCase")]
-    GitBranchCompare { id: ReqId, cwd: String, remote: String, base: String, head: String },
+    GitBranchCompare { cwd: String, remote: String, base: String, head: String, id: ReqId },
     #[serde(rename = "git.mergeIn", rename_all = "camelCase")]
-    GitMergeIn { id: ReqId, cwd: String, branch: String, from: Option<String>, token: Option<String>, machine_id: Option<String> },
+    GitMergeIn { cwd: String, branch: String, from: Option<String>, token: Option<String>, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.prList", rename_all = "camelCase")]
-    GitPrList { id: ReqId, cwd: String, machine_id: Option<String> },
+    GitPrList { cwd: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.checkpoint", rename_all = "camelCase")]
-    GitCheckpoint { id: ReqId, cwd: String, thread: String, turn: String, scope: Option<String>, machine_id: Option<String> },
+    GitCheckpoint { cwd: String, thread: String, turn: String, scope: Option<String>, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.restore", rename_all = "camelCase")]
-    GitRestore { id: ReqId, cwd: String, checkpoint: String, scope: Option<String>, machine_id: Option<String> },
+    GitRestore { cwd: String, checkpoint: String, scope: Option<String>, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.checkpointDrop", rename_all = "camelCase")]
-    GitCheckpointDrop { id: ReqId, cwd: String, scope: Option<String>, thread: String, machine_id: Option<String> },
+    GitCheckpointDrop { cwd: String, scope: Option<String>, thread: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.worktrees", rename_all = "camelCase")]
-    GitWorktrees { id: ReqId, cwd: String, machine_id: Option<String> },
+    GitWorktrees { cwd: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.branches", rename_all = "camelCase")]
-    GitBranches { id: ReqId, cwd: String, machine_id: Option<String> },
+    GitBranches { cwd: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.switchNew", rename_all = "camelCase")]
-    GitSwitchNew { id: ReqId, cwd: String, branch: String, machine_id: Option<String> },
+    GitSwitchNew { cwd: String, branch: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "git.fetchBranch", rename_all = "camelCase")]
-    GitFetchBranch { id: ReqId, cwd: String, remote: String, branch: String, into: Option<String>, machine_id: Option<String> },
+    GitFetchBranch { cwd: String, remote: String, branch: String, into: Option<String>, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "fs.folders", rename_all = "camelCase")]
-    FsFolders { id: ReqId, dir: Option<String>, hidden: Option<bool>, repos: Option<bool>, projects: Option<Vec<String>> },
+    FsFolders { dir: Option<String>, hidden: Option<bool>, repos: Option<bool>, projects: Option<Vec<String>>, id: ReqId },
     #[serde(rename = "tunnel.open", rename_all = "camelCase")]
-    TunnelOpen { id: ReqId, tunnel_id: String, port: JsInt, machine_id: Option<String> },
+    TunnelOpen { tunnel_id: String, port: JsInt, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "ssh.start", rename_all = "camelCase")]
-    SshStart { id: ReqId, authorized_key: String, machine_id: Option<String> },
+    SshStart { authorized_key: String, machine_id: Option<String>, id: ReqId },
     #[serde(rename = "tunnel.write", rename_all = "camelCase")]
-    TunnelWrite { id: ReqId, tunnel_id: String, data: String },
+    TunnelWrite { tunnel_id: String, data: String, id: ReqId },
     #[serde(rename = "tunnel.close", rename_all = "camelCase")]
-    TunnelClose { id: ReqId, tunnel_id: String },
+    TunnelClose { tunnel_id: String, id: ReqId },
     #[serde(rename = "stdio.open", rename_all = "camelCase")]
-    StdioOpen { id: ReqId, stdio_id: String, cmd: String, env: Option<IndexMap<String, String>> },
+    StdioOpen { stdio_id: String, cmd: String, env: Option<IndexMap<String, String>>, id: ReqId },
     #[serde(rename = "stdio.write", rename_all = "camelCase")]
-    StdioWrite { id: ReqId, stdio_id: String, data: String },
+    StdioWrite { stdio_id: String, data: String, id: ReqId },
     #[serde(rename = "stdio.close", rename_all = "camelCase")]
-    StdioClose { id: ReqId, stdio_id: String },
+    StdioClose { stdio_id: String, id: ReqId },
     #[serde(rename = "http.post", rename_all = "camelCase")]
     HttpPost {
-        id: ReqId,
         url: String,
         headers: IndexMap<String, String>,
         body: String,
         bearer: Option<HttpBearer>,
         timeout_ms: Option<JsInt>,
+        id: ReqId,
     },
     #[serde(rename = "exec")]
-    Exec(DaemonExecRequest),
+    Exec(#[serde(serialize_with = "exec_call")] DaemonExecRequest),
     #[serde(rename = "place.leave", rename_all = "camelCase")]
     PlaceLeave { id: ReqId },
     #[serde(rename = "guest.open", rename_all = "camelCase")]
-    GuestOpen { id: ReqId, kind: GuestKind, token: String, turn_token: Option<String>, argv: Vec<String>, cwd: String },
+    GuestOpen { kind: GuestKind, token: String, turn_token: Option<String>, argv: Vec<String>, cwd: String, id: ReqId },
     #[serde(rename = "guest.send", rename_all = "camelCase")]
-    GuestSend { id: ReqId, message: Value },
+    GuestSend {
+        #[serde(default, deserialize_with = "crate::wire::daemon_checks::unknown_value")]
+        message: Option<Value>,
+        id: ReqId,
+    },
     #[serde(rename = "guest.watch", rename_all = "camelCase")]
     GuestWatch { id: ReqId },
     #[serde(rename = "guest.reply", rename_all = "camelCase")]
-    GuestReply { id: ReqId, session: String, message: Value },
+    GuestReply {
+        session: String,
+        #[serde(default, deserialize_with = "crate::wire::daemon_checks::unknown_value")]
+        message: Option<Value>,
+        id: ReqId,
+    },
     #[serde(rename = "guest.close", rename_all = "camelCase")]
-    GuestClose { id: ReqId, session: String, error: Option<String> },
+    GuestClose { session: String, error: Option<String>, id: ReqId },
     #[serde(rename = "place.update", rename_all = "camelCase")]
-    PlaceUpdate { id: ReqId, upload_id: String, seq: JsInt, last: bool, data: String, sha256: String },
+    PlaceUpdate { upload_id: String, seq: JsInt, last: bool, data: String, sha256: String, id: ReqId },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1282,6 +1328,7 @@ impl Check for DaemonExecRequest {
         };
         let mut out = Vec::new();
         crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
+        crate::types::keys::req_key::<ExecLit>(obj, "op", &mut out);
         crate::types::keys::req_key_with::<String>(obj, "cmd", &mut out, Self::rule_cmd);
         crate::types::keys::opt_key_with::<JsInt>(obj, "timeoutMs", &mut out, Self::rule_timeout_ms);
         crate::types::keys::opt_key::<String>(obj, "stdin", &mut out);
@@ -1293,8 +1340,9 @@ impl Check for DaemonExecRequest {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
                 "id" => crate::types::check::leaf(rest, crate::types::check::Zod::Union),
+                "op" => <ExecLit as Check>::describe(rest),
                 "cmd" => <String as Check>::describe(rest),
-                "timeout_ms" => <Option<i64> as Check>::describe(rest),
+                "timeoutMs" => <Option<JsInt> as Check>::describe(rest),
                 "stdin" => <Option<String> as Check>::describe(rest),
                 _ => None,
             },
@@ -1515,6 +1563,7 @@ impl Check for DaemonRequest {
         let Some(tag) = obj.get("op") else {
             return Some(vec![crate::types::check::missing::<Self>("op")]);
         };
+        use crate::wire::daemon_checks as dc;
         match tag.as_str() {
             Some("pty.create") => {
                 let mut out = Vec::new();
@@ -1596,13 +1645,10 @@ impl Check for DaemonRequest {
             Some("ports.watch") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::opt_key::<Vec<JsInt>>(obj, "roots", &mut out);
+                dc::opt_list::<JsInt>(obj, "roots", &mut out, None, dc::nonneg);
                 crate::types::keys::opt_key::<String>(obj, "folder", &mut out);
-                crate::types::keys::opt_key::<Vec<String>>(obj, "cgroups", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "watch", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                dc::opt_list::<String>(obj, "cgroups", &mut out, Some(16), dc::cgroup);
+                dc::opt_rules::<String>(obj, "watch", &mut out, dc::watch_name);
                 Some(out)
             }
             Some("manifest.get") => {
@@ -1669,52 +1715,37 @@ impl Check for DaemonRequest {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<JsInt>(obj, "from", &mut out);
                 crate::types::keys::req_key::<JsInt>(obj, "to", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "stepMs", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                dc::req_rules::<JsInt>(obj, "stepMs", &mut out, dc::nonneg);
                 Some(out)
             }
             Some("usage.logs") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<Vec<UsageStore>>(obj, "stores", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                dc::req_list::<UsageStore>(obj, "stores", &mut out, Some(USAGE_STORES_MAX as usize), dc::none);
                 Some(out)
             }
             Some("transcripts.list") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "root", &mut out);
-                crate::types::keys::req_key::<Vec<String>>(obj, "dirs", &mut out);
-                crate::types::keys::req_key::<Vec<String>>(obj, "cwds", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                dc::req_rules::<String>(obj, "root", &mut out, dc::root_path);
+                dc::req_list::<String>(obj, "dirs", &mut out, Some(TRANSCRIPT_DIRS_MAX as usize), dc::name_255);
+                dc::req_list::<String>(obj, "cwds", &mut out, Some(TRANSCRIPT_DIRS_MAX as usize), dc::path_4096);
                 Some(out)
             }
             Some("transcripts.read") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "root", &mut out);
-                crate::types::keys::req_key::<Vec<String>>(obj, "dirs", &mut out);
-                crate::types::keys::req_key::<String>(obj, "session", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "last", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "tail", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                dc::req_rules::<String>(obj, "root", &mut out, dc::root_path);
+                dc::req_list::<String>(obj, "dirs", &mut out, Some(TRANSCRIPT_DIRS_MAX as usize), dc::name_255);
+                dc::req_rules::<String>(obj, "session", &mut out, dc::session);
+                dc::req_rules::<JsInt>(obj, "last", &mut out, dc::positive);
+                dc::opt_rules::<JsInt>(obj, "tail", &mut out, dc::positive);
                 Some(out)
             }
             Some("proc.watch") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::opt_key::<Vec<String>>(obj, "cgroups", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                dc::opt_list::<String>(obj, "cgroups", &mut out, Some(16), dc::cgroup);
                 Some(out)
             }
             Some("proc.unwatch") => {
@@ -1728,19 +1759,13 @@ impl Check for DaemonRequest {
             Some("proc.scopes") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<Vec<ProcScope>>(obj, "scopes", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                dc::req_list::<ProcScope>(obj, "scopes", &mut out, Some(PROC_SCOPES_MAX as usize), dc::none);
                 Some(out)
             }
             Some("proc.inspect") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "pid", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                dc::req_rules::<JsInt>(obj, "pid", &mut out, dc::positive);
                 Some(out)
             }
             Some("proc.list") => {
@@ -1754,27 +1779,21 @@ impl Check for DaemonRequest {
             Some("proc.kill") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "pid", &mut out);
+                dc::req_rules::<JsInt>(obj, "pid", &mut out, dc::positive);
                 crate::types::keys::req_key::<ProcSignal>(obj, "signal", &mut out);
                 crate::types::keys::opt_key::<KillMode>(obj, "mode", &mut out);
                 crate::types::keys::opt_key::<JsInt>(obj, "startedAt", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "identity", &mut out);
-                crate::types::keys::opt_key::<Vec<JsInt>>(obj, "protect", &mut out);
-                crate::types::keys::opt_key::<Vec<JsInt>>(obj, "apps", &mut out);
-                crate::types::keys::opt_key::<Vec<JsInt>>(obj, "agents", &mut out);
-                crate::types::keys::opt_key::<Vec<String>>(obj, "agentBins", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                dc::opt_rules::<String>(obj, "identity", &mut out, dc::identity);
+                dc::opt_list::<JsInt>(obj, "protect", &mut out, Some(KILL_PIDS_MAX as usize), dc::nonneg);
+                dc::opt_list::<JsInt>(obj, "apps", &mut out, Some(KILL_PIDS_MAX as usize), dc::nonneg);
+                dc::opt_list::<JsInt>(obj, "agents", &mut out, Some(KILL_PIDS_MAX as usize), dc::nonneg);
+                dc::opt_list::<String>(obj, "agentBins", &mut out, Some(64), dc::name_255);
                 Some(out)
             }
             Some("container.stop") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "container", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                dc::req_rules::<String>(obj, "container", &mut out, dc::container);
                 Some(out)
             }
             Some("ping") => {
@@ -1959,11 +1978,8 @@ impl Check for DaemonRequest {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "base", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "token", &mut out);
+                dc::opt_rules::<String>(obj, "token", &mut out, dc::token);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("git.pr") => {
@@ -1973,11 +1989,8 @@ impl Check for DaemonRequest {
                 crate::types::keys::opt_key::<String>(obj, "base", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "title", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "body", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "token", &mut out);
+                dc::opt_rules::<String>(obj, "token", &mut out, dc::token);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("git.prRead") => {
@@ -1986,12 +1999,9 @@ impl Check for DaemonRequest {
                 crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
                 crate::types::keys::req_key::<String>(obj, "remote", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "branch", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "number", &mut out);
+                dc::opt_rules::<JsInt>(obj, "number", &mut out, dc::nonneg);
                 crate::types::keys::opt_key::<String>(obj, "seen", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("git.prView") => {
@@ -1999,11 +2009,8 @@ impl Check for DaemonRequest {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
                 crate::types::keys::req_key::<String>(obj, "remote", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "number", &mut out);
+                dc::req_rules::<JsInt>(obj, "number", &mut out, dc::nonneg);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("git.runLog") => {
@@ -2011,12 +2018,9 @@ impl Check for DaemonRequest {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
                 crate::types::keys::req_key::<String>(obj, "remote", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "runId", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "jobId", &mut out);
+                dc::req_rules::<JsInt>(obj, "runId", &mut out, dc::nonneg);
+                dc::req_rules::<JsInt>(obj, "jobId", &mut out, dc::nonneg);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("git.prMerge") => {
@@ -2024,14 +2028,11 @@ impl Check for DaemonRequest {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
                 crate::types::keys::req_key::<String>(obj, "remote", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "number", &mut out);
+                dc::req_rules::<JsInt>(obj, "number", &mut out, dc::nonneg);
                 crate::types::keys::req_key::<MergeMethod>(obj, "method", &mut out);
                 crate::types::keys::req_key::<bool>(obj, "auto", &mut out);
                 crate::types::keys::req_key::<String>(obj, "headOid", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("git.issueRead") => {
@@ -2039,23 +2040,17 @@ impl Check for DaemonRequest {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
                 crate::types::keys::req_key::<String>(obj, "remote", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "number", &mut out);
+                dc::req_rules::<JsInt>(obj, "number", &mut out, dc::nonneg);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("git.prCheckout") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "number", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "token", &mut out);
+                dc::req_rules::<JsInt>(obj, "number", &mut out, dc::nonneg);
+                dc::opt_rules::<String>(obj, "token", &mut out, dc::token);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("git.prDiff") => {
@@ -2063,12 +2058,9 @@ impl Check for DaemonRequest {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
                 crate::types::keys::req_key::<String>(obj, "remote", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "number", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "maxBytes", &mut out);
+                dc::req_rules::<JsInt>(obj, "number", &mut out, dc::nonneg);
+                dc::opt_rules::<JsInt>(obj, "maxBytes", &mut out, dc::positive);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("git.prReview") => {
@@ -2076,15 +2068,12 @@ impl Check for DaemonRequest {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
                 crate::types::keys::req_key::<String>(obj, "remote", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "number", &mut out);
+                dc::req_rules::<JsInt>(obj, "number", &mut out, dc::nonneg);
                 crate::types::keys::req_key::<String>(obj, "headOid", &mut out);
                 crate::types::keys::req_key::<GitPrReviewEvent>(obj, "event", &mut out);
                 crate::types::keys::req_key::<String>(obj, "body", &mut out);
                 crate::types::keys::req_key::<Vec<GitPrReviewComment>>(obj, "comments", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("git.prReply") => {
@@ -2092,14 +2081,11 @@ impl Check for DaemonRequest {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
                 crate::types::keys::req_key::<String>(obj, "remote", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "number", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "replyTo", &mut out);
+                dc::req_rules::<JsInt>(obj, "number", &mut out, dc::nonneg);
+                dc::opt_rules::<JsInt>(obj, "replyTo", &mut out, dc::nonneg);
                 crate::types::keys::opt_key::<String>(obj, "threadId", &mut out);
-                crate::types::keys::req_key::<String>(obj, "body", &mut out);
+                dc::req_rules::<String>(obj, "body", &mut out, dc::reply_body);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("git.prResolve") => {
@@ -2107,13 +2093,10 @@ impl Check for DaemonRequest {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
                 crate::types::keys::req_key::<String>(obj, "remote", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "number", &mut out);
+                dc::req_rules::<JsInt>(obj, "number", &mut out, dc::nonneg);
                 crate::types::keys::req_key::<String>(obj, "threadId", &mut out);
                 crate::types::keys::req_key::<bool>(obj, "resolved", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("git.prReact") => {
@@ -2121,14 +2104,11 @@ impl Check for DaemonRequest {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
                 crate::types::keys::req_key::<String>(obj, "remote", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "number", &mut out);
+                dc::req_rules::<JsInt>(obj, "number", &mut out, dc::nonneg);
                 crate::types::keys::req_key::<String>(obj, "subject", &mut out);
                 crate::types::keys::req_key::<ReactionContent>(obj, "content", &mut out);
                 crate::types::keys::req_key::<bool>(obj, "on", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("git.repoRead") => {
@@ -2147,11 +2127,8 @@ impl Check for DaemonRequest {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "base", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "token", &mut out);
+                dc::opt_rules::<String>(obj, "token", &mut out, dc::token);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("git.startOn") => {
@@ -2159,11 +2136,8 @@ impl Check for DaemonRequest {
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
                 crate::types::keys::req_key::<String>(obj, "branch", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "token", &mut out);
+                dc::opt_rules::<String>(obj, "token", &mut out, dc::token);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("git.branchCompare") => {
@@ -2184,11 +2158,8 @@ impl Check for DaemonRequest {
                 crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
                 crate::types::keys::req_key::<String>(obj, "branch", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "from", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "token", &mut out);
+                dc::opt_rules::<String>(obj, "token", &mut out, dc::token);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("git.prList") => {
@@ -2298,21 +2269,15 @@ impl Check for DaemonRequest {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "tunnelId", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "port", &mut out);
+                dc::req_rules::<JsInt>(obj, "port", &mut out, dc::port);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("ssh.start") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "authorizedKey", &mut out);
+                dc::req_rules::<String>(obj, "authorizedKey", &mut out, dc::authorized_key);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("tunnel.write") => {
@@ -2338,11 +2303,8 @@ impl Check for DaemonRequest {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "stdioId", &mut out);
-                crate::types::keys::req_key::<String>(obj, "cmd", &mut out);
+                dc::req_rules::<String>(obj, "cmd", &mut out, dc::stdio_cmd);
                 crate::types::keys::opt_key::<IndexMap<String, String>>(obj, "env", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("stdio.write") => {
@@ -2367,21 +2329,14 @@ impl Check for DaemonRequest {
             Some("http.post") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "url", &mut out);
-                crate::types::keys::req_key::<IndexMap<String, String>>(obj, "headers", &mut out);
-                crate::types::keys::req_key::<String>(obj, "body", &mut out);
+                dc::req_rules::<String>(obj, "url", &mut out, dc::http_url);
+                dc::req_rules::<IndexMap<String, String>>(obj, "headers", &mut out, dc::headers);
+                dc::req_rules::<String>(obj, "body", &mut out, dc::http_body);
                 crate::types::keys::opt_key::<HttpBearer>(obj, "bearer", &mut out);
-                crate::types::keys::opt_key::<JsInt>(obj, "timeoutMs", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                dc::opt_rules::<JsInt>(obj, "timeoutMs", &mut out, dc::timeout);
                 Some(out)
             }
-            Some("exec") => {
-                let mut body = obj.clone();
-                body.shift_remove("op");
-                Some(crate::types::check::issues_of::<DaemonExecRequest>(&serde_json::Value::Object(body)))
-            }
+            Some("exec") => <DaemonExecRequest as Check>::pass(value),
             Some("place.leave") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
@@ -2394,22 +2349,16 @@ impl Check for DaemonRequest {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<GuestKind>(obj, "kind", &mut out);
-                crate::types::keys::req_key::<String>(obj, "token", &mut out);
-                crate::types::keys::opt_key::<String>(obj, "turnToken", &mut out);
-                crate::types::keys::req_key::<Vec<String>>(obj, "argv", &mut out);
-                crate::types::keys::req_key::<String>(obj, "cwd", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                dc::req_rules::<String>(obj, "token", &mut out, dc::token);
+                dc::opt_rules::<String>(obj, "turnToken", &mut out, dc::token);
+                dc::req_list::<String>(obj, "argv", &mut out, Some(GUEST_ARGV_MAX as usize), dc::none);
+                dc::req_rules::<String>(obj, "cwd", &mut out, dc::guest_cwd);
                 Some(out)
             }
             Some("guest.send") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<Value>(obj, "message", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::any_key::<Value>(obj, "message", &mut out);
                 Some(out)
             }
             Some("guest.watch") => {
@@ -2424,10 +2373,7 @@ impl Check for DaemonRequest {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
                 crate::types::keys::req_key::<String>(obj, "session", &mut out);
-                crate::types::keys::req_key::<Value>(obj, "message", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                crate::types::keys::any_key::<Value>(obj, "message", &mut out);
                 Some(out)
             }
             Some("guest.close") => {
@@ -2443,14 +2389,11 @@ impl Check for DaemonRequest {
             Some("place.update") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-                crate::types::keys::req_key::<String>(obj, "uploadId", &mut out);
-                crate::types::keys::req_key::<JsInt>(obj, "seq", &mut out);
+                dc::req_rules::<String>(obj, "uploadId", &mut out, dc::upload_id);
+                dc::req_rules::<JsInt>(obj, "seq", &mut out, dc::nonneg);
                 crate::types::keys::req_key::<bool>(obj, "last", &mut out);
                 crate::types::keys::req_key::<String>(obj, "data", &mut out);
-                crate::types::keys::req_key::<String>(obj, "sha256", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
+                dc::req_rules::<String>(obj, "sha256", &mut out, dc::sha256);
                 Some(out)
             }
             _ => Some(vec![crate::types::check::unknown_tag::<Self>("op", tag)]),

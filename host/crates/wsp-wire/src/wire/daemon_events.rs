@@ -126,7 +126,8 @@ pub enum DaemonEvent {
     #[serde(rename = "guest.message", rename_all = "camelCase")]
     GuestMessage {
         session: String,
-        message: Value,
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::wire::daemon_checks::unknown_value")]
+        message: Option<Value>,
         #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
         machine_id: Option<String>,
     },
@@ -246,11 +247,8 @@ impl Check for DaemonEvent {
             }
             Some("browser.open") => {
                 let mut out = Vec::new();
-                crate::types::keys::req_key::<String>(obj, "url", &mut out);
+                crate::wire::daemon_checks::req_rules::<String>(obj, "url", &mut out, crate::wire::daemon_checks::http_url);
                 crate::types::keys::opt_key::<RelayPort>(obj, "port", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("callback.port") => {
@@ -348,11 +346,8 @@ impl Check for DaemonEvent {
             Some("guest.message") => {
                 let mut out = Vec::new();
                 crate::types::keys::req_key::<String>(obj, "session", &mut out);
-                crate::types::keys::req_key::<Value>(obj, "message", &mut out);
+                crate::types::keys::any_key::<Value>(obj, "message", &mut out);
                 crate::types::keys::opt_key::<String>(obj, "machineId", &mut out);
-                if out.is_empty() {
-                    out = crate::types::check::rules_of::<Self>(value);
-                }
                 Some(out)
             }
             Some("guest.closed") => {
