@@ -74,15 +74,21 @@ implements wsp-core's `Runtime` and this crate's `ServedRuntime`), `src/lib.rs` 
 
 ## Rules against tests (`tests/runtime_of.rs`)
 
+Generated from the rule each test names in its first comment; 19 tests.
+
 | Rule | Tests | TS case |
 |---|---|---|
-| U1 | `places_and_recipes_only_where_wired` | runtime.ts:1030-1044 |
-| U2 | `recipe_options_keep_agents_this_computer_serves` | places-settings.test.ts |
-| U4 | `watch_place_sys_refusals` | serve-sys.test.ts:204 |
-| U5 | `status_list_filters_after_the_probes`, `a_record_dropped_mid_probe_leaves_the_list` | status.test.ts |
-| U6 | `status_history_refuses_off_the_named_rule` | turn-costs.test.ts |
-| U7 | `harnesses_list_marks_the_default_and_unshaped_only_where_set`, `harnesses_list_reads_a_project_or_computer_home` | thread-defaults.test.ts, runtime-history.test.ts |
-| U8 | `owner_waits_on_ready` | runtime.ts:1101 |
-| U9-U15 | `reap_order_grace_builders_replays_listings`, `reap_a_stale_builder_reasons`, `reap_a_reusable_builder_expires_at_six_hours`, `reap_a_builder_stop_that_fails_stays_recorded`, `reap_the_wired_listing_failing_answers_at_once`, `reap_another_listing_failing_goes_on`, `reap_a_listed_gone_record_is_recovered`, `reap_an_unlisted_missing_machine_is_adopted_gone`, `reap_answer_omits_empty_failed_and_adopted` | runtime.test.ts:444, runtime-builders.test.ts, sweep-places.test.ts, reconcile.test.ts |
-| U16, U17 | `close_runs_its_steps_in_order`, `close_waits_at_most_the_kept_wait_for_a_kept_agent`, `close_frees_own_builders_heartbeats`, `close_leaves_machine_turns_running` | runtime-comeback.test.ts, thread-keeps-process.test.ts, runtime-builders.test.ts |
-| U18 | `lib_re_exports_the_entry_points` | index.ts |
+| U5 | `status_list_filters_after_the_probes`, `a_record_dropped_mid_probe_leaves_the_list` | runtime.ts:1063-1065; runtime.ts:1066-1070 |
+| U6 | `status_history_refuses_off_the_named_rule` | runtime.ts:1073-1076 |
+| U7 | `harnesses_list_marks_the_default_and_unshaped_only_where_set`, `harnesses_list_reads_a_project_or_computer_home` | runtime.ts:1081-1088; runtime.ts:1092-1096, thread-defaults.test.ts |
+| U9 | `reap_order_grace_builders_replays_listings`, `reap_a_grace_that_fails_is_named_and_reaps_nothing_for_it` | runtime.ts:1105-1211; runtime.ts:1115-1118 |
+| U10 | `reap_a_stale_builder_reasons`, `reap_a_reusable_builder_expires_at_six_hours`, `reap_a_builder_stop_that_fails_stays_recorded` | runtime-builders.test.ts; runtime.ts:1127-1139; runtime.ts:1124-1126 (BUILDER_IDLE_MS, at least); runtime.ts:1128-1133 |
+| U11 | `reap_order_grace_builders_replays_listings` | runtime.ts:1105-1211 |
+| U12 | `reap_order_grace_builders_replays_listings`, `reap_the_wired_listing_failing_answers_at_once`, `reap_another_listing_failing_goes_on` | runtime.ts:1105-1211; runtime.ts:1161-1164; runtime.ts:1165 |
+| U13 | `reap_reads_each_record_by_its_state` | runtime.ts:1171-1191, gone.test.ts, reconcile.test.ts |
+| U14 | `reap_order_grace_builders_replays_listings`, `reap_a_failure_in_the_engine_stretch_keeps_the_adopted` | runtime.ts:1105-1211; runtime.ts:1212-1215 |
+| U15 | `reap_answer_omits_empty_failed_and_adopted` | runtime.ts:1142-1145 |
+| U16 | `close_runs_its_steps_in_order`, `close_waits_at_most_the_kept_wait_for_a_kept_agent`, `close_with_no_kept_agent_waits_for_none` | runtime.ts:1217-1275; runtime.ts:1242-1247; runtime.ts:1247 (the race only when there are some) |
+| U17 | `close_leaves_machine_turns_running` | runtime.ts:1248-1252: the close stops readings, never ends a turn |
+
+Not pinned here: U1-U4, U8 and U18 are members of `AssembledRuntime`, which only `create_runtime` builds, so they need every area in; the whole-host tapes pin them.

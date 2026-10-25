@@ -82,24 +82,28 @@ minted; a ticket's socket is `me = host` but never its own road).
 
 ## Rules against tests (`tests/serve_places.rs`)
 
+Generated from the rule each test names in its first comment; 40 tests.
+
 | Rule | Tests | TS case |
 |---|---|---|
-| gates | `every_places_op_is_refused_kind_ticket_on_a_ticketed_socket` (one loop over the gated ops), `host_only_ops_refuse_a_device_socket_in_their_own_sentence` | serve-refusal.test.ts:164, pairing.test.ts |
 | P1 | `auth_again_names_the_release_again` | serve.test.ts:54 |
-| P2 | `pair_issue_answers_the_code_and_the_host_key`, `pair_issue_on_a_device_socket_is_refused` | pairing.test.ts |
+| P2 | `pair_issue_answers_the_code_and_the_host_key`, `pair_issue_without_a_place_door_answers_the_code_alone`, `pair_issue_without_a_device_door_refuses`, `pair_issue_on_a_device_socket_is_refused` | pairing.test.ts; pairing.test.ts: a runtime with no place door answers the code alone; serve.ts:396-401: no device door refuses through the catch |
 | P3 | `identity_ops_once_in_are_refused_and_the_socket_stays` | serve.ts:898-917 |
-| P4 | `places_list_answers_rows_adds_and_pending`, `places_list_for_a_thread_reads_its_places_and_no_adds` | places.test.ts, spawn-guard.test.ts |
-| P5 | `places_remove_passes_only_the_flags_sent`, `places_login_landed_answers_after_the_door` | places-remove.test.ts |
-| P6, P7 | `places_set_reads_a_recipe_word_as_its_slug_and_none_as_none`, `places_follow_none_stays_none` | places-settings.test.ts |
-| P8 | `doctor_says_each_refusal_without_reaching_the_road`, `doctor_refuses_a_second_road_on_one_computer_until_the_first_answers`, `doctor_unserved_says_so`, `doctor_frees_the_computer_when_the_road_fails` | serve.test.ts:1289, 1296, 1310 |
-| P9 | `places_door_answers_the_view_with_the_host_key_and_no_back_port` | places-door.test.ts |
-| P10 | `places_mint_opens_the_door_before_minting_a_code` | places-door.test.ts |
+| P4 | `places_list_answers_rows_adds_and_pending`, `places_list_for_a_thread_reads_its_places_and_no_adds`, `places_list_without_a_place_door_says_so` | places.test.ts; serve.ts:918-922; spawn-guard.test.ts |
+| P5 | `places_remove_passes_only_the_flags_sent`, `places_login_landed_answers_after_the_door`, `places_asks_pass_their_fields_to_the_door_and_name_the_answer` | places-remove.test.ts; serve.ts:923-975, 1085-1089 |
+| P6 | `places_set_reads_a_recipe_word_as_its_slug_and_none_as_none` | places-settings.test.ts |
+| P7 | `places_follow_none_stays_none` | places-settings.test.ts |
+| P8 | `doctor_says_each_refusal_without_reaching_the_road`, `doctor_unserved_says_so`, `doctor_refuses_a_second_road_on_one_computer_until_the_first_answers`, `doctor_frees_the_computer_when_the_road_fails` | serve.test.ts:1289; serve.test.ts:1296; serve.test.ts:1310; serve.ts:976-1007 (the id leaves `doctoring` whether the run answered or failed) |
+| P9 | `places_door_answers_the_view_with_the_host_key_and_no_back_port`, `places_door_refuses_off_the_own_road_and_without_a_control` | places-door.test.ts; serve.ts:1008-1022 |
+| P10 | `places_mint_opens_the_door_before_minting_a_code`, `places_mint_with_a_door_that_fails_mints_no_code` | places-door.test.ts; places-door.test.ts: a host that cannot answer a join mints no code |
 | P11 | `places_ssh_hosts_answers_none_without_a_door` | places.test.ts |
-| P12 | `places_add_reads_the_recipe_before_dialling_and_passes_fields_in_order` | places-install.test.ts |
+| P12 | `places_add_reads_the_recipe_before_dialling_and_passes_fields_in_order`, `places_add_with_an_unsaved_recipe_dials_nothing` | places-install.test.ts; places-install.test.ts: an unsaved name dials nothing |
 | P13 | `places_setup_prefers_the_named_recipe_over_choices` | places-setup.test.ts |
-| P14 | `recipes_list_get_save_remove_options`, `recipes_save_from_here_is_refused_usage`, `recipes_remove_check_unfollows_nothing`, `recipes_are_refused_kind_ticket_off_the_own_road` | places-settings.test.ts |
-| P15, P16 | `account_get_unserved_and_ticketed`, `devices_list_on_a_ticket_is_refused` | serve-refusal.test.ts:164 |
+| P14 | `recipes_list_get_save_remove_options`, `recipes_save_from_here_is_refused_usage`, `recipes_save_from_a_computer_saves_its_picks_and_follows`, `recipes_remove_check_unfollows_nothing`, `recipes_are_refused_kind_ticket_off_the_own_road`, `recipes_without_a_shelf_say_so` | places-settings.test.ts; places-settings.test.ts: from a computer, its picks are saved under the name and that computer follows; serve-refusal.test.ts:164; serve.ts:1090-1127: neither the host's shelf nor the runtime's |
+| P15 | `account_get_unserved_and_ticketed` | serve-refusal.test.ts:164 |
+| P16 | `devices_list_on_a_ticket_is_refused` | serve-refusal.test.ts:164 |
+| P17 | `ticket_issue_answers_a_ticket_without_the_token_and_ttl_five_minutes`, `a_ticketed_socket_cannot_mint_a_ticket`, `a_ticket_minted_by_a_paired_socket_carries_the_paired_road` | pairing.test.ts; serve-refusal.test.ts:164; serve.test.ts:311 |
 | P27 | `devices_revoke_answers_before_cutting_its_own_socket` | pairing.test.ts |
-| P17 | `ticket_issue_answers_a_ticket_without_the_token_and_ttl_five_minutes`, `a_ticketed_socket_cannot_mint_a_ticket`, `a_ticket_minted_by_a_paired_socket_carries_the_paired_road` | serve.test.ts:311, serve-refusal.test.ts:164 |
+| gates | `every_places_op_is_refused_kind_ticket_on_a_ticketed_socket`, `host_only_ops_refuse_a_device_socket_in_their_own_sentence` | pairing.test.ts; serve-refusal.test.ts:164 |
 
 Not ported here, each its area's: what `places.list` rows hold, the add's install, the setup's run, the doctor's road.

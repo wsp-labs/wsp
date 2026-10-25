@@ -126,30 +126,48 @@ units through `answer_frame` (serve_places, serve_workspaces, serve_ops).
 
 ## Rules against tests (`tests/serve_door.rs`)
 
+Generated from the rule each test names in its first comment; 61 tests.
+
 | Rule | Tests | TS case |
 |---|---|---|
 | D1 | `an_empty_auth_token_refuses_to_serve` | serve.ts:385 |
-| D2 | `a_ticket_lets_one_socket_in_once`, `a_ticket_past_its_expiry_closes_4401`, `a_ticket_at_its_expiry_still_opens`, `a_relay_ticket_stamps_relayed_and_a_connect_ticket_here` | serve.test.ts:311, 332 |
-| D3 | `a_silent_socket_closes_4408_with_the_daemons_sentence`, `a_socket_let_in_is_held_to_no_deadline` | serve.test.ts:169, 184 |
-| D4 | `more_bytes_than_the_cap_close_4401_and_answer_nothing`, `exactly_the_cap_passes`, `a_socket_through_the_door_takes_any_size` | serve.test.ts:175, 184 |
-| D5 | `seal_open_leaves_both_limits_standing` | serve.ts:711-726 |
+| D2 | `a_ticket_lets_one_socket_in_once`, `a_ticket_past_its_expiry_closes_4401_and_is_spent`, `a_ticket_at_its_expiry_still_opens`, `a_relay_ticket_stamps_relayed_and_a_connect_ticket_here`, `an_unknown_ticket_closes_and_reads_no_frame` | serve.test.ts:311; serve.test.ts:332; serve.ts:519-526; serve.ts:520 compares with >; serve.ts:520-523 |
+| D3 | `a_silent_socket_closes_4408_with_the_daemons_sentence`, `a_socket_let_in_is_held_to_no_deadline` | serve.test.ts:169; serve.test.ts:184 |
+| D4 | `more_bytes_than_the_cap_close_4401_and_answer_nothing`, `exactly_the_cap_passes_and_bytes_count_across_chunks`, `a_socket_through_the_door_takes_any_size` | serve.test.ts:175; serve.test.ts:184; serve.ts:582 compares with <= |
+| D5 | `a_socket_let_in_is_held_to_no_deadline`, `a_socket_through_the_door_takes_any_size`, `seal_open_leaves_both_limits_standing` | serve.test.ts:184; serve.ts:711-726 (no throughDoor) |
 | D7 | `invalid_json_before_auth_closes_and_after_auth_stays` | serve.ts:635-641 |
-| D8 | `a_bare_value_before_auth_is_refused_under_a_null_id_and_closes`, `bare_values_on_the_owners_socket_are_refused_and_it_stays` | serve.test.ts:89, 102 |
-| D9 | `a_threads_token_is_refused_an_op_outside_its_list_by_name` | spawn-guard.test.ts (door cases) |
-| D10 | `a_paired_device_is_refused_an_op_outside_its_list`, `a_paired_device_on_a_relay_ticket_reads_the_relays_gate` | pairing.test.ts |
-| D11 | `a_malformed_op_on_an_authed_socket_is_refused_and_it_stays`, `a_schema_refusal_before_auth_closes` | serve.test.ts:74, 67 |
-| D12 | `a_place_that_proved_is_handed_over_and_reads_nothing_more`, `a_prove_refused_closes_4401` | places-link.test.ts |
+| D8 | `a_bare_value_before_auth_is_refused_under_a_null_id_and_closes`, `bare_values_on_the_owners_socket_are_refused_and_it_stays` | serve.test.ts:102; serve.test.ts:89 |
+| D9 | `a_threads_token_is_refused_an_op_outside_its_list_by_name` | spawn-guard.test.ts (the door half), serve.ts:654-659 |
+| D10 | `a_paired_device_is_refused_an_op_outside_its_list`, `a_paired_device_on_a_relay_ticket_reads_the_relays_gate` | pairing.test.ts (the door half), serve.ts:664-668; serve.ts:664 (asPaired is false on a relayed stamp) |
+| D11 | `a_malformed_op_on_an_authed_socket_is_refused_and_it_stays`, `a_schema_refusal_before_auth_closes`, `a_schema_refusal_logs_its_issues_line_while_the_wire_keeps_zods`, `a_deeply_nested_secret_is_refused_and_logged_and_the_socket_keeps_answering` | serve-refusal.test.ts:102; serve-refusal.test.ts:153; serve.test.ts:67; serve.test.ts:74 |
+| D12 | `a_place_that_proved_is_handed_over_and_reads_nothing_more`, `a_prove_refused_closes_4401`, `while_proving_any_other_op_closes` | places-link.test.ts (the door half), serve.ts:684-708, 745-754; serve.ts:685; serve.ts:690-693 |
 | D13 | `a_second_frame_while_the_first_is_decided_closes` | serve.ts:709 |
-| D14 | `seal_open_answers_in_the_clear_then_seals_every_frame`, `a_second_seal_open_closes_4401`, `seal_open_after_auth_is_refused`, `seal_open_with_no_place_door_says_seal_unserved` | serve.test.ts:216, 233, 265 |
-| D15 | `a_place_handshake_on_a_sealed_socket_closes`, `a_join_code_not_held_says_the_code_refusal` | serve.test.ts:247 |
+| D14 | `seal_open_answers_in_the_clear_then_seals_every_frame`, `seal_open_leaves_both_limits_standing`, `a_second_seal_open_closes_4401`, `seal_open_after_auth_is_refused_and_the_socket_stays`, `seal_open_with_no_place_door_says_seal_unserved`, `a_challenge_the_door_cannot_answer_closes_unauthorized` | serve.test.ts:216; serve.test.ts:233; serve.test.ts:241; serve.test.ts:265; serve.ts:711-726 (no throughDoor); serve.ts:718 |
+| D15 | `a_place_handshake_on_a_sealed_socket_closes`, `a_join_code_not_held_says_the_code_refusal`, `a_place_auth_refusal_carries_the_doors_signed_fields`, `a_place_join_with_no_place_door_refuses_in_the_doors_sentence`, `a_place_that_proved_is_handed_over_and_reads_nothing_more` | places-link.test.ts (the door half), serve.ts:684-708, 745-754; serve.test.ts:247; serve.ts:736-740 (places() throws NO_PLACE_DOOR inside the try); serve.ts:742; serve.ts:744 |
 | D16 | `a_prove_with_nothing_to_prove_closes` | serve.ts:756 |
-| D17 | `a_redeem_with_no_device_door_reads_as_a_code_not_held`, `a_paid_redeem_lets_in_and_binds_without_release_fields` | pairing.test.ts |
-| D18 | `device_auth_refuses_each_check_in_order`, `device_auth_admits_and_names_the_release` | pairing.test.ts |
-| D19 | `a_wrong_token_closes_4401`, `the_first_op_not_auth_closes_4401`, `auth_names_the_release_and_road_only_where_given`, `a_scoped_token_off_the_hosts_road_is_refused_before_seen` | serve.test.ts:37, 54, 67 |
-| D20-D24 | `a_refusal_is_logged_once_as_op_kind_and_first_line`, `a_refused_auth_never_logs_its_token`, `the_sentence_is_cut_at_400_and_says_so`, `a_schema_refusal_logs_its_issues_line`, `a_padded_key_is_blanked`, `an_undeclared_op_logs_as_frame`, `short_secret_values_stay_readable`, `more_than_256_secrets_withhold_the_sentence`, `a_deeply_nested_secret_is_refused_and_logged`, `a_ticketed_socket_refusals_carry_kind_ticket` | serve-refusal.test.ts:61-164 |
-| D25 | `a_revoked_device_loses_every_socket_it_held` | pairing.test.ts |
-| D30-D34 | `invariant_3_a_threads_frames_are_stamped_with_its_mint_road`, `invariant_3_a_paired_device_reads_paired_whatever_it_sends`, `invariant_3_a_relay_ticket_minted_by_a_paired_device_stays_relayed`, `invariant_3_an_unstamped_socket_carries_its_clients_word` | spawn-guard.test.ts, pairing.test.ts |
+| D17 | `a_redeem_with_no_device_door_reads_as_a_code_not_held`, `a_paid_redeem_lets_in_and_binds_without_release_fields` | serve.ts:757-763; serve.ts:764-768 |
+| D18 | `device_auth_refuses_each_check_in_order`, `device_auth_with_no_seal_open_is_unauthorized`, `device_auth_admits_and_names_the_release` | pairing.test.ts (the door half), serve.ts:770-813; serve.ts:780; serve.ts:814-822 |
+| D19 | `a_wrong_token_closes_4401`, `the_first_op_not_auth_closes_4401`, `auth_names_the_release_and_road_only_where_given`, `a_scoped_token_off_the_hosts_road_is_refused_before_seen`, `a_device_auth_moves_its_last_seen_and_the_host_token_does_not` | serve.test.ts:37; serve.test.ts:54; serve.test.ts:67; serve.ts:828; serve.ts:844 |
+| D20 | `a_refusal_is_logged_once_as_op_kind_and_first_line`, `an_undeclared_op_logs_as_frame`, `a_deeply_nested_secret_is_refused_and_logged_and_the_socket_keeps_answering` | serve-refusal.test.ts:119; serve-refusal.test.ts:153; serve-refusal.test.ts:61 |
+| D21 | `a_refusal_is_logged_once_as_op_kind_and_first_line`, `the_sentence_is_cut_at_400_and_says_so`, `a_schema_refusal_logs_its_issues_line_while_the_wire_keeps_zods`, `a_padded_key_is_blanked_and_a_repeated_key_never_logs` | serve-refusal.test.ts:102; serve-refusal.test.ts:61; serve-refusal.test.ts:70, 110; serve-refusal.test.ts:90 |
+| D22 | `more_than_256_secrets_withhold_the_sentence` | serve-refusal.test.ts:141 |
+| D23 | `a_padded_key_is_blanked_and_a_repeated_key_never_logs`, `short_secret_values_stay_readable` | serve-refusal.test.ts:128; serve-refusal.test.ts:70, 110 |
+| D24 | `a_refused_auth_never_logs_its_token` | serve-refusal.test.ts:80 |
+| D25 | `a_paid_redeem_lets_in_and_binds_without_release_fields`, `device_auth_admits_and_names_the_release`, `invariant_3_a_browser_wsp_init_let_in_takes_the_persons_road`, `a_revoked_device_loses_every_socket_it_held_and_no_other` | pairing.test.ts; serve.ts:609-610 (a device marked here is no paired computer); serve.ts:764-768; serve.ts:814-822 |
+| D30 | `invariant_3_a_paired_device_reads_paired_whatever_it_sends`, `invariant_3_an_unstamped_socket_carries_its_clients_word` | pairing.test.ts; serve.ts:855 |
+| D31 | `invariant_3_a_threads_frames_are_stamped_with_its_mint_road`, `invariant_3_a_threads_origin_reaches_the_verb_whatever_it_sends` | spawn-guard.test.ts (the door half); spawn-guard.test.ts; serve.ts:837-841 |
+| D32 | `invariant_3_a_threads_frames_are_stamped_with_its_mint_road` | spawn-guard.test.ts; serve.ts:837-841 |
+| D33 | `a_paired_device_on_a_relay_ticket_reads_the_relays_gate`, `invariant_3_a_paired_device_reads_paired_whatever_it_sends` | pairing.test.ts; serve.ts:664 (asPaired is false on a relayed stamp) |
+| D34 | `a_relay_ticket_stamps_relayed_and_a_connect_ticket_here` | serve.ts:519-526 |
 | D35 | `a_close_runs_every_detach_once_in_order` | serve.ts:569-573 |
+| P1 | `auth_names_the_release_and_road_only_where_given` | serve.test.ts:54 |
+| P3 | `seal_open_after_auth_is_refused_and_the_socket_stays` | serve.test.ts:241 |
+| R4 | `an_ok_reply_logs_nothing` | serve.ts:625 |
+| R6 | `invariant_3_a_threads_origin_reaches_the_verb_whatever_it_sends` | spawn-guard.test.ts (the door half) |
+| W8 | `a_revoked_device_loses_every_socket_it_held_and_no_other` | pairing.test.ts |
+| W10 | `seal_open_answers_in_the_clear_then_seals_every_frame` | serve.test.ts:216 |
 
 Ported from the TS cases only in part: the pairing, spawn-guard and places-link files drive a whole host; the door
 half of each case is ported here with a fake device door and a fake place door, and the area half is the area's.
+
+D6 (a socket handed over reads nothing more) is pinned inside `a_place_that_proved_is_handed_over_and_reads_nothing_more`.

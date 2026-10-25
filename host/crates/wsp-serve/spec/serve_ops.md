@@ -107,21 +107,32 @@ prefix ops), 1474-1633, 1643-1655, 1679-1895 at `65f6b89c7`. Rust: `src/serve/op
 
 ## Rules against tests (`tests/serve_ops.rs`)
 
+Generated from the rule each test names in its first comment; 42 tests.
+
 | Rule | Tests | TS case |
 |---|---|---|
-| O1 | `prefix_ops_spread_their_helpers_answer`, `sign_in_ops_are_the_own_road` | serve.ts:869-878 |
-| O2 | `a_failed_op_carries_kind_fix_and_left_and_tells_failed`, `a_refusal_carries_the_fix_beside_the_sentence` | serve-refusal.test.ts:42, 50 |
+| O1 | `prefix_ops_spread_their_helpers_answer`, `sign_in_ops_are_the_own_road` | serve.ts:869-878; serve.ts:877 |
+| O2 | `a_failed_op_carries_kind_fix_and_left_and_tells_failed`, `a_refusal_carries_the_fix_beside_the_sentence`, `a_failure_carries_only_what_it_has`, `a_refusal_the_switch_sends_is_not_told_to_failed` | A failure with no kind and no fix carries its sentence alone; a slate write's lists ride beside it.; A refusal the switch sends itself is not told to failed.; serve-refusal.test.ts:42; serve-refusal.test.ts:50 |
 | O3 | `each_unwired_door_refuses_in_its_own_sentence` | serve.test.ts:1186 |
 | O4 | `sessions_start_sends_every_answer_under_one_id` | serve.test.ts:634 |
 | O5 | `sessions_warm_strips_the_folder_fields` | thread-warm-agent.test.ts |
-| O7 | `history_with_a_thread_reads_a_page`, `history_with_a_window_and_no_thread_is_usage`, `history_whole_reads_thread_history`, `history_plain_reads_the_folder` | serve.test.ts:374, 388, 426 |
-| O8 | `session_ops_pass_only_the_fields_sent`, `interrupting_twice_reaches_the_runtime_twice` | serve.test.ts:661, 580 |
-| O9, O10 | `capabilities_are_the_backends_flags`, `snapshots_list_names_default_and_null_head`, `snapshots_rollback_says_untouched`, `snapshots_storage_null_when_none` | serve.test.ts:362, 834, 855 |
-| O11-O13 | `cost_spend_for_a_thread_reads_its_places`, `usage_ops_are_the_own_road`, `readings_name_a_place_or_a_workspace` | serve-refusal.test.ts:164 |
-| O14 | `forwards_list_shows_only_drivable_and_stop_refuses_an_unknown`, `without_a_source_the_list_is_empty_and_a_stop_fails` | serve.test.ts:893, 928 |
+| O6 | `harnesses_list_passes_the_catalog_place_only_when_named` | serve.test.ts:508 |
+| O7 | `history_with_a_thread_reads_a_page`, `history_with_a_window_and_no_thread_is_usage`, `history_whole_reads_thread_history`, `history_plain_reads_the_folder` | serve.test.ts:374; serve.test.ts:388; serve.test.ts:426 |
+| O8 | `session_ops_pass_only_the_fields_sent`, `interrupting_twice_reaches_the_runtime_twice` | serve.test.ts:661 |
+| O9 | `capabilities_are_the_backends_flags`, `golden_and_image_ops_pass_only_the_fields_sent` | serve.test.ts:362; serve.test.ts:735 |
+| O10 | `snapshots_list_names_default_and_null_head`, `snapshots_rollback_says_untouched`, `snapshots_storage_null_when_none` | serve.test.ts:834; serve.test.ts:834, 855; serve.test.ts:855 |
+| O11 | `cost_spend_for_a_thread_reads_its_places`, `cost_spend_is_the_own_road_and_reads_the_places_it_holds`, `cost_history_passes_the_origin` | serve-refusal.test.ts:164; serve.test.ts |
+| O12 | `usage_ops_are_the_own_road` | serve-refusal.test.ts:164 |
+| O13 | `readings_name_a_place_or_a_workspace` | serve.ts:1649 |
+| O14 | `forwards_list_shows_only_drivable_and_stop_refuses_an_unknown`, `without_a_source_the_list_is_empty_and_a_stop_fails` | serve.test.ts:893; serve.test.ts:928 |
 | O15 | `host_folders_wide_only_for_this_computers_own_window`, `place_folders_refuse_in_order_and_close_the_link` | places-agents.test.ts |
-| O16-O19 | `agents_ops_gates_and_sentences`, `agents_setup_env_values_only_from_the_host`, `skills_and_servers_pass_their_fields` | places-agents.test.ts, vault.test.ts |
-| O20, O21 | `editor_open_here_and_over_ssh`, `editor_refuses_without_ssh_include`, `ssh_port_refuses_a_workspace_here` | editor-door.test.ts, ssh-door.test.ts |
-| O22 | `init_keys_reaches_the_door_and_the_key_never_comes_back` | serve.test.ts:1174 |
-| O23 | `host_restart_replies_then_restarts_once`, `a_failed_restart_is_logged_and_tried_again` | restart-door.test.ts |
+| O16 | `agents_ops_gates_and_sentences` | places-agents.test.ts |
+| O17 | `agents_ops_gates_and_sentences` | places-agents.test.ts |
+| O18 | `agents_setup_env_values_only_from_the_host` | vault.test.ts |
+| O19 | `skills_and_servers_pass_their_fields` | places-agents.test.ts, vault.test.ts |
+| O20 | `editor_open_here_and_over_ssh`, `editor_refuses_without_ssh_include` | editor-door.test.ts |
+| O21 | `ssh_port_refuses_a_workspace_here` | ssh-door.test.ts |
+| O22 | `init_keys_reaches_the_door_and_the_key_never_comes_back`, `host_doors_pass_their_fields` | serve.test.ts, release.test.ts; serve.test.ts:1174 |
+| O23 | `host_restart_replies_then_restarts_once`, `host_restart_is_the_own_road_and_names_what_would_stop_it`, `a_failed_restart_is_logged_and_tried_again` | restart-door.test.ts |
 | O24 | `project_ops_hand_the_bundler_and_lander` | project-import.test.ts, project-export.test.ts |
+| R5 | `a_refusal_the_switch_sends_is_not_told_to_failed` | A refusal the switch sends itself is not told to failed. |

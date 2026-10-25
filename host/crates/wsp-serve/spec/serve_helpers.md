@@ -76,12 +76,28 @@ serve-conversations.ts at `65f6b89c7` (344 lines). Rust: one module each, `src/s
 
 ## Rules against tests
 
+Generated from the rule each test names in its first comment; 33 tests.
+
 | Rule | Tests | TS case |
 |---|---|---|
-| H1-H8 | `app_procs_are_asked_for_while_a_page_watches`, `app_procs_leave_with_the_socket_that_sent_them`, `app_procs_refuse_a_list_that_is_not_the_apps`, `the_hub_takes_nothing_off_the_own_road`, `the_hub_keeps_one_close_per_socket`, `the_hub_names_both_apps_processes`, `two_runtimes_have_two_hubs` | serve-app-procs.test.ts:46, 77, 92, 102, 109, 119 |
-| H20 | `thread_places_on_a_machine_are_the_providers_alone`, `thread_places_in_a_folder_reach_its_projects_computers`, `thread_places_drop_the_road_and_label_providers` | spawn-guard.test.ts |
-| H21 | `project_answers_pass_only_the_fields_sent` | projects.test.ts |
-| H22, H23 | `slate_answers_split_params_and_origin`, `slate_unsubscribe_lets_go_of_the_oldest_hold`, `slate_subscribe_sources_in_any_order_share_a_key`, `a_socket_close_lets_go_of_every_slate_hold` | slates.test.ts |
-| H24 | `broker_status_unserved`, `check_key_off_the_own_road_is_ticket_before_the_door` | serve.ts:875 |
-| H25, H26 | `processes_and_conversations_pass_only_the_fields_sent` | serve-refusal.test.ts:50 |
-| H10-H15 | `start_refusals_in_order`, `a_fork_reads_nothing_else`, `a_resume_is_read_before_the_folder`, `opens_only_without_a_thread`, `start_options_copy_only_the_named_fields_in_order` | sub-spawn.test.ts, folder-threads.test.ts |
+| H1 | `serve_helpers::only_appprocs_ops_are_the_hubs` |  |
+| H2 | `serve_helpers::two_runtimes_have_two_hubs`, `serve_app_procs::two_servers_over_one_runtime_share_the_hub` | Two servers over one runtime meet in one hub: an app on one is asked for by a page on the other.; serve-app-procs.ts:92-102 |
+| H3 | `serve_helpers::the_hub_takes_nothing_off_the_own_road`, `serve_app_procs::the_hub_takes_nothing_off_the_own_road_through_a_socket` | serve-app-procs.test.ts:102; serve-app-procs.test.ts:102, through the door: a socket let in on a ticket is not the own road. |
+| H4 | `serve_helpers::the_hub_keeps_one_close_per_socket`, `serve_helpers::a_close_drops_the_offer_and_tells_every_watcher`, `serve_app_procs::app_procs_are_asked_for_while_a_page_watches`, `serve_app_procs::app_procs_leave_with_the_socket_that_sent_them` | serve-app-procs.test.ts:109; serve-app-procs.test.ts:46; serve-app-procs.test.ts:77; serve-app-procs.ts:60-66: a close unwatches and, for an offering socket, drops its offer and tells watchers. |
+| H5 | `serve_helpers::the_first_watcher_turns_every_offer_on_once_and_an_offer_says_whether_anyone_watches`, `serve_helpers::offering_again_keeps_the_list_and_a_watch_answers_every_offer_in_order`, `serve_app_procs::app_procs_are_asked_for_while_a_page_watches` | A re-offer keeps the list the socket already named.; serve-app-procs.test.ts:46 |
+| H6 | `serve_helpers::unwatching_the_last_page_empties_every_offer_and_says_so`, `serve_app_procs::app_procs_are_asked_for_while_a_page_watches` | serve-app-procs.test.ts:46 |
+| H7 | `serve_helpers::the_first_watcher_turns_every_offer_on_once_and_an_offer_says_whether_anyone_watches`, `serve_helpers::offering_again_keeps_the_list_and_a_watch_answers_every_offer_in_order`, `serve_app_procs::app_procs_are_asked_for_while_a_page_watches` | A re-offer keeps the list the socket already named.; serve-app-procs.test.ts:46 |
+| H8 | `serve_helpers::the_hub_names_both_apps_processes`, `serve_helpers::set_comes_after_offer_and_with_no_watcher_the_list_is_dropped`, `serve_app_procs::app_procs_leave_with_the_socket_that_sent_them`, `serve_app_procs::app_procs_refuse_a_list_that_is_not_the_apps` | serve-app-procs.test.ts:119; serve-app-procs.test.ts:77; serve-app-procs.test.ts:92. The schema refuses what is not the app's process kinds, at the door. |
+| H10 | `serve_helpers::start_refusals_in_order` | sub-spawn.test.ts |
+| H11 | `serve_helpers::start_refusals_in_order` | sub-spawn.test.ts |
+| H12 | `serve_helpers::a_fork_reads_nothing_else` | sub-spawn.test.ts |
+| H13 | `serve_helpers::a_resume_is_read_before_the_folder`, `serve_helpers::opens_only_without_a_thread` | folder-threads.test.ts |
+| H14 | `serve_helpers::answers_reach_the_reply_each_in_turn` | Each answer the start road makes reaches the reply, in turn, whatever the road's own words are. |
+| H15 | `serve_helpers::start_options_copy_only_the_named_fields_in_order` | The fields a frame names ride by hand; nothing else does. |
+| H20 | `serve_helpers::thread_places_on_a_machine_are_the_providers_alone`, `serve_helpers::thread_places_in_a_folder_reach_its_projects_computers`, `serve_helpers::thread_places_without_a_workspace_or_a_door_read_the_providers_or_nothing`, `serve_helpers::thread_places_drop_the_road_and_label_providers` | A failed read of the workspace is no workspace; no scope is no workspace; no place door is no rows.; spawn-guard.test.ts |
+| H21 | `serve_helpers::project_answers_pass_only_the_fields_sent` | projects.test.ts |
+| H22 | `serve_helpers::slate_answers_split_params_and_origin` | slates.test.ts |
+| H23 | `serve_helpers::slate_unsubscribe_lets_go_of_the_oldest_hold`, `serve_helpers::slate_subscribe_sources_in_any_order_share_a_key`, `serve_helpers::a_socket_close_lets_go_of_every_slate_hold` | A close runs every detach; a hold already let go is not let go twice.; slates.test.ts |
+| H24 | `serve_helpers::broker_status_unserved`, `serve_helpers::check_key_off_the_own_road_is_ticket_before_the_door` | serve.ts:875 |
+| H25 | `serve_helpers::processes_and_conversations_pass_only_the_fields_sent` | serve-refusal.test.ts:50 |
+| H26 | `serve_helpers::processes_and_conversations_pass_only_the_fields_sent` | serve-refusal.test.ts:50 |

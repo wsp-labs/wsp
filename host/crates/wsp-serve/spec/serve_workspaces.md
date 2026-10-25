@@ -80,13 +80,20 @@ serve.ts:369-373 (`handed`), 1170-1473, 1634-1678 at `65f6b89c7`. Rust: `src/ser
 
 ## Rules against tests (`tests/serve_workspaces.rs`)
 
+Generated from the rule each test names in its first comment; 37 tests.
+
 | Rule | Tests | TS case |
 |---|---|---|
-| S1 | `events_reach_only_subscribed_sockets`, `subscribe_answers_head_and_stream_then_replays_after_the_cursor`, `a_cursor_older_than_the_ring_is_a_gap_with_no_replay`, `a_cursor_past_head_is_a_gap`, `a_cursor_from_another_stream_is_a_gap`, `an_event_the_caller_may_not_see_is_never_sent`, `a_cost_tick_that_moved_nothing_is_dropped`, `doctor_lines_reach_subscribers_before_the_reply_and_are_never_replayed`, `creates_follow_the_replay_once_and_a_plain_subscribe_hears_none`, `forward_events_reach_subscribers_and_die_with_the_socket` | serve.test.ts:345, 911, 1257, 1274, 1335; serve-replay.test.ts:83-186 |
-| S2, S3 | `status_subscribe_watches_before_the_snapshot`, `status_list_reads_the_table_and_drops_the_route` | status.test.ts |
-| S4, S5 | `create_strips_origin_and_splits_notice_and_sub`, `every_workspace_answer_goes_out_without_the_display_stream` | runtime.test.ts:288 |
-| S6-S9 | `spread_verbs_pass_only_the_fields_sent` (one loop over the table), `start_and_review_hand_the_workspace_out`, `unit_verbs_answer_ok_after_the_await`, `port_reach_and_probe_name_their_field` | serve.test.ts:676, 693, 718 |
-| S10 | `daemon_open_names_one_of_place_and_workspace`, `daemon_open_here_is_the_own_road`, `daemon_open_an_absent_computer_says_so`, `daemon_open_carries_the_workspace_refusal` | serve-daemon.test.ts:198-348 |
+| S1 | `events_reach_only_subscribed_sockets`, `subscribe_answers_head_and_stream_then_replays_after_the_cursor`, `a_cursor_older_than_the_ring_is_a_gap_with_no_replay`, `a_cursor_past_head_is_a_gap`, `a_cursor_from_another_stream_is_a_gap`, `an_event_the_caller_may_not_see_is_never_sent`, `a_cost_tick_that_moved_nothing_is_dropped`, `doctor_lines_reach_subscribers_before_the_reply_and_are_never_replayed`, `release_changes_reach_subscribers`, `creates_follow_the_replay_once_and_a_plain_subscribe_hears_none`, `forward_events_reach_subscribers_and_die_with_the_socket` | serve-replay.test.ts:136 (a cursor from a runtime that restarted is past head); serve-replay.test.ts:136 (a cursor older than the ring); serve-replay.test.ts:136 (the old stream's cursor, the new runtime's stream); serve-replay.test.ts:83-186; serve.test.ts:1257, 1274; serve.test.ts:1326 and the runtime's one rule: seen_by decides, shown_to words the frame; serve.test.ts:1335; serve.test.ts:345; serve.test.ts:911; serve.ts:1170-1188: one cost_moved per subscribe; serve.ts:1170-1188: the release door's changes ride the same pass |
+| S2 | `status_subscribe_watches_before_the_snapshot` | status.test.ts |
+| S3 | `status_list_reads_the_table_and_drops_the_route` | status.test.ts |
+| S4 | `create_strips_origin_and_splits_notice_and_sub`, `every_workspace_answer_goes_out_without_the_display_stream` | runtime.test.ts:288 |
+| S5 | `create_strips_origin_and_splits_notice_and_sub` | runtime.test.ts:288 |
+| S6 | `spread_verbs_pass_only_the_fields_sent`, `spread_verbs_spread_the_answer_after_ok` | serve.ts:1214-1394 (the answer is spread after ok, in the area's own order); serve.ts:1214-1394 (the table: every field only when sent) |
+| S7 | `start_and_review_hand_the_workspace_out` | serve.ts:1344-1376 |
+| S8 | `unit_verbs_answer_ok_after_the_await` | serve.ts:1214-1394 |
+| S9 | `port_reach_and_probe_name_their_field` | serve.test.ts:676, 693 |
+| S10 | `daemon_open_names_one_of_place_and_workspace`, `daemon_open_here_is_the_own_road`, `daemon_open_a_joined_place_is_wrapped_by_place_kills`, `daemon_open_an_absent_computer_says_so`, `daemon_open_carries_the_workspace_refusal` | serve-daemon.test.ts:198-290; serve-daemon.test.ts:198-348; serve-daemon.test.ts:312; serve-daemon.test.ts:~300 (a socket let in on a ticket is refused); serve.ts:1407-1467 (another place: the place door's channel, wrapped by place_kills) |
 | S11 | `daemon_open_replies_before_any_event_and_queues_the_hello` | serve-daemon.test.ts:86 |
 | S12 | `a_socket_gone_mid_dial_closes_the_channel` | serve.ts:1436 |
 | S13 | `a_channel_is_never_reachable_from_another_socket` | serve-daemon.test.ts:149 |
@@ -94,7 +101,7 @@ serve.ts:369-373 (`handed`), 1170-1473, 1634-1678 at `65f6b89c7`. Rust: `src/ser
 | S15 | `a_daemon_end_is_said_once_and_a_page_close_says_nothing` | serve-daemon.test.ts:177 |
 | S16 | `a_socket_that_goes_takes_its_channels` | serve-daemon.test.ts:165 |
 | S17 | `sys_subscribe_on_a_place_is_the_own_road` | serve-sys.test.ts:177 |
-| S18 | `exec_replies_then_streams_lines_and_exit_to_the_asker_only`, `exec_names_the_folder_it_ran_in`, `the_asking_socket_closing_ends_the_command`, `an_ended_exec_is_not_torn_down_again`, `a_failed_read_rides_the_exit` | serve.test.ts:992, 1033, 1072, 1088, 1109 |
+| S18 | `exec_replies_then_streams_lines_and_exit_to_the_asker_only`, `exec_names_the_folder_it_ran_in`, `the_asking_socket_closing_ends_the_command`, `an_ended_exec_is_not_torn_down_again`, `a_failed_read_rides_the_exit` | serve.test.ts:1033; serve.test.ts:1072; serve.test.ts:1088; serve.test.ts:992; serve.ts:1656-1678 |
 
 Not ported here, each its area's: a create's stages, the daemon's token path (machines), the readings' sampler and
 its sharing (wsp-core `sys_socket`), a nap or delete ending an exec with its reason (machines), the ring's cap
