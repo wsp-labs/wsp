@@ -726,13 +726,15 @@ impl PullRequestKept {
 
 /// TS: packages/protocol/src/pull-request.ts:102 at a3b870a6e.
 /// A zod union: the first variant that parses wins, in this order.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum PullRequestSeen {
     PullRequestFact(PullRequestFact),
     PullRequestKept(PullRequestKept),
     PullRequestUnread(PullRequestUnread),
 }
+
+crate::zod_union!(PullRequestSeen { PullRequestFact(PullRequestFact), PullRequestKept(PullRequestKept), PullRequestUnread(PullRequestUnread) });
 
 impl Check for PullRequestSeen {
     fn check(&self) -> Result<(), SchemaError> {
@@ -892,12 +894,14 @@ impl Check for FixResultV1 {
 
 /// TS: packages/protocol/src/pull-request.ts:309 at a3b870a6e.
 /// A zod union: the first variant that parses wins, in this order.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum FixResult {
     V0(FixResultV0),
     V1(FixResultV1),
 }
+
+crate::zod_union!(FixResult { V0(FixResultV0), V1(FixResultV1) });
 
 impl Check for FixResult {
     fn check(&self) -> Result<(), SchemaError> {

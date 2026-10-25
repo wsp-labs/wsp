@@ -466,7 +466,7 @@ pub struct AgentSetupSet {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub env: Option<IndexMap<EnvName, Option<String>>>,
@@ -840,7 +840,7 @@ pub struct AgentSetup {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub env: Option<indexmap::IndexMap<String, String>>,

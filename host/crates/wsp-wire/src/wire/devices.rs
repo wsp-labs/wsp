@@ -124,7 +124,7 @@ pub struct AccountDevices {
 pub struct DaemonFrame {
     pub op: String,
     /// zod passthrough: unknown keys kept, in the order read.
-    #[serde(flatten)]
+    #[serde(flatten, deserialize_with = "crate::types::kept::record")]
     pub rest: IndexMap<String, Value>,
 }
 
@@ -134,8 +134,7 @@ fn write_passthrough<S: serde::Serializer>(known: (&str, &str), rest: &IndexMap<
     let mut all = IndexMap::with_capacity(rest.len() + 1);
     all.insert(known.0.to_string(), Value::from(known.1));
     all.extend(rest.iter().filter(|(k, _)| *k != "__proto__").map(|(k, v)| (k.clone(), v.clone())));
-    crate::wire::helpers::js_key_order(&mut all);
-    all.serialize(s)
+    crate::types::kept::serialize_object(&all.into_iter().collect::<Vec<_>>(), s)
 }
 
 impl Serialize for DaemonFrame {
@@ -158,7 +157,7 @@ pub struct DaemonSendReply {
 pub struct DaemonEventEvent {
     pub r#type: String,
     /// zod passthrough: unknown keys kept, in the order read.
-    #[serde(flatten)]
+    #[serde(flatten, deserialize_with = "crate::types::kept::record")]
     pub rest: IndexMap<String, Value>,
 }
 
@@ -195,7 +194,7 @@ impl Check for DeviceVia {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        crate::types::keys::req_key_with::<String>(obj, "kind", &mut out, Self::rule_kind);
+        crate::types::keys::lit_key(obj, "kind", &mut out, "account");
         crate::types::keys::req_key::<String>(obj, "relayDeviceId", &mut out);
         crate::types::keys::req_key::<String>(obj, "fingerprint", &mut out);
         crate::types::keys::req_key::<String>(obj, "publicKey", &mut out);

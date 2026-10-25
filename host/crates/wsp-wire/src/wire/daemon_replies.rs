@@ -349,7 +349,7 @@ impl Check for FsFilesReply {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FsHashReply {
-    #[serde(serialize_with = "crate::types::check::js_record")]
+    #[serde(serialize_with = "crate::types::check::js_record", deserialize_with = "crate::types::kept::record")]
     pub files: IndexMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub outside: Option<Vec<String>>,

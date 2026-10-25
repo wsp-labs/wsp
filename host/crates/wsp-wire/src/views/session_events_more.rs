@@ -1868,3 +1868,16 @@ impl Check for SessionEvent {
             .or_else(|| <ThreadWaitedEvent as Check>::describe(path))
     }
 }
+
+/// A stored event as a thread's head writes it: transcript-reader.ts `headShape` returns `{ ...e, text, cut }`, so `cut`
+/// stands after every key the stored row held, where the schema (and `SessionEvent`) lists it after `line`. The text is
+/// the same length either way.
+pub fn head_text(event: &SessionEvent) -> Result<String, serde_json::Error> {
+    let mut value = serde_json::to_value(event)?;
+    if let Some(fields) = value.as_object_mut() {
+        if let Some(cut) = fields.shift_remove("cut") {
+            fields.insert("cut".to_string(), cut);
+        }
+    }
+    serde_json::to_string(&crate::types::kept::Kept(value))
+}

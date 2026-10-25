@@ -306,7 +306,7 @@ pub struct HarnessCatalog {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub access: Option<IndexMap<AccessChoice, String>>,

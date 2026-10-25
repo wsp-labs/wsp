@@ -155,6 +155,7 @@ fn agents_setup_lists_every_variable_name_it_refuses() {
 /// fraction past a bound is two issues, the integer one and then the bound's. JsInt fails to read, so the bound never
 /// runs: one issue. events.subscribe `after: .int().nonnegative()`, places.add `sshPort: .int().min(1).max(65535)`
 /// (runtime.ts:152, :142), and every `.int()` with a bound: Sequenced.seq, ports, RelayPort, ProviderKeyWorks, ...
+/// The seq case reads -0.5: node answers 0.5 with the integer issue alone, since `.positive()` is `> 0` and 0.5 passes it.
 #[test]
 fn a_fraction_past_a_bound_is_two_issues() {
     assert_eq!(
@@ -166,7 +167,7 @@ fn a_fraction_past_a_bound_is_two_issues() {
         pairs(&[("invalid_type", json!(["sshPort"])), ("too_big", json!(["sshPort"]))]),
     );
     assert_eq!(
-        all_issues::<EventUnion>(r#"{"type":"workspace.deleted","workspaceId":"w","seq":0.5}"#),
+        all_issues::<EventUnion>(r#"{"type":"workspace.deleted","workspaceId":"w","seq":-0.5}"#),
         pairs(&[("invalid_type", json!(["seq"])), ("too_small", json!(["seq"]))]),
     );
 }

@@ -338,7 +338,7 @@ pub struct InitScreen {
     pub top: String,
     pub items: Vec<InitScreenItem>,
     pub ticks: Vec<String>,
-    #[serde(serialize_with = "crate::types::check::js_record")]
+    #[serde(serialize_with = "crate::types::check::js_record", deserialize_with = "crate::types::kept::record")]
     pub answers: IndexMap<String, String>,
     pub footer: Vec<InitFooterLine>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -574,7 +574,7 @@ pub type InitKeys = IndexMap<String, bool>;
 pub struct InitDraft {
     pub at: String,
     pub ticks: Vec<String>,
-    #[serde(serialize_with = "crate::types::check::js_record")]
+    #[serde(serialize_with = "crate::types::check::js_record", deserialize_with = "crate::types::kept::record")]
     pub answers: IndexMap<String, String>,
 }
 

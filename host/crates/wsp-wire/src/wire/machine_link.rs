@@ -8,6 +8,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::helpers::ReqId;
+pub use super::machine_replies::{
+    ContainerPlacedBy, ProcCost, SysHistoryReply, SysPoint, TranscriptsListReply, TranscriptsReadReply, UsageLogsReply,
+};
 use crate::types::check::parse;
 use crate::types::check::{num_above, num_at_least, num_at_most, refine, regex_check, text_at_least, text_at_most};
 use crate::types::{Check, JsNumber, SchemaError};
@@ -16,7 +19,6 @@ use crate::views::place::{MachineBind, MachineShare, WorkspaceCopy};
 use crate::views::workspace::{MachineFacts, MachineState};
 use crate::wire::capabilities::{Capabilities, WorkspaceSize};
 use crate::wire::daemon::{CgroupMemory, ProcEntry};
-pub use super::machine_replies::{ContainerPlacedBy, ProcCost, SysHistoryReply, SysPoint, TranscriptsListReply, TranscriptsReadReply, UsageLogsReply};
 use wsp_frames::{False, True};
 
 /// A refusal in the two halves the command line and the app say: what happened, and what to do.
@@ -90,14 +92,14 @@ pub struct MachineSpec {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub envs: Option<IndexMap<String, String>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub labels: Option<IndexMap<String, String>>,
@@ -209,7 +211,7 @@ pub struct LifecycleBudgets {
 pub struct MachineListRow {
     pub id: String,
     pub state: MachineState,
-    #[serde(serialize_with = "crate::types::check::js_record")]
+    #[serde(serialize_with = "crate::types::check::js_record", deserialize_with = "crate::types::kept::record")]
     pub labels: IndexMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub size: Option<WorkspaceSize>,
@@ -296,7 +298,7 @@ pub struct MachineHandle {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub labels: Option<IndexMap<String, String>>,
@@ -486,26 +488,19 @@ pub struct DaemonOkResponse {
     pub id: Option<ReqId>,
     pub ok: True,
     /// zod passthrough: unknown keys kept, in the order read.
-    #[serde(flatten)]
+    #[serde(flatten, deserialize_with = "crate::types::kept::record")]
     pub rest: IndexMap<String, Value>,
 }
 
 /// JavaScript writes the keys that read as array indexes first, ahead of `id` and `ok`.
 impl Serialize for DaemonOkResponse {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        use serde::ser::SerializeMap;
-        let mut keys: IndexMap<String, Value> = IndexMap::from([("id".to_string(), Value::Null), ("ok".to_string(), Value::Null)]);
-        keys.extend(self.rest.clone());
-        super::helpers::js_key_order(&mut keys);
-        let mut map = s.serialize_map(Some(keys.len()))?;
-        for (key, kept) in &keys {
-            match key.as_str() {
-                "id" => map.serialize_entry("id", &self.id)?,
-                "ok" => map.serialize_entry("ok", &self.ok)?,
-                _ => map.serialize_entry(key, kept)?,
-            }
-        }
-        map.end()
+        let mut entries = vec![
+            ("id".to_string(), serde_json::to_value(&self.id).map_err(serde::ser::Error::custom)?),
+            ("ok".to_string(), Value::Bool(true)),
+        ];
+        entries.extend(self.rest.iter().map(|(k, v)| (k.clone(), v.clone())));
+        crate::types::kept::serialize_object(&entries, s)
     }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -522,12 +517,14 @@ pub struct DaemonErrorResponse {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub status: Option<JsInt>,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum DaemonResponse {
     V0(DaemonOkResponse),
     V1(DaemonErrorResponse),
 }
+
+crate::zod_union!(DaemonResponse { V0(DaemonOkResponse), V1(DaemonErrorResponse) });
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SysSampleMem {

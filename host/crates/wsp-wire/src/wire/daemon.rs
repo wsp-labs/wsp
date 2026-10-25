@@ -7,17 +7,17 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub use super::daemon_replies::{
+    CgroupMemory, FsEntry, FsEntryType, FsFilesReply, FsHashReply, FsImageReply, FsListReply, FsSearchReply, FsWriteReply,
+    GitBranchesReply, GitCheckpointDropReply, GitCheckpointReply, GitCommitReply, GitDiffFile, GitDiscardReply, GitLocalBranch,
+    GitPrListReply, GitRestoreReply, GitWorktree, GitWorktreesReply, HostItem, HostItemKind, HttpBearer, HttpPostReply, KillMode, PipeDoor,
+    PipeOpen, ProcKind, ProcListReply, ProcOwnedBy, ProcSignal, SshStartReply, UsageStore,
+};
 use super::helpers::{is_cgroup_path, is_watch_name, literal_word, ReqId, CGROUP_PATH_MAX};
 use super::limits::{is_http_url, EXEC_BODY_MAX, GUEST_ARGV_MAX, GUEST_CWD_MAX, GUEST_TOKEN_MAX, TRANSCRIPT_DIRS_MAX, USAGE_STORES_MAX};
 use crate::types::check::{hex_64, items_at_most, num_above, num_at_least, num_at_most, refine, regex_check, text_at_least, text_at_most};
 use crate::types::pull_request::{MergeMethod, ReactionContent};
 use crate::types::{Check, JsNumber, SchemaError};
-pub use super::daemon_replies::{
-    CgroupMemory, FsEntry, FsEntryType, FsFilesReply, FsHashReply, FsImageReply, FsListReply, FsSearchReply, FsWriteReply, GitBranchesReply,
-    GitCheckpointDropReply, GitCheckpointReply, GitCommitReply, GitDiffFile, GitDiscardReply, GitLocalBranch, GitPrListReply,
-    GitRestoreReply, GitWorktree, GitWorktreesReply, HostItem, HostItemKind, HttpBearer, HttpPostReply, KillMode, PipeDoor, PipeOpen,
-    ProcKind, ProcListReply, ProcOwnedBy, ProcSignal, SshStartReply, UsageStore,
-};
 use wsp_frames::{False, True};
 
 /// Which column a list of processes is ordered by.
@@ -596,8 +596,8 @@ pub enum DaemonRequest {
     GuestOpen { kind: GuestKind, token: String, turn_token: Option<String>, argv: Vec<String>, cwd: String, id: ReqId },
     #[serde(rename = "guest.send", rename_all = "camelCase")]
     GuestSend {
-        #[serde(default, deserialize_with = "crate::wire::daemon_checks::unknown_value")]
-        message: Option<Value>,
+        #[serde(default, deserialize_with = "crate::types::kept::present")]
+        message: Option<crate::types::kept::Kept>,
         id: ReqId,
     },
     #[serde(rename = "guest.watch", rename_all = "camelCase")]
@@ -605,8 +605,8 @@ pub enum DaemonRequest {
     #[serde(rename = "guest.reply", rename_all = "camelCase")]
     GuestReply {
         session: String,
-        #[serde(default, deserialize_with = "crate::wire::daemon_checks::unknown_value")]
-        message: Option<Value>,
+        #[serde(default, deserialize_with = "crate::types::kept::present")]
+        message: Option<crate::types::kept::Kept>,
         id: ReqId,
     },
     #[serde(rename = "guest.close", rename_all = "camelCase")]
@@ -638,12 +638,14 @@ pub struct GuestCliMessage0 {
 pub struct GuestCliMessage1 {
     pub exit: JsInt,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum GuestCliMessage {
     V0(GuestCliMessage0),
     V1(GuestCliMessage1),
 }
+
+crate::zod_union!(GuestCliMessage { V0(GuestCliMessage0), V1(GuestCliMessage1) });
 
 /// Refinements zod puts on this shape, each an issue when it fails:
 /// - `op`: literal "auth"
@@ -665,7 +667,7 @@ impl Check for DaemonAuthRequest {
         };
         let mut out = Vec::new();
         crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-        crate::types::keys::req_key_with::<String>(obj, "op", &mut out, Self::rule_op);
+        crate::types::keys::lit_key(obj, "op", &mut out, "auth");
         crate::types::keys::req_key::<String>(obj, "token", &mut out);
         crate::types::keys::opt_key_with::<JsInt>(obj, "port", &mut out, Self::rule_port);
         crate::types::keys::opt_key::<bool>(obj, "pipe", &mut out);

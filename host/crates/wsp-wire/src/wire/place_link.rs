@@ -48,7 +48,7 @@ struct PlaceFileKnown {
     key_path: String,
     #[serde(default, deserialize_with = "kept")]
     joined_at: Option<Value>,
-    #[serde(flatten)]
+    #[serde(flatten, deserialize_with = "crate::types::kept::record")]
     rest: IndexMap<String, Value>,
 }
 
@@ -96,8 +96,7 @@ impl Serialize for PlaceFile {
             }
         }
         written.extend(all);
-        js_key_order(&mut written);
-        written.serialize(s)
+        crate::types::kept::serialize_object(&written.into_iter().collect::<Vec<_>>(), s)
     }
 }
 
@@ -264,7 +263,7 @@ pub struct PlaceReport {
     pub disk_size_bytes: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub model: Option<String>,
-    #[serde(serialize_with = "crate::types::check::js_record")]
+    #[serde(serialize_with = "crate::types::check::js_record", deserialize_with = "crate::types::kept::record")]
     pub login: IndexMap<String, String>,
     pub runs_workspaces: bool,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -282,7 +281,7 @@ pub struct PlaceReport {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::types::check::present",
+        deserialize_with = "crate::types::kept::record_opt",
         serialize_with = "crate::types::check::js_record_opt"
     )]
     pub agent_versions: Option<IndexMap<String, String>>,
