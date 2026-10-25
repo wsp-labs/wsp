@@ -31,6 +31,8 @@ pub trait EntryHandle {
     fn unchecked(&self) -> bool;
     /// TS `delete entry.unchecked` (turns.ts:828).
     fn set_checked(&self);
+    /// `entry.opensThread`: the thread a workspace made for its first send opens.
+    fn opens_thread(&self) -> Option<String>;
     /// `harnessExec(entry.machine, ms)`: the machine's command road for a harness read bounded by `ms`.
     fn harness_exec(&self, ms: u64) -> Arc<dyn HarnessExec>;
 }

@@ -120,6 +120,7 @@ pub struct FakeEntry {
     pub record: RefCell<WorkspaceRecord>,
     pub unchecked: Cell<bool>,
     pub exec: RefCell<Arc<dyn HarnessExec>>,
+    pub opens_thread: RefCell<Option<String>>,
 }
 
 impl EntryHandle for FakeEntry {
@@ -137,6 +138,9 @@ impl EntryHandle for FakeEntry {
     }
     fn set_checked(&self) {
         self.unchecked.set(false);
+    }
+    fn opens_thread(&self) -> Option<String> {
+        self.opens_thread.borrow().clone()
     }
     fn harness_exec(&self, _ms: u64) -> Arc<dyn HarnessExec> {
         self.exec.borrow().clone()
@@ -160,7 +164,7 @@ pub fn record(id: &str, extra: Value) -> WorkspaceRecord {
 }
 
 pub fn entry(id: &str, extra: Value) -> Rc<FakeEntry> {
-    Rc::new(FakeEntry { record: RefCell::new(record(id, extra)), unchecked: Cell::new(false), exec: RefCell::new(Arc::new(NoExec)) })
+    Rc::new(FakeEntry { record: RefCell::new(record(id, extra)), unchecked: Cell::new(false), exec: RefCell::new(Arc::new(NoExec)), opens_thread: RefCell::new(None) })
 }
 
 /// A row's view: `id`, `workspaceId`, `harness` and `status` are required; `extra` lays any other key over them.

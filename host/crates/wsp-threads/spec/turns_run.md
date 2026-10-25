@@ -91,7 +91,7 @@ synchronously (it may call `forward` before it returns).
   is out.
 - **N21** A turn launched to keep (`keep`) whose session hands a kept agent keeps it where the turn was not ended
   here, has a token and a session id, and `hold_kept(thread, { workspaceId, agent, launch, session, turnToken, pid?,
-  scopeDeviceId?, waiting })` takes it; otherwise the agent is closed (failure swallowed).
+  scopeDeviceId?, waiting })` takes it; a hold the runtime hands back (refused), or a turn it was never offered for, has its agent closed (failure swallowed).
 - **N22** Unless kept, the scoped device is revoked (warned `"the token of thread <word> was not taken away:
   <message>"` on failure).
 - **N23** Not ended here: the view takes `status`; with no reply, `write_lines(view, turn_lines({ status }))`.

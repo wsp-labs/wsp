@@ -249,8 +249,9 @@ pub trait TurnsCtx {
     fn turn_groups(&self) -> Rc<RefCell<IndexMap<String, IndexMap<u32, String>>>>;
     fn arm_roots_recheck(&self);
     fn port_roots_moved(&self, workspace_id: &str);
-    /// Answers whether the runtime took the kept agent.
-    fn hold_kept(&self, thread_id: &str, hold: KeptHold) -> bool;
+    /// Keeps the agent for the thread's next turn; a hold the runtime refuses is handed back, so the turn closes its
+    /// agent (TS `ctx.holdKept(...)` answering false).
+    fn hold_kept(&self, thread_id: &str, hold: KeptHold) -> Option<KeptHold>;
     async fn revoke_device(&self, device_id: &str) -> Result<(), HostError>;
     async fn read_checkout(&self, entry: &Entry, fresh: bool) -> Result<(), HostError>;
     async fn ran_on_branch(&self, entry: &Entry, thread_id: &str) -> Result<(), HostError>;
