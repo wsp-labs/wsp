@@ -85,7 +85,7 @@ pub fn argv_for(ask: &CopyAsk) -> Vec<String> {
 }
 
 /// copier.ts:63 `line`: the sentence a failed verb run throws. Exit 1 is the verb's own refusal: its last line of
-/// `stderr.trim()`, else of `stdout.trim()`; with both empty it is `the copy failed and said nothing`. Any other exit
+/// `stderr.trim()`, else of `stdout.trim()`; with both empty it is `""` (the TS fallback never fires). Any other exit
 /// is `copy_verb_failed_line(exit)`, and what the child said (when not empty) goes to the host's log on stderr as
 /// `<binary> copy: <said>`, never to the person.
 pub fn refusal_line(binary: &str, res: &ExecResult) -> String {
