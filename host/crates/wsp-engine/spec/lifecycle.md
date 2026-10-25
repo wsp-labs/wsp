@@ -62,3 +62,34 @@ that port (same machine only) and reaches again; other ports keep theirs. `daemo
 | move hook for every move | `lifecycle::nap_and_wake_run_their_pause_and_resume_through_the_move_hook_with_the_machine`, `lifecycle::a_wakes_re_pause_goes_through_the_hook_too_and_a_move_the_hook_gives_up_on_leaves_the_phase_where_it_was` |
 | rebuild order, missing old is done, other failure after the swap | `lifecycle::rebuild_replaces_a_running_machine_with_a_golden_fork_restores_the_vault_kills_the_old_one`, `lifecycle::a_napping_workspace_rebuilds_too_and_comes_back_running`, `lifecycle::rebuild_refuses_without_a_resurrect_hook_and_keeps_the_machine`, `lifecycle_hard::a_rebuild_whose_old_machine_is_already_gone_still_lands_and_any_other_retire_failure_is_thrown_after_the_swap` |
 | upgrade order, cap skips import | `lifecycle_hard::an_upgrade_exports_retires_resurrects_imports_in_that_order_and_lands_running_first_life`, `lifecycle_hard::an_upgrade_over_the_vault_cap_goes_on_with_no_import` |
+
+## Pins (wave 2)
+
+Scenes in `oracle/lifecycle_scenes.oracle.ts`, replayed by `tests/lifecycle_scenes.rs::<name>` against
+`tests/fixtures/scenes/lifecycle.json`: one log holds every machine call and hook in order, and after the act the
+machine id, the phase, the first life and the failure's words must be the TS's.
+
+- W-1 The wake check's answer is tested against `None` only: `Some("")` is a fault, pushed as `attempt 1: ` (with the
+  trailing space), so the machine is paused and resumed again (`an_empty_fault_is_still_a_fault`).
+- W-2 rebuild: once resurrect answered, the new machine and `first_life = true` stand even when `restore_vault` then
+  fails; that failure is answered, the old machine is never retired, and the phase is not moved
+  (`a_rebuild_whose_restore_fails_keeps_the_new_machine_and_leaves_the_old_alive`).
+- W-3 upgrade: an export failure is answered with nothing changed and nothing retired
+  (`an_upgrade_whose_export_fails_changes_nothing`).
+- W-4 upgrade: a resurrect that fails after the retire leaves the workspace holding the machine it just killed, phase
+  and first life unmoved (`an_upgrade_whose_resurrect_fails_after_the_retire_keeps_the_killed_machine`).
+- W-5 upgrade: an import that fails leaves the new machine in place, but phase and first life move only after the
+  import, so neither does (`an_upgrade_whose_import_fails_keeps_the_new_machine_and_the_old_phase`).
+- W-6 An empty payload is a payload: `Some(vec![])` is imported (`an_empty_payload_is_still_imported`).
+- W-7 A resume that fails is answered as itself at once, with no further attempt; first life ends only after a
+  resume that answered, so it stays true; the phase goes back to napping
+  (`a_failed_resume_keeps_the_first_life_and_naps`).
+- W-8 A wake's re-pause is the pause move alone; only `nap` calls `stash_vault` (`a_wakes_re_pause_stashes_no_vault`).
+- W-9 `checkpoint` reads no phase and moves none: a napping workspace snapshots with its life
+  (`a_checkpoint_of_a_napping_workspace_snapshots_and_moves_nothing`).
+- W-10 A wake that runs out fails with a plain error, `EngineError::Other` with no code, its words
+  `wake_failed_line(id, faults)` (`a_wake_that_runs_out_fails_with_plain_words`).
+- W-11 The route cache on a failed mint, from lifecycle.ts:85-97 (no fake here fails a mint, so no test): `port_reach`
+  resets the cache under the new machine id **before** it mints, so a failed mint still leaves the cache reset;
+  `remint_port_reach` drops the port **before** it mints, so a failed remint leaves that port with no route. rebuild
+  and upgrade never clear the cache: only a machine id that differs voids it.

@@ -1,0 +1,164 @@
+[
+ {
+  "name": "an_empty_fault_is_still_a_fault",
+  "initial": {
+   "phase": "napping"
+  },
+  "log": [
+   "resume",
+   "pause",
+   "resume"
+  ],
+  "answer": {
+   "reason": "attempt 1: "
+  },
+  "err": null,
+  "machine": "m1",
+  "phase": "running",
+  "firstLife": false
+ },
+ {
+  "name": "a_rebuild_whose_restore_fails_keeps_the_new_machine_and_leaves_the_old_alive",
+  "initial": {
+   "phase": "napping",
+   "firstLife": false
+  },
+  "log": [
+   "resurrect",
+   "restore"
+  ],
+  "answer": null,
+  "err": "restore broke",
+  "machine": "m2",
+  "phase": "napping",
+  "firstLife": true
+ },
+ {
+  "name": "an_upgrade_whose_export_fails_changes_nothing",
+  "initial": {
+   "phase": "napping",
+   "firstLife": false
+  },
+  "log": [
+   "export"
+  ],
+  "answer": null,
+  "err": "export broke",
+  "machine": "m1",
+  "phase": "napping",
+  "firstLife": false
+ },
+ {
+  "name": "an_upgrade_whose_resurrect_fails_after_the_retire_keeps_the_killed_machine",
+  "initial": {
+   "phase": "napping",
+   "firstLife": false
+  },
+  "log": [
+   "export",
+   "kill",
+   "resurrect"
+  ],
+  "answer": null,
+  "err": "resurrect broke",
+  "machine": "m1",
+  "phase": "napping",
+  "firstLife": false
+ },
+ {
+  "name": "an_upgrade_whose_import_fails_keeps_the_new_machine_and_the_old_phase",
+  "initial": {
+   "phase": "napping",
+   "firstLife": false
+  },
+  "log": [
+   "export",
+   "kill",
+   "resurrect",
+   "import"
+  ],
+  "answer": null,
+  "err": "import broke",
+  "machine": "m2",
+  "phase": "napping",
+  "firstLife": false
+ },
+ {
+  "name": "an_empty_payload_is_still_imported",
+  "initial": {
+   "phase": "napping",
+   "firstLife": false
+  },
+  "log": [
+   "export",
+   "kill",
+   "resurrect",
+   "import:0"
+  ],
+  "answer": null,
+  "err": null,
+  "machine": "m2",
+  "phase": "running",
+  "firstLife": true
+ },
+ {
+  "name": "a_failed_resume_keeps_the_first_life_and_naps",
+  "initial": {
+   "phase": "napping"
+  },
+  "log": [
+   "resume:failed"
+  ],
+  "answer": null,
+  "err": "resume broke",
+  "machine": "m1",
+  "phase": "napping",
+  "firstLife": true
+ },
+ {
+  "name": "a_wakes_re_pause_stashes_no_vault",
+  "initial": {
+   "phase": "napping"
+  },
+  "log": [
+   "resume",
+   "pause",
+   "resume"
+  ],
+  "answer": {
+   "reason": "attempt 1: silent"
+  },
+  "err": null,
+  "machine": "m1",
+  "phase": "running",
+  "firstLife": false
+ },
+ {
+  "name": "a_checkpoint_of_a_napping_workspace_snapshots_and_moves_nothing",
+  "initial": {
+   "phase": "napping"
+  },
+  "log": [
+   "snapshot:cp:true"
+  ],
+  "answer": "snap_x",
+  "err": null,
+  "machine": "m1",
+  "phase": "napping",
+  "firstLife": true
+ },
+ {
+  "name": "a_wake_that_runs_out_fails_with_plain_words",
+  "initial": {
+   "phase": "napping"
+  },
+  "log": [
+   "resume"
+  ],
+  "answer": null,
+  "err": "the wake of m1 did not finish: attempt 1: silent; the workspace keeps this machine and its disk",
+  "machine": "m1",
+  "phase": "napping",
+  "firstLife": false
+ }
+]
