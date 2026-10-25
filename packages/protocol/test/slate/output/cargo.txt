@@ -1,0 +1,27 @@
+    Blocking waiting for file lock on package cache
+   Compiling acme-ledger v0.1.0 (/tmp/build/crate)
+    Finished `test` profile [unoptimized] target(s) in 0.21s
+     Running unittests src/lib.rs (/tmp/build/target/debug/deps/acme_ledger-606142d40218feab)
+
+running 3 tests
+test tests::waits_on_bank ... ignored
+test tests::adds_tax ... ok
+test tests::rounds_refund ... FAILED
+
+failures:
+
+---- tests::rounds_refund stdout ----
+
+thread 'tests::rounds_refund' (2383223) panicked at src/lib.rs:6:34:
+assertion `left == right` failed
+  left: 1
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    tests::rounds_refund
+
+test result: FAILED. 1 passed; 1 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`
