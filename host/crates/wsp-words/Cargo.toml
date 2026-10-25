@@ -13,5 +13,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 indexmap = { version = "2", features = ["serde"] }
 regex = "1"
+url = "2"
 jiff = "0.2"
 icu_collator = "2"
+
+# HostError is the one error every door reads; boxing it would change every caller for a path that runs once per refusal.
+[lints.clippy]
+result_large_err = "allow"

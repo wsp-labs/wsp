@@ -18,6 +18,8 @@ use wsp_wire::views::activity::{
 use wsp_words::exit::HostError;
 use wsp_words::views::activity::{agent_end_line, agent_under_line, end_plan, processes_left_line, LeftVerb};
 
+type Who<'a> = &'a dyn Fn(Option<&str>) -> bool;
+
 const START: i64 = 1_760_000_000_000;
 
 fn row(pid: i64, ppid: i64, comm: &str, cmdline: &str) -> Value {
@@ -109,7 +111,8 @@ mod a_snapshot_read_by_thread {
     #[test]
     fn leaves_a_settle_what_outlives_the_agent_what_runs_under_the_agent_ends_with_it() {
         let left = processes_left(&activity_of(&read(procs())), &[LAB_THREAD.to_string(), KEPT_THREAD.to_string()]);
-        let shape: Vec<(String, Vec<i64>)> = left.iter().map(|t| (t.thread_id.clone(), t.processes.iter().map(|p| p.pid).collect())).collect();
+        let shape: Vec<(String, Vec<i64>)> =
+            left.iter().map(|t| (t.thread_id.clone(), t.processes.iter().map(|p| p.pid.get()).collect())).collect();
         assert_eq!(shape, vec![(LAB_THREAD.to_string(), vec![400])]);
         let left: Vec<LeftThread> = left
             .into_iter()
@@ -153,10 +156,7 @@ mod an_end_s_plan {
             let line = agent_end_line(pid as f64, &lab());
             assert!(said.contains(&line), "{said}");
         }
-        let mut all: Vec<Value> = procs()
-            .into_iter()
-            .map(|p| if p["pid"] == 100 { over(p, json!({ "ppid": 90 })) } else { p })
-            .collect();
+        let mut all: Vec<Value> = procs().into_iter().map(|p| if p["pid"] == 100 { over(p, json!({ "ppid": 90 })) } else { p }).collect();
         all.push(row_with(90, 1, "tmux", "tmux", json!({ "owner": { "by": "env", "thread": LAB_THREAD, "workspace": "ws-1" } })));
         let above = read(all);
         let said = refusal(|| end_plan(&above, 90.0, at(90), &anyone));
@@ -248,7 +248,7 @@ mod an_end_s_plan {
             let said = refusal(|| end_plan(&placed, 500.0, at(500), &anyone));
             let line = not_started_line(500);
             assert!(said.contains(&line), "{said}");
-            let unowned: Vec<i64> = activity_of(&placed).unowned.iter().map(|p| p.pid).collect();
+            let unowned: Vec<i64> = activity_of(&placed).unowned.iter().map(|p| p.pid.get()).collect();
             assert_eq!(unowned, if by == "coalition" { vec![500] } else { vec![] });
         }
         // A thread's process the daemon names by its mark, the thread no longer among the read's scopes, is still wsp's.
@@ -256,7 +256,7 @@ mod an_end_s_plan {
         all.push(row_with(500, 1, "node", "node vite.js", json!({ "owner": { "by": "env", "thread": "t-gone" } })));
         let marked = read(all);
         assert_eq!(end_plan(&marked, 500.0, at(500), &anyone).unwrap(), EndPlan::Targets(vec![marked.procs.last().unwrap().clone()]));
-        let unowned: Vec<i64> = activity_of(&marked).unowned.iter().map(|p| p.pid).collect();
+        let unowned: Vec<i64> = activity_of(&marked).unowned.iter().map(|p| p.pid.get()).collect();
         assert_eq!(unowned, vec![500]);
     }
 
@@ -268,7 +268,7 @@ mod an_end_s_plan {
         all.push(row_with(500, 1, "node", "node lookalike.js", json!({ "owner": { "by": "env", "thread": LAB_THREAD } })));
         let marked = read(all);
         // Drawn under the thread it names, and ended by nobody but the person.
-        let drawn: Vec<i64> = activity_of(&marked).threads[0].processes.iter().map(|p| p.pid).collect();
+        let drawn: Vec<i64> = activity_of(&marked).threads[0].processes.iter().map(|p| p.pid.get()).collect();
         assert!(drawn.contains(&500), "{drawn:?}");
         let said = refusal(|| end_plan(&marked, 500.0, at(500), &lab_only));
         let line = not_threads_line(500);
@@ -313,7 +313,7 @@ mod what_a_thread_s_pane_and_its_slate_started {
         let person = |_: Option<&str>| true;
         let thread = |t: Option<&str>| t == Some(LAB_THREAD);
         let other = |t: Option<&str>| t == Some(KEPT_THREAD);
-        let may: [&dyn Fn(Option<&str>) -> bool; 2] = [&person, &thread];
+        let may: [Who; 2] = [&person, &thread];
         for may in may {
             assert_eq!(pids_of(end_plan(&read(pane_procs()), 601.0, at(601), may).unwrap()), vec![601]);
             assert_eq!(pids_of(end_plan(&read(pane_procs()), 600.0, at(600), may).unwrap()), vec![600, 601]);
@@ -397,7 +397,7 @@ mod an_agent_outside_this_host_s_threads {
             host: 10,
             scopes: vec![],
             agent_bins: vec!["claude".into(), "codex".into()],
-            ports: Some(HashMap::from([(400, vec![4400, 4420]), (410, vec![58815])])),
+            ports: Some(HashMap::from([(400, vec![4400.into(), 4420.into()]), (410, vec![58815.into()])])),
             cgroups: None,
         };
         let plan = end_plan(&outside, 500.0, (OUTSIDE_START + 500) as f64, &anyone).unwrap();
