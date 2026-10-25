@@ -2,7 +2,11 @@
 //! The newest release as the host last read it off GitHub, and the words a row says about an update. Port of the functions of packages/protocol/src/release.ts at
 //! a3b870a6e; its shapes and flat constants are wsp_wire::types::release. See spec/release.md.
 
-use wsp_wire::types::release::ReleaseView;
+use std::cmp::Ordering;
+
+use wsp_wire::types::release::{ReleaseState, ReleaseView};
+
+use crate::semver::compare_versions;
 
 // One published release: its number, the tag that carries it, the page that holds its notes and downloads.
 // release.ts:9
@@ -51,14 +55,23 @@ use wsp_wire::types::release::ReleaseView;
 // release.ts:46
 // export const releaseAbove = (view: Pick<ReleaseView, "latest">, ...running: string[]): boolean => view.latest !== undefined && running.some(version => compareVersions(view.latest!.version, version) > 0);
 pub fn release_above(view: &ReleaseView, running: &[impl AsRef<str>]) -> bool {
-    todo!()
+    view.latest.as_ref().is_some_and(|latest| running.iter().any(|version| compare_versions(&latest.version, version.as_ref()) == Ordering::Greater))
 }
 
 /// The one word a reading says wherever it is shown: the number whenever one was read, else the state.
 // release.ts:49
 // export const releaseWord = (view: Pick<ReleaseView, "state" | "latest">): string => view.latest?.version ?? view.state;
 pub fn release_word(view: &ReleaseView) -> String {
-    todo!()
+    match &view.latest {
+        Some(latest) => latest.version.clone(),
+        None => match view.state {
+            ReleaseState::Checking => "checking",
+            ReleaseState::Read => "read",
+            ReleaseState::Unreached => "unreached",
+            ReleaseState::Off => "off",
+        }
+        .to_string(),
+    }
 }
 
 // release.ts:52

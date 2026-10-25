@@ -4,6 +4,11 @@
 
 use serde::Serialize;
 
+use wsp_wire::types::app_ports::{DEFAULT_PORT, LOOPBACK, WS_PATH};
+use wsp_wire::wire::limits::host_of;
+
+use crate::js::{js_trim, number_string};
+
 // app-ports.ts:10
 // in wsp_wire::types::app_ports: DEFAULT_PORT
 
@@ -20,6 +25,130 @@ use serde::Serialize;
 // app-ports.ts:23
 // in wsp_wire::types::app_ports: WS_PATH
 
+/// `startsWith` with a case-blind ASCII match, the way the TS regexes with the /i flag read a scheme.
+fn starts_with_ci(text: &str, prefix: &str) -> bool {
+    text.len() >= prefix.len() && text.is_char_boundary(prefix.len()) && text[..prefix.len()].eq_ignore_ascii_case(prefix)
+}
+
+/// The scheme before "://", lower-cased, when the text has one.
+fn scheme_of(text: &str) -> Option<String> {
+    text.find("://").map(|at| text[..at].to_ascii_lowercase())
+}
+
+/// `Number(text)`: JavaScript's string to number, with white space trimmed, "" as 0, hex, octal and binary prefixes, and
+/// NaN for anything else.
+fn js_number(text: &str) -> f64 {
+    let t = js_trim(text);
+    if t.is_empty() {
+        return 0.0;
+    }
+    for (prefix, radix) in [("0x", 16), ("0X", 16), ("0o", 8), ("0O", 8), ("0b", 2), ("0B", 2)] {
+        if let Some(digits) = t.strip_prefix(prefix) {
+            let plain = digits.bytes().all(|b| b.is_ascii_alphanumeric());
+            return match u64::from_str_radix(digits, radix) {
+                Ok(n) if plain => n as f64,
+                _ => f64::NAN,
+            };
+        }
+    }
+    let (negative, unsigned) = match t.as_bytes()[0] {
+        b'-' => (true, &t[1..]),
+        b'+' => (false, &t[1..]),
+        _ => (false, t),
+    };
+    if unsigned == "Infinity" {
+        return if negative { f64::NEG_INFINITY } else { f64::INFINITY };
+    }
+    let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    let (mantissa, exponent) = unsigned.split_at(unsigned.find(['e', 'E']).unwrap_or(unsigned.len()));
+    let mantissa_ok = match mantissa.split_once('.') {
+        Some((whole, fraction)) => (whole.is_empty() || digits(whole)) && (fraction.is_empty() || digits(fraction)) && (digits(whole) || digits(fraction)),
+        None => digits(mantissa),
+    };
+    let exponent_ok = exponent.is_empty() || digits(exponent[1..].trim_start_matches(['+', '-']));
+    if !mantissa_ok || !exponent_ok {
+        return f64::NAN;
+    }
+    t.parse::<f64>().unwrap_or(f64::NAN)
+}
+
+/// The path a URL names, the way the URL parser writes it: dot segments resolved, characters the path set percent-encodes
+/// escaped, a backslash a slash for the special schemes, and no trailing slash left on.
+fn pathname_of(url: &str) -> String {
+    let Some(at) = url.find("://") else { return String::new() };
+    let scheme = url[..at].to_ascii_lowercase();
+    let special = matches!(scheme.as_str(), "ftp" | "file" | "http" | "https" | "ws" | "wss");
+    let rest = &url[at + 3..];
+    let is_sep = |c: char| c == '/' || (special && c == '\\');
+    let authority_end = rest.find(|c: char| is_sep(c) || c == '?' || c == '#').unwrap_or(rest.len());
+    let after = &rest[authority_end..];
+    let raw = &after[..after.find(['?', '#']).unwrap_or(after.len())];
+    let Some(body) = raw.strip_prefix(is_sep) else { return String::new() };
+    let parts: Vec<&str> = body.split(is_sep).collect();
+    let mut out: Vec<String> = Vec::new();
+    for (i, part) in parts.iter().enumerate() {
+        let last = i + 1 == parts.len();
+        match part.to_ascii_lowercase().as_str() {
+            "." | "%2e" => {
+                if last {
+                    out.push(String::new());
+                }
+            }
+            ".." | ".%2e" | "%2e." | "%2e%2e" => {
+                out.pop();
+                if last {
+                    out.push(String::new());
+                }
+            }
+            _ => out.push(encode_path_part(part)),
+        }
+    }
+    format!("/{}", out.join("/")).trim_end_matches('/').to_string()
+}
+
+fn encode_path_part(part: &str) -> String {
+    let mut out = String::new();
+    for c in part.chars() {
+        if c <= ' ' || c > '~' || matches!(c, '"' | '#' | '<' | '>' | '?' | '`' | '{' | '}') {
+            let mut buf = [0; 4];
+            for b in c.encode_utf8(&mut buf).bytes() {
+                out.push_str(&format!("%{b:02X}"));
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// The hostname of a host as URL gives it: the host with its port taken off, brackets kept for an IPv6 literal.
+fn hostname_of(host: &str) -> String {
+    if host.starts_with('[') {
+        host.find(']').map_or(host, |end| &host[..=end]).to_string()
+    } else {
+        host.split(':').next().unwrap_or_default().to_string()
+    }
+}
+
+/// `isUrl`: a word that starts with one of the four schemes and "://", in any case.
+fn is_url_word(word: &str) -> bool {
+    scheme_of(word).is_some_and(|scheme| matches!(scheme.as_str(), "http" | "https" | "ws" | "wss"))
+}
+
+/// Whether a word is a name and a port the join screen takes as a bare address.
+fn is_bare_address(word: &str) -> bool {
+    let port_ok = |p: &str| (1..=5).contains(&p.len()) && p.bytes().all(|b| b.is_ascii_digit());
+    if let Some(rest) = word.strip_prefix('[') {
+        let Some(end) = rest.find(']') else { return false };
+        let inner = &rest[..end];
+        !inner.is_empty() && inner.bytes().all(|b| b.is_ascii_hexdigit() || b == b':') && rest[end + 1..].strip_prefix(':').is_some_and(port_ok)
+    } else {
+        let Some(colon) = word.find(':') else { return false };
+        let name = &word[..colon];
+        !name.is_empty() && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-') && port_ok(&word[colon + 1..])
+    }
+}
+
 /// The WebSocket address of a host at this address: the same authority over ws or wss, with the runtime's path on
 /// the end of whatever path the address already carries, which is what a tunnel hostname under a prefix needs. It
 /// sits beside WS_PATH because both the command line and a place's own agent turn an address into this one, and a
@@ -32,7 +161,9 @@ use serde::Serialize;
 //   return `${scheme}//${parsed.host}${path}${WS_PATH}`;
 // }
 pub fn ws_url_of(url: &str) -> String {
-    todo!()
+    let host = host_of(url).expect("Invalid URL");
+    let scheme = if matches!(scheme_of(url).as_deref(), Some("https" | "wss")) { "wss:" } else { "ws:" };
+    format!("{scheme}//{host}{}{WS_PATH}", pathname_of(url))
 }
 
 /// An address as a person reads and types it: the host and its port, which is the short form joinAddressOf takes
@@ -47,7 +178,7 @@ pub fn ws_url_of(url: &str) -> String {
 //   }
 // }
 pub fn join_address_word(url: &str) -> String {
-    todo!()
+    host_of(url).unwrap_or_else(|| url.to_string())
 }
 
 /// A peer's address as the person on the other screen would write it: an IPv4 address that arrived over a
@@ -58,7 +189,8 @@ pub fn join_address_word(url: &str) -> String {
 //   return (address ?? "").replace(/^::ffff:/, "");
 // }
 pub fn peer_address(address: Option<&str>) -> String {
-    todo!()
+    let address = address.unwrap_or("");
+    address.strip_prefix("::ffff:").unwrap_or(address).to_string()
 }
 
 /// Whether an address reaches no further than the computer it runs on. This decides whether the page is served
@@ -71,7 +203,11 @@ pub fn peer_address(address: Option<&str>) -> String {
 //   return address === "localhost" || address === "::1" || address === "[::1]" || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(address);
 // }
 pub fn is_loopback(address: &str) -> bool {
-    todo!()
+    if matches!(address, "localhost" | "::1" | "[::1]") {
+        return true;
+    }
+    let parts: Vec<&str> = address.split('.').collect();
+    parts.len() == 4 && parts[0] == "127" && parts[1..].iter().all(|p| (1..=3).contains(&p.len()) && p.bytes().all(|b| b.is_ascii_digit()))
 }
 
 // app-ports.ts:65
@@ -84,7 +220,7 @@ pub fn is_loopback(address: &str) -> bool {
 //   return address === "0.0.0.0" || address === "::";
 // }
 pub fn is_wildcard(address: &str) -> bool {
-    todo!()
+    matches!(address, "0.0.0.0" | "::")
 }
 
 /// Whether a word is an address rather than a name: a host is reached at an http, https, ws or wss address, and a
@@ -94,7 +230,7 @@ pub fn is_wildcard(address: &str) -> bool {
 //   return /^(https?|wss?):\/\//i.test(word);
 // }
 pub fn is_url(word: &str) -> bool {
-    todo!()
+    is_url_word(word)
 }
 
 /// The name of the computer in an address a host is served at, or nothing when the word is not one. isUrl takes
@@ -114,7 +250,15 @@ pub fn is_url(word: &str) -> bool {
 //   return parsed.hostname === "" ? undefined : parsed.hostname;
 // }
 pub fn served_hostname(word: &str) -> Option<String> {
-    todo!()
+    if !is_url_word(word) {
+        return None;
+    }
+    let scheme = scheme_of(word)?;
+    if scheme != "http" && scheme != "https" {
+        return None;
+    }
+    let hostname = hostname_of(&host_of(word)?);
+    (!hostname.is_empty()).then_some(hostname)
 }
 
 // What a bare address a person types looks like: a name or an IPv4 address with a port, or an IPv6 literal in its
@@ -135,7 +279,11 @@ pub fn served_hostname(word: &str) -> Option<String> {
 //   return BARE_ADDRESS.test(word) ? `http://${word}` : undefined;
 // }
 pub fn join_address_of(typed: &str) -> Option<String> {
-    todo!()
+    let word = js_trim(typed);
+    if starts_with_ci(word, "http://") || starts_with_ci(word, "https://") {
+        return served_hostname(word).map(|_| word.to_string());
+    }
+    is_bare_address(word).then(|| format!("http://{word}"))
 }
 
 /// An address and a port as the authority of a URL: an IPv6 literal needs brackets and everything else is itself.
@@ -146,7 +294,8 @@ pub fn join_address_of(typed: &str) -> Option<String> {
 //   return `${bracketed}:${port}`;
 // }
 pub fn authority(address: &str, port: f64) -> String {
-    todo!()
+    let bracketed = if address.contains(':') && !address.starts_with('[') { format!("[{address}]") } else { address.to_string() };
+    format!("{bracketed}:{}", number_string(port))
 }
 
 /// Where a host a relay carries answers, written from the name the relay gave it: the one home for that spelling,
@@ -157,7 +306,7 @@ pub fn authority(address: &str, port: f64) -> String {
 //   return `https://${hostname}`;
 // }
 pub fn relay_url_of(hostname: &str) -> String {
-    todo!()
+    format!("https://{hostname}")
 }
 
 /// The one line a host binding beyond this computer prints as it starts, so nobody learns from a stranger that the
@@ -167,7 +316,7 @@ pub fn relay_url_of(hostname: &str) -> String {
 //   return `listening on ${address}: anyone who can reach this computer there can load the page, and pairing is the gate. Run wsp host pair for a code, and wsp host devices to see who took one.`;
 // }
 pub fn listen_beyond_loopback_line(address: &str) -> String {
-    todo!()
+    format!("listening on {address}: anyone who can reach this computer there can load the page, and pairing is the gate. Run wsp host pair for a code, and wsp host devices to see who took one.")
 }
 
 /// The line a host bound to one address beyond loopback prints as it starts: a thread on this computer reaches the
@@ -177,7 +326,7 @@ pub fn listen_beyond_loopback_line(address: &str) -> String {
 //   return `listening on ${address} alone: threads on this computer start children only when the host also listens on loopback, so run wsp up with --listen 0.0.0.0 or 127.0.0.1 for them.`;
 // }
 pub fn loopback_threads_line(address: &str) -> String {
-    todo!()
+    format!("listening on {address} alone: threads on this computer start children only when the host also listens on loopback, so run wsp up with --listen 0.0.0.0 or 127.0.0.1 for them.")
 }
 
 // app-ports.ts:136
@@ -229,7 +378,11 @@ pub struct ListenAsked {
 // }
 /// `port` and `listen` are the flags as typed.
 pub fn ports_asked(port: Option<&str>, listen: Option<&str>) -> ListenAsked {
-    todo!()
+    ListenAsked {
+        port: port.map_or(DEFAULT_PORT as f64, js_number),
+        named: port.is_some(),
+        address: listen.filter(|l| !l.is_empty()).unwrap_or(LOOPBACK).to_string(),
+    }
 }
 
 /// What holds a port wsp wanted: a wsp host, named by the state file it serves, the process this computer could
@@ -258,7 +411,11 @@ pub enum PortHolder {
 //   return "statePath" in holder ? `the host serving ${holder.statePath}` : `${holder.command} (pid ${holder.pid})`;
 // }
 pub fn port_holder_words(holder: Option<&PortHolder>) -> String {
-    todo!()
+    match holder {
+        None => "another process".to_string(),
+        Some(PortHolder::Host { state_path }) => format!("the host serving {state_path}"),
+        Some(PortHolder::Process(process)) => format!("{} (pid {})", process.command, process.pid),
+    }
 }
 
 /// The sentence for a port a run was told to take and could not have.
@@ -267,7 +424,7 @@ pub fn port_holder_words(holder: Option<&PortHolder>) -> String {
 //   return `Port ${port} is in use on this computer by ${portHolderWords(holder)}.`;
 // }
 pub fn port_taken_line(port: f64, holder: Option<&PortHolder>) -> String {
-    todo!()
+    format!("Port {} is in use on this computer by {}.", number_string(port), port_holder_words(holder))
 }
 
 /// What a run says when the default port was taken and it stepped to a free one: the port it serves on, then the
@@ -277,7 +434,7 @@ pub fn port_taken_line(port: f64, holder: Option<&PortHolder>) -> String {
 //   return `Serving on ${ports.port}; ${taken} is held by ${portHolderWords(holder)}.`;
 // }
 pub fn ports_picked_line(ports: &AppPorts, taken: f64, holder: Option<&PortHolder>) -> String {
-    todo!()
+    format!("Serving on {}; {} is held by {}.", ports.port, number_string(taken), port_holder_words(holder))
 }
 
 // app-ports.ts:187
@@ -290,7 +447,7 @@ pub fn ports_picked_line(ports: &AppPorts, taken: f64, holder: Option<&PortHolde
 //   return `Nothing was booted. The next free port is ${ports.port}: wsp up --port ${ports.port}. Or stop what holds the one you named.`;
 // }
 pub fn port_instead_line(ports: &AppPorts) -> String {
-    todo!()
+    format!("Nothing was booted. The next free port is {0}: wsp up --port {0}. Or stop what holds the one you named.", ports.port)
 }
 
 /// Which state file a run sets up and the flag that starts a fresh one instead: a run on a file that already
@@ -301,6 +458,6 @@ pub fn port_instead_line(ports: &AppPorts) -> String {
 //   return `Setting up ${statePath}; --state <path> starts a fresh setup instead.`;
 // }
 pub fn state_file_line(state_path: &str) -> String {
-    todo!()
+    format!("Setting up {state_path}; --state <path> starts a fresh setup instead.")
 }
 
