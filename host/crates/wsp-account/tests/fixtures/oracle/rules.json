@@ -2063,7 +2063,7 @@
   {
    "record": "wL",
    "caller": "none",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2076,7 +2076,7 @@
   {
    "record": "wB1",
    "caller": "none",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2089,7 +2089,7 @@
   {
    "record": "wB2",
    "caller": "none",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2102,7 +2102,7 @@
   {
    "record": "wBb",
    "caller": "none",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2115,7 +2115,7 @@
   {
    "record": "wC1",
    "caller": "none",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2128,7 +2128,7 @@
   {
    "record": "wC2",
    "caller": "none",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2141,7 +2141,7 @@
   {
    "record": "wC3",
    "caller": "none",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2154,7 +2154,7 @@
   {
    "record": "wC4",
    "caller": "none",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2167,7 +2167,7 @@
   {
    "record": "wCa",
    "caller": "none",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2180,7 +2180,7 @@
   {
    "record": "wWt",
    "caller": "none",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2193,7 +2193,7 @@
   {
    "record": "wSub",
    "caller": "none",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2206,7 +2206,7 @@
   {
    "record": "wGone",
    "caller": "none",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2219,7 +2219,7 @@
   {
    "record": "wRel",
    "caller": "none",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2232,7 +2232,7 @@
   {
    "record": "wNew",
    "caller": "none",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2245,7 +2245,7 @@
   {
    "record": "wOrphan",
    "caller": "none",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2264,7 +2264,7 @@
   {
    "record": "wL",
    "caller": "here",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2277,7 +2277,7 @@
   {
    "record": "wB1",
    "caller": "here",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2290,7 +2290,7 @@
   {
    "record": "wB2",
    "caller": "here",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2303,7 +2303,7 @@
   {
    "record": "wBb",
    "caller": "here",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2316,7 +2316,7 @@
   {
    "record": "wC1",
    "caller": "here",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2329,7 +2329,7 @@
   {
    "record": "wC2",
    "caller": "here",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2342,7 +2342,7 @@
   {
    "record": "wC3",
    "caller": "here",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2355,7 +2355,7 @@
   {
    "record": "wC4",
    "caller": "here",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2368,7 +2368,7 @@
   {
    "record": "wCa",
    "caller": "here",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2381,7 +2381,7 @@
   {
    "record": "wWt",
    "caller": "here",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2394,7 +2394,7 @@
   {
    "record": "wSub",
    "caller": "here",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2407,7 +2407,7 @@
   {
    "record": "wGone",
    "caller": "here",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2420,7 +2420,7 @@
   {
    "record": "wRel",
    "caller": "here",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2433,7 +2433,7 @@
   {
    "record": "wNew",
    "caller": "here",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2446,7 +2446,7 @@
   {
    "record": "wOrphan",
    "caller": "here",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2469,7 +2469,7 @@
   {
    "record": "wL",
    "caller": "relayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -2490,7 +2490,7 @@
   {
    "record": "wB1",
    "caller": "relayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -2511,7 +2511,7 @@
   {
    "record": "wB2",
    "caller": "relayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -2532,7 +2532,7 @@
   {
    "record": "wBb",
    "caller": "relayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -2549,7 +2549,7 @@
   {
    "record": "wC1",
    "caller": "relayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2562,7 +2562,7 @@
   {
    "record": "wC2",
    "caller": "relayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2575,7 +2575,7 @@
   {
    "record": "wC3",
    "caller": "relayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2588,7 +2588,7 @@
   {
    "record": "wC4",
    "caller": "relayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2601,7 +2601,7 @@
   {
    "record": "wCa",
    "caller": "relayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2618,7 +2618,7 @@
   {
    "record": "wWt",
    "caller": "relayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -2635,7 +2635,7 @@
   {
    "record": "wSub",
    "caller": "relayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2648,7 +2648,7 @@
   {
    "record": "wGone",
    "caller": "relayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2661,7 +2661,7 @@
   {
    "record": "wRel",
    "caller": "relayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2678,7 +2678,7 @@
   {
    "record": "wNew",
    "caller": "relayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -2695,7 +2695,7 @@
   {
    "record": "wOrphan",
    "caller": "relayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2714,7 +2714,7 @@
   {
    "record": "wL",
    "caller": "t1",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2732,7 +2732,7 @@
   {
    "record": "wB1",
    "caller": "t1",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -2755,7 +2755,7 @@
   {
    "record": "wB2",
    "caller": "t1",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -2778,7 +2778,7 @@
   {
    "record": "wBb",
    "caller": "t1",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -2796,7 +2796,7 @@
   {
    "record": "wC1",
    "caller": "t1",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2814,7 +2814,7 @@
   {
    "record": "wC2",
    "caller": "t1",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -2837,7 +2837,7 @@
   {
    "record": "wC3",
    "caller": "t1",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -2860,7 +2860,7 @@
   {
    "record": "wC4",
    "caller": "t1",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -2883,7 +2883,7 @@
   {
    "record": "wCa",
    "caller": "t1",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -2901,7 +2901,7 @@
   {
    "record": "wWt",
    "caller": "t1",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2914,7 +2914,7 @@
   {
    "record": "wSub",
    "caller": "t1",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2927,7 +2927,7 @@
   {
    "record": "wGone",
    "caller": "t1",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2940,7 +2940,7 @@
   {
    "record": "wRel",
    "caller": "t1",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2953,7 +2953,7 @@
   {
    "record": "wNew",
    "caller": "t1",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -2971,7 +2971,7 @@
   {
    "record": "wOrphan",
    "caller": "t1",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3000,7 +3000,7 @@
   {
    "record": "wL",
    "caller": "t2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3023,7 +3023,7 @@
   {
    "record": "wB1",
    "caller": "t2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3046,7 +3046,7 @@
   {
    "record": "wB2",
    "caller": "t2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3069,7 +3069,7 @@
   {
    "record": "wBb",
    "caller": "t2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3087,7 +3087,7 @@
   {
    "record": "wC1",
    "caller": "t2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -3105,7 +3105,7 @@
   {
    "record": "wC2",
    "caller": "t2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3128,7 +3128,7 @@
   {
    "record": "wC3",
    "caller": "t2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3151,7 +3151,7 @@
   {
    "record": "wC4",
    "caller": "t2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3174,7 +3174,7 @@
   {
    "record": "wCa",
    "caller": "t2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3192,7 +3192,7 @@
   {
    "record": "wWt",
    "caller": "t2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -3205,7 +3205,7 @@
   {
    "record": "wSub",
    "caller": "t2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -3218,7 +3218,7 @@
   {
    "record": "wGone",
    "caller": "t2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -3231,7 +3231,7 @@
   {
    "record": "wRel",
    "caller": "t2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -3244,7 +3244,7 @@
   {
    "record": "wNew",
    "caller": "t2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -3262,7 +3262,7 @@
   {
    "record": "wOrphan",
    "caller": "t2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3291,7 +3291,7 @@
   {
    "record": "wL",
    "caller": "t6",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3314,7 +3314,7 @@
   {
    "record": "wB1",
    "caller": "t6",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3337,7 +3337,7 @@
   {
    "record": "wB2",
    "caller": "t6",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3360,7 +3360,7 @@
   {
    "record": "wBb",
    "caller": "t6",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3378,7 +3378,7 @@
   {
    "record": "wC1",
    "caller": "t6",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -3396,7 +3396,7 @@
   {
    "record": "wC2",
    "caller": "t6",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3419,7 +3419,7 @@
   {
    "record": "wC3",
    "caller": "t6",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3442,7 +3442,7 @@
   {
    "record": "wC4",
    "caller": "t6",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3465,7 +3465,7 @@
   {
    "record": "wCa",
    "caller": "t6",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3483,7 +3483,7 @@
   {
    "record": "wWt",
    "caller": "t6",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -3496,7 +3496,7 @@
   {
    "record": "wSub",
    "caller": "t6",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -3509,7 +3509,7 @@
   {
    "record": "wGone",
    "caller": "t6",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -3522,7 +3522,7 @@
   {
    "record": "wRel",
    "caller": "t6",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -3535,7 +3535,7 @@
   {
    "record": "wNew",
    "caller": "t6",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -3553,7 +3553,7 @@
   {
    "record": "wOrphan",
    "caller": "t6",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3582,11 +3582,11 @@
   {
    "record": "wL",
    "caller": "t3",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on this computer, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on this computer, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -3600,7 +3600,7 @@
   {
    "record": "wB1",
    "caller": "t3",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -3618,11 +3618,11 @@
   {
    "record": "wB2",
    "caller": "t3",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on garage, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on garage, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -3641,7 +3641,7 @@
   {
    "record": "wBb",
    "caller": "t3",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -3664,11 +3664,11 @@
   {
    "record": "wC1",
    "caller": "t3",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -3687,11 +3687,11 @@
   {
    "record": "wC2",
    "caller": "t3",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -3710,11 +3710,11 @@
   {
    "record": "wC3",
    "caller": "t3",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on this computer, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on this computer, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -3733,11 +3733,11 @@
   {
    "record": "wC4",
    "caller": "t3",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -3756,11 +3756,11 @@
   {
    "record": "wCa",
    "caller": "t3",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -3779,11 +3779,11 @@
   {
    "record": "wWt",
    "caller": "t3",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on this computer, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on this computer, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -3802,11 +3802,11 @@
   {
    "record": "wSub",
    "caller": "t3",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -3825,11 +3825,11 @@
   {
    "record": "wGone",
    "caller": "t3",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -3848,11 +3848,11 @@
   {
    "record": "wRel",
    "caller": "t3",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -3871,11 +3871,11 @@
   {
    "record": "wNew",
    "caller": "t3",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -3894,11 +3894,11 @@
   {
    "record": "wOrphan",
    "caller": "t3",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -3923,11 +3923,11 @@
   {
    "record": "wL",
    "caller": "t4",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on this computer, and a thread on studio cannot undefined there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
+     "message": "thread t2 is on this computer, and a thread on studio cannot run commands there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
      "kind": "usage"
     }
    }
@@ -3941,7 +3941,7 @@
   {
    "record": "wB1",
    "caller": "t4",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -3959,11 +3959,11 @@
   {
    "record": "wB2",
    "caller": "t4",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on garage, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on garage, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -3982,7 +3982,7 @@
   {
    "record": "wBb",
    "caller": "t4",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -4005,11 +4005,11 @@
   {
    "record": "wC1",
    "caller": "t4",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
      "kind": "usage"
     }
    }
@@ -4028,11 +4028,11 @@
   {
    "record": "wC2",
    "caller": "t4",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4051,11 +4051,11 @@
   {
    "record": "wC3",
    "caller": "t4",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on this computer, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on this computer, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4074,11 +4074,11 @@
   {
    "record": "wC4",
    "caller": "t4",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4097,11 +4097,11 @@
   {
    "record": "wCa",
    "caller": "t4",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4120,11 +4120,11 @@
   {
    "record": "wWt",
    "caller": "t4",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on this computer, and a thread on studio cannot undefined there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
+     "message": "thread t2 is on this computer, and a thread on studio cannot run commands there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
      "kind": "usage"
     }
    }
@@ -4143,11 +4143,11 @@
   {
    "record": "wSub",
    "caller": "t4",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
      "kind": "usage"
     }
    }
@@ -4166,11 +4166,11 @@
   {
    "record": "wGone",
    "caller": "t4",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
      "kind": "usage"
     }
    }
@@ -4189,11 +4189,11 @@
   {
    "record": "wRel",
    "caller": "t4",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
      "kind": "usage"
     }
    }
@@ -4212,11 +4212,11 @@
   {
    "record": "wNew",
    "caller": "t4",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
      "kind": "usage"
     }
    }
@@ -4235,11 +4235,11 @@
   {
    "record": "wOrphan",
    "caller": "t4",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on studio cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4264,7 +4264,7 @@
   {
    "record": "wL",
    "caller": "t5",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -4287,7 +4287,7 @@
   {
    "record": "wB1",
    "caller": "t5",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -4310,7 +4310,7 @@
   {
    "record": "wB2",
    "caller": "t5",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -4333,7 +4333,7 @@
   {
    "record": "wBb",
    "caller": "t5",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -4351,7 +4351,7 @@
   {
    "record": "wC1",
    "caller": "t5",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -4369,7 +4369,7 @@
   {
    "record": "wC2",
    "caller": "t5",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -4392,7 +4392,7 @@
   {
    "record": "wC3",
    "caller": "t5",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -4415,7 +4415,7 @@
   {
    "record": "wC4",
    "caller": "t5",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -4438,7 +4438,7 @@
   {
    "record": "wCa",
    "caller": "t5",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -4456,7 +4456,7 @@
   {
    "record": "wWt",
    "caller": "t5",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -4469,7 +4469,7 @@
   {
    "record": "wSub",
    "caller": "t5",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -4482,7 +4482,7 @@
   {
    "record": "wGone",
    "caller": "t5",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -4495,7 +4495,7 @@
   {
    "record": "wRel",
    "caller": "t5",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -4508,7 +4508,7 @@
   {
    "record": "wNew",
    "caller": "t5",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -4526,7 +4526,7 @@
   {
    "record": "wOrphan",
    "caller": "t5",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -4555,11 +4555,11 @@
   {
    "record": "wL",
    "caller": "t7",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on this computer, and a thread on garage cannot undefined there yet; ask the person",
+     "message": "thread t2 is on this computer, and a thread on garage cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4578,11 +4578,11 @@
   {
    "record": "wB1",
    "caller": "t7",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on studio, and a thread on garage cannot undefined there yet; ask thread t3, your lead, with wsp send t3 \"<message>\"",
+     "message": "thread t2 is on studio, and a thread on garage cannot run commands there yet; ask thread t3, your lead, with wsp send t3 \"<message>\"",
      "kind": "usage"
     }
    }
@@ -4596,7 +4596,7 @@
   {
    "record": "wB2",
    "caller": "t7",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -4614,11 +4614,11 @@
   {
    "record": "wBb",
    "caller": "t7",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on studio, and a thread on garage cannot undefined there yet; ask the person",
+     "message": "thread t2 is on studio, and a thread on garage cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4637,11 +4637,11 @@
   {
    "record": "wC1",
    "caller": "t7",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on garage cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4660,11 +4660,11 @@
   {
    "record": "wC2",
    "caller": "t7",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on garage cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4683,11 +4683,11 @@
   {
    "record": "wC3",
    "caller": "t7",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on this computer, and a thread on garage cannot undefined there yet; ask the person",
+     "message": "thread t2 is on this computer, and a thread on garage cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4706,11 +4706,11 @@
   {
    "record": "wC4",
    "caller": "t7",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on garage cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4729,11 +4729,11 @@
   {
    "record": "wCa",
    "caller": "t7",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on garage cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4752,11 +4752,11 @@
   {
    "record": "wWt",
    "caller": "t7",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on this computer, and a thread on garage cannot undefined there yet; ask the person",
+     "message": "thread t2 is on this computer, and a thread on garage cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4775,11 +4775,11 @@
   {
    "record": "wSub",
    "caller": "t7",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on garage cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4798,11 +4798,11 @@
   {
    "record": "wGone",
    "caller": "t7",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on garage cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4821,11 +4821,11 @@
   {
    "record": "wRel",
    "caller": "t7",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on garage cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4844,11 +4844,11 @@
   {
    "record": "wNew",
    "caller": "t7",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on garage cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4867,11 +4867,11 @@
   {
    "record": "wOrphan",
    "caller": "t7",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
-     "message": "thread t2 is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+     "message": "thread t2 is on Solari, and a thread on garage cannot run commands there yet; ask the person",
      "kind": "usage"
     }
    }
@@ -4896,7 +4896,7 @@
   {
    "record": "wL",
    "caller": "tc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -4919,7 +4919,7 @@
   {
    "record": "wB1",
    "caller": "tc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -4942,7 +4942,7 @@
   {
    "record": "wB2",
    "caller": "tc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -4965,7 +4965,7 @@
   {
    "record": "wBb",
    "caller": "tc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -4988,7 +4988,7 @@
   {
    "record": "wC1",
    "caller": "tc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5011,7 +5011,7 @@
   {
    "record": "wC2",
    "caller": "tc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5034,7 +5034,7 @@
   {
    "record": "wC3",
    "caller": "tc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5057,7 +5057,7 @@
   {
    "record": "wC4",
    "caller": "tc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5075,7 +5075,7 @@
   {
    "record": "wCa",
    "caller": "tc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -5093,7 +5093,7 @@
   {
    "record": "wWt",
    "caller": "tc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5116,7 +5116,7 @@
   {
    "record": "wSub",
    "caller": "tc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5139,7 +5139,7 @@
   {
    "record": "wGone",
    "caller": "tc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5162,7 +5162,7 @@
   {
    "record": "wRel",
    "caller": "tc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5185,7 +5185,7 @@
   {
    "record": "wNew",
    "caller": "tc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5208,7 +5208,7 @@
   {
    "record": "wOrphan",
    "caller": "tc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5237,7 +5237,7 @@
   {
    "record": "wL",
    "caller": "tcc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5260,7 +5260,7 @@
   {
    "record": "wB1",
    "caller": "tcc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5283,7 +5283,7 @@
   {
    "record": "wB2",
    "caller": "tcc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5306,7 +5306,7 @@
   {
    "record": "wBb",
    "caller": "tcc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5329,7 +5329,7 @@
   {
    "record": "wC1",
    "caller": "tcc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5352,7 +5352,7 @@
   {
    "record": "wC2",
    "caller": "tcc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5375,7 +5375,7 @@
   {
    "record": "wC3",
    "caller": "tcc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5398,7 +5398,7 @@
   {
    "record": "wC4",
    "caller": "tcc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5416,7 +5416,7 @@
   {
    "record": "wCa",
    "caller": "tcc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -5434,7 +5434,7 @@
   {
    "record": "wWt",
    "caller": "tcc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5457,7 +5457,7 @@
   {
    "record": "wSub",
    "caller": "tcc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5480,7 +5480,7 @@
   {
    "record": "wGone",
    "caller": "tcc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5503,7 +5503,7 @@
   {
    "record": "wRel",
    "caller": "tcc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5526,7 +5526,7 @@
   {
    "record": "wNew",
    "caller": "tcc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5549,7 +5549,7 @@
   {
    "record": "wOrphan",
    "caller": "tcc",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5578,7 +5578,7 @@
   {
    "record": "wL",
    "caller": "tLost",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5601,7 +5601,7 @@
   {
    "record": "wB1",
    "caller": "tLost",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5624,7 +5624,7 @@
   {
    "record": "wB2",
    "caller": "tLost",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5647,7 +5647,7 @@
   {
    "record": "wBb",
    "caller": "tLost",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5670,7 +5670,7 @@
   {
    "record": "wC1",
    "caller": "tLost",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5693,7 +5693,7 @@
   {
    "record": "wC2",
    "caller": "tLost",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5716,7 +5716,7 @@
   {
    "record": "wC3",
    "caller": "tLost",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5739,7 +5739,7 @@
   {
    "record": "wC4",
    "caller": "tLost",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5762,7 +5762,7 @@
   {
    "record": "wCa",
    "caller": "tLost",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5785,7 +5785,7 @@
   {
    "record": "wWt",
    "caller": "tLost",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5808,7 +5808,7 @@
   {
    "record": "wSub",
    "caller": "tLost",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5831,7 +5831,7 @@
   {
    "record": "wGone",
    "caller": "tLost",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5854,7 +5854,7 @@
   {
    "record": "wRel",
    "caller": "tLost",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5877,7 +5877,7 @@
   {
    "record": "wNew",
    "caller": "tLost",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5900,7 +5900,7 @@
   {
    "record": "wOrphan",
    "caller": "tLost",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5929,7 +5929,7 @@
   {
    "record": "wL",
    "caller": "tOrphan",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5952,7 +5952,7 @@
   {
    "record": "wB1",
    "caller": "tOrphan",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5975,7 +5975,7 @@
   {
    "record": "wB2",
    "caller": "tOrphan",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -5998,7 +5998,7 @@
   {
    "record": "wBb",
    "caller": "tOrphan",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6021,7 +6021,7 @@
   {
    "record": "wC1",
    "caller": "tOrphan",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6044,7 +6044,7 @@
   {
    "record": "wC2",
    "caller": "tOrphan",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6067,7 +6067,7 @@
   {
    "record": "wC3",
    "caller": "tOrphan",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6090,7 +6090,7 @@
   {
    "record": "wC4",
    "caller": "tOrphan",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6113,7 +6113,7 @@
   {
    "record": "wCa",
    "caller": "tOrphan",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6136,7 +6136,7 @@
   {
    "record": "wWt",
    "caller": "tOrphan",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6159,7 +6159,7 @@
   {
    "record": "wSub",
    "caller": "tOrphan",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6182,7 +6182,7 @@
   {
    "record": "wGone",
    "caller": "tOrphan",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6205,7 +6205,7 @@
   {
    "record": "wRel",
    "caller": "tOrphan",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6228,7 +6228,7 @@
   {
    "record": "wNew",
    "caller": "tOrphan",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6246,7 +6246,7 @@
   {
    "record": "wOrphan",
    "caller": "tOrphan",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -6270,7 +6270,7 @@
   {
    "record": "wL",
    "caller": "tO2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6293,7 +6293,7 @@
   {
    "record": "wB1",
    "caller": "tO2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6316,7 +6316,7 @@
   {
    "record": "wB2",
    "caller": "tO2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6339,7 +6339,7 @@
   {
    "record": "wBb",
    "caller": "tO2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6362,7 +6362,7 @@
   {
    "record": "wC1",
    "caller": "tO2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6385,7 +6385,7 @@
   {
    "record": "wC2",
    "caller": "tO2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6408,7 +6408,7 @@
   {
    "record": "wC3",
    "caller": "tO2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6431,7 +6431,7 @@
   {
    "record": "wC4",
    "caller": "tO2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6454,7 +6454,7 @@
   {
    "record": "wCa",
    "caller": "tO2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6477,7 +6477,7 @@
   {
    "record": "wWt",
    "caller": "tO2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6500,7 +6500,7 @@
   {
    "record": "wSub",
    "caller": "tO2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6523,7 +6523,7 @@
   {
    "record": "wGone",
    "caller": "tO2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6546,7 +6546,7 @@
   {
    "record": "wRel",
    "caller": "tO2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6569,7 +6569,7 @@
   {
    "record": "wNew",
    "caller": "tO2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6587,7 +6587,7 @@
   {
    "record": "wOrphan",
    "caller": "tO2",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -6611,7 +6611,7 @@
   {
    "record": "wL",
    "caller": "tLoop",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6634,7 +6634,7 @@
   {
    "record": "wB1",
    "caller": "tLoop",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6657,7 +6657,7 @@
   {
    "record": "wB2",
    "caller": "tLoop",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6680,7 +6680,7 @@
   {
    "record": "wBb",
    "caller": "tLoop",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6703,7 +6703,7 @@
   {
    "record": "wC1",
    "caller": "tLoop",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6721,7 +6721,7 @@
   {
    "record": "wC2",
    "caller": "tLoop",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -6739,7 +6739,7 @@
   {
    "record": "wC3",
    "caller": "tLoop",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6762,7 +6762,7 @@
   {
    "record": "wC4",
    "caller": "tLoop",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6785,7 +6785,7 @@
   {
    "record": "wCa",
    "caller": "tLoop",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6808,7 +6808,7 @@
   {
    "record": "wWt",
    "caller": "tLoop",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6831,7 +6831,7 @@
   {
    "record": "wSub",
    "caller": "tLoop",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6854,7 +6854,7 @@
   {
    "record": "wGone",
    "caller": "tLoop",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6877,7 +6877,7 @@
   {
    "record": "wRel",
    "caller": "tLoop",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6900,7 +6900,7 @@
   {
    "record": "wNew",
    "caller": "tLoop",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6923,7 +6923,7 @@
   {
    "record": "wOrphan",
    "caller": "tLoop",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6952,7 +6952,7 @@
   {
    "record": "wL",
    "caller": "tRelayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6975,7 +6975,7 @@
   {
    "record": "wB1",
    "caller": "tRelayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -6998,7 +6998,7 @@
   {
    "record": "wB2",
    "caller": "tRelayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -7021,7 +7021,7 @@
   {
    "record": "wBb",
    "caller": "tRelayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -7039,7 +7039,7 @@
   {
    "record": "wC1",
    "caller": "tRelayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -7057,7 +7057,7 @@
   {
    "record": "wC2",
    "caller": "tRelayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -7080,7 +7080,7 @@
   {
    "record": "wC3",
    "caller": "tRelayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -7103,7 +7103,7 @@
   {
    "record": "wC4",
    "caller": "tRelayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -7126,7 +7126,7 @@
   {
    "record": "wCa",
    "caller": "tRelayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -7149,7 +7149,7 @@
   {
    "record": "wWt",
    "caller": "tRelayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -7167,7 +7167,7 @@
   {
    "record": "wSub",
    "caller": "tRelayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -7180,7 +7180,7 @@
   {
    "record": "wGone",
    "caller": "tRelayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -7193,7 +7193,7 @@
   {
    "record": "wRel",
    "caller": "tRelayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": null
   },
@@ -7211,7 +7211,7 @@
   {
    "record": "wNew",
    "caller": "tRelayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -7234,7 +7234,7 @@
   {
    "record": "wOrphan",
    "caller": "tRelayed",
-   "act": "send",
+   "act": "exec",
    "thread": "t2",
    "answer": {
     "thrown": {
@@ -11025,113 +11025,113 @@
   },
   "t3": {
    "wL": {
-    "message": "\"wL\" is on this computer, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wL\" is on this computer, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wB1": null,
    "wB2": {
-    "message": "\"wB2\" is on garage, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wB2\" is on garage, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wBb": null,
    "wC1": {
-    "message": "\"wC1\" is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wC1\" is on Solari, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wC2": {
-    "message": "\"wC2\" is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wC2\" is on Solari, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wC3": {
-    "message": "\"wC3\" is on this computer, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wC3\" is on this computer, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wC4": {
-    "message": "\"wC4\" is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wC4\" is on Solari, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wCa": {
-    "message": "\"wCa\" is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wCa\" is on Solari, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wWt": {
-    "message": "\"wWt\" is on this computer, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wWt\" is on this computer, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wSub": {
-    "message": "\"wSub\" is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wSub\" is on Solari, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wGone": {
-    "message": "\"wGone\" is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wGone\" is on Solari, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wRel": {
-    "message": "\"wRel\" is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wRel\" is on Solari, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wNew": {
-    "message": "\"wNew\" is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wNew\" is on Solari, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wOrphan": {
-    "message": "\"wOrphan\" is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wOrphan\" is on Solari, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    }
   },
   "t4": {
    "wL": {
-    "message": "\"wL\" is on this computer, and a thread on studio cannot undefined there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
+    "message": "\"wL\" is on this computer, and a thread on studio cannot wake it there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
     "kind": "usage"
    },
    "wB1": null,
    "wB2": {
-    "message": "\"wB2\" is on garage, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wB2\" is on garage, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wBb": null,
    "wC1": {
-    "message": "\"wC1\" is on Solari, and a thread on studio cannot undefined there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
+    "message": "\"wC1\" is on Solari, and a thread on studio cannot wake it there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
     "kind": "usage"
    },
    "wC2": {
-    "message": "\"wC2\" is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wC2\" is on Solari, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wC3": {
-    "message": "\"wC3\" is on this computer, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wC3\" is on this computer, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wC4": {
-    "message": "\"wC4\" is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wC4\" is on Solari, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wCa": {
-    "message": "\"wCa\" is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wCa\" is on Solari, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wWt": {
-    "message": "\"wWt\" is on this computer, and a thread on studio cannot undefined there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
+    "message": "\"wWt\" is on this computer, and a thread on studio cannot wake it there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
     "kind": "usage"
    },
    "wSub": {
-    "message": "\"wSub\" is on Solari, and a thread on studio cannot undefined there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
+    "message": "\"wSub\" is on Solari, and a thread on studio cannot wake it there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
     "kind": "usage"
    },
    "wGone": {
-    "message": "\"wGone\" is on Solari, and a thread on studio cannot undefined there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
+    "message": "\"wGone\" is on Solari, and a thread on studio cannot wake it there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
     "kind": "usage"
    },
    "wRel": {
-    "message": "\"wRel\" is on Solari, and a thread on studio cannot undefined there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
+    "message": "\"wRel\" is on Solari, and a thread on studio cannot wake it there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
     "kind": "usage"
    },
    "wNew": {
-    "message": "\"wNew\" is on Solari, and a thread on studio cannot undefined there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
+    "message": "\"wNew\" is on Solari, and a thread on studio cannot wake it there yet; ask thread t1, your lead, with wsp send t1 \"<message>\"",
     "kind": "usage"
    },
    "wOrphan": {
-    "message": "\"wOrphan\" is on Solari, and a thread on studio cannot undefined there yet; ask the person",
+    "message": "\"wOrphan\" is on Solari, and a thread on studio cannot wake it there yet; ask the person",
     "kind": "usage"
    }
   },
@@ -11154,60 +11154,60 @@
   },
   "t7": {
    "wL": {
-    "message": "\"wL\" is on this computer, and a thread on garage cannot undefined there yet; ask the person",
+    "message": "\"wL\" is on this computer, and a thread on garage cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wB1": {
-    "message": "\"wB1\" is on studio, and a thread on garage cannot undefined there yet; ask thread t3, your lead, with wsp send t3 \"<message>\"",
+    "message": "\"wB1\" is on studio, and a thread on garage cannot wake it there yet; ask thread t3, your lead, with wsp send t3 \"<message>\"",
     "kind": "usage"
    },
    "wB2": null,
    "wBb": {
-    "message": "\"wBb\" is on studio, and a thread on garage cannot undefined there yet; ask the person",
+    "message": "\"wBb\" is on studio, and a thread on garage cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wC1": {
-    "message": "\"wC1\" is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+    "message": "\"wC1\" is on Solari, and a thread on garage cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wC2": {
-    "message": "\"wC2\" is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+    "message": "\"wC2\" is on Solari, and a thread on garage cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wC3": {
-    "message": "\"wC3\" is on this computer, and a thread on garage cannot undefined there yet; ask the person",
+    "message": "\"wC3\" is on this computer, and a thread on garage cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wC4": {
-    "message": "\"wC4\" is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+    "message": "\"wC4\" is on Solari, and a thread on garage cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wCa": {
-    "message": "\"wCa\" is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+    "message": "\"wCa\" is on Solari, and a thread on garage cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wWt": {
-    "message": "\"wWt\" is on this computer, and a thread on garage cannot undefined there yet; ask the person",
+    "message": "\"wWt\" is on this computer, and a thread on garage cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wSub": {
-    "message": "\"wSub\" is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+    "message": "\"wSub\" is on Solari, and a thread on garage cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wGone": {
-    "message": "\"wGone\" is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+    "message": "\"wGone\" is on Solari, and a thread on garage cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wRel": {
-    "message": "\"wRel\" is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+    "message": "\"wRel\" is on Solari, and a thread on garage cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wNew": {
-    "message": "\"wNew\" is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+    "message": "\"wNew\" is on Solari, and a thread on garage cannot wake it there yet; ask the person",
     "kind": "usage"
    },
    "wOrphan": {
-    "message": "\"wOrphan\" is on Solari, and a thread on garage cannot undefined there yet; ask the person",
+    "message": "\"wOrphan\" is on Solari, and a thread on garage cannot wake it there yet; ask the person",
     "kind": "usage"
    }
   },
