@@ -26,6 +26,7 @@ use wsp_machines::places::manage::ManageDoor;
 use wsp_machines::places::types::*;
 use wsp_machines::places::views::{LinkReads, PlaceViewsArea};
 use wsp_store::keys::PlaceKeyPair;
+use wsp_core::reach::ReachError;
 use wsp_words::exit::{HostError, Kind};
 
 // ---------------------------------------------------------------- the fixture and its words
@@ -235,7 +236,7 @@ fn exec_out(code: i64, stdout: &str, stderr: &str) -> Map<String, Value> {
 
 /// A link whose daemon answers `place.leave` with `swept` and every exec with nothing, each recorded in `order` as
 /// `reach:place.leave`, `reach:cgroups` or `reach:exec`. `over(op, cmd)` answers instead where it says something.
-fn reach_with(order: &Order, swept: Vec<&'static str>, over: impl Fn(&str, &str) -> Option<Result<Map<String, Value>, HostError>> + 'static) -> Rc<FakeReach> {
+fn reach_with(order: &Order, swept: Vec<&'static str>, over: impl Fn(&str, &str) -> Option<Result<Map<String, Value>, ReachError>> + 'static) -> Rc<FakeReach> {
     let order = order.clone();
     let cgroups = word("/scripts/cgroupsEnd");
     FakeReach::new(move |op, params| {
@@ -253,7 +254,7 @@ fn reach_with(order: &Order, swept: Vec<&'static str>, over: impl Fn(&str, &str)
             "ping" => Ok(Map::new()),
             "exec" => Ok(exec_out(0, "", "")),
             "place.leave" => Ok(obj(json!({ "swept": swept }))),
-            other => Err(HostError::new(format!("unknown op {other}"))),
+            other => Err(reach_err(format!("unknown op {other}"))),
         }
     })
 }
@@ -522,7 +523,7 @@ fn holds_listing_failure_one_line() {
         for (what, reply, line) in [
             ("exits non-zero with stderr", Ok(exec_out(2, "", "x\nPermission denied\n")), w("unpushedUnreadStderr")),
             ("exits non-zero silently", Ok(exec_out(2, "", "")), w("unpushedUnread")),
-            ("fails to ask", Err(HostError::new("boom")), w("unreadBoom")),
+            ("fails to ask", Err(reach_err("boom")), w("unreadBoom")),
         ] {
             let d = build(&key, Wires::default(), |s| s.records = vec![record_json(json!({ "report": report_json(json!({ "takesRuntime": true })) }))]);
             let answer = Rc::new(RefCell::new(Some(reply)));
@@ -579,7 +580,7 @@ impl EmptyBoat {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl MachineBackend for EmptyBoat {
     fn capabilities(&self) -> wsp_engine::machine::Capabilities {
         self.inner.capabilities()
@@ -1561,7 +1562,7 @@ fn remove_link_sweep_survives_a_cgroup_script_failure() {
     // spec: RM13 (the cgroup script's failure is ignored)
     run(async {
         let o = order();
-        let reach = reach_with(&o, vec!["/home/maya/.wsp"], |op, cmd| (op == "exec" && cmd.starts_with("wsp_end()")).then(|| Err(HostError::new("exec timed out"))));
+        let reach = reach_with(&o, vec!["/home/maya/.wsp"], |op, cmd| (op == "exec" && cmd.starts_with("wsp_end()")).then(|| Err(reach_err("exec timed out"))));
         let d = build(&new_key(), Wires::default(), |s| s.setup = setup_over(guest(&o, |_| None)));
         link(&d, PLACE, reach);
         let answer = d.manage.remove(PLACE, ask()).await.unwrap();
@@ -1578,7 +1579,7 @@ fn remove_link_sweep_failure_note() {
         let failed = format!("{NAME} was connected but did not finish the sweep: socket reset; run wsp leave on that computer");
         // no login at all
         let o = order();
-        let reach = reach_with(&o, vec![], |op, _| (op == "place.leave").then(|| Err(HostError::new("socket reset"))));
+        let reach = reach_with(&o, vec![], |op, _| (op == "place.leave").then(|| Err(reach_err("socket reset"))));
         let d = build(&key, Wires::default(), |s| s.setup = setup_over(guest(&o, |_| None)));
         link(&d, PLACE, reach);
         let answer = d.manage.remove(PLACE, ask()).await.unwrap();
@@ -1589,7 +1590,7 @@ fn remove_link_sweep_failure_note() {
         let said = "vps ran the leave and did not finish it: Failed to stop: Unit is masked.";
         let ran: Ran = Rc::new(RefCell::new(vec![]));
         let asked: Asked = Rc::new(RefCell::new(vec![]));
-        let reach = reach_with(&o, vec![], |op, _| (op == "place.leave").then(|| Err(HostError::new("socket reset"))));
+        let reach = reach_with(&o, vec![], |op, _| (op == "place.leave").then(|| Err(reach_err("socket reset"))));
         let d = build(&key, Wires { leave: Some(leaver(&asked, move |_| Err(HostError::new(said)))), run_over: Some(same_box(&key, &ran)), ..Wires::default() }, |s| s.setup = setup_over(guest(&o, |_| None)));
         link(&d, PLACE, reach);
         let answer = d.manage.remove(PLACE, ask()).await.unwrap();
@@ -1600,7 +1601,7 @@ fn remove_link_sweep_failure_note() {
         let o = order();
         let ran: Ran = Rc::new(RefCell::new(vec![]));
         let asked: Asked = Rc::new(RefCell::new(vec![]));
-        let reach = reach_with(&o, vec![], |op, _| (op == "place.leave").then(|| Err(HostError::new("socket reset"))));
+        let reach = reach_with(&o, vec![], |op, _| (op == "place.leave").then(|| Err(reach_err("socket reset"))));
         let d = build(&key, Wires { leave: Some(leaver(&asked, leave_answer(&[]))), run_over: Some(box_road(|| None, None, &ran)), ..Wires::default() }, |s| s.setup = setup_over(guest(&o, |_| None)));
         link(&d, PLACE, reach);
         let answer = d.manage.remove(PLACE, ask()).await.unwrap();
