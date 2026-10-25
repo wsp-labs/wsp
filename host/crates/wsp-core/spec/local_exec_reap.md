@@ -1,8 +1,8 @@
 # local_exec_reap
 Source: packages/runtime/src/local-exec.ts:38-435 (398 lines) at 65f6b89c7. Rust: `src/local_exec/reap.rs`.
-Tests: the tree, agent-pid, stranger and reap cases of packages/runtime/test/local-exec.test.ts (9 cases), the
-whole of local-exec-no-ps.test.ts (3), and 6 pinned beyond them. Rust: `tests/local_exec_reap.rs`,
-`tests/local_exec_no_ps.rs`. Every test that starts a process runs in a process group of its own (support
+Tests: the tree, agent-pid and stranger cases of packages/runtime/test/local-exec.test.ts (7 cases), the
+whole of local-exec-no-ps.test.ts (3), and 10 pinned beyond them. Rust: `tests/local_exec_reap.rs`,
+`tests/local_exec_no_ps.rs`, `tests/local_exec_pinned.rs`. Every test that starts a process runs in a process group of its own (support
 `own_group`), and the strays it records are killed after it.
 
 ## What it does

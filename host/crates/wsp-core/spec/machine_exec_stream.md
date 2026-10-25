@@ -1,7 +1,7 @@
 # machine_exec_stream
 Source: packages/runtime/src/machine-exec.ts:227-264, 346-736 (430 lines) at 65f6b89c7. Rust:
 `src/machine_exec/stream.rs`. Tests: the reader, input, limit, reap and let-go cases of
-packages/runtime/test/machine-exec.test.ts (61 cases) and all of machine-exec-kept.test.ts (5). Rust:
+packages/runtime/test/machine-exec.test.ts (46 cases) and all of machine-exec-kept.test.ts (5). Rust:
 `tests/machine_exec_stream.rs`, `tests/machine_exec_kept.rs`.
 
 ## What it does

@@ -1,7 +1,7 @@
 # pipe_pool
 Source: packages/runtime/src/pipe.ts:1-392 (392 lines) at 65f6b89c7. Rust: `src/pipe/pool.rs`. Tests:
-packages/runtime/test/pipe.test.ts's first three groups (16 cases) and 3 pinned beyond them. Rust:
-`tests/pipe_pool.rs`, against a fake daemon (a local websocket server).
+packages/runtime/test/pipe.test.ts's first three groups (17 cases) and 5 pinned beyond them. Rust:
+`tests/pipe_pool.rs` against a fake daemon (a local websocket server, `tests/pipe_daemon/`), `tests/pipe_pinned.rs`.
 
 ## What it does
 The host's pool of pipes to each brokered workspace's daemon: extra websockets the daemon parks until a process on

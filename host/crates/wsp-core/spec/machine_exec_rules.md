@@ -1,7 +1,7 @@
 # machine_exec_rules
 Source: packages/runtime/src/machine-exec.ts:95-298 (204 lines) at 65f6b89c7. Rust: `src/machine_exec/rules.rs`.
-Tests: the awk, LineCut and limit cases of packages/runtime/test/machine-exec.test.ts (5 cases), plus 9 pinned from
-the TS under node (2026-10-25). Rust: `tests/machine_exec_rules.rs`.
+Tests: the four awk cases of packages/runtime/test/machine-exec.test.ts and the fake-/proc half of a fifth, plus 9
+pinned from the TS under node (2026-10-25). Rust: `tests/machine_exec_rules.rs`.
 
 ## What it does
 The rules both turn roads (this computer's and a machine's) share: the one rule that cuts a turn (`turn_cut`), the
