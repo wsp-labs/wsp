@@ -75,7 +75,8 @@ pub fn agent_end_fix(scope: &ActivityScope) -> String {
 //   take(p);
 //   return { targets };
 // }
-pub fn end_plan(read: &ActivityRead, pid: f64, started_at: f64, may: &dyn Fn(Option<&str>) -> bool) -> EndPlan {
+/// The TS throws (a refusal) are the Err.
+pub fn end_plan(read: &ActivityRead, pid: f64, started_at: f64, may: &dyn Fn(Option<&str>) -> bool) -> Result<EndPlan, crate::exit::HostError> {
     todo!()
 }
 
