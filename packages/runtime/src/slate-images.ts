@@ -36,7 +36,7 @@ export interface SlateImageRoads {
 /** Each thread's reads under way and the ones waiting for a turn. */
 const turns = new Map<string, { running: number; waiting: (() => void)[] }>();
 
-async function inTurn<T>(thread: string, work: () => Promise<T>): Promise<T> {
+export async function inTurn<T>(thread: string, work: () => Promise<T>): Promise<T> {
   const mine = turns.get(thread) ?? turns.set(thread, { running: 0, waiting: [] }).get(thread)!;
   if (mine.running >= IMAGES_AT_ONCE) await new Promise<void>(go => mine.waiting.push(go));
   else mine.running++;
@@ -70,10 +70,10 @@ const kept = (have: string | undefined, answer: SlatesImageAnswer): SlatesImageA
 
 /** A file's version: its modified time and size, and its inode and change time, which a copy that keeps the source's
  * modified time (cp -p, rsync -a, tar) still moves. */
-const versionOf = (modifiedMs: number, size: number, inode?: number | bigint, changedNs?: number | bigint): string =>
+export const versionOf = (modifiedMs: number, size: number, inode?: number | bigint, changedNs?: number | bigint): string =>
   [Math.round(modifiedMs), size, ...(inode !== undefined ? [inode] : []), ...(changedNs !== undefined ? [changedNs] : [])].join(":");
 
-const codeOf = (e: unknown): string | undefined => (e as { code?: unknown }).code as string | undefined;
+export const codeOf = (e: unknown): string | undefined => (e as { code?: unknown }).code as string | undefined;
 
 /** A file on this computer, opened without blocking so a pipe in its place cannot hold the read, and judged on the
  * handle it was opened as, so nothing swapped in after a stat is read. Its bytes take what the file weighs. */

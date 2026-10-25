@@ -259,7 +259,7 @@ async fn handle_op(conn: &Arc<Conn>, ctx: &Arc<Ctx>, frame: &Value, id: Option<R
         Some(name) if GUEST_OPS.contains(&name) && !guest_road_serves(&conn.road, ctx.is_place(), name) => {
             refuse(id, DaemonErrorCode::Forbidden, words::NOT_ON_THIS_ROAD)
         }
-        Some(name @ ("fs.image" | "fs.hash" | "http.post")) => crate::slate_reads::serve(conn, ctx, id, name, frame).await,
+        Some(name @ ("fs.image" | "fs.page" | "fs.hash" | "http.post")) => crate::slate_reads::serve(conn, ctx, id, name, frame).await,
         Some(name @ ("stdio.open" | "stdio.write" | "stdio.close")) => crate::stdio::serve(conn, ctx, id, name, frame),
         Some(
             name @ ("pty.create"

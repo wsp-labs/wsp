@@ -41,7 +41,7 @@ toggle: label! value! note held onChange
 empty: title! body
 Every piece: id, when={cond}; items take when too. tone: default muted good warning bad info accent. emphasis: normal strong quiet. format, where a line lists none: plain tokens bytes percent usd inr duration integer.
 section, column, grid: pad none tight normal loose; surface="inset" sets the card ground; align start center end, else children fill the width.
-bars compare categories; time is a chart, x in ms or ISO; shares a donut, sizes a treemap, spans on a clock a timeline; a flow is a diagram; a screenshot or plot is an image from its path on the thread's computer, or an https address the person allows.
+bars compare categories; time is a chart, x in ms or ISO; shares a donut, sizes a treemap, spans on a clock a timeline; a flow is a diagram; a screenshot or plot is an image from its path on the thread's computer, or an https address the person allows; what no piece draws, a frame: an .html file you wrote.
 Sources, read only:
 thread: id title agent model status turns lastTurn cost tokens context changes plan waitingOn subagents[] ...
 usage: account windows[] session week status note ...
@@ -50,7 +50,7 @@ time: now today zone
 git: branch head ahead behind changed ...
 pr: number url state draft branch headSubject mergeable review checks[] word ...
 Declarations: <value name start> <secret name> <derived name value> <run name cmd env args stdin on timeout every always once confirm then tool resource description> <file name> <when change={$path} or done={$run} do={steps}>
-Steps: set toggle start cancel send steer queue fill open copy pane. Functions: percent pct tokens bytes usd number duration ago until date time weekday plural word upper lower trim short round floor ceil abs min max clamp str num bool concat json lines split replace contains startsWith endsWith orElse exists isNull coalesce if len count sum avg first last at append pluck join. ago(t) "30s ago", until(t) "in 4m".
+Steps: set toggle start cancel send steer queue fill open copy pane. Functions: slate_catalog functions; ago(t) "30s ago", until(t) "in 4m".
 After |: where sortBy groupBy take skip count sum min max avg first last pick map distinct flatten join format. $run reads state exit out err json; a secret only .set .len.
 Rules:
 1. One <slate>, one root piece, declarations beside it. Give an id to a piece you will change.
@@ -327,6 +327,17 @@ images (core): Several pictures, as image takes them: a row that scrolls, a grid
 events: none
 sketch: compare of images  [images-1 images]
 example: <images layout="compare" items={[{ p: "shots/before.png", c: "Before" }, { p: "shots/after.png", c: "After" }]} src={item.p} caption={item.c} />
+```
+
+### frame
+
+```text
+frame (extended): An HTML page you wrote, from a file on the thread's computer, for what no piece draws: a figure, an explainer, a small simulation. Sealed: it loads nothing and reaches nothing; look only, so actions stay in pieces.
+  src: string, required, formula; an .html file on the thread's computer, relative to its folder or whole, up to 1 MB; inline script, style and data: images run, nothing loads from outside; the theme's colours are var(--background), var(--foreground) and the rest
+  caption: string, formula
+events: none
+sketch: [frame figures/dial.html]  How the dial reads  [frame-1 frame]
+example: <frame src="figures/dial.html" caption="How the dial reads" />
 ```
 
 ### sparkline

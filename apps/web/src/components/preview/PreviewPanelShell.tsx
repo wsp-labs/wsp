@@ -25,7 +25,7 @@ export type PreviewPanelMode = "inline" | "sheet" | "sidebar" | "embedded";
  * overflowed.
  */
 const PREVIEW_PANEL_MAX_WIDTH_FRACTION = 0.7;
-const PREVIEW_PANEL_DEFAULT_WIDTH = 540;
+export const PREVIEW_PANEL_DEFAULT_WIDTH = 540;
 
 export function getPreviewPanelMaxWidth(viewportWidth: number, containerWidth?: number): number {
   const fractionCap = Math.floor(viewportWidth * PREVIEW_PANEL_MAX_WIDTH_FRACTION);
