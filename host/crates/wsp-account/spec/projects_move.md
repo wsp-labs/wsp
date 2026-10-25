@@ -1,8 +1,8 @@
 # projects_move
 
 Source: `packages/runtime/src/projects/projects.ts:23-106, 482-574` at 65f6b89c7. Tests: the import and export cases of
-`packages/runtime/test/` (named in the table). Every report line is the TS's own text: `oracle/projects_move.oracle.ts`
-runs `copyImport` and `projects.export` on fakes and writes `tests/fixtures/projects_move.json`.
+`packages/runtime/test/` (named in the table). Every report line is the TS's own text, built in projects.ts with
+`plural` and `fmtBytes` (protocol/src/format.ts); the tests write each line out whole.
 
 ## What it does
 
