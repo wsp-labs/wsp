@@ -4,12 +4,13 @@
 
 use indexmap::IndexSet;
 use serde_json::{json, Value};
-use wsp_words::project_import::*;
 use wsp_wire::views::project_bundle::ProjectPlan;
+use wsp_words::project_import::*;
 
 fn plan() -> ProjectPlan {
     let env = json!({ "path": ".env", "bytes": 19, "signals": ["name"] });
-    let config = json!({ "path": ".git/config", "bytes": 200, "signals": ["url"], "rewrite": { "urls": ["https://github.com/o/r"], "drop": [] } });
+    let config =
+        json!({ "path": ".git/config", "bytes": 200, "signals": ["url"], "rewrite": { "urls": ["https://github.com/o/r"], "drop": [] } });
     serde_json::from_value(json!({
         "source": "/Users/me/code/proj",
         "repo": true,
