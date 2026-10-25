@@ -85,3 +85,68 @@ settledAt }).await`, `pauses(record)`, `nap_with(id).await`, `read_lead_of(child
 
 The record's `pr`, `prSent`, `branchThreads` and `tree` (persisted). The rate-limit holds, the repository settings,
 the page and pr cache entries in memory, the poll timers and `prNoneAt` do not: a restarted host reads afresh.
+
+## Tests
+
+`tests/pull_requests.rs`, 51 tests over one fake context (`World`): a clock of its own, a daemon for this computer and
+one for the copy that answer by op, and a log of everything the area asked, in order (a road when asked, a frame when
+sent). Expected sentences come from `oracle/pull_requests.oracle.ts` (`tests/fixtures/oracle/pull_requests.json`); every
+other expected value is a literal of the TS tests.
+
+| Rule | Tests |
+|---|---|
+| Q1 | `q1_read_host_falls_back_to_a_running_copy`, `ts_the_copy_is_asked_only_where_it_runs_and_a_stopped_one_is_never_woken` |
+| Q2 | `q2_rate_limit_holds_the_road`, `q2_the_hold_ends_on_time`, `ts_a_rate_limit_holds_pages_and_status_reads_on_that_road_for_a_minute` |
+| Q3 | `q3_pull_request_on_and_the_keys` |
+| Q4 | `q4_page_held_then_dropped`, `q4_an_old_timer_leaves_a_newer_entry`, `q4_a_page_the_copy_read_says_here_false` |
+| Q5, invariant 4 | `invariant_4_post_as_person_never_takes_the_copy_road`, `invariant_4_post_as_person_drops_the_held_page`, `q5_post_as_person_rethrows_other_failures_and_ignores_the_hold`, `q5_host_of_remote_and_the_post_line` |
+| Q6 | `q6_pr_poll_ms_follows_the_window` |
+| Q7 step 1 to 9 | `q7_read_pull_request_table` (step 1 left branch, 2 settled record, 3 held and re-arm, 4 head with no pull request, 5 and 9 the in-flight mark, 6 the frame, 7 what is taken, 8 failures), `q7_a_read_in_flight_is_joined`, `q7_whole_reads_alone` |
+| Q8 | `q8_take_writes_the_record_only_when_it_moved`, `q8_a_new_number_drops_what_was_sent` |
+| Q9 | `q9_left_branch_table` |
+| Q10 | `q10_drop_pull_request_clears_everything` |
+| Q11 | `q11_ran_on_branch_table` |
+| Q12 | `q12_poll_intervals`, `q12_the_timer_forces_a_read` |
+| Q13 | `q13_settle_marks_the_tree_and_naps`, `q13_a_running_turn_waits`, `q13_a_folder_settles_only_its_branch_threads`, `q13_a_failed_mark_or_nap_warns_whole_lines` |
+| Q14 | `q14_merge_settings_held_an_hour` |
+| Q15 | `q15_update_copy_reads_after` |
+| Q16 | `q16_keep_tree_sets_or_removes_and_reads_the_lead` |
+
+TS cases, strong in the test map, and where each is pinned:
+
+| TS case | Test |
+|---|---|
+| pull-request:215 | `ts_a_read_goes_over_this_computer_with_the_projects_remote_and_the_copys_branch` |
+| pull-request:231 | `ts_the_copy_is_asked_only_where_it_runs_and_a_stopped_one_is_never_woken` |
+| pull-request:251 | `ts_neither_road_has_a_command_line_so_the_pull_request_is_not_read` |
+| pull-request:259 | `ts_a_failed_read_keeps_the_fact_and_reads_again_on_its_timer` |
+| pull-request:277 | `ts_merged_and_closed_are_recorded_as_the_host_says_them` |
+| pull-request:285 | `ts_an_open_one_is_read_on_its_timer_whatever_its_checks_say_and_never_again_once_merged` |
+| pull-request:317 | `ts_a_read_asks_with_what_the_last_read_saw_and_an_unchanged_answer_keeps_the_fact` |
+| pull-request:340 | `ts_a_check_still_running_is_asked_for_in_full` |
+| pull-request:351 | `ts_an_open_one_is_read_every_poll_ms_with_a_window_and_every_idle_ms_with_none` |
+| pull-request:386 | `ts_a_branch_with_no_pull_request_is_read_again_on_view_only_once_its_head_moves` |
+| pull-request:412 | `ts_a_rate_limit_holds_pages_and_status_reads_on_that_road_for_a_minute` |
+| pull-request:439 | `ts_a_merged_pull_request_stamps_a_quiet_tree_and_naps_its_machine` |
+| pull-request:467 | `ts_a_project_folder_keeps_the_pull_request_with_its_branch_and_loses_it_when_it_leaves` |
+| pull-request:513 | `ts_a_fork_pull_request_on_a_worktree_is_read_by_number_alone_and_kept` |
+| pull-request:544 | `ts_a_merged_tree_stays_live_while_a_child_works_and_is_stamped_when_it_ends` |
+| pull-request:564 | `ts_a_workspace_a_thread_opened_settles_nothing_off_its_own_pull_request` |
+| pull-request:610 | `ts_a_page_write_and_the_settings_cost_one_read_each_within_their_holds`, `q4_page_held_then_dropped` |
+| pull-request:729 | `q8_a_new_number_drops_what_was_sent` |
+| pull-request:751 | `ts_a_reply_a_resolve_and_a_reaction_post_as_the_person_over_this_computers_daemon` |
+| pull-request:777 | `invariant_4_post_as_person_never_takes_the_copy_road`, `q4_a_page_the_copy_read_says_here_false` |
+| pull-request:804 | `ts_a_settled_record_keeps_the_checks_the_read_that_saw_it_settle_found` |
+| pull-request:846 | `ts_a_whole_read_never_asks_with_what_the_last_read_saw` |
+| pull-request:867, :986 | `ts_update_answers_a_clean_merge_and_the_conflicts_through_the_copys_daemon`, `q15_update_copy_reads_after` |
+| pull-request:914 | `q14_merge_settings_held_an_hour`, `ts_a_page_write_and_the_settings_cost_one_read_each_within_their_holds` |
+| tree:351, :418, :432 | `ts_the_tree_a_child_keeps_is_what_its_lead_reads`, `q16_keep_tree_sets_or_removes_and_reads_the_lead` |
+| worktree-sweep:329 (weak) | `q7_read_pull_request_table` step 6, `ts_a_fork_pull_request_on_a_worktree_is_read_by_number_alone_and_kept` |
+
+Not ported (weak, and the sentence or frame is built by the workspaces area): pull-request:638, 648, 794, 819, 884,
+901 (`pullRequestOn`'s own refusal is pinned by `q3`), 941, 973; tree:320; worktree-sweep:193.
+
+Behaviours of the TS the tests pin as they are: `readPullRequest` takes its base from the record or the project's
+`base` only, never `defaultBranch`, where `leftBranch` also falls to `defaultBranch` (`q7` step 6, `q9`); an `unchanged`
+answer with no cached body that parses empties the status (`q7` step 7); an upper-case scheme in a remote reads as a
+host (`q5_host_of_remote_and_the_post_line`).
