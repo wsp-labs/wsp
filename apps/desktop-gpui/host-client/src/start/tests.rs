@@ -344,14 +344,16 @@ fn a_host_whose_program_is_gone_has_its_manager_start_it_again() {
     assert!(fake.ran().last().unwrap().contains(" restart "), "{:?}", fake.ran());
 }
 
+/// Catches: Quit and stop wsp booting the host out and keeping its unit, so the next login started it again, where
+/// today's goes `wsp down`'s road and removes the unit (`desktop:host-lifecycle.ts:675`).
 #[test]
-fn the_stop_boots_out_or_stops_the_unit_and_keeps_its_file_and_login_switch() {
+fn the_stop_unloads_the_unit_and_removes_its_file_as_wsp_down_does() {
     let f = fixture(Manager::Launchd, SERVICE_WAIT);
     let fake = Fake::new(|_| ok("\tstate = running\n"));
     block(stop(&f.start, &fake)).unwrap();
     let label = format!("com.wsp.host.{}", f.tag());
     assert_eq!(fake.ran(), [format!("launchctl print gui/501/{label}"), format!("launchctl bootout gui/501/{label}")]);
-    assert_eq!(std::fs::read_to_string(&f.unit).unwrap(), "the unit today's app wrote\n");
+    assert!(!f.unit.exists(), "the plist went, so the next login loads nothing");
 
     let f = fixture(Manager::Systemd, SERVICE_WAIT);
     let fake = Fake::new(|_| ok("ActiveState=active\nUnitFileState=enabled\nMainPID=7"));
@@ -359,13 +361,61 @@ fn the_stop_boots_out_or_stops_the_unit_and_keeps_its_file_and_login_switch() {
     let name = format!("wsp-host-{}.service", f.tag());
     assert_eq!(
         fake.ran(),
-        [format!("systemctl --user show {name} --property=ActiveState,UnitFileState,MainPID"), format!("systemctl --user stop {name}")]
+        [
+            format!("systemctl --user show {name} --property=ActiveState,UnitFileState,MainPID"),
+            format!("systemctl --user disable --now {name}"),
+            "systemctl --user daemon-reload".to_owned(),
+        ]
+    );
+    assert!(!f.unit.exists(), "the unit file went, so the next login starts nothing");
+}
+
+#[test]
+fn a_unit_the_manager_no_longer_holds_has_its_file_removed_and_nothing_unloaded() {
+    let f = fixture(Manager::Launchd, SERVICE_WAIT);
+    let fake = Fake::new(|_| ABSENT);
+    block(stop(&f.start, &fake)).unwrap();
+    assert_eq!(fake.ran().len(), 1, "{:?}", fake.ran());
+    assert!(!f.unit.exists());
+
+    let f = fixture(Manager::Systemd, SERVICE_WAIT);
+    let fake = Fake::new(|_| ok(INACTIVE));
+    block(stop(&f.start, &fake)).unwrap();
+    assert_eq!(fake.ran().len(), 1, "{:?}", fake.ran());
+    assert!(!f.unit.exists());
+}
+
+#[test]
+fn an_unload_the_manager_refuses_is_its_line_and_keeps_the_unit() {
+    let f = fixture(Manager::Systemd, SERVICE_WAIT);
+    let name = format!("wsp-host-{}.service", f.tag());
+    let fake =
+        Fake::new(
+            |argv| if argv[2] == "disable" { Ran { code: 5, output: "Failed to disable".to_owned() } } else { ok("ActiveState=active") },
+        );
+    assert_eq!(
+        block(stop(&f.start, &fake)).unwrap_err(),
+        format!("systemctl --user disable --now {name} exited 5 and said: Failed to disable")
     );
     assert_eq!(std::fs::read_to_string(&f.unit).unwrap(), "the unit today's app wrote\n");
+}
 
-    let fake =
-        Fake::new(|argv| if argv[2] == "stop" { Ran { code: 5, output: "Failed to stop".to_owned() } } else { ok("ActiveState=active") });
-    assert_eq!(block(stop(&f.start, &fake)).unwrap_err(), format!("systemctl --user stop {name} exited 5 and said: Failed to stop"));
+/// Catches: a manager that answers neither "held" nor "absent", as `systemctl --user` with no bus, read as absent and
+/// its unit removed while the manager may still hold it.
+#[test]
+fn a_manager_that_cannot_answer_leaves_the_unit_and_refuses_only_while_a_host_serves() {
+    let mut f = fixture(Manager::Launchd, Duration::from_millis(200));
+    let fake = Fake::new(|_| Ran { code: 5, output: "Bootstrap failed".to_owned() });
+    block(stop(&f.start, &fake)).unwrap();
+    assert_eq!(fake.ran().len(), 1, "{:?}", fake.ran());
+    assert_eq!(std::fs::read_to_string(&f.unit).unwrap(), "the unit today's app wrote\n");
+
+    let pid = f.kid(Path::new("/bin/sleep"), &["30"]);
+    f.write_lock(pid, 1, "service");
+    let refused = block(stop(&f.start, &fake)).unwrap_err();
+    assert!(refused.contains("so wsp cannot tell whether the launchd agent"), "{refused}");
+    assert!(pid_alive(pid));
+    assert!(f.unit.exists());
 }
 
 #[test]

@@ -361,18 +361,19 @@ embeds a page in a Wayland window, so on one the pane opens each page in the sys
 
 **D2. Host start: `host-lifecycle.ts`'s start, ported into the host client.** The app opens on the host the lock
 names, else the one this computer's service manager brings up from its unit, and waits on it with today's waits and
-words (`host-client/src/start.rs:1`, `ready` at `:892`). It reads the lock with D9's checks (`start.rs:766`). A unit
+words (`host-client/src/start.rs:1`, `ready` at `:996`). It reads the lock with D9's checks (`start.rs:870`). A unit
 that stands is loaded as it stands (`launchctl enable`, `bootstrap gui/<uid> <plist>`; `systemctl --user
-daemon-reload`, `enable`, `restart`; names from sha256(state)[0:8]; `start.rs:121`) and never removed. A packaged app
+daemon-reload`, `enable`, `restart`; names from sha256(state)[0:8]; `start.rs:125`) and never removed by an open. A packaged app
 carries its own host as today's does: a Node, the host's built command and the daemon (`scripts/package.sh:4`,
 `app/src/service/mod.rs:1`). It writes the wsp command (`<home>/bin/wsp`) to run them; a missing unit is written by
 that command's `wsp up --service`; a host or command of an older release is taken over and restarted onto this
 bundle, a newer one is left and opened on, and a wsp command today's app wrote, naming an app that stands, is left
-alone while Go Back is offered (`service/mod.rs:5`, `start.rs:401`). A build that carries no host writes nothing: with
-no unit, the box says to open the wsp app once (`NOT_SET_UP`, `start.rs:62`). Quit and stop wsp must stop the host and
-remove its unit, as today's does through `wsp down`'s road (`desktop:host-lifecycle.ts:675`); now it stops the host
-and keeps the unit (`start.rs:7`). Tests run the managers through the `Runner` trait
-(`start.rs:320`) with a fake that records each argv (`host-client/src/start/tests.rs:171`).
+alone while Go Back is offered (`service/mod.rs:5`, `start.rs:426`). A build that carries no host writes nothing: with
+no unit, the box says to open the wsp app once (`NOT_SET_UP`, `start.rs:66`). Quit and stop wsp stops the host and
+removes its unit, as today's does through `wsp down`'s road (`desktop:host-lifecycle.ts:675`): the manager unloads it
+(`launchctl bootout`; `systemctl --user disable --now`, `daemon-reload`) and its file goes, so the next login starts
+nothing (`host-client/src/start.rs` `stop`, called by `app/src/desktop/quit.rs` `stop_wsp`). Tests run the managers through the `Runner` trait
+(`start.rs:344`) with a fake that records each argv (`host-client/src/start/tests.rs:171`).
 
 **D3. One host for both apps; the switch is the shell's, kept as Start at login is.** Both apps serve
 `<WSP_HOME or ~/.wsp>/state.json`, `host.lock` and `host-token` beside it (`host:host-lock.ts:132`,
