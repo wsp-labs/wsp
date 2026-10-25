@@ -1,0 +1,98 @@
+{
+ "local agents": {
+  "stdout": [
+   "usage: wsp agents [<thread>] [--on <computer>]\n  the coding agents on this computer, a box you added or where a thread runs:\n  each one's version and the newest out, whether it is signed in there, and\n  whether it carries the wsp tools\n\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local skills": {
+  "stdout": [
+   "usage: wsp skills [<thread>] [--on <computer>]\n  the skills on this computer, a box you added or where a thread runs, each by\n  name with every folder it lives in and which agent loads it from there\n\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local skills search": {
+  "stdout": [
+   "usage: wsp skills search <query> [--limit <n>]\n  searches skills.sh for skills by their words, each with how often it was\n  installed and the id wsp skills add takes\n\n  --limit    how many skills to answer, from 1 to 50; 20 without it\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local skills show": {
+  "stdout": [
+   "usage: wsp skills show <skill> [<thread>] [--on <computer>] [--project [<name>]]\n  prints a skill's SKILL.md: one on skills.sh by its <owner>/<repo>/<skill>\n  before it is installed, or one already on this computer, a box you added or\n  where a thread runs by its name\n\n  --on         the computer to read, by the name wsp computers shows; this\n               computer without it, and a thread names its own\n  --project    the project's skill of that name rather than the one that is not\n               a project's: alone with a thread, the thread's own project, or\n               the project's name with --on\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local skills add": {
+  "stdout": [
+   "usage: wsp skills add <skill> [<thread>] [--on <computer>] [--agent <id>]...\n       [--project [<name>]]\n  installs a skill off skills.sh by its <owner>/<repo>/<skill> into the shared\n  skills folder, with a link or a copy for each agent named that does not read\n  that folder; every file is checked first and lands as a plain file that runs\n  nothing\n\n  --on         the computer to read, by the name wsp computers shows; this\n               computer without it, and a thread names its own\n  --agent      an agent to put the skill in, by its catalog id; repeats, and\n               every agent whose folder is there without it\n  --project    put it in a project rather than the home: alone with a thread,\n               the thread's own project, or the project's name with --on\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local skills remove": {
+  "stdout": [
+   "usage: wsp skills remove <name> [<thread>] [--on <computer>]\n       [--project [<name>]] [--yes]\n  removes a skill by its name: every folder it lives in and every link to it,\n  where a link's own folder elsewhere stays\n\n  --on         the computer to read, by the name wsp computers shows; this\n               computer without it, and a thread names its own\n  --project    the project's skill of that name rather than the one that is not\n               a project's: alone with a thread, the thread's own project, or\n               the project's name with --on\n  --yes        go ahead without being asked\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local skills disable": {
+  "stdout": [
+   "usage: wsp skills disable <name> [<thread>] [--on <computer>]\n  turns a skill off by its name, its SKILL.md renamed SKILL.md.off where it\n  lives, so no agent loads it until it is turned on\n\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local skills enable": {
+  "stdout": [
+   "usage: wsp skills enable <name> [<thread>] [--on <computer>]\n  turns a skill that was turned off on again, its SKILL.md.off renamed back\n\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud agents": {
+  "stdout": [
+   "usage: wsp agents [<thread>] [--on <computer>]\n  the coding agents on this computer, a box you added or where a thread runs:\n  each one's version and the newest out, whether it is signed in there, and\n  whether it carries the wsp tools\n\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud skills": {
+  "stdout": [
+   "usage: wsp skills [<thread>] [--on <computer>]\n  the skills on this computer, a box you added or where a thread runs, each by\n  name with every folder it lives in and which agent loads it from there\n\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud skills search": {
+  "stdout": [
+   "usage: wsp skills search <query> [--limit <n>]\n  searches skills.sh for skills by their words, each with how often it was\n  installed and the id wsp skills add takes\n\n  --limit    how many skills to answer, from 1 to 50; 20 without it\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud skills show": {
+  "stdout": [
+   "usage: wsp skills show <skill> [<thread>] [--on <computer>] [--project [<name>]]\n  prints a skill's SKILL.md: one on skills.sh by its <owner>/<repo>/<skill>\n  before it is installed, or one already on this computer, a box you added or\n  where a thread runs by its name\n\n  --on         the computer to read, by the name wsp computers shows; this\n               computer without it, and a thread names its own\n  --project    the project's skill of that name rather than the one that is not\n               a project's: alone with a thread, the thread's own project, or\n               the project's name with --on\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud skills add": {
+  "stdout": [
+   "usage: wsp skills add <skill> [<thread>] [--on <computer>] [--agent <id>]...\n       [--project [<name>]]\n  installs a skill off skills.sh by its <owner>/<repo>/<skill> into the shared\n  skills folder, with a link or a copy for each agent named that does not read\n  that folder; every file is checked first and lands as a plain file that runs\n  nothing\n\n  --on         the computer to read, by the name wsp computers shows; this\n               computer without it, and a thread names its own\n  --agent      an agent to put the skill in, by its catalog id; repeats, and\n               every agent whose folder is there without it\n  --project    put it in a project rather than the home: alone with a thread,\n               the thread's own project, or the project's name with --on\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud skills remove": {
+  "stdout": [
+   "usage: wsp skills remove <name> [<thread>] [--on <computer>]\n       [--project [<name>]] [--yes]\n  removes a skill by its name: every folder it lives in and every link to it,\n  where a link's own folder elsewhere stays\n\n  --on         the computer to read, by the name wsp computers shows; this\n               computer without it, and a thread names its own\n  --project    the project's skill of that name rather than the one that is not\n               a project's: alone with a thread, the thread's own project, or\n               the project's name with --on\n  --yes        go ahead without being asked\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud skills disable": {
+  "stdout": [
+   "usage: wsp skills disable <name> [<thread>] [--on <computer>]\n  turns a skill off by its name, its SKILL.md renamed SKILL.md.off where it\n  lives, so no agent loads it until it is turned on\n\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud skills enable": {
+  "stdout": [
+   "usage: wsp skills enable <name> [<thread>] [--on <computer>]\n  turns a skill that was turned off on again, its SKILL.md.off renamed back\n\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ }
+}

@@ -1,0 +1,1995 @@
+{
+ "asked": {
+  "nap": [
+   {
+    "word": "",
+    "out": {
+     "err": {
+      "error": "--nap for mini takes whole minutes from 1 to 180, or off, and got \"\". Write it as --nap 20 or --nap off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --nap 20 or --nap off."
+     }
+    }
+   },
+   {
+    "word": " ",
+    "out": {
+     "err": {
+      "error": "--nap for mini takes whole minutes from 1 to 180, or off, and got \" \". Write it as --nap 20 or --nap off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --nap 20 or --nap off."
+     }
+    }
+   },
+   {
+    "word": "off",
+    "out": {
+     "ok": 0
+    }
+   },
+   {
+    "word": "0",
+    "out": {
+     "err": {
+      "error": "--nap for mini takes whole minutes from 1 to 180, or off, and got \"0\". Write it as --nap 20 or --nap off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --nap 20 or --nap off."
+     }
+    }
+   },
+   {
+    "word": "1",
+    "out": {
+     "ok": 1
+    }
+   },
+   {
+    "word": "20",
+    "out": {
+     "ok": 20
+    }
+   },
+   {
+    "word": "1.5",
+    "out": {
+     "err": {
+      "error": "--nap for mini takes whole minutes from 1 to 180, or off, and got \"1.5\". Write it as --nap 20 or --nap off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --nap 20 or --nap off."
+     }
+    }
+   },
+   {
+    "word": "-1",
+    "out": {
+     "err": {
+      "error": "--nap for mini takes whole minutes from 1 to 180, or off, and got \"-1\". Write it as --nap 20 or --nap off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --nap 20 or --nap off."
+     }
+    }
+   },
+   {
+    "word": "1e1",
+    "out": {
+     "err": {
+      "error": "--nap for mini takes whole minutes from 1 to 180, or off, and got \"1e1\". Write it as --nap 20 or --nap off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --nap 20 or --nap off."
+     }
+    }
+   },
+   {
+    "word": "0x10",
+    "out": {
+     "err": {
+      "error": "--nap for mini takes whole minutes from 1 to 180, or off, and got \"0x10\". Write it as --nap 20 or --nap off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --nap 20 or --nap off."
+     }
+    }
+   },
+   {
+    "word": "010",
+    "out": {
+     "ok": 10
+    }
+   },
+   {
+    "word": "+5",
+    "out": {
+     "err": {
+      "error": "--nap for mini takes whole minutes from 1 to 180, or off, and got \"+5\". Write it as --nap 20 or --nap off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --nap 20 or --nap off."
+     }
+    }
+   },
+   {
+    "word": " 5",
+    "out": {
+     "err": {
+      "error": "--nap for mini takes whole minutes from 1 to 180, or off, and got \" 5\". Write it as --nap 20 or --nap off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --nap 20 or --nap off."
+     }
+    }
+   },
+   {
+    "word": "60",
+    "out": {
+     "ok": 60
+    }
+   },
+   {
+    "word": "61",
+    "out": {
+     "ok": 61
+    }
+   },
+   {
+    "word": "1440",
+    "out": {
+     "err": {
+      "error": "--nap for mini takes whole minutes from 1 to 180, or off, and got \"1440\". Write it as --nap 20 or --nap off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --nap 20 or --nap off."
+     }
+    }
+   },
+   {
+    "word": "1441",
+    "out": {
+     "err": {
+      "error": "--nap for mini takes whole minutes from 1 to 180, or off, and got \"1441\". Write it as --nap 20 or --nap off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --nap 20 or --nap off."
+     }
+    }
+   },
+   {
+    "word": "24",
+    "out": {
+     "ok": 24
+    }
+   },
+   {
+    "word": "25",
+    "out": {
+     "ok": 25
+    }
+   },
+   {
+    "word": "720",
+    "out": {
+     "err": {
+      "error": "--nap for mini takes whole minutes from 1 to 180, or off, and got \"720\". Write it as --nap 20 or --nap off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --nap 20 or --nap off."
+     }
+    }
+   },
+   {
+    "word": "721",
+    "out": {
+     "err": {
+      "error": "--nap for mini takes whole minutes from 1 to 180, or off, and got \"721\". Write it as --nap 20 or --nap off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --nap 20 or --nap off."
+     }
+    }
+   },
+   {
+    "word": "Infinity",
+    "out": {
+     "err": {
+      "error": "--nap for mini takes whole minutes from 1 to 180, or off, and got \"Infinity\". Write it as --nap 20 or --nap off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --nap 20 or --nap off."
+     }
+    }
+   },
+   {
+    "word": "NaN",
+    "out": {
+     "err": {
+      "error": "--nap for mini takes whole minutes from 1 to 180, or off, and got \"NaN\". Write it as --nap 20 or --nap off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --nap 20 or --nap off."
+     }
+    }
+   },
+   {
+    "word": "abc",
+    "out": {
+     "err": {
+      "error": "--nap for mini takes whole minutes from 1 to 180, or off, and got \"abc\". Write it as --nap 20 or --nap off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --nap 20 or --nap off."
+     }
+    }
+   }
+  ],
+  "turnLimit": [
+   {
+    "word": "",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": " ",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \" \". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": "off",
+    "out": {
+     "ok": 0
+    }
+   },
+   {
+    "word": "0",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"0\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": "1",
+    "out": {
+     "ok": 1
+    }
+   },
+   {
+    "word": "20",
+    "out": {
+     "ok": 20
+    }
+   },
+   {
+    "word": "1.5",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"1.5\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": "-1",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"-1\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": "1e1",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"1e1\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": "0x10",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"0x10\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": "010",
+    "out": {
+     "ok": 10
+    }
+   },
+   {
+    "word": "+5",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"+5\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": " 5",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \" 5\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": "60",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"60\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": "61",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"61\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": "1440",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"1440\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": "1441",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"1441\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": "24",
+    "out": {
+     "ok": 24
+    }
+   },
+   {
+    "word": "25",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"25\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": "720",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"720\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": "721",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"721\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": "Infinity",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"Infinity\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": "NaN",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"NaN\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   },
+   {
+    "word": "abc",
+    "out": {
+     "err": {
+      "error": "--turn-limit for mini takes whole hours from 1 to 24, or off, and got \"abc\". Write it as --turn-limit 6 or --turn-limit off.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --turn-limit 6 or --turn-limit off."
+     }
+    }
+   }
+  ],
+  "deleteAfter": [
+   {
+    "word": "",
+    "out": {
+     "err": {
+      "error": "--delete-after for mini takes whole minutes from 0 to 1440, and got \"\". Write it as --delete-after 30, or 0 to delete once it is done.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --delete-after 30, or 0 to delete once it is done."
+     }
+    }
+   },
+   {
+    "word": " ",
+    "out": {
+     "err": {
+      "error": "--delete-after for mini takes whole minutes from 0 to 1440, and got \" \". Write it as --delete-after 30, or 0 to delete once it is done.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --delete-after 30, or 0 to delete once it is done."
+     }
+    }
+   },
+   {
+    "word": "off",
+    "out": {
+     "err": {
+      "error": "--delete-after for mini takes whole minutes from 0 to 1440, and got \"off\". Write it as --delete-after 30, or 0 to delete once it is done.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --delete-after 30, or 0 to delete once it is done."
+     }
+    }
+   },
+   {
+    "word": "0",
+    "out": {
+     "ok": 0
+    }
+   },
+   {
+    "word": "1",
+    "out": {
+     "ok": 1
+    }
+   },
+   {
+    "word": "20",
+    "out": {
+     "ok": 20
+    }
+   },
+   {
+    "word": "1.5",
+    "out": {
+     "err": {
+      "error": "--delete-after for mini takes whole minutes from 0 to 1440, and got \"1.5\". Write it as --delete-after 30, or 0 to delete once it is done.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --delete-after 30, or 0 to delete once it is done."
+     }
+    }
+   },
+   {
+    "word": "-1",
+    "out": {
+     "err": {
+      "error": "--delete-after for mini takes whole minutes from 0 to 1440, and got \"-1\". Write it as --delete-after 30, or 0 to delete once it is done.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --delete-after 30, or 0 to delete once it is done."
+     }
+    }
+   },
+   {
+    "word": "1e1",
+    "out": {
+     "err": {
+      "error": "--delete-after for mini takes whole minutes from 0 to 1440, and got \"1e1\". Write it as --delete-after 30, or 0 to delete once it is done.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --delete-after 30, or 0 to delete once it is done."
+     }
+    }
+   },
+   {
+    "word": "0x10",
+    "out": {
+     "err": {
+      "error": "--delete-after for mini takes whole minutes from 0 to 1440, and got \"0x10\". Write it as --delete-after 30, or 0 to delete once it is done.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --delete-after 30, or 0 to delete once it is done."
+     }
+    }
+   },
+   {
+    "word": "010",
+    "out": {
+     "ok": 10
+    }
+   },
+   {
+    "word": "+5",
+    "out": {
+     "err": {
+      "error": "--delete-after for mini takes whole minutes from 0 to 1440, and got \"+5\". Write it as --delete-after 30, or 0 to delete once it is done.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --delete-after 30, or 0 to delete once it is done."
+     }
+    }
+   },
+   {
+    "word": " 5",
+    "out": {
+     "err": {
+      "error": "--delete-after for mini takes whole minutes from 0 to 1440, and got \" 5\". Write it as --delete-after 30, or 0 to delete once it is done.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --delete-after 30, or 0 to delete once it is done."
+     }
+    }
+   },
+   {
+    "word": "60",
+    "out": {
+     "ok": 60
+    }
+   },
+   {
+    "word": "61",
+    "out": {
+     "ok": 61
+    }
+   },
+   {
+    "word": "1440",
+    "out": {
+     "ok": 1440
+    }
+   },
+   {
+    "word": "1441",
+    "out": {
+     "err": {
+      "error": "--delete-after for mini takes whole minutes from 0 to 1440, and got \"1441\". Write it as --delete-after 30, or 0 to delete once it is done.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --delete-after 30, or 0 to delete once it is done."
+     }
+    }
+   },
+   {
+    "word": "24",
+    "out": {
+     "ok": 24
+    }
+   },
+   {
+    "word": "25",
+    "out": {
+     "ok": 25
+    }
+   },
+   {
+    "word": "720",
+    "out": {
+     "ok": 720
+    }
+   },
+   {
+    "word": "721",
+    "out": {
+     "ok": 721
+    }
+   },
+   {
+    "word": "Infinity",
+    "out": {
+     "err": {
+      "error": "--delete-after for mini takes whole minutes from 0 to 1440, and got \"Infinity\". Write it as --delete-after 30, or 0 to delete once it is done.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --delete-after 30, or 0 to delete once it is done."
+     }
+    }
+   },
+   {
+    "word": "NaN",
+    "out": {
+     "err": {
+      "error": "--delete-after for mini takes whole minutes from 0 to 1440, and got \"NaN\". Write it as --delete-after 30, or 0 to delete once it is done.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --delete-after 30, or 0 to delete once it is done."
+     }
+    }
+   },
+   {
+    "word": "abc",
+    "out": {
+     "err": {
+      "error": "--delete-after for mini takes whole minutes from 0 to 1440, and got \"abc\". Write it as --delete-after 30, or 0 to delete once it is done.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --delete-after 30, or 0 to delete once it is done."
+     }
+    }
+   }
+  ],
+  "dollars": [
+   {
+    "word": "",
+    "out": {
+     "err": {
+      "error": "--spend for mini takes dollars a day, zero or more, and got \"\". Write it as --spend 10.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --spend 10."
+     }
+    }
+   },
+   {
+    "word": " ",
+    "out": {
+     "err": {
+      "error": "--spend for mini takes dollars a day, zero or more, and got \" \". Write it as --spend 10.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --spend 10."
+     }
+    }
+   },
+   {
+    "word": "off",
+    "out": {
+     "err": {
+      "error": "--spend for mini takes dollars a day, zero or more, and got \"off\". Write it as --spend 10.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --spend 10."
+     }
+    }
+   },
+   {
+    "word": "0",
+    "out": {
+     "ok": 0
+    }
+   },
+   {
+    "word": "1",
+    "out": {
+     "ok": 1
+    }
+   },
+   {
+    "word": "20",
+    "out": {
+     "ok": 20
+    }
+   },
+   {
+    "word": "1.5",
+    "out": {
+     "ok": 1.5
+    }
+   },
+   {
+    "word": "-1",
+    "out": {
+     "err": {
+      "error": "--spend for mini takes dollars a day, zero or more, and got \"-1\". Write it as --spend 10.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --spend 10."
+     }
+    }
+   },
+   {
+    "word": "1e1",
+    "out": {
+     "ok": 10
+    }
+   },
+   {
+    "word": "0x10",
+    "out": {
+     "ok": 16
+    }
+   },
+   {
+    "word": "010",
+    "out": {
+     "ok": 10
+    }
+   },
+   {
+    "word": "+5",
+    "out": {
+     "ok": 5
+    }
+   },
+   {
+    "word": " 5",
+    "out": {
+     "ok": 5
+    }
+   },
+   {
+    "word": "60",
+    "out": {
+     "ok": 60
+    }
+   },
+   {
+    "word": "61",
+    "out": {
+     "ok": 61
+    }
+   },
+   {
+    "word": "1440",
+    "out": {
+     "ok": 1440
+    }
+   },
+   {
+    "word": "1441",
+    "out": {
+     "ok": 1441
+    }
+   },
+   {
+    "word": "24",
+    "out": {
+     "ok": 24
+    }
+   },
+   {
+    "word": "25",
+    "out": {
+     "ok": 25
+    }
+   },
+   {
+    "word": "720",
+    "out": {
+     "ok": 720
+    }
+   },
+   {
+    "word": "721",
+    "out": {
+     "ok": 721
+    }
+   },
+   {
+    "word": "Infinity",
+    "out": {
+     "err": {
+      "error": "--spend for mini takes dollars a day, zero or more, and got \"Infinity\". Write it as --spend 10.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --spend 10."
+     }
+    }
+   },
+   {
+    "word": "NaN",
+    "out": {
+     "err": {
+      "error": "--spend for mini takes dollars a day, zero or more, and got \"NaN\". Write it as --spend 10.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --spend 10."
+     }
+    }
+   },
+   {
+    "word": "abc",
+    "out": {
+     "err": {
+      "error": "--spend for mini takes dollars a day, zero or more, and got \"abc\". Write it as --spend 10.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --spend 10."
+     }
+    }
+   },
+   {
+    "word": "10.25",
+    "out": {
+     "ok": 10.25
+    }
+   },
+   {
+    "word": "1e309",
+    "out": {
+     "err": {
+      "error": "--spend for mini takes dollars a day, zero or more, and got \"1e309\". Write it as --spend 10.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --spend 10."
+     }
+    }
+   },
+   {
+    "word": "-0",
+    "out": {
+     "ok": 0
+    }
+   },
+   {
+    "word": "0.0",
+    "out": {
+     "ok": 0
+    }
+   }
+  ],
+  "limits": {
+   "napMinutes": 180,
+   "turnHours": 24,
+   "deleteMinutes": 1440
+  }
+ },
+ "oneOf": [
+  {
+   "name": "by",
+   "words": [
+    "agent",
+    "model"
+   ],
+   "value": null,
+   "on": null,
+   "out": {
+    "ok": null
+   }
+  },
+  {
+   "name": "by",
+   "words": [
+    "agent",
+    "model"
+   ],
+   "value": "model",
+   "on": null,
+   "out": {
+    "ok": "model"
+   }
+  },
+  {
+   "name": "by",
+   "words": [
+    "agent",
+    "model"
+   ],
+   "value": "Model",
+   "on": null,
+   "out": {
+    "err": {
+     "error": "--by takes one of agent, model, and got \"Model\". Name one of those.",
+     "class": "usage",
+     "exit": 3,
+     "kind": "usage",
+     "fix": "Name one of those."
+    }
+   }
+  },
+  {
+   "name": "by",
+   "words": [
+    "agent",
+    "model"
+   ],
+   "value": "",
+   "on": "mini",
+   "out": {
+    "err": {
+     "error": "--by for mini takes one of agent, model, and got \"\". Name one of those.",
+     "class": "usage",
+     "exit": 3,
+     "kind": "usage",
+     "fix": "Name one of those."
+    }
+   }
+  },
+  {
+   "name": "by",
+   "words": [
+    "agent",
+    "model"
+   ],
+   "value": "say \"hi\"",
+   "on": null,
+   "out": {
+    "err": {
+     "error": "--by takes one of agent, model, and got \"say \\\"hi\\\"\". Name one of those.",
+     "class": "usage",
+     "exit": 3,
+     "kind": "usage",
+     "fix": "Name one of those."
+    }
+   }
+  }
+ ],
+ "tables": [
+  {
+   "rows": [],
+   "lines": []
+  },
+  {
+   "rows": [
+    [
+     "A"
+    ]
+   ],
+   "lines": [
+    "A"
+   ]
+  },
+  {
+   "rows": [
+    [
+     "A",
+     "B"
+    ],
+    [
+     "long cell",
+     "x"
+    ]
+   ],
+   "lines": [
+    "A          B",
+    "long cell  x"
+   ]
+  },
+  {
+   "rows": [
+    [
+     "A",
+     "B",
+     "C"
+    ],
+    [
+     "",
+     "",
+     ""
+    ],
+    [
+     "x",
+     "",
+     "z"
+    ]
+   ],
+   "lines": [
+    "A  B  C",
+    "",
+    "x     z"
+   ]
+  },
+  {
+   "rows": [
+    [
+     "NAME",
+     "LAST"
+    ],
+    [
+     "é",
+     "x"
+    ],
+    [
+     "日本",
+     "y"
+    ],
+    [
+     "😀",
+     "z"
+    ]
+   ],
+   "lines": [
+    "NAME  LAST",
+    "é     x",
+    "日本    y",
+    "😀    z"
+   ]
+  },
+  {
+   "rows": [
+    [
+     "A",
+     "B"
+    ],
+    [
+     "a"
+    ],
+    [
+     "bb",
+     "c",
+     "extra"
+    ]
+   ],
+   "lines": [
+    "A   B",
+    "a",
+    "bb  c  extra"
+   ]
+  },
+  {
+   "rows": [
+    [
+     "A ",
+     "B  "
+    ],
+    [
+     "x",
+     "y  "
+    ]
+   ],
+   "lines": [
+    "A   B",
+    "x   y"
+   ]
+  }
+ ],
+ "releases": [
+  {
+   "mine": "0.3.8",
+   "theirs": "0.3.7",
+   "host": {
+    "state": "/s/state.json"
+   },
+   "road": null,
+   "message": "this line runs wsp 0.3.8 and the host serving /s/state.json runs wsp 0.3.7: restart that host with wsp restart.",
+   "kind": "usage",
+   "fix": "restart that host with wsp restart."
+  },
+  {
+   "mine": "0.3.8",
+   "theirs": "0.3.7",
+   "host": {
+    "state": "/s/state.json"
+   },
+   "road": "app",
+   "message": "this line runs wsp 0.3.8 and the host serving /s/state.json runs wsp 0.3.7: quit and reopen the app that holds it once the app is on wsp 0.3.8.",
+   "kind": "usage",
+   "fix": "quit and reopen the app that holds it once the app is on wsp 0.3.8."
+  },
+  {
+   "mine": "0.3.8",
+   "theirs": "0.3.7",
+   "host": {
+    "state": "/s/state.json"
+   },
+   "road": "up",
+   "message": "this line runs wsp 0.3.8 and the host serving /s/state.json runs wsp 0.3.7: Ctrl-C the terminal running wsp up and run it again.",
+   "kind": "usage",
+   "fix": "Ctrl-C the terminal running wsp up and run it again."
+  },
+  {
+   "mine": "0.3.8",
+   "theirs": "0.3.7",
+   "host": {
+    "state": "/s/state.json"
+   },
+   "road": "service",
+   "message": "this line runs wsp 0.3.8 and the host serving /s/state.json runs wsp 0.3.7: restart that host with wsp restart.",
+   "kind": "usage",
+   "fix": "restart that host with wsp restart."
+  },
+  {
+   "mine": "0.3.8",
+   "theirs": "0.3.7",
+   "host": {
+    "where": "mini",
+    "here": false
+   },
+   "road": null,
+   "message": "this line runs wsp 0.3.8 and the host at mini runs wsp 0.3.7: update wsp to 0.3.8 on that computer and restart its host there.",
+   "kind": "usage",
+   "fix": "update wsp to 0.3.8 on that computer and restart its host there."
+  },
+  {
+   "mine": "0.3.8",
+   "theirs": "0.3.7",
+   "host": {
+    "where": "http://127.0.0.1:7777",
+    "here": true
+   },
+   "road": "up",
+   "message": "this line runs wsp 0.3.8 and the host at http://127.0.0.1:7777 runs wsp 0.3.7: Ctrl-C the terminal running wsp up and run it again.",
+   "kind": "usage",
+   "fix": "Ctrl-C the terminal running wsp up and run it again."
+  },
+  {
+   "mine": "0.3.8",
+   "theirs": "0.3.10",
+   "host": {
+    "state": "/s/state.json"
+   },
+   "road": null,
+   "message": "this line runs wsp 0.3.8 and the host serving /s/state.json runs wsp 0.3.10: npm i -g @wsp-labs/wsp@0.3.10 on this computer brings this line to 0.3.10.",
+   "kind": "usage",
+   "fix": "npm i -g @wsp-labs/wsp@0.3.10 on this computer brings this line to 0.3.10."
+  },
+  {
+   "mine": "0.3.8",
+   "theirs": "0.4.0",
+   "host": {
+    "where": "mini",
+    "here": false
+   },
+   "road": "app",
+   "message": "this line runs wsp 0.3.8 and the host at mini runs wsp 0.4.0: npm i -g @wsp-labs/wsp@0.4.0 on this computer brings this line to 0.4.0.",
+   "kind": "usage",
+   "fix": "npm i -g @wsp-labs/wsp@0.4.0 on this computer brings this line to 0.4.0."
+  }
+ ],
+ "failed": [
+  {
+   "message": "plain",
+   "json": false,
+   "code": 1,
+   "errors": [
+    "wsp exec: plain"
+   ],
+   "lines": []
+  },
+  {
+   "message": "plain",
+   "json": true,
+   "code": 1,
+   "errors": [
+    "{\"error\":\"plain\",\"class\":\"provider\",\"exit\":1}"
+   ],
+   "lines": []
+  },
+  {
+   "message": "wsp exec: names itself",
+   "json": false,
+   "code": 3,
+   "errors": [
+    "wsp exec: wsp exec: names itself"
+   ],
+   "lines": []
+  },
+  {
+   "message": "wsp exec: names itself",
+   "json": true,
+   "code": 3,
+   "errors": [
+    "{\"error\":\"wsp exec: names itself\",\"class\":\"usage\",\"exit\":3}"
+   ],
+   "lines": []
+  },
+  {
+   "message": "no thread nope",
+   "json": false,
+   "code": 3,
+   "errors": [
+    "wsp exec: no thread nope"
+   ],
+   "lines": []
+  },
+  {
+   "message": "no thread nope",
+   "json": true,
+   "code": 3,
+   "errors": [
+    "{\"error\":\"no thread nope\",\"class\":\"usage\",\"exit\":3}"
+   ],
+   "lines": []
+  },
+  {
+   "message": "refused token",
+   "json": false,
+   "code": 2,
+   "errors": [
+    "wsp exec: refused token"
+   ],
+   "lines": []
+  },
+  {
+   "message": "refused token",
+   "json": true,
+   "code": 2,
+   "errors": [
+    "{\"error\":\"refused token\",\"class\":\"auth\",\"exit\":2}"
+   ],
+   "lines": []
+  },
+  {
+   "message": "slate",
+   "json": false,
+   "code": 3,
+   "errors": [
+    "wsp exec: slate"
+   ],
+   "lines": []
+  },
+  {
+   "message": "slate",
+   "json": true,
+   "code": 3,
+   "errors": [
+    "{\"error\":\"slate\",\"class\":\"usage\",\"exit\":3,\"errors\":[{\"code\":\"V1\"}],\"warnings\":[]}"
+   ],
+   "lines": []
+  },
+  {
+   "message": "lists not arrays",
+   "json": false,
+   "code": 1,
+   "errors": [
+    "wsp exec: lists not arrays"
+   ],
+   "lines": []
+  },
+  {
+   "message": "lists not arrays",
+   "json": true,
+   "code": 1,
+   "errors": [
+    "{\"error\":\"lists not arrays\",\"class\":\"provider\",\"exit\":1}"
+   ],
+   "lines": []
+  }
+ ],
+ "toolFailures": [
+  {
+   "message": "plain",
+   "usage": null,
+   "out": {
+    "content": [
+     {
+      "type": "text",
+      "text": "plain"
+     }
+    ],
+    "structuredContent": {
+     "error": "plain",
+     "class": "provider",
+     "exit": 1
+    },
+    "isError": true
+   }
+  },
+  {
+   "message": "plain",
+   "usage": "wsp exec <thread> -- <command...>",
+   "out": {
+    "content": [
+     {
+      "type": "text",
+      "text": "plain"
+     }
+    ],
+    "structuredContent": {
+     "error": "plain",
+     "class": "provider",
+     "exit": 1
+    },
+    "isError": true
+   }
+  },
+  {
+   "message": "wsp exec: names itself",
+   "usage": null,
+   "out": {
+    "content": [
+     {
+      "type": "text",
+      "text": "wsp exec: names itself"
+     }
+    ],
+    "structuredContent": {
+     "error": "wsp exec: names itself",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   }
+  },
+  {
+   "message": "wsp exec: names itself",
+   "usage": "wsp exec <thread> -- <command...>",
+   "out": {
+    "content": [
+     {
+      "type": "text",
+      "text": "wsp exec: names itself"
+     }
+    ],
+    "structuredContent": {
+     "error": "wsp exec: names itself",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   }
+  },
+  {
+   "message": "no thread nope",
+   "usage": null,
+   "out": {
+    "content": [
+     {
+      "type": "text",
+      "text": "no thread nope"
+     }
+    ],
+    "structuredContent": {
+     "error": "no thread nope",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   }
+  },
+  {
+   "message": "no thread nope",
+   "usage": "wsp exec <thread> -- <command...>",
+   "out": {
+    "content": [
+     {
+      "type": "text",
+      "text": "no thread nope"
+     }
+    ],
+    "structuredContent": {
+     "error": "no thread nope",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   }
+  },
+  {
+   "message": "refused token",
+   "usage": null,
+   "out": {
+    "content": [
+     {
+      "type": "text",
+      "text": "refused token"
+     }
+    ],
+    "structuredContent": {
+     "error": "refused token",
+     "class": "auth",
+     "exit": 2
+    },
+    "isError": true
+   }
+  },
+  {
+   "message": "refused token",
+   "usage": "wsp exec <thread> -- <command...>",
+   "out": {
+    "content": [
+     {
+      "type": "text",
+      "text": "refused token"
+     }
+    ],
+    "structuredContent": {
+     "error": "refused token",
+     "class": "auth",
+     "exit": 2
+    },
+    "isError": true
+   }
+  },
+  {
+   "message": "slate",
+   "usage": null,
+   "out": {
+    "content": [
+     {
+      "type": "text",
+      "text": "slate"
+     }
+    ],
+    "structuredContent": {
+     "error": "slate",
+     "class": "usage",
+     "exit": 3,
+     "errors": [
+      {
+       "code": "V1"
+      }
+     ],
+     "warnings": []
+    },
+    "isError": true
+   }
+  },
+  {
+   "message": "slate",
+   "usage": "wsp exec <thread> -- <command...>",
+   "out": {
+    "content": [
+     {
+      "type": "text",
+      "text": "slate"
+     }
+    ],
+    "structuredContent": {
+     "error": "slate",
+     "class": "usage",
+     "exit": 3,
+     "errors": [
+      {
+       "code": "V1"
+      }
+     ],
+     "warnings": []
+    },
+    "isError": true
+   }
+  },
+  {
+   "message": "lists not arrays",
+   "usage": null,
+   "out": {
+    "content": [
+     {
+      "type": "text",
+      "text": "lists not arrays"
+     }
+    ],
+    "structuredContent": {
+     "error": "lists not arrays",
+     "class": "provider",
+     "exit": 1
+    },
+    "isError": true
+   }
+  },
+  {
+   "message": "lists not arrays",
+   "usage": "wsp exec <thread> -- <command...>",
+   "out": {
+    "content": [
+     {
+      "type": "text",
+      "text": "lists not arrays"
+     }
+    ],
+    "structuredContent": {
+     "error": "lists not arrays",
+     "class": "provider",
+     "exit": 1
+    },
+    "isError": true
+   }
+  },
+  {
+   "message": "the request did not match: [{\"path\":[\"thread\"],\"message\":\"Required\"}]",
+   "usage": null,
+   "out": {
+    "content": [
+     {
+      "type": "text",
+      "text": "the request did not match: [{\"path\":[\"thread\"],\"message\":\"Required\"}]"
+     }
+    ],
+    "structuredContent": {
+     "error": "the request did not match: [{\"path\":[\"thread\"],\"message\":\"Required\"}]",
+     "class": "provider",
+     "exit": 1
+    },
+    "isError": true
+   }
+  },
+  {
+   "message": "the request did not match: [{\"path\":[\"thread\"],\"message\":\"Required\"}]",
+   "usage": "wsp exec <thread> -- <command...>",
+   "out": {
+    "content": [
+     {
+      "type": "text",
+      "text": "the request did not match: [{\"path\":[\"thread\"],\"message\":\"Required\"}]"
+     }
+    ],
+    "structuredContent": {
+     "error": "the request did not match: [{\"path\":[\"thread\"],\"message\":\"Required\"}]",
+     "class": "provider",
+     "exit": 1
+    },
+    "isError": true
+   }
+  }
+ ],
+ "misc": {
+  "flagFor": [
+   [
+    "--nap",
+    null,
+    "--nap"
+   ],
+   [
+    "--nap",
+    "mini",
+    "--nap for mini"
+   ]
+  ],
+  "absolutePath": [
+   {
+    "path": "/a",
+    "out": {
+     "ok": "/a"
+    }
+   },
+   {
+    "path": "a",
+    "out": {
+     "err": {
+      "error": "--cwd is a path on the machine, absolute, and got \"a\". Give a path that opens with /, since whoever reads it works in a folder this line cannot see.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Give a path that opens with /, since whoever reads it works in a folder this line cannot see."
+     }
+    }
+   },
+   {
+    "path": "",
+    "out": {
+     "err": {
+      "error": "--cwd is a path on the machine, absolute, and got \"\". Give a path that opens with /, since whoever reads it works in a folder this line cannot see.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Give a path that opens with /, since whoever reads it works in a folder this line cannot see."
+     }
+    }
+   },
+   {
+    "path": "./a",
+    "out": {
+     "err": {
+      "error": "--cwd is a path on the machine, absolute, and got \"./a\". Give a path that opens with /, since whoever reads it works in a folder this line cannot see.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Give a path that opens with /, since whoever reads it works in a folder this line cannot see."
+     }
+    }
+   },
+   {
+    "path": "~/a",
+    "out": {
+     "err": {
+      "error": "--cwd is a path on the machine, absolute, and got \"~/a\". Give a path that opens with /, since whoever reads it works in a folder this line cannot see.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Give a path that opens with /, since whoever reads it works in a folder this line cannot see."
+     }
+    }
+   }
+  ],
+  "absoluteFolder": [
+   {
+    "path": null,
+    "out": {
+     "ok": null
+    }
+   },
+   {
+    "path": "/x",
+    "out": {
+     "ok": "/x"
+    }
+   },
+   {
+    "path": "x",
+    "out": {
+     "err": {
+      "error": "--cwd is a path on the machine, absolute, and got \"x\". Give a path that opens with /, since whoever reads it works in a folder this line cannot see.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Give a path that opens with /, since whoever reads it works in a folder this line cannot see."
+     }
+    }
+   }
+  ],
+  "accessWordOf": [
+   {
+    "word": "ask",
+    "out": {
+     "ok": "ask"
+    }
+   },
+   {
+    "word": "auto-edit",
+    "out": {
+     "ok": "auto-edit"
+    }
+   },
+   {
+    "word": "full",
+    "out": {
+     "ok": "full"
+    }
+   },
+   {
+    "word": "plan",
+    "out": {
+     "ok": "plan"
+    }
+   },
+   {
+    "word": "bypassPermissions",
+    "out": {
+     "err": {
+      "error": "--access takes ask, auto-edit, full or plan, and got bypassPermissions. Name one of those; which of its own modes each one is, is the agent's row's to say.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Name one of those; which of its own modes each one is, is the agent's row's to say."
+     }
+    }
+   },
+   {
+    "word": "",
+    "out": {
+     "err": {
+      "error": "--access takes ask, auto-edit, full or plan, and got . Name one of those; which of its own modes each one is, is the agent's row's to say.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Name one of those; which of its own modes each one is, is the agent's row's to say."
+     }
+    }
+   },
+   {
+    "word": "Full",
+    "out": {
+     "err": {
+      "error": "--access takes ask, auto-edit, full or plan, and got Full. Name one of those; which of its own modes each one is, is the agent's row's to say.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Name one of those; which of its own modes each one is, is the agent's row's to say."
+     }
+    }
+   }
+  ],
+  "under": [
+   [
+    "/a/b",
+    "/a",
+    true
+   ],
+   [
+    "/a",
+    "/a",
+    true
+   ],
+   [
+    "/ab",
+    "/a",
+    false
+   ],
+   [
+    "/a/b",
+    "/a/",
+    true
+   ],
+   [
+    "/a",
+    "/a/",
+    false
+   ],
+   [
+    "a",
+    "",
+    false
+   ],
+   [
+    "/x",
+    "/",
+    true
+   ]
+  ],
+  "releaseHereFix": [
+   [
+    null,
+    "restart that host with wsp restart."
+   ],
+   [
+    "app",
+    "quit and reopen the app that holds it once the app is on wsp 0.3.8."
+   ],
+   [
+    "up",
+    "Ctrl-C the terminal running wsp up and run it again."
+   ],
+   [
+    "service",
+    "restart that host with wsp restart."
+   ],
+   [
+    "verb",
+    "restart that host with wsp restart."
+   ]
+  ],
+  "otherVersion": "the host answered sessions.start in a shape this wsp does not read; it runs another version of wsp, restart it with wsp restart",
+  "printable": [
+   [
+    "a\tb\nc",
+    "a\tb\nc"
+   ],
+   [
+    "\u001b[31mred\u001b[0m",
+    "[31mred[0m"
+   ],
+   [
+    " é",
+    " é"
+   ],
+   [
+    "\r\u000b\f\u0000",
+    ""
+   ]
+  ],
+  "cell": [
+   [
+    "a\tb\nc",
+    "a b c"
+   ],
+   [
+    "\u001b[31mred",
+    "[31mred"
+   ],
+   [
+    "ok",
+    "ok"
+   ],
+   [
+    " x",
+    " x"
+   ]
+  ],
+  "pick": [
+   {
+    "a": 1,
+    "c": null,
+    "d": "",
+    "e": false
+   }
+  ],
+  "opened": [
+   "thread t-1",
+   "t-1 in /x",
+   "thread t-1  wsp thread read, wsp send and wsp stop take its first characters",
+   "t-1 in -  wsp thread read, wsp send and wsp stop take its first characters"
+  ],
+  "schemaRefusal": [
+   {
+    "message": "the request did not match: [{\"path\":[\"thread\"],\"message\":\"Required\"}]",
+    "out": {
+     "ok": null
+    }
+   },
+   {
+    "message": "plain",
+    "out": {
+     "ok": null
+    }
+   }
+  ],
+  "settingResets": [
+   "threads",
+   "machines",
+   "spend",
+   "size",
+   "delete-after",
+   "nap",
+   "turn-limit",
+   "max-machines",
+   "max-depth"
+  ],
+  "common": [
+   [
+    "host",
+    {
+     "type": "string"
+    }
+   ],
+   [
+    "state",
+    {
+     "type": "string"
+    }
+   ],
+   [
+    "json",
+    {
+     "type": "boolean"
+    }
+   ],
+   [
+    "help",
+    {
+     "type": "boolean",
+     "short": "h"
+    }
+   ]
+  ],
+  "pickOptions": [
+   [
+    "model",
+    {
+     "type": "string"
+    }
+   ],
+   [
+    "effort",
+    {
+     "type": "string"
+    }
+   ],
+   [
+    "access",
+    {
+     "type": "string"
+    }
+   ]
+  ],
+  "sendOptions": [
+   [
+    "model",
+    {
+     "type": "string"
+    }
+   ],
+   [
+    "effort",
+    {
+     "type": "string"
+    }
+   ]
+  ],
+  "flag": [
+   "x",
+   null,
+   null
+  ],
+  "flagList": [
+   [
+    "y",
+    "z"
+   ],
+   [],
+   []
+  ],
+  "hostPlatform": "linux"
+ },
+ "formatter": [
+  "stream:text",
+  "log:the line",
+  "log:{\"a\":1,\"\\u0085\":\"\\u009f\"}",
+  "log:{\"b\":2}"
+ ]
+}
