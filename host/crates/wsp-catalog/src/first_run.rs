@@ -64,9 +64,9 @@ fn command_words(rest: &str) -> Vec<String> {
 }
 
 fn mise_tool(script: &str) -> Option<String> {
-    let line = compiled(r"^[^#]*\bmise\s+(?:use|install)\b(.*)$", "")?;
+    let line = compiled(r"^[^#]*\bmise\s+(?:use|install)\b(.*)$", "");
     script.split('\n').find_map(|text| {
-        let caps = line.captures(text).ok()??;
+        let caps = line.re.captures(text).ok()??;
         let rest = caps.get(1)?.as_str();
         command_words(rest).into_iter().find(|word| !word.is_empty() && !word.starts_with('-'))
     })
@@ -94,7 +94,7 @@ fn mise_installed(tool: &str) -> String {
 
 fn lazy_run_installed(launcher: &str) -> String {
     let name = shell_quote(launcher.rsplit('/').next().unwrap_or_default());
-    let lazy = format!(r##"case "$(sed -n 2p {path})" in "# ascii-lazy-harness "*) false ;; esac"##, path = shell_quote(launcher));
+    let lazy = format!(r##"case "$(sed -n 2p {path} 2>/dev/null)" in "# ascii-lazy-harness "*) false ;; esac"##, path = shell_quote(launcher));
     let past = format!(
         r##"d=$(dirname "$(command -v {name})") && PATH=$(printf %s "$PATH" | tr : "\n" | grep -vxF "$d" | paste -sd: -) command -v {name} >/dev/null 2>&1"##
     );
