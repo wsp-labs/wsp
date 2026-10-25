@@ -1032,6 +1032,10 @@ export const RUNTIME_OPS: readonly string[] = RuntimeOp.options.map(o => o.shape
  * environment values a person puts keys into. A new field that carries one is added here, beside its schema. */
 export const SECRET_REQUEST_FIELDS: readonly string[] = ["token", "key", "rows", "code", "passphrase", "env", "envs", "headers", "sudoPassword"];
 
+/** More secret values than any real frame carries (a record of logins, an environment); a line holding more is not
+ * blanked value by value, since each value is one pass over the line on the host's own thread. */
+export const SCANNED_SECRETS = 256;
+
 /** The secret values a request frame carries, read one level into a record and no deeper: a record of logins is as
  * deep as a secret field goes, and the frame may be a stranger's. */
 export function requestSecrets(frame: unknown): string[] {

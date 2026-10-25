@@ -1,0 +1,4 @@
+{"meta":{"door":"ws","source":"packages/host/test/computer-rename.test.ts > wsp computers set --name > says the name it had before the one it has, and a set of nothing names the name and the login it takes"}}
+{"in":{"token":"<redacted>","id":1,"op":"auth"}}
+{"in":{"id":2,"op":"places.list"}}
+{"in":{"placeId":"p_c5a4dc2b912044ed","name":"hetzner","id":3,"op":"places.set"}}

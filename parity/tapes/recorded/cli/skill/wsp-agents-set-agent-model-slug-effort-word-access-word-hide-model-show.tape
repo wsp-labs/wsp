@@ -1,0 +1,2 @@
+{"meta":{"door":"cli","source":"skill > wsp agents set <agent> --model <slug> --effort <word> --access <word> --hide <model>... --show <model>... --order <model,model> --add-model <id>... --drop-model <id>... --reset <field>..."}}
+{"in":{"argv":["agents","set","<agent>","--model","<slug>","--effort","<word>","--access","<word>","--hide","<model>...","--show","<model>...","--order","<model,model>","--add-model","<id>...","--drop-model","<id>...","--reset","<field>..."]}}

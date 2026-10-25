@@ -1,0 +1,2 @@
+{"meta":{"door":"cli","source":"skill > wsp recipe --tick used\\|installed\\|default --set <id>=on\\|off --signin <id>=copy\\|machine\\|later\\|key\\|skip\\|token --add <id>=<command> --add-check <id>=<command> --why <words> --engine --project <folder> --out <path> --json"}}
+{"in":{"argv":["recipe","--tick","used\\|installed\\|default","--set","<id>=on\\|off","--signin","<id>=copy\\|machine\\|later\\|key\\|skip\\|token","--add","<id>=<command>","--add-check","<id>=<command>","--why","<words>","--engine","--project","<folder>","--out","<path>","--json"]}}
