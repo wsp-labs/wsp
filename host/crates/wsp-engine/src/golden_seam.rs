@@ -486,7 +486,7 @@ pub const BUILDER_IDLE_MS: u64 = 6 * 60 * 60_000;
 
 /// golden.ts:291 `templatesOf`, as a test: the backend says it has templates and offers all four template methods.
 pub fn has_templates(backend: &dyn crate::machine::MachineBackend) -> bool {
-    todo!()
+    backend.capabilities().templates && backend.offers().templates
 }
 
 /// golden-import.ts:856.

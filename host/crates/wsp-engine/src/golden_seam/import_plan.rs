@@ -196,5 +196,16 @@ pub fn tool_installs_for_rows(
 /// ticked row as provision.test.ts:121 `row(id, "tools")` builds it: `bring: true`, `default: "bring"`, no paths,
 /// 0 bytes, the id as its label, and the id's first segment as its rung. Panics where the plan is an `Err`.
 pub fn tool_installs_for(ids: &[&str], path: &str, prefix: Option<&str>) -> Vec<ToolInstall> {
-    todo!()
+    let rows: Vec<RecipeEntry> = ids
+        .iter()
+        .map(|id| RecipeEntry {
+            rung: id.split('/').next().unwrap_or_default().to_string(),
+            id: id.to_string(),
+            label: id.to_string(),
+            default: "bring".to_string(),
+            bring: Some(true),
+            ..RecipeEntry::default()
+        })
+        .collect();
+    tool_installs_for_rows(&rows, &BrewTable::new(), &[], path, prefix).unwrap_or_else(|e| panic!("{e}")).installs
 }

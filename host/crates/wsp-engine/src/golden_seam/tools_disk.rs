@@ -3,13 +3,20 @@
 //! loop keeps free, the guard every install runs under, the reason a failed run is named by, the road a source install
 //! reports, the cache sweep and the PATH check.
 use indexmap::IndexSet;
+use wsp_catalog::road_modules::road_step;
 use wsp_catalog::roads::RoadName;
+use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::wire::machine_link::ExecResult;
+use wsp_words::js::{is_js_whitespace, js_trim, to_number};
 use wsp_words::words::image::DiskUse;
+use wsp_words::words::thread::timed_out_line;
+use wsp_words::words::units::fmt_bytes;
 
+use super::import_roads::path_line;
 use super::{DfColumn, ToolRoad};
 use crate::errors::Result;
-use crate::machine::Machine;
+use crate::exec_detached::INLINE_EXEC_MS;
+use crate::machine::{ExecOptions, Machine, RunOptions};
 
 // TS golden-tools.ts:44-50
 // /** Where each figure sits on df's line. */
@@ -22,17 +29,26 @@ use crate::machine::Machine;
 /// golden-tools.ts:49. `df -Pk <path> | awk 'NR==2{print $a, $b}'`, the columns in the order asked; `path` is written
 /// as given, unquoted (a caller hands in `prefix_volume`'s shell word); `None` is `/root`.
 pub fn df_kb_cmd(columns: &[DfColumn], path: Option<&str>) -> String {
-    todo!()
+    let fields: Vec<String> = columns.iter().map(|c| format!("${}", df_field(*c))).collect();
+    format!("df -Pk {} | awk 'NR==2{{print {}}}'", path.unwrap_or("/root"), fields.join(", "))
+}
+
+fn df_field(column: DfColumn) -> u8 {
+    match column {
+        DfColumn::Size => 2,
+        DfColumn::Used => 3,
+        DfColumn::Free => 4,
+    }
 }
 
 /// golden-tools.ts:50 `FREE_KB_CMD`.
 pub fn free_kb_cmd() -> String {
-    todo!()
+    df_kb_cmd(&[DfColumn::Free], None)
 }
 
 /// golden-tools.ts:51 `USED_KB_CMD`.
 pub fn used_kb_cmd() -> String {
-    todo!()
+    df_kb_cmd(&[DfColumn::Used], None)
 }
 
 // TS golden-tools.ts:52-55
@@ -42,7 +58,7 @@ pub fn used_kb_cmd() -> String {
 // export const prefixVolume = (prefix: string): string => `"$(p=${shellQuote(prefix)}; until [ -e "$p" ]; do p=$(dirname "$p"); done; echo "$p")"`;
 /// golden-tools.ts:55 `prefixVolume`: the nearest folder at or above `prefix` that exists, as one shell word.
 pub fn prefix_volume(prefix: &str) -> String {
-    todo!()
+    format!("\"$(p={}; until [ -e \"$p\" ]; do p=$(dirname \"$p\"); done; echo \"$p\")\"", shell_quote(prefix))
 }
 
 /// golden-tools.ts:112 `FreeDisk`.
@@ -72,6 +88,43 @@ pub enum FreeDisk {
 //   if (answered && kb.length === columns.length && kb.every(n => Number.isFinite(n) && n >= 0) && (size === -1 || kb[size]! > 0)) return { bytes: kb.map(n => n * 1024) };
 //   return { reason: answered ? `df answered ${printed.slice(0, 160)}` : dfFailed(res) };
 // }
+enum DfRead {
+    Bytes(Vec<f64>),
+    Reason(String),
+}
+
+pub(super) fn inline_s() -> f64 {
+    INLINE_EXEC_MS as f64 / 1000.0
+}
+
+fn df_failed(res: &ExecResult) -> String {
+    format!("df failed: {}", reason_of(res, inline_s()))
+}
+
+async fn df_read(machine: &dyn Machine, columns: &[DfColumn], prefix: Option<&str>) -> Result<DfRead> {
+    let path = prefix.map(prefix_volume);
+    let cmd = df_kb_cmd(columns, path.as_deref());
+    let res = machine.exec(&cmd, ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() }).await?;
+    let printed = js_trim(&res.stdout);
+    let kb: Vec<f64> = printed.split(is_js_whitespace).filter(|p| !p.is_empty()).map(to_number).collect();
+    let size = columns.iter().position(|c| *c == DfColumn::Size);
+    let answered = res.exit_code.get() == 0 && !printed.is_empty();
+    if answered
+        && kb.len() == columns.len()
+        && kb.iter().all(|n| n.is_finite() && *n >= 0.0)
+        && size.is_none_or(|i| kb[i] > 0.0)
+    {
+        return Ok(DfRead::Bytes(kb.iter().map(|n| n * 1024.0).collect()));
+    }
+    Ok(DfRead::Reason(if answered { format!("df answered {}", cut_units(printed, 160)) } else { df_failed(&res) }))
+}
+
+/// The first `n` UTF-16 units of `s`; a cut inside a surrogate pair writes U+FFFD for the half (the coordinator's ruling
+/// on #2446 for every UTF-16 cut).
+pub(super) fn cut_units(s: &str, n: usize) -> String {
+    String::from_utf16_lossy(&s.encode_utf16().take(n).collect::<Vec<u16>>())
+}
+
 // TS golden-tools.ts:114-124
 // /** One df column read off the machine, in bytes; a df that fails or prints no number is reported, never assumed. */
 // async function dfRootBytes(machine: Machine, column: "used" | "free", prefix?: string): Promise<{ bytes: number } | { reason: string }> {
@@ -87,7 +140,10 @@ pub enum FreeDisk {
 /// golden-tools.ts:121 `freeBytes`: df's free column under /root, or on `prefix_volume(prefix)`. A df that fails or
 /// prints no usable number is `Unknown` with its reason; an exec that rejects is the `Err`.
 pub async fn free_bytes(machine: &dyn Machine, prefix: Option<&str>) -> Result<FreeDisk> {
-    todo!()
+    Ok(match df_read(machine, &[DfColumn::Free], prefix).await? {
+        DfRead::Bytes(bytes) => FreeDisk::Free { bytes: bytes[0] },
+        DfRead::Reason(reason) => FreeDisk::Unknown { reason },
+    })
 }
 
 // TS golden-tools.ts:126-131
@@ -100,13 +156,23 @@ pub async fn free_bytes(machine: &dyn Machine, prefix: Option<&str>) -> Result<F
 /// golden-tools.ts:128 `diskUse`: used and size off one df. Never fails: a rejected exec reads as `Unknown` with
 /// `df failed: <its words>`.
 pub async fn disk_use(machine: &dyn Machine, prefix: Option<&str>) -> DiskUse {
-    todo!()
+    let read = match df_read(machine, &[DfColumn::Used, DfColumn::Size], prefix).await {
+        Ok(read) => read,
+        Err(e) => DfRead::Reason(df_failed(&ExecResult { exit_code: 1i64.into(), stdout: String::new(), stderr: e.to_string() })),
+    };
+    match read {
+        DfRead::Bytes(bytes) => DiskUse::Use { used_bytes: bytes[0], size_bytes: bytes[1] },
+        DfRead::Reason(reason) => DiskUse::Unknown { reason },
+    }
 }
 
 /// `disk_use`'s size: `Some(size_bytes)` for `DiskUse::Use`, `None` for `Unknown`. What provision hands
 /// `owned_floor_bytes`.
 pub async fn disk_use_size(machine: &dyn Machine, prefix: Option<&str>) -> Option<u64> {
-    todo!()
+    match disk_use(machine, prefix).await {
+        DiskUse::Use { size_bytes, .. } => Some(size_bytes as u64),
+        DiskUse::Unknown { .. } => None,
+    }
 }
 
 // TS golden-tools.ts:369-372
@@ -116,7 +182,7 @@ pub async fn disk_use_size(machine: &dyn Machine, prefix: Option<&str>) -> Optio
 // export const ownedFloorBytes = (sizeBytes: number | undefined): number => Math.max(TOOLS_DISK_FLOOR, Math.floor((sizeBytes ?? 0) / 10));
 /// golden-tools.ts:372 `ownedFloorBytes`: the larger of `TOOLS_DISK_FLOOR` and a tenth of the disk, floored.
 pub fn owned_floor_bytes(size_bytes: Option<u64>) -> u64 {
-    todo!()
+    super::TOOLS_DISK_FLOOR.max(size_bytes.unwrap_or(0) / 10)
 }
 
 /// golden-tools.ts:102.
@@ -127,7 +193,7 @@ pub const GUARD_SLACK_S: u64 = 60;
 
 /// golden-tools.ts:78 `guardDeadlineMs`.
 pub fn guard_deadline_ms(timeout_s: u64) -> u64 {
-    todo!()
+    (timeout_s + GUARD_SLACK_S) * 1000
 }
 
 // TS golden-tools.ts:90-97
@@ -139,10 +205,24 @@ pub fn guard_deadline_ms(timeout_s: u64) -> u64 {
 //   const err = lines(res.stderr);
 //   return (err.filter(l => l.startsWith("Error:")).at(-1) ?? err.at(-1) ?? lines(res.stdout).at(-1) ?? `exit ${res.exitCode}`).slice(0, 160);
 // }
-/// golden-tools.ts:92 `reasonOf`: 124 is `timed_out_line(timeout_s)`; else the last `Error:` line of stderr, else
-/// stderr's last line, else stdout's, else `exit <code>`; lines trimmed, blank ones dropped; cut to 160 UTF-16 units.
+/// golden-tools.ts:92 `reasonOf`: 124 is `timed_out_line(timeout_s)`; else the last `Error:` line of stderr, else stderr's
+/// last line, else stdout's, else `exit <code>`; lines trimmed, blank ones dropped; cut to 160 UTF-16 units.
 pub fn reason_of(res: &ExecResult, timeout_s: f64) -> String {
-    todo!()
+    let code = res.exit_code.get();
+    if code == 124 {
+        return timed_out_line(timeout_s, None);
+    }
+    let lines = |text: &str| -> Vec<String> { text.split('\n').map(|l| js_trim(l).to_string()).filter(|l| !l.is_empty()).collect() };
+    let err = lines(&res.stderr);
+    let picked = err
+        .iter()
+        .rev()
+        .find(|l| l.starts_with("Error:"))
+        .cloned()
+        .or_else(|| err.last().cloned())
+        .or_else(|| lines(&res.stdout).last().cloned())
+        .unwrap_or_else(|| format!("exit {code}"));
+    cut_units(&picked, 160)
 }
 
 // TS golden-tools.ts:104-110
@@ -156,7 +236,38 @@ pub fn reason_of(res: &ExecResult, timeout_s: f64) -> String {
 /// golden-tools.ts:105 `roadOf`: the last line starting `WSP_ROAD release|go <from>`, with the sha256, tag and arch
 /// that follow it where they match.
 pub fn road_of(stdout: &str) -> Option<ToolRoad> {
-    todo!()
+    stdout.split(['\n', '\r', '\u{2028}', '\u{2029}']).filter_map(road_line).last()
+}
+
+fn road_line(line: &str) -> Option<ToolRoad> {
+    let rest = line.strip_prefix("WSP_ROAD ")?;
+    let (kind, rest) = match rest.strip_prefix("release ") {
+        Some(after) => ("release", after),
+        None => ("go", rest.strip_prefix("go ")?),
+    };
+    let (from, rest) = split_word(rest);
+    if from.is_empty() {
+        return None;
+    }
+    let mut road = ToolRoad { kind: kind.to_string(), from: from.to_string(), sha256: None, tag: None, arch: None };
+    let Some(after) = rest.strip_prefix(' ') else { return Some(road) };
+    let Some(sha) = after.get(..64).filter(|s| s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))) else {
+        return Some(road);
+    };
+    road.sha256 = Some(sha.to_string());
+    let Some(tagged) = after[64..].strip_prefix(' ') else { return Some(road) };
+    let (tag, rest) = split_word(tagged);
+    if tag.is_empty() {
+        return Some(road);
+    }
+    road.tag = Some(tag.to_string());
+    road.arch = rest.strip_prefix(' ').and_then(|a| ["x86_64", "aarch64"].into_iter().find(|w| a.starts_with(w))).map(str::to_string);
+    Some(road)
+}
+
+fn split_word(s: &str) -> (&str, &str) {
+    let end = s.find(is_js_whitespace).unwrap_or(s.len());
+    s.split_at(end)
 }
 
 // TS golden-tools.ts:144-151
@@ -170,12 +281,15 @@ pub fn road_of(stdout: &str) -> Option<ToolRoad> {
 // export const closing = (...parts: (string | undefined)[]): string => parts.filter(p => p !== undefined && p !== "").join("; ");
 /// golden-tools.ts:145 `freeNote`: `<fmt_bytes(free)> free`, `None` when df did not read; a rejected exec is the `Err`.
 pub async fn free_note(machine: &dyn Machine, prefix: Option<&str>) -> Result<Option<String>> {
-    todo!()
+    Ok(match free_bytes(machine, prefix).await? {
+        FreeDisk::Free { bytes } => Some(format!("{} free", fmt_bytes(bytes))),
+        FreeDisk::Unknown { .. } => None,
+    })
 }
 
 /// golden-tools.ts:151 `closing`: the parts joined with `; `, `None` and empty ones left out.
 pub fn closing(parts: &[Option<&str>]) -> String {
-    todo!()
+    parts.iter().flatten().filter(|p| !p.is_empty()).copied().collect::<Vec<&str>>().join("; ")
 }
 
 // TS golden-tools.ts:153-172
@@ -199,10 +313,35 @@ pub fn closing(parts: &[Option<&str>]) -> String {
 //   const after = await freeBytes(machine);
 //   return before.kind === "free" && after.kind === "free" && after.bytes > before.bytes ? `caches swept, ${fmtBytes(after.bytes - before.bytes)} back` : "caches swept";
 // }
+const SWEEP_TIMEOUT_S: u64 = 300;
+
+fn sweep_caches_cmd(path: &str) -> String {
+    [
+        "set -euo pipefail".to_string(),
+        format!("export PATH={path}"),
+        "if command -v go >/dev/null 2>&1; then go clean -cache -modcache; fi".to_string(),
+        "rm -rf /root/.npm /root/.cache/uv /root/.cache/go-build /root/.cache/node-gyp".to_string(),
+        "if command -v apt-get >/dev/null 2>&1; then apt-get clean; fi".to_string(),
+    ]
+    .join("\n")
+}
+
 /// golden-tools.ts:166 `sweepCaches`: the sweep under the guard as one run, df read before and after; the phrase says
 /// what came back. A rejected exec or run is the `Err`.
 pub async fn sweep_caches(machine: &dyn Machine, path: &str) -> Result<String> {
-    todo!()
+    let before = free_bytes(machine, None).await?;
+    let script = guarded(&sweep_caches_cmd(path), SWEEP_TIMEOUT_S);
+    let res = machine.run(&script, RunOptions { deadline_ms: guard_deadline_ms(SWEEP_TIMEOUT_S), ..Default::default() }).await?;
+    if res.exit_code.get() != 0 {
+        return Ok(format!("cache sweep failed ({})", reason_of(&res, SWEEP_TIMEOUT_S as f64)));
+    }
+    let after = free_bytes(machine, None).await?;
+    Ok(match (before, after) {
+        (FreeDisk::Free { bytes: before }, FreeDisk::Free { bytes: after }) if after > before => {
+            format!("caches swept, {} back", fmt_bytes(after - before))
+        }
+        _ => "caches swept".to_string(),
+    })
 }
 
 // TS golden-tools.ts:186-227
@@ -248,15 +387,51 @@ pub async fn sweep_caches(machine: &dyn Machine, path: &str) -> Result<String> {
 //     "wait $p",
 //   ].join("\n");
 // }
+const KILL_GRACE_S: u64 = 10;
+
+const TREE_FN: [&str; 13] = [
+    "tree() {",
+    r#"  local want="$1" found="" f s pid ppid more=1"#,
+    r#"  while [ -n "$more" ]; do"#,
+    "    more=",
+    "    for f in /proc/[0-9]*/stat; do",
+    r#"      [ -r "$f" ] && read -r s < "$f" || continue"#,
+    r#"      pid=${f#/proc/}; pid=${pid%/stat}; s=${s##*) }; ppid=${s#* }; ppid=${ppid%% *}"#,
+    r#"      case " $want $found " in *" $pid "*) continue;; esac"#,
+    r#"      case " $want $found " in *" $ppid "*) found="$found $pid"; more=1;; esac"#,
+    "    done",
+    "  done",
+    "  echo $found",
+    "}",
+];
+
 /// golden-tools.ts:208 `guarded`: the script in its own session, watched; at the timeout TERM then KILL to the group
 /// and every descendant, then exit 124.
 pub fn guarded(script: &str, timeout_s: u64) -> String {
-    todo!()
+    [
+        TREE_FN.join("\n"),
+        format!("setsid bash -c {} &", shell_quote(script)),
+        "p=$!".to_string(),
+        "t=0".to_string(),
+        format!("while [ $t -lt {timeout_s} ] && kill -0 $p 2>/dev/null; do sleep 1; t=$((t+1)); done"),
+        "if kill -0 $p 2>/dev/null; then".to_string(),
+        "  disown $p 2>/dev/null".to_string(),
+        r#"  v="$p $(tree $p)""#.to_string(),
+        "  kill -TERM -- -$p $v 2>/dev/null".to_string(),
+        format!("  t=0; while [ $t -lt {KILL_GRACE_S} ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done"),
+        r#"  v="$p $(tree $p)""#.to_string(),
+        "  kill -KILL -- -$p $v 2>/dev/null".to_string(),
+        format!("  t=0; while [ $t -lt {KILL_GRACE_S} ] && kill -0 $v 2>/dev/null; do sleep 1; t=$((t+1)); done"),
+        "  exit 124".to_string(),
+        "fi".to_string(),
+        "wait $p".to_string(),
+    ]
+    .join("\n")
 }
 
 /// golden-tools.ts:230 `roadLimitS`: the road's own limit, off wsp_catalog's `road_step`.
 pub fn road_limit_s(road: RoadName) -> u64 {
-    todo!()
+    road_step(road).limit_s
 }
 
 // TS golden-tools.ts:232-235
@@ -266,7 +441,9 @@ pub fn road_limit_s(road: RoadName) -> u64 {
 // }
 /// golden-tools.ts:233 `guardedRoad`: the road's env lines ahead of `cmd`, under the road's limit.
 pub fn guarded_road(road: RoadName, cmd: &str) -> String {
-    todo!()
+    let step = road_step(road);
+    let script: Vec<String> = step.env.iter().cloned().chain([cmd.to_string()]).collect();
+    guarded(&script.join("\n"), step.limit_s)
 }
 
 /// golden-tools.ts:279's answer. `missing` keeps the order the lines came in.
@@ -288,5 +465,14 @@ pub struct MissingCommands {
 /// golden-tools.ts:279 `missingCommands`: one exec on `path_line(path, prefix)`; `failed` is `reason_of` at 20 s
 /// when it did not exit 0, and `missing` is read off stdout either way. A rejected exec is the `Err`.
 pub async fn missing_commands(machine: &dyn Machine, bins: &[String], path: &str, prefix: Option<&str>) -> Result<MissingCommands> {
-    todo!()
+    let names: Vec<String> = bins.iter().map(|b| shell_quote(b)).collect();
+    let cmd = format!(
+        "{}\nfor b in {}; do command -v \"$b\" >/dev/null 2>&1 || echo \"missing $b\"; done",
+        path_line(path, prefix),
+        names.join(" ")
+    );
+    let res = machine.exec(&cmd, ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() }).await?;
+    let failed = (res.exit_code.get() != 0).then(|| reason_of(&res, inline_s()));
+    let missing = res.stdout.split('\n').filter_map(|l| l.strip_prefix("missing ")).map(|n| js_trim(n).to_string()).collect();
+    Ok(MissingCommands { missing, failed })
 }
