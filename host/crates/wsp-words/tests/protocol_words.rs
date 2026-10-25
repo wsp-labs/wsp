@@ -388,7 +388,7 @@ mod thread_provenance {
             s(json!({ "id": "s2", "threadId": "thr_b", "status": "running", "prompt": "on a machine" })),
         ]);
         let (here, elsewhere) = (&threads[0], &threads[1]);
-        assert_eq!(here.pid, Some(4_242));
+        assert_eq!(here.pid, Some(4_242.into()));
         assert_eq!(elsewhere.pid, None);
         // The TS reads the pid back through ThreadView.parse, which is wsp-wire's.
         // The latest turn is the one running: a thread whose earlier turn had a process carries none now.

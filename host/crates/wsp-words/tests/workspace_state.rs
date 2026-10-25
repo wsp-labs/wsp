@@ -1041,7 +1041,7 @@ mod absent_computer_test {
 
         #[test]
         fn says_a_box_on_the_ssh_dial_back_dials_back_over_ssh_and_never_that_it_dials_in_f() {
-            let back = || Some(PlaceBack { box_port: 4640 });
+            let back = || Some(PlaceBack { box_port: 4640.into() });
             let with_ssh = road(
                 "spoo",
                 Some(PlaceRoad { ssh: Some("root@spoo".into()), from: Some("127.0.0.1".into()), back: back() }),
@@ -1083,7 +1083,7 @@ mod absent_computer_test {
             let handed = ["http://192.168.1.20:4640", "https://h645d7f8a8d48cbd6.example"];
             assert_eq!(back_url(4640.0), "http://127.0.0.1:4640");
             assert_eq!(
-                linked_over("http://127.0.0.1:4640", Some(&PlaceBack { box_port: 4640 }), &handed).as_deref(),
+                linked_over("http://127.0.0.1:4640", Some(&PlaceBack { box_port: 4640.into() }), &handed).as_deref(),
                 Some("over ssh")
             );
             assert_eq!(
@@ -1091,11 +1091,11 @@ mod absent_computer_test {
                 Some("at http://192.168.1.20:4640")
             );
             assert_eq!(
-                linked_over("https://h645d7f8a8d48cbd6.example", Some(&PlaceBack { box_port: 4640 }), &handed).as_deref(),
+                linked_over("https://h645d7f8a8d48cbd6.example", Some(&PlaceBack { box_port: 4640.into() }), &handed).as_deref(),
                 Some("at https://h645d7f8a8d48cbd6.example")
             );
             // The box writes the address it dialled, so one this host never handed out is not said in this host's voice.
-            assert_eq!(linked_over("http://127.0.0.1:4720", Some(&PlaceBack { box_port: 4640 }), &handed), None);
+            assert_eq!(linked_over("http://127.0.0.1:4720", Some(&PlaceBack { box_port: 4640.into() }), &handed), None);
             assert_eq!(linked_over(&format!("https://whatever-it-likes.example/{}", "a".repeat(8000)), None, &handed), None);
         }
 

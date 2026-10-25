@@ -13,7 +13,7 @@ fn file(path: &str, kind: SeedKind, bytes: i64, row: Option<(&str, &str)>) -> Se
     SeedFile {
         path: path.to_string(),
         dir: false,
-        bytes,
+        bytes: bytes.into(),
         kind,
         row: row.map(|(id, name)| SeedFileRow { id: id.to_string(), name: name.to_string() }),
         ticked: kind == SeedKind::Config,
@@ -26,9 +26,9 @@ fn plan() -> SeedPlan {
         remote: Some("https://github.com/spoo-me/frontend.git".to_string()),
         branch: "refactor/dashboard-polish".to_string(),
         default_branch: Some("main".to_string()),
-        unpushed: Some(SeedPlanUnpushed { commits: 2, base: "9f1c2e4aa11b0c3d4e5f60718293a4b5c6d7e8f9".to_string() }),
-        uncommitted: 4,
-        memory: Some(SeedPlanMemory { key: "-Users-dev-spoo-landing".to_string(), files: 5, bytes: 28_000 }),
+        unpushed: Some(SeedPlanUnpushed { commits: 2.into(), base: "9f1c2e4aa11b0c3d4e5f60718293a4b5c6d7e8f9".to_string() }),
+        uncommitted: 4.into(),
+        memory: Some(SeedPlanMemory { key: "-Users-dev-spoo-landing".to_string(), files: 5.into(), bytes: 28_000.into() }),
         files: vec![
             file(".env.local", SeedKind::Config, 4096, Some(("next", "Next"))),
             file(".claude/settings.local.json", SeedKind::Config, 4096, Some(("agents", "agents"))),
@@ -259,7 +259,7 @@ mod what_the_person_is_told_would_travel {
 
     #[test]
     fn says_no_files_travel_where_nothing_is_ticked_and_nothing_about_a_folder_with_no() {
-        let bare = SeedPlan { uncommitted: 0, memory: None, unpushed: None, ..plan() };
+        let bare = SeedPlan { uncommitted: 0.into(), memory: None, unpushed: None, ..plan() };
         assert_eq!(seed_summary_lines(&bare, &choice(&[], false, false)), strings(&["no files travel"]));
     }
 }
@@ -276,7 +276,7 @@ mod what_the_seeding_stage_says_as_the_files_go_and_once_they_have_landed {
         );
         // A memory folder is no file of the seed's: the menu counts it on a row of its own and so does this line,
         // so a seed of nothing but the memory reads as nought files here and as one file there.
-        let only_memory = SeedPlan { unpushed: None, memory: Some(SeedPlanMemory { key: "-Users-dev-spoo-landing".to_string(), files: 1, bytes: 69 }), ..plan() };
+        let only_memory = SeedPlan { unpushed: None, memory: Some(SeedPlanMemory { key: "-Users-dev-spoo-landing".to_string(), files: 1.into(), bytes: 69.into() }), ..plan() };
         assert_eq!(seeding_line(&only_memory, &choice(&[], true, false)), "Seeding 0 files, Claude Code memory (1 file, 69 B), from /Users/dev/spoo-landing.");
         // Nothing ticked at all still says where it came from.
         let bare = SeedPlan { memory: None, unpushed: None, ..plan() };
