@@ -4,6 +4,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, Mutex};
 
 use crate::cancel::Cancel;
+use crate::js_value::js_string;
 use wsp_catalog::json_parse::parse_json;
 use futures::FutureExt;
 use indexmap::IndexMap;
@@ -125,18 +126,6 @@ pub struct SnapshotView {
 /// What a field the TS never checks reads as in a template literal: its JavaScript text, `undefined` where it is absent.
 fn js_text<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Result<String, D::Error> {
     Ok(js_string(&Value::deserialize(d)?))
-}
-
-/// `String(value)`: what a template literal writes for a JSON value.
-pub fn js_string(value: &Value) -> String {
-    match value {
-        Value::String(s) => s.clone(),
-        Value::Null => "null".to_string(),
-        Value::Number(n) => number_string(n.as_f64().unwrap_or(f64::NAN)),
-        Value::Bool(b) => b.to_string(),
-        Value::Array(items) => items.iter().map(|v| if v.is_null() { String::new() } else { js_string(v) }).collect::<Vec<_>>().join(","),
-        Value::Object(_) => "[object Object]".to_string(),
-    }
 }
 
 fn undefined() -> String {

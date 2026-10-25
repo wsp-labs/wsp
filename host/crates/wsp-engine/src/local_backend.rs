@@ -13,7 +13,7 @@ use tokio::sync::OnceCell;
 use wsp_wire::types::JsNumber;
 use wsp_words::js::{is_js_whitespace, js_round, js_trim, to_number};
 
-use crate::child_exec::{run_child, ChildOptions};
+use crate::child_exec::{process_env, run_child, ChildOptions};
 use crate::errors::{EngineError, Result};
 use crate::machine::{
     BackendPricing, BytesLanded, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineFacts, MachineKind, MachineLife,
@@ -173,7 +173,8 @@ pub async fn memory_here_on(platform: &str) -> Option<MemoryHere> {
 /// local-backend.ts:91. This computer as a Machine.
 pub struct LocalMachine {
     root: PathBuf,
-    env: IndexMap<String, String>,
+    /// The environment handed in; this process's as it is at each command when `None`.
+    env: Option<IndexMap<String, String>>,
     /// local-backend.ts:97. Read once: the system does not change its name while the host runs.
     os: OnceCell<String>,
 }
@@ -181,7 +182,7 @@ pub struct LocalMachine {
 impl LocalMachine {
     async fn shell(&self, cmd: &str, opts: ChildOptions) -> ExecResult {
         let args = ["-c".to_string(), cmd.to_string()];
-        run_child("bash", &args, ChildOptions { cwd: Some(self.root.clone()), env: Some(self.env.clone()), ..opts }).await
+        run_child("bash", &args, ChildOptions { cwd: Some(self.root.clone()), env: Some(self.env.clone().unwrap_or_else(process_env)), ..opts }).await
     }
 }
 
@@ -284,10 +285,7 @@ pub struct LocalBackend {
 impl LocalBackend {
     /// local-backend.ts:193. Touches nothing on disk.
     pub fn new(opts: LocalBackendOptions) -> Self {
-        let env: IndexMap<String, String> = opts.env.unwrap_or_else(|| {
-            std::env::vars_os().map(|(k, v)| (k.to_string_lossy().into_owned(), v.to_string_lossy().into_owned())).collect()
-        });
-        let machine = LocalMachine { root: opts.root.clone(), env, os: OnceCell::new() };
+        let machine = LocalMachine { root: opts.root.clone(), env: opts.env, os: OnceCell::new() };
         LocalBackend { machine: Arc::new(machine), folder: opts.root }
     }
 

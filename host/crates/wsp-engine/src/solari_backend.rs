@@ -17,17 +17,19 @@ use crate::errors::{
 use crate::exec_detached::{exec_detached, INLINE_EXEC_MS};
 use crate::fetch::{platform_fetch, Fetch, FetchRequest, FetchResponse};
 use crate::golden_seam::EXEC_ENV;
+use crate::js_value::js_string;
 use crate::machine::{
     BackendOffers, BackendPricing, Capabilities, ExecOptions, ExecResult, Lifecycle, LifecycleBudgets, Machine, MachineBackend,
     MachineKind, MachineLife, MachineListRow, MachineOffers, MachineShape, MachineSpec, MachineState, OnLine, PreviewReach, RunOptions,
     Seen, Size, SnapshotOptions, SnapshotRow, SnapshotStoragePricing, TemplateRow, Waiting, WireSnapshotStoragePricing,
 };
 use crate::tool_sizes::BUILDER_DISK_GB;
+use wsp_catalog::json_parse::parse_json;
 use wsp_wire::types::js_number::JsInt;
 use wsp_wire::types::JsNumber;
 use wsp_wire::wire::capabilities::{MachineSizeOffer, PauseMode, WorkspaceSize};
 use wsp_wire::wire::machine_link::{LifecycleBudgetsResumeAsks, TemplateRowStatus};
-use wsp_words::js::{js_trim, number_string, utf16};
+use wsp_words::js::{js_trim, utf16};
 use wsp_words::place_word::provider_key_name;
 use wsp_words::words::computer::{move_timed_out_line, Move, RESUME_UNANSWERED};
 use wsp_words::words::thread::{
@@ -155,24 +157,24 @@ pub const PREVIEW_TTL_MS: i64 = 60 * 60_000;
 /// solari-backend.ts:146. Epoch-ms expiry of a preview token: cut at the last `.` (skipped where it is at 0 or absent),
 /// then the whole string; each part base64url-decoded leniently as node does, and the first `"exp":<digits>` in it read
 /// as a number. `now + PREVIEW_TTL_MS` where neither carries one.
-pub fn preview_token_expiry(token: &str, now: i64) -> i64 {
+pub fn preview_token_expiry(token: &str, now: i64) -> f64 {
     for cut in [token.rfind('.'), Some(token.len())].into_iter().flatten().filter(|&c| c > 0) {
         let decoded = String::from_utf8_lossy(&crate::node_base64::node_base64_decode(&token[..cut])).into_owned();
         if let Some(exp) = first_exp(&decoded) {
             return exp;
         }
     }
-    now + PREVIEW_TTL_MS
+    (now + PREVIEW_TTL_MS) as f64
 }
 
-/// `/"exp":(\d+)/` on the text, read as a JS number then into i64 (saturating).
-fn first_exp(text: &str) -> Option<i64> {
+/// `/"exp":(\d+)/` on the text, read as the JS number it is.
+fn first_exp(text: &str) -> Option<f64> {
     let mut rest = text;
     while let Some(at) = rest.find("\"exp\":") {
         let after = &rest[at + 6..];
         let digits = after.bytes().take_while(u8::is_ascii_digit).count();
         if digits > 0 {
-            return Some(after[..digits].parse::<f64>().unwrap_or(0.0) as i64);
+            return Some(after[..digits].parse::<f64>().unwrap_or(0.0));
         }
         rest = after;
     }
@@ -215,6 +217,8 @@ pub struct SolariBackend {
 #[serde(rename_all = "camelCase")]
 struct SandboxView {
     sandbox_id: Option<String>,
+    /// A kind the table never learned reads as none: the listing never reads it.
+    #[serde(default, deserialize_with = "known_kind")]
     kind: Option<MachineKind>,
     state: Option<String>,
     metadata: Option<IndexMap<String, String>>,
@@ -231,7 +235,9 @@ struct CreateReply {
     kind: Option<MachineKind>,
     stream_url: Option<String>,
     state: Option<String>,
-    created_at: Option<String>,
+    /// `Some(None)` is a `createdAt` the reply carries as null, which is not undefined.
+    #[serde(default, deserialize_with = "carried_text")]
+    created_at: Option<Option<String>>,
 }
 
 #[derive(Deserialize)]
@@ -252,6 +258,22 @@ struct SnapshotView {
     parent: Option<Option<String>>,
 }
 
+fn known_kind<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<Option<MachineKind>, D::Error> {
+    Ok(serde_json::from_value(Value::deserialize(d)?).ok())
+}
+
+fn known_status<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<TemplateRowStatus, D::Error> {
+    Ok(serde_json::from_value(Value::deserialize(d)?).unwrap_or(TemplateRowStatus::Building))
+}
+
+/// A key the reply carries as null reads `Some(None)`, a text as itself, and one it does not carry reads None.
+fn carried_text<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<Option<Option<String>>, D::Error> {
+    Ok(Some(match Value::deserialize(d)? {
+        Value::String(text) => Some(text),
+        _ => None,
+    }))
+}
+
 /// A key the reply carries as null reads `Some(None)`; one it does not carry reads None.
 fn double_option<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<Option<Option<String>>, D::Error> {
     Option::<String>::deserialize(d).map(Some)
@@ -262,6 +284,8 @@ fn double_option<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<Option<
 struct TemplateView {
     template_id: String,
     name: String,
+    /// A status word the table never learned reads as building, as the Box backend reads one.
+    #[serde(deserialize_with = "known_status")]
     status: TemplateRowStatus,
     error: Option<String>,
     created_at: Option<String>,
@@ -326,13 +350,9 @@ fn random_uuid() -> String {
 /// The error text a refusal's `error` field reads as: JavaScript's String of it where it is truthy, "" where it is not.
 fn error_text(v: Option<&Value>) -> String {
     match v {
-        Some(Value::String(s)) => s.clone(),
-        Some(Value::Number(n)) => match n.as_f64() {
-            Some(x) if x != 0.0 => number_string(x),
-            _ => String::new(),
-        },
-        Some(Value::Bool(true)) => "true".into(),
-        _ => String::new(),
+        Some(Value::Number(n)) if n.as_f64() == Some(0.0) => String::new(),
+        Some(Value::Null | Value::Bool(false)) | None => String::new(),
+        Some(v) => js_string(v),
     }
 }
 
@@ -460,12 +480,12 @@ impl SolariBackend {
                 let value = if text.is_empty() {
                     Value::Object(Map::new())
                 } else {
-                    serde_json::from_str(&text).map_err(|e| other(e.to_string()))?
+                    parse_json(&text).map_err(|e| other(e.to_string()))?
                 };
                 return Ok((value, res));
             }
             let raw = js_trim(&res.text()).to_string();
-            let parsed = match serde_json::from_str::<Value>(&raw) {
+            let parsed = match parse_json(&raw) {
                 Ok(v) => v,
                 Err(_) if raw.is_empty() => json!({}),
                 Err(_) => json!({ "error": utf16::cut(&raw, 300) }),
@@ -564,7 +584,7 @@ impl SolariBackend {
         let res: CreateReply = serde_json::from_value(value).map_err(|e| other(e.to_string()))?;
         let seen = res.created_at.map(|created_at| Seen {
             state: state_of(res.state.as_deref().unwrap_or("running")),
-            created_at: Some(created_at),
+            created_at,
             paused_at: None,
         });
         let replayed = reply.header("Idempotent-Replayed") == Some("true");
@@ -903,7 +923,7 @@ impl Machine for SolariMachine {
     async fn preview_url(&self, port: u16) -> Result<PreviewReach> {
         let res: PortView = self.backend.request("GET", &self.route(&format!("/ports/{port}")), None, None, None).await?;
         let expires_at = preview_token_expiry(&res.token, RealRetryClock.now());
-        Ok(PreviewReach { url: res.url, token: res.token, expires_at: JsNumber(expires_at as f64) })
+        Ok(PreviewReach { url: res.url, token: res.token, expires_at: JsNumber(expires_at) })
     }
     /// solari-backend.ts:504.
     async fn describe(&self) -> Result<MachineShape> {

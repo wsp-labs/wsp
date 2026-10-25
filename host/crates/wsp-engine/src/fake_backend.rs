@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use crate::cancel::Cancel;
 use async_trait::async_trait;
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::{json, Map, Value};
 
 use crate::child_exec::{run_child, ChildOptions};
@@ -24,7 +24,10 @@ use wsp_wire::types::js_number::JsInt;
 use wsp_wire::types::JsNumber;
 use wsp_wire::views::activity::iso_time;
 use wsp_wire::wire::capabilities::{MachineSizeOffer, PauseMode};
-use wsp_words::js::to_fixed;
+use wsp_catalog::json_parse::parse_json;
+use wsp_words::js::{js_key_order, to_fixed};
+
+use crate::js_value::js_string;
 
 /// fake-backend.ts:75. What a road that reaches for the guest is told.
 pub const FAKE_NO_GUEST: &str = "this is a stand-in provider for testing: its machines are records in memory, so nothing runs on them and nothing can be opened inside them";
@@ -89,12 +92,23 @@ fn empty_held() -> Map<String, Value> {
     held
 }
 
-fn machines_of(held: &Map<String, Value>) -> Map<String, Value> {
-    held.get("machines").and_then(Value::as_object).cloned().unwrap_or_default()
+/// `held.machines` as an object, read for `key`: a file whose `machines` is null throws in the TS as `held.machines[key]`
+/// does, so nothing is written over it.
+fn machines_of(held: &Map<String, Value>, key: &str) -> Result<Map<String, Value>> {
+    match held.get("machines") {
+        Some(Value::Null) => Err(other(format!("Cannot read properties of null (reading '{key}')"))),
+        other => Ok(other.and_then(Value::as_object).cloned().unwrap_or_default()),
+    }
 }
 
-fn snapshots_of(held: &Map<String, Value>) -> Vec<Value> {
-    held.get("snapshots").and_then(Value::as_array).cloned().unwrap_or_default()
+/// `held.snapshots` as a list, read through `reading` (`filter` or the spread's iterator): a file whose `snapshots` is null
+/// throws in the TS as the call does.
+fn snapshots_of(held: &Map<String, Value>, reading: &str) -> Result<Vec<Value>> {
+    match held.get("snapshots") {
+        Some(Value::Null) if reading == "filter" => Err(other("Cannot read properties of null (reading 'filter')")),
+        Some(Value::Null) => Err(other("object null is not iterable (cannot read property Symbol(Symbol.iterator))")),
+        other => Ok(other.and_then(Value::as_array).cloned().unwrap_or_default()),
+    }
 }
 
 fn other(message: impl Into<String>) -> EngineError {
@@ -107,12 +121,13 @@ fn io(e: std::io::Error) -> EngineError {
 
 impl Records {
     /// fake-backend.ts:128. A file that cannot be read is an empty fleet; one that is there and does not parse fails the
-    /// read, and is never written over. JSON that is not an object reads as an empty fleet.
+    /// read, and is never written over. JSON that is not an object reads as an empty fleet. The bytes are read as node's
+    /// `"utf8"` reads them, a byte that is no UTF-8 as U+FFFD.
     fn read(&self) -> Result<Map<String, Value>> {
         let Some(path) = &self.file else { return Ok(self.memory.lock().unwrap().clone()) };
-        let Ok(text) = std::fs::read_to_string(path) else { return Ok(empty_held()) };
+        let Ok(bytes) = std::fs::read(path) else { return Ok(empty_held()) };
         let mut held = empty_held();
-        match serde_json::from_str::<Value>(&text) {
+        match parse_json(&String::from_utf8_lossy(&bytes)) {
             Ok(Value::Object(parsed)) => held.extend(parsed),
             Ok(_) => {}
             Err(e) => return Err(other(stand_in_records_unreadable(&path.to_string_lossy(), &e.to_string()))),
@@ -138,12 +153,40 @@ impl Records {
 }
 
 /// One machine's record as the TS writes it: `state, shape, labels`.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 struct MachineRecord {
     state: MachineState,
     shape: MachineShape,
-    #[serde(default)]
     labels: IndexMap<String, String>,
+}
+
+impl MachineRecord {
+    /// A record as the TS reads it, field by field and none of them required: a record with no state is read as running,
+    /// the state a machine is made in, and a label is the text JavaScript writes for it. A word that is no state is refused,
+    /// since no row can carry it.
+    fn read(record: &Value) -> Result<Self> {
+        let Some(fields) = record.as_object() else {
+            return Err(other("Cannot read properties of null (reading 'state')".to_string()));
+        };
+        let state = match fields.get("state") {
+            None | Some(Value::Null) => MachineState::Running,
+            Some(word) => serde_json::from_value(word.clone()).map_err(|_| other(format!("a machine record holds the state {word}")))?,
+        };
+        let number = |key: &str| fields.get("shape").and_then(|s| s.get(key)).and_then(Value::as_f64).map(JsNumber);
+        let shape = MachineShape {
+            cpu: number("cpu"),
+            mem_mb: number("memMb"),
+            disk_gb: number("diskGb"),
+            created_at: fields.get("shape").and_then(|s| s.get("createdAt")).and_then(Value::as_str).map(str::to_string),
+            used_bytes: number("usedBytes").filter(|n| n.0.fract() == 0.0).map(|n| JsInt(n)),
+        };
+        let labels = fields
+            .get("labels")
+            .and_then(Value::as_object)
+            .map(|labels| labels.iter().map(|(k, v)| (k.clone(), js_string(v))).collect())
+            .unwrap_or_default();
+        Ok(MachineRecord { state, shape, labels })
+    }
 }
 
 /// fake-backend.ts:156. One machine this provider holds.
@@ -179,7 +222,7 @@ impl FakeMachine {
     fn record_snapshot(&self, name: &str) -> Result<String> {
         let row_id = format!("fksnap_{}", hex::encode(rand::random::<[u8; 6]>()));
         let mut held = self.records.read()?;
-        let mut snapshots = snapshots_of(&held);
+        let mut snapshots = snapshots_of(&held, "spread")?;
         let gib = 8u64 * 1024 * 1024 * 1024;
         snapshots.push(
             json!({ "id": row_id, "name": name, "sizeBytes": gib, "restoredBytes": gib, "createdAt": iso_time(RealRetryClock.now()) }),
@@ -192,7 +235,7 @@ impl FakeMachine {
     /// fake-backend.ts:210. A machine no longer recorded is left alone and nothing is written.
     fn move_to(&self, to: MachineState) -> Result<()> {
         let mut held = self.records.read()?;
-        let mut machines = machines_of(&held);
+        let mut machines = machines_of(&held, &self.id)?;
         let Some(record) = machines.get_mut(&self.id) else { return Ok(()) };
         if let Some(record) = record.as_object_mut() {
             record.insert("state".into(), serde_json::to_value(to).unwrap_or_default());
@@ -223,6 +266,8 @@ impl Machine for FakeMachine {
         MachineOffers {
             preview_url: self.guest.is_some(),
             put_bytes: self.guest.as_ref().is_some_and(|g| g.has_put_bytes()),
+            describe: true,
+            facts: true,
             ..MachineOffers::default()
         }
     }
@@ -246,7 +291,7 @@ impl Machine for FakeMachine {
     }
     async fn state(&self) -> Result<MachineState> {
         let held = self.records.read()?;
-        let recorded = machines_of(&held).get(&self.id).and_then(|m| serde_json::from_value::<MachineState>(m["state"].clone()).ok());
+        let recorded = machines_of(&held, &self.id)?.get(&self.id).and_then(|m| serde_json::from_value::<MachineState>(m["state"].clone()).ok());
         Ok(recorded.unwrap_or(self.seen.state))
     }
     async fn download_url(&self, _path: &str) -> Result<String> {
@@ -354,7 +399,7 @@ impl FakeBackend {
     /// with the spec's figures (0 kept, the size's where none is given) and written.
     fn mint(&self, machine_id: &str, spec: Option<&MachineSpec>) -> Result<FakeMachine> {
         let mut held = self.records.read()?;
-        let mut machines = machines_of(&held);
+        let mut machines = machines_of(&held, machine_id)?;
         if !machines.contains_key(machine_id) {
             let figure = |given: Option<JsNumber>, default: f64| given.map_or(default, |x| x.0);
             let record = MachineRecord {
@@ -372,8 +417,7 @@ impl FakeBackend {
             held.insert("machines".into(), Value::Object(machines.clone()));
             self.records.write(held)?;
         }
-        let record: MachineRecord =
-            serde_json::from_value(machines.get(machine_id).cloned().unwrap_or(Value::Null)).map_err(|e| other(e.to_string()))?;
+        let record = MachineRecord::read(machines.get(machine_id).unwrap_or(&Value::Null))?;
         Ok(FakeMachine {
             id: machine_id.to_string(),
             labels: record.labels,
@@ -436,21 +480,25 @@ impl MachineBackend for FakeBackend {
     }
     async fn list(&self, _labels: Option<&IndexMap<String, String>>) -> Result<Vec<MachineListRow>> {
         let held = self.records.read()?;
-        machines_of(&held)
+        let machines = match held.get("machines") {
+            Some(Value::Null) => return Err(other("Cannot convert undefined or null to object")),
+            _ => machines_of(&held, "")?,
+        };
+        js_key_order(machines.iter().map(|(id, record)| (id, record)))
             .into_iter()
             .map(|(id, record)| {
-                let record: MachineRecord = serde_json::from_value(record).map_err(|e| other(e.to_string()))?;
-                Ok(MachineListRow { id, state: record.state, labels: record.labels, size: None })
+                let record = MachineRecord::read(record)?;
+                Ok(MachineListRow { id: id.clone(), state: record.state, labels: record.labels, size: None })
             })
             .collect()
     }
     async fn list_snapshots(&self, _ids: Option<&[String]>) -> Result<Vec<SnapshotRow>> {
         let held = self.records.read()?;
-        snapshots_of(&held).into_iter().map(|row| serde_json::from_value(row).map_err(|e| other(e.to_string()))).collect()
+        snapshots_of(&held, "spread")?.into_iter().map(|row| serde_json::from_value(row).map_err(|e| other(e.to_string()))).collect()
     }
     async fn delete_snapshot(&self, id: &str) -> Result<()> {
         let mut held = self.records.read()?;
-        let kept: Vec<Value> = snapshots_of(&held).into_iter().filter(|row| row["id"].as_str() != Some(id)).collect();
+        let kept: Vec<Value> = snapshots_of(&held, "filter")?.into_iter().filter(|row| row["id"].as_str() != Some(id)).collect();
         held.insert("snapshots".into(), Value::Array(kept));
         self.records.write(held)
     }
