@@ -591,7 +591,10 @@ pub async fn land_configs(
     if res.exit_code.get() == 0 {
         return None;
     }
-    let why = config_refusal(res.exit_code.get() as i32, &res.stdout, &changed[0].path, &|p: &str| p.to_string())
+    // config-write.ts:98 compares the exit code whole, so one an i32 cannot hold is none of the words' codes.
+    let code = res.exit_code.as_f64();
+    let code = if code.fract() == 0.0 && code.abs() <= i32::MAX as f64 { code as i32 } else { i32::MIN };
+    let why = config_refusal(code, &res.stdout, &changed[0].path, &|p: &str| p.to_string())
         .unwrap_or_else(|| reason_of(&res, inline_s()));
     Some(swept(machine, &landings, &why).await)
 }

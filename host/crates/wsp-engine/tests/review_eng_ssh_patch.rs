@@ -242,6 +242,7 @@ async fn f3a_an_environment_value_that_is_not_utf8_does_not_stop_an_ssh_command(
     let _bad = EnvVar::set("WSP_REVIEW_BAD", std::ffi::OsString::from_vec(b"caf\xe9".to_vec()));
     let out = AssertUnwindSafe(ssh_client()(reach(), "echo x".to_string(), SshTransportOptions::default())).catch_unwind().await;
     let out = out.unwrap_or_else(|_| panic!("ssh_client panicked on an environment value that is not UTF-8; the TS answered exit 0, stdout \"x\\n\""));
+    let out = out.expect("the TS client carried the command");
     assert_eq!((out.exit_code.get(), out.stdout.as_str()), (0, "x\n"));
 }
 

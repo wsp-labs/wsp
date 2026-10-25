@@ -200,7 +200,7 @@ async fn install_base(g: &Guest, rec: &Recorder) -> BaseOutcome {
 }
 
 fn id_outcome_bytes(out: &BaseOutcome) -> Vec<(&str, &str, Option<i64>)> {
-    out.tools.iter().map(|t| (t.id.as_str(), t.outcome.as_str(), t.bytes)).collect()
+    out.tools.iter().map(|t| (t.id.as_str(), t.outcome.as_str(), t.bytes.map(|b| b as i64))).collect()
 }
 
 fn id_outcome_note(out: &BaseOutcome) -> Vec<(&str, &str, Option<&str>)> {
@@ -213,7 +213,7 @@ fn result(id: &str, label: &str, outcome: &str, bytes: Option<i64>, note: Option
         label: label.to_string(),
         outcome: outcome.to_string(),
         note: note.map(str::to_string),
-        bytes,
+        bytes: bytes.map(|b| b as f64),
         ..Default::default()
     }
 }

@@ -318,8 +318,8 @@ pub struct ToolResult {
     pub note: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ms: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bytes: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none", serialize_with = "wsp_words::js::serialize_opt_f64")]
+    pub bytes: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub road: Option<ToolRoad>,
 }

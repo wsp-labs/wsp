@@ -166,8 +166,43 @@ pub(crate) fn errno_name(e: &std::io::Error) -> Option<&'static str> {
         libc::ENOSPC => "ENOSPC",
         libc::ENAMETOOLONG => "ENAMETOOLONG",
         libc::ELOOP => "ELOOP",
+        libc::EEXIST => "EEXIST",
+        libc::EROFS => "EROFS",
         _ => return None,
     })
+}
+
+/// libuv's sentence for a system error, the words node's `${code}: ${sentence}, ${syscall}` errors carry.
+pub(crate) fn errno_sentence(name: &str) -> &'static str {
+    match name {
+        "EPERM" => "operation not permitted",
+        "ENOENT" => "no such file or directory",
+        "EIO" => "i/o error",
+        "E2BIG" => "argument list too long",
+        "ENOEXEC" => "exec format error",
+        "EBADF" => "bad file descriptor",
+        "EAGAIN" => "resource temporarily unavailable",
+        "ENOMEM" => "not enough memory",
+        "EACCES" => "permission denied",
+        "EFAULT" => "bad address in system call argument",
+        "ENOTDIR" => "not a directory",
+        "EISDIR" => "illegal operation on a directory",
+        "EINVAL" => "invalid argument",
+        "ENFILE" => "file table overflow",
+        "EMFILE" => "too many open files",
+        "ETXTBSY" => "text file is busy",
+        "ENOSPC" => "no space left on device",
+        "ENAMETOOLONG" => "name too long",
+        "ELOOP" => "too many symbolic links encountered",
+        "EEXIST" => "file already exists",
+        "EROFS" => "read-only file system",
+        _ => "unknown error",
+    }
+}
+
+/// This process's environment as a child is handed it: node decodes a value that is not UTF-8 lossily, and so does this.
+pub(crate) fn process_env() -> IndexMap<String, String> {
+    std::env::vars_os().map(|(k, v)| (k.to_string_lossy().into_owned(), v.to_string_lossy().into_owned())).collect()
 }
 
 fn command(file: &str, args: &[String], opts: &ChildOptions) -> tokio::process::Command {

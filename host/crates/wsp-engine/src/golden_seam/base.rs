@@ -353,7 +353,7 @@ pub fn versions_line(versions: &[GoldenBaseTool], results: &[ToolResult]) -> Str
             let check = checks.iter().find(|c| c.name == v.name);
             let bytes = check.and_then(|c| c.id.as_ref()).and_then(|id| results.iter().find(|r| r.id == step_id(id)).and_then(|r| r.bytes));
             let cost = match bytes {
-                Some(b) if b > 0 => format!(" ({})", fmt_bytes(b as f64)),
+                Some(b) if b > 0.0 => format!(" ({})", fmt_bytes(b)),
                 _ => String::new(),
             };
             format!("{} {}{cost}", v.name, v.version)

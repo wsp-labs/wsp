@@ -30,7 +30,7 @@ pub type SshLocalRun = Arc<dyn Fn(String, Vec<String>, u64) -> LocalBoxFuture<'s
 pub fn local_run() -> SshLocalRun {
     Arc::new(|file: String, args: Vec<String>, timeout_ms: u64| {
         async move {
-            let env = std::env::vars().collect();
+            let env = crate::child_exec::process_env();
             run_child(&file, &args, ChildOptions { env: Some(env), timeout_ms: Some(timeout_ms), ..Default::default() }).await
         }
         .boxed_local()
@@ -241,7 +241,7 @@ pub const SSH_DIAL_MS: u64 = 15_000;
 /// ssh-backend.ts:607. One dial and nothing else: `exit 0` as the login.
 pub async fn ssh_dial(reach: &SshReach, transport: &SshTransport) -> Result<()> {
     let opts = SshTransportOptions { timeout_ms: Some(SSH_DIAL_MS), ride: SshRide::Login, ..Default::default() };
-    let said = transport(reach.clone(), "exit 0".to_string(), opts).await;
+    let said = transport(reach.clone(), "exit 0".to_string(), opts).await?;
     if said.exit_code.get() == 0 {
         return Ok(());
     }
