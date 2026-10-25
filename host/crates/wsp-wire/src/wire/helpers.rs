@@ -182,27 +182,28 @@ pub fn or_none<'de, D: Deserializer<'de>, T: DeserializeOwned>(d: D) -> Result<O
 /// No refinement of its own.
 impl Check for PermissionOption {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
     }
 }
 
 /// No refinement of its own; checks each option.
 impl Check for PermissionPrompt {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.options.check().map_err(|e| e.under("options"))?;
+        Ok(())
     }
 }
 
 /// No refinement of its own.
 impl Check for PortCloseDetail {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
     }
 }
 
 // A word list zod reads with z.enum: serde refuses any other word, so nothing is left to check.
 impl Check for PermissionEffect {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
     }
 }

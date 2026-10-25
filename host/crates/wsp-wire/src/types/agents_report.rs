@@ -1168,13 +1168,33 @@ impl Check for AgentsSignInEventState {
 
 literal!(AgentsSignInEventType, "agents.signIn");
 
+/// `last` of a sign-in run: the event with the `type` key zod writes there in front of it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AgentsSignInRunLast {
+    #[serde(rename = "type")]
+    pub kind: AgentsSignInEventType,
+    #[serde(flatten)]
+    pub event: AgentsSignInEvent,
+}
+
+impl Check for AgentsSignInRunLast {
+    fn check(&self) -> Result<(), SchemaError> {
+        self.event.check()
+    }
+
+    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
+        match path.split_first() {
+            None => Some(crate::types::check::Zod::Word("object")),
+            Some((key, rest)) if key.as_str() == Some("type") => <AgentsSignInEventType as Check>::describe(rest),
+            Some(_) => <AgentsSignInEvent as Check>::describe(path),
+        }
+    }
+}
+
 /// TS: packages/protocol/src/agents-report.ts:446 at a3b870a6e.
-/// Read and written with its `type` key, as `last` of a sign-in run holds it (zod writes the key there).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentsSignInEvent {
-    #[serde(rename = "type")]
-    pub kind: AgentsSignInEventType,
     pub sign_in_id: String,
     pub state: AgentsSignInEventState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1196,7 +1216,6 @@ impl AgentsSignInEvent {
 
 impl Check for AgentsSignInEvent {
     fn check(&self) -> Result<(), SchemaError> {
-        self.kind.check().map_err(|e| e.under("type"))?;
         self.state.check().map_err(|e| e.under("state"))?;
         Ok(())
     }
@@ -1205,7 +1224,6 @@ impl Check for AgentsSignInEvent {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
-                "type" => <AgentsSignInEventType as Check>::describe(rest),
                 "signInId" => <String as Check>::describe(rest),
                 "state" => <AgentsSignInEventState as Check>::describe(rest),
                 "url" => <Option<String> as Check>::describe(rest),
@@ -1233,7 +1251,7 @@ pub struct AgentsSignInRun {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub last: Option<AgentsSignInEvent>,
+    pub last: Option<AgentsSignInRunLast>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ended: Option<True>,
 }
@@ -1257,7 +1275,7 @@ impl Check for AgentsSignInRun {
                 "server" => <Option<String> as Check>::describe(rest),
                 "scope" => <Option<McpScope> as Check>::describe(rest),
                 "project" => <Option<String> as Check>::describe(rest),
-                "last" => <Option<AgentsSignInEvent> as Check>::describe(rest),
+                "last" => <Option<AgentsSignInRunLast> as Check>::describe(rest),
                 "ended" => None,
                 _ => None,
             },

@@ -65,7 +65,8 @@ pub struct PortForward {
 /// No refinement of its own; checks every nested field that has one.
 impl Check for PortForward {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        self.kind.check().map_err(|e| e.under("kind"))?;
+        Ok(())
     }
 }
 
@@ -113,7 +114,7 @@ pub fn is_http_url(url: &str) -> bool {
 //   return !path.split("/").some(part => part === "." || part === "..");
 // }
 pub fn is_plain_path(path: &str) -> bool {
-    todo!()
+    wsp_frames::is_plain_path(path)
 }
 // limits.ts:136
 // /** A name under a folder the reader already holds, never a path of its own: the far side joins one of these onto
@@ -165,6 +166,6 @@ pub fn callback_port_of(url: &str) -> Option<u16> {
 // A word list zod reads with z.enum: serde refuses any other word, so nothing is left to check.
 impl Check for PortForwardKind {
     fn check(&self) -> Result<(), SchemaError> {
-        todo!()
+        Ok(())
     }
 }

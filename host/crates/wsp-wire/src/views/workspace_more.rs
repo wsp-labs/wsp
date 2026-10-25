@@ -129,7 +129,7 @@ impl Check for ThreadScope {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
-                "kind" => None,
+                "kind" => <ThreadLit as Check>::describe(rest),
                 "threadId" => <String as Check>::describe(rest),
                 "workspaceId" => <String as Check>::describe(rest),
                 "rootThreadId" => <String as Check>::describe(rest),
