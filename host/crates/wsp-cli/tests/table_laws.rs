@@ -2,6 +2,15 @@
 //! The laws the whole verb table keeps (spec/verbs-table.md "Laws"), ported from packages/host/test/parity.test.ts,
 //! pages.test.ts and cloud.test.ts as far as they stand on verbs.ts alone: the pages, the commands of the shared
 //! parse and the skill are other crates' and other tests'.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 
 #[path = "cli_a_common/mod.rs"]
 mod common;

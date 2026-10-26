@@ -2,6 +2,15 @@
 //! A sign-in run on a computer you own and shown here, the pty road to that computer's daemon, one add or setup
 //! followed on the host's socket, and the add tool. Ported from packages/host/test/place-signin.test.ts and the
 //! setup-follow cases of places-add.test.ts at 65f6b89c7. The spec is spec/place_roads.md.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 mod common;
 
 use std::sync::{Arc, Mutex};
@@ -270,14 +279,14 @@ async fn a_followed_add_hears_its_lines_waits_and_end_and_nothing_of_another_str
         assert_eq!(serde_json::to_value(&heard.waits["signins/codex"]).unwrap(), landed);
         assert_eq!(heard.failed.as_deref(), Some("the join refused"));
         let end = heard.end.clone().unwrap();
-        assert_eq!((serde_json::to_value(&end.end).unwrap(), end.said.as_deref()), (json!("needs-you"), Some("a sign-in waits")));
+        assert_eq!((serde_json::to_value(end.end).unwrap(), end.said.as_deref()), (json!("needs-you"), Some("a sign-in waits")));
     }
     assert_eq!(lines.lock().unwrap().len(), 3);
     assert_eq!(*waits.lock().unwrap(), vec![wait.clone(), landed.clone()]);
 
     watch.also("a_other");
     c.push(json!({"type": "place.setup", "addId": "a_other", "placeId": "p_1", "end": "ready"}));
-    assert_eq!(serde_json::to_value(&watch.heard.lock().unwrap().end.clone().unwrap().end).unwrap(), json!("ready"));
+    assert_eq!(serde_json::to_value(watch.heard.lock().unwrap().end.clone().unwrap().end).unwrap(), json!("ready"));
     assert_eq!(watch.heard.lock().unwrap().end.clone().unwrap().said, None, "a later end without said drops the earlier said");
     watch.off();
     c.push(json!({"type": "place.setup", "addId": "a_x", "placeId": "p_1", "line": {"step": "clis", "state": "done"}}));
@@ -434,7 +443,7 @@ async fn the_add_tool_answers_at_the_end_once_nothing_waits_and_goes_past_a_wait
     let ready = add_computer(Arc::new(Client(fake_host(Plays::default()))), &AddAsk { recipe: Some("laptop".into()), ..ask("spoo") }, None)
         .await
         .unwrap();
-    assert_eq!(serde_json::to_value(&ready.computer.setup.as_ref().unwrap().state).unwrap(), json!("done"));
+    assert_eq!(serde_json::to_value(ready.computer.setup.as_ref().unwrap().state).unwrap(), json!("done"));
     assert_eq!(ready.waiting.len(), 0);
     let later = add_computer(
         Arc::new(Client(fake_host(Plays { sign_in: true, ..Plays::default() }))),
@@ -443,10 +452,10 @@ async fn the_add_tool_answers_at_the_end_once_nothing_waits_and_goes_past_a_wait
     )
     .await
     .unwrap();
-    assert_eq!(serde_json::to_value(&later.computer.setup.as_ref().unwrap().state).unwrap(), json!("done"));
+    assert_eq!(serde_json::to_value(later.computer.setup.as_ref().unwrap().state).unwrap(), json!("done"));
     assert_eq!(serde_json::to_value(&later.waiting).unwrap(), json!([wait_value()]));
     let failed = add_computer(Arc::new(Client(fake_host(Plays { failed: true, ..Plays::default() }))), &ask("spoo"), None).await.unwrap();
-    assert_eq!(serde_json::to_value(&failed.computer.setup.as_ref().unwrap().state).unwrap(), json!("failed"));
+    assert_eq!(serde_json::to_value(failed.computer.setup.as_ref().unwrap().state).unwrap(), json!("failed"));
 }
 
 /// places-add.test.ts:272: a project's source and a provider are refused, the host asked nothing.
@@ -515,7 +524,7 @@ async fn the_add_tool_answers_at_its_ceiling_with_how_far_the_add_got() {
     .await
     .expect("a ceiling of 0 answers at once")
     .unwrap();
-    assert_eq!(serde_json::to_value(&answer.computer.setup.as_ref().unwrap().state).unwrap(), json!("running"));
+    assert_eq!(serde_json::to_value(answer.computer.setup.as_ref().unwrap().state).unwrap(), json!("running"));
     assert_eq!(answer.setup.len(), 0);
     assert_eq!(ADD_TOOL_MS, 600_000);
 }

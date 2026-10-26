@@ -2,6 +2,15 @@
 //! A verb's run from the parsed line to its exit code (verbs.ts:694-764, spec/verbs-table.md "The run"): what is
 //! read once, what is dialled once, what is printed where, and what is closed, driven through verbs of the test's
 //! own so the run is the only thing under test.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 
 #[path = "cli_a_common/mod.rs"]
 mod common;

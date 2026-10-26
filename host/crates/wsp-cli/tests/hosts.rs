@@ -3,6 +3,15 @@
 //! packages/host/test/hosts.test.ts and launch-pair.test.ts at 65f6b89c7 (the hostAddress cases belong to verbs.ts and
 //! are cli-a's), with the words and folds checked against values the TS printed (tests/fixtures/hosts_oracle.json).
 //! The spec is spec/hosts.md.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 

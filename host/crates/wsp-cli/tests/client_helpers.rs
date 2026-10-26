@@ -2,6 +2,15 @@
 // The verb table's shared helpers (client.ts:736-1102) held to the answers the TS gave: fixture client.json, the keys
 // releases, failed, toolFailures and misc. The keys asked, oneOf, tables and formatter belong to the rows and output
 // half of client.ts (453-735) and are not read here.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 
 #[path = "cli_a_common/mod.rs"]
 mod common;

@@ -49,7 +49,7 @@ pub fn turn_json(t: &Turn) -> Value {
     let mut o = serde_json::Map::new();
     o.insert("session".into(), serde_json::to_value(&t.session).expect("session"));
     o.insert("threadId".into(), json!(t.thread_id));
-    o.insert("outcome".into(), serde_json::to_value(&t.outcome).expect("outcome"));
+    o.insert("outcome".into(), serde_json::to_value(t.outcome).expect("outcome"));
     if let Some(r) = &t.result {
         o.insert("result".into(), serde_json::to_value(r).expect("result"));
     }
@@ -66,9 +66,9 @@ pub fn turn_json(t: &Turn) -> Value {
 }
 
 fn summary(t: &Turn) -> String {
-    let outcome = serde_json::to_value(&t.outcome).unwrap();
+    let outcome = serde_json::to_value(t.outcome).unwrap();
     let status =
-        t.result.as_ref().map(|r| serde_json::to_value(&r.status).unwrap().as_str().unwrap().to_string()).unwrap_or_else(|| "-".into());
+        t.result.as_ref().map(|r| serde_json::to_value(r.status).unwrap().as_str().unwrap().to_string()).unwrap_or_else(|| "-".into());
     format!(
         "thread={} outcome={} result={} reason={} afterCut={}",
         t.thread_id,

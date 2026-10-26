@@ -194,7 +194,7 @@ pub fn follow_verb(env: &Env) -> BoxFuture<'_, Out> {
                 serde_json::to_value(&turn.outcome).unwrap().as_str().unwrap(),
                 turn.result
                     .as_ref()
-                    .map(|r| serde_json::to_value(&r.status).unwrap().as_str().unwrap().to_string())
+                    .map(|r| serde_json::to_value(r.status).unwrap().as_str().unwrap().to_string())
                     .unwrap_or_else(|| "-".into())
             ));
         };

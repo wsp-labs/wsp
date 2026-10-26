@@ -4,6 +4,15 @@
 //! tests of the tables (`places.test.ts`, `recipes.test.ts`, `usage-table.test.ts`).
 //!
 //! Every function under test is a `todo!()` stub, so every test here is red until the section is written.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 
 #[path = "cli_a_common/mod.rs"]
 mod common;

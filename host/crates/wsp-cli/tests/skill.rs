@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Ports of `packages/host/test/skill.test.ts` and the cloud marks blocks of `packages/host/test/cloud.test.ts`, with
 //! the TS oracle's recorded readings of `src/skill.ts` and `src/cloud-text.ts`.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 use regex::Regex;
 use serde_json::Value;
 use wsp_catalog::catalog::catalog_agents;

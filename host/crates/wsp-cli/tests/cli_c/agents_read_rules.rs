@@ -181,7 +181,7 @@ fn a_thread_and_a_computer_together_send_no_frame_by_any_road() {
     ] {
         let c = recorded(func, name);
         assert!(c.frames.is_empty(), "{func}");
-        assert_eq!(c.error.as_ref().expect("a refusal").message.starts_with(a::AIMED_BOTH_LINE), true, "{func}");
+        assert!(c.error.as_ref().expect("a refusal").message.starts_with(a::AIMED_BOTH_LINE), "{func}");
         holds(UNIT, func, name, driver);
     }
 }

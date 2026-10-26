@@ -2,6 +2,15 @@
 //! The thread verbs' tools against the tool server's record (daemon/crates/wsp-mcp/tests/answers), replayed as the TS
 //! server answers them, and `thread_verbs()` against the table the oracle wrote. Cases recorded with the cloud on are
 //! in threads_answers_cloud.rs, a binary of its own, since the cloud is read once per process.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 
 #[path = "cli_a_common/mod.rs"]
 mod common;
@@ -182,7 +191,7 @@ async fn replay(tool: &str, cloud: bool) {
     let (verb, t, usage) = verb_of(tool);
     let mut m = Misses::default();
     let mut replayed = 0;
-    for case in recorded.cases.iter().filter(|c| c.cloud == cloud && c.platform.as_deref().map_or(true, |p| p == this_platform())) {
+    for case in recorded.cases.iter().filter(|c| c.cloud == cloud && c.platform.as_deref().is_none_or(|p| p == this_platform())) {
         one(&mut m, tool, &verb, &t, &usage, case, false).await;
         replayed += 1;
         if case.guest.is_some() {
@@ -315,7 +324,7 @@ fn entry_json(v: &Verb, cloud: bool) -> Value {
         "readsHere": reads,
         "startsNoHost": line.and_then(|l| l.4),
         "anyRelease": line.and_then(|l| l.5),
-        "cloud": line.map_or(false, |l| l.6),
+        "cloud": line.is_some_and(|l| l.6),
         "cloudFlags": line.map(|l| l.7.clone()).unwrap_or_default(),
         "cliOnly": cli_only,
         "hostSide": host_side,

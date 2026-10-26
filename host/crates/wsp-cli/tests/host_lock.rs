@@ -2,6 +2,15 @@
 //! The host lock: one state file, one host. Ported from packages/host/test/host-lock.test.ts and
 //! host-lock-take.test.ts at 65f6b89c7, with the pure readings checked against values the TS printed
 //! (tests/fixtures/hosts_oracle.json). The spec is spec/host_lock.md.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 use std::cell::RefCell;
 use std::fs;
 use std::io;
