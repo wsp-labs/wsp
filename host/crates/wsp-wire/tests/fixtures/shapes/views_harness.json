@@ -3696,7 +3696,6 @@
     "wakeRefused": "text é",
     "diskGone": "text é",
     "agents": {
-     "spawn": true,
      "maxMachines": 7,
      "maxDepth": 7
     },
@@ -3738,7 +3737,7 @@
    "threadId": "text é",
    "sessionId": "text é"
   },
-  "output": "{\"workspace\":{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"spawn\":true,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"provider\":\"text é\",\"pauseMode\":\"disk\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\"}},\"review\":{\"note\":\"text é\",\"at\":2.5}},\"threadId\":\"text é\",\"sessionId\":\"text é\"}"
+  "output": "{\"workspace\":{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"provider\":\"text é\",\"pauseMode\":\"disk\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\"}},\"review\":{\"note\":\"text é\",\"at\":2.5}},\"threadId\":\"text é\",\"sessionId\":\"text é\"}"
  },
  {
   "type": "StartResult",

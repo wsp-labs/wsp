@@ -12,15 +12,6 @@ literal!(Aes256GcmLit, "aes-256-gcm");
 /// TS: packages/protocol/src/views/golden-image.ts:93 at a3b870a6e.
 pub const AGENTS_BIN: &str = "/opt/wsp-agents/bin";
 
-/// TS: packages/protocol/src/views/golden-image.ts:203 at a3b870a6e.
-pub const RECIPE_TICKS: &[&str] = &["used", "installed", "default"];
-
-/// TS: packages/protocol/src/views/golden-image.ts:255 at a3b870a6e.
-pub const ADDED_BY_AGENT: &str = "added by the agent";
-
-/// TS: packages/protocol/src/views/golden-image.ts:419 at a3b870a6e.
-pub const IMAGE_PASSPHRASE_MIN: u64 = 12;
-
 /// TS: packages/protocol/src/views/golden-image.ts:438 at a3b870a6e.
 pub const ALREADY_APPLIED: &str = "already applied";
 
@@ -1060,22 +1051,6 @@ impl RecipeHistory {
     fn rule_calls(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
         crate::types::check::num_at_least(x.0 .0, 0.0)?;
         Ok(())
-    }
-}
-
-/// TS: packages/protocol/src/views/golden-image.ts:200 at a3b870a6e.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum RecipeTick {
-    #[serde(rename = "used")]
-    Used,
-    #[serde(rename = "installed")]
-    Installed,
-    #[serde(rename = "default")]
-    Default,
-}
-impl Check for RecipeTick {
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["used", "installed", "default"]))
     }
 }
 

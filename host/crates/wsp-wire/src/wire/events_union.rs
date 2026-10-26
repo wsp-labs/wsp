@@ -7,7 +7,6 @@ use serde_json::Value;
 
 use crate::types::agents_report::AgentsChangedEvent;
 use crate::types::check::{leaf, num_above, num_at_least, parse, Zod};
-use crate::types::init_job::{InitJobEvent, InitNeedsYouEvent};
 use crate::types::plan_alerts::UsageAlertEvent;
 use crate::types::release::ReleaseChangedEvent;
 use crate::types::slate_wire::{SessionSlateEvent, SlateRunEvent, SlateValuesEvent};
@@ -172,10 +171,6 @@ pub enum EventUnion {
     PreferencesChanged(Sequenced<PreferencesChangedEvent>),
     #[serde(rename = "release.changed")]
     ReleaseChanged(Sequenced<ReleaseChangedEvent>),
-    #[serde(rename = "init.job")]
-    InitJob(Sequenced<InitJobEvent>),
-    #[serde(rename = "job.needs-you")]
-    JobNeedsYou(Sequenced<InitNeedsYouEvent>),
     #[serde(rename = "place.stage")]
     PlaceStage(Sequenced<PlaceStageEvent>),
     #[serde(rename = "place.setup")]
@@ -303,8 +298,6 @@ impl Check for EventUnion {
             EventUnion::ProjectExport(v) => v.check(),
             EventUnion::PreferencesChanged(v) => v.check(),
             EventUnion::ReleaseChanged(v) => v.check(),
-            EventUnion::InitJob(v) => v.check(),
-            EventUnion::JobNeedsYou(v) => v.check(),
             EventUnion::PlaceStage(v) => v.check(),
             EventUnion::PlaceSetup(v) => v.check(),
             EventUnion::PlaceSync(v) => v.check(),
@@ -638,16 +631,6 @@ impl Check for EventUnion {
                 body.shift_remove("type");
                 Some(crate::types::check::issues_of::<Sequenced<ReleaseChangedEvent>>(&serde_json::Value::Object(body)))
             }
-            Some("init.job") => {
-                let mut body = obj.clone();
-                body.shift_remove("type");
-                Some(crate::types::check::issues_of::<Sequenced<InitJobEvent>>(&serde_json::Value::Object(body)))
-            }
-            Some("job.needs-you") => {
-                let mut body = obj.clone();
-                body.shift_remove("type");
-                Some(crate::types::check::issues_of::<Sequenced<InitNeedsYouEvent>>(&serde_json::Value::Object(body)))
-            }
             Some("place.stage") => {
                 let mut body = obj.clone();
                 body.shift_remove("type");
@@ -828,8 +811,6 @@ pub const EVENT_TYPES: &[&str] = &[
     "project.export",
     "preferences.changed",
     "release.changed",
-    "init.job",
-    "job.needs-you",
     "place.stage",
     "place.setup",
     "place.sync",

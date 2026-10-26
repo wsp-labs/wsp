@@ -12,7 +12,6 @@ use crate::types::check::{
     double_option, env_name, items_at_least, items_at_most, leaf, num_above, num_at_least, num_at_most, text_at_least, text_at_most, Zod,
 };
 use crate::types::conversations::ResumeAsk;
-use crate::types::init_job::{InitRoad, InitScreenId};
 use crate::types::js_number::JsInt;
 use crate::types::project_look::ProjectIconHash;
 use crate::types::pull_request::{MergeMethod, PullRequestItem, ReactionContent};

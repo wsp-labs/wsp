@@ -311,11 +311,6 @@ impl Check for BrokerStatus {
 // - RuntimeOp::SkillsSearch.limit: int min 1
 // - RuntimeOp::SkillsSearch.limit: int max 50
 // - RuntimeOp::InitKeys.provider: string max 64
-// - RuntimeOp::InitStep.at: int min 0
-// - RuntimeOp::InitDraft.at: string min 1
-// - RuntimeOp::InitDraft.at: string max 64
-// - RuntimeOp::InitSignInCode.code: string min 1
-// - RuntimeOp::InitSignInCode.code: string max 256
 // - RuntimeOp::ConversationsRead.agent: string min 1
 // - RuntimeOp::ConversationsRead.conversation: string min 1
 // - RuntimeOp::ConversationsRead.conversation: string max 200

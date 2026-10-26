@@ -288,7 +288,6 @@ pub(super) fn runtime_op_pass_a(
             crate::types::keys::opt_key::<WorkspacesCreateAgents>(obj, "agents", &mut out);
             crate::types::keys::dbl_key::<JsNumber>(obj, "idleWindowMs", &mut out);
             crate::types::keys::opt_key::<String>(obj, "parent", &mut out);
-            crate::types::keys::opt_key::<bool>(obj, "engine", &mut out);
             crate::types::keys::opt_key::<WorkspacesCreateSub>(obj, "sub", &mut out);
             Some(out)
         }
@@ -570,23 +569,6 @@ pub(super) fn runtime_op_pass_a(
             let mut out = Vec::new();
             crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
             crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-            Some(out)
-        }
-        Some("workspaces.snapshot") => {
-            let mut out = Vec::new();
-            crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-            crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-            Some(out)
-        }
-        Some("projectGoldens.list") => {
-            let mut out = Vec::new();
-            crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-            Some(out)
-        }
-        Some("projectGoldens.remove") => {
-            let mut out = Vec::new();
-            crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-            crate::types::keys::req_key::<String>(obj, "snapshotId", &mut out);
             Some(out)
         }
         Some("workspaces.touch") => {

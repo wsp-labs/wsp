@@ -186,7 +186,6 @@ impl Check for EventAsker {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceAgents {
-    pub spawn: bool,
     pub max_machines: JsInt,
     pub max_depth: JsInt,
 }
@@ -203,7 +202,6 @@ impl Check for WorkspaceAgents {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        crate::types::keys::req_key::<bool>(obj, "spawn", &mut out);
         crate::types::keys::req_key_with::<JsInt>(obj, "maxMachines", &mut out, Self::rule_max_machines);
         crate::types::keys::req_key_with::<JsInt>(obj, "maxDepth", &mut out, Self::rule_max_depth);
         Some(out)
@@ -213,7 +211,6 @@ impl Check for WorkspaceAgents {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
-                "spawn" => <bool as Check>::describe(rest),
                 "maxMachines" => <JsInt as Check>::describe(rest),
                 "maxDepth" => <JsInt as Check>::describe(rest),
                 _ => None,

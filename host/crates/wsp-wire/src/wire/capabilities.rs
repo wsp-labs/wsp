@@ -9,7 +9,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 use super::helpers::ReqId;
-use crate::types::init_job::{InitAgent, InitJob, InitKeys, SetupPlace};
+use crate::types::init_job::{InitKeys, SetupPlace};
 use crate::types::{Check, JsNumber, SchemaError};
 use crate::views::workspace_kind::WorkspaceKind;
 use wsp_frames::{False, True};
@@ -35,7 +35,6 @@ pub struct InitSetup {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub key_provider: Option<String>,
     pub home: String,
-    pub agents: Vec<InitAgent>,
     #[serde(deserialize_with = "crate::types::check::nullable")]
     pub pricing: Option<InitSetupPricing>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -44,8 +43,6 @@ pub struct InitSetup {
     pub forks_on: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub build_refusal: Option<String>,
-    #[serde(deserialize_with = "crate::types::check::nullable")]
-    pub job: Option<InitJob>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -222,10 +219,8 @@ impl Check for WorkspaceSize {
 impl Check for InitSetup {
     fn check(&self) -> Result<(), SchemaError> {
         self.keys.check().map_err(|e| e.under("keys"))?;
-        self.agents.check().map_err(|e| e.under("agents"))?;
         self.pricing.check().map_err(|e| e.under("pricing"))?;
         self.place.check().map_err(|e| e.under("place"))?;
-        self.job.check().map_err(|e| e.under("job"))?;
         Ok(())
     }
 
@@ -237,12 +232,10 @@ impl Check for InitSetup {
         crate::types::keys::req_key::<InitKeys>(obj, "keys", &mut out);
         crate::types::keys::opt_key::<String>(obj, "keyProvider", &mut out);
         crate::types::keys::req_key::<String>(obj, "home", &mut out);
-        crate::types::keys::req_key::<Vec<InitAgent>>(obj, "agents", &mut out);
         crate::types::keys::req_key::<Option<InitSetupPricing>>(obj, "pricing", &mut out);
         crate::types::keys::opt_key::<SetupPlace>(obj, "place", &mut out);
         crate::types::keys::opt_key::<String>(obj, "forksOn", &mut out);
         crate::types::keys::opt_key::<String>(obj, "buildRefusal", &mut out);
-        crate::types::keys::req_key::<Option<InitJob>>(obj, "job", &mut out);
         Some(out)
     }
 
@@ -253,12 +246,10 @@ impl Check for InitSetup {
                 "keys" => <InitKeys as Check>::describe(rest),
                 "keyProvider" => <Option<String> as Check>::describe(rest),
                 "home" => <String as Check>::describe(rest),
-                "agents" => <Vec<InitAgent> as Check>::describe(rest),
                 "pricing" => <Option<InitSetupPricing> as Check>::describe(rest),
                 "place" => <Option<SetupPlace> as Check>::describe(rest),
                 "forksOn" => <Option<String> as Check>::describe(rest),
                 "buildRefusal" => <Option<String> as Check>::describe(rest),
-                "job" => <Option<InitJob> as Check>::describe(rest),
                 _ => None,
             },
         }

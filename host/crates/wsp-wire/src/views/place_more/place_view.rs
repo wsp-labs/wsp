@@ -20,8 +20,6 @@ pub struct PlaceView {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub disk_free_bytes: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub engine: Option<PlaceViewEngine>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub copies: Option<CopyWord>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub present: Option<bool>,
@@ -132,7 +130,6 @@ impl Check for PlaceView {
     fn check(&self) -> Result<(), SchemaError> {
         self.kind.check().map_err(|e| e.under("kind"))?;
         self.mac.check().map_err(|e| e.under("mac"))?;
-        self.engine.check().map_err(|e| e.under("engine"))?;
         self.behind.check().map_err(|e| e.under("behind"))?;
         self.sign_ins.check().map_err(|e| e.under("signIns"))?;
         self.sizes.check().map_err(|e| e.under("sizes"))?;
@@ -177,7 +174,6 @@ impl Check for PlaceView {
         crate::types::keys::opt_key::<String>(obj, "os", &mut out);
         crate::types::keys::opt_key::<WorkspaceSize>(obj, "shape", &mut out);
         crate::types::keys::opt_key::<JsInt>(obj, "diskFreeBytes", &mut out);
-        crate::types::keys::opt_key::<PlaceViewEngine>(obj, "engine", &mut out);
         crate::types::keys::opt_key::<CopyWord>(obj, "copies", &mut out);
         crate::types::keys::opt_key::<bool>(obj, "present", &mut out);
         crate::types::keys::opt_key::<bool>(obj, "takesRuntime", &mut out);
@@ -241,7 +237,6 @@ impl Check for PlaceView {
                 "os" => <Option<String> as Check>::describe(rest),
                 "shape" => None,
                 "diskFreeBytes" => <Option<i64> as Check>::describe(rest),
-                "engine" => <Option<PlaceViewEngine> as Check>::describe(rest),
                 "copies" => None,
                 "present" => <Option<bool> as Check>::describe(rest),
                 "takesRuntime" => <Option<bool> as Check>::describe(rest),
