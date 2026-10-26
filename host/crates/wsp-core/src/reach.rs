@@ -4,21 +4,32 @@
 //! Resilient client for the in-VM daemon over a previewUrl. The edge idle-sweeps quiet connections (~30s), so
 //! liveness is an app-level ping op; every (re)connect re-subscribes and rescans the inbox because events pushed
 //! during a gap are gone for good.
+use std::cell::{Cell, RefCell};
+use std::pin::Pin;
 use std::rc::Rc;
 
 use async_trait::async_trait;
-use futures::stream::LocalBoxStream;
 use futures::sink::Sink;
-use serde_json::{Map, Value};
+use futures::stream::LocalBoxStream;
+use futures::{SinkExt, StreamExt};
+use indexmap::IndexMap;
+use serde_json::{json, Map, Value};
+use tokio::sync::{mpsc, oneshot, watch};
+use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 use tokio_tungstenite::tungstenite::{Error as WsError, Message};
 use tokio_tungstenite::WebSocketStream;
-use wsp_store::keys::Seal;
+use wsp_store::keys::{open_frame, Frame as RawFrame, Seal, SEAL_REFUSAL};
 use wsp_wire::wire::daemon::DaemonLinkStatus;
-use wsp_wire::wire::daemon_events::DaemonEvent;
+use wsp_wire::wire::daemon_events::{parse_daemon_event, DaemonEvent};
+use wsp_wire::wire::limits::link_backoff_ms;
 use wsp_wire::wire::machine_link::MachineErrorKind;
+use wsp_words::daemon_contract::daemon_refused_token;
 
-use crate::clock::Clock;
-use crate::ids::Ids;
+use crate::clock::{real_clock, Cancel, Clock};
+use crate::daemon_channel::{js_string, reply_id, ChannelEnd};
+use crate::ids::{Ids, OsIds};
 
 /// A daemon frame or reply: a JSON object, keys in the order written.
 pub type Frame = Map<String, Value>;
@@ -34,7 +45,8 @@ impl TakenSocket {
     where
         S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + 'static,
     {
-        todo!()
+        let (sink, stream) = futures::StreamExt::split(ws);
+        TakenSocket { sink: Box::pin(sink), stream: Box::pin(stream) }
     }
 }
 
@@ -111,7 +123,17 @@ pub struct ReachError {
 //   return url.toString();
 // }
 pub fn daemon_ws_url(preview_url: &str) -> Result<String, ReachError> {
-    todo!()
+    let mut url = url::Url::parse(preview_url).map_err(|_| ReachError { message: "Invalid URL".into(), kind: None, status: None, code: None })?;
+    match url.scheme() {
+        "https" => {
+            let _ = url.set_scheme("wss");
+        }
+        "http" => {
+            let _ = url.set_scheme("ws");
+        }
+        _ => {}
+    }
+    Ok(url.to_string())
 }
 
 // const DEFAULT_HEARTBEAT_MS = 10_000;
@@ -344,5 +366,436 @@ pub trait DaemonReach {
 // }
 /// Starts the link on the owner thread's `LocalSet`; refuses synchronously a reach with no road.
 pub fn connect_daemon(opts: ReachOptions) -> Result<Rc<dyn DaemonReach>, ReachError> {
-    todo!()
+    let ReachOptions { preview_url, socket, token, on_event, on_status, heartbeat_ms, seal, backoff_ms, clock, ids } = opts;
+    if preview_url.is_none() && socket.is_none() {
+        return Err(link_error("connectDaemon needs a previewUrl to dial or an open socket to take over"));
+    }
+    if preview_url.is_some() && token.is_none() {
+        return Err(link_error("connectDaemon needs the daemon's token to dial a previewUrl"));
+    }
+    let url = match &preview_url {
+        Some(preview) => daemon_ws_url(preview)?,
+        None => String::new(),
+    };
+    let ids: Rc<dyn Ids> = ids.unwrap_or_else(|| -> Rc<dyn Ids> { Rc::new(OsIds) });
+    let backoff: Rc<dyn Fn(i64) -> i64> = match backoff_ms {
+        Some(f) => f,
+        None => Rc::new(move |attempt| link_backoff_ms(attempt, ids.random())),
+    };
+    let core = Rc::new(Core {
+        dials: socket.is_none(),
+        auth: preview_url.is_some(),
+        url,
+        token: token.unwrap_or_default(),
+        on_event,
+        on_status,
+        heartbeat_ms: heartbeat_ms.unwrap_or(DEFAULT_HEARTBEAT_MS),
+        backoff,
+        clock: clock.unwrap_or_else(real_clock),
+        seal: RefCell::new(seal),
+        ready: watch::channel(None).0,
+        state: RefCell::new(State::default()),
+    });
+    match socket {
+        Some(taken) => take(&core, taken),
+        None => dial(core.clone()),
+    }
+    Ok(Rc::new(Link(core)))
+}
+
+/// The link's state, shared by its timers, its socket tasks and the handle.
+struct Core {
+    /// False for a socket somebody else opened: its close is the end of the reach.
+    dials: bool,
+    /// The ritual sends the auth frame first (a previewUrl was given).
+    auth: bool,
+    url: String,
+    token: String,
+    on_event: Rc<dyn Fn(DaemonEvent)>,
+    on_status: Option<Rc<dyn Fn(DaemonLinkStatus)>>,
+    heartbeat_ms: i64,
+    backoff: Rc<dyn Fn(i64) -> i64>,
+    clock: Rc<dyn Clock>,
+    seal: RefCell<Option<Seal>>,
+    ready: watch::Sender<Option<Result<(), ReachError>>>,
+    state: RefCell<State>,
+}
+
+#[derive(Default)]
+struct State {
+    sock: Option<Rc<Socket>>,
+    closed: bool,
+    next_id: u64,
+    attempt: i64,
+    connections: u64,
+    awaiting_pong: bool,
+    heartbeat: Option<Cancel>,
+    retry: Option<Cancel>,
+    pending: IndexMap<u64, oneshot::Sender<Result<Frame, ReachError>>>,
+    stats: ReachStats,
+    status: Option<DaemonLinkStatus>,
+}
+
+/// One socket's outbound queue. `open` is the TS readyState being OPEN.
+struct Socket {
+    out: mpsc::UnboundedSender<Out>,
+    open: Cell<bool>,
+}
+
+enum Out {
+    Text(String),
+    Binary(Vec<u8>),
+    Close(u16, &'static str),
+    Terminate,
+}
+
+struct Link(Rc<Core>);
+
+#[async_trait(?Send)]
+impl DaemonReach for Link {
+    async fn ready(&self) -> Result<(), ReachError> {
+        let mut rx = self.0.ready.subscribe();
+        let settled = rx.wait_for(Option::is_some).await.expect("the reach holds the ready sender").clone();
+        settled.expect("ready settled")
+    }
+    async fn request(&self, op: &str, params: Frame) -> Result<Frame, ReachError> {
+        send_request(&self.0, op, params).await
+    }
+    fn status(&self) -> Option<DaemonLinkStatus> {
+        self.0.state.borrow().status
+    }
+    fn stats(&self) -> ReachStats {
+        self.0.state.borrow().stats
+    }
+    fn close(&self) {
+        let (retry, sock) = {
+            let mut st = self.0.state.borrow_mut();
+            st.closed = true;
+            (st.retry.take(), st.sock.clone())
+        };
+        if let Some(cancel) = retry {
+            cancel();
+        }
+        stop_heartbeat(&self.0);
+        flush_pending(&self.0, "client closed");
+        if let Some(sock) = sock {
+            sock.open.set(false);
+            let _ = sock.out.send(Out::Close(1000, ""));
+        }
+        set_status(&self.0, DaemonLinkStatus::Dead);
+        settle_ready(&self.0, Err(link_error("client closed")));
+    }
+}
+
+fn link_error(message: &str) -> ReachError {
+    ReachError { message: message.into(), kind: None, status: None, code: None }
+}
+
+fn set_status(core: &Rc<Core>, status: DaemonLinkStatus) {
+    let changed = {
+        let mut st = core.state.borrow_mut();
+        let changed = st.status != Some(status);
+        st.status = Some(status);
+        changed
+    };
+    if changed {
+        if let Some(on_status) = &core.on_status {
+            on_status(status);
+        }
+    }
+}
+
+fn settle_ready(core: &Rc<Core>, outcome: Result<(), ReachError>) {
+    if core.ready.borrow().is_none() {
+        core.ready.send_replace(Some(outcome));
+    }
+}
+
+fn flush_pending(core: &Rc<Core>, reason: &str) {
+    let waiters = std::mem::take(&mut core.state.borrow_mut().pending);
+    for (_, waiter) in waiters {
+        let _ = waiter.send(Err(link_error(reason)));
+    }
+}
+
+fn stop_heartbeat(core: &Rc<Core>) {
+    let cancel = {
+        let mut st = core.state.borrow_mut();
+        st.awaiting_pong = false;
+        st.heartbeat.take()
+    };
+    if let Some(cancel) = cancel {
+        cancel();
+    }
+}
+
+fn start_heartbeat(core: &Rc<Core>, sock: Rc<Socket>) {
+    stop_heartbeat(core);
+    schedule_beat(core, sock);
+}
+
+fn schedule_beat(core: &Rc<Core>, sock: Rc<Socket>) {
+    let next = core.clone();
+    let cancel = core.clock.schedule(Box::new(move || beat(next, sock)), core.heartbeat_ms);
+    core.state.borrow_mut().heartbeat = Some(cancel);
+}
+
+/// One beat: the next one is armed first, as the TS interval runs on regardless of what this beat finds.
+fn beat(core: Rc<Core>, sock: Rc<Socket>) {
+    schedule_beat(&core, sock.clone());
+    let awaiting = core.state.borrow().awaiting_pong;
+    if awaiting {
+        let _ = sock.out.send(Out::Terminate);
+        return;
+    }
+    {
+        let mut st = core.state.borrow_mut();
+        st.awaiting_pong = true;
+        st.stats.pings_sent += 1;
+    }
+    tokio::task::spawn_local(async move {
+        if send_request(&core, "ping", Frame::new()).await.is_ok() {
+            let mut st = core.state.borrow_mut();
+            st.stats.pongs_received += 1;
+            st.awaiting_pong = false;
+        }
+    });
+}
+
+async fn send_request(core: &Rc<Core>, op: &str, params: Frame) -> Result<Frame, ReachError> {
+    let (tx, rx) = oneshot::channel();
+    let sent = {
+        let mut st = core.state.borrow_mut();
+        match st.sock.clone() {
+            Some(sock) if sock.open.get() => {
+                st.next_id += 1;
+                let id = st.next_id;
+                st.pending.insert(id, tx);
+                Some((sock, id))
+            }
+            _ => None,
+        }
+    };
+    let Some((sock, id)) = sent else { return Err(link_error("daemon unreachable")) };
+    let mut frame = params;
+    frame.insert("id".into(), json!(id));
+    frame.insert("op".into(), json!(op));
+    let text = Value::Object(frame).to_string();
+    let out = match core.seal.borrow_mut().as_mut() {
+        Some(seal) => Out::Binary(seal.seal(&text)),
+        None => Out::Text(text),
+    };
+    if sock.out.send(out).is_err() {
+        core.state.borrow_mut().pending.shift_remove(&id);
+        return Err(link_error("daemon unreachable"));
+    }
+    match rx.await {
+        Ok(reply) => reply,
+        Err(_) => Err(link_error("connection lost")),
+    }
+}
+
+/// The ritual on every socket: the auth frame when dialling a previewUrl, then the three watches, each awaited.
+async fn ritual(core: Rc<Core>, sock: Rc<Socket>) {
+    if core.auth {
+        let mut auth = Frame::new();
+        auth.insert("token".into(), json!(core.token));
+        if send_request(&core, "auth", auth).await.is_err() {
+            return;
+        }
+    }
+    for op in ["ports.watch", "inbox.watch", "inbox.rescan"] {
+        if send_request(&core, op, Frame::new()).await.is_err() {
+            return;
+        }
+    }
+    let current = {
+        let st = core.state.borrow();
+        !st.closed && st.sock.as_ref().is_some_and(|s| Rc::ptr_eq(s, &sock))
+    };
+    if !current {
+        return;
+    }
+    {
+        let mut st = core.state.borrow_mut();
+        st.attempt = 0;
+        st.connections += 1;
+        st.stats.reconnects = st.connections - 1;
+    }
+    start_heartbeat(&core, sock);
+    set_status(&core, DaemonLinkStatus::Live);
+    settle_ready(&core, Ok(()));
+}
+
+fn dial(core: Rc<Core>) {
+    if core.state.borrow().closed {
+        return;
+    }
+    set_status(&core, DaemonLinkStatus::Connecting);
+    let (out, outbound) = mpsc::unbounded_channel();
+    let sock = Rc::new(Socket { out, open: Cell::new(false) });
+    core.state.borrow_mut().sock = Some(sock.clone());
+    tokio::task::spawn_local(async move {
+        let ws = match connect_async(core.url.as_str()).await {
+            Ok((ws, _)) => ws,
+            Err(_) => {
+                on_socket_end(&core, &sock, end_1006());
+                return;
+            }
+        };
+        let TakenSocket { sink, stream } = TakenSocket::new(ws);
+        sock.open.set(true);
+        tokio::task::spawn_local(ritual(core.clone(), sock.clone()));
+        let end = run_socket(&core, outbound, sink, stream).await;
+        on_socket_end(&core, &sock, end);
+    });
+}
+
+fn take(core: &Rc<Core>, taken: TakenSocket) {
+    let (out, outbound) = mpsc::unbounded_channel();
+    let sock = Rc::new(Socket { out, open: Cell::new(true) });
+    core.state.borrow_mut().sock = Some(sock.clone());
+    let core = core.clone();
+    tokio::task::spawn_local(ritual(core.clone(), sock.clone()));
+    let TakenSocket { sink, stream } = taken;
+    tokio::task::spawn_local(async move {
+        let end = run_socket(&core, outbound, sink, stream).await;
+        on_socket_end(&core, &sock, end);
+    });
+}
+
+/// Reads and writes one socket until it ends, and says how it ended.
+async fn run_socket(
+    core: &Rc<Core>,
+    mut outbound: mpsc::UnboundedReceiver<Out>,
+    mut sink: Pin<Box<dyn Sink<Message, Error = WsError>>>,
+    mut stream: LocalBoxStream<'static, Result<Message, WsError>>,
+) -> ChannelEnd {
+    loop {
+        tokio::select! {
+            msg = stream.next() => match msg {
+                Some(Ok(Message::Text(text))) => handle_message(core, RawFrame::Text(text.as_str())),
+                Some(Ok(Message::Binary(bytes))) => handle_message(core, RawFrame::Binary(&bytes[..])),
+                Some(Ok(Message::Close(frame))) => return close_end(frame),
+                Some(Ok(_)) => {}
+                Some(Err(_)) | None => return end_1006(),
+            },
+            out = outbound.recv() => {
+                let sent = match out {
+                    Some(Out::Text(text)) => sink.send(Message::text(text)).await,
+                    Some(Out::Binary(bytes)) => sink.send(Message::binary(bytes)).await,
+                    Some(Out::Close(code, reason)) => {
+                        sink.send(Message::Close(Some(CloseFrame { code: CloseCode::from(code), reason: reason.into() }))).await
+                    }
+                    Some(Out::Terminate) | None => return end_1006(),
+                };
+                if sent.is_err() {
+                    return end_1006();
+                }
+            }
+        }
+    }
+}
+
+/// The close handler: only the current socket's close counts; a dialled one may be refused its token, and any other
+/// end redials (or, for a socket somebody else opened, ends the reach).
+fn on_socket_end(core: &Rc<Core>, sock: &Rc<Socket>, end: ChannelEnd) {
+    let current = core.state.borrow().sock.as_ref().is_some_and(|s| Rc::ptr_eq(s, sock));
+    if !current {
+        return;
+    }
+    sock.open.set(false);
+    stop_heartbeat(core);
+    flush_pending(core, "connection lost");
+    if core.state.borrow().closed {
+        return;
+    }
+    if core.dials && daemon_refused_token(f64::from(end.code), &end.reason) {
+        set_status(core, DaemonLinkStatus::ReauthNeeded);
+        settle_ready(core, Err(link_error(&format!("daemon rejected token (4401 {})", end.reason))));
+        return;
+    }
+    schedule_reconnect(core);
+}
+
+fn schedule_reconnect(core: &Rc<Core>) {
+    if core.state.borrow().closed {
+        return;
+    }
+    if !core.dials {
+        set_status(core, DaemonLinkStatus::Dead);
+        settle_ready(core, Err(link_error("the place's link closed")));
+        return;
+    }
+    set_status(core, DaemonLinkStatus::Connecting);
+    let attempt = {
+        let mut st = core.state.borrow_mut();
+        st.attempt += 1;
+        st.attempt
+    };
+    let delay = (core.backoff)(attempt);
+    let next = core.clone();
+    let cancel = core.clock.schedule(Box::new(move || dial(next)), delay);
+    core.state.borrow_mut().retry = Some(cancel);
+}
+
+/// One frame in: opened under the seal when there is one, settles its pending request or goes to `on_event`.
+fn handle_message(core: &Rc<Core>, raw: RawFrame<'_>) {
+    let opened = {
+        let mut seal = core.seal.borrow_mut();
+        open_frame(seal.as_mut(), raw)
+    };
+    let parsed = opened.ok().and_then(|text| serde_json::from_str::<Value>(&text).ok());
+    let Some(msg) = parsed else {
+        if core.seal.borrow().is_some() {
+            let current = core.state.borrow().sock.clone();
+            if let Some(sock) = current {
+                let _ = sock.out.send(Out::Close(1002, SEAL_REFUSAL));
+            }
+        }
+        return;
+    };
+    if let Some(id) = reply_id(&msg) {
+        let waiter = core.state.borrow_mut().pending.shift_remove(&id);
+        if let Some(waiter) = waiter {
+            let outcome = if msg.get("ok") == Some(&Value::Bool(true)) {
+                match msg {
+                    Value::Object(reply) => Ok(reply),
+                    _ => Err(refused(&msg)),
+                }
+            } else {
+                Err(refused(&msg))
+            };
+            let _ = waiter.send(outcome);
+            return;
+        }
+    }
+    if let Some(event) = parse_daemon_event(&msg).ok() {
+        (core.on_event)(event);
+    }
+}
+
+/// A refused request as the caller's error: the daemon's words, and the kind, status and code it carried.
+fn refused(msg: &Value) -> ReachError {
+    let message = match msg.get("error") {
+        None | Some(Value::Null) => "daemon error".to_string(),
+        Some(v) => js_string(v),
+    };
+    ReachError {
+        message,
+        kind: msg.get("kind").and_then(|k| serde_json::from_value::<MachineErrorKind>(k.clone()).ok()),
+        status: msg.get("status").and_then(Value::as_f64),
+        code: msg.get("code").and_then(Value::as_str).map(str::to_string),
+    }
+}
+
+fn end_1006() -> ChannelEnd {
+    ChannelEnd { code: 1006, reason: String::new() }
+}
+
+fn close_end(frame: Option<CloseFrame>) -> ChannelEnd {
+    match frame {
+        Some(f) => ChannelEnd { code: u16::from(f.code), reason: f.reason.to_string() },
+        None => ChannelEnd { code: 1005, reason: String::new() },
+    }
 }

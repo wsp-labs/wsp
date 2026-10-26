@@ -10,7 +10,8 @@ use std::rc::Rc;
 use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 
-use crate::clock::{Cancel, Clock};
+use crate::clock::{real_clock, Cancel, Clock};
+use crate::console;
 
 // idle.ts:14
 // export const IDLE_OFF_BACKSTOP_MS = 6 * 60 * 60_000;
@@ -22,7 +23,10 @@ pub const IDLE_OFF_BACKSTOP_MS: i64 = 6 * 60 * 60_000;
 //   return windowMs === null ? IDLE_OFF_BACKSTOP_MS : windowMs * 2;
 // }
 pub fn backstop_ms(window_ms: Option<i64>) -> i64 {
-    todo!()
+    match window_ms {
+        None => IDLE_OFF_BACKSTOP_MS,
+        Some(w) => w * 2,
+    }
 }
 
 /// What `on_idle` answers: `Err` carries the words the warn line quotes.
@@ -116,7 +120,7 @@ pub struct IdlePolicy {
 //     armed.set(id, entry);
 //   };
 pub fn create_idle_policy(o: IdlePolicyOptions) -> IdlePolicy {
-    todo!()
+    IdlePolicy { options: Rc::new(o), state: Rc::new(RefCell::new(IdleState::default())) }
 }
 
 impl IdlePolicy {
@@ -124,13 +128,13 @@ impl IdlePolicy {
     // touch: arm,
     /// Activity: the window starts over from now.
     pub fn touch(&self, id: &str) {
-        todo!()
+        self.arm(id);
     }
     // idle.ts:101
     // hold: id => holds.set(id, (holds.get(id) ?? 0) + 1),
     /// A running session: the window may not fire while any hold stands.
     pub fn hold(&self, id: &str) {
-        todo!()
+        *self.state.borrow_mut().holds.entry(id.to_string()).or_insert(0) += 1;
     }
     // idle.ts:102
     // release: id => {
@@ -144,7 +148,16 @@ impl IdlePolicy {
     // },
     /// The last release starts an armed window over.
     pub fn release(&self, id: &str) {
-        todo!()
+        let left = self.state.borrow().holds.get(id).copied().unwrap_or(0) - 1;
+        if left > 0 {
+            self.state.borrow_mut().holds.insert(id.to_string(), left);
+            return;
+        }
+        self.state.borrow_mut().holds.shift_remove(id);
+        let armed = self.state.borrow().armed.contains_key(id);
+        if armed {
+            self.arm(id);
+        }
     }
     // idle.ts:111
     // forget: id => {
@@ -153,13 +166,17 @@ impl IdlePolicy {
     // },
     /// Napping or deleted: no window, no holds.
     pub fn forget(&self, id: &str) {
-        todo!()
+        self.forget_armed(id);
+        self.state.borrow_mut().holds.shift_remove(id);
     }
     // idle.ts:115
     // idleAt: id => (held(id) ? undefined : armed.get(id)?.at),
     /// Epoch ms when the window fires; `None` when off, held, or not counting.
     pub fn idle_at(&self, id: &str) -> Option<i64> {
-        todo!()
+        if self.held(id) {
+            return None;
+        }
+        self.state.borrow().armed.get(id).map(|a| a.at)
     }
     // idle.ts:116
     // close: () => {
@@ -167,6 +184,91 @@ impl IdlePolicy {
     //   for (const id of [...armed.keys()]) forget(id);
     // },
     pub fn close(&self) {
-        todo!()
+        self.state.borrow_mut().closed = true;
+        let ids: Vec<String> = self.state.borrow().armed.keys().cloned().collect();
+        for id in ids {
+            self.forget_armed(&id);
+        }
+    }
+}
+
+impl IdlePolicy {
+    fn clock(&self) -> Rc<dyn Clock> {
+        self.options.clock.clone().unwrap_or_else(real_clock)
+    }
+
+    // idle.ts:62
+    fn held(&self, id: &str) -> bool {
+        let holds = self.state.borrow().holds.get(id).copied().unwrap_or(0);
+        holds > 0 || self.options.busy.as_ref().is_some_and(|busy| busy(id))
+    }
+
+    // idle.ts:64
+    fn forget_armed(&self, id: &str) {
+        let armed = self.state.borrow_mut().armed.shift_remove(id);
+        if let Some(a) = armed {
+            (a.cancel)();
+        }
+    }
+
+    // idle.ts:71
+    fn arm(&self, id: &str) {
+        self.forget_armed(id);
+        if self.state.borrow().closed {
+            return;
+        }
+        let clock = self.clock();
+        let window = (self.options.window_of)(id);
+        if let Some(on_backstop) = &self.options.on_backstop {
+            on_backstop(id, clock.now() + backstop_ms(window));
+        }
+        let Some(window) = window else { return };
+        let serial = {
+            let mut st = self.state.borrow_mut();
+            st.serial += 1;
+            st.serial
+        };
+        let at = clock.now() + window;
+        let policy = self.clone();
+        let owned = id.to_string();
+        let cancel = clock.schedule(Box::new(move || policy.fire(owned, serial, window)), window);
+        self.state.borrow_mut().armed.insert(id.to_string(), Armed { at, serial, cancel });
+    }
+
+    // idle.ts:78
+    fn fire(&self, id: String, serial: u64, window: i64) {
+        if self.held(&id) {
+            self.arm(&id);
+            return;
+        }
+        if let Some(a) = self.state.borrow_mut().armed.get_mut(&id).filter(|a| a.serial == serial) {
+            a.cancel = Rc::new(|| {});
+        }
+        let nap = (self.options.on_idle)(&id, window);
+        let policy = self.clone();
+        tokio::task::spawn_local(async move {
+            match nap.await {
+                Ok(()) => {
+                    let mut st = policy.state.borrow_mut();
+                    if st.armed.get(&id).is_some_and(|a| a.serial == serial) {
+                        st.armed.shift_remove(&id);
+                    }
+                }
+                Err(e) => {
+                    console::warn(&format!("idle nap of {id} failed: {e}"));
+                    let current = policy.state.borrow().armed.get(&id).is_some_and(|a| a.serial == serial);
+                    if current {
+                        let again = policy.clone();
+                        let retry_id = id.clone();
+                        let cancel = policy
+                            .clock()
+                            .schedule(Box::new(move || again.fire(retry_id, serial, window)), policy.options.retry_ms);
+                        if let Some(a) = policy.state.borrow_mut().armed.get_mut(&id).filter(|a| a.serial == serial) {
+                            a.cancel = cancel;
+                        }
+                    }
+                }
+            }
+        });
     }
 }

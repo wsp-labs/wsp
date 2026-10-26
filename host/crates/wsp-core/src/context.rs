@@ -268,7 +268,44 @@ pub struct RuntimeContext {
 impl RuntimeContext {
     /// Empty, as `{} as RuntimeContext`, with the state createRuntime starts it with; every slot unfilled.
     pub fn new() -> Rc<RuntimeContext> {
-        todo!()
+        Rc::new(RuntimeContext {
+            state: StateCell::new(RuntimeState::default()),
+            core: Late::named("core"),
+            activity: Late::named("activity"),
+            kinds: Late::named("kinds"),
+            rules: Late::named("rules"),
+            transcripts: Late::named("transcripts"),
+            slates: Late::named("slates"),
+            channels: Late::named("channels"),
+            proc_scopes: Late::named("proc_scopes"),
+            records: Late::named("records"),
+            reach: Late::named("reach"),
+            pull_requests: Late::named("pull_requests"),
+            daemon: Late::named("daemon"),
+            machines: Late::named("machines"),
+            boot: Late::named("boot"),
+            create: Late::named("create"),
+            sub_spawn: Late::named("sub_spawn"),
+            sub_queue: Late::named("sub_queue"),
+            sub_life: Late::named("sub_life"),
+            folders: Late::named("folders"),
+            start_from: Late::named("start_from"),
+            workspaces: Late::named("workspaces"),
+            agents: Late::named("agents"),
+            threads: Late::named("threads"),
+            turns: Late::named("turns"),
+            sessions: Late::named("sessions"),
+            builders: Late::named("builders"),
+            golden: Late::named("golden"),
+            image: Late::named("image"),
+            projects: Late::named("projects"),
+            project_icons: Late::named("project_icons"),
+            usage: Late::named("usage"),
+            conversations: Late::named("conversations"),
+            waits: Late::named("waits"),
+            status: Late::named("status"),
+            preferences: Late::named("preferences"),
+        })
     }
 }
 
