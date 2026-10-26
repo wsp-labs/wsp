@@ -512,6 +512,7 @@ pub trait ExecStreamFactory {
 /// Whether `turn` settled, either way, inside `ms`. TS adapter-port.ts:349.
 pub async fn settles_within<T>(turn: LocalBoxFuture<'_, T>, ms: u64) -> bool {
     tokio::select! {
+        biased;
         _ = turn => true,
         _ = tokio::time::sleep(Duration::from_millis(ms)) => false,
     }
@@ -521,6 +522,7 @@ pub async fn settles_within<T>(turn: LocalBoxFuture<'_, T>, ms: u64) -> bool {
 async fn outlasted(stream: &dyn ExecStream, ms: u64) -> bool {
     let exited = stream.exited();
     tokio::select! {
+        biased;
         _ = exited => false,
         _ = tokio::time::sleep(Duration::from_millis(ms)) => true,
     }
