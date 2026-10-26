@@ -10,7 +10,8 @@ pub(super) fn tree_rows(placed: &Placement<'_>, members: &[ProcEntry], ports: Op
     out
 }
 
-/// Each process then its kids, a generation at a time: a stack of sibling lists in place of a call per generation.
+/// Each process then its kids, a generation at a time: a stack of sibling lists in place of a call per generation. A
+/// process whose pid is already above it on the stack is a parent cycle and is left out, with what hangs from it.
 fn tree_walk(
     placed: &Placement<'_>,
     inside: &HashSet<u32>,
@@ -22,13 +23,20 @@ fn tree_walk(
         list.sort_by(|a, b| by_proc_column(ProcSort::Cpu, a, b));
         list.into_iter()
     };
-    let mut stack = vec![(sorted(heads), 0_i64)];
-    while let Some((siblings, depth)) = stack.last_mut() {
+    let mut stack = vec![(sorted(heads), 0_i64, None::<u32>)];
+    let mut above: HashSet<u32> = HashSet::new();
+    while let Some((siblings, depth, parent)) = stack.last_mut() {
         let depth = *depth;
         let Some(p) = siblings.next() else {
+            if let Some(parent) = parent {
+                above.remove(parent);
+            }
             stack.pop();
             continue;
         };
+        if above.contains(&p.pid) {
+            continue;
+        }
         out.push(ActivityProc {
             pid: JsInt::from(i64::from(p.pid)),
             ppid: JsInt::from(i64::from(p.ppid)),
@@ -42,7 +50,8 @@ fn tree_walk(
             ports: ports.and_then(|m| m.get(&p.pid)).cloned().unwrap_or_default(),
         });
         let kids: Vec<ProcEntry> = placed.kids_of(p.pid).into_iter().filter(|k| inside.contains(&k.pid)).collect();
-        stack.push((sorted(kids), depth + 1));
+        above.insert(p.pid);
+        stack.push((sorted(kids), depth + 1, Some(p.pid)));
     }
 }
 
