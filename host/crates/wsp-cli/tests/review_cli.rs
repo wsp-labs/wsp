@@ -141,8 +141,8 @@ fn remove_host_never_answers_false_for_a_record_it_could_not_remove() {
     assert!(std::process::Command::new("chattr").args(["+i", &file]).status().unwrap().success(), "chattr +i (run as root on ext4)");
     let _undo = Mutable(file.clone());
     assert!(read_host(&home, "box").is_some());
-    let answered = std::panic::catch_unwind(|| remove_host(&home, "box"));
-    assert!(!matches!(answered, Ok(false)), "the TS throws here; false says there was no record to take");
+    let answered = remove_host(&home, "box");
+    assert_eq!(answered.err().map(|e| e.message), Some(format!("ENOTDIR: not a directory, scandir '{file}'")));
 }
 
 mod relay {

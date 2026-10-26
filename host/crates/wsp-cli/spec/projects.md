@@ -99,3 +99,5 @@ tool cases pin each.
 
 - `wsp projects` prints a project's name raw in its table: a newline in a name breaks the row (case `projects with
   rows`), where `wsp threads` cuts its titles.
+- `threads wait --timeout` past 2^31-1 ms: node's timer clamps it to 1 ms, so `--timeout=3000000` times out at once
+  and says `after 50000m`; the Rust waits the whole time (34.7 days). A TS fault; port it as is or fix both.

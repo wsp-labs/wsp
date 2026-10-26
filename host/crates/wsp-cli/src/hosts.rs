@@ -207,18 +207,18 @@ pub fn list_hosts(home: &str) -> Vec<HostEntry> {
     found.into_iter().map(|(alias, record)| HostEntry { alias, url: record.url, device_id: record.device_id }).collect()
 }
 
-/// Takes the record away. True when there was one to take; an error when one was there and would not go.
-pub fn try_remove_host(home: &str, alias: &str) -> Result<bool, HostError> {
+/// Takes the record away. True when there was one to take. A record that reads and will not go is an error, as
+/// `rmSync` throws (hosts.ts:134-138); node words it `ENOTDIR: not a directory, scandir '<file>'` for a file it cannot unlink.
+pub fn remove_host(home: &str, alias: &str) -> Result<bool, HostError> {
     if read_host(home, alias).is_none() {
         return Ok(false);
     }
-    fs::remove_file(host_file(home, alias)).map_err(|e| HostError::new(e.to_string()))?;
-    Ok(true)
-}
-
-/// `try_remove_host` where a failure is not answered: the TS throws there, and a bool cannot carry it.
-pub fn remove_host(home: &str, alias: &str) -> bool {
-    try_remove_host(home, alias).unwrap_or_else(|e| panic!("{}", e.message))
+    let file = host_file(home, alias);
+    match fs::remove_file(&file) {
+        Ok(()) => Ok(true),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(true),
+        Err(_) => Err(HostError::new(format!("ENOTDIR: not a directory, scandir '{file}'"))),
+    }
 }
 
 /// hosts.ts:142, re-exported: the protocol's rule.
