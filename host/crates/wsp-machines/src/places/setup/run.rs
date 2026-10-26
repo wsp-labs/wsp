@@ -7,7 +7,6 @@ use std::future::Future;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::local_task::spawn as spawn_local;
 use futures::channel::oneshot;
 use futures::future::{LocalBoxFuture, Shared};
 use futures::FutureExt;
@@ -16,6 +15,7 @@ use wsp_core::clock::Cancel;
 use wsp_core::setup_graph::{run_graph, GraphStep, Release, StepNext};
 use wsp_core::types::pending::Clock;
 use wsp_engine::exec_detached::put::{put_files, GuestWrite, PutFilesOptions, INLINE_EXEC_MS};
+use wsp_engine::local_task::try_spawn_local as spawn_local;
 use wsp_engine::machine::Machine;
 use wsp_engine::place_machine::PlaceMachine;
 use wsp_engine::provision::{

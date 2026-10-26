@@ -87,7 +87,7 @@ async fn settle_by<F: std::future::Future<Output = ()> + 'static>(
     match futures::future::select(Box::pin(fut), rx).await {
         futures::future::Either::Left(_) => cancel(),
         futures::future::Either::Right((_, rest)) => {
-            crate::local_task::spawn(rest);
+            wsp_engine::local_task::try_spawn_local(rest);
         }
     }
 }
@@ -118,7 +118,7 @@ impl BootArea {
             .boxed_local()
             .shared();
         *self.hydrated.borrow_mut() = Some(start.clone());
-        crate::local_task::spawn(start.clone());
+        wsp_engine::local_task::try_spawn_local(start.clone());
         start
     }
 
@@ -141,7 +141,7 @@ impl BootArea {
             }
         }
         let area = self.clone();
-        crate::local_task::spawn(async move {
+        wsp_engine::local_task::try_spawn_local(async move {
             if let Err(e) = fut.await {
                 area.rt.warn(&format!("{line}: {}", e.message));
             }
@@ -1065,7 +1065,7 @@ impl BootArea {
                 }
                 if !ready.is_empty() {
                     let again = area.clone();
-                    crate::local_task::spawn(async move {
+                    wsp_engine::local_task::try_spawn_local(async move {
                         if let Err(e) = again.reopen(ready, true).await {
                             again.rt.warn(&format!(
                                 "the turns left running were not asked after again: {}",
@@ -1157,7 +1157,7 @@ async fn start_all(
     })
     .await;
     if live.iter().any(Option::is_some) {
-        crate::local_task::spawn(futures::future::poll_fn(move |cx| {
+        wsp_engine::local_task::try_spawn_local(futures::future::poll_fn(move |cx| {
             for slot in live.iter_mut() {
                 if slot
                     .as_mut()

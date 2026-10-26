@@ -416,7 +416,7 @@ impl BranchOfRecordArea {
         }
         .boxed_local();
         let read = work.shared();
-        crate::local_task::spawn(read.clone());
+        wsp_engine::local_task::try_spawn_local(read.clone());
         MarketplacesRead {
             at: now,
             repos,

@@ -7,7 +7,6 @@ use std::net::SocketAddr;
 use std::rc::Rc;
 use std::task::Poll;
 
-use crate::local_task::spawn as spawn_local;
 use base64::Engine as _;
 use futures::channel::{mpsc, oneshot};
 use futures::future::{LocalBoxFuture, Shared};
@@ -20,6 +19,7 @@ use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::{TcpListener, TcpStream};
 use wsp_core::clock::Cancel as ClockCancel;
 use wsp_core::types::pending::{Clock, DaemonReach};
+use wsp_engine::local_task::try_spawn_local as spawn_local;
 use wsp_wire::wire::machine_link::{DaemonResponse, SysSample};
 use wsp_words::exit::{HostError, Kind};
 use wsp_words::workspace_state::absent_computer;

@@ -530,7 +530,7 @@ impl PlaceViewsArea {
         };
         (held.seen)();
         if let Some(forward) = held.forward {
-            crate::local_task::spawn(async move {
+            wsp_engine::local_task::try_spawn_local(async move {
                 if let Ok(forward) = forward.await {
                     forward.close();
                 }
@@ -552,7 +552,7 @@ impl PlaceViewsArea {
             if linked {
                 let links = Rc::clone(&self.links);
                 let id = record.id.clone();
-                crate::local_task::spawn(async move {
+                wsp_engine::local_task::try_spawn_local(async move {
                     let _ = links.forking_backend(&id).await;
                 });
             }
