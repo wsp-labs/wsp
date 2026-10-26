@@ -30,7 +30,9 @@ Oracle: `tests/fixtures/roads/link_backend.json` (every frame and option, byte f
 - `resume(signal)` (:181): sends `machine.resume` once. With a signal, answers whichever comes first: the reply, or the
   signal's cancel (already cancelled fails at once, with the frame still sent once). A cancel with no reason fails
   with `errors::aborted()` ("This operation was aborted"); one with a reason fails with it, or with its words where
-  it is not an error (the cancel rule in README.md, the coordinator's ruling).
+  it is not an error (the cancel rule in README.md, the coordinator's ruling). After a cancel the frame goes on being
+  driven for 80 ms, then the cancel's error is answered: an accepted difference (README.md), where the TS lets the
+  request run on without end.
 - `state()`, `download_url(path)`, `upload_url(path)`: `machine.state` (reply `state`), `machine.downloadUrl` /
   `machine.uploadUrl` with `{ path }` (reply `url`).
 - `preview_url(port)` (:214): `machine.previewUrl { port }`; the reply's `reach.url` port (WHATWG URL; an absent port

@@ -398,7 +398,7 @@ pub struct LandAgentFiles {
 }
 
 /// provision-files.ts:490 `landAgentFiles`.
-pub async fn land_agent_files(machine: &dyn Machine, o: LandAgentFiles) -> Result<LandFilesResult> {
+pub async fn land_agent_files(machine: &Arc<dyn Machine>, o: LandAgentFiles) -> Result<LandFilesResult> {
     let at = place_provision_paths(&o.home);
     machine
         .exec(&format!("rm -rf {}", shell_quote(&at.staging)), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() })
@@ -420,7 +420,7 @@ pub async fn land_agent_files(machine: &dyn Machine, o: LandAgentFiles) -> Resul
         })),
         ..Default::default()
     };
-    import_into(machine, &o.tar, &at.staging, &opts).await?;
+    import_into(machine.clone(), &o.tar, &at.staging, &opts).await?;
     let res = machine
         .run(&land_files_script(&o.home, &once_paths_of(&o.lands), &o.roots), RunOptions { deadline_ms: LAND_MS, ..Default::default() })
         .await?;

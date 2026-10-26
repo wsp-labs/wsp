@@ -183,7 +183,7 @@ async fn a_connect_that_never_completes_gives_up_at_ten_seconds_as_never_sent() 
 /// "fetch failed", cause HeadersTimeoutError code UND_ERR_HEADERS_TIMEOUT (undici's default headers timeout is 300 s;
 /// its body timeout is 300 s of silence too, and its connect timeout 10 s). Run with `--ignored`: it waits 310 s.
 #[tokio::test]
-#[ignore]
+#[ignore = "waits 310 s on purpose; run with --ignored"]
 async fn a_server_that_never_answers_ends_the_call_in_about_five_minutes() {
     let p = serve(|s| async move {
         let _keep = s;

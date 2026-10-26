@@ -289,7 +289,7 @@ fn tar_all(over: Over) -> Vec<u8> {
 
 async fn land(g: &BoxGuest, tar: Vec<u8>, lands: &[ProvisionLanding]) -> LandFilesResult {
     land_agent_files(
-        &g.machine,
+        &common::handle(&g.machine),
         LandAgentFiles { home: g.root_str(), tar, lands: lands.to_vec(), stood: vec![], say: quiet(), roots: vec![] },
     )
     .await
@@ -543,7 +543,7 @@ async fn says_what_it_packed_what_went_over_and_what_the_landing_walked_each_as_
     let archive = tar_all(Over::default());
     let lands = lands_all();
     let landed = provision_files(
-        &g.machine,
+        &common::handle(&g.machine),
         ProvisionFilesAsk {
             home: root.clone(),
             lands: lands.clone(),
@@ -627,7 +627,7 @@ async fn reads_a_round_whose_files_never_left_this_computer_as_one_that_put_noth
     let tar_of_server = |server: &str| tar(&[file(".claude-cfg/.claude.json", &config_with(server))]);
 
     let first = provision_files(
-        &g.machine,
+        &common::handle(&g.machine),
         ProvisionFilesAsk {
             home: root.clone(),
             lands: lands.clone(),
@@ -650,7 +650,7 @@ async fn reads_a_round_whose_files_never_left_this_computer_as_one_that_put_noth
     assert!(!listed.contains(".claude-cfg/.claude.json\t"));
 
     let failed = provision_files(
-        &g.machine,
+        &common::handle(&g.machine),
         ProvisionFilesAsk {
             home: root.clone(),
             lands: lands.clone(),
@@ -692,7 +692,7 @@ async fn takes_no_key_out_of_the_list_on_a_round_whose_copy_of_that_agents_file_
     ];
     let both = tar(&[file(".claude-cfg/CLAUDE.md", "his standing rules\n"), file(".claude-cfg/.claude.json", &config_with("github"))]);
     let first = provision_files(
-        &g.machine,
+        &common::handle(&g.machine),
         ProvisionFilesAsk { home: root.clone(), lands: lands.clone(), pack: pack_of(both), say: None, stores: no_stores() },
     )
     .await;
@@ -703,7 +703,7 @@ async fn takes_no_key_out_of_the_list_on_a_round_whose_copy_of_that_agents_file_
 
     let only_md = tar(&[file(".claude-cfg/CLAUDE.md", "his standing rules\n")]);
     let again = provision_files(
-        &g.machine,
+        &common::handle(&g.machine),
         ProvisionFilesAsk { home: root.clone(), lands: lands.clone(), pack: pack_of(only_md), say: None, stores: no_stores() },
     )
     .await;
@@ -789,7 +789,7 @@ fn listed_in(root: &str) -> IndexMap<String, String> {
 async fn round(g: &BoxGuest, pack: PackFiles, say: FilesSay) -> LandFilesResult {
     let lands = stands();
     let landed = provision_files(
-        &g.machine,
+        &common::handle(&g.machine),
         ProvisionFilesAsk { home: g.root_str(), lands: lands.clone(), pack, say: Some(say), stores: no_stores() },
     )
     .await;
@@ -967,7 +967,7 @@ async fn sends_every_file_where_the_read_itself_did_not_happen() {
         };
         let asked = packing(&CONTENT);
         provision_files(
-            &broken,
+            &common::handle(&broken),
             ProvisionFilesAsk { home: g.root_str(), lands: stands(), pack: asked.pack.clone(), say: Some(quiet()), stores: no_stores() },
         )
         .await;

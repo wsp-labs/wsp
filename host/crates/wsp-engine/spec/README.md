@@ -28,14 +28,27 @@ at that commit. Rules every unit here shares:
 
 - **A cancel and its words** (the coordinator's ruling on #2446, which replaces "every cancel is `aborted()`"). A
   cancel carries an optional reason. With none, every road answers `errors::aborted()` ("This operation was aborted").
-  With one, the TS's own rules hold: settle (box-backend.ts:760) throws the reason where it is an error, else
-  `<what> of <id> was stopped by its caller`; `while_restoring` (:777) the reason, else `the call was stopped by its
-  caller`; a link resume (link-backend.ts:190) the reason, else `Error(String(reason))`, the reason's words; a fetch
+  With one, the TS's own rules hold, with one difference: settle (box-backend.ts:760) throws the reason where it is an
+  error, else `<what> of <id> was stopped by its caller`; `while_restoring` (:777) the reason, else `the call was stopped by
+  its caller`. A Rust cancel carries words, not an `Error`, so both answer the reason as an `Error`'s message (the
+  coordinator's ruling 4, comment 6405457065); the TS's two "stopped by its caller" sentences are for a reason that is
+  not an `Error`, which no host caller passes. A link resume (link-backend.ts:190) the reason, else `Error(String(reason))`, the reason's words; a fetch
   rejects with the reason itself. `src/cancel.rs`'s `Cancel` is the type every method takes (as `&Cancel`): a clonable
   handle around a `CancellationToken` and the reason of the first cancel, set before the token fires. `cancel(None)` or
   `cancel(Some(reason))` cancels; `reason()` answers the reason or `"This operation was aborted"`; `given_reason()`
   answers `None` where none was passed, which is what the rules above test. `fetch::Abort` carries the caller's `Cancel`
   so a fetch it ended rejects with the reason. The tests that pass no reason assert `aborted()`.
+
+- **Accepted differences** (the coordinator's ruling 5 on #2446, comment 6405457065). Two places where the Rust host
+  departs from the TS on purpose, each a judgement call rather than a gap:
+  1. *A line is kept to 3,500 levels deep* (`project_state_files.md`, M2a). `JSON.parse` reads any depth, and
+     `JSON.stringify` throws `RangeError: Maximum call stack size exceeded` from about 3,650 levels. The Rust reader has
+     no recursion and keeps 3,500 levels. A line between 3,500 and 3,650 levels deep that must change succeeds in node
+     and fails here with that RangeError's words, and the file stays as it was.
+  2. *A cancelled link resume drives its frame for 80 ms* (`link_backend.md`, `resume`). The TS lets the request run on
+     without end after the caller stops waiting. A Rust future that is dropped cannot, and `LinkMachine` holds no owned
+     handle to spawn from, so a cancelled resume goes on driving its frame for 80 ms and then answers the cancel's
+     words. The 80 ms is a choice, not the TS's.
 
 | Unit | Rust | TS | Spec |
 |---|---|---|---|

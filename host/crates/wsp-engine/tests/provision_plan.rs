@@ -118,7 +118,7 @@ async fn provision_box(
     let run = new_setup_run();
     let mut rows = Vec::new();
     for step in ENGINE_STEPS {
-        rows.extend(provision_step(machine, plan, step, run.clone(), stage.clone(), on).await?);
+        rows.extend(provision_step(&common::handle(machine), plan, step, run.clone(), stage.clone(), on).await?);
     }
     Ok(rows)
 }

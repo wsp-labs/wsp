@@ -17,6 +17,7 @@ use crate::errors::{backoff_ms, classify, should_retry, EngineError, RealRetryCl
 use crate::exec_detached::put::INLINE_EXEC_MS;
 use crate::fetch::{platform_fetch, Fetch, FetchRequest};
 use crate::land_bytes::{has_byte_road, land_bytes, LandBytesOptions};
+use crate::local_task::finish_on_local_set;
 use crate::machine::{ExecOptions, Machine, RunOptions};
 
 /// vault.ts:291. The signed upload URL takes one PUT of at most 32 MiB.
@@ -203,8 +204,15 @@ fn quoted_join(paths: &[String]) -> String {
     paths.iter().map(|p| shell_quote(p)).collect::<Vec<_>>().join(" ")
 }
 
-/// vault.ts:424 `importInto`.
-pub async fn import_into(machine: &dyn Machine, tar: &[u8], dest_dir: &str, opts: &VaultOptions) -> Result<Imported> {
+/// vault.ts:424 `importInto`. The import runs on the host's local task set, so a caller that stops waiting leaves it
+/// running to its end (the part extracted and removed), as the TS's promise does. Outside a `LocalSet` it runs on the
+/// caller's task and stops with it.
+pub async fn import_into(machine: Arc<dyn Machine>, tar: &[u8], dest_dir: &str, opts: &VaultOptions) -> Result<Imported> {
+    let (tar, dest_dir, opts) = (tar.to_vec(), dest_dir.to_string(), opts.clone());
+    finish_on_local_set(async move { import_now(&*machine, &tar, &dest_dir, &opts).await }).await?
+}
+
+async fn import_now(machine: &dyn Machine, tar: &[u8], dest_dir: &str, opts: &VaultOptions) -> Result<Imported> {
     if tar.is_empty() {
         return Err(plain("vault import: empty archive, nothing to import".to_string()));
     }
@@ -326,7 +334,7 @@ pub fn exists_on_machine(path: &str) -> EngineError {
 }
 
 /// vault.ts:510 `landBundle`.
-pub async fn land_bundle(machine: &dyn Machine, tar: &[u8], dest: &str, opts: &LandOptions) -> Result<Imported> {
+pub async fn land_bundle(machine: &Arc<dyn Machine>, tar: &[u8], dest: &str, opts: &LandOptions) -> Result<Imported> {
     let target = dest.trim_end_matches('/');
     if !dest.starts_with('/') || target.is_empty() {
         return Err(plain(format!("destination must be an absolute path below /, got {dest}")));
@@ -353,7 +361,7 @@ pub async fn land_bundle(machine: &dyn Machine, tar: &[u8], dest: &str, opts: &L
         on_part: opts.on_part.clone(),
         ..Default::default()
     };
-    let imported = match import_into(machine, tar, &staging, &import).await {
+    let imported = match import_into(machine.clone(), tar, &staging, &import).await {
         Ok(imported) => imported,
         Err(e) => {
             let _ = machine

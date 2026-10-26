@@ -188,7 +188,7 @@ async fn keeps_its_floor_and_reads_what_is_free_on_the_volume_wsp_installs_onto_
         ..Default::default()
     };
     let on = ProvisionOn { home: "/root".to_string(), held: None, stores: None };
-    let rows = provision_step(&machine, &plan, EngineStep::Clis, new_setup_run(), quiet_provision(), &on).await.unwrap();
+    let rows = provision_step(&common::handle(&machine), &plan, EngineStep::Clis, new_setup_run(), quiet_provision(), &on).await.unwrap();
     // 3 GB free less the 2 GB it takes leaves less than the 2 GB a 20 GB disk keeps; /root's volume would have let it in.
     let got: Vec<(&str, PlaceProvisionRowOutcome, Option<&str>)> =
         rows.iter().map(|r| (r.id.as_str(), r.outcome, r.note.as_deref())).collect();

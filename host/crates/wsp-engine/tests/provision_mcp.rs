@@ -294,7 +294,8 @@ async fn run(g: &BoxGuest, o: Opts) -> Ran {
     let claude = o.claude.unwrap_or_else(|| claude_travelled(&["--stdio"], o.far));
     let codex = o.codex.unwrap_or_else(codex_travelled);
     let root = g.root_str();
-    let landed = provision_files(&g.machine, files_ask(&root, lands(), pack_configs(&claude, &codex), IndexMap::new())).await;
+    let landed =
+        provision_files(&common::handle(&g.machine), files_ask(&root, lands(), pack_configs(&claude, &codex), IndexMap::new())).await;
     let heard = said.clone();
     let options = ProvisionMcpOptions {
         held: o.held,
@@ -355,7 +356,7 @@ async fn land_only(g: &BoxGuest, files: &[(&str, &str)], stores: Option<IndexMap
         .collect();
     let pack = pack_of(files.iter().map(|(path, content)| file(path, 0o644, content)).collect());
     let stores = stores.unwrap_or_default();
-    provision_files(&g.machine, files_ask(&root, landings, pack, stores.clone())).await;
+    provision_files(&common::handle(&g.machine), files_ask(&root, landings, pack, stores.clone())).await;
     close_agent_files(&g.machine, &root, &[], &stores).await;
 }
 
@@ -707,7 +708,7 @@ async fn reads_a_home_folders_server_in_a_copy_whose_folder_keys_the_pack_alread
     let mut claude_scope = scope(vec![at(&root, ".claude-cfg/.claude.json")], MCP_SERVERS_JSON, &["notion"], vec![]);
     claude_scope.project = Some(ProjectMove { from: s(HOME), to: root.clone() });
     plan.agents = vec![McpAgentPlan { id: s("claude"), label: s("Claude Code"), scopes: vec![claude_scope], aside: vec![] }];
-    let landed = provision_files(&g.machine, files_ask(&root, lands(), pack_configs(&claude, ""), IndexMap::new())).await;
+    let landed = provision_files(&common::handle(&g.machine), files_ask(&root, lands(), pack_configs(&claude, ""), IndexMap::new())).await;
     let rows = provision_mcp(&g.machine, &plan, mcp_options(&root, landed.owned.clone())).await;
     assert_eq!(
         rows.iter().map(|r| (r.id.clone(), s(word(r.outcome)), r.note.clone())).collect::<Vec<_>>(),
@@ -717,7 +718,7 @@ async fn reads_a_home_folders_server_in_a_copy_whose_folder_keys_the_pack_alread
     assert_eq!(claude_of(&root)["projects"][root.as_str()], json!({ "mcpServers": { "notion": notion } }));
 
     // A later run finds the file standing, its entry the one the copy carries: there as the recipe asks.
-    let again = provision_files(&g.machine, files_ask(&root, lands(), pack_configs(&claude, ""), IndexMap::new())).await;
+    let again = provision_files(&common::handle(&g.machine), files_ask(&root, lands(), pack_configs(&claude, ""), IndexMap::new())).await;
     let rows = provision_mcp(&g.machine, &plan, mcp_options(&root, again.owned.clone())).await;
     assert_eq!(
         rows.iter().map(|r| (r.id.clone(), s(word(r.outcome)))).collect::<Vec<_>>(),
@@ -758,7 +759,7 @@ async fn says_on_a_servers_row_where_its_key_does_not_reach_that_computers_threa
     let opencode_lands =
         vec![ProvisionLanding { id: s("agents/opencode"), label: s("OpenCode"), dest: s(".config/opencode/opencode.json"), once: true }];
     let pack = pack_of(vec![file(".config/opencode/opencode.json", 0o600, &travelled)]);
-    let landed = provision_files(&o.machine, files_ask(&oroot, opencode_lands, pack, IndexMap::new())).await;
+    let landed = provision_files(&common::handle(&o.machine), files_ask(&oroot, opencode_lands, pack, IndexMap::new())).await;
     let options = ProvisionMcpOptions { held: Some(held.clone()), ..mcp_options(&oroot, landed.owned.clone()) };
     let rows = provision_mcp(&o.machine, &opencode_plan_on(&oroot), options).await;
     assert_eq!(
@@ -786,7 +787,7 @@ async fn merges_into_a_jsonc_config_in_place_so_the_persons_comments_stand() {
     let opencode_lands =
         vec![ProvisionLanding { id: s("agents/opencode"), label: s("OpenCode"), dest: s(".config/opencode/opencode.json"), once: true }];
     let pack = pack_of(vec![file(".config/opencode/opencode.json", 0o600, &opencode_travelled())]);
-    let landed = provision_files(&g.machine, files_ask(&root, opencode_lands, pack, IndexMap::new())).await;
+    let landed = provision_files(&common::handle(&g.machine), files_ask(&root, opencode_lands, pack, IndexMap::new())).await;
     let rows = provision_mcp(&g.machine, &opencode_plan_on(&root), mcp_options(&root, landed.owned.clone())).await;
     assert_eq!(
         rows.iter().map(|r| (r.id.clone(), s(word(r.outcome)), r.note.clone())).collect::<Vec<_>>(),
@@ -808,8 +809,11 @@ async fn merges_an_agents_servers_into_the_store_config_outside_the_home_and_tak
     let root = g.root_str();
     let (_logins_dir, logins) = away_dir("wsp-box-logins-");
     write_file(&at(&logins, "config.toml"), "model = \"o4\"\n");
-    let landed =
-        provision_files(&g.machine, files_ask(&root, lands(), pack_configs(&claude_default(), &codex_travelled()), IndexMap::new())).await;
+    let landed = provision_files(
+        &common::handle(&g.machine),
+        files_ask(&root, lands(), pack_configs(&claude_default(), &codex_travelled()), IndexMap::new()),
+    )
+    .await;
     let o = ProvisionMcpOptions { stores: Some(stores_of(&logins)), ..mcp_options(&root, landed.owned.clone()) };
     let rows = provision_mcp(&g.machine, &plan_on(&root, false, &[]), o.clone()).await;
     close_agent_files(&g.machine, &root, &once_paths_of(&lands()), &IndexMap::new()).await;
@@ -843,13 +847,17 @@ async fn writes_the_key_codex_keeps_a_servers_sign_in_by_into_the_store_config_o
     let on = ProvisionOn { home: root.clone(), held: None, stores: Some(stores_of(&logins)) };
     let linux = cfg!(target_os = "linux");
     let key = "mcp_oauth_credentials_store = \"file\"\n";
-    provision_step(&g.machine, &codex_step_plan(&root), EngineStep::Mcp, new_setup_run(), no_provision_stage(), &on).await.unwrap();
+    provision_step(&common::handle(&g.machine), &codex_step_plan(&root), EngineStep::Mcp, new_setup_run(), no_provision_stage(), &on)
+        .await
+        .unwrap();
     let own = read_file(&at(&logins, "config.toml"));
     assert_eq!(own.starts_with(key), linux, "the key stands first, before any table");
     assert!(own.contains("model = \"gpt-5\""));
     assert_eq!(server_names(&own, &root), vec![s("context7")]);
     let again =
-        provision_step(&g.machine, &codex_step_plan(&root), EngineStep::Mcp, new_setup_run(), no_provision_stage(), &on).await.unwrap();
+        provision_step(&common::handle(&g.machine), &codex_step_plan(&root), EngineStep::Mcp, new_setup_run(), no_provision_stage(), &on)
+            .await
+            .unwrap();
     assert_eq!(read_file(&at(&logins, "config.toml")), own);
     assert_eq!(file_rows(&again).iter().map(|r| word(r.outcome)).collect::<Vec<_>>(), vec!["present", "present", "present"]);
 
@@ -909,7 +917,9 @@ async fn says_on_the_row_of_a_store_config_that_stood_which_of_this_computers_se
         .join("\n"),
     );
     let none =
-        provision_step(&g.machine, &codex_step_plan(&root), EngineStep::Mcp, new_setup_run(), no_provision_stage(), &on).await.unwrap();
+        provision_step(&common::handle(&g.machine), &codex_step_plan(&root), EngineStep::Mcp, new_setup_run(), no_provision_stage(), &on)
+            .await
+            .unwrap();
     let row = config_row(&none);
     assert_eq!(word(row.outcome), "present");
     assert_eq!(
@@ -920,7 +930,9 @@ async fn says_on_the_row_of_a_store_config_that_stood_which_of_this_computers_se
     // Without its own context7, this computer's merges into it, and the row names it.
     write_file(&config, &["[mcp_servers.axiom]", "url = \"https://axiom.example/mcp\"", ""].join("\n"));
     let merged =
-        provision_step(&g.machine, &codex_step_plan(&root), EngineStep::Mcp, new_setup_run(), no_provision_stage(), &on).await.unwrap();
+        provision_step(&common::handle(&g.machine), &codex_step_plan(&root), EngineStep::Mcp, new_setup_run(), no_provision_stage(), &on)
+            .await
+            .unwrap();
     let row = config_row(&merged);
     assert_eq!(word(row.outcome), "present");
     assert_eq!(row.note.as_deref(), Some("already there before this run, so it stands as it was; this computer's context7 merged into it"));
@@ -936,7 +948,8 @@ async fn lands_the_rest_of_an_agents_own_files_under_the_store_and_none_under_th
     let (_logins_dir, logins) = away_dir("wsp-box-logins-");
     let plan = codex_step_plan(&root);
     let on = ProvisionOn { home: root.clone(), held: None, stores: Some(stores_of(&logins)) };
-    let rows = provision_step(&g.machine, &plan, EngineStep::Mcp, new_setup_run(), no_provision_stage(), &on).await.unwrap();
+    let rows =
+        provision_step(&common::handle(&g.machine), &plan, EngineStep::Mcp, new_setup_run(), no_provision_stage(), &on).await.unwrap();
     let own = read_file(&at(&logins, "config.toml"));
     assert!(own.contains("model = \"gpt-5\""));
     assert_eq!(server_names(&own, &root), vec![s("context7")]);
@@ -953,7 +966,8 @@ async fn lands_the_rest_of_an_agents_own_files_under_the_store_and_none_under_th
     );
 
     // The next run reads them as wsp's own copies, and a sync that takes the prompts off takes them from the store.
-    let again = provision_step(&g.machine, &plan, EngineStep::Mcp, new_setup_run(), no_provision_stage(), &on).await.unwrap();
+    let again =
+        provision_step(&common::handle(&g.machine), &plan, EngineStep::Mcp, new_setup_run(), no_provision_stage(), &on).await.unwrap();
     assert_eq!(file_rows(&again).iter().map(|r| word(r.outcome)).collect::<Vec<_>>(), vec!["present", "present", "present"]);
     assert_eq!(
         unland_files(&g.machine, &root, &[s(".codex/prompts")], on.stores.as_ref().unwrap()).await,
@@ -972,10 +986,10 @@ async fn moves_the_copies_an_earlier_run_left_under_the_home_into_the_store() {
     let (_logins_dir, logins) = away_dir("wsp-box-logins-");
     let plan = codex_step_plan(&root);
     let home_only = ProvisionOn { home: root.clone(), held: None, stores: None };
-    provision_step(&g.machine, &plan, EngineStep::Mcp, new_setup_run(), no_provision_stage(), &home_only).await.unwrap();
+    provision_step(&common::handle(&g.machine), &plan, EngineStep::Mcp, new_setup_run(), no_provision_stage(), &home_only).await.unwrap();
     write_file(&at(&root, ".codex/prompts/mine.md"), "his own\n");
     let with_store = ProvisionOn { home: root.clone(), held: None, stores: Some(stores_of(&logins)) };
-    provision_step(&g.machine, &plan, EngineStep::Mcp, new_setup_run(), no_provision_stage(), &with_store).await.unwrap();
+    provision_step(&common::handle(&g.machine), &plan, EngineStep::Mcp, new_setup_run(), no_provision_stage(), &with_store).await.unwrap();
     assert_eq!(read_file(&at(&logins, "AGENTS.md")), CODEX_AGENTS_MD);
     assert!(!Path::new(&at(&root, ".codex/AGENTS.md")).exists());
     assert!(!Path::new(&at(&root, ".codex/prompts/review.md")).exists());
