@@ -1,0 +1,46 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": "no such workspace: nope",
+      "kind": "not-found"
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "no recipe named nope; none is saved yet",
+      "kind": "not-found"
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "no such workspace: nope",
+      "kind": "not-found"
+    },
+    {
+      "id": 5,
+      "ok": false,
+      "error": "no thread nope",
+      "kind": "not-found"
+    },
+    {
+      "id": 6,
+      "ok": false,
+      "error": "no thread nope",
+      "kind": "not-found"
+    },
+    {
+      "id": 7,
+      "ok": true,
+      "outcome": "not-found"
+    }
+  ],
+  "events": []
+}
