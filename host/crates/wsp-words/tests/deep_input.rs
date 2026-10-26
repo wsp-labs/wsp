@@ -2,7 +2,7 @@
 //! Deep input audit (wsp-labs/wsp-map#2448): input nested past what a walk can hold must be answered, never abort the host.
 //! A stack overflow kills the whole process, so each case runs its body in a child copy of this test binary on a thread
 //! with a 1 MiB stack, the size the host's threads would run it on, and fails when the child dies.
-//! The words crate writes a host reply whole, and a reply the command line reads can nest to the catalog port's 1,000 levels.
+//! The words crate writes a host reply whole, and a reply the command line reads can nest to the catalog port's 500 levels.
 const CHILD: &str = "DEEP_AUDIT_CHILD";
 const DEPTH: &str = "DEEP_AUDIT_DEPTH";
 const HOST_THREAD_STACK: usize = 1024 * 1024;
@@ -66,11 +66,12 @@ fn json_line_body(depth: usize) {
     }
 }
 
-// exit.rs write_json recursed once per level, over a reply the command line kept whole to 1,000 levels. JSON.stringify
-// answers at any depth up to its own RangeError (about 3,650 levels).
+// exit.rs write_json recursed once per level, over a reply the command line kept whole to 500 levels (ruling 1 of the round 2
+// brief: one cap of 500 levels for the whole host). JSON.stringify answers at any depth up to its own RangeError (about
+// 3,650 levels).
 #[test]
-fn json_line_writes_a_reply_1000_deep() {
-    in_child("json_line_writes_a_reply_1000_deep", 1_000, json_line_body);
+fn json_line_writes_a_reply_500_deep() {
+    in_child("json_line_writes_a_reply_500_deep", 500, json_line_body);
 }
 
 #[test]
