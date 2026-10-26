@@ -175,7 +175,7 @@ async fn apply_facts(facts: &str) -> Value {
         Box::pin(async { Ok(None) })
     });
     let machine = FakeMachine { id: s("m"), exec, run: None, download_url: None, upload_url: None, put_bytes: Some(put) };
-    wsp_engine::machine_context::apply_machine_context(&machine, Default::default()).await;
+    wsp_engine::machine_context::apply_machine_context(&common::handle(&machine), Default::default()).await;
     let files = landed.lock().unwrap().clone().map(|gz| untar(&gz)).unwrap_or_default();
     let skill = files.get("etc/wsp/skills/wsp-machine/SKILL.md").cloned().unwrap_or_default();
     json!({
@@ -192,22 +192,23 @@ async fn a_facts_file_a_js_host_wrote_with_a_lone_surrogate_escape_is_still_read
     assert_eq!(got["tools"], json!("- Tools that did not install: A (\u{FFFD})."));
 }
 
-// TS machine-context.ts:96 (the element is kept as it is) and :336 (`${m.label} (${m.note})`); probe printed
-// `id only | none ... "tools":"- Tools that did not install: undefined (undefined)."`.
+// Ruling 2 of the machines slice (comment 6399154101, kept by the coordinator in comment 6405457065, point 3): an item with no label or
+// no note is dropped, because the Rust type does not hold half an entry and the Rust host writes its own facts file fresh. The TS keeps
+// the element (machine-context.ts:96) and prints `${m.label} (${m.note})` (:336); probe printed
+// `id only | none ... "tools":"- Tools that did not install: undefined (undefined)."`. The Rust skill has no such line.
 #[tokio::test(flavor = "current_thread")]
-#[ignore = "ruling 2 on the machines slice (comment 6399154101): the Rust type does not hold a half-filled entry or an unknown field, and the fix round keeps that rule"]
-async fn a_facts_item_missing_its_label_and_note_renders_as_the_ts_prints_it() {
+async fn a_facts_item_missing_its_label_and_note_is_dropped_by_ruling_2_where_the_ts_prints_undefined() {
     let got = apply_facts("{\"tools\":[{\"id\":\"a\"}]}").await;
-    assert_eq!(got["tools"], json!("- Tools that did not install: undefined (undefined)."));
+    assert_eq!(got["tools"], json!("- Tools that did not install: none."));
 }
 
-// TS machine-context.ts:96 and :529 (JSON.stringify of the kept elements); probe printed
-// `string element | none ... "factsJson":"{\n  \"tools\": [\n    \"foo\"\n  ],\n  \"agents\": [],\n  \"files\": []\n}\n"`.
+// Ruling 2 of the machines slice (comment 6399154101, kept in comment 6405457065, point 3): an element that is not an object is dropped
+// and the file is written back without it. The TS keeps it (machine-context.ts:96) and writes it back with `JSON.stringify` (:529);
+// probe printed `string element | none ... "factsJson":"{\n  \"tools\": [\n    \"foo\"\n  ],\n  \"agents\": [],\n  \"files\": []\n}\n"`.
 #[tokio::test(flavor = "current_thread")]
-#[ignore = "ruling 2 on the machines slice (comment 6399154101): the Rust type does not hold a half-filled entry or an unknown field, and the fix round keeps that rule"]
-async fn a_facts_element_that_is_not_an_object_is_kept_and_written_back_as_it_was() {
+async fn a_facts_element_that_is_not_an_object_is_dropped_by_ruling_2_where_the_ts_writes_it_back() {
     let got = apply_facts("{\"tools\":[\"foo\"]}").await;
-    assert_eq!(got["factsJson"], json!("{\n  \"tools\": [\n    \"foo\"\n  ],\n  \"agents\": [],\n  \"files\": []\n}\n"));
+    assert_eq!(got["factsJson"], json!("{\n  \"tools\": [],\n  \"agents\": [],\n  \"files\": []\n}\n"));
 }
 
 // TS machine-context.ts:96 and :529; probe printed `note empty | none ... "factsJson":"{\n  \"tools\": [\n    {\n      \"id\": \"a\",\n      \"label\": \"A\",\n      \"note\": \"\"\n    }\n  ], ...`.
@@ -220,10 +221,14 @@ async fn a_facts_item_with_an_explicit_empty_note_is_written_back_with_the_empty
     );
 }
 
-// TS machine-context.ts:96 and :529; probe printed `extra field | none ... \"note\": \"n\",\n      \"extra\": 1\n    }`.
+// Ruling 2 of the machines slice (comment 6399154101, kept in comment 6405457065, point 3): a field the type does not know is dropped
+// and the item is written back with its three fields. The TS keeps the whole element (machine-context.ts:96, :529); probe printed
+// `extra field | none ... \"note\": \"n\",\n      \"extra\": 1\n    }`.
 #[tokio::test(flavor = "current_thread")]
-#[ignore = "ruling 2 on the machines slice (comment 6399154101): the Rust type does not hold a half-filled entry or an unknown field, and the fix round keeps that rule"]
-async fn a_facts_item_with_a_field_the_ts_does_not_know_keeps_it_when_written_back() {
+async fn a_facts_item_with_a_field_the_ts_does_not_know_loses_it_by_ruling_2_where_the_ts_keeps_it() {
     let got = apply_facts("{\"tools\":[{\"id\":\"a\",\"label\":\"A\",\"note\":\"n\",\"extra\":1}]}").await;
-    assert!(got["factsJson"].as_str().unwrap().contains("\"extra\": 1"), "{}", got["factsJson"]);
+    assert_eq!(
+        got["factsJson"],
+        json!("{\n  \"tools\": [\n    {\n      \"id\": \"a\",\n      \"label\": \"A\",\n      \"note\": \"n\"\n    }\n  ],\n  \"agents\": [],\n  \"files\": []\n}\n")
+    );
 }

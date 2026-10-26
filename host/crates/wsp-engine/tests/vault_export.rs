@@ -357,7 +357,7 @@ async fn the_tar_and_the_untar_run_detached_the_size_read_and_the_cleanup_stay_i
     let o = VaultOptions { max_bytes: Some(1_000_000), ..opts_with(stub.fetch.clone()) };
     // The stub's wc answers an empty stdout, which the TS reads as 0 (Number("") is 0).
     export_paths(&stub.machine, &strs(&["/root/.zshrc"]), &o).await.unwrap();
-    import_into(&stub.machine, &tar_bytes(), "/root", &opts_with(stub.fetch.clone())).await.unwrap();
+    import_into(common::handle(&stub.machine), &tar_bytes(), "/root", &opts_with(stub.fetch.clone())).await.unwrap();
     let words = |c: &String| c.split('\n').next().unwrap().split(' ').take(2).collect::<Vec<_>>().join(" ");
     let runs = stub.runs.lock().unwrap().clone();
     assert_eq!(runs.iter().map(words).collect::<Vec<_>>(), vec!["tar czf", "set -eo"]);

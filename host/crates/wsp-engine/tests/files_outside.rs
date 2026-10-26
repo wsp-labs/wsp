@@ -397,15 +397,24 @@ fn on_root() -> ProvisionOn {
 #[tokio::test]
 async fn lists_the_folders_before_the_floor_and_writes_down_what_it_made_after_under_wsps_prefix_only() {
     let (machine, ran) = recording();
-    provision_step(&machine, &plan(Some(TOOL_PREFIX)), EngineStep::Floor, new_setup_run(), Arc::new(|_, _, _| {}), &on_root())
-        .await
-        .unwrap();
+    provision_step(
+        &common::handle(&machine),
+        &plan(Some(TOOL_PREFIX)),
+        EngineStep::Floor,
+        new_setup_run(),
+        Arc::new(|_, _, _| {}),
+        &on_root(),
+    )
+    .await
+    .unwrap();
     let walked = outside_roots(&plan(Some(TOOL_PREFIX)), EngineStep::Floor);
     let ran_owned = ran.lock().unwrap().clone();
     assert_eq!(ran_owned.first().unwrap(), &outside_before_script("floor", &walked, ""));
     assert_eq!(ran_owned.last().unwrap(), &outside_after_script("floor", &walked, ""));
     let (image, image_ran) = recording();
-    provision_step(&image, &plan(None), EngineStep::Floor, new_setup_run(), Arc::new(|_, _, _| {}), &on_root()).await.unwrap();
+    provision_step(&common::handle(&image), &plan(None), EngineStep::Floor, new_setup_run(), Arc::new(|_, _, _| {}), &on_root())
+        .await
+        .unwrap();
     assert!(!image_ran.lock().unwrap().contains(&outside_before_script("floor", &walked, "")));
 }
 
@@ -436,9 +445,16 @@ fn walks_the_folders_each_road_of_the_step_writes_under_usr_local_and_opt_wsps_o
 #[tokio::test]
 async fn leaves_a_step_that_installs_nothing_outside_the_home_alone() {
     let (machine, ran) = recording();
-    provision_step(&machine, &plan(Some(TOOL_PREFIX)), EngineStep::Skills, new_setup_run(), Arc::new(|_, _, _| {}), &on_root())
-        .await
-        .unwrap();
+    provision_step(
+        &common::handle(&machine),
+        &plan(Some(TOOL_PREFIX)),
+        EngineStep::Skills,
+        new_setup_run(),
+        Arc::new(|_, _, _| {}),
+        &on_root(),
+    )
+    .await
+    .unwrap();
     assert_eq!(*ran.lock().unwrap(), Vec::<String>::new());
 }
 

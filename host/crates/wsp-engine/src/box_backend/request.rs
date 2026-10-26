@@ -300,11 +300,13 @@ pub(super) fn other(message: String) -> EngineError {
     EngineError::Other { message, code: None }
 }
 
-/// The error a stopped wait answers: the caller's reason as words, or the default abort when it passed none.
-fn stop_error(signal: &Cancel, words: String) -> EngineError {
+/// The error a stopped wait answers: the caller's reason as its message, or the default abort when it passed none. The
+/// TS answers a reason that is not an `Error` with `<what> of <id> was stopped by its caller`; a Rust cancel carries
+/// words only, so every reason answers as an `Error`'s message does (the coordinator's ruling 4, comment 6405457065).
+fn stop_error(signal: &Cancel) -> EngineError {
     match signal.given_reason() {
         None => aborted(),
-        Some(_) => other(words),
+        Some(reason) => other(reason),
     }
 }
 
@@ -555,7 +557,7 @@ impl BoxBackend {
                 self.warn(&boat_request_limit_wait_line(&call, wait, f64::from(limited + 1), f64::from(REQUEST_LIMIT_TRIES)));
                 self.shared.clock.sleep(wait as u64).await;
                 if let Some(stopped) = opts.signal.as_ref().filter(|c| c.is_cancelled()) {
-                    return Err(stop_error(stopped, stopped.reason()));
+                    return Err(stop_error(stopped));
                 }
                 continue;
             }
@@ -735,7 +737,7 @@ impl BoxBackend {
         let started = self.shared.clock.now();
         loop {
             if let Some(stopped) = signal.filter(|c| c.is_cancelled()) {
-                return Err(stop_error(stopped, format!("{what} of {id} was stopped by its caller")));
+                return Err(stop_error(stopped));
             }
             let view = self.view(id).await?;
             if let Some(seen) = seen {
@@ -772,7 +774,7 @@ impl BoxBackend {
         let started = self.shared.clock.now();
         loop {
             if let Some(stopped) = signal.filter(|c| c.is_cancelled()) {
-                return Err(stop_error(stopped, "the call was stopped by its caller".to_string()));
+                return Err(stop_error(stopped));
             }
             match call().await {
                 Ok(answer) => return Ok(answer),

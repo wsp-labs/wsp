@@ -328,7 +328,7 @@ pub struct ProvisionFilesAsk {
 
 /// provision-files.ts:814 `provisionFiles`. Never fails: a pack or a landing that fails is one failed row per
 /// planned path with the error's first line.
-pub async fn provision_files(machine: &dyn Machine, o: ProvisionFilesAsk) -> LandFilesResult {
+pub async fn provision_files(machine: &Arc<dyn Machine>, o: ProvisionFilesAsk) -> LandFilesResult {
     let say: FilesSay = o.say.clone().unwrap_or_else(|| Arc::new(|_: &str| {}));
     let roots = store_roots(&o.home, &o.stores);
     match files_round(machine, &o, &say, &roots).await {
@@ -365,7 +365,7 @@ type LeaveOutRequest = (Vec<StagedFile>, oneshot::Sender<Vec<String>>);
 
 /// The pack's leave-out callback runs on this machine, which the pack's `'static` closure cannot hold: it sends each
 /// request to the loop in `files_round`, which owns the machine borrow and answers.
-async fn files_round(machine: &dyn Machine, o: &ProvisionFilesAsk, say: &FilesSay, roots: &StoreRoots) -> Result<LandFilesResult> {
+async fn files_round(machine: &Arc<dyn Machine>, o: &ProvisionFilesAsk, say: &FilesSay, roots: &StoreRoots) -> Result<LandFilesResult> {
     let once = once_paths_of(&o.lands);
     let (requests, mut asked) = mpsc::unbounded::<LeaveOutRequest>();
     let leave_out: LeaveOut = Arc::new(move |staged: Vec<StagedFile>| {
@@ -384,7 +384,7 @@ async fn files_round(machine: &dyn Machine, o: &ProvisionFilesAsk, say: &FilesSa
             Either::Right((None, rest)) => break rest.await?,
             Either::Right((Some((staged, reply)), rest)) => {
                 packing = rest;
-                let _ = reply.send(left_out(machine, &o.home, roots, &once, &staged).await);
+                let _ = reply.send(left_out(&**machine, &o.home, roots, &once, &staged).await);
             }
         }
     };

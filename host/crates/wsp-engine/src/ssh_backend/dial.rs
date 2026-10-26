@@ -794,7 +794,7 @@ pub fn hold_back_forward(carried: &SshCarried, box_port: u16, door_port: u16, sp
     };
     let state = Arc::new(BackForwardState { waiters: Arc::new(Waiters::default()), pump: RefCell::new(pump) });
     let drained = state.clone();
-    try_spawn_local(futures::future::poll_fn(move |cx| {
+    crate::local_task::try_spawn_local(futures::future::poll_fn(move |cx| {
         drained.drive(cx);
         if drained.pump.borrow().ended.is_some() {
             Poll::Ready(())
@@ -803,31 +803,6 @@ pub fn hold_back_forward(carried: &SshCarried, box_port: u16, door_port: u16, sp
         }
     }));
     BackForward { inner: state }
-}
-
-/// `spawn_local` where there is a `LocalSet` to run it, and nothing where there is none; true where it was spawned.
-fn try_spawn_local(task: impl std::future::Future<Output = ()> + 'static) -> bool {
-    static QUIET: std::sync::Once = std::sync::Once::new();
-    // The one panic `spawn_local` makes outside a LocalSet is caught here, so it is kept out of the log.
-    QUIET.call_once(|| {
-        let previous = std::panic::take_hook();
-        std::panic::set_hook(Box::new(move |info| {
-            let said = match info.payload().downcast_ref::<&str>() {
-                Some(said) => said.to_string(),
-                None => info.payload().downcast_ref::<String>().cloned().unwrap_or_default(),
-            };
-            if !said.contains("called from outside of a `task::LocalSet`") {
-                previous(info);
-            }
-        }));
-    });
-    let mut task = Some(task);
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        if let Some(task) = task.take() {
-            tokio::task::spawn_local(task);
-        }
-    }))
-    .is_ok()
 }
 
 /// ssh-backend.ts:366. The ssh client on this computer, carrying one script to the machine.

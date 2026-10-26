@@ -77,13 +77,12 @@ failed, or building for any other word; `error` only on a failed one that has on
 
 ## The waits
 
-- `settle(id, done, budget, what, signal, name, seen)` (:757): loop: a fired signal answers its reason, `<what> of <id> was stopped by its caller` for a reason that is
-  not an error, `aborted()` with none (README.md's cancel rule); read the
+- `settle(id, done, budget, what, signal, name, seen)` (:757): loop: a fired signal answers its reason as an error's message, `aborted()` with none (README.md's cancel rule, which
+  names the TS's `<what> of <id> was stopped by its caller` for a reason that is not an error as not carried); read the
   view; `seen(view)`; `done` answers it; state `error` fails `box <id> reads error during <what>[: <error>]`, the suffix only for a non-empty error; state
   `cancelled` is `CreateCancelled { why: error or "", line: boat_cancelled_line(name, error) }` on the first such read;
   at or past the budget fails `<what> of <id> still reads <state> after <round(budget / 1000)> s`; sleep the poll.
-- `while_restoring(call, signal)` (:774): a fired signal answers its reason, `the call was stopped by its caller` for one that is not an error,
-  `aborted()` with none; the call's answer, or its failure where
+- `while_restoring(call, signal)` (:774): a fired signal answers its reason as an error's message, `aborted()` with none; the call's answer, or its failure where
   not `still_restoring`; a restoring failure at or past `restore_ms` from the start is answered as itself; else sleep
   the poll and call again.
 
