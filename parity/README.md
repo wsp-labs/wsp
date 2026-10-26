@@ -43,6 +43,12 @@ writes, and only the goldens. A tape's command line can be `wsp leave`, which ta
 computer it runs on, so with no namespaces (a Mac) the run is refused unless `--no-sandbox` says to run the tapes on
 the computer as it is, which it says again on every run.
 
+A lone surrogate escape in a tape line, a golden or a host's answer is read as `JSON.parse` reads it and written back as the
+same escape (`xtask/src/json.rs`); a text frame or a command-line word carrying one is sent with U+FFFD, as a real client
+sends it. The harness keeps U+10F800 to U+10FFFF (Supplementary Private Use Area-B) to stand for a lone half, so a real
+character there is refused: a tape line holding one stops the run naming its file and line, and a host's answer holding
+one is read as text, not as a frame.
+
 ## How answers are compared
 
 Replies are compared in the order their requests were sent. Events are compared in the order they arrived on each

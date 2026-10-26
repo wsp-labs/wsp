@@ -6,6 +6,7 @@ use serde_json::{json, Value};
 use std::path::Path;
 use xtask::diff::diff;
 use xtask::json;
+use xtask::normalize::{canonical, Facts};
 use xtask::tape::{self, Tape};
 
 const HIGH: &str = r#"{"in":{"id":4,"op":"projects.resolve","ref":"a\ud83db\u0000\t\""}}"#;
@@ -65,4 +66,49 @@ fn text_that_looks_like_the_stand_in_for_a_half_is_refused_not_mistaken_for_one(
         let err = json::read(line).unwrap_err();
         assert!(err.contains("stands in for a lone surrogate"), "{err}");
     }
+}
+
+#[test]
+fn a_pair_split_across_a_key_and_its_value_stays_two_halves() {
+    let line = r#"{"\ud83d":"\ude00","a\udbff":"\udfffb"}"#;
+    let v = json::read(line).unwrap();
+    assert_eq!(v.as_object().unwrap().len(), 2);
+    assert_eq!(json::write(&v), line);
+}
+
+#[test]
+fn a_frame_sent_as_text_and_a_command_line_word_go_out_as_a_client_sends_them() {
+    let text = Tape::parse("raw", r#"{"in":"{\"id\":1}\ud83d"}"#, "raw.tape", 1).unwrap();
+    assert_eq!(text.ins[0], Value::String("{\"id\":1}\u{FFFD}".into()));
+    let cli =
+        Tape::parse("cli", "{\"meta\":{\"door\":\"cli\"}}\n{\"in\":{\"argv\":[\"projects\",\"a\\ude00b\",3]}}\n", "cli.tape", 1).unwrap();
+    assert_eq!(cli.ins[0], json!({ "argv": ["projects", "a\u{FFFD}b", 3] }));
+    // An object frame keeps its half, which the wire writes as an escape.
+    let object = Tape::parse("obj", r#"{"in":{"id":1,"ref":"a\ud83db"}}"#, "obj.tape", 1).unwrap();
+    assert_eq!(json::write(&object.ins[0]), r#"{"id":1,"ref":"a\ud83db"}"#);
+}
+
+#[test]
+fn json_carried_as_text_is_read_as_json_when_it_holds_a_lone_half() {
+    let (a, b) = ("GzIxfkwlRKUKZSXqmEoiQepWdQTZkabc", "QhWzpLomnbVcxZaSdfGhJkLpOiUyTrEw");
+    let tool = |ticket: &str, name: &str| {
+        let text = format!(r#"{{"ticket":"{ticket}","name":"{name}"}}"#);
+        canonical(&[json!({ "result": { "content": [{ "type": "text", "text": text }] } })], &[], &Facts::default())
+    };
+    let line = |ticket: &str, name: &str| {
+        let stdout = format!("{{\"ticket\":\"{ticket}\",\"name\":\"{name}\"}}\n");
+        canonical(&[json!({ "exit": 0, "stdout": stdout })], &[], &Facts::default())
+    };
+    for run in [&tool as &dyn Fn(&str, &str) -> Value, &line] {
+        assert!(diff(&run(a, "plain"), &run(b, "plain")).is_empty(), "the control: a plain name");
+        let found = diff(&run(a, r"a\ud83db"), &run(b, r"a\ud83db"));
+        assert!(found.is_empty(), "two runs of one host differ: {found:?}");
+    }
+}
+
+#[test]
+fn a_real_character_of_the_stand_in_range_is_refused_naming_its_file_and_line() {
+    let text = format!("{HIGH}\n{{\"in\":{{\"id\":6,\"op\":\"auth\",\"x\":\"{}\"}}}}\n", '\u{10FFFD}');
+    let err = Tape::parse("real", &text, "parity/tapes/real.tape", 1).unwrap_err();
+    assert!(err.starts_with("parity/tapes/real.tape:2: ") && err.contains("stands in for a lone surrogate"), "{err}");
 }

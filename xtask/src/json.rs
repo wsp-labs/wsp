@@ -89,6 +89,12 @@ fn escaping_halves(text: String) -> String {
     })
 }
 
+/// A string a client sends as it is: a text frame or a command-line word cannot carry a lone half, and a real client
+/// sends U+FFFD for each, so a stand-in never reaches a host as its own character.
+pub fn as_client_sends(text: &str) -> String {
+    text.chars().map(|c| if unit_of(c).is_some() { '\u{FFFD}' } else { c }).collect()
+}
+
 /// One JSON text as `JSON.parse` reads it, lone surrogates in a key or a value kept.
 pub fn read(text: &str) -> Result<Value, String> {
     serde_json::from_str(&holding_halves(text)?).map_err(|e| e.to_string())

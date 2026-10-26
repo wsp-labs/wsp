@@ -98,7 +98,7 @@ impl Tape {
                 "meta" => return Err(format!("{at}: meta comes before the first frame")),
                 "in" => {
                     seen_frame = true;
-                    ins.push(frame.clone());
+                    ins.push(as_sent(frame, door));
                 }
                 "out" => {
                     seen_frame = true;
@@ -206,5 +206,25 @@ fn walk(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
         } else {
             out.push(path);
         }
+    }
+}
+
+/// A frame as it reaches a host: one sent as text, and each word of a command line, as a client sends it.
+fn as_sent(frame: &Value, door: Door) -> Value {
+    match (frame, door) {
+        (Value::String(text), _) => Value::String(json::as_client_sends(text)),
+        (Value::Object(obj), Door::Cli) if obj.get("argv").is_some_and(Value::is_array) => {
+            let mut sent = obj.clone();
+            sent["argv"] = Value::Array(
+                obj["argv"]
+                    .as_array()
+                    .expect("an array")
+                    .iter()
+                    .map(|w| w.as_str().map_or_else(|| w.clone(), |w| Value::String(json::as_client_sends(w))))
+                    .collect(),
+            );
+            Value::Object(sent)
+        }
+        _ => frame.clone(),
     }
 }
