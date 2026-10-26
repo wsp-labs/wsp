@@ -127,8 +127,8 @@ pub fn harness_adapters() -> IndexMap<&'static str, HarnessAdapterFactory> {
             broker,
             now: None,
         };
-        let _adapter = create_codex_adapter(deps).map_err(|e| HostError::new(e.0))?;
-        todo!("waits on wsp-adapters: HarnessAdapter for CodexAdapter")
+        let adapter = create_codex_adapter(deps).map_err(|e| HostError::new(e.0))?;
+        Ok(Arc::new(adapter) as Arc<dyn HarnessAdapter>)
     });
     let opencode: HarnessAdapterFactory = Arc::new(|ctx: HarnessAdapterContext| {
         let secrets = secrets_of(&ctx.vault, "opencode", (ctx.login_stands)("opencode"));
@@ -143,8 +143,7 @@ pub fn harness_adapters() -> IndexMap<&'static str, HarnessAdapterFactory> {
             launch: ctx.launch.clone(),
             now: None,
         };
-        let _adapter = create_opencode_adapter(deps);
-        todo!("waits on wsp-adapters: HarnessAdapter for OpenCodeAdapter")
+        Ok(Arc::new(create_opencode_adapter(deps)) as Arc<dyn HarnessAdapter>)
     });
     let cursor: HarnessAdapterFactory = Arc::new(|ctx: HarnessAdapterContext| {
         let secrets = secrets_of(&ctx.vault, "cursor", (ctx.login_stands)("cursor"));
@@ -158,8 +157,7 @@ pub fn harness_adapters() -> IndexMap<&'static str, HarnessAdapterFactory> {
             result_exit_ms: None,
             launch: ctx.launch.clone(),
         };
-        let _adapter = create_cursor_adapter(deps);
-        todo!("waits on wsp-adapters: HarnessAdapter for CursorAdapter")
+        Ok(Arc::new(create_cursor_adapter(deps)) as Arc<dyn HarnessAdapter>)
     });
     IndexMap::from([("claude", claude), ("codex", codex), ("opencode", opencode), ("cursor", cursor)])
 }
