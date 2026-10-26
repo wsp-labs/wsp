@@ -455,7 +455,7 @@ async fn the_add_tool_refuses_a_projects_source_and_a_provider_asking_the_host_n
     let host = fake_host(Plays::default());
     let client: Arc<dyn HostClient> = Arc::new(Client(host.clone()));
     let e = add_computer(client.clone(), &ask("/Users/dev/code/app"), None).await.unwrap_err();
-    assert_eq!(e.message, format!("{} {ADD_TOOL_FIX}", add_tool_refusal("/Users/dev/code/app")));
+    assert_eq!(e.message, format!("{}. {ADD_TOOL_FIX}", add_tool_refusal("/Users/dev/code/app")));
     assert_eq!((e.kind, e.fix.as_deref()), (Some(Kind::Usage), Some(ADD_TOOL_FIX)));
     let e = add_computer(client.clone(), &ask("https://github.com/dev/app.git"), None).await.unwrap_err();
     assert_eq!(e.kind, Some(Kind::Usage));

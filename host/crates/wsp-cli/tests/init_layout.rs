@@ -821,7 +821,7 @@ fn help_line_from_256_colours_up_paints_two_greys_the_key_brighter() {
 #[test]
 fn cells_counts_a_row_without_its_escape_codes_in_utf16_units() {
     let red = "\x1b[31mDisk  12.5 GB of 16.1 GB, red line\x1b[39m";
-    assert_eq!(vec![cells(""), cells("abc"), cells(red), cells("修复"), cells("🚀")], vec![0, 3, 35, 2, 2]);
+    assert_eq!(vec![cells(""), cells("abc"), cells(red), cells("修复"), cells("🚀")], vec![0, 3, 34, 2, 2]);
 }
 
 /// init-layout.ts:116
