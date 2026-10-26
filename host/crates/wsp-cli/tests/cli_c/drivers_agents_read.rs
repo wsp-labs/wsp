@@ -120,7 +120,8 @@ pub fn project_asked(env: &Env) -> Answer<'_> {
 
 pub fn tools_project(env: &Env) -> Answer<'_> {
     Box::pin(async move {
-        let got = a::tools_project(opt(env, "value").as_deref(), opt(env, "thread").as_deref(), opt(env, "on").as_deref(), &text(env, "usage"))?;
+        let got =
+            a::tools_project(opt(env, "value").as_deref(), opt(env, "thread").as_deref(), opt(env, "on").as_deref(), &text(env, "usage"))?;
         match got {
             Some(name) => ok(name),
             None => Ok(Value::Null),
@@ -130,14 +131,31 @@ pub fn tools_project(env: &Env) -> Answer<'_> {
 
 pub fn agents_target(env: &Env) -> Answer<'_> {
     Box::pin(async move {
-        let target = a::agents_target(env.client.as_ref(), opt(env, "thread").as_deref(), opt(env, "on").as_deref(), &text(env, "usage"), &text(env, "line"), opt(env, "project").as_deref(), env.cloud()).await?;
+        let target = a::agents_target(
+            env.client.as_ref(),
+            opt(env, "thread").as_deref(),
+            opt(env, "on").as_deref(),
+            &text(env, "usage"),
+            &text(env, "line"),
+            opt(env, "project").as_deref(),
+            env.cloud(),
+        )
+        .await?;
         ok(target)
     })
 }
 
 pub fn agents_report(env: &Env) -> Answer<'_> {
     Box::pin(async move {
-        let report = a::agents_report(env.client.as_ref(), opt(env, "thread").as_deref(), opt(env, "on").as_deref(), &text(env, "usage"), &text(env, "line"), env.cloud()).await?;
+        let report = a::agents_report(
+            env.client.as_ref(),
+            opt(env, "thread").as_deref(),
+            opt(env, "on").as_deref(),
+            &text(env, "usage"),
+            &text(env, "line"),
+            env.cloud(),
+        )
+        .await?;
         ok(report)
     })
 }
@@ -184,9 +202,22 @@ pub fn plugin_changed(env: &Env) -> Answer<'_> {
     Box::pin(async move {
         let ask: a::PluginChange = {
             let v = env.arg("ask").unwrap();
-            a::PluginChange { agent: v["agent"].as_str().unwrap().into(), plugin: v["plugin"].as_str().unwrap().into(), on: v["on"].as_bool().unwrap() }
+            a::PluginChange {
+                agent: v["agent"].as_str().unwrap().into(),
+                plugin: v["plugin"].as_str().unwrap().into(),
+                on: v["on"].as_bool().unwrap(),
+            }
         };
-        let row = a::plugin_changed(env.client.as_ref(), &ask, opt(env, "thread").as_deref(), opt(env, "on").as_deref(), &text(env, "usage"), &text(env, "line"), env.cloud()).await?;
+        let row = a::plugin_changed(
+            env.client.as_ref(),
+            &ask,
+            opt(env, "thread").as_deref(),
+            opt(env, "on").as_deref(),
+            &text(env, "usage"),
+            &text(env, "line"),
+            env.cloud(),
+        )
+        .await?;
         ok(row)
     })
 }
@@ -219,7 +250,18 @@ pub fn server_changed(env: &Env) -> Answer<'_> {
             other => panic!("no such op {other}"),
         };
         let body: Frame = arg(env, "body");
-        let got = a::server_changed(env.client.as_ref(), op, &body, opt(env, "thread").as_deref(), opt(env, "on").as_deref(), &text(env, "usage"), &text(env, "line"), opt(env, "project").as_deref(), env.cloud()).await?;
+        let got = a::server_changed(
+            env.client.as_ref(),
+            op,
+            &body,
+            opt(env, "thread").as_deref(),
+            opt(env, "on").as_deref(),
+            &text(env, "usage"),
+            &text(env, "line"),
+            opt(env, "project").as_deref(),
+            env.cloud(),
+        )
+        .await?;
         ok(got)
     })
 }
@@ -241,7 +283,9 @@ pub fn server_scope(env: &Env) -> Answer<'_> {
     Box::pin(async move {
         let project = match env.arg("project") {
             None => a::ProjectAsked::default(),
-            Some(p) => a::ProjectAsked { project: p["project"].as_bool().unwrap(), name: p.get("name").and_then(|v| v.as_str()).map(String::from) },
+            Some(p) => {
+                a::ProjectAsked { project: p["project"].as_bool().unwrap(), name: p.get("name").and_then(|v| v.as_str()).map(String::from) }
+            }
         };
         ok(a::server_scope(opt(env, "word").as_deref(), &text(env, "usage"), &project)?)
     })
@@ -342,7 +386,15 @@ pub fn draw_rows(env: &Env) -> Answer<'_> {
         let mut deps = env.deps.clone();
         deps.dialer = Arc::new(OneDial { client: env.client.clone(), sinks: env.sinks.clone() });
         deps.signals = terminal.then(|| stage.clone() as Arc<dyn WatchSignals>);
-        let ctx = VerbContext { deps, args: Vec::new(), flags, io: io.clone(), out: Out::formatter(io, json_on), aim: HostAim::Here, usage: String::new() };
+        let ctx = VerbContext {
+            deps,
+            args: Vec::new(),
+            flags,
+            io: io.clone(),
+            out: Out::formatter(io, json_on),
+            aim: HostAim::Here,
+            usage: String::new(),
+        };
 
         let frames: Vec<(Value, Vec<String>)> = env
             .arg("frames")

@@ -12,7 +12,10 @@ const UNIT: &str = "turns_follow";
 fn is_v4_uuid(s: &str) -> bool {
     let parts: Vec<&str> = s.split('-').collect();
     parts.len() == 5
-        && [8, 4, 4, 4, 12].iter().zip(&parts).all(|(n, p)| p.len() == *n && p.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()))
+        && [8, 4, 4, 4, 12]
+            .iter()
+            .zip(&parts)
+            .all(|(n, p)| p.len() == *n && p.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()))
         && parts[2].starts_with('4')
         && "89ab".contains(&parts[3][..1])
 }
@@ -47,7 +50,10 @@ fn two_starts_mint_two_request_ids() {
 #[test]
 fn the_start_goes_out_with_its_fields_then_started_by_request_id_and_answer_held() {
     let ran = run(UNIT, "startDetached", "the fields go out in order, then startedBy, requestId and answerHeld", d::start_detached);
-    assert_eq!(keys_of(&ran, "sessions.start", 0), ["workspaceId", "prompt", "harness", "thread", "attachments", "model", "startedBy", "requestId", "answerHeld", "id", "op"]);
+    assert_eq!(
+        keys_of(&ran, "sessions.start", 0),
+        ["workspaceId", "prompt", "harness", "thread", "attachments", "model", "startedBy", "requestId", "answerHeld", "id", "op"]
+    );
     assert_eq!(ran.frame("sessions.start", 0)["answerHeld"], json!(true));
     assert_eq!(ran.frame("sessions.start", 0)["startedBy"], json!("cli"));
 }
@@ -55,7 +61,10 @@ fn the_start_goes_out_with_its_fields_then_started_by_request_id_and_answer_held
 #[test]
 fn a_follow_adds_its_followed_mark_after_the_starts_own_fields() {
     let ran = run(UNIT, "follow", "the start's followed mark goes last among the start's own fields", d::follow);
-    assert_eq!(keys_of(&ran, "sessions.start", 0), ["workspaceId", "prompt", "harness", "thread", "model", "followed", "startedBy", "requestId", "answerHeld", "id", "op"]);
+    assert_eq!(
+        keys_of(&ran, "sessions.start", 0),
+        ["workspaceId", "prompt", "harness", "thread", "model", "followed", "startedBy", "requestId", "answerHeld", "id", "op"]
+    );
     assert_eq!(ran.frame("sessions.start", 0)["followed"], json!(true));
 }
 
@@ -64,7 +73,12 @@ fn events_are_subscribed_once_before_the_start_on_each_socket() {
     let ran = run(UNIT, "startDetached", "started", d::start_detached);
     assert_eq!(ran.ops(), ["events.subscribe", "sessions.start"]);
     let ran = run(UNIT, "follow", "the host stops under the turn twice", d::follow);
-    assert_eq!(ran.ops().iter().filter(|o| *o == "events.subscribe").count(), 3, "one subscription for each of the three sockets: {:?}", ran.log);
+    assert_eq!(
+        ran.ops().iter().filter(|o| *o == "events.subscribe").count(),
+        3,
+        "one subscription for each of the three sockets: {:?}",
+        ran.log
+    );
 }
 
 #[test]
@@ -83,7 +97,11 @@ fn a_socket_the_host_did_not_stop_is_not_dialled_again() {
 
 #[test]
 fn no_road_back_is_a_message_not_delivered_never_a_turn_that_goes_on() {
-    for name in ["the host stops under the start, no way back", "the host stops under the start, the dial is refused", "the host stops under the start, then no second dial is left"] {
+    for name in [
+        "the host stops under the start, no way back",
+        "the host stops under the start, the dial is refused",
+        "the host stops under the start, then no second dial is left",
+    ] {
         let ran = run(UNIT, "startDetached", name, d::start_detached);
         assert_eq!(err(&ran), NOT_DELIVERED_LINE, "{name}");
         assert_ne!(err(&ran), HOST_STOPPING_LINE, "{name}");

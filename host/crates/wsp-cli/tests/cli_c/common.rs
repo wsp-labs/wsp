@@ -135,14 +135,27 @@ pub fn cases(unit: &str) -> Vec<Case> {
 pub fn case(unit: &str, func: &str, name: &str, cwd: &str) -> Case {
     let text = std::fs::read_to_string(fixtures().join(format!("{unit}.json"))).expect("fixture");
     let all: Value = serde_json::from_str(&text).expect("fixture parses");
-    let hit = all["cases"].as_array().expect("cases").iter().find(|c| c["fn"] == func && c["case"] == name).unwrap_or_else(|| panic!("no case {func} / {name} in {unit}"));
+    let hit = all["cases"]
+        .as_array()
+        .expect("cases")
+        .iter()
+        .find(|c| c["fn"] == func && c["case"] == name)
+        .unwrap_or_else(|| panic!("no case {func} / {name} in {unit}"));
     let mut c: Case = serde_json::from_str(&serde_json::to_string(hit).unwrap().replace("<cwd>", cwd)).expect("case reads");
     // What the TS printed is scrubbed back to `<cwd>`; only the inputs take the folder.
     let want = |v: Vec<String>| v;
     c.frames = hit["frames"].as_array().unwrap().iter().map(|s| s.as_str().unwrap().to_string()).collect();
     c.said = want(hit["said"].as_array().map(|a| a.iter().map(|s| s.as_str().unwrap().to_string()).collect()).unwrap_or_default());
-    c.stdout = hit.get("stdout").and_then(|a| a.as_array()).map(|a| a.iter().map(|s| s.as_str().unwrap().to_string()).collect()).unwrap_or_default();
-    c.stderr = hit.get("stderr").and_then(|a| a.as_array()).map(|a| a.iter().map(|s| s.as_str().unwrap().to_string()).collect()).unwrap_or_default();
+    c.stdout = hit
+        .get("stdout")
+        .and_then(|a| a.as_array())
+        .map(|a| a.iter().map(|s| s.as_str().unwrap().to_string()).collect())
+        .unwrap_or_default();
+    c.stderr = hit
+        .get("stderr")
+        .and_then(|a| a.as_array())
+        .map(|a| a.iter().map(|s| s.as_str().unwrap().to_string()).collect())
+        .unwrap_or_default();
     c.streamed = hit.get("streamed").and_then(|s| s.as_str()).map(String::from);
     if let Some(v) = hit.get("value") {
         c.value = Some(v.clone());
@@ -503,7 +516,10 @@ impl Env {
     }
 
     pub fn strs(&self, name: &str) -> Vec<String> {
-        self.arg(name).and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default()
+        self.arg(name)
+            .and_then(|v| v.as_array())
+            .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .unwrap_or_default()
     }
 
     pub fn flag(&self, name: &str) -> bool {
@@ -529,7 +545,11 @@ pub struct Ran {
 impl Ran {
     /// The ops sent, in order, off the frames (marks of a dial again are left out).
     pub fn ops(&self) -> Vec<String> {
-        self.log.iter().filter_map(|f| serde_json::from_str::<Map<String, Value>>(f).ok()).filter_map(|m| m.get("op").and_then(|o| o.as_str()).map(String::from)).collect()
+        self.log
+            .iter()
+            .filter_map(|f| serde_json::from_str::<Map<String, Value>>(f).ok())
+            .filter_map(|m| m.get("op").and_then(|o| o.as_str()).map(String::from))
+            .collect()
     }
 
     /// The frame of an op's nth ask (from 0), as the JSON object that crossed the socket.
@@ -601,7 +621,11 @@ pub fn holds(unit: &str, func: &str, name: &str, driver: Driver) {
     match done {
         Ok(value) => {
             assert!(c.error.is_none(), "{label}: it returned where the TS threw {:?}", c.error);
-            assert_eq!(scrub(&serde_json::to_string(value).unwrap()), serde_json::to_string(c.value.as_ref().expect("a recorded value")).unwrap(), "{label}: the value returned");
+            assert_eq!(
+                scrub(&serde_json::to_string(value).unwrap()),
+                serde_json::to_string(c.value.as_ref().expect("a recorded value")).unwrap(),
+                "{label}: the value returned"
+            );
         }
         Err(e) => {
             let want = c.error.as_ref().unwrap_or_else(|| panic!("{label}: it threw {:?} where the TS returned {:?}", e.message, c.value));

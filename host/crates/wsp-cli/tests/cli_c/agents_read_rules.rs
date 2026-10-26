@@ -137,7 +137,8 @@ fn ts_agents_reader_a_cloud_machines_servers_print_off_with_the_sentence_once() 
     assert!(find("signs ").ends_with(" off"));
     assert!(find("open ").ends_with(" unknown"));
     for name in ["signs", "cf", "linear", "keyed", "aws-mcp"] {
-        let sentence = format!("{name} runs only on a computer where you signed in to it; a cloud machine holds no sign-in or key of yours.");
+        let sentence =
+            format!("{name} runs only on a computer where you signed in to it; a cloud machine holds no sign-in or key of yours.");
         assert_eq!(lines.iter().filter(|l| **l == sentence).count(), 1, "{name}");
     }
     let all = lines.join("\n");

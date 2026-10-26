@@ -44,7 +44,10 @@ fn ops(c: &Case) -> Vec<String> {
 }
 
 fn guest_line() -> String {
-    recorded("runTarget", "run-beside: still names the workspace on a line from a machine that is no thread's").error.expect("a recorded refusal").message
+    recorded("runTarget", "run-beside: still names the workspace on a line from a machine that is no thread's")
+        .error
+        .expect("a recorded refusal")
+        .message
 }
 
 fn has_token(c: &Case) -> bool {
@@ -59,13 +62,23 @@ fn has_token(c: &Case) -> bool {
 fn cloud_off_never_names_a_cloud() {
     let mut seen = 0;
     for c in cases(UNIT).into_iter().filter(|c| !c.cloud && matches!(c.func.as_str(), "runTarget" | "threadAt" | "childOf")) {
-        assert!(!ops(&c).iter().any(|op| op == "workspaces.resolve"), "{} / {}: a machine was asked for with the cloud off", c.func, c.case);
+        assert!(
+            !ops(&c).iter().any(|op| op == "workspaces.resolve"),
+            "{} / {}: a machine was asked for with the cloud off",
+            c.func,
+            c.case
+        );
         if let Some(e) = &c.error {
             assert!(!e.message.contains(" is a machine"), "{} / {}: {}", c.func, c.case, e.message);
             assert!(!e.message.contains("no workspace"), "{} / {}: {}", c.func, c.case, e.message);
         }
         if let Some(v) = &c.value {
-            assert!(v.get("workspace").is_none() || c.func != "runTarget", "{} / {}: a machine was answered with the cloud off", c.func, c.case);
+            assert!(
+                v.get("workspace").is_none() || c.func != "runTarget",
+                "{} / {}: a machine was answered with the cloud off",
+                c.func,
+                c.case
+            );
         }
         run(&c.func, &c.case);
         seen += 1;
@@ -94,7 +107,12 @@ fn cloud_on_names_a_machine() {
 fn elsewhere_run_target_refuses_before_any_read() {
     let want = guest_line();
     let mut seen = 0;
-    for c in cases(UNIT).into_iter().filter(|c| c.func == "runTarget" && c.args.get("elsewhere").and_then(|v| v.as_bool()) == Some(true) && c.args.get("ref").is_none_or(|v| v.is_null()) && !has_token(c)) {
+    for c in cases(UNIT).into_iter().filter(|c| {
+        c.func == "runTarget"
+            && c.args.get("elsewhere").and_then(|v| v.as_bool()) == Some(true)
+            && c.args.get("ref").is_none_or(|v| v.is_null())
+            && !has_token(c)
+    }) {
         assert!(c.frames.is_empty(), "{}: the host was asked something", c.case);
         assert_eq!(c.error.as_ref().expect("a refusal").message, want, "{}", c.case);
         run("runTarget", &c.case);
@@ -121,7 +139,10 @@ fn a_thread_token_runs_beside_the_thread_and_asks_nothing() {
 /// project of the same name is on.
 #[test]
 fn a_ref_is_read_before_the_token() {
-    for name in ["a project here, a thread asking: the ref is read before the token", "run-beside: takes the thread's own project where a project on another computer shares its name"] {
+    for name in [
+        "a project here, a thread asking: the ref is read before the token",
+        "run-beside: takes the thread's own project where a project on another computer shares its name",
+    ] {
         assert!(!recorded("runTarget", name).frames.is_empty(), "{name}");
         run("runTarget", name);
     }
@@ -168,7 +189,8 @@ fn a_machine_is_named_off_the_task_and_a_taken_name_is_numbered() {
         run("forkFor", name);
     }
     let cut = "a".repeat(39);
-    assert!(sent(&recorded("forkFor", "the name is cut at forty characters, where the cut lands on a space")).contains(&format!("\"name\":\"{cut}\"")));
+    assert!(sent(&recorded("forkFor", "the name is cut at forty characters, where the cut lands on a space"))
+        .contains(&format!("\"name\":\"{cut}\"")));
     assert!(sent(&recorded("forkFor", "the cut name taken is numbered")).contains(&format!("\"name\":\"{cut} 2\"")));
     run("forkFor", "the name is cut at forty characters, where the cut lands on a space");
     run("forkFor", "the cut name taken is numbered");
@@ -180,7 +202,10 @@ fn sub_for_writes_the_sub_in_one_order() {
     let name = "every field of the ask, in the frame's order whatever the ask's";
     let c = recorded("subFor", name);
     let create = c.frames.iter().find(|f| f.contains("\"workspaces.create\"")).expect("a create");
-    assert!(create.contains("\"sub\":{\"on\":\"boat\",\"size\":\"big\",\"from\":\"feat/up\",\"branch\":\"feat/x\",\"harness\":\"codex\"}"), "{create}");
+    assert!(
+        create.contains("\"sub\":{\"on\":\"boat\",\"size\":\"big\",\"from\":\"feat/up\",\"branch\":\"feat/x\",\"harness\":\"codex\"}"),
+        "{create}"
+    );
     run("subFor", name);
 }
 
@@ -198,7 +223,12 @@ fn sub_for_stops_listening_when_stopped() {
 /// The deepest project holding a folder wins; where two hold it at one depth the first listed does.
 #[test]
 fn project_of_folder_takes_the_deepest_and_then_the_first() {
-    for name in ["the deepest of two holding projects wins", "the deepest wins whichever is listed first", "two at one path: the first listed", "a project on another computer never holds a folder"] {
+    for name in [
+        "the deepest of two holding projects wins",
+        "the deepest wins whichever is listed first",
+        "two at one path: the first listed",
+        "a project on another computer never holds a folder",
+    ] {
         run("projectOfFolder", name);
     }
 }
@@ -221,7 +251,10 @@ fn thread_deleted_sends_the_thread_then_what_was_asked() {
     assert_eq!(sent("with its worktree and two threads"), "{\"threadId\":\"t-3\",\"id\":2,\"op\":\"sessions.delete\"}");
     assert_eq!(sent("the processes ended"), "{\"threadId\":\"t-3\",\"processes\":\"stop\",\"id\":2,\"op\":\"sessions.delete\"}");
     assert_eq!(sent("a check"), "{\"threadId\":\"t-3\",\"check\":true,\"id\":2,\"op\":\"sessions.delete\"}");
-    assert_eq!(sent("processes and a check"), "{\"threadId\":\"t-3\",\"processes\":\"stop\",\"check\":false,\"id\":2,\"op\":\"sessions.delete\"}");
+    assert_eq!(
+        sent("processes and a check"),
+        "{\"threadId\":\"t-3\",\"processes\":\"stop\",\"check\":false,\"id\":2,\"op\":\"sessions.delete\"}"
+    );
     for name in ["with its worktree and two threads", "the processes ended", "a check", "processes and a check"] {
         run("threadDeleted", name);
     }

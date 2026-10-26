@@ -154,28 +154,97 @@ fn a_bad_access_word_is_one_sentence_at_every_door() {
 #[test]
 fn opening_of_field_order_for_a_workspace() {
     let name = "a workspace with every option and a turn token";
-    assert_eq!(keys(&recorded("openingOf", name)), strings(&["workspaceId", "prompt", "cwd", "harness", "notify", "turnToken", "title", "replaces", "attachments", "model", "effort", "access", "fast"]));
+    assert_eq!(
+        keys(&recorded("openingOf", name)),
+        strings(&[
+            "workspaceId",
+            "prompt",
+            "cwd",
+            "harness",
+            "notify",
+            "turnToken",
+            "title",
+            "replaces",
+            "attachments",
+            "model",
+            "effort",
+            "access",
+            "fast"
+        ])
+    );
     holds(UNIT, "openingOf", name, d::opening_of);
 }
 
 #[test]
 fn opening_of_field_order_for_a_folder_target() {
     let name = "here with project, branch, folder and every option";
-    assert_eq!(keys(&recorded("openingOf", name)), strings(&["project", "branch", "prompt", "cwd", "harness", "notify", "turnToken", "title", "replaces", "attachments", "model", "effort", "access", "fast"]));
+    assert_eq!(
+        keys(&recorded("openingOf", name)),
+        strings(&[
+            "project",
+            "branch",
+            "prompt",
+            "cwd",
+            "harness",
+            "notify",
+            "turnToken",
+            "title",
+            "replaces",
+            "attachments",
+            "model",
+            "effort",
+            "access",
+            "fast"
+        ])
+    );
     holds(UNIT, "openingOf", name, d::opening_of);
 }
 
 #[test]
 fn opening_of_field_order_for_a_project_fork() {
     let name = "a fork with every option";
-    assert_eq!(keys(&recorded("openingOf", name)), strings(&["prompt", "cwd", "harness", "notify", "turnToken", "title", "replaces", "attachments", "model", "effort", "access", "fast"]));
+    assert_eq!(
+        keys(&recorded("openingOf", name)),
+        strings(&[
+            "prompt",
+            "cwd",
+            "harness",
+            "notify",
+            "turnToken",
+            "title",
+            "replaces",
+            "attachments",
+            "model",
+            "effort",
+            "access",
+            "fast"
+        ])
+    );
     holds(UNIT, "openingOf", name, d::opening_of);
 }
 
 #[test]
 fn opening_of_field_order_for_a_thread_fork() {
     let name = "a thread's fork with every option";
-    assert_eq!(keys(&recorded("openingOf", name)), strings(&["fork", "branch", "prompt", "cwd", "harness", "notify", "turnToken", "title", "replaces", "attachments", "model", "effort", "access", "fast"]));
+    assert_eq!(
+        keys(&recorded("openingOf", name)),
+        strings(&[
+            "fork",
+            "branch",
+            "prompt",
+            "cwd",
+            "harness",
+            "notify",
+            "turnToken",
+            "title",
+            "replaces",
+            "attachments",
+            "model",
+            "effort",
+            "access",
+            "fast"
+        ])
+    );
     holds(UNIT, "openingOf", name, d::opening_of);
 }
 
@@ -198,7 +267,12 @@ fn message_to_field_order() {
 /// Only `WSP_TURN` is the turn's token; the host's own token and look-alike names are not read by `opening_of`.
 #[test]
 fn opening_of_reads_only_the_turn_token() {
-    for name in ["a workspace, the turn token alone", "an empty turn token is no token", "the host token is not the turn token", "other variables are not read"] {
+    for name in [
+        "a workspace, the turn token alone",
+        "an empty turn token is no token",
+        "the host token is not the turn token",
+        "other variables are not read",
+    ] {
         holds(UNIT, "openingOf", name, d::opening_of);
     }
     assert!(recorded("openingOf", "a workspace, the turn token alone").value.expect("a frame").get("turnToken").is_some());
@@ -211,7 +285,14 @@ fn opening_of_reads_only_the_turn_token() {
 /// by its weight, in the first thing wrong, and no read of it is needed to say so.
 #[test]
 fn caps_are_checked_before_any_file_is_read_whole() {
-    for name in ["a file one byte over the cap is refused with its weight", "a file far over the cap", "the over-cap file is refused before the empty one behind it", "the empty file is refused before the over-cap one behind it", "six files are one too many", "six files with one empty: the count is the first thing wrong"] {
+    for name in [
+        "a file one byte over the cap is refused with its weight",
+        "a file far over the cap",
+        "the over-cap file is refused before the empty one behind it",
+        "the empty file is refused before the over-cap one behind it",
+        "six files are one too many",
+        "six files with one empty: the count is the first thing wrong",
+    ] {
         holds(UNIT, "filesFrom", name, d::files_from);
     }
 }
@@ -219,7 +300,13 @@ fn caps_are_checked_before_any_file_is_read_whole() {
 /// Every refusal these helpers make in their own words is a usage refusal (exit class 3), as the TS stamps it.
 #[test]
 fn own_refusals_are_usage_refusals() {
-    let own = ["Put it in quotes after the flags.", "Name a file that is already here.", "Drop that one and send the rest.", "Name one of those with --agent.", "Name one with --at 1 for the thread's first."];
+    let own = [
+        "Put it in quotes after the flags.",
+        "Name a file that is already here.",
+        "Drop that one and send the rest.",
+        "Name one of those with --agent.",
+        "Name one with --at 1 for the thread's first.",
+    ];
     let mut seen = BTreeSet::new();
     for c in cases(UNIT) {
         let Some(e) = &c.error else { continue };
@@ -238,7 +325,11 @@ fn ported_ts_tests_are_recorded_cases() {
     let ported: [(&str, &str, &str); 14] = [
         ("resume-flags.test.ts: reads the conversation and whether it runs on a copy (1)", "resumeAsked", "a conversation"),
         ("resume-flags.test.ts: reads the conversation and whether it runs on a copy (2)", "resumeAsked", "a conversation to copy"),
-        ("resume-flags.test.ts: reads the conversation and whether it runs on a copy (3)", "resumeAsked", "no conversation, no copy, where named"),
+        (
+            "resume-flags.test.ts: reads the conversation and whether it runs on a copy (3)",
+            "resumeAsked",
+            "no conversation, no copy, where named",
+        ),
         ("resume-flags.test.ts: is a usage refusal beside --branch", "resumeAsked", "a conversation beside a branch"),
         ("resume-flags.test.ts: is a usage refusal beside --cwd", "resumeAsked", "a conversation beside a folder"),
         ("resume-flags.test.ts: is a usage refusal beside --beside", "resumeAsked", "a conversation beside a thread"),
@@ -247,9 +338,21 @@ fn ported_ts_tests_are_recorded_cases() {
         ("verbs.test.ts messageTo: names the thread by its runtime id (2)", "messageTo", "a row with a thread id and no session"),
         ("verbs.test.ts messageTo: a row with none by its own id", "messageTo", "a row with no thread id is named by its own id"),
         ("parity.test.ts: a --notify typed once reaches the start as an array", "openingOf", "a notify list of one"),
-        ("parity.test.ts: a --notify typed twice reaches the start as an array", "openingOf", "a notify list keeps its order and its repeats"),
-        ("verbs-turns.test.ts: a bad --file makes no machine (a fork reads its files first)", "openingOf", "a fork with a file that is not there"),
-        ("verbs-turns.test.ts: a bad --model makes no machine (a project's fork reads the project's own agent)", "checkedStart", "a project's fork with its agent's model refused"),
+        (
+            "parity.test.ts: a --notify typed twice reaches the start as an array",
+            "openingOf",
+            "a notify list keeps its order and its repeats",
+        ),
+        (
+            "verbs-turns.test.ts: a bad --file makes no machine (a fork reads its files first)",
+            "openingOf",
+            "a fork with a file that is not there",
+        ),
+        (
+            "verbs-turns.test.ts: a bad --model makes no machine (a project's fork reads the project's own agent)",
+            "checkedStart",
+            "a project's fork with its agent's model refused",
+        ),
     ];
     for (ts, func, name) in ported {
         let c = recorded(func, name);

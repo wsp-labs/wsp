@@ -130,7 +130,10 @@ fn a_failed_answer_goes_to_stderr_and_the_turn_goes_on() {
 #[test]
 fn the_wait_lines_are_held_back_under_json_but_the_join_lines_are_not() {
     let text = run(UNIT, "followVerb", "queued behind the running turn", d::follow_verb);
-    assert_eq!(lines(&text.sinks.stderr), ["waiting behind the running turn", "queued behind the running turn; it has ended and this turn started"]);
+    assert_eq!(
+        lines(&text.sinks.stderr),
+        ["waiting behind the running turn", "queued behind the running turn; it has ended and this turn started"]
+    );
     let json = run(UNIT, "followVerb", "queued behind the running turn (--json)", d::follow_verb);
     assert_eq!(lines(&json.sinks.stderr), ["queued behind the running turn; it has ended and this turn started"]);
     let text = run(UNIT, "followVerb", "the agent is starting", d::follow_verb);
@@ -149,7 +152,10 @@ fn a_failure_object_stays_the_one_line_on_stderr_under_json() {
 #[test]
 fn only_the_picks_a_steer_drops_are_named_in_flag_order() {
     let ran = run(UNIT, "followVerb", "joined with picks dropped", d::follow_verb);
-    assert_eq!(lines(&ran.sinks.stderr)[0], "joined the running turn; --model, --effort, --access, --fast dropped, it keeps its own model, effort and access");
+    assert_eq!(
+        lines(&ran.sinks.stderr)[0],
+        "joined the running turn; --model, --effort, --access, --fast dropped, it keeps its own model, effort and access"
+    );
     let ran = run(UNIT, "followVerb", "joined with fast false", d::follow_verb);
     assert_eq!(lines(&ran.sinks.stderr), ["joined the running turn"]);
 }
@@ -171,8 +177,14 @@ fn a_reply_on_the_same_screen_is_printed_only_where_nothing_was_streamed() {
 
 #[test]
 fn another_message_opens_its_own_paragraph_only_where_prose_would_run_into_prose() {
-    assert_eq!(streamed(&run(UNIT, "followVerb", "a second message opens its own paragraph", d::follow_verb)), "first part more\n\nsecond message\ncompleted\n");
-    assert_eq!(streamed(&run(UNIT, "followVerb", "a line of work between two messages", d::follow_verb)), "before\n$ ls\nafter\ncompleted\n");
+    assert_eq!(
+        streamed(&run(UNIT, "followVerb", "a second message opens its own paragraph", d::follow_verb)),
+        "first part more\n\nsecond message\ncompleted\n"
+    );
+    assert_eq!(
+        streamed(&run(UNIT, "followVerb", "a line of work between two messages", d::follow_verb)),
+        "before\n$ ls\nafter\ncompleted\n"
+    );
 }
 
 #[test]
@@ -191,7 +203,10 @@ fn a_call_is_forgotten_once_its_result_is_read() {
 #[test]
 fn the_announce_is_emitted_before_the_reply_with_the_threads_own_line() {
     let ran = run(UNIT, "followVerb", "announce with a line of its own and the folder", d::follow_verb);
-    assert_eq!(lines(&ran.sinks.stdout)[0], "opened thread-9d8c7b6a5f4e in /root/work  wsp thread read, wsp send and wsp stop take its first characters");
+    assert_eq!(
+        lines(&ran.sinks.stdout)[0],
+        "opened thread-9d8c7b6a5f4e in /root/work  wsp thread read, wsp send and wsp stop take its first characters"
+    );
     let ran = run(UNIT, "followVerb", "announce with a line of its own and the folder (--json)", d::follow_verb);
     let first: Value = serde_json::from_str(&lines(&ran.sinks.stdout)[0]).expect("a JSON line");
     assert_eq!(first["type"], json!("thread"));

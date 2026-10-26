@@ -186,9 +186,18 @@ fn ts_verbs_lifecycle_a_copy_on_a_joined_computer_is_named_by_the_names_a_person
     for name in [&named.case, &unread.case, &cloud.case] {
         holds(UNIT, "deleting", name, d::deleting);
     }
-    assert_eq!(recorded("deleteQuestion", "lifecycle test: a copy on spoo").value.unwrap(), "Delete fix-login?\nIts copy on spoo is deleted; its record and 0 threads leave this computer.");
-    assert_eq!(recorded("deletedLine", "lifecycle test: a copy on spoo").value.unwrap(), "deleted fix-login ws_fix: fix-login is deleted from spoo, and its record and 0 threads are gone from this computer");
-    assert_eq!(recorded("deleteQuestion", "lifecycle test: a copy on that computer").value.unwrap(), "Delete fix-login?\nIts copy on that computer is deleted; its record and 0 threads leave this computer.");
+    assert_eq!(
+        recorded("deleteQuestion", "lifecycle test: a copy on spoo").value.unwrap(),
+        "Delete fix-login?\nIts copy on spoo is deleted; its record and 0 threads leave this computer."
+    );
+    assert_eq!(
+        recorded("deletedLine", "lifecycle test: a copy on spoo").value.unwrap(),
+        "deleted fix-login ws_fix: fix-login is deleted from spoo, and its record and 0 threads are gone from this computer"
+    );
+    assert_eq!(
+        recorded("deleteQuestion", "lifecycle test: a copy on that computer").value.unwrap(),
+        "Delete fix-login?\nIts copy on that computer is deleted; its record and 0 threads leave this computer."
+    );
     for name in ["lifecycle test: a copy on spoo", "lifecycle test: a copy on that computer"] {
         holds(UNIT, "deleteQuestion", name, d::delete_question);
         holds(UNIT, "deletedLine", name, d::deleted_line);
@@ -200,7 +209,8 @@ fn ts_verbs_lifecycle_a_copy_on_a_joined_computer_is_named_by_the_names_a_person
 #[test]
 fn ts_verbs_folders_settings_two_rows_naming_each_other_are_both_printed() {
     let name = "two rows that are each other's parent stand flat at the top";
-    let got: Vec<String> = recorded("threadTree", name).value.unwrap().as_array().unwrap().iter().map(|n| n["id"].as_str().unwrap().to_string()).collect();
+    let got: Vec<String> =
+        recorded("threadTree", name).value.unwrap().as_array().unwrap().iter().map(|n| n["id"].as_str().unwrap().to_string()).collect();
     assert_eq!(got, ["a", "b"]);
     holds(UNIT, "threadTree", name, d::thread_tree);
 }
@@ -251,7 +261,9 @@ fn a_refused_size_leaves_no_subscription_and_no_create() {
     let on_copy = recorded("createFor", "a size on a copy of a folder is refused before anything is sent");
     assert!(on_copy.frames.is_empty());
     holds(UNIT, "createFor", "a size on a copy of a folder is refused before anything is sent", d::create_for);
-    for name in ["a size the provider does not offer", "a size that is no size", "an empty size word", "a size when the provider offers none"] {
+    for name in
+        ["a size the provider does not offer", "a size that is no size", "an empty size word", "a size when the provider offers none"]
+    {
         let c = recorded("createFor", name);
         assert_eq!(c.frames.len(), 1, "{name}");
         assert!(c.frames[0].contains("\"op\":\"workspaces.landing\""), "{name}");

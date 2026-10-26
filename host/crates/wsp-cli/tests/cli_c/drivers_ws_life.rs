@@ -6,15 +6,16 @@ use serde_json::{json, Map, Value};
 use wsp_cli::verbs::client::BoxFuture;
 use wsp_cli::verbs::turns_help::Turn;
 use wsp_cli::verbs::workspaces_help as w;
-use wsp_wire::views::session_events::TurnResult;
 use wsp_wire::views::session::SessionView;
+use wsp_wire::views::session_events::TurnResult;
 use wsp_wire::wire::runtime::SessionStartOutcome;
 use wsp_words::exit::{HostError, Kind};
 
 use super::common::Env;
 
 pub fn typed<T: DeserializeOwned>(env: &Env, name: &str) -> T {
-    serde_json::from_value(env.arg(name).unwrap_or_else(|| panic!("the case names no {name}")).clone()).unwrap_or_else(|e| panic!("the recorded {name} reads: {e}"))
+    serde_json::from_value(env.arg(name).unwrap_or_else(|| panic!("the case names no {name}")).clone())
+        .unwrap_or_else(|e| panic!("the recorded {name} reads: {e}"))
 }
 
 fn maybe<T: DeserializeOwned>(env: &Env, name: &str) -> Option<T> {
@@ -55,14 +56,33 @@ pub fn const_no_draft_fix(_env: &Env) -> BoxFuture<'_, Result<Value, HostError>>
 pub fn committed(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
     Box::pin(async move {
         let say = env.sinks.say();
-        said(w::committed(env.client.as_ref(), &text(env, "workspaceId"), env.str_arg("message").as_deref(), &env.strs("files"), &say, env.str_arg("threadId").as_deref()).await?)
+        said(
+            w::committed(
+                env.client.as_ref(),
+                &text(env, "workspaceId"),
+                env.str_arg("message").as_deref(),
+                &env.strs("files"),
+                &say,
+                env.str_arg("threadId").as_deref(),
+            )
+            .await?,
+        )
     })
 }
 
 pub fn asked_to_fix(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
     Box::pin(async move {
         let child: Option<w::ChildRef> = maybe(env, "child");
-        said(w::asked_to_fix(env.client.as_ref(), &text(env, "workspaceId"), env.str_arg("check").as_deref(), child.as_ref(), &text(env, "threadId")).await?)
+        said(
+            w::asked_to_fix(
+                env.client.as_ref(),
+                &text(env, "workspaceId"),
+                env.str_arg("check").as_deref(),
+                child.as_ref(),
+                &text(env, "threadId"),
+            )
+            .await?,
+        )
     })
 }
 
@@ -86,7 +106,9 @@ pub fn review_started(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
 }
 
 pub fn review_posted(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
-    Box::pin(async move { said(w::review_posted(env.client.as_ref(), &text(env, "workspaceId"), &typed(env, "edits"), &text(env, "threadId")).await?) })
+    Box::pin(async move {
+        said(w::review_posted(env.client.as_ref(), &text(env, "workspaceId"), &typed(env, "edits"), &text(env, "threadId")).await?)
+    })
 }
 
 fn echo(id: &str) -> String {
@@ -96,7 +118,8 @@ fn echo(id: &str) -> String {
 pub fn started_lines(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
     Box::pin(async move {
         let started: wsp_wire::views::harness::StartResult = typed(env, "started");
-        let thread: Option<&(dyn Fn(&str) -> String + Send + Sync)> = if env.str_arg("thread").as_deref() == Some("echo") { Some(&echo) } else { None };
+        let thread: Option<&(dyn Fn(&str) -> String + Send + Sync)> =
+            if env.str_arg("thread").as_deref() == Some("echo") { Some(&echo) } else { None };
         said(w::started_lines(&started, thread))
     })
 }
@@ -104,7 +127,8 @@ pub fn started_lines(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
 pub fn review_lines(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
     Box::pin(async move {
         let started: wsp_wire::views::harness::StartResult = typed(env, "started");
-        let thread: Option<&(dyn Fn(&str) -> String + Send + Sync)> = if env.str_arg("thread").as_deref() == Some("echo") { Some(&echo) } else { None };
+        let thread: Option<&(dyn Fn(&str) -> String + Send + Sync)> =
+            if env.str_arg("thread").as_deref() == Some("echo") { Some(&echo) } else { None };
         said(w::review_lines(&started, thread))
     })
 }
@@ -148,7 +172,18 @@ pub fn const_verdicts(_env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
 }
 
 pub fn merged_pr(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
-    Box::pin(async move { said(w::merged_pr(env.client.as_ref(), &text(env, "workspaceId"), maybe(env, "method"), env.flag("whenChecksPass"), &text(env, "threadId")).await?) })
+    Box::pin(async move {
+        said(
+            w::merged_pr(
+                env.client.as_ref(),
+                &text(env, "workspaceId"),
+                maybe(env, "method"),
+                env.flag("whenChecksPass"),
+                &text(env, "threadId"),
+            )
+            .await?,
+        )
+    })
 }
 
 pub fn update_line(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
@@ -158,9 +193,20 @@ pub fn update_line(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
 /// The turn a case names: its thread, and the refusal its result carries where it names one.
 pub fn turn_of(env: &Env) -> Option<Turn> {
     let turn = env.arg("turn")?;
-    let session: SessionView = serde_json::from_value(json!({ "id": "s_1", "workspaceId": "ws_1", "harness": "claude", "status": "failed" })).expect("a session reads");
-    let result: Option<TurnResult> = turn.get("refusal").map(|r| serde_json::from_value(json!({ "status": "completed", "refusal": r })).expect("a result reads"));
-    Some(Turn { session, thread_id: turn["threadId"].as_str().expect("a thread id").to_string(), outcome: SessionStartOutcome::Started, result, reason: None, after_cut: false, notice: None })
+    let session: SessionView =
+        serde_json::from_value(json!({ "id": "s_1", "workspaceId": "ws_1", "harness": "claude", "status": "failed" }))
+            .expect("a session reads");
+    let result: Option<TurnResult> =
+        turn.get("refusal").map(|r| serde_json::from_value(json!({ "status": "completed", "refusal": r })).expect("a result reads"));
+    Some(Turn {
+        session,
+        thread_id: turn["threadId"].as_str().expect("a thread id").to_string(),
+        outcome: SessionStartOutcome::Started,
+        result,
+        reason: None,
+        after_cut: false,
+        notice: None,
+    })
 }
 
 pub fn nap_after_dead_launch(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {

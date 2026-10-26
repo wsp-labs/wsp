@@ -310,7 +310,12 @@ fn follow__the_host_stops_under_the_start_no_way_back() {
 
 #[test]
 fn follow__the_host_stops_under_the_start_dialled_again_the_transcript_() {
-    holds("turns_follow", "follow", "the host stops under the start, dialled again: the transcript is read there although the start just landed", d::follow);
+    holds(
+        "turns_follow",
+        "follow",
+        "the host stops under the start, dialled again: the transcript is read there although the start just landed",
+        d::follow,
+    );
 }
 
 #[test]
@@ -350,7 +355,12 @@ fn follow__the_host_stops_under_the_turn_the_new_host_pushes_the_done_w() {
 
 #[test]
 fn follow__the_host_stops_under_the_turn_the_new_host_s_transcript_has_() {
-    holds("turns_follow", "follow", "the host stops under the turn, the new host's transcript has nothing and the turn goes on until its done", d::follow);
+    holds(
+        "turns_follow",
+        "follow",
+        "the host stops under the turn, the new host's transcript has nothing and the turn goes on until its done",
+        d::follow,
+    );
 }
 
 #[test]
@@ -410,7 +420,12 @@ fn first_ended__a_named_thread_already_over_reads_its_transcript() {
 
 #[test]
 fn first_ended__a_named_thread_already_over_nothing_in_its_transcript_takes_() {
-    holds("turns_follow", "firstEnded", "a named thread already over, nothing in its transcript, takes the listing's status", d::first_ended);
+    holds(
+        "turns_follow",
+        "firstEnded",
+        "a named thread already over, nothing in its transcript, takes the listing's status",
+        d::first_ended,
+    );
 }
 
 #[test]

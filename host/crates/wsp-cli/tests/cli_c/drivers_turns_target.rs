@@ -42,7 +42,16 @@ pub fn run_target(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
         std::env::set_var("HOME", "/root");
         let r#where: t::RunWhere = from(env.arg("where").expect("where"));
         let elsewhere = env.arg("elsewhere").and_then(|v| v.as_bool());
-        let got = t::run_target(env.client.as_ref(), env.str_arg("ref").as_deref(), env.str_arg("callerCwd").as_deref(), &env.case.env, elsewhere, &r#where, env.case.cloud).await;
+        let got = t::run_target(
+            env.client.as_ref(),
+            env.str_arg("ref").as_deref(),
+            env.str_arg("callerCwd").as_deref(),
+            &env.case.env,
+            elsewhere,
+            &r#where,
+            env.case.cloud,
+        )
+        .await;
         done(env, got.map(|target| summary(&target)))
     })
 }
@@ -66,7 +75,9 @@ pub fn sub_for(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
     Box::pin(async move {
         let ask: t::SubAsk = from(env.arg("ask").expect("ask"));
         let say = env.sinks.say();
-        let made = t::sub_for(env.client.as_ref(), &ask, &env.str_arg("task").unwrap(), env.str_arg("title").as_deref(), std::sync::Arc::new(say)).await;
+        let made =
+            t::sub_for(env.client.as_ref(), &ask, &env.str_arg("task").unwrap(), env.str_arg("title").as_deref(), std::sync::Arc::new(say))
+                .await;
         done(
             env,
             match made {
@@ -108,12 +119,21 @@ pub fn sub_deleting(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
 }
 
 pub fn refuse_machine_thread(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
-    Box::pin(async move { done(env, t::refuse_machine_thread(env.client.as_ref(), &env.str_arg("ref").unwrap()).await.map(|()| Value::Null)) })
+    Box::pin(
+        async move { done(env, t::refuse_machine_thread(env.client.as_ref(), &env.str_arg("ref").unwrap()).await.map(|()| Value::Null)) },
+    )
 }
 
 pub fn thread_at(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
     Box::pin(async move {
-        let got = t::thread_at_in(env.client.as_ref(), &env.str_arg("ref").unwrap(), &env.str_arg("line").unwrap(), env.flag("orComputer"), env.case.cloud).await;
+        let got = t::thread_at_in(
+            env.client.as_ref(),
+            &env.str_arg("ref").unwrap(),
+            &env.str_arg("line").unwrap(),
+            env.flag("orComputer"),
+            env.case.cloud,
+        )
+        .await;
         done(env, got.map(|(thread, workspace)| json!({ "thread": thread, "workspace": workspace })))
     })
 }
@@ -125,7 +145,8 @@ fn pair(v: &Value) -> (ThreadView, WorkspaceOut) {
 pub fn child_of(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
     Box::pin(async move {
         let lead = pair(env.arg("lead").expect("lead"));
-        let got = t::child_of(env.client.as_ref(), &lead, &env.str_arg("ref").unwrap(), &env.str_arg("line").unwrap(), env.case.cloud).await;
+        let got =
+            t::child_of(env.client.as_ref(), &lead, &env.str_arg("ref").unwrap(), &env.str_arg("line").unwrap(), env.case.cloud).await;
         done(env, got.map(|(thread, workspace)| json!({ "thread": thread, "workspace": workspace })))
     })
 }

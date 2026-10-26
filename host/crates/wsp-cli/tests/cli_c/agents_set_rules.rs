@@ -117,7 +117,12 @@ fn invariant_7_no_word_or_sentence_of_this_unit_names_a_cloud() {
         s::defaults_value_line("agent", "Codex", "this project's"),
     ];
     said.extend(s::SKILL_HIT_COLUMNS.iter().map(|c| c.to_string()));
-    for from in [wsp_wire::types::thread_defaults::DefaultFrom::Named, wsp_wire::types::thread_defaults::DefaultFrom::Project, wsp_wire::types::thread_defaults::DefaultFrom::Default, wsp_wire::types::thread_defaults::DefaultFrom::Catalog] {
+    for from in [
+        wsp_wire::types::thread_defaults::DefaultFrom::Named,
+        wsp_wire::types::thread_defaults::DefaultFrom::Project,
+        wsp_wire::types::thread_defaults::DefaultFrom::Default,
+        wsp_wire::types::thread_defaults::DefaultFrom::Catalog,
+    ] {
         said.push(s::from_word(from).to_string());
     }
     for text in said {
@@ -152,11 +157,16 @@ fn guest_rule_an_absolute_config_folder_is_sent_as_given_never_resolved() {
     std::fs::create_dir(&real).unwrap();
     let link = dir.path().join("link");
     std::os::unix::fs::symlink(&real, &link).unwrap();
-    for config in [format!("{}/x/../y", link.display()), "/nonexistent/../place//x/".to_string(), format!("{}/missing", dir.path().display())] {
+    for config in
+        [format!("{}/x/../y", link.display()), "/nonexistent/../place//x/".to_string(), format!("{}/missing", dir.path().display())]
+    {
         let (c, log) = client(replies("agentSetupSet", "set here"));
         let ask = s::AgentSetupAsk { config: Some(config.clone()), ..Default::default() };
         block(s::agent_setup_set(&c, "claude", &ask, &IndexMap::new(), "usage: wsp agents setup <agent>")).expect("sent");
-        let frame = serde_json::to_string(&serde_json::json!({ "placeId": "here", "agent": "claude", "configDir": config, "id": 2, "op": "agents.setup" })).unwrap();
+        let frame = serde_json::to_string(
+            &serde_json::json!({ "placeId": "here", "agent": "claude", "configDir": config, "id": 2, "op": "agents.setup" }),
+        )
+        .unwrap();
         assert_eq!(sent(&log), vec![frame], "the folder rides as it was given");
     }
 }
@@ -186,11 +196,20 @@ fn guest_rule_a_skills_sh_id_names_no_computer_and_is_refused_before_any_frame()
 #[test]
 fn skills_sh_id_has_exactly_three_parts() {
     // agents-help.ts:313: three parts, an empty middle included, is skills.sh; two, four and none ask the target.
-    for (skill, op) in [("o/r/s", "skills.get"), ("a//c", "skills.get"), ("///", "skills.preview"), ("o/r", "skills.preview"), ("a/b/c/d", "skills.preview"), ("review", "skills.preview"), ("", "skills.preview")] {
+    for (skill, op) in [
+        ("o/r/s", "skills.get"),
+        ("a//c", "skills.get"),
+        ("///", "skills.preview"),
+        ("o/r", "skills.preview"),
+        ("a/b/c/d", "skills.preview"),
+        ("review", "skills.preview"),
+        ("", "skills.preview"),
+    ] {
         let mut r = replies("skillShown", "here: skills.preview of the name, no project key");
         r.insert("skills.get".into(), replies("skillShown", "an id off skills.sh asks skills.get")["skills.get"].clone());
         let (c, log) = client(r);
-        block(s::skill_shown(&c, skill, None, None, &no_project(), "usage: wsp skills show <skill>", "wsp skills show", false)).expect("read");
+        block(s::skill_shown(&c, skill, None, None, &no_project(), "usage: wsp skills show <skill>", "wsp skills show", false))
+            .expect("read");
         let first = sent(&log).remove(0);
         assert!(first.ends_with(&format!("\"op\":\"{op}\"}}")), "{skill:?} asked {first}");
     }
@@ -210,7 +229,8 @@ fn shown_text_cuts_the_line_over_the_cap_only_and_rounds_the_size_up() {
 #[test]
 fn hostile_text_from_skills_sh_is_printed_without_control_characters() {
     // skills-sh.test.ts "what a skills verb prints of skills.sh's text: drops control characters and escape sequences, keeping newlines and tabs".
-    let hostile = "# pdf\n\tUse it.\x1b]52;c;cm0gLXJmIH4=\x07\x1b]0;title\x07\x1b]8;;https://evil.test\x1b\\click\x1b]8;;\x1b\\\r\u{9b}2J\0end";
+    let hostile =
+        "# pdf\n\tUse it.\x1b]52;c;cm0gLXJmIH4=\x07\x1b]0;title\x07\x1b]8;;https://evil.test\x1b\\click\x1b]8;;\x1b\\\r\u{9b}2J\0end";
     let text = s::shown_text(&preview(hostile, hostile.len() as u64));
     assert!(text.chars().all(|c| c == '\n' || c == '\t' || !has_control(&c.to_string())), "{text:?}");
     assert!(text.starts_with("# pdf\n\tUse it."));
@@ -233,7 +253,11 @@ fn folders_printed_by_added_and_removed_have_no_escapes_or_line_breaks() {
 
 #[test]
 fn search_skills_sh_sends_the_limit_only_when_given() {
-    for (limit, frame) in [(None, r#"{"q":"review code","id":2,"op":"skills.search"}"#), (Some(2), r#"{"q":"review code","limit":2,"id":2,"op":"skills.search"}"#), (Some(0), r#"{"q":"review code","limit":0,"id":2,"op":"skills.search"}"#)] {
+    for (limit, frame) in [
+        (None, r#"{"q":"review code","id":2,"op":"skills.search"}"#),
+        (Some(2), r#"{"q":"review code","limit":2,"id":2,"op":"skills.search"}"#),
+        (Some(0), r#"{"q":"review code","limit":0,"id":2,"op":"skills.search"}"#),
+    ] {
         let (c, log) = client(replies("searchSkillsSh", "hits with a limit, an extra key dropped"));
         let hits = block(s::search_skills_sh(&c, "review code", limit)).expect("hits");
         assert_eq!(hits.len(), 2);
@@ -245,13 +269,30 @@ fn search_skills_sh_sends_the_limit_only_when_given() {
 fn skill_added_sends_agents_only_when_there_is_one_and_project_only_when_asked() {
     let go = |agents: Option<Vec<String>>, project: ProjectAsked| {
         let (c, log) = client(replies("skillAdded", "alone, no agents key"));
-        block(s::skill_added(&c, "plain", None, None, agents.as_deref(), &project, "usage: wsp skills add <skill>", "wsp skills add", false)).expect("added");
+        block(s::skill_added(
+            &c,
+            "plain",
+            None,
+            None,
+            agents.as_deref(),
+            &project,
+            "usage: wsp skills add <skill>",
+            "wsp skills add",
+            false,
+        ))
+        .expect("added");
         sent(&log)
     };
     assert_eq!(go(None, no_project()), vec![r#"{"target":{"placeId":"here"},"skill":"plain","id":2,"op":"skills.add"}"#]);
     assert_eq!(go(Some(vec![]), no_project()), vec![r#"{"target":{"placeId":"here"},"skill":"plain","id":2,"op":"skills.add"}"#]);
-    assert_eq!(go(Some(strs(&["codex"])), no_project()), vec![r#"{"target":{"placeId":"here"},"skill":"plain","agents":["codex"],"id":2,"op":"skills.add"}"#]);
-    assert_eq!(go(None, ProjectAsked { project: true, name: None }), vec![r#"{"target":{"placeId":"here"},"skill":"plain","project":true,"id":2,"op":"skills.add"}"#]);
+    assert_eq!(
+        go(Some(strs(&["codex"])), no_project()),
+        vec![r#"{"target":{"placeId":"here"},"skill":"plain","agents":["codex"],"id":2,"op":"skills.add"}"#]
+    );
+    assert_eq!(
+        go(None, ProjectAsked { project: true, name: None }),
+        vec![r#"{"target":{"placeId":"here"},"skill":"plain","project":true,"id":2,"op":"skills.add"}"#]
+    );
 }
 
 #[test]
@@ -261,11 +302,32 @@ fn skill_changed_remove_reads_removed_and_toggle_reads_paths() {
         let mut r = IndexMap::new();
         r.insert(op.op().to_string(), both.to_string());
         let (c, log) = client(r);
-        let got = block(s::skill_changed(&c, op, "review", None, None, &no_project(), Some(false), "usage: wsp skills disable <skill>", "wsp skills disable", false)).expect("changed");
+        let got = block(s::skill_changed(
+            &c,
+            op,
+            "review",
+            None,
+            None,
+            &no_project(),
+            Some(false),
+            "usage: wsp skills disable <skill>",
+            "wsp skills disable",
+            false,
+        ))
+        .expect("changed");
         (got, sent(&log))
     };
-    assert_eq!(one(s::SkillChange::Remove), (strs(&["~/a"]), vec![r#"{"target":{"placeId":"here"},"name":"review","on":false,"id":2,"op":"skills.remove"}"#.to_string()]));
-    assert_eq!(one(s::SkillChange::Toggle), (strs(&["~/b", "~/c"]), vec![r#"{"target":{"placeId":"here"},"name":"review","on":false,"id":2,"op":"skills.toggle"}"#.to_string()]));
+    assert_eq!(
+        one(s::SkillChange::Remove),
+        (strs(&["~/a"]), vec![r#"{"target":{"placeId":"here"},"name":"review","on":false,"id":2,"op":"skills.remove"}"#.to_string()])
+    );
+    assert_eq!(
+        one(s::SkillChange::Toggle),
+        (
+            strs(&["~/b", "~/c"]),
+            vec![r#"{"target":{"placeId":"here"},"name":"review","on":false,"id":2,"op":"skills.toggle"}"#.to_string()]
+        )
+    );
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -336,7 +398,10 @@ fn agent_defaults_set_merges_the_picker_over_what_stands() {
             r#"{"patch":{"agentDefaults":{"claude":{"models":{"hide":["x 🧪","haiku"],"order":["opus","haiku"],"custom":["c0","custom-1"]}}}},"id":3,"op":"preferences.set"}"#.to_string()
         ]
     );
-    assert_eq!(serde_json::to_string(&got).unwrap(), r#"{"models":{"hide":["x 🧪","haiku"],"order":["opus","haiku"],"custom":["c0","custom-1"]}}"#);
+    assert_eq!(
+        serde_json::to_string(&got).unwrap(),
+        r#"{"models":{"hide":["x 🧪","haiku"],"order":["opus","haiku"],"custom":["c0","custom-1"]}}"#
+    );
 }
 
 #[test]
@@ -345,7 +410,10 @@ fn agent_defaults_set_with_nothing_standing_reads_once_and_sends_only_what_is_na
     block(s::agent_defaults_set(&c, "codex", &agent_ask(|a| a.hide = Some(strs(&["gpt"]))))).expect("set");
     assert_eq!(
         sent(&log),
-        vec![r#"{"id":2,"op":"preferences.get"}"#.to_string(), r#"{"patch":{"agentDefaults":{"codex":{"models":{"hide":["gpt"]}}}},"id":3,"op":"preferences.set"}"#.to_string()]
+        vec![
+            r#"{"id":2,"op":"preferences.get"}"#.to_string(),
+            r#"{"patch":{"agentDefaults":{"codex":{"models":{"hide":["gpt"]}}}},"id":3,"op":"preferences.set"}"#.to_string()
+        ]
     );
 }
 
@@ -357,7 +425,10 @@ fn agent_defaults_set_reset_models_is_null_and_reads_nothing() {
         a.hide = Some(strs(&["ignored"]));
     });
     block(s::agent_defaults_set(&c, "claude", &ask)).expect("set");
-    assert_eq!(sent(&log), vec![r#"{"patch":{"agentDefaults":{"claude":{"model":null,"models":null}}},"id":2,"op":"preferences.set"}"#.to_string()]);
+    assert_eq!(
+        sent(&log),
+        vec![r#"{"patch":{"agentDefaults":{"claude":{"model":null,"models":null}}},"id":2,"op":"preferences.set"}"#.to_string()]
+    );
 }
 
 #[test]
@@ -365,7 +436,11 @@ fn agent_defaults_set_each_reset_word_puts_its_field_back() {
     for word in s::AGENT_SET_RESETS {
         let (c, log) = client(replies("agentDefaultsSet", "put back"));
         block(s::agent_defaults_set(&c, "claude", &agent_ask(|a| a.reset = Some(strs(&[word]))))).expect("set");
-        assert_eq!(sent(&log), vec![format!(r#"{{"patch":{{"agentDefaults":{{"claude":{{"{word}":null}}}}}},"id":2,"op":"preferences.set"}}"#)], "{word}");
+        assert_eq!(
+            sent(&log),
+            vec![format!(r#"{{"patch":{{"agentDefaults":{{"claude":{{"{word}":null}}}}}},"id":2,"op":"preferences.set"}}"#)],
+            "{word}"
+        );
     }
 }
 
@@ -374,7 +449,10 @@ fn agent_defaults_set_access_words_go_to_the_host_as_wsp_words() {
     for word in ["ask", "auto-edit", "full", "plan"] {
         let (c, log) = client(replies("agentDefaultsSet", "model, effort and access"));
         block(s::agent_defaults_set(&c, "claude", &agent_ask(|a| a.access = Some(word.into())))).expect("set");
-        assert_eq!(sent(&log), vec![format!(r#"{{"patch":{{"agentDefaults":{{"claude":{{"access":"{word}"}}}}}},"id":2,"op":"preferences.set"}}"#)]);
+        assert_eq!(
+            sent(&log),
+            vec![format!(r#"{{"patch":{{"agentDefaults":{{"claude":{{"access":"{word}"}}}}}},"id":2,"op":"preferences.set"}}"#)]
+        );
     }
     let (c, log) = client(replies("agentDefaultsSet", "a word the agent has no mode for"));
     let e = block(s::agent_defaults_set(&c, "claude", &agent_ask(|a| a.access = Some("plan".into())))).unwrap_err();
@@ -395,7 +473,10 @@ fn agent_defaults_set_the_patch_keeps_model_effort_access_models_in_that_order()
         a.model = Some("m".into());
     });
     block(s::agent_defaults_set(&c, "claude", &ask)).expect("set");
-    assert_eq!(sent(&log)[1], r#"{"patch":{"agentDefaults":{"claude":{"model":"m","effort":"low","access":"full","models":{"hide":["h"]}}}},"id":3,"op":"preferences.set"}"#);
+    assert_eq!(
+        sent(&log)[1],
+        r#"{"patch":{"agentDefaults":{"claude":{"model":"m","effort":"low","access":"full","models":{"hide":["h"]}}}},"id":3,"op":"preferences.set"}"#
+    );
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -432,21 +513,30 @@ fn project_defaults_set_asks_resolve_then_set_then_defaults() {
 fn project_defaults_set_refuses_in_a_fixed_order_before_any_frame() {
     // Blank after-worktree, then a word that is no repo, then a reset word outside the list, then the access word, then nothing to set.
     let asks = [
-        (project_ask(|a| {
-            a.after_worktree = Some(" ".into());
-            a.trackers = Some(strs(&["lab"]));
-            a.reset = Some(strs(&["nope"]));
-            a.access = Some("bad".into());
-        }), s::AFTER_WORKTREE_BLANK_LINE),
-        (project_ask(|a| {
-            a.trackers = Some(strs(&["ok/ok", "lab"]));
-            a.reset = Some(strs(&["nope"]));
-            a.access = Some("bad".into());
-        }), "--tracker \"lab\" names no repo."),
-        (project_ask(|a| {
-            a.reset = Some(strs(&["nope"]));
-            a.access = Some("bad".into());
-        }), "--reset takes agent, model, effort, access, after-worktree, trackers, and got \"nope\"."),
+        (
+            project_ask(|a| {
+                a.after_worktree = Some(" ".into());
+                a.trackers = Some(strs(&["lab"]));
+                a.reset = Some(strs(&["nope"]));
+                a.access = Some("bad".into());
+            }),
+            s::AFTER_WORKTREE_BLANK_LINE,
+        ),
+        (
+            project_ask(|a| {
+                a.trackers = Some(strs(&["ok/ok", "lab"]));
+                a.reset = Some(strs(&["nope"]));
+                a.access = Some("bad".into());
+            }),
+            "--tracker \"lab\" names no repo.",
+        ),
+        (
+            project_ask(|a| {
+                a.reset = Some(strs(&["nope"]));
+                a.access = Some("bad".into());
+            }),
+            "--reset takes agent, model, effort, access, after-worktree, trackers, and got \"nope\".",
+        ),
         (project_ask(|a| a.access = Some("bad".into())), "--access takes ask, auto-edit, full or plan, and got bad."),
         (project_ask(|_| {}), s::PROJECT_SET_NOTHING_LINE),
     ];
@@ -471,7 +561,10 @@ fn project_defaults_set_a_blank_command_is_blank_after_trim_and_a_padded_one_is_
     }
     let (c, log) = client(replies("projectDefaultsSet", "an after-worktree command is sent untrimmed"));
     let got = block(s::project_defaults_set(&c, "wsp", &project_ask(|a| a.after_worktree = Some("  make setup  ".into())))).expect("set");
-    assert_eq!(sent(&log)[1], r#"{"patch":{"projectDefaults":{"proj-1":{"afterWorktree":"  make setup  "}}},"id":3,"op":"preferences.set"}"#);
+    assert_eq!(
+        sent(&log)[1],
+        r#"{"patch":{"projectDefaults":{"proj-1":{"afterWorktree":"  make setup  "}}},"id":3,"op":"preferences.set"}"#
+    );
     assert_eq!(got.after_worktree.as_deref(), Some("make setup"));
 }
 
@@ -481,7 +574,11 @@ fn project_defaults_set_each_reset_word_puts_its_field_back() {
         let key = if word == "after-worktree" { "afterWorktree" } else { word };
         let (c, log) = client(replies("projectDefaultsSet", "reset after-worktree alone"));
         block(s::project_defaults_set(&c, "wsp", &project_ask(|a| a.reset = Some(strs(&[word]))))).expect("set");
-        assert_eq!(sent(&log)[1], format!(r#"{{"patch":{{"projectDefaults":{{"proj-1":{{"{key}":null}}}}}},"id":3,"op":"preferences.set"}}"#), "{word}");
+        assert_eq!(
+            sent(&log)[1],
+            format!(r#"{{"patch":{{"projectDefaults":{{"proj-1":{{"{key}":null}}}}}},"id":3,"op":"preferences.set"}}"#),
+            "{word}"
+        );
     }
 }
 
@@ -497,7 +594,10 @@ fn project_defaults_set_the_patch_keeps_agent_model_effort_access_afterworktree_
         a.agent = Some("claude".into());
     });
     block(s::project_defaults_set(&c, "wsp", &ask)).expect("set");
-    assert_eq!(sent(&log)[1], r#"{"patch":{"projectDefaults":{"proj-1":{"agent":"claude","model":"m","effort":"e","access":"ask","afterWorktree":"make","trackers":["a/b"]}}},"id":3,"op":"preferences.set"}"#);
+    assert_eq!(
+        sent(&log)[1],
+        r#"{"patch":{"projectDefaults":{"proj-1":{"agent":"claude","model":"m","effort":"e","access":"ask","afterWorktree":"make","trackers":["a/b"]}}},"id":3,"op":"preferences.set"}"#
+    );
 }
 
 #[test]
@@ -506,7 +606,10 @@ fn project_defaults_set_trackers_keep_the_whole_list_and_a_word_naming_no_repo_i
     let (c, log) = client(replies("projectDefaultsSet", "trackers echo with the whole list"));
     let got = block(s::project_defaults_set(&c, "h-1", &project_ask(|a| a.trackers = Some(strs(&["acme/lab", "acme/map"]))))).expect("set");
     assert_eq!(got.trackers, Some(strs(&["acme/lab", "acme/map"])));
-    assert_eq!(sent(&log)[1], r#"{"patch":{"projectDefaults":{"proj-1":{"trackers":["acme/lab","acme/map"]}}},"id":3,"op":"preferences.set"}"#);
+    assert_eq!(
+        sent(&log)[1],
+        r#"{"patch":{"projectDefaults":{"proj-1":{"trackers":["acme/lab","acme/map"]}}},"id":3,"op":"preferences.set"}"#
+    );
     assert_eq!(s::trackers_line(&strs(&["acme/lab"])), "gh on a sub-thread's machine may also comment on: acme/lab");
     let (c, log) = client(replies("projectDefaultsSet", "reset trackers and after-worktree"));
     let got = block(s::project_defaults_set(&c, "h-1", &project_ask(|a| a.reset = Some(strs(&["trackers"]))))).expect("set");
@@ -574,25 +677,36 @@ fn agent_setup_set_env_is_the_values_then_the_unset_names_as_null() {
     values.insert("BAZ".to_string(), "q".to_string());
     let (c, log) = client(replies("agentSetupSet", "values and unset names, values first"));
     block(s::agent_setup_set(&c, "claude", &setup_ask(|a| a.unset_env = Some(strs(&["OLD", "OLD2"]))), &values, SETUP_USAGE)).expect("set");
-    assert_eq!(sent(&log), vec![r#"{"placeId":"here","agent":"claude","env":{"FOO":"bar","BAZ":"q","OLD":null,"OLD2":null},"id":2,"op":"agents.setup"}"#.to_string()]);
+    assert_eq!(
+        sent(&log),
+        vec![r#"{"placeId":"here","agent":"claude","env":{"FOO":"bar","BAZ":"q","OLD":null,"OLD2":null},"id":2,"op":"agents.setup"}"#
+            .to_string()]
+    );
     // A name given as a value and as an unset name keeps the value's place and is null.
     values.clear();
     values.insert("FOO".to_string(), "bar".to_string());
     values.insert("BAR".to_string(), "b".to_string());
     let (c, log) = client(replies("agentSetupSet", "values and unset names, values first"));
     block(s::agent_setup_set(&c, "claude", &setup_ask(|a| a.unset_env = Some(strs(&["FOO"]))), &values, SETUP_USAGE)).expect("set");
-    assert_eq!(sent(&log), vec![r#"{"placeId":"here","agent":"claude","env":{"FOO":null,"BAR":"b"},"id":2,"op":"agents.setup"}"#.to_string()]);
+    assert_eq!(
+        sent(&log),
+        vec![r#"{"placeId":"here","agent":"claude","env":{"FOO":null,"BAR":"b"},"id":2,"op":"agents.setup"}"#.to_string()]
+    );
 }
 
 #[test]
 fn agent_setup_set_looks_up_the_computer_before_its_own_refusals() {
-    for ask in [setup_ask(|a| a.on = Some("attic".into())), setup_ask(|a| {
-        a.on = Some("attic".into());
-        a.config = Some("rel".into());
-    }), setup_ask(|a| {
-        a.on = Some("attic".into());
-        a.unset_env = Some(strs(&["1x"]));
-    })] {
+    for ask in [
+        setup_ask(|a| a.on = Some("attic".into())),
+        setup_ask(|a| {
+            a.on = Some("attic".into());
+            a.config = Some("rel".into());
+        }),
+        setup_ask(|a| {
+            a.on = Some("attic".into());
+            a.unset_env = Some(strs(&["1x"]));
+        }),
+    ] {
         let (c, log) = client(replies("agentSetupSet", "nothing to change still looks the computer up first"));
         let e = block(s::agent_setup_set(&c, "claude", &ask, &IndexMap::new(), SETUP_USAGE)).unwrap_err();
         usage_refusal(&e);
@@ -600,10 +714,17 @@ fn agent_setup_set_looks_up_the_computer_before_its_own_refusals() {
     }
     // A reset word outside the list comes before the lookup, so nothing is sent.
     let (c, log) = client(replies("agentSetupSet", "nothing to change still looks the computer up first"));
-    let e = block(s::agent_setup_set(&c, "claude", &setup_ask(|a| {
-        a.on = Some("attic".into());
-        a.reset = Some(strs(&["nope"]));
-    }), &IndexMap::new(), SETUP_USAGE)).unwrap_err();
+    let e = block(s::agent_setup_set(
+        &c,
+        "claude",
+        &setup_ask(|a| {
+            a.on = Some("attic".into());
+            a.reset = Some(strs(&["nope"]));
+        }),
+        &IndexMap::new(),
+        SETUP_USAGE,
+    ))
+    .unwrap_err();
     assert_eq!(e.message, "--reset takes program, config, args, and got \"nope\". Name one of those for each --reset.");
     assert!(sent(&log).is_empty());
 }
@@ -614,12 +735,25 @@ fn agent_setup_set_without_a_computer_sends_the_here_place_and_with_one_its_id()
     block(s::agent_setup_set(&c, "claude", &setup_ask(|a| a.enabled = Some(true)), &IndexMap::new(), SETUP_USAGE)).expect("set");
     assert_eq!(sent(&log), vec![r#"{"placeId":"here","agent":"claude","on":true,"id":2,"op":"agents.setup"}"#.to_string()]);
     let (c, log) = client(replies("agentSetupSet", "on a computer"));
-    block(s::agent_setup_set(&c, "claude", &setup_ask(|a| {
-        a.on = Some("attic".into());
-        a.enabled = Some(true);
-        a.reset = Some(strs(&["program", "args"]));
-    }), &IndexMap::new(), SETUP_USAGE)).expect("set");
-    assert_eq!(sent(&log), vec![r#"{"id":2,"op":"places.list"}"#.to_string(), r#"{"placeId":"place-9","agent":"claude","on":true,"program":null,"args":null,"id":3,"op":"agents.setup"}"#.to_string()]);
+    block(s::agent_setup_set(
+        &c,
+        "claude",
+        &setup_ask(|a| {
+            a.on = Some("attic".into());
+            a.enabled = Some(true);
+            a.reset = Some(strs(&["program", "args"]));
+        }),
+        &IndexMap::new(),
+        SETUP_USAGE,
+    ))
+    .expect("set");
+    assert_eq!(
+        sent(&log),
+        vec![
+            r#"{"id":2,"op":"places.list"}"#.to_string(),
+            r#"{"placeId":"place-9","agent":"claude","on":true,"program":null,"args":null,"id":3,"op":"agents.setup"}"#.to_string()
+        ]
+    );
 }
 
 #[test]
@@ -636,8 +770,13 @@ fn agent_setup_set_each_reset_word_puts_its_field_back() {
 fn agent_setup_set_refuses_a_name_a_shell_would_not_read_before_any_frame() {
     for bad in ["1 BAD", "", "A-B", "a b"] {
         let (c, log) = client(IndexMap::new());
-        let e = block(s::agent_setup_set(&c, "claude", &setup_ask(|a| a.unset_env = Some(strs(&["OK", bad]))), &IndexMap::new(), SETUP_USAGE)).unwrap_err();
-        assert_eq!(e.message, format!("--unset-env takes a variable's name, and got {}. {}", serde_json::to_string(bad).unwrap(), s::ENV_NAME_FIX));
+        let e =
+            block(s::agent_setup_set(&c, "claude", &setup_ask(|a| a.unset_env = Some(strs(&["OK", bad]))), &IndexMap::new(), SETUP_USAGE))
+                .unwrap_err();
+        assert_eq!(
+            e.message,
+            format!("--unset-env takes a variable's name, and got {}. {}", serde_json::to_string(bad).unwrap(), s::ENV_NAME_FIX)
+        );
         assert!(sent(&log).is_empty());
     }
 }
@@ -648,20 +787,29 @@ fn agent_setup_set_refuses_a_name_a_shell_would_not_read_before_any_frame() {
 
 #[test]
 fn agent_setup_lines_ask_for_a_sign_in_only_where_the_config_folder_moved() {
-    let row = |setup: serde_json::Value| serde_json::from_value(serde_json::json!({ "id": "claude", "name": "my claude", "installed": true, "road": "wsp", "signIn": "signed-in", "signInRoad": "device", "wspTools": true, "setup": setup })).expect("a row");
+    let row = |setup: serde_json::Value| {
+        serde_json::from_value(serde_json::json!({ "id": "claude", "name": "my claude", "installed": true, "road": "wsp", "signIn": "signed-in", "signInRoad": "device", "wspTools": true, "setup": setup })).expect("a row")
+    };
     let with = row(serde_json::json!({ "on": true, "configDir": "/c", "envNames": [] }));
     let without = row(serde_json::json!({ "on": true, "envNames": [] }));
     assert_eq!(s::agent_setup_lines(&with, false), vec!["my claude is on there.", "config folder: /c"]);
     assert_eq!(s::agent_setup_lines(&without, true), vec!["my claude is on there."]);
     let moved = s::agent_setup_lines(&with, true);
     assert_eq!(moved.len(), 3);
-    assert!(moved[2].starts_with("my claude keeps its sign-in under its config folder") && moved[2].ends_with("before its next thread."), "{}", moved[2]);
+    assert!(
+        moved[2].starts_with("my claude keeps its sign-in under its config folder") && moved[2].ends_with("before its next thread."),
+        "{}",
+        moved[2]
+    );
 }
 
 #[test]
 fn every_reset_list_and_nothing_line_names_the_flags_the_verb_takes() {
     for (nothing, flags) in [
-        (s::AGENT_SET_NOTHING_LINE, vec!["--model", "--effort", "--access", "--hide", "--show", "--add-model", "--drop-model", "--order", "--reset"]),
+        (
+            s::AGENT_SET_NOTHING_LINE,
+            vec!["--model", "--effort", "--access", "--hide", "--show", "--add-model", "--drop-model", "--order", "--reset"],
+        ),
         (s::AGENT_SETUP_NOTHING_LINE, vec!["--enable", "--disable", "--program", "--config", "--arg", "--env", "--unset-env", "--reset"]),
         (s::PROJECT_SET_NOTHING_LINE, vec!["--agent", "--model", "--effort", "--access", "--after-worktree", "--tracker", "--reset"]),
     ] {

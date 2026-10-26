@@ -185,7 +185,12 @@ fn answer_keys_line__a_mode_with_a_label_already_lower() {
 
 #[test]
 fn answer_keys_line__a_mode_whose_label_starts_with_a_capital_outside_the_first_p() {
-    holds("turns_stream", "answerKeysLine", "a mode whose label starts with a capital outside the first plane: JS lowers one UTF-16 unit", d::answer_keys_line);
+    holds(
+        "turns_stream",
+        "answerKeysLine",
+        "a mode whose label starts with a capital outside the first plane: JS lowers one UTF-16 unit",
+        d::answer_keys_line,
+    );
 }
 
 #[test]

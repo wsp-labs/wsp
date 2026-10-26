@@ -82,7 +82,10 @@ fn invariant_7_the_cloud_setting_moves_no_word_of_ws_reads() {
     for on in twins {
         let name = on["case"].as_str().unwrap();
         let base = name.strip_suffix(" (cloud)").expect("a cloud twin is named by its twin");
-        let off = all.iter().find(|c| c["fn"] == on["fn"] && c["case"] == base && c["cloud"] != json!(true)).unwrap_or_else(|| panic!("no twin of {name}"));
+        let off = all
+            .iter()
+            .find(|c| c["fn"] == on["fn"] && c["case"] == base && c["cloud"] != json!(true))
+            .unwrap_or_else(|| panic!("no twin of {name}"));
         for key in ["frames", "said", "stdout", "stderr", "streamed", "value", "error", "hung"] {
             assert_eq!(on[key], off[key], "{} / {name}: {key} moves with the cloud setting", on["fn"]);
         }
@@ -149,7 +152,9 @@ fn woke_line_is_read_off_the_listing_not_the_phase_it_wrote() {
 /// The refusal sentences of `rebuild` are plain errors (no kind stamped): the exit class is the provider's.
 #[test]
 fn rebuild_refusals_carry_no_kind() {
-    for name in ["running and reachable, refused", "unreachable is not gone, refused", "a released workspace", "napping on a memory pause, refused"] {
+    for name in
+        ["running and reachable, refused", "unreachable is not gone, refused", "a released workspace", "napping on a memory pause, refused"]
+    {
         run("rebuild", name);
     }
 }
@@ -265,8 +270,25 @@ async fn pipe_bytes_fails_where_nothing_listens() {
 fn the_recording_holds_every_helper_of_the_unit() {
     let all = cases(UNIT);
     for func in [
-        "workspaces", "workspaceStatuses", "threads", "threadOf", "threadsOf", "workspaceOf", "threadRows", "stateLine", "rebuiltLine", "wokeLine", "nap", "resize", "rebuild", "imageView", "imageLines", "buildImageAt",
-        "const_host_side_vault", "const_ssh_pipes_here_line", "sshWorkspaceOf",
+        "workspaces",
+        "workspaceStatuses",
+        "threads",
+        "threadOf",
+        "threadsOf",
+        "workspaceOf",
+        "threadRows",
+        "stateLine",
+        "rebuiltLine",
+        "wokeLine",
+        "nap",
+        "resize",
+        "rebuild",
+        "imageView",
+        "imageLines",
+        "buildImageAt",
+        "const_host_side_vault",
+        "const_ssh_pipes_here_line",
+        "sshWorkspaceOf",
     ] {
         assert!(all.iter().any(|c| c.func == func), "no recorded case of {func}");
     }

@@ -10,7 +10,8 @@ use wsp_words::exit::HostError;
 use super::common::Env;
 
 fn typed<T: DeserializeOwned>(env: &Env, name: &str) -> T {
-    serde_json::from_value(env.arg(name).unwrap_or_else(|| panic!("the case names no {name}")).clone()).unwrap_or_else(|e| panic!("the recorded {name} reads: {e}"))
+    serde_json::from_value(env.arg(name).unwrap_or_else(|| panic!("the case names no {name}")).clone())
+        .unwrap_or_else(|e| panic!("the recorded {name} reads: {e}"))
 }
 
 fn said<T: serde::Serialize>(value: T) -> Result<Value, HostError> {

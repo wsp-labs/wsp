@@ -640,7 +640,12 @@ fn checked_start__a_workspace_and_a_named_agent_its_model_not_the_default_s() {
 
 #[test]
 fn checked_start__an_agent_off_on_the_workspace_s_computer_is_the_start_s_to_r() {
-    holds("turns_picks", "checkedStart", "an agent off on the workspace's computer is the start's to refuse when the host runs it", d::checked_start);
+    holds(
+        "turns_picks",
+        "checkedStart",
+        "an agent off on the workspace's computer is the start's to refuse when the host runs it",
+        d::checked_start,
+    );
 }
 
 #[test]
@@ -650,7 +655,12 @@ fn checked_start__an_agent_no_list_names_with_the_host_s_list_read_again() {
 
 #[test]
 fn checked_start__an_agent_named_only_by_the_workspace_s_lists_is_no_adapter_w() {
-    holds("turns_picks", "checkedStart", "an agent named only by the workspace's lists is no adapter when the host lacks it", d::checked_start);
+    holds(
+        "turns_picks",
+        "checkedStart",
+        "an agent named only by the workspace's lists is no adapter when the host lacks it",
+        d::checked_start,
+    );
 }
 
 #[test]
@@ -730,7 +740,12 @@ fn checked_start__a_project_s_fork_with_nothing_to_pick() {
 
 #[test]
 fn checked_start__a_project_s_fork_and_a_workspace_both_the_lists_of_the_works() {
-    holds("turns_picks", "checkedStart", "a project's fork and a workspace both: the lists of the workspace, the defaults of the project", d::checked_start);
+    holds(
+        "turns_picks",
+        "checkedStart",
+        "a project's fork and a workspace both: the lists of the workspace, the defaults of the project",
+        d::checked_start,
+    );
 }
 
 #[test]
@@ -765,7 +780,12 @@ fn project_defaults_of__the_order_of_the_projects_is_the_host_s() {
 
 #[test]
 fn project_defaults_of__every_field_written_in_the_host_s_own_order_comes_out_in_the() {
-    holds("turns_picks", "projectDefaultsOf", "every field, written in the host's own order, comes out in the schema's", d::project_defaults_of);
+    holds(
+        "turns_picks",
+        "projectDefaultsOf",
+        "every field, written in the host's own order, comes out in the schema's",
+        d::project_defaults_of,
+    );
 }
 
 #[test]
