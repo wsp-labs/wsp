@@ -711,24 +711,39 @@ fn cwd_of(line: &str) -> Option<String> {
     }
 }
 
+/// A folder's entries read whole, each as its name and what `file_type` said: a `DirEntry` keeps the folder open while it lives.
+/// A link that loops ends the walk down it (ELOOP) quietly, as node's recursive `readdirSync` does at its 41st level.
+type Listed = (std::ffi::OsString, std::io::Result<std::fs::FileType>);
+
 fn walk_files(dir: &str, ext: &str, out: &mut Vec<String>) -> Result<()> {
-    let mut open = vec![(dir.to_string(), dir_entries(dir)?.into_iter())];
+    let mut open = vec![(dir.to_string(), listed(dir)?.into_iter())];
     while let Some((here, entries)) = open.last_mut() {
-        let Some(entry) = entries.next() else {
+        let Some((file_name, kind)) = entries.next() else {
             open.pop();
             continue;
         };
-        let name = entry.file_name().to_string_lossy().into_owned();
+        let name = file_name.to_string_lossy().into_owned();
         let path = join_posix(&[here, &name]);
-        let kind = entry.file_type().map_err(|e| node_io(&e, "scandir", here))?;
+        let kind = kind.map_err(|e| node_io(&e, "scandir", here))?;
         if kind.is_dir() || (kind.is_symlink() && fs::metadata(&path).is_ok_and(|m| m.is_dir())) {
-            let inside = dir_entries(&path)?.into_iter();
-            open.push((path, inside));
+            let inside = match listed(&path) {
+                Err(EngineError::Other { code: Some(code), .. }) if code == "ELOOP" => Vec::new(),
+                listed => listed?,
+            };
+            open.push((path, inside.into_iter()));
         } else if kind.is_file() && name.ends_with(ext) {
             out.push(path);
         }
     }
     Ok(())
+}
+
+fn listed(dir: &str) -> Result<Vec<Listed>> {
+    let entries = fs::read_dir(dir).map_err(|e| node_io(&e, "scandir", dir))?;
+    entries
+        .map(|e| e.map(|entry| (entry.file_name(), entry.file_type())))
+        .collect::<std::io::Result<Vec<_>>>()
+        .map_err(|e| node_io(&e, "scandir", dir))
 }
 
 fn dir_entries(dir: &str) -> Result<Vec<DirEntry>> {
