@@ -201,6 +201,58 @@ pub(crate) fn write_value(value: &Value, pretty: bool, canonical: bool, out: &mu
     }
 }
 
+/// A container `map_strings` has open: its members still to read, and what it has built of itself.
+enum Built<'a> {
+    Array(std::iter::Enumerate<std::slice::Iter<'a, Value>>, Vec<Value>, bool),
+    Object(serde_json::map::Iter<'a>, Map<String, Value>, Option<&'a String>),
+}
+
+/// The value with every string `f` gives back, each told whether it is a program: `command` and the first word of a
+/// command array are (mcp.ts:749). The open containers stand on a stack, so no depth of value overflows a thread's.
+pub(crate) fn map_strings(v: &Value, command: bool, f: &mut dyn FnMut(&str, bool) -> String) -> Value {
+    let mut stack: Vec<Built> = Vec::new();
+    let mut entering = Some((v, command));
+    loop {
+        let mut done = None;
+        if let Some((v, command)) = entering.take() {
+            match v {
+                Value::String(s) => done = Some(Value::String(f(s, command))),
+                Value::Array(items) => stack.push(Built::Array(items.iter().enumerate(), Vec::with_capacity(items.len()), command)),
+                Value::Object(map) => stack.push(Built::Object(map.iter(), Map::new(), None)),
+                other => done = Some(other.clone()),
+            }
+        } else {
+            let next = match stack.last_mut() {
+                Some(Built::Array(items, _, command)) => items.next().map(|(i, x)| (x, *command && i == 0)),
+                Some(Built::Object(members, _, key)) => members.next().map(|(k, x)| {
+                    *key = Some(k);
+                    (x, k == "command")
+                }),
+                None => return Value::Null,
+            };
+            match next {
+                Some(member) => entering = Some(member),
+                None => {
+                    done = Some(match stack.pop() {
+                        Some(Built::Array(_, items, _)) => Value::Array(items),
+                        Some(Built::Object(_, members, _)) => Value::Object(members),
+                        None => return Value::Null,
+                    })
+                }
+            }
+        }
+        if let Some(value) = done {
+            match stack.last_mut() {
+                None => return value,
+                Some(Built::Array(_, items, _)) => items.push(value),
+                Some(Built::Object(_, members, key)) => {
+                    members.insert(key.take().expect("a member is being read").clone(), value);
+                }
+            }
+        }
+    }
+}
+
 fn newline(pretty: bool, depth: usize, out: &mut String) {
     if pretty {
         out.push('\n');

@@ -11,7 +11,7 @@ use serde_json::{Map, Value};
 use crate::config_write::store_base;
 use crate::json_edit::{edit_json, JsonEdit};
 use crate::json_parse::parse_json;
-use crate::jsonc::{js_stringify_pretty, json_object, read_jsonc};
+use crate::jsonc::{js_stringify_pretty, json_object, map_strings, read_jsonc};
 use crate::jsonc_tree::PathSeg;
 use crate::mcp::{McpFormat, McpServer, McpServerScope};
 use crate::mcp_codex::codex_trusts;
@@ -127,44 +127,27 @@ pub fn claude_launch_servers(configs: &LaunchConfigs, values: &IndexMap<String, 
 /// Each `${NAME}` and `${NAME:-default}` of a name `values` holds written as its value, the default with it; whether any
 /// was. Every other reference stays, for the agent to read from its own environment (mcp-launch.ts:43).
 fn filled(v: &Value, values: &IndexMap<String, String>) -> (Value, bool) {
-    match v {
-        Value::String(s) => {
-            let mut any = false;
-            let mut out = String::new();
-            let mut last = 0;
-            for caps in ref_re(McpFormat::McpServersJson).captures_iter(s) {
-                let whole = caps.get(0).expect("group 0 always matches");
-                let name = caps.get(1).map_or("", |m| m.as_str());
-                out.push_str(&s[last..whole.start()]);
-                last = whole.end();
-                match values.get(name) {
-                    Some(got) => {
-                        any = true;
-                        out.push_str(got);
-                    }
-                    None => out.push_str(whole.as_str()),
+    let mut any = false;
+    let value = map_strings(v, false, &mut |s, _| {
+        let mut out = String::new();
+        let mut last = 0;
+        for caps in ref_re(McpFormat::McpServersJson).captures_iter(s) {
+            let whole = caps.get(0).expect("group 0 always matches");
+            let name = caps.get(1).map_or("", |m| m.as_str());
+            out.push_str(&s[last..whole.start()]);
+            last = whole.end();
+            match values.get(name) {
+                Some(got) => {
+                    any = true;
+                    out.push_str(got);
                 }
+                None => out.push_str(whole.as_str()),
             }
-            out.push_str(&s[last..]);
-            (Value::String(out), any)
         }
-        Value::Array(items) => {
-            let each: Vec<(Value, bool)> = items.iter().map(|x| filled(x, values)).collect();
-            let any = each.iter().any(|(_, a)| *a);
-            (Value::Array(each.into_iter().map(|(x, _)| x).collect()), any)
-        }
-        Value::Object(map) => {
-            let mut any = false;
-            let mut out = Map::new();
-            for (k, x) in map {
-                let (value, a) = filled(x, values);
-                any |= a;
-                out.insert(k.clone(), value);
-            }
-            (Value::Object(out), any)
-        }
-        other => (other.clone(), false),
-    }
+        out.push_str(&s[last..]);
+        out
+    });
+    (value, any)
 }
 
 /// The ones of `keys` a TOML config sets no top-level value of, read by a TOML parser; none where the text does not
