@@ -53,7 +53,7 @@ const ALLOWED: readonly Allowed[] = [
     why: "composer picks (stamped per thread through pickedOn), the context meter (rewritten on a switch), and browser tabs and guests (the pane that shows them is the thread's)",
   },
   { text: "current[workspaceId]", count: 1, why: "the last machine line said for a workspace's machine" },
-  { text: "drafts[workspaceId]", count: 5, why: "a fork's draft, one for the folder's new thread page the fork opens, a project home's draft under its home key, and the first cloud thread's ask on the new thread page Add a cloud provider opens" },
+  { text: "drafts[workspaceId]", count: 4, why: "a fork's draft, one for the folder's new thread page the fork opens, a project home's draft under its home key, and the first cloud thread's ask on the new thread page Add a cloud provider opens" },
   { text: "kept[workspaceId]", count: 1, why: "reads the right pane an earlier build kept per workspace, once, onto the thread open last" },
   { text: "launches[workspaceId]", count: 1, why: "sends in flight before their thread exists, each held by its own request id" },
   { text: "memory[workspaceId]", count: 1, why: "the machine's memory reading" },

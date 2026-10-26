@@ -103,16 +103,11 @@ export interface SharedFlags {
   yes?: boolean;
   force?: boolean;
   forget?: boolean;
-  "non-interactive"?: boolean;
   json?: boolean;
   recipe?: string;
   project?: string;
-  "first-workspace"?: string;
-  import?: string;
   on?: string;
   into?: string;
-  rebuild?: boolean;
-  "no-local"?: boolean;
   local?: boolean;
   service?: boolean;
   code?: string;
@@ -140,7 +135,7 @@ export interface SharedFlags {
 
 export type Options = NonNullable<ParseArgsConfig["options"]>;
 
-/** The flags the shared parse reads for up, init and doctor. The ones that shape a serving host come from the table
+/** The flags the shared parse reads for up and doctor. The ones that shape a serving host come from the table
  * the service's unit is written out of, so neither road can read a flag the other has never heard of. */
 export const SHARED_OPTIONS: Options = {
   version: { type: "boolean", short: "v" },
@@ -149,16 +144,11 @@ export const SHARED_OPTIONS: Options = {
   yes: { type: "boolean", short: "y" },
   force: { type: "boolean" },
   forget: { type: "boolean" },
-  "non-interactive": { type: "boolean" },
   json: { type: "boolean" },
   recipe: { type: "string" },
   project: { type: "string" },
-  "first-workspace": { type: "string" },
-  import: { type: "string" },
   on: { type: "string" },
   into: { type: "string" },
-  rebuild: { type: "boolean" },
-  "no-local": { type: "boolean" },
   local: { type: "boolean" },
   service: { type: "boolean" },
   code: { type: "string" },

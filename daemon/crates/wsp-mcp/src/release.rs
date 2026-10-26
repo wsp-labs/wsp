@@ -60,7 +60,6 @@ pub fn refusal(theirs: &str, road: Option<&str>, host: &ReleaseHost, rule: Relea
         match road {
             Some("app") => fill(&words.reopen_app, &[("mine", &mine)]),
             Some("up") => words.restart_up.clone(),
-            Some("init") => words.init_finish.clone(),
             _ => words.restart.clone(),
         }
     };
@@ -163,7 +162,6 @@ mod tests {
         assert_eq!(fix(Some("service"), &here), format!("{said} {}", words.restart));
         assert_eq!(fix(Some("verb"), &here), format!("{said} {}", words.restart));
         assert_eq!(fix(Some("up"), &here), format!("{said} {}", words.restart_up));
-        assert_eq!(fix(Some("init"), &here), format!("{said} {}", words.init_finish));
         assert_eq!(fix(Some("app"), &here), format!("{said} {}", fill(&words.reopen_app, &[("mine", &mine)])));
         let pair = ReleaseHost::At { at: "http://127.0.0.1:4000".into(), here: true };
         assert!(fix(Some("service"), &pair).ends_with(&words.restart));

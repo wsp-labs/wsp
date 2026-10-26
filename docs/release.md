@@ -20,9 +20,9 @@ checkout of `main` on a computer with the Solari key in `.env`.
    and commits nothing, naming each file it touched on its own output.
    Between the build and the publish it runs `pnpm --filter @wsp-labs/wsp smoke`,
    which installs the tarball into an empty folder on a clean environment and
-   runs `wsp --version`, `wsp recipe --out` and `wsp mcp install --agent
-   claude` under a throwaway `HOME`, so nothing reaches npm that has not been
-   installed and run. `--pack-only` stops after the tarball. Once it is
+   runs `wsp --version` and `wsp mcp install --agent claude` under a
+   throwaway `HOME`, so nothing reaches npm that has not been installed and
+   run. `--pack-only` stops after the tarball. Once it is
    published, do the same from outside: `npm i -g @wsp-labs/wsp@<version>` in an empty
    folder on a shell with no `wsp` installed.
 5. **Commit the version.** The renumbered manifests are still only in the

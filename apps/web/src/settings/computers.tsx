@@ -32,7 +32,7 @@ import { DialButton, useDialPlace } from "./AbsentRoad.js";
 import { SetupList } from "./add/AddComputerDialog.js";
 import { rowsLeft, setupRows, setupStanding } from "./add/setup.js";
 import { STEP_TITLES, openAdd, openPending, reachedSteps } from "./add/addFlow.js";
-import { openCloudAdd, settingUpCloud } from "./add/cloudFlow.js";
+import { openCloudAdd } from "./add/cloudFlow.js";
 import { ComputerSignIns } from "./ComputerSignIns.js";
 import { readRecipes, useRecipes } from "./recipesStore.js";
 import { ComputerGlyph, useComputerIcon } from "./ComputerGlyph.js";
@@ -44,7 +44,6 @@ import { IMAGE_WORDS, builtWhen, copyOn } from "./image.js";
 import { LimitBand, limitNote } from "./LimitBand.js";
 import { ImageCard, useImageStanding } from "./ImageCard.js";
 import { LiveBand } from "./LiveBand.js";
-import { openImageRecipe } from "./openAt.js";
 import { NOTHING_HELD, absenceOf, absentOf, hereName, isProviderPlace, placeIsOffline, placeName, placeOf, placeStateCell, versionFact, type PlaceHolding, type PlaceStateCell } from "./places.js";
 import { cloudsOffered, keyHeld } from "./providers.js";
 import { RemoveComputerDialog } from "./RemoveComputerDialog.js";
@@ -256,30 +255,21 @@ export function ComputerListRow({ place, running, cell, open, ctx }: { place: Pl
 }
 
 /** One cloud on the list: its name, its image and when it was sealed, the one fact of how many machines run there,
- * and its state; its plan and starts stand on its own page. While its setup stands, the state is the setup's (working,
- * or failed) and the row opens that setup. */
+ * and its state; its plan and starts stand on its own page. */
 function CloudListRow({ place, machines, cell, open, ctx }: { place: PlaceView; machines: number; cell: PlaceStateCell; open: () => void; ctx: SettingsContext }) {
   const menu = useRowMenu(place, ctx);
-  const setup = useStore(s => (settingUpCloud(s.initJob, place.id) ? s.initJob!.phase : null));
-  const opens = setup === null ? open : () => openCloudAdd(place.id);
   // Until the host's read lands the row says it is reading, or nothing where none is out, never "No image yet".
   const { imageReading } = ctx.reads;
   const image = ctx.reads.imageStale ? null : ctx.reads.image;
   const copy = image === null ? undefined : copyOn(image.copies, place);
   const note = image === null ? (imageReading ? IMAGE_WORDS.state.reading : undefined) : copy === undefined ? WHERE_WORDS.noImageYet : WHERE_WORDS.imageSealed(copy.version, builtWhen(copy.builtAt, ctx.now));
   return (
-    <GridRow columns={LIST_COLUMNS} open={opens} onContextMenu={menu} {...(cell.why === undefined ? {} : { title: cell.why })} attrs={{ "data-place-row": place.id }}>
+    <GridRow columns={LIST_COLUMNS} open={open} onContextMenu={menu} {...(cell.why === undefined ? {} : { title: cell.why })} attrs={{ "data-place-row": place.id }}>
       <GridName glyph={placeGlyph(place)} name={placeName(place)} {...(note === undefined ? {} : { note })} />
       <span data-k="machines" className={cn(FACT, "col-span-3 text-right tabular-nums max-md:col-span-1")}>
         {WHERE_WORDS.running(machines)}
       </span>
-      {setup === null ? (
-        <PlaceState place={place} cell={cell} onSignIn={open} />
-      ) : (
-        <StateCell why={setup === "failed" ? SETUP_WORDS.failed : SETUP_WORDS.settingUp}>
-          <StateMark state={setup === "failed" ? "failed" : "working"} why={setup === "failed" ? SETUP_WORDS.failed : SETUP_WORDS.settingUp} />
-        </StateCell>
-      )}
+      <PlaceState place={place} cell={cell} onSignIn={open} />
       <Chevron />
     </GridRow>
   );
@@ -663,7 +653,7 @@ export function ComputerPage({ place, ctx }: { place: PlaceView; ctx: SettingsCo
       {activityComputers(ctx.places, ctx.workspaces).some(c => c.place.id === place.id) ? <ActivityLink place={place} ctx={ctx} /> : null}
       <LimitsCard place={place} />
       {cloud ? null : <SpawnCard place={place} />}
-      {cloud ? image === null ? null : <ReportLists report={imageAgentsReport(image, place.id)} ctx={{ where: "provider", on: name, editImage: () => openImageRecipe(place.id) }} /> : <AgentsLink place={place} ctx={ctx} />}
+      {cloud ? image === null ? null : <ReportLists report={imageAgentsReport(image, place.id)} ctx={{ where: "provider", on: name }} /> : <AgentsLink place={place} ctx={ctx} />}
       {standing === undefined || !held ? null : <ImageCard place={place} name={standing.name} state={standing.state} view={standing.view} ctx={ctx} row />}
       <NameCard place={place} />
       {here ? null : <RemoveLine place={place} ctx={ctx} onRemoved={onRemoved} />}

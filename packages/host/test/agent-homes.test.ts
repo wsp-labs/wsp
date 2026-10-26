@@ -59,7 +59,7 @@ describe("the bundle and the landing on a host", () => {
     await rt.agents.setup(HERE_PLACE_ID, "claude", { configDir: kept });
     const roads = workspaceRoads(rt);
 
-    const plan = await roads.planProject(source);
+    const plan = await roads.bundlerFor(source).plan();
     expect(plan.agents.find(a => a.agent === "claude")).toMatchObject({ sessions: 1 });
     const packed = await roads.bundlerFor(source).packState({ dest: "/root/work/proj", agents: [{ agent: "claude", home: "/root/.claude", present: true }] });
     const memory = tarRead(["-tzf", "-"], packed.tar).toString().split("\n").find(l => l.endsWith("memory/MEMORY.md"));
@@ -101,7 +101,7 @@ describe("the bundle and the landing on a host", () => {
     symlinkSync(outside, join(user, "real"));
     const words = `Claude Code does not start with its config folder ${kept}: Claude Code's config folder has to be under the home folder ${user}, and ${kept} is not. Set another with wsp agents setup claude --config, or put its own back with --reset config.`;
     const roads = workspaceRoads(rt);
-    await expect(roads.planProject(source)).rejects.toMatchObject({ kind: "usage", message: words });
+    await expect(roads.bundlerFor(source).plan()).rejects.toMatchObject({ kind: "usage", message: words });
     const archive = join(outside, "archive.tgz");
     writeFileSync(archive, tarOf([{ path: "./src/index.ts", mode: 0o644, content: "export const a = 2;\n" }]));
     await expect(roads.lander.land({ source: "/root/work/proj", dest: join(user, "back"), replace: false, archive, state: { archive, homes: guestAgentHomes() } })).rejects.toMatchObject({ kind: "usage", message: words });
@@ -128,7 +128,7 @@ describe("the bundle and the landing on a host", () => {
   it("take the agent's own folder where none is kept", async () => {
     const { user, source, rt } = setUp();
     put(join(user, ".claude"), `projects/${claudeKey(source)}/S1.jsonl`, session("S1", source));
-    const plan = await workspaceRoads(rt).planProject(source);
+    const plan = await workspaceRoads(rt).bundlerFor(source).plan();
     expect(plan.agents.find(a => a.agent === "claude")).toMatchObject({ sessions: 1 });
   });
 });

@@ -103,7 +103,6 @@ const ALLOWED: readonly Allowed[] = [
   { text: "<h2 id={`gallery-${id}`} className=\"text-muted-foreground mb-3 font-mono", count: 1, why: BEFORE("GROUP_LABEL") },
   { text: "<h3 className=\"font-medium text-foreground text-sm\">", count: 1, why: BEFORE("SECTION_HEAD") },
   { text: "<h3 className=\"text-[13px] text-muted-foreground\">", count: 1, why: BEFORE("SECTION_HEAD") },
-  { text: "<h3 data-k={`${root}-title`} className=\"text-sm leading-5 font-medium", count: 1, why: BEFORE("SECTION_HEAD") },
   { text: "absolute size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-current", count: 2, why: BEFORE("StateMark") },
   { text: "absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-current ring-2", count: 1, why: BEFORE("StateMark") },
   { text: "bg-card min-w-0 rounded-lg border p-4", count: 1, why: BEFORE("Card") },
@@ -114,7 +113,7 @@ const ALLOWED: readonly Allowed[] = [
   { text: "const GLYPH", count: 2, why: BEFORE("GLYPH") },
   { text: "const NOTE", count: 2, why: BEFORE("NOTE") },
   { text: "const QUIET", count: 2, why: BEFORE("NOTE") },
-  { text: "const ROW", count: 5, why: BEFORE("Row") },
+  { text: "const ROW", count: 4, why: BEFORE("Row") },
   { text: "flex cursor-pointer flex-col justify-center gap-3 py-3 sm:grid", count: 1, why: BEFORE("a column set in grid.tsx") },
   { text: "flex h-14 max-w-48 items-center gap-2 rounded-lg border border-border/60", count: 1, why: BEFORE("Card") },
   { text: "grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-3 gap-y-3", count: 1, why: BEFORE("a column set in grid.tsx") },
@@ -133,7 +132,6 @@ const ALLOWED: readonly Allowed[] = [
   { text: "relative flex flex-col gap-0.5 overflow-hidden rounded-[5px] border", count: 1, why: BEFORE("Card") },
   { text: "rounded-xl border border-border/80 bg-card/70 p-4 sm:p-5", count: 1, why: BEFORE("Card") },
   { text: "size-1.5 flex-none rounded-full bg-current", count: 1, why: BEFORE("StateMark") },
-  { text: "size-2 rounded-full bg-foreground", count: 2, why: BEFORE("StateMark") },
 ];
 
 function cut(text: string): string {

@@ -52,7 +52,6 @@ import {
   PortReachView,
   ProjectExportEvent,
   ProjectExportResult,
-  ProjectGolden,
   ProjectImportResult,
   ProjectPlan,
   RUNTIME_OPS,
@@ -104,7 +103,7 @@ import {
 
 import * as wire from "../src/index.js";
 
-import { COPY_CURRENT, COPY_STALE, NETWORK_LOST_LINE, SealedImage as SealedImageSchema, ToolPin, agentOfRow, buildsImages, copyBuildOf, copyBuildingLine, copyIsCurrent, copyStanding, copyStoppedLine, placeWorkspacesParts, recipePins, sealedBuiltLine, sealedCopyLine, type PlaceView, type SealedImage, type SealedImageCopy } from "../src/index.js";
+import { COPY_CURRENT, COPY_STALE, ToolPin, agentOfRow, buildsImages, copyBuildOf, copyBuildingLine, copyIsCurrent, copyStanding, copyStoppedLine, placeWorkspacesParts, sealedBuiltLine, sealedCopyLine, type PlaceView, type SealedImage, type SealedImageCopy } from "../src/index.js";
 
 describe("a copy of the image beside the record", () => {
   const image: SealedImage = { name: "default", version: 2, hash: "a".repeat(64), recipeHash: "rh", logins: [], sealedAt: "t", sealedFrom: "h1" };
@@ -118,20 +117,7 @@ describe("a copy of the image beside the record", () => {
     expect(copyIsCurrent(image, copy({ version: 2 }))).toBe(false);
   });
 
-  it("keeps the pins beside the recipe, one per tick that recorded one in id order with its road, and parses without them as a record sealed before they were read", () => {
-    const pins = recipePins({
-      ticks: [{ id: "tools/npm/wrangler", version: "4.1.0", road: "npm", installer: "i", pin: { tag: "4.1.0" } }, { id: "agents/codex" }, { id: "tools/catalog/gh", road: "release", installer: "k", pin: { tag: "v2.86.0", sha256: "b".repeat(64) } }, { id: "tools/catalog/tmux", road: "apt", installer: "j", pin: { tag: "3.3a-3", latest: true } }],
-    });
-    expect(pins).toEqual([
-      { id: "tools/catalog/gh", tag: "v2.86.0", sha256: "b".repeat(64), road: "release" },
-      { id: "tools/catalog/tmux", tag: "3.3a-3", latest: true, road: "apt" },
-      { id: "tools/npm/wrangler", tag: "4.1.0", road: "npm" },
-    ]);
-    expect(SealedImageSchema.parse({ ...image, pins }).pins).toEqual(pins);
-    expect(SealedImageSchema.parse(image).pins).toBeUndefined();
-    // A caller's key names the row across computers; the pins sort by that key, so two rows for one tool cannot hide behind their order.
-    const keyed = recipePins({ ticks: [{ id: "tools/npm/wrangler", pin: { tag: "4.1.0" } }, { id: "tools/catalog/gh", pin: { tag: "v2.86.0" } }] }, id => id.slice(id.lastIndexOf("/") + 1));
-    expect(keyed.map(p => p.id)).toEqual(["gh", "wrangler"]);
+  it("names the agent an agents row stands for", () => {
     // The one rule for the agents rung: the agent an agents row names, nothing for an MCP server's row or another rung.
     expect(agentOfRow({ id: "agents/codex" })).toBe("codex");
     expect(agentOfRow({ id: "agents/mcp/claude/wsp" })).toBeUndefined();
@@ -165,7 +151,7 @@ describe("a copy of the image beside the record", () => {
     expect(copyBuildingLine("uploading-files")).toBe("copying your image: copying your files");
     expect(copyStoppedLine("no room today")).toBe("the build stopped: no room today");
     expect(copyStoppedLine()).toBe("the build stopped");
-    expect(copyStoppedLine("fetch failed")).toBe(`the build stopped: ${NETWORK_LOST_LINE}`);
+    expect(copyStoppedLine("fetch failed")).toBe("the build stopped: This computer lost its network");
     const box: PlaceView = { id: "p_1", kind: "computer", name: "box", default: false, takesForks: true, build: copyBuildingLine("creating") };
     expect(placeWorkspacesParts(box, 2)).toEqual({ count: "2", note: copyBuildingLine("creating") });
     const provider: PlaceView = { id: "solari", kind: "provider", name: "solari", default: false, takesForks: true, build: copyStoppedLine("no room") };
@@ -817,7 +803,7 @@ describe("runtime wire types", () => {
       { id: 1, op: "auth", token: "t" },
       { id: 2, op: "ticket.issue", purpose: "connect" },
       { id: 3, op: "events.subscribe" },
-      { id: 4, op: "workspaces.create", project: "spoo-landing", golden: "snap_g", name: "x", cpu: 2 },
+      { id: 4, op: "workspaces.create", project: "spoo-landing", name: "x", cpu: 2 },
       { id: 4.5, op: "projects.add", source: "/Users/dev/wsp" },
       { id: 5, op: "workspaces.list" },
       { id: 6, op: "workspaces.get", workspaceId: "ws_1" },
@@ -916,8 +902,8 @@ describe("runtime wire types", () => {
     const held = [
       "sessions.start", "sessions.warm", "sessions.steer", "sessions.interrupt", "sessions.rename", "sessions.answer", "sessions.access", "sessions.aside", "sessions.rewind", "sessions.run", "workspaces.exec", "workspaces.bringBack", "daemon.open", "daemon.send", "daemon.close",
       "places.add", "places.setup", "places.choose", "places.update", "places.holds", "places.remove", "places.dial", "places.set", "places.follow", "places.skip", "places.setupLog", "places.estimate", "places.loginLanded", "places.doctor", "places.door", "places.mint", "places.sshHosts", "projects.add",
-      "init.keys", "init.start", "init.answer", "init.step", "init.draft", "init.retry", "init.build", "init.signInCode", "init.cancel", "image.build", "golden.prepare", "golden.seal",
-      "image.export", "host.folders", "agents.read", "servers.tools", "servers.icon", "agents.signIn", "servers.signIn", "agents.signInCode", "agents.signIns", "agents.signInStop", "agents.signInLine", "agents.key", "agents.addTools", "agents.setup", "skills.search", "skills.get", "skills.preview", "skills.add", "skills.remove", "skills.toggle", "servers.add", "servers.remove", "servers.toggle", "plugins.toggle", "project.seed.plan", "projects.seed", "project.plan", "project.import", "project.export",
+      "init.keys", "image.build", "golden.prepare", "golden.seal",
+      "host.folders", "agents.read", "servers.tools", "servers.icon", "agents.signIn", "servers.signIn", "agents.signInCode", "agents.signIns", "agents.signInStop", "agents.signInLine", "agents.key", "agents.addTools", "agents.setup", "skills.search", "skills.get", "skills.preview", "skills.add", "skills.remove", "skills.toggle", "servers.add", "servers.remove", "servers.toggle", "plugins.toggle", "project.seed.plan", "projects.seed", "project.plan", "project.import", "project.export",
       "pair.issue", "pair.redeem", "seal.open", "device.auth", "place.join", "place.auth", "place.prove", "host.restart",
       "editor.list", "editor.open",
       // A port on this computer's loopback into a workspace's ssh, and a line in the person's own ssh config.
@@ -1987,47 +1973,6 @@ describe("the project export", () => {
   });
 });
 
-describe("project goldens", () => {
-  it("a project golden names its snapshot, the projects it carries, the golden version it stands on and the workspace it was taken from", () => {
-    const golden = {
-      snapshotId: "snap_project-proj",
-      projects: [{ name: "proj", dest: "/root/work/proj", importedAt: "2026-09-06T10:00:00.000Z" }],
-      golden: "snap_golden-v12",
-      version: 12,
-      workspaceId: "ws_1",
-      workspaceName: "task",
-      createdAt: "2026-09-06T10:05:00.000Z",
-    };
-    expect(ProjectGolden.parse(golden)).toEqual(golden);
-    const { version: _v, ...unversioned } = golden;
-    expect(ProjectGolden.parse(unversioned)).toEqual(unversioned);
-    expect(ProjectGolden.safeParse({ ...golden, projects: undefined }).success).toBe(false);
-    expect(ProjectGolden.safeParse({ ...golden, version: "12" }).success).toBe(false);
-  });
-
-  it("workspaces.snapshot names the workspace and projectGoldens.list takes nothing", () => {
-    const snapshot = { id: 30, op: "workspaces.snapshot", workspaceId: "ws_1" };
-    const list = { id: 31, op: "projectGoldens.list" };
-    for (const r of [snapshot, list]) expect(RuntimeRequest.parse(r)).toEqual(r);
-    expect(RuntimeRequest.safeParse({ id: 32, op: "workspaces.snapshot" }).success).toBe(false);
-  });
-
-  it("projectGoldens.remove names the snapshot, replies with the record and its line, and a view's project row may carry a size", () => {
-    const remove = { id: 33, op: "projectGoldens.remove", snapshotId: "snap_project-proj" };
-    expect(RuntimeRequest.parse(remove)).toEqual(remove);
-    expect(RuntimeRequest.safeParse({ id: 34, op: "projectGoldens.remove" }).success).toBe(false);
-    // The records of wsp's own machines, which a paired computer manages and a thread never deletes.
-    expect(wire.DEVICE_OPS).toContain("projectGoldens.remove");
-    expect(THREAD_OPS).not.toContain("projectGoldens.remove");
-    const golden = { snapshotId: "snap_project-proj", projects: [{ name: "proj", dest: "/root/work/proj", importedAt: "2026-09-06T10:00:00.000Z" }], golden: "snap_golden-v12", workspaceId: "ws_1", workspaceName: "task", createdAt: "2026-09-06T10:05:00.000Z" };
-    expect(wire.ProjectGoldenRemoved.parse({ projectGolden: golden, alreadyGone: true })).toEqual({ projectGolden: golden, alreadyGone: true });
-    expect(wire.ProjectGoldenRemoved.safeParse({ projectGolden: golden }).success).toBe(false);
-    const view = { image: null, copies: [], projects: [{ ...golden, sizeBytes: 5_000_000_000 }, golden] };
-    expect(wire.SealedImageView.parse(view)).toEqual(view);
-    expect(wire.sealedProjectLine(view.projects[0]!)).toBe("snap_project-proj  project task  proj  4.7 GB  2026-09-06T10:05:00.000Z");
-  });
-});
-
 describe("packageOf", () => {
   it("is what follows the manager in a tools row's id, a tap formula's slashes kept; it lives here because the collector writes these ids without the engine", () => {
     expect(wire.packageOf({ id: "tools/brew/gh" })).toBe("gh");
@@ -2212,8 +2157,6 @@ describe("bringing work back", () => {
       `lab-one is on default, and a thread on hetzner cannot run commands there yet; ask thread ${wire.threadWord("thread_a1b2c3d4")}, your lead, with wsp send ${wire.threadWord("thread_a1b2c3d4")} "<message>"`,
     );
     expect(wire.elsewhereWorkspaceLine("theirs", "default", "hetzner", "work")).toBe("theirs is on default, and a thread on hetzner cannot work there yet; ask the person");
-    // A switch that is off on a computer, over a folder there holding none of its own, is turned on where it is held.
-    expect(wire.agentsOffComputerRefusal("t_1234567890", "my box", "thread_new")).toBe(`thread t_123456 may not ${wire.SPAWN_ACTS["thread_new"]}, since agents on my box are off; turn them on with wsp computers set 'my box' --spawn on`);
     // Bringing work back is one of the acts a thread may ask for, and it is named in the table like the rest.
     expect(wire.SPAWN_ACTS_ALLOWED).toContain("bring_back");
     expect(wire.SPAWN_ACTS["bring_back"]).toBe("bring its work back");

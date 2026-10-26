@@ -6,7 +6,7 @@
 // carries a machine's work, this one carries the person's logins.
 import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
-import { shellQuote, vaultMemberRefusal, type SealedPin, type VaultRoad } from "@wsp/protocol";
+import { shellQuote, vaultMemberRefusal, type VaultRoad } from "@wsp/protocol";
 import { INLINE_EXEC_MS } from "./exec-detached.js";
 import type { Machine } from "./machine.js";
 import { exportPaths, importInto, type VaultOptions } from "./vault.js";
@@ -245,13 +245,8 @@ const IMAGE_HASH_RULE = "wsp-image-2";
 /** What an image with no vault hashes as: its own word, never the empty string, so a record with no vault and one
  * whose vault hashed to nothing are different images. */
 const NO_VAULT = "none";
-/** What a row that installs latest hashes as in place of its version: the version is what one seal got, not what
- * a copy is fixed to, so two records that differ only there are the same image. */
-const LATEST = "latest";
-
-/** One rule for the image hash: the recipe the copy is built from, the vault it imports and the pins it installs
- * at, in id order, and nothing else. */
-export function imageHash(recipeHash: string, vaultSha256: string | undefined, pins: readonly SealedPin[]): string {
-  const fixed = [...pins].sort((a, b) => a.id.localeCompare(b.id)).map(p => [p.id, p.latest === true ? LATEST : p.tag, p.sha256 ?? ""]);
-  return createHash("sha256").update(`${IMAGE_HASH_RULE}\n${recipeHash}\n${vaultSha256 ?? NO_VAULT}\n${JSON.stringify(fixed)}`).digest("hex");
+/** One rule for the image hash: the recipe the copy is built from and the vault it imports, and nothing else. The
+ * closing `[]` is the empty pin list every earlier hash ended in, kept so a hash taken again still matches. */
+export function imageHash(recipeHash: string, vaultSha256: string | undefined): string {
+  return createHash("sha256").update(`${IMAGE_HASH_RULE}\n${recipeHash}\n${vaultSha256 ?? NO_VAULT}\n[]`).digest("hex");
 }

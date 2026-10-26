@@ -97,7 +97,7 @@ pub(super) async fn read_all(host: &HostClient, tx: &mpsc::UnboundedSender<Arriv
     };
     let preferences = async {
         send(Read::Preferences(
-            host.call(req::<PreferencesGetRequest>(json!({}))).await.map(|r: PreferencesReply| r.preferences).map_err(said),
+            host.call(req::<PreferencesGetRequest>(json!({}))).await.map(|r: PreferencesReply| Box::new(r.preferences)).map_err(said),
         ))
     };
     let places = async { send(places(host).await) };

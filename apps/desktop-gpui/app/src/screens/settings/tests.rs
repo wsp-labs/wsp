@@ -341,37 +341,6 @@ fn restore_defaults_says_itself_on_its_hover(cx: &mut TestAppContext) {
     assert!(cx.debug_bounds("tip:Restore defaults").is_some(), "its tooltip");
 }
 
-/// A computer whose image is being built here, its sign-in for Claude Code waiting on a code the page hands back.
-fn building_here() -> Data {
-    let here = json!({ "id": "here", "kind": "computer", "name": "mac", "default": true, "buildsImages": true });
-    let job = json!({ "id": "j1", "road": "manual", "phase": "signing-in", "keys": {}, "step": 0, "stoppable": true, "screens": [],
-        "rows": [{ "id": "claude", "kind": "sign-in", "label": "Claude Code", "state": "waiting for you", "finish": "code", "tool": "claude" }],
-        "progress": { "done": 0, "total": 3 }, "log": [], "place": { "id": "here", "name": "mac" } });
-    let setup = json!({ "keys": { "box": true }, "home": "/h", "agents": [], "pricing": null, "job": job });
-    Data {
-        places: vec![serde_json::from_value(here).unwrap()],
-        places_read: true,
-        setup: Some(serde_json::from_value(setup).unwrap()),
-        image: Some(serde_json::from_value(json!({ "image": null, "copies": [], "projects": [] })).unwrap()),
-        ..bare()
-    }
-}
-
-#[gpui_kit::test]
-fn enter_in_the_builds_code_field_sends_the_code_and_clears_the_field(cx: &mut TestAppContext) {
-    init(cx);
-    let (_, cx) = open(building_here(), At::Computer("here".into()), (1280., 900.), cx);
-    click(cx, "build-code-field");
-    cx.simulate_input("4F2-K9");
-    cx.simulate_keystrokes("enter");
-    cx.run_until_parked();
-    cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string("before".into()));
-    cx.simulate_keystrokes("secondary-a secondary-c");
-    cx.run_until_parked();
-    let held = cx.read_from_clipboard().and_then(|c| c.text()).unwrap_or_default();
-    assert_ne!(held, "4F2-K9", "Enter sent the code and nothing holds it after");
-}
-
 /// A box added over ssh, on its own page.
 fn a_box() -> Data {
     let place = json!({ "id": "box1", "kind": "computer", "name": "box1", "default": false, "road": { "ssh": "me@box1" } });
@@ -452,18 +421,6 @@ fn enter_in_the_name_sheet_saves_and_an_empty_field_holds_it(cx: &mut TestAppCon
     cx.simulate_keystrokes("enter");
     cx.run_until_parked();
     assert!(!dialog_open(cx), "the SSH sheet saves on Enter too");
-}
-
-#[gpui_kit::test]
-fn the_builds_submit_is_held_while_its_code_field_is_empty(cx: &mut TestAppContext) {
-    init(cx);
-    let (_, cx) = open(building_here(), At::Computer("here".into()), (1280., 900.), cx);
-    assert!(cx.debug_bounds("build-code-submit-held").is_some(), "Submit is held over an empty field");
-    click(cx, "build-code-field");
-    cx.simulate_input("4F2-K9");
-    cx.run_until_parked();
-    assert!(cx.debug_bounds("build-code-submit").is_some(), "and live once the field holds a code");
-    assert!(cx.debug_bounds("build-code-submit-held").is_none());
 }
 
 #[test]

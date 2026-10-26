@@ -7,7 +7,7 @@ import { CircleArrowUpIcon, DownloadIcon, SquareTerminalIcon, Trash2Icon } from 
 import { catalogEntry, installShown, MCP_AGENTS, runsThreads, type AgentEntry } from "@wsp/catalog";
 import { addToolsNoConfigRefusal, compareVersions, FIRST_RUN_WORD, MCP_SERVER_NAME, VERSION_UNREAD_WORD, type AgentRow, type AgentsReport } from "@wsp/protocol";
 import { capitalised } from "../../../settings/format.js";
-import { AGENTS_LIST_WORDS as W, agentSignInStart, brokerRow, editImageAct, heldReason, holdAll, notYet, onImage, signInAct, waitingFlow, type RowAct, type RowsContext } from "../agentsRows.js";
+import { AGENTS_LIST_WORDS as W, agentSignInStart, brokerRow, heldReason, holdAll, notYet, onImage, signInAct, waitingFlow, type RowAct, type RowsContext } from "../agentsRows.js";
 import { kind, matchesAny, rowKey, type Fact, type KindModule, type Status } from "./kind.js";
 
 export interface AgentItem {
@@ -64,7 +64,7 @@ function openAct(row: AgentRow, ctx: RowsContext): RowAct {
 /** Every act the agent offers where the list stands, next step first. */
 function actsOf(item: AgentItem, ctx: RowsContext) {
   const { row } = item;
-  if (onImage(ctx)) return { acts: [editImageAct(ctx)] as RowAct[], flow: undefined, step: undefined };
+  if (onImage(ctx)) return { acts: [] as RowAct[], flow: undefined, step: undefined };
   if (!row.installed) {
     const acts = holdAll([notYet("install", W.install, DownloadIcon)], ctx);
     return { acts, flow: undefined, step: acts[0] };

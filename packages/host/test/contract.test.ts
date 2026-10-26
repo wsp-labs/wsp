@@ -23,7 +23,8 @@ import { WebSocketServer } from "ws";
 import { z } from "zod";
 import { daemonBinaryHere } from "../src/assets.js";
 import { toolServerHere } from "../src/mcp-install.js";
-import { cli, doctorKeyAsk, jsonCliIO, serve } from "../src/cli.js";
+import { cli, doctorKeyAsk, serve } from "../src/cli.js";
+import { jsonCliIO } from "./json-cli-io.js";
 import type { HostStarter } from "../src/host-start.js";
 import { writeHost } from "../src/hosts.js";
 import { placeWiring } from "../src/places.js";
@@ -241,7 +242,7 @@ describe("the agent contract on the command line and the tool door", () => {
       // A skill lands in the fixture's home, never the person's, off a skills.sh that answers from this file.
       skillsActs: skillsActs({ fetch: skillsSh, here: () => fixtureHost(agents) }),
       // A server lands in the fixture's agents' configs, never the person's.
-      serversActs: serversActs({ here: () => fixtureHost(agents) }),
+      serversActs: serversActs({ here: () => fixtureHost(agents), vault: { file: join(dir, "servers.env"), held: () => ({}), owners: () => ({}), hold: () => {}, release: () => {} } }),
       pluginsActs: pluginsActs({ here: () => fixtureHost(agents) }),
       // Two places over one backend: this host's own, and one more for the image build road, which never boots a
       // machine here because the place already stands on the record.
@@ -425,10 +426,10 @@ describe("the agent contract on the command line and the tool door", () => {
     expect(await last("agents set", "agents", "set", "claude", "--reset", "model", "--reset", "access", "--reset", "models")).toEqual({ agent: "claude", defaults: {} });
     expect(await last("agents setup", "agents", "setup", "claude", "--program", "/opt/claude", "--arg=--debug")).toMatchObject({ agent: { id: "claude", setup: { on: true, program: "/opt/claude", args: ["--debug"], envNames: [] } } });
     expect(await last("agents setup", "agents", "setup", "claude", "--reset", "program", "--reset", "args")).toMatchObject({ agent: { id: "claude", setup: { on: true, envNames: [] } } });
-    // A value an add names is read off the environment by its name, lands in the file and is never printed.
+    // A value an add names goes to the vault and the file carries its name, so the value is never printed.
     vi.stubEnv("ACME_KEY", "sk-acme-contract-x");
     expect(await last("servers add", "servers", "add", "acme", "--agent", "codex", "--command", "npx -y @acme/mcp", "--env", "ACME_KEY")).toEqual({ file: "~/.codex/config.toml" });
-    expect(readFileSync(join(dir, "agents", "home", ".codex", "config.toml"), "utf8")).toContain('env = { "ACME_KEY" = "sk-acme-contract-x" }');
+    expect(readFileSync(join(dir, "agents", "home", ".codex", "config.toml"), "utf8")).toContain('env_vars = ["ACME_KEY"]');
     expect(JSON.stringify([...covered.values()])).not.toContain("sk-acme-contract-x");
     expect(await last("servers disable", "servers", "disable", "acme", "--agent", "codex")).toEqual({ file: "~/.codex/config.toml" });
     expect(await last("servers enable", "servers", "enable", "acme", "--agent", "codex")).toEqual({ file: "~/.codex/config.toml" });
@@ -451,19 +452,13 @@ describe("the agent contract on the command line and the tool door", () => {
       expect(await last("rename", "rename", "alpha", "renamed")).toMatchObject({ was: "alpha", workspace: { name: "renamed" } });
       await last("rename", "rename", "renamed", "alpha");
     }
-    // A snapshot takes a first-life machine, so it comes before the pause that resumes it.
-    const snapped = CLOUD_ON ? ((await last("snapshot", "snapshot", "alpha")) as { projectGolden: { snapshotId: string } }) : undefined;
     if (CLOUD_ON) {
       await last("pause", "pause", "alpha");
       await last("wake", "wake", "alpha");
     }
     expect(await last("resize", "resize", lead, "--size", "4x8")).toMatchObject({ workspace: { name: "alpha", phase: "running" } });
     // The seeded golden was sealed before records existed, so the record reads off its head and holds no sign-ins.
-    expect(await last("image", "image")).toMatchObject({ image: expect.objectContaining({ version: 1 }), copies: [expect.objectContaining({ place: "default" })], projects: expect.any(Array) });
-    if (snapped !== undefined) {
-      const { projectGolden } = snapped;
-      expect(await last("image remove", "image", "remove", projectGolden.snapshotId, "--yes")).toEqual({ projectGolden: expect.objectContaining({ snapshotId: projectGolden.snapshotId }), alreadyGone: false });
-    }
+    expect(await last("image", "image")).toMatchObject({ image: expect.objectContaining({ version: 1 }), copies: [expect.objectContaining({ place: "default" })] });
     // A place already standing on the record answers with the copy it holds and builds nothing, which is the road
     // that costs no machine: the record and that place's copy are written here at one hash.
     await store.put("images", "default", RECORD);
@@ -638,13 +633,6 @@ describe("the agent contract on the command line and the tool door", () => {
       backend.execImpl = guestNow;
       machine.previewUrl = noRoute;
     }
-    // Recipe verbs read the computer HOME and PATH name: an empty one here, so nothing of this box is read.
-    const empty = join(dir, "empty");
-    mkdirSync(join(empty, "bin"), { recursive: true });
-    vi.stubEnv("HOME", empty);
-    vi.stubEnv("PATH", join(empty, "bin"));
-    await last("recipe scan", "recipe", "scan");
-    await last("recipe", "recipe", "--tick", "default");
     for (const m of backend.machines) m.killed = true;
     // A machine killed at the provider settles its record on the next verb that reads the machine, and gone is the
     // one state a rebuild takes; the workspace comes back on a fresh machine under the same id.
@@ -932,9 +920,6 @@ describe("the agent contract on the command line and the tool door", () => {
     const prose = captured();
     expect(await cli(["status", "--json", "--state", statePath], prose)).toBe(3);
     expect(prose.errors[0]).toContain("Unknown option '--json' for wsp status");
-    const both = captured();
-    expect(await cli(["init", "--yes", "--json", "--state", statePath], both)).toBe(3);
-    expect(both.errors).toEqual([expect.stringContaining("Drop one of them.")]);
     // The doctor's three usage roads, each read before a key is asked for. Every road but a cloud row's forks
     // nothing and bills nothing, so a person with a computer of their own and no cloud account is asked for no
     // key: the IO below refuses any question as auth, so its silence is the proof that nothing asked. The auth

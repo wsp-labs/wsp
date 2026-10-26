@@ -24,7 +24,7 @@ use super::{route, Action, Kind, Notice, Notices};
 use crate::desktop::feed::Prefs;
 use crate::desktop::notify::{self, Choices, Moment};
 use crate::screens::app_shell::split;
-use crate::screens::dialogs::{add_cloud, add_computer};
+use crate::screens::dialogs::add_computer;
 use crate::screens::sidebar::host::{ask, kind_of};
 use crate::screens::sidebar::looks::place_name;
 use crate::screens::{navigate, Host, Route};
@@ -32,7 +32,6 @@ use crate::screens::{navigate, Host, Route};
 /// A turn whose session.end never arrived (a socket gap) is not held past this many later turns, nor a job's end
 /// or a setup's past this many others.
 const HELD: usize = 64;
-const NEED_KEY: &str = "needs-you";
 
 /// One push the rules read, with the preferences read just after it where its rule reads them.
 #[derive(Debug)]
@@ -45,15 +44,6 @@ pub struct Heard {
 /// What the rules keep between events.
 #[derive(Default)]
 pub struct Rules {
-    /// The sidebar's job when the rules last looked, held only to tell its next read by pointer (`s.initJob !==
-    /// prev.initJob`), and its count of needs pushed then.
-    seen: Option<Rc<Value>>,
-    pushed: u64,
-    /// The need the keyed notice stands for.
-    need: Option<String>,
-    /// Whether the build's page was in front of the person at the last change.
-    shown: bool,
-    jobs_ended: VecDeque<String>,
     /// Each running turn's result, by turn id, from its session.done until its session.end.
     results: VecDeque<(String, Value)>,
     /// The sign-in waits said, by computer and row, with the computer and the run they were said for.
@@ -63,24 +53,6 @@ pub struct Rules {
     pub(super) places: Vec<Value>,
     /// General's choices for the lines said over the system, read as the socket opens and kept by its pushes.
     choices: Choices,
-}
-
-/// Whether the build job carries a need.
-pub fn job_needs_you(job: Option<&Value>) -> bool {
-    job.and_then(|j| j.get("needsYou")).is_some_and(|n| !n.is_null())
-}
-
-fn need_what(job: Option<&Value>) -> Option<String> {
-    job?.pointer("/needsYou/what")?.as_str().map(str::to_owned)
-}
-
-fn job_place(job: Option<&Value>) -> Option<String> {
-    job?.pointer("/place/id")?.as_str().map(str::to_owned)
-}
-
-/// The build job as the sidebar last read it, which the rules read rather than keep.
-fn job_of(n: &Notices, cx: &App) -> Option<Rc<Value>> {
-    n.sidebar.as_ref()?.upgrade()?.read(cx).around().job.clone()
 }
 
 fn s<'a>(v: &'a Value, name: &str) -> Option<&'a str> {
@@ -104,7 +76,6 @@ fn reads(kind: &str) -> Option<bool> {
         "usage.alert" => true,
         "place.stage"
         | "place.setup"
-        | "init.job"
         | "session.end"
         | "session.permission"
         | "session.notify"
@@ -243,11 +214,6 @@ fn computer_on_screen(place: Option<&str>, window: &Window, cx: &gpui_kit::App) 
         || settings_at(window, cx).is_some_and(|at| at == "computers" || place.is_some_and(|p| at == format!("computer:{p}")))
 }
 
-/// The page of the computer a build runs on, which draws its rows.
-fn build_on_screen(place: Option<&str>, window: &Window, cx: &gpui_kit::App) -> bool {
-    place.is_some_and(|p| settings_at(window, cx).is_some_and(|at| at == format!("computer:{p}")))
-}
-
 fn place_of<'a>(places: &'a [Value], id: Option<&str>) -> Option<&'a Value> {
     places.iter().find(|p| id.is_some() && s(p, "id") == id)
 }
@@ -291,57 +257,9 @@ fn workspace_thread(n: &Notices, workspace: &str, cx: &App) -> Option<String> {
     thread
 }
 
-fn say_need(n: &mut Notices, what: String, at: Option<String>, cx: &mut Context<Notices>) {
-    let notice = Notice::waiting(words::init_needs_you(&what)).key(NEED_KEY).action(open_computer(at));
-    n.rules.need = Some(what);
-    add(n, notice, cx);
-}
-
 fn end_wait(n: &mut Notices, key: &str, cx: &mut Context<Notices>) {
     n.rules.waits.remove(key);
     n.end(key, cx);
-}
-
-/// The build's page came into view or left it: a need it carried is said once it is gone, and ended once it is back.
-pub fn settle_shown(n: &mut Notices, window: &mut Window, cx: &mut Context<Notices>) {
-    let job = job_of(n, cx);
-    let shown = build_on_screen(job_place(job.as_deref()).as_deref(), window, cx);
-    if shown == n.rules.shown {
-        return;
-    }
-    n.rules.shown = shown;
-    if shown {
-        if n.rules.need.take().is_some() {
-            n.end(NEED_KEY, cx);
-        }
-    } else if let (Some(what), None) = (need_what(job.as_deref()), &n.rules.need) {
-        say_need(n, what, job_place(job.as_deref()), cx);
-    }
-}
-
-/// The sidebar moved: a need pushed since is said, as the web's `job.needs-you` rule says it, and where it read the job
-/// again, a need the job no longer carries is over. Both come down the sidebar's one road, in the host's order.
-pub(super) fn take_job(n: &mut Notices, window: &mut Window, cx: &mut Context<Notices>) {
-    let job = job_of(n, cx);
-    let pushed = n.sidebar.as_ref().and_then(|s| s.upgrade()).map_or(0, |s| s.read(cx).around().needs_pushed);
-    if pushed != n.rules.pushed {
-        n.rules.pushed = pushed;
-        let at = job_place(job.as_deref());
-        if let Some(what) = need_what(job.as_deref()) {
-            say_outside(n, Moment::SignIn { what: &what }, Some(open_computer(at.clone())), window, cx);
-        }
-        if let Some(what) = need_what(job.as_deref()).filter(|_| !build_on_screen(at.as_deref(), window, cx)) {
-            say_need(n, what, at, cx);
-        }
-    }
-    if job.as_ref().map(Rc::as_ptr) != n.rules.seen.as_ref().map(Rc::as_ptr) {
-        if n.rules.need.is_some() && need_what(job.as_deref()) != n.rules.need {
-            n.rules.need = None;
-            n.end(NEED_KEY, cx);
-        }
-        n.rules.seen = job;
-    }
-    settle_shown(n, window, cx);
 }
 
 /// The computers as the sidebar now lists them: a wait or a ready setup said once the list shows how it stands, as the
@@ -404,11 +322,6 @@ fn wait_ready(n: &mut Notices, place: &Value, at: String, run: String, cx: &mut 
     if listed {
         settle_ready(n, cx);
     }
-}
-
-fn say_sealed(n: &mut Notices, job: &Value, cx: &mut Context<Notices>) {
-    let notice = add_cloud::sealed(job, &n.rules.places);
-    add(n, notice, cx);
 }
 
 /// One rule per event type; a type with no rule says nothing.
@@ -562,27 +475,6 @@ fn apply(n: &mut Notices, heard: Heard, window: &mut Window, cx: &mut Context<No
                 notice = notice.action(open_thread(workspace.to_owned(), thread));
             }
             add(n, notice, cx);
-        }
-        "init.job" => {
-            let job = e.get("job").cloned().unwrap_or_default();
-            let (Some(id), Some(phase)) = (owned(&job, "id"), s(&job, "phase")) else { return };
-            if (phase != "done" && phase != "failed") || n.rules.jobs_ended.contains(&id) {
-                return;
-            }
-            push_held(&mut n.rules.jobs_ended, id.clone());
-            let at = job.pointer("/place/id").and_then(Value::as_str).map(str::to_owned);
-            if let (true, (Some(computer), image)) = (phase == "done", add_cloud::seal_words(&job, &places)) {
-                let open = add_cloud::open_sealed(at.clone(), id);
-                say_outside(n, Moment::ImageReady { computer: &computer, image: &image }, Some(open), window, cx);
-            }
-            if build_on_screen(at.as_deref(), window, cx) || at.as_deref().is_some_and(|p| add_cloud::build_on_screen(p, cx)) {
-                return;
-            }
-            if phase == "failed" {
-                add(n, Notice::error(words::image_not_built(s(&job, "error"))).action(open_computer(at)), cx);
-            } else {
-                say_sealed(n, &job, cx);
-            }
         }
         "workspace.gone" => {
             let workspace = s(&e, "workspaceId").unwrap_or_default();

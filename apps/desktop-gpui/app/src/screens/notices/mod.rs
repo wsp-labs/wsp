@@ -72,16 +72,12 @@ impl Notices {
         if let Some(sidebar) = sidebar.as_ref().and_then(WeakEntity::upgrade) {
             self._subscriptions.push(cx.observe_in(&sidebar, window, |this, sidebar, window, cx| {
                 this.mark(window, cx);
-                host::take_job(this, window, cx);
                 if sidebar.read(cx).around().places != this.rules.places {
                     host::take_places(this, sidebar.read(cx).around().places.clone(), cx);
                 }
             }));
         }
         self.sidebar = sidebar;
-        if let Some(shell) = shell(window, cx) {
-            self._subscriptions.push(cx.observe_in(&shell, window, |this, _, window, cx| this.route_moved(window, cx)));
-        }
         self.mark(window, cx);
     }
 
@@ -105,21 +101,17 @@ impl Notices {
         }
     }
 
-    /// Puts the mark on the window's title while a build's need or a thread's prompt stands, and takes it off after.
+    /// Puts the mark on the window's title while a thread's prompt stands, and takes it off after.
     fn mark(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let needed = self.sidebar.as_ref().and_then(WeakEntity::upgrade).is_some_and(|s| {
             let s = s.read(cx);
-            s.threads().iter().any(|t| t.asks) || host::job_needs_you(s.around().job.as_deref())
+            s.threads().iter().any(|t| t.asks)
         });
         // Off the Mac a window reads no title back, so the mark goes on the app's own title.
         if needed != self.marked {
             self.marked = needed;
             window.set_window_title(&words::title_with_need(crate::TITLE, needed));
         }
-    }
-
-    fn route_moved(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        host::settle_shown(self, window, cx);
     }
 }
 

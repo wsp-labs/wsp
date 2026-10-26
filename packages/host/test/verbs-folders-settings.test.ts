@@ -191,7 +191,7 @@ describe("wsp verbs over the host: folders, export and what a person sets", () =
   });
 
   it.runIf(CLOUD_ON)("every verb takes --json and --help; a bad flag prints the usage", async () => {
-    for (const verb of [["fork"], ["snapshot"], ["pause"], ["wake"], ["forget"], ["delete"], ["threads"], ["threads", "wait"], ["run"], ["send"], ["stop"], ["exec"], ["projects"], ["export"]]) {
+    for (const verb of [["fork"], ["pause"], ["wake"], ["forget"], ["delete"], ["threads"], ["threads", "wait"], ["run"], ["send"], ["stop"], ["exec"], ["projects"], ["export"]]) {
       const help = await h.run(...verb, "--help");
       expect(help.code).toBe(0);
       expect(help.io.lines[0]).toMatch(new RegExp(`^usage: wsp ${verb.join(" ")}`));
@@ -245,12 +245,12 @@ describe("wsp verbs over the host: folders, export and what a person sets", () =
       const fallback = (here.capDefault as { threads: number }).threads;
       const set = await h.run("computers", "set", HERE_PLACE_ID, "--threads", "2");
       expect(set.code, set.io.errors.join("\n")).toBe(0);
-      expect(set.io.lines).toEqual([`${here.name}: 2 threads at once (${fallback} by default), no turn limit (the default), agents may spawn: up to 3 machines (the default), 2 levels deep (the default)`]);
+      expect(set.io.lines).toEqual([`${here.name}: 2 threads at once (${fallback} by default), no turn limit (the default), up to 3 machines under a root thread (the default), 2 levels deep (the default)`]);
       expect((await h.rt.places!.rows()).find(p => p.id === HERE_PLACE_ID)).toMatchObject({ cap: { threads: 2 }, settings: { threads: 2 } });
       const asJson = await h.run("computers", "set", here.name, "--threads", "1", "--json");
       expect(h.json(asJson.io).at(-1)).toMatchObject({ computer: { id: HERE_PLACE_ID, cap: { threads: 1 }, capDefault: { threads: fallback } } });
       const back = await h.run("computers", "set", HERE_PLACE_ID, "--reset", "threads");
-      expect(back.io.lines).toEqual([`${here.name}: ${fallback} ${fallback === 1 ? "thread" : "threads"} at once (the default), no turn limit (the default), agents may spawn: up to 3 machines (the default), 2 levels deep (the default)`]);
+      expect(back.io.lines).toEqual([`${here.name}: ${fallback} ${fallback === 1 ? "thread" : "threads"} at once (the default), no turn limit (the default), up to 3 machines under a root thread (the default), 2 levels deep (the default)`]);
       expect((await h.rt.places!.rows()).find(p => p.id === HERE_PLACE_ID)!.settings).toBeUndefined();
     });
 
@@ -294,20 +294,15 @@ describe("wsp verbs over the host: folders, export and what a person sets", () =
       expect((await h.rt.places!.rows()).find(p => p.id === HERE_PLACE_ID)).toMatchObject({ turnLimitMs: 8 * 3_600_000 });
     });
 
-    it("sets whether agents there may start agents for every workspace that says nothing of its own, and a workspace reads it", async () => {
+    it("sets how many machines and levels of agents there may start for every workspace that says nothing of its own, and a workspace reads it", async () => {
       await h.run("new", "alpha");
-      const off = await h.run("computers", "set", HERE_PLACE_ID, "--spawn", "off");
-      expect(off.code, off.io.errors.join("\n")).toBe(0);
-      expect(off.io.lines[0]).toContain("agents may not spawn (on, up to 3 by default)");
-      const capped = await h.run("computers", "set", HERE_PLACE_ID, "--spawn", "on", "--max-machines", "1", "--json");
-      expect(h.json(capped.io).at(-1)).toMatchObject({ computer: { spawn: { spawn: true, maxMachines: 1, maxDepth: 2 } } });
+      const capped = await h.run("computers", "set", HERE_PLACE_ID, "--max-machines", "1", "--json");
+      expect(capped.code, capped.io.errors.join("\n")).toBe(0);
+      expect(h.json(capped.io).at(-1)).toMatchObject({ computer: { spawn: { maxMachines: 1, maxDepth: 2 } } });
       const mac = await h.macProject("mine");
       expect(mac.code, mac.io.errors.join("\n")).toBe(0);
-      expect((await h.rt.workspaces.list()).find(w => w.name === "mine")!.agents).toEqual({ spawn: true, maxMachines: 1, maxDepth: 2 });
-      const wrong = await h.run("computers", "set", HERE_PLACE_ID, "--spawn", "yes");
-      expect(wrong.code).toBe(EXIT_CODES.usage);
-      expect(wrong.io.errors[0]).toContain("--spawn for here takes on or off");
-      expect((await h.run("computers", "set", HERE_PLACE_ID, "--reset", "spawn")).code).toBe(0);
+      expect((await h.rt.workspaces.list()).find(w => w.name === "mine")!.agents).toEqual({ maxMachines: 1, maxDepth: 2 });
+      expect((await h.run("computers", "set", HERE_PLACE_ID, "--reset", "max-machines")).code).toBe(0);
       expect((await h.rt.workspaces.list()).find(w => w.name === "mine")!.agents).toEqual(AGENTS_ON);
     });
 
@@ -331,21 +326,21 @@ describe("wsp verbs over the host: folders, export and what a person sets", () =
 
   describe("what the agents on a computer may do", () => {
     it("--max-depth 0 is a usage sentence, not a shape the wire refuses", async () => {
-      const zero = await h.run("computers", "set", HERE_PLACE_ID, "--spawn", "on", "--max-depth", "0");
+      const zero = await h.run("computers", "set", HERE_PLACE_ID, "--max-depth", "0");
       expect(zero.code).toBe(EXIT_CODES.usage);
       expect(zero.io.errors[0]).toBe('wsp computers set: --max-depth for here takes a whole number of one or more, and got "0". Write it as --max-depth <n>.');
     });
 
-    it("a create with --spawn on turns the switch on", async () => {
-      const made = await h.run("new", "alpha", "--spawn", "on", "--max-machines", "1");
+    it("a create with --max-machines holds the cap", async () => {
+      const made = await h.run("new", "alpha", "--max-machines", "1");
       expect(made.code).toBe(0);
-      expect((await h.rt.workspaces.list())[0]!.agents).toEqual({ spawn: true, maxMachines: 1, maxDepth: 2 });
+      expect((await h.rt.workspaces.list())[0]!.agents).toEqual({ maxMachines: 1, maxDepth: 2 });
     });
 
     it("--tree draws a thread an agent spawned under the thread that spawned it, and stop ends the tree as one", async () => {
       const held = heldAgent(false);
       await h.restartHost({ claude: held.adapter });
-      await h.run("new", "alpha", "--spawn", "on");
+      await h.run("new", "alpha");
       const alpha = (await h.rt.workspaces.list())[0]!;
       const lead = await h.rt.sessions.start(alpha.id, { prompt: "lead" });
       const leadThread = lead.view().threadId!;
