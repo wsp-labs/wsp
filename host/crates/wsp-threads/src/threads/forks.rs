@@ -557,6 +557,6 @@ pub async fn pay_cut_owed(
     if let Some(record) = ctx.thread_records().borrow_mut().get_mut(thread_id) {
         record.cut_owed = None;
     }
-    let _ = tokio::task::spawn_local(ctx.persist_sessions(workspace_id));
+    drop(tokio::task::spawn_local(ctx.persist_sessions(workspace_id)));
     answer
 }

@@ -684,7 +684,7 @@ impl TurnState {
     }
 
     pub(crate) fn live_reply(&self) -> Option<TurnStatus> {
-        self.row.borrow().turn_live.as_ref().and_then(|live| live.reply.clone())
+        self.row.borrow().turn_live.as_ref().and_then(|live| live.reply)
     }
 
     /// turns.ts:709-723: the branch, the pull request and the lead read at a turn's end, then the tree's settle again.

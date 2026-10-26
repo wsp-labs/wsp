@@ -214,7 +214,7 @@ impl ThreadsArea {
                 let sessions = sessions.borrow();
                 sessions.get(&at.turn_id).map(|row| {
                     let row = row.borrow();
-                    (row.view.harness.clone(), row.notify.clone(), row.notify_by.clone(), row.notify_road.clone())
+                    (row.view.harness.clone(), row.notify.clone(), row.notify_by.clone(), row.notify_road)
                 })
             };
             let (harness, notify, notify_by, notify_road) = row_facts.unwrap_or_else(|| (String::new(), None, None, None));
@@ -386,7 +386,7 @@ impl ThreadsArea {
             let turn = turn_id.to_string();
             self.held_write(async move { store.delete(HELD_STARTS, &turn).await }.boxed_local());
         }
-        if let (Some(waiting), Some((why, at_once))) = (held.waiting.as_ref(), held.through.clone()) {
+        if let (Some(waiting), Some((why, at_once))) = (held.waiting.as_ref(), held.through) {
             self.ctx.record(SessionEvent::SessionUncappedEvent(SessionUncappedEvent {
                 workspace_id: waiting.workspace_id.clone(),
                 session_id: waiting.session_id.clone(),

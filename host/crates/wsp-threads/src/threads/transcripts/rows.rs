@@ -258,7 +258,7 @@ pub fn kept_event(event: &SessionEvent) -> SessionEvent {
     if clipped {
         out.text = utf16::cut(&delta.text, TOOL_RESULT_KEPT);
         if result {
-            out.bytes = Some(delta.bytes.clone().unwrap_or_else(|| JsInt::from(delta.text.len() as i64)));
+            out.bytes = Some(delta.bytes.unwrap_or_else(|| JsInt::from(delta.text.len() as i64)));
         }
     }
     if let Some(kept) = patch {
@@ -358,14 +358,14 @@ impl TranscriptsArea {
             *bytes
         });
         if matches!(event, SessionEvent::SessionEndEvent(_)) || unwritten > PENDING_FLUSH_BYTES as u64 {
-            let _ = self.flush_transcript(&ws);
+            drop(self.flush_transcript(&ws));
         } else if !matches!(event, SessionEvent::SessionDeltaEvent(_)) && !self.transcript_timers.borrow().contains_key(&ws) {
             let me = self.me.clone();
             let key = ws.clone();
             let cancel = self.ctx.clock().schedule(
                 Box::new(move || {
                     if let Some(area) = me.upgrade() {
-                        let _ = area.flush_transcript(&key);
+                        drop(area.flush_transcript(&key));
                     }
                 }),
                 TRANSCRIPT_FLUSH_MS as i64,
@@ -522,7 +522,7 @@ impl TranscriptsArea {
         }
         outcome?;
         if !trim_keys.is_empty() {
-            let _ = self.drop_kept_keys(ws, &trim_keys);
+            drop(self.drop_kept_keys(ws, &trim_keys));
         }
         self.ctx.transcript_state().with(|s| {
             s.pending.shift_remove(ws);
@@ -545,7 +545,7 @@ impl TranscriptsArea {
         let ws = workspace_id.to_string();
         let thread = thread_id.to_string();
         let step: LocalBoxFuture<'static, Result<(), HostError>> = async move {
-            let going = |e: &SessionEvent| thread_of(e) == Some(thread.as_str()) && drops.as_ref().map_or(true, |d| d(e));
+            let going = |e: &SessionEvent| thread_of(e) == Some(thread.as_str()) && drops.as_ref().is_none_or(|d| d(e));
             area.settle_rows(&ws, Some(Cut { thread_id: thread.clone(), drops: &going }))
         }
         .boxed_local();
@@ -755,7 +755,7 @@ impl TranscriptsArea {
         events.extend(self.ctx.transcript_state().with(|s| s.pending.get(workspace_id).cloned().unwrap_or_default()));
         let mut back = thread_words_of(&events, thread_id);
         back.last = JsNumber(back.last.0.max(had.map_or(0.0, |h| h.last.0)));
-        if let Some(opened) = had.and_then(|h| h.opened.clone()) {
+        if let Some(opened) = had.and_then(|h| h.opened) {
             back.opened = Some(opened);
         }
         Ok(back)

@@ -158,8 +158,7 @@ impl Rig {
             }),
         );
         let l = log.clone();
-        host.hooks
-            .set::<dyn Fn(&str) -> ()>("SessionsCtx::reap_kept", Rc::new(move |t: &str| l.borrow_mut().push(format!("reap_kept {t}"))));
+        host.hooks.set::<dyn Fn(&str)>("SessionsCtx::reap_kept", Rc::new(move |t: &str| l.borrow_mut().push(format!("reap_kept {t}"))));
         let l = log.clone();
         host.hooks.set::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>(
             "SessionsCtx::end_thread_shells",
@@ -201,7 +200,7 @@ impl Rig {
             }),
         );
         let l = log.clone();
-        host.hooks.set::<dyn Fn(&str, &str, &str) -> ()>(
+        host.hooks.set::<dyn Fn(&str, &str, &str)>(
             "SessionsCtx::row_gone",
             Rc::new(move |row: &str, w: &str, t: &str| l.borrow_mut().push(format!("row_gone {row} {w} {t}"))),
         );

@@ -103,7 +103,7 @@ fn started_of(view: &SessionView) -> f64 {
 
 /// Whether the workspace stands running (`workspaceState({ phase }) === "running"`).
 pub(super) fn running(entry: &Entry) -> bool {
-    let phase: WorkspacePhase = entry.borrow().record.borrow().phase.clone();
+    let phase: WorkspacePhase = entry.borrow().record.borrow().phase;
     workspace_state(&WorkspaceStateInput { phase, machine_state: None, reach: None, wake_refused: None }) == WorkspaceState::Running
 }
 
@@ -311,9 +311,8 @@ impl AgentsArea {
                     Some(Ok(Some(HarnessCatalogAnswer::Probe(lists)))) => {
                         if let Some(version) = lists.version.clone() {
                             let mut heard = area.heard_versions.borrow_mut();
-                            let newer = heard
-                                .get(&table.harness)
-                                .map_or(true, |was| compare_versions(&version, was) == std::cmp::Ordering::Greater);
+                            let newer =
+                                heard.get(&table.harness).is_none_or(|was| compare_versions(&version, was) == std::cmp::Ordering::Greater);
                             if newer {
                                 heard.insert(table.harness.clone(), version);
                             }
@@ -674,7 +673,7 @@ impl AgentsArea {
         let adapters = self.ctx.adapters();
         let table: Vec<HarnessCatalog> = harness_catalogs()
             .into_iter()
-            .filter(|c| adapters.contains_key(&c.harness) && entry.map_or(true, |e| !self.agent_off(e, &c.harness)))
+            .filter(|c| adapters.contains_key(&c.harness) && entry.is_none_or(|e| !self.agent_off(e, &c.harness)))
             .collect();
         let Some(entry) = entry else {
             return table;

@@ -579,7 +579,7 @@ impl ThreadsArea {
         };
         let top: TopRead = Rc::new(move || {
             let memo = memo.clone();
-            async move { memo.await }.boxed_local()
+            memo.boxed_local()
         });
         let now = self.ctx.clock().now();
         let shared = self.shared_folder(entry, &turn.thread_id, &turn.cwd, top.clone(), turn.started_at, now).await;

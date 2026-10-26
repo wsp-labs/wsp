@@ -7,7 +7,7 @@ use std::sync::Arc;
 use futures::FutureExt;
 use indexmap::{IndexMap, IndexSet};
 use wsp_account::account::rules::TreeOf;
-use wsp_adapters::port::{ForkTurn, HarnessAdapter};
+use wsp_adapters::port::ForkTurn;
 use wsp_catalog::signin_rows::server_values_of;
 use wsp_core::console;
 use wsp_core::machine_exec::TurnWaiting;
@@ -98,7 +98,7 @@ pub(crate) fn refuse_now(ctx: &Rc<dyn SessionsCtx>, workspace_id: &str, entry: &
         return Ok(());
     }
     let record = record_of(entry);
-    let state = workspace_state(&WorkspaceStateInput { phase: record.phase.clone(), machine_state: None, reach: None, wake_refused: None });
+    let state = workspace_state(&WorkspaceStateInput { phase: record.phase, machine_state: None, reach: None, wake_refused: None });
     match send_refusal(&SendRefusalKind::State(state), record.gone.as_deref(), Some(record.name.as_str())) {
         Some(line) => Err(HostError::new(line)),
         None => Ok(()),
@@ -399,7 +399,7 @@ impl SessionsArea {
         let registered = ctx.notify_on(&thread_id);
         let notify = asked.clone().or_else(|| registered.as_ref().map(|r| r.notify.clone()));
         let notify_by = if asked.is_none() { registered.as_ref().and_then(|r| r.by.clone()) } else { scope_of(origin.as_ref()) };
-        let notify_road = if asked.is_none() { registered.as_ref().and_then(|r| r.road.clone()) } else { road_of(origin.as_ref()) };
+        let notify_road = if asked.is_none() { registered.as_ref().and_then(|r| r.road) } else { road_of(origin.as_ref()) };
         let mut entry = entry;
         let mut notice: Option<String> = None;
         if entry.borrow().record.borrow().sub.is_some() {

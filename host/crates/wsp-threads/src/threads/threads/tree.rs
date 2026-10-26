@@ -293,7 +293,7 @@ impl ThreadsArea {
                 if !row_turns_thread(&row.view, thread_id) {
                     return None;
                 }
-                row.notify.clone().map(|notify| NotifyOn { notify, by: row.notify_by.clone(), road: row.notify_road.clone() })
+                row.notify.clone().map(|notify| NotifyOn { notify, by: row.notify_by.clone(), road: row.notify_road })
             })
         })
     }
@@ -317,7 +317,7 @@ impl ThreadsArea {
     }
     /// threads.ts:615: TR16.
     pub fn tell_as(s: &Registered) -> TellAs {
-        TellAs { by: s.notify_by.clone(), road: s.notify_road.clone() }
+        TellAs { by: s.notify_by.clone(), road: s.notify_road }
     }
     /// threads.ts:658: TR17.
     pub fn failure_of(&self, row_id: &str, turn_id: &str) -> Option<HostError> {

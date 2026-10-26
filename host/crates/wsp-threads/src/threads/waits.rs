@@ -59,7 +59,7 @@ impl WaitsArea {
             self.write(thread_id, ms, Some(text.strip_prefix("wsp: ").unwrap_or(text)));
             return;
         }
-        if !(ms > WAITED_ROW_MS as f64) {
+        if !matches!(ms.partial_cmp(&(WAITED_ROW_MS as f64)), Some(std::cmp::Ordering::Greater)) {
             return;
         }
         {

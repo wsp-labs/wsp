@@ -154,7 +154,7 @@ fn unread_ids_are_kept_after_the_end() {
         let t = turn(Setup::default());
         let sent: Rc<RefCell<Vec<(Vec<String>, bool)>>> = Rc::default();
         let s = sent.clone();
-        t.host.hooks.set::<dyn Fn(&Row, Vec<String>, bool) -> ()>(
+        t.host.hooks.set::<dyn Fn(&Row, Vec<String>, bool)>(
             "TurnsCtx::send_back",
             Rc::new(move |_r: &Row, unread: Vec<String>, stopped: bool| s.borrow_mut().push((unread, stopped))),
         );
@@ -377,7 +377,7 @@ fn the_reply_writes_its_lines_refusal_limit_and_adds_its_cost() {
         let lines = wsp_words::words::turn::turn_lines(&result(reply.clone()), None);
         wsp_core::types::internal::write_lines(&mut expected, lines.last_line.clone(), lines.failure.clone());
         assert_eq!(
-            (v.cost_usd, v.last_line.clone(), v.failure.clone(), v.status.clone()),
+            (v.cost_usd, v.last_line.clone(), v.failure.clone(), v.status),
             (expected.cost_usd, expected.last_line, expected.failure, expected.status),
             "the row stays running until the exit"
         );
@@ -444,7 +444,7 @@ fn the_end_is_told_to_its_targets_once_unless_a_lines_try() {
         let t = turn(Setup { notify: Some(vec!["lead".into()]), ..Setup::default() });
         let told: Rc<RefCell<Vec<(Vec<String>, Value, bool)>>> = Rc::default();
         let k = told.clone();
-        t.host.hooks.set::<dyn Fn(&Row, &[String], TurnResult, bool) -> ()>(
+        t.host.hooks.set::<dyn Fn(&Row, &[String], TurnResult, bool)>(
             "TurnsCtx::notify_end",
             Rc::new(move |_r: &Row, to: &[String], res: TurnResult, open: bool| {
                 k.borrow_mut().push((to.to_vec(), serde_json::to_value(res).unwrap(), open))
@@ -539,7 +539,7 @@ fn usage_is_burned_and_the_context_passes_unrecorded() {
         let t = turn(Setup::default());
         let burned: Rc<RefCell<Vec<BurnAsk>>> = Rc::default();
         let b = burned.clone();
-        t.host.hooks.set::<dyn Fn(BurnAsk) -> ()>("TurnsCtx::burn_add", Rc::new(move |ask: BurnAsk| b.borrow_mut().push(ask)));
+        t.host.hooks.set::<dyn Fn(BurnAsk)>("TurnsCtx::burn_add", Rc::new(move |ask: BurnAsk| b.borrow_mut().push(ask)));
         t.send(json!({ "type": "turn.usage", "sessionId": "sess-1", "tokens": 1200, "context": 45000, "window": 200000, "at": 5 }));
         assert_eq!(
             *burned.borrow(),
@@ -558,7 +558,7 @@ fn only_a_reopened_turn_marks_its_usage_replayed() {
         let t = turn(Setup { written: Some(written(0, 0, 0, 0, true, None)), ..Setup::default() });
         let burned: Rc<RefCell<Vec<BurnAsk>>> = Rc::default();
         let b = burned.clone();
-        t.host.hooks.set::<dyn Fn(BurnAsk) -> ()>("TurnsCtx::burn_add", Rc::new(move |ask: BurnAsk| b.borrow_mut().push(ask)));
+        t.host.hooks.set::<dyn Fn(BurnAsk)>("TurnsCtx::burn_add", Rc::new(move |ask: BurnAsk| b.borrow_mut().push(ask)));
         t.send(json!({ "type": "turn.usage", "sessionId": "sess-1", "tokens": 7, "at": 1234 }));
         t.send(json!({ "type": "turn.usage", "sessionId": "sess-1", "tokens": 8 }));
         assert_eq!(
@@ -618,7 +618,7 @@ fn a_reply_over_running_work_is_told_once_and_says_it_is_still_open() {
         let t = turn(Setup { notify: Some(vec!["lead".into()]), ..Setup::default() });
         let told: Rc<RefCell<Vec<(Value, bool)>>> = Rc::default();
         let k = told.clone();
-        t.host.hooks.set::<dyn Fn(&Row, &[String], TurnResult, bool) -> ()>(
+        t.host.hooks.set::<dyn Fn(&Row, &[String], TurnResult, bool)>(
             "TurnsCtx::notify_end",
             Rc::new(move |_r: &Row, _to: &[String], res: TurnResult, open: bool| {
                 k.borrow_mut().push((serde_json::to_value(res).unwrap(), open))
@@ -711,7 +711,7 @@ fn the_exit_closes_open_asks_and_settles_the_row_before_its_end_row() {
         assert_eq!(t.host.recorded_of("session.permission.closed")[0]["outcome"], "cancelled");
         assert_eq!(t.host.recorded_of("session.end"), vec![with(base("session.end"), json!({ "exitCode": 0, "sawResult": true }))]);
         let v = t.view();
-        assert_eq!((serde_json::to_value(&v.status).unwrap(), v.ended_at.map(|n| n.0)), (json!("completed"), Some((T0 + 5_000) as f64)));
+        assert_eq!((serde_json::to_value(v.status).unwrap(), v.ended_at.map(|n| n.0)), (json!("completed"), Some((T0 + 5_000) as f64)));
         assert_eq!(t.handle.view().status, v.status, "the handle's copy reads the settled row");
     });
 }
@@ -736,6 +736,6 @@ fn promptless_rides_the_end_of_a_turn_awaiting_its_prompt() {
             vec![with(base("session.end"), json!({ "exitCode": 1, "sawResult": false, "promptless": true }))]
         );
         assert!(t.live().failure.is_some(), "the stream's failure is kept on the turn");
-        assert_eq!(serde_json::to_value(&t.view().status).unwrap(), json!("running"), "with no reply the status waits for the finish");
+        assert_eq!(serde_json::to_value(t.view().status).unwrap(), json!("running"), "with no reply the status waits for the finish");
     });
 }

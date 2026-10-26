@@ -262,7 +262,7 @@ fn marked_for(
         }
     }
     if let Some(pick) = effort.filter(|p| moved(&p.from)) {
-        let takes = |m: &HarnessModel| m.efforts.as_ref().map_or(true, |efforts| efforts.contains(&pick.value));
+        let takes = |m: &HarnessModel| m.efforts.as_ref().is_none_or(|efforts| efforts.contains(&pick.value));
         let re_mark = |m: &HarnessModel| -> HarnessModel {
             if takes(m) && m.default_effort.is_some() {
                 HarnessModel { default_effort: Some(pick.value.clone()), ..m.clone() }
@@ -470,7 +470,7 @@ impl AgentsArea {
     }
     /// The agent a new thread runs when its start names none (agents.ts:412-416).
     pub fn default_agent_of(&self, prefs: &Preferences, entry: Option<&Entry>) -> String {
-        let runs = |id: &str| self.ctx.adapters().contains_key(id) && entry.map_or(true, |e| !self.agent_off(e, id));
+        let runs = |id: &str| self.ctx.adapters().contains_key(id) && entry.is_none_or(|e| !self.agent_off(e, id));
         let first = catalog_agents().into_iter().find(|a| runs(&a.id)).map_or_else(|| default_agent().id.clone(), |a| a.id.clone());
         let project = entry.and_then(|e| {
             let project = e.borrow().record.borrow().project.clone();
@@ -857,7 +857,7 @@ impl AgentsArea {
         let exec_stream = self.ctx.exec_factory_for(entry, turn, ask.waiting.clone());
         let machine = entry.borrow().machine.clone();
         let workspace_id = entry.borrow().record.borrow().id.clone();
-        let kind_record = entry.borrow().record.borrow().kind.clone();
+        let kind_record = entry.borrow().record.borrow().kind;
         let context = HarnessAdapterContext {
             machine,
             workspace_id,

@@ -375,7 +375,7 @@ impl TurnState {
             let mut row = self.row.borrow_mut();
             write_lines(&mut row.view, lines.last_line, lines.failure);
             if result.refusal.is_some() {
-                row.view.refusal = result.refusal.clone();
+                row.view.refusal = result.refusal;
             }
             if result.limit.is_some() {
                 row.view.limit = result.limit.clone();
