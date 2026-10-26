@@ -8,11 +8,14 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::future::{LocalBoxFuture, Shared};
+use futures::future::{select, Either, LocalBoxFuture, Shared};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
+use wsp_engine::machine::{ExecOptions, RunOptions};
+use wsp_engine::project_state::merge::{parse_merge_output, MergeOutput};
 use wsp_engine::Cancel;
 use wsp_wire::types::js_number::JsNumber;
+use wsp_wire::types::shell_quote::shell_quote;
 
 use wsp_adapters::pending::CodexClaims;
 use wsp_adapters::port::{ExecStream, ExecStreamFactory, TaskStop, TurnImage};
@@ -50,8 +53,12 @@ use wsp_wire::wire::capabilities::{InitSetup, PauseMode, WorkspaceSize};
 use wsp_wire::wire::machine_link::{MachineShape, ReadingsAnswer, SysSample};
 use wsp_wire::wire::runtime::{BrokerStatus, SessionAnswerResult, SessionStartOutcome};
 use wsp_words::exit::HostError;
+use wsp_words::js::{js_trim, js_trim_end};
+use wsp_words::words::base::plural;
 
 use super::harness::HarnessAdapterFactory;
+use crate::console;
+use wsp_catalog::plugins::join_path;
 use super::pending::{
     AgentsActs, AgentsReader, BuildGoldenOptions, CacheRule, Clock, Copier, DaemonChannel, DaemonChannelOptions, GitHubCache, GoldenImport,
     KillConfirm, MachineExecOptions, PlaceWiring, PluginsActs, ServerIcons, ServersActs, Sighting, SkillsActs, StatusApi,
@@ -527,7 +534,7 @@ pub struct WorkspaceRecord {
 }
 
 fn cloud_kind() -> WorkspaceKind {
-    todo!()
+    WorkspaceKind::Cloud
 }
 
 /// wiring.ts:406-414.
@@ -668,7 +675,33 @@ pub enum WiredId {
 /// The one-row table over the runtime's own backend: `wired` and `list` read the id at each call, and `backend`
 /// answers the backend for exactly that id and None for any other. wiring.ts:522-531.
 pub fn wired_place(id: WiredId, backend: Arc<dyn MachineBackend>) -> Rc<dyn PlaceBackends> {
-    todo!()
+    Rc::new(WiredRow { id, backend })
+}
+
+struct WiredRow {
+    id: WiredId,
+    backend: Arc<dyn MachineBackend>,
+}
+
+impl WiredRow {
+    fn at(&self) -> String {
+        match &self.id {
+            WiredId::Fixed(id) => id.clone(),
+            WiredId::Read(read) => read(),
+        }
+    }
+}
+
+impl PlaceBackends for WiredRow {
+    fn wired(&self) -> String {
+        self.at()
+    }
+    fn backend(&self, place: &str) -> Option<Arc<dyn MachineBackend>> {
+        (place == self.at()).then(|| self.backend.clone())
+    }
+    fn list(&self) -> Vec<String> {
+        vec![self.at()]
+    }
 }
 
 /// The daemon deploy a recipe carries: answers the stage's detail, if any. wiring.ts:546.
@@ -892,7 +925,7 @@ pub struct FoundMachine {
 
 /// Whether the record is gone after the sighting: settled or moot. wiring.ts:811.
 pub fn settled(o: GoneOutcome) -> bool {
-    todo!()
+    matches!(o, GoneOutcome::Settled | GoneOutcome::Moot)
 }
 
 /// wiring.ts:813.
@@ -911,13 +944,29 @@ pub const ADD_IS_A_COMPUTER_LINE: &str =
 /// other word resolved against `cwd`; then through the links, the joined path itself where that fails. The TS reads
 /// the process's home and cwd; they are arguments here so a test names them. wiring.ts:829-838.
 pub fn folder_named(path: &str, home: &str, cwd: &str) -> String {
-    todo!()
+    let named = if path == "~" || path.starts_with("~/") {
+        let joined = join_path(&[home, &path[1..]]);
+        if path.ends_with('/') && joined != "/" {
+            format!("{joined}/")
+        } else {
+            joined
+        }
+    } else if path.starts_with('/') {
+        path.to_string()
+    } else {
+        join_path(&[cwd, path])
+    };
+    std::fs::canonicalize(&named).map(|real| real.to_string_lossy().into_owned()).unwrap_or(named)
 }
 
 /// Two git sources are one when their urls are equal, two folders when their paths are; a git and a folder never.
 /// wiring.ts:842.
 pub fn same_source(a: &ProjectSource, b: &ProjectSource) -> bool {
-    todo!()
+    match (a, b) {
+        (ProjectSource::Git(x), ProjectSource::Git(y)) => x.url == y.url,
+        (ProjectSource::Folder(x), ProjectSource::Folder(y)) => x.path == y.path,
+        _ => false,
+    }
 }
 
 /// wiring.ts:845.
@@ -926,17 +975,34 @@ pub const NO_COPIER_HERE: &str =
 
 /// The last line a command said, trimmed; "" for nothing. wiring.ts:849.
 pub fn last_line_of(said: &str) -> String {
-    todo!()
+    js_trim(js_trim_end(said).rsplit('\n').next().unwrap_or("")).to_string()
 }
 
 /// How the import's done line reads each outcome but failed. wiring.ts:851-856.
 pub fn outcome_word(outcome: ProjectAgentOutcome) -> Option<&'static str> {
-    todo!()
+    match outcome {
+        ProjectAgentOutcome::Moved => Some("moved"),
+        ProjectAgentOutcome::TranscriptOnly => Some("transcripts landed but not yet in its session list"),
+        ProjectAgentOutcome::Carried => Some("carried unchanged since it is not on the machine"),
+        ProjectAgentOutcome::Nothing => Some("had nothing to carry"),
+        ProjectAgentOutcome::Failed => None,
+    }
 }
 
 /// One agent's import outcome in words. wiring.ts:857-864.
 pub fn outcome_words(a: &ProjectAgentResult) -> String {
-    todo!()
+    let Some(word) = outcome_word(a.outcome) else {
+        return format!("failed: {}", a.error.as_deref().unwrap_or("no reason given"));
+    };
+    let note = a.note.as_ref().map_or(String::new(), |n| format!(" ({n})"));
+    match (a.outcome, a.rows) {
+        (ProjectAgentOutcome::Moved, Some(rows)) => {
+            let merged = if rows.0 > 0.0 { format!("{} merged", plural(rows.0, "row")) } else { "its rows already there".to_string() };
+            format!("{word}, {merged}{note}")
+        }
+        (ProjectAgentOutcome::TranscriptOnly, _) => format!("{word}{note}"),
+        _ => word.to_string(),
+    }
 }
 
 /// wiring.ts:866.
@@ -948,17 +1014,62 @@ pub const LISTING_DEADLINE_MS: u64 = 120_000;
 /// folder are removed by their own exec whatever the run did, that exec's failure ignored; the run's own failure is
 /// returned as it came. wiring.ts:873-892.
 pub async fn merge_on_machine(machine: &dyn Machine, script: &str, agent: ProjectAgentResult) -> Result<ProjectAgentResult, EngineError> {
-    todo!()
+    let dir = match script.rfind('/') {
+        Some(i) => script[..i].to_string(),
+        None => {
+            let mut dir = script.to_string();
+            dir.pop();
+            dir
+        }
+    };
+    let run = machine.run(&format!("python3 {}", shell_quote(script)), RunOptions { deadline_ms: MERGE_DEADLINE_MS, ..Default::default() }).await;
+    let cleanup = format!("rm -f {}; rmdir {} 2>/dev/null", shell_quote(script), shell_quote(&dir));
+    let _ = machine.exec(&cleanup, ExecOptions::default()).await;
+    let run = run?;
+    if run.exit_code.get() != 0 {
+        let stderr = js_trim_end(&run.stderr);
+        let last = stderr.rsplit('\n').next().unwrap_or("");
+        let why = if last.is_empty() { "no output" } else { last };
+        let error = format!("the merge on the machine failed (exit {}): {why}", run.exit_code.get());
+        return Ok(ProjectAgentResult { outcome: ProjectAgentOutcome::Failed, error: Some(error), ..agent });
+    }
+    match parse_merge_output(&run.stdout) {
+        Ok(MergeOutput::Waiting { waiting }) => Ok(ProjectAgentResult { note: Some(waiting), ..agent }),
+        Ok(MergeOutput::Merged { merged, note, .. }) => {
+            let mut out = ProjectAgentResult { outcome: ProjectAgentOutcome::Moved, rows: Some(JsNumber(merged as f64)), ..agent };
+            if let Some(note) = note {
+                out.note = Some(note);
+            }
+            Ok(out)
+        }
+        Err(e) => Ok(ProjectAgentResult { outcome: ProjectAgentOutcome::Failed, error: Some(e.to_string()), ..agent }),
+    }
 }
 
 /// The export's done line words, where the state lands on this computer. wiring.ts:895-900.
 pub fn home_word(outcome: ProjectAgentOutcome) -> Option<&'static str> {
-    todo!()
+    match outcome {
+        ProjectAgentOutcome::Moved => Some("moved"),
+        ProjectAgentOutcome::TranscriptOnly => Some("transcripts landed but not yet in its session list here"),
+        ProjectAgentOutcome::Carried => Some("carried unchanged"),
+        ProjectAgentOutcome::Nothing => Some("had nothing to bring"),
+        ProjectAgentOutcome::Failed => None,
+    }
 }
 
 /// One agent's export outcome in words. wiring.ts:903-907.
 pub fn home_outcome(a: &LandedAgent) -> String {
-    todo!()
+    let r = &a.result;
+    let counted = r.sessions.map_or(String::new(), |n| format!(" ({})", plural(n.0, "session")));
+    let skipped = match r.skipped {
+        Some(n) if n.0 != 0.0 => format!(", {} not under sessions/ skipped", plural(n.0, "indexed rollout")),
+        _ => String::new(),
+    };
+    let tail = match home_word(r.outcome) {
+        Some(word) => word.to_string(),
+        None => format!("failed: {}", r.error.as_deref().unwrap_or("no reason given")),
+    };
+    format!("{}{counted} {tail}{skipped}", a.name)
 }
 
 /// wiring.ts:910.
@@ -990,13 +1101,32 @@ pub async fn until<T, E>(
     what: &str,
     clock: Rc<dyn Clock>,
 ) -> Result<T, UntilError<E>> {
-    todo!()
+    let ms = (deadline - clock.now()).max(0);
+    let (fire, timer) = futures::channel::oneshot::channel::<()>();
+    let cancel = clock.schedule(Box::new(move || {
+        let _ = fire.send(());
+    }), ms);
+    match select(work, timer).await {
+        Either::Left((done, _)) => {
+            cancel();
+            done.map_err(UntilError::Failed)
+        }
+        Either::Right(_) => Err(UntilError::Deadline(DeadlineError(format!("{what} timed out after {ms} ms")))),
+    }
 }
 
 /// The size fields the provider reports that differ from what was created, `"<key> <got> != <want>"` joined with
 /// ", ", cpu then memMb; None where none differs. wiring.ts:936-944.
 pub fn shape_fault(expected: &MachineShape, actual: &MachineShape) -> Option<String> {
-    todo!()
+    let mut diffs = Vec::new();
+    for (key, want, got) in [("cpu", expected.cpu, actual.cpu), ("memMb", expected.mem_mb, actual.mem_mb)] {
+        if let (Some(want), Some(got)) = (want, got) {
+            if want != got {
+                diffs.push(format!("{key} {} != {}", got.js_string(), want.js_string()));
+            }
+        }
+    }
+    (!diffs.is_empty()).then(|| diffs.join(", "))
 }
 
 /// Dirs the golden image already provides on every fresh fork. wiring.ts:949.
@@ -1004,12 +1134,29 @@ pub const VAULT_SKIP: [&str; 3] = [".local", ".cache", ".npm"];
 
 /// Whether the place a workspace stands on is a provider. wiring.ts:953.
 pub fn at_provider(place_id: Option<&str>, places: &dyn PlaceBackends) -> bool {
-    todo!()
+    place_id.is_some_and(|id| places.list().iter().any(|p| p == id))
 }
 
 /// One RFC 1123 label, "wsp" when nothing is left. wiring.ts:956-964.
 pub fn hostname_for(name: &str) -> String {
-    todo!()
+    let mut out = String::new();
+    let mut in_run = false;
+    for c in name.to_lowercase().chars() {
+        if c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' {
+            out.push(c);
+            in_run = false;
+        } else if !in_run {
+            out.push('-');
+            in_run = true;
+        }
+    }
+    let label: String = out.trim_matches('-').chars().take(63).collect();
+    let label = label.trim_end_matches('-');
+    if label.is_empty() {
+        "wsp".to_string()
+    } else {
+        label.to_string()
+    }
 }
 
 /// The name a hostname set came to, and the refusal where the guest refused. wiring.ts:968.
@@ -1022,7 +1169,17 @@ pub struct HostnameSet {
 /// Names a fresh fork; a refusal (a non-zero exit, or an exec that failed, read as exit -1 with its message as stderr)
 /// is logged and answered, never thrown. wiring.ts:968-977.
 pub async fn set_hostname(machine: &dyn Machine, name: &str) -> HostnameSet {
-    todo!()
+    let host = hostname_for(name);
+    let (code, stderr) = match machine.exec(&format!("hostname {host} && echo {host} > /etc/hostname"), ExecOptions::default()).await {
+        Ok(res) => (res.exit_code.get(), res.stderr),
+        Err(e) => (-1, e.to_string()),
+    };
+    if code == 0 {
+        return HostnameSet { host, refused: None };
+    }
+    let refused = format!("hostname {host} on {} failed: {}", machine.id(), js_trim(&stderr));
+    console::warn(&refused);
+    HostnameSet { host, refused: Some(refused) }
 }
 
 /// `Omit<BuildGoldenOptions, "backend" | "manifest" | "hostId"> & { name? }`. wiring.ts:979-982.

@@ -8,8 +8,12 @@ use std::sync::Arc;
 
 use wsp_adapters::codex::command::CodexBroker;
 use wsp_adapters::port::{AgentLaunch, Env, ExecStreamFactory};
+use wsp_catalog::road_modules::{install_env, install_homes};
+use wsp_engine::golden_seam::TOOLS_PATH;
 use wsp_engine::machine::Machine;
+use wsp_wire::types::daemon_contract::{PLACE_WORKSPACE_PATH, TOOL_PREFIX};
 use wsp_wire::types::thread_defaults::AccessChoice;
+use wsp_wire::views::golden_image::on_npm_bin;
 use wsp_words::exit::HostError;
 
 pub use wsp_adapters::port::{HarnessAdapter, HarnessSession, HarnessStartOptions, HarnessWarmOptions, KeptAgent};
@@ -67,23 +71,36 @@ pub struct StartPicksAsked {
 
 /// `{ IS_SANDBOX: "1", DISABLE_AUTOUPDATER: "1" }`, in that key order. harness.ts:78.
 pub fn machine_sandbox_env() -> Env {
-    todo!()
+    let mut env = Env::new();
+    env.insert("IS_SANDBOX".into(), "1".into());
+    env.insert("DISABLE_AUTOUPDATER".into(), "1".into());
+    env
 }
 
 /// `{ ...GUEST_USER_ENV, PATH: TOOLS_PATH, ...MACHINE_SANDBOX_ENV }`: HOME, USER, PATH, IS_SANDBOX,
 /// DISABLE_AUTOUPDATER in that order. harness.ts:82.
 pub fn guest_login_env() -> Env {
-    todo!()
+    let mut env = crate::types::pending::guest_user_env();
+    env.insert("PATH".into(), TOOLS_PATH.into());
+    env.extend(machine_sandbox_env());
+    env
 }
 
 /// `{ ...GUEST_USER_ENV, PATH: PLACE_WORKSPACE_PATH, ...MACHINE_SANDBOX_ENV, ...installEnv(installHomes(TOOL_PREFIX)) }`,
 /// keys in that order, a later spread overwriting an earlier key in its place. harness.ts:89-94.
 pub fn place_login_env() -> Env {
-    todo!()
+    let mut env = crate::types::pending::guest_user_env();
+    env.insert("PATH".into(), PLACE_WORKSPACE_PATH.into());
+    env.extend(machine_sandbox_env());
+    env.extend(install_env(&install_homes(Some(TOOL_PREFIX))));
+    env
 }
 
 /// The guest's environment where `place` is None, a joined computer's otherwise; with `npm_bin`, the same map with
 /// PATH replaced in its place by `on_npm_bin(npm_bin, PATH)`. harness.ts:98-101.
 pub fn login_env_on(place: Option<&str>, npm_bin: Option<&str>) -> Env {
-    todo!()
+    let mut env = if place.is_none() { guest_login_env() } else { place_login_env() };
+    let path = on_npm_bin(npm_bin, env.get("PATH").map_or("", String::as_str));
+    env.insert("PATH".into(), path);
+    env
 }

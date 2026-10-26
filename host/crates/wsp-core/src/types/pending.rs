@@ -27,7 +27,10 @@ pub use crate::github_cache::GitHubCache;
 
 /// TS engine golden-import.ts:817: `{ HOME: GUEST_HOME, USER: "root" }`. The engine has no Rust home for it yet.
 pub fn guest_user_env() -> IndexMap<String, String> {
-    todo!()
+    let mut env = IndexMap::new();
+    env.insert("HOME".into(), wsp_catalog::roads::GUEST_HOME.into());
+    env.insert("USER".into(), "root".into());
+    env
 }
 
 /// TS engine `BuildGoldenOptions`.
