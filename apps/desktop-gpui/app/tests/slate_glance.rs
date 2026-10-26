@@ -488,7 +488,7 @@ const FACTS_IN_ROW: &str = r#"<slate title="Checkout incident">
       <facts id="f" layout="line">
         <fact label="Started" value="14:10" emphasis="strong" />
         <fact label="Scope" value="Checkout API" />
-        <fact label="Impact" value="Customers receive 502 during checkout" tone="bad" />
+        <fact label="Impact" value="502 at checkout" tone="bad" />
       </facts>
     </row>
   </column>
