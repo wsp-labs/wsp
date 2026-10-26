@@ -17,8 +17,8 @@ use crate::cursor::command::{build_command, build_env, BuildCommandOptions, Curs
 use crate::pending::{refused_turn, Refusal};
 use crate::port::{
     end_after_result, end_run, AdapterAttachOptions, AdapterError, AdapterEvent, AgentLaunch, AttachRunOptions, Attached, DeltaKind, Env,
-    ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, HarnessStartOptions, OnEvent, SharedFuture, TurnDelta, TurnResult, TurnStatus,
-    TurnTokens,
+    ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, HarnessAdapter, HarnessSession, HarnessStartOptions, OnEvent, SharedFuture,
+    TurnDelta, TurnResult, TurnStatus, TurnTokens,
 };
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::session::TurnRefusal;
@@ -552,5 +552,50 @@ impl CursorAdapter {
     }
     pub fn env(&self) -> Env {
         self.env.clone()
+    }
+}
+
+/// The runtime's view of the Cursor adapter: the members of adapter.ts:242-264 its object declares.
+impl HarnessAdapter for CursorAdapter {
+    fn start(&self, options: HarnessStartOptions) -> Result<Arc<dyn HarnessSession>, AdapterError> {
+        CursorAdapter::start(self, options).map(|session| Arc::new(session) as Arc<dyn HarnessSession>)
+    }
+    fn attach(
+        &self,
+        options: AdapterAttachOptions,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<Arc<dyn HarnessSession>>, ExecFailure>>> {
+        CursorAdapter::attach(self, options).map(|pending| {
+            async move {
+                Ok(match pending.await? {
+                    AttachedSession::Session(session) => Some(Arc::new(session) as Arc<dyn HarnessSession>),
+                    AttachedSession::Gone => None,
+                })
+            }
+            .boxed_local()
+        })
+    }
+    fn steers(&self) -> bool {
+        CursorAdapter::steers(self)
+    }
+    fn env(&self) -> Option<Env> {
+        Some(CursorAdapter::env(self))
+    }
+}
+
+impl HarnessSession for CursorSession {
+    fn local_id(&self) -> String {
+        CursorSession::local_id(self)
+    }
+    fn finished(&self) -> SharedFuture<TurnResult> {
+        CursorSession::finished(self)
+    }
+    fn run(&self) -> Option<String> {
+        CursorSession::run(self)
+    }
+    fn pid(&self) -> Option<u32> {
+        CursorSession::pid(self)
+    }
+    fn interrupt(&self) -> LocalBoxFuture<'static, ()> {
+        CursorSession::interrupt(self)
     }
 }
