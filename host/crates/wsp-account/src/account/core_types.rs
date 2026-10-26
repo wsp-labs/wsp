@@ -6,7 +6,7 @@ use std::rc::Rc;
 use futures::future::LocalBoxFuture;
 use serde_json::{Map, Value};
 
-use wsp_core::types::internal::DaemonRefusal;
+use wsp_core::types::internal::{is_no_host_cli, DaemonRefusal};
 use wsp_words::exit::HostError;
 
 /// A daemon frame or reply as the TS object, keys in the order they were set (README A8).
@@ -29,22 +29,31 @@ pub enum AccountError {
 impl AccountError {
     /// `e instanceof Error ? e.message : String(e)`.
     pub fn message(&self) -> String {
-        todo!()
+        match self {
+            AccountError::Host(e) => e.message.clone(),
+            AccountError::Refusal(e) => e.message.clone(),
+        }
     }
 
     /// The daemon's code where this is a refusal that carried one.
     pub fn code(&self) -> Option<&str> {
-        todo!()
+        match self {
+            AccountError::Host(_) => None,
+            AccountError::Refusal(e) => e.code.as_deref(),
+        }
     }
 
     /// `isNoHostCli(e)`: a refusal coded `no-host-cli`.
     pub fn is_no_host_cli(&self) -> bool {
-        todo!()
+        matches!(self, AccountError::Refusal(e) if is_no_host_cli(e))
     }
 
     /// The host error, where this is one.
     pub fn host(&self) -> Option<&HostError> {
-        todo!()
+        match self {
+            AccountError::Host(e) => Some(e),
+            AccountError::Refusal(_) => None,
+        }
     }
 }
 

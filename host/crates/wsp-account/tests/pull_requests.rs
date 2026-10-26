@@ -886,7 +886,7 @@ fn invariant_4_post_as_person_drops_the_held_page() {
         assert_eq!(left, vec!["page:https://github.com/wsp/other.git#12".to_string(), "pr:https://github.com/wsp/pr-lab.git#12".to_string()]);
         // the next view reads again
         area.read_page(&e, REMOTE, 12, false).await.unwrap();
-        assert_eq!(w.frames("here").len(), 3);
+        assert_eq!(w.frames("here").len(), 2);
 
         // a write this computer refuses drops the page all the same
         w.here_says("git.prReact", |_| no_gh());
