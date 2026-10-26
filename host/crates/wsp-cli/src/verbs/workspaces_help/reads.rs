@@ -187,7 +187,6 @@ static REF_LINE: std::sync::LazyLock<Regex> =
 /// root is the nearest folder up the tree holding a `.git` (`git_root_of`); a `.git` file's `gitdir:` line points at
 /// the git dir (relative to the root); the branch is the first `ref: refs/heads/<name>` line of its `HEAD`, trimmed.
 /// Nothing where the folder is not here, holds no repo, has no readable `HEAD`, or stands on no branch.
-#[allow(dead_code)]
 fn branch_here(folder: &str) -> Option<String> {
     let root = git_root_of(folder)?;
     let dot_git = Path::new(&root).join(".git");
