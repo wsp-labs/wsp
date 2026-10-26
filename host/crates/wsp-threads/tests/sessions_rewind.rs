@@ -1164,3 +1164,33 @@ fn the_row_lists_the_turn_now_last() {
         assert_eq!((latest().last_line, latest().failure), (None, Some("API Error: 529 overloaded".to_string())));
     });
 }
+
+// sessions.ts:1379-1382 writes the record in place: the owed cut goes and `rewound` lands after the keys held. Expected
+// bytes: wsp-core/tests/fixtures/thread_record_order/gen.mjs, road `rewind`, with the checkpoint this world takes.
+const ORDER_CASES: &str = include_str!("../../wsp-core/tests/fixtures/thread_record_order/cases.json");
+
+#[test]
+fn a_rewind_writes_the_threads_record_in_the_bytes_node_writes() {
+    let all: Vec<Value> = serde_json::from_str(ORDER_CASES).expect("the cases are JSON");
+    let rewinds: Vec<Value> = all.into_iter().filter(|c| c["road"] == "rewind").collect();
+    assert_eq!(rewinds.len(), 5);
+    for case in rewinds {
+        run_local(async move {
+            let mut shape = Shape::new(Cuts::Copy);
+            shape.record = None;
+            let r = Rig::new(shape);
+            if let Some(held) = case["before"].as_object() {
+                let record = wsp_core::types::internal::ThreadRecord::from_map(held.clone()).expect("the record literal");
+                r.host.records.borrow_mut().insert(T.to_string(), record);
+            }
+            r.to(1, true).await.unwrap();
+            let held = r.host.records.borrow()[T].clone();
+            let before = format!("{}-before-1", checkpoint_ref(1));
+            let expected = case["after"]
+                .as_str()
+                .expect("the bytes")
+                .replace("\"before\":\"abc\",\"at\":77", &format!("\"before\":{},\"at\":{}", json!(before), T0));
+            assert_eq!(serde_json::to_string(&held).expect("serializes"), expected, "{}", case["name"]);
+        });
+    }
+}

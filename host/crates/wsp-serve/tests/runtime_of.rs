@@ -36,6 +36,7 @@ struct Sweep {
     entries: Vec<SweptEntry>,
     places: Vec<(String, bool)>,
     stop_fails: Vec<String>,
+    replay_known: RefCell<Vec<Vec<String>>>,
 }
 
 impl Sweep {
@@ -47,6 +48,7 @@ impl Sweep {
             entries: vec![],
             places: vec![("default".into(), true)],
             stop_fails: vec![],
+            replay_known: RefCell::new(vec![]),
         }
     }
 }
@@ -91,7 +93,8 @@ impl PublicCtx for Sweep {
         self.script.record("forgetBuilder", json!({ "id": builder_id }));
         Ok(())
     }
-    async fn replay_creates(&self, _failed: &mut Vec<ReapFailure>) -> Result<Vec<ReapedMachine>, HostError> {
+    async fn replay_creates(&self, known: &dyn Fn() -> Vec<String>, _failed: &mut Vec<ReapFailure>) -> Result<Vec<ReapedMachine>, HostError> {
+        self.replay_known.borrow_mut().push(known());
         let call = self.script.record("replayCreates", json!({}));
         self.script.answer(&call).unwrap_or(Ok(vec![]))
     }
@@ -251,6 +254,20 @@ fn reap_order_grace_builders_replays_listings() {
         assert_eq!(answer.reaped.iter().map(|r| r.id.clone()).collect::<Vec<_>>(), vec!["m-grace", "m-replay"]);
         assert_eq!(answer.failed, None, "failed only when not empty");
         assert_eq!(answer.adopted, None, "adopted only when not empty");
+    })
+}
+
+#[test]
+fn reap_hands_the_replay_the_ids_something_claims_the_reaped_among_them() {
+    // runtime.ts:1141-1147 `knownIds`, passed to `ctx.replayCreates(knownIds, failed)` at :1148
+    block(async {
+        let world = Sweep::new();
+        world.script.once::<Result<(Vec<ReapedMachine>, Vec<ReapFailure>), HostError>>(
+            "expireGrace",
+            Ok((vec![reaped("m-grace", ReapReason::Grace)], vec![])),
+        );
+        reap(&world, None, None).await.unwrap();
+        assert_eq!(*world.replay_known.borrow(), vec![vec!["m-known".to_string(), "m-grace".to_string()]]);
     })
 }
 
