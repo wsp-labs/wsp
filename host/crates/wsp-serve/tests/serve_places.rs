@@ -71,22 +71,6 @@ fn refused(id: u64, error: &str, kind: Option<&str>) -> String {
     v.to_string()
 }
 
-/// `{id, ok: true, ...fields}`: an area's answer spread after `ok`, in the area's own order.
-fn spread(id: u64, fields: &Value) -> String {
-    let mut v = json!({ "id": id, "ok": true });
-    for (k, f) in fields.as_object().expect("an object") {
-        v[k] = f.clone();
-    }
-    v.to_string()
-}
-
-/// The one frame a places.set sent back. The reply spreads the place's view after `id`, so the place's own id
-/// stands where the request's was (serve.ts:946) and the reply cannot be found by the request's id.
-async fn answer_of(socket: &Rc<Socket>, sink: &RecordingSink, id: u64, op: &str, fields: Value) -> Value {
-    support::send(socket, support::frame(id, op, fields)).await;
-    sink.frames().last().cloned().expect("a reply")
-}
-
 fn base(rt: &Rc<FakeRuntime>) -> ServeOptions {
     ServeOptions {
         devices: Some(rt.devices.clone() as Rc<dyn DeviceDoor>),
@@ -621,7 +605,7 @@ fn places_set_reads_a_recipe_word_as_its_slug_and_none_as_none() {
         let served = served_with(&rt, ServeOptions { recipes: Some(Rc::new(FakeShelf { script: rt.script.clone() })), ..base(&rt) });
         let (socket, sink) = host_socket(&served).await;
 
-        let named = answer_of(
+        let named = request(
             &socket,
             &sink,
             1,
@@ -629,10 +613,14 @@ fn places_set_reads_a_recipe_word_as_its_slug_and_none_as_none() {
             json!({ "placeId": "p_1", "name": "spoo", "recipe": "Web Dev", "threads": 3, "reset": ["nap"] }),
         )
         .await;
-        assert_eq!(named.to_string(), spread(1, &serde_json::to_value(&view).unwrap()), "the door's answer is spread after ok");
-        let none = answer_of(&socket, &sink, 2, "places.set", json!({ "placeId": "p_1", "recipe": NO_RECIPE })).await;
+        assert_eq!(
+            named.to_string(),
+            json!({ "id": 1, "ok": true, "place": serde_json::to_value(&view).unwrap() }).to_string(),
+            "the door's view sits under place beside ok, on the request's id"
+        );
+        let none = request(&socket, &sink, 2, "places.set", json!({ "placeId": "p_1", "recipe": NO_RECIPE })).await;
         assert_eq!(none["ok"], json!(true));
-        let absent = answer_of(&socket, &sink, 3, "places.set", json!({ "placeId": "p_1", "threads": 5 })).await;
+        let absent = request(&socket, &sink, 3, "places.set", json!({ "placeId": "p_1", "threads": 5 })).await;
         assert_eq!(absent["ok"], json!(true));
 
         let asked = rt.script.calls_to("places.set");

@@ -675,7 +675,7 @@ fn golden_and_image_ops_pass_only_the_fields_sent() {
         let (host, sink) = r.host().await;
         rt.script.once::<Result<Option<wsp_wire::views::golden_image::GoldenManifest>, HostError>>("golden.get", Ok(None));
         let got = request(&host, &sink, 1, "golden.get", json!({ "name": "default" })).await;
-        assert_eq!(got.to_string(), r#"{"id":1,"ok":true,"manifest":null}"#);
+        assert_eq!(got.to_string(), r#"{"id":1,"ok":true}"#);
 
         let stop = || HostError::new("stop");
         rt.script.once::<Result<wsp_wire::views::golden_image::GoldenBuilderView, HostError>>("golden.prepare", Err(stop()));
