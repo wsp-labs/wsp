@@ -21,6 +21,7 @@ use wsp_wire::wire::daemon::GitDiffReply;
 use wsp_wire::wire::daemon_replies::GitWorktreesReply;
 use wsp_wire::wire::runtime::{SessionAnswerResult, SessionStartOutcome};
 use wsp_words::attachments::attachment_record;
+use wsp_words::exit::HostError;
 use wsp_words::project_path::{repo_path_of, worktree_of};
 use wsp_words::projects::runs_in_folder;
 
@@ -270,20 +271,23 @@ impl ThreadsArea {
         }));
     }
 
-    /// threads.ts:982: E3.
-    pub async fn taken_turn(&self, workspace_id: &str, taken: &Taken) -> Option<Rc<dyn SessionHandle>> {
+    /// threads.ts:982: E3. A transcript that does not read rejects, as `await ctx.openThread` does (:986), so a request
+    /// whose turn is unreadable is not started a second time.
+    pub async fn taken_turn(&self, workspace_id: &str, taken: &Taken) -> Result<Option<Rc<dyn SessionHandle>>, HostError> {
         let sessions = self.ctx.sessions();
-        let held = sessions.borrow().get(&taken.session_id).cloned()?;
+        let Some(held) = sessions.borrow().get(&taken.session_id).cloned() else {
+            return Ok(None);
+        };
         let (handle, held_turn, held_view) = {
             let row = held.borrow();
             (row.handle.clone(), row.turn_id.clone(), row.view.clone())
         };
         if let Some(handle) = handle {
             if held_turn == taken.turn_id {
-                return Some(Rc::new(Retaken { inner: handle, outcome: start_outcome(taken.outcome) }));
+                return Ok(Some(Rc::new(Retaken { inner: handle, outcome: start_outcome(taken.outcome) })));
             }
         }
-        let events = self.ctx.open_thread(workspace_id, &taken.thread_id).await.ok()?;
+        let events = self.ctx.open_thread(workspace_id, &taken.thread_id).await?;
         let done = events.iter().find_map(|event| match event {
             SessionEvent::SessionDoneEvent(done) if done.turn_id.as_deref() == Some(taken.turn_id.as_str()) => Some(done.result.clone()),
             _ => None,
@@ -297,7 +301,7 @@ impl ThreadsArea {
             None => failed_result(end_reason.flatten().unwrap_or_else(|| RESTARTED_REASON.to_string())),
         };
         let finished: Shared<LocalBoxFuture<'static, TurnResult>> = futures::future::ready(result).boxed_local().shared();
-        Some(Rc::new(TakenHandle {
+        Ok(Some(Rc::new(TakenHandle {
             id: taken.session_id.clone(),
             workspace_id: workspace_id.to_string(),
             turn_id: taken.turn_id.clone(),
@@ -305,7 +309,7 @@ impl ThreadsArea {
             finished,
             sessions,
             held_view,
-        }))
+        })))
     }
 
     /// threads.ts:995: E4.
