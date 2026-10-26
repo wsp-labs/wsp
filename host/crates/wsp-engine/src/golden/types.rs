@@ -310,3 +310,60 @@ impl GoldenError {
 pub(crate) fn plain(message: impl Into<String>) -> EngineError {
     EngineError::Other { message: message.into(), code: None }
 }
+
+/// A stage listener that is never absent: the TS's `opts.onStage ?? (() => {})`.
+#[derive(Clone)]
+pub(crate) struct Stage(StageFn);
+
+impl Stage {
+    pub(crate) fn new(on_stage: Option<StageFn>) -> Self {
+        Stage(on_stage.unwrap_or_else(|| Arc::new(|_, _, _, _| {})))
+    }
+    /// `stage(name, detail)`.
+    pub(crate) fn say(&self, stage: GoldenStage, detail: &str) {
+        (self.0)(stage, Some(detail), None, None);
+    }
+    /// The listener itself, for a call that takes the TS's `onStage`.
+    pub(crate) fn as_fn(&self) -> StageFn {
+        self.0.clone()
+    }
+    /// `stage(name)`: no detail.
+    pub(crate) fn bare(&self, stage: GoldenStage) {
+        (self.0)(stage, None, None, None);
+    }
+    /// `stage("failed", detail, undefined, left)`.
+    pub(crate) fn failed(&self, detail: &str, left: &[String]) {
+        (self.0)(GoldenStage::Failed, Some(detail), None, Some(left));
+    }
+    /// The two-argument listener the tools loop, the MCP round and the plugins take.
+    pub(crate) fn listener(&self) -> crate::golden_seam::StageListener {
+        let f = self.0.clone();
+        Arc::new(move |stage, detail| f(stage, detail, None, None))
+    }
+}
+
+/// golden.ts:962 `staged`: the listener with the stage it last named kept beside it, so a rollback's own line lands on
+/// that stage.
+pub(crate) struct Staged {
+    pub(crate) stage: Stage,
+    current: std::rc::Rc<std::cell::Cell<Option<GoldenStage>>>,
+}
+
+impl Staged {
+    pub(crate) fn new(on_stage: Option<StageFn>) -> Self {
+        let told = Stage::new(on_stage);
+        let current: std::rc::Rc<std::cell::Cell<Option<GoldenStage>>> = Default::default();
+        let (c, t) = (current.clone(), told.0.clone());
+        let wrapped: StageFn = Arc::new(move |name, detail, step, left| {
+            if name != GoldenStage::Failed {
+                c.set(Some(name));
+            }
+            t(name, detail, step, left);
+        });
+        Staged { stage: Stage(wrapped), current }
+    }
+    /// `current()`: the last stage named that was not `failed`.
+    pub(crate) fn current(&self) -> Option<GoldenStage> {
+        self.current.get()
+    }
+}

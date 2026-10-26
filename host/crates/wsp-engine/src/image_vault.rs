@@ -180,7 +180,7 @@ fn pax_of(road: VaultRoad, data: &[u8], where_: &str) -> Result<Pax, EngineError
             return Err(refusal(road, where_, "its pax record runs past the block it is written in"));
         }
         let end = at + length as usize;
-        let raw = if space + 1 <= end { &data[space + 1..end] } else { &data[..0] };
+        let raw = if space < end { &data[space + 1..end] } else { &data[..0] };
         let mut record = String::from_utf8_lossy(raw).into_owned();
         if record.ends_with('\n') {
             record.pop();

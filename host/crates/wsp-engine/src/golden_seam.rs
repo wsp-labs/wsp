@@ -194,10 +194,13 @@ pub struct GoldenImport {
     /// `recipe.files`: each file row's id, dest and `volatile`.
     pub recipe_files: Vec<RecipeFileRow>,
     /// Called once per prepare that ran anything; a re-run that skipped every stage has nothing to report.
-    pub on_result: Option<Arc<dyn Fn(&crate::golden::ImportResult)>>,
+    pub on_result: Option<OnResult>,
     /// Called when a pass that reports no result wrote the machine context: `(context, context_failure)`.
     pub on_context: Option<OnContext>,
 }
+
+/// golden.ts:513 `onResult`.
+pub type OnResult = Arc<dyn Fn(&crate::golden::ImportResult)>;
 
 /// golden.ts:517 `onContext`'s argument, `Pick<ImportResult, "context" | "contextFailure">`.
 pub type OnContext = Arc<dyn Fn(&[crate::machine_context::ContextResult], Option<&str>)>;
@@ -252,6 +255,9 @@ pub struct ShellInstall {
     pub cmd: String,
 }
 
+/// golden-tools.ts:490 `asked`.
+pub type SeedAsked = Arc<dyn Fn(&str) -> Option<String>>;
+
 /// golden-tools.ts:490 `PluginSeedPlan.plugins[]`.
 #[derive(Clone)]
 pub struct SeedPlugin {
@@ -259,7 +265,7 @@ pub struct SeedPlugin {
     pub label: String,
     pub cmd: String,
     /// `asked(out)`: what a plugin's own output says in place of the guard's reason.
-    pub asked: Option<Arc<dyn Fn(&str) -> Option<String>>>,
+    pub asked: Option<SeedAsked>,
 }
 
 /// golden-tools.ts:489 `PluginSeedPlan`: the plugins the ticked agents switch on, built into the folder every turn on a
