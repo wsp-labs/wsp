@@ -61,6 +61,57 @@ fn io_error(e: std::io::Error) -> HostError {
     HostError::new(e.to_string())
 }
 
+/// A record read into its typed form that prints as the host wrote it: the TS hands the host's object on untouched,
+/// its keys in the host's order and the ones it does not know kept.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HostRow<T> {
+    typed: T,
+    raw: Value,
+}
+
+impl<T> HostRow<T> {
+    /// A typed record that was never a host's own, written as its type writes it.
+    pub fn of(typed: T) -> Self
+    where
+        T: Serialize,
+    {
+        let raw = serde_json::to_value(&typed).unwrap_or(Value::Null);
+        HostRow { typed, raw }
+    }
+
+    pub fn into_typed(self) -> T {
+        self.typed
+    }
+}
+
+impl<T> std::ops::Deref for HostRow<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.typed
+    }
+}
+
+impl<T> Serialize for HostRow<T> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.raw.serialize(serializer)
+    }
+}
+
+impl<'de, T: DeserializeOwned> Deserialize<'de> for HostRow<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let raw = Value::deserialize(deserializer)?;
+        let typed = serde_json::from_value(raw.clone()).map_err(serde::de::Error::custom)?;
+        Ok(HostRow { typed, raw })
+    }
+}
+
+/// A reply's `workspace` as the host wrote it, typed once the keys the record requires are there.
+pub(super) fn workspace_row(reply: &Frame, op: &str) -> Result<HostRow<WorkspaceOut>, HostError> {
+    let raw: Value = reply_field(reply, op, "workspace")?;
+    let typed = serde_json::from_value(with_workspace_keys(raw.clone())).map_err(|_| HostError::new(other_version(op)))?;
+    Ok(HostRow { typed, raw })
+}
+
 /// `workspaces(client)` (workspaces-help.ts:111): `workspaces.list`, the `workspaces` array as the host wrote it
 /// (not parsed: the TS hands the reply's objects on as they came).
 pub async fn workspaces(client: &dyn HostClient) -> Result<Vec<WorkspaceOut>, HostError> {
@@ -288,24 +339,24 @@ pub async fn woke_line(client: &dyn HostClient, workspace: &WorkspaceOut) -> Res
 
 /// `nap(client, ref)` (workspaces-help.ts:202): `workspace_of`, then `workspaces.nap {workspaceId}`, the `workspace`
 /// as the host wrote it.
-pub async fn nap(client: &dyn HostClient, r#ref: &str) -> Result<WorkspaceOut, HostError> {
+pub async fn nap(client: &dyn HostClient, r#ref: &str) -> Result<HostRow<WorkspaceOut>, HostError> {
     let source = workspace_of(client, r#ref).await?;
     let reply = client.request("workspaces.nap", params(json!({ "workspaceId": source.id }))).await?;
-    reply_field(&reply, "workspaces.nap", "workspace")
+    workspace_row(&reply, "workspaces.nap")
 }
 
 /// `resize(client, ref, size)` (workspaces-help.ts:209): `thread_of`, then `workspaces.resize {workspaceId (the
 /// thread's), size}`, the `workspace` as the host wrote it.
-pub async fn resize(client: &dyn HostClient, r#ref: &str, size: &WorkspaceSize) -> Result<WorkspaceOut, HostError> {
+pub async fn resize(client: &dyn HostClient, r#ref: &str, size: &WorkspaceSize) -> Result<HostRow<WorkspaceOut>, HostError> {
     let thread = thread_of(client, r#ref).await?;
     let reply = client.request("workspaces.resize", params(json!({ "workspaceId": thread.workspace_id, "size": size }))).await?;
-    reply_field(&reply, "workspaces.resize", "workspace")
+    workspace_row(&reply, "workspaces.resize")
 }
 
 /// `rebuild(client, ref)` (workspaces-help.ts:218): `workspace_of`, `status.list`, then (unless the workspace needs
 /// no rebuild: not gone, no zombie reach, no `wakeRefused`, `needs_rebuild`) a plain error
 /// `gone_road_refusal(state, Rebuild, pauseMode)` with no frame after; else `workspaces.rebuild {workspaceId}`.
-pub async fn rebuild(client: &dyn HostClient, r#ref: &str) -> Result<WorkspaceOut, HostError> {
+pub async fn rebuild(client: &dyn HostClient, r#ref: &str) -> Result<HostRow<WorkspaceOut>, HostError> {
     let source = workspace_of(client, r#ref).await?;
     let listed = status_of(client, &source.id).await?;
     let input = WorkspaceStateInput {
@@ -318,7 +369,7 @@ pub async fn rebuild(client: &dyn HostClient, r#ref: &str) -> Result<WorkspaceOu
         return Err(HostError::new(gone_road_refusal(&workspace_state(&input), GoneRoad::Rebuild, source.pause_mode.as_ref())));
     }
     let reply = client.request("workspaces.rebuild", params(json!({ "workspaceId": source.id }))).await?;
-    reply_field(&reply, "workspaces.rebuild", "workspace")
+    workspace_row(&reply, "workspaces.rebuild")
 }
 
 /// `rebuiltLine(workspace)` (workspaces-help.ts:229): `<state_line> on <machineId>`; no pause mode is read.

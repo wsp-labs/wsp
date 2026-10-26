@@ -29,7 +29,7 @@ use wsp_words::words::computer::{thread_without_id_refusal, thread_word};
 use wsp_words::words::thread::{shared_folder_line, workspace_asleep_again_line, workspace_stays_awake_line};
 use wsp_words::workspace_state::{gone_refusal, workspace_state, WorkspaceState, WorkspaceStateInput};
 
-use super::reads::{listed_status, params, reply_field, thread_of, threads, workspace_of, workspace_statuses};
+use super::reads::{listed_status, params, reply_field, thread_of, threads, workspace_of, workspace_row, workspace_statuses, HostRow};
 use crate::verbs::client::{access_word_of, opened_thread_said, other_version, pick, thread_id_of, under, Frame, HostClient};
 use crate::verbs::turns_help::Turn;
 
@@ -104,7 +104,7 @@ pub fn renamed_workspace_line(r: &RenamedWorkspace) -> String {
 /// the wake left where the provider had deleted the machine's disk.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Woken {
-    pub workspace: WorkspaceOut,
+    pub workspace: HostRow<WorkspaceOut>,
     pub woke: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub said: Option<String>,
@@ -129,13 +129,13 @@ pub async fn awake(
         return Err(HostError::new(gone_refusal(Some(&workspace.name), action, workspace.gone.as_deref())));
     }
     if before == WorkspaceState::Released && action == "send" {
-        return Ok(Woken { workspace: out_of(workspace)?, woke: false, said: None });
+        return Ok(Woken { workspace: HostRow::of(out_of(workspace)?), woke: false, said: None });
     }
     if before != WorkspaceState::Running {
         tell(&format!("waking {}", workspace.name));
     }
     let reply = client.request("workspaces.wake", params(json!({ "workspaceId": workspace.id }))).await?;
-    let woken: WorkspaceOut = reply_field(&reply, "workspaces.wake", "workspace")?;
+    let woken = workspace_row(&reply, "workspaces.wake")?;
     let down = matches!(before, WorkspaceState::Paused | WorkspaceState::Pausing);
     let said = if down { woken.disk_gone.clone() } else { None };
     if let Some(line) = &said {
