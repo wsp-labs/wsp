@@ -50,6 +50,9 @@ websocket (tokio-tungstenite and raw sockets on loopback).
   length is read: past it the socket is closed 1009 `Max payload size exceeded`. A frame of 16 MiB is read.
 - W13. Frames are read as ws's receiver reads them: RSV bits, opcodes, FIN on control frames, control payloads of at
   most 125 bytes, the mask, close codes (1000-1014 but 1004-1006, and 3000-4999), UTF-8 of text and of a close reason.
+  A message of more than 16,384 fragments is closed 1008 `Too many message fragments` (ws's `maxFragments`). `tests/ws_corpus.rs`
+  replays 3,480 recorded cases of ws 8.21.3's own receiver (`tests/fixtures/ws_receiver/`, remade by `gen.mjs`) and
+  compares each event, payload, close code and sentence to the byte.
   The peer's close is echoed with its code and reason (a close with no code, with none); a receiver that has read a
   close or a fault reads nothing more. A ping is answered with a pong while the socket is open.
 - W14. Every message of one read reaches the door in order before the door counts the bytes of that read toward the
