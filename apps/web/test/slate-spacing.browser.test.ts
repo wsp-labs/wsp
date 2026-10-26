@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The spacing and tables, and the bar lists' switch, measured in Chromium since jsdom lays nothing out: a live
 // traffic slate at the panel's 400 px and widened to 640 and 960. A section stands 32 px from what is beside it and pieces 12; a table's header words sit on
-// their columns, 11 px over the card; the log's last column ends on the card's right inset however wide the panel;
+// their columns in the card's first row; the log's last column ends on the card's right inset, and at 400 px it folds to a list inside its card;
 // and the bar lists' switch never moves the page. Like the other render tests it runs only when asked for
 // (WSP_RENDER=1).
 import type { Browser, Page } from "playwright";
@@ -43,8 +43,20 @@ describe.skipIf(renderSkipped !== undefined)("the slate's spacing, tables and ba
       await page.close();
     });
 
-    it(`sets the log's header words on their columns 11 px over the card, its last column on the right inset, at ${width}`, async () => {
+    it(`lays the log out inside its card, at ${width}: folded to a list at 400, else its header words on their columns in the card's first row and its last column on the right inset`, async () => {
       const page = await open(width);
+      if (width === 400) {
+        const folded = await page.evaluate(() => {
+          const table = document.querySelector("[data-slate-folded]");
+          const card = table?.firstElementChild?.getBoundingClientRect();
+          const ends = [...(table?.querySelectorAll("[role=cell] span") ?? [])].map(el => el.getBoundingClientRect().right);
+          return { folded: table !== null, rows: table?.querySelectorAll("[role=row]").length ?? 0, past: card === undefined ? -1 : ends.filter(r => r > card.right - 1).length };
+        });
+        expect(folded).toMatchObject({ folded: true, past: 0 });
+        expect(folded.rows).toBeGreaterThan(0);
+        await page.close();
+        return;
+      }
       const layout = await page.evaluate(() => {
         const box = (el: Element) => el.getBoundingClientRect();
         const text = (el: Element) => {
@@ -53,17 +65,18 @@ describe.skipIf(renderSkipped !== undefined)("the slate's spacing, tables and ba
           return range.getBoundingClientRect();
         };
         const head = document.querySelector("[data-slate-head]")!;
-        const card = head.nextElementSibling!;
+        const card = head.parentElement!;
         const heads = [...head.querySelectorAll("[role=columnheader]")];
-        const cells = [...card.querySelector("[role=row]")!.querySelectorAll("[role=cell]")];
+        const cells = [...head.nextElementSibling!.querySelectorAll("[role=cell]")];
         return {
-          gap: Math.round(box(card).top - Math.max(...heads.map(h => text(h).bottom))),
+          gap: Math.round(Math.min(...heads.map(h => text(h).top)) - box(card).top),
           offsets: heads.map((h, i) => (cells[i]!.className.includes("text-right") ? Math.round(box(h).right - box(cells[i]!).right) : Math.round(text(h).left - text(cells[i]!).left))),
           inset: Math.round(box(card).right - box(cells.at(-1)!).right),
           slack: [...cells].map(cell => Math.round(box(cell).width)).indexOf(Math.max(...cells.map(cell => Math.round(box(cell).width)))),
         };
       });
-      expect(layout.gap).toBe(11);
+      // The header row's words 12 px under the card's top edge: its 1 px border and the row's pad.
+      expect(layout.gap).toBe(12);
       expect(layout.offsets).toEqual([0, 0, 0, 0, 0, 0]);
       // The card's 1 px border and its 16 px inset; the path, the third column, holds the slack.
       expect(layout.inset).toBe(17);

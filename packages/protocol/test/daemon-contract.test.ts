@@ -234,6 +234,7 @@ import {
   workScoreLine,
   IMAGE_MAX_BYTES,
 } from "../src/index.js";
+import { SLATE_PAGE_MAX_BYTES } from "../src/slate/index.js";
 
 const CONTRACT = fileURLToPath(new URL("../../../daemon/fixtures/contract/", import.meta.url));
 
@@ -415,6 +416,8 @@ const numbers = (): Record<string, number | string | readonly string[]> => ({
   fsReadCapBytes: FS_READ_CAP_BYTES,
   // The most one fs.image carries is the cap on any image wsp takes.
   fsImageCapBytes: IMAGE_MAX_BYTES,
+  // The most one fs.page carries is the most a frame's page may weigh.
+  fsPageCapBytes: SLATE_PAGE_MAX_BYTES,
   fsHashFilesMax: FS_HASH_FILES_MAX,
   fsHashCapBytes: FS_HASH_CAP_BYTES,
   fsHashPathsMax: FS_HASH_PATHS_MAX,

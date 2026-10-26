@@ -27,6 +27,7 @@ export const SLATE_LIMITS = {
   pipelineSteps: 12,
   evalSteps: 20_000,
   listItems: 5_000,
+  rowsDrawn: 200,
   imagesPerList: 60,
   pipelineVisits: 100_000,
   columns: 8,
@@ -42,6 +43,19 @@ export const SLATE_LIMITS = {
   printColumns: 120,
   catalogIndexTokens: 1_500,
   catalogEntryTokens: 200,
+} as const;
+
+/** What a slate read at a glance holds at most: past each, the sketch warns the agent. */
+export const SLATE_GLANCE = {
+  sectionsOpen: 4,
+  tablesOpen: 1,
+  columns: 4,
+  cellWords: 12,
+  textWords: 30,
+  sketchWords: 400,
+  textPerVisual: 2,
+  sameRows: 3,
+  rowsRead: 1000,
 } as const;
 
 /** A text's size as the limits count it: UTF-8 bytes, as the host stores and sends it. */

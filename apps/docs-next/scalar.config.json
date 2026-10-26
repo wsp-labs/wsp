@@ -748,6 +748,11 @@
                     "title": "wsp slate catalog",
                     "filepath": "content/reference/cli/slate-catalog.mdx"
                   },
+                  "/slate-look": {
+                    "type": "page",
+                    "title": "wsp slate look",
+                    "filepath": "content/reference/cli/slate-look.mdx"
+                  },
                   "/slate-read": {
                     "type": "page",
                     "title": "wsp slate read",

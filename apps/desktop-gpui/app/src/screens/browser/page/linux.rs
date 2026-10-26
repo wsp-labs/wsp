@@ -39,6 +39,9 @@ thread_local! {
     static X11: Option<RustConnection> = x11rb::connect(None).ok().map(|(conn, _)| conn);
     /// One store for every page's cookies and storage, which each web view holds a reference to.
     static CONTEXT: RefCell<Option<wry::WebContext>> = const { RefCell::new(None) };
+    /// One store every slate frame shares, so their pages share one network process; nothing a sealed page does can
+    /// write to it, and it is made empty for each run.
+    static FRAMES: RefCell<Option<wry::WebContext>> = const { RefCell::new(None) };
     /// The pages that load once the store's service workers are cleared, or None once they are.
     static WAITING: RefCell<Option<Vec<Waiting>>> = const { RefCell::new(None) };
 }
@@ -175,6 +178,67 @@ impl Native {
             shown: Cell::new(false),
         };
         native.wire(tx);
+        glib_loop::nudge();
+        Ok(native)
+    }
+
+    /// A slate frame's page: a web view in the frames' own store, given `shell` as text, that opens no window and goes
+    /// to no address. A child window on X11 is not blended with GPUI's under it, so it draws on `ground`, the panel's
+    /// own, where the shell leaves its page clear. `trusted_types` false is the frame check's engine without them.
+    pub fn sealed(
+        shell: &str,
+        ground: gpui_kit::Rgba,
+        trusted_types: bool,
+        tx: UnboundedSender<Raw>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Result<Native, String> {
+        let gtk_scale = ensure_gtk(window, cx)?;
+        let (parent, toplevel) = parent(window)?;
+        let folder =
+            cx.try_global::<DataDir>().map(|d| d.path.with_file_name("slate-frames")).ok_or("no folder is set for the frames' store")?;
+        let title = tx.clone();
+        let byte = |c: f32| (c.clamp(0., 1.) * 255.).round() as u8;
+        let webview = FRAMES.with(|context| {
+            let mut context = context.borrow_mut();
+            let context = context.get_or_insert_with(|| {
+                _ = std::fs::remove_dir_all(&folder);
+                wry::WebContext::new(Some(folder))
+            });
+            WebViewBuilder::new_with_web_context(context)
+                .with_focused(false)
+                .with_visible(false)
+                .with_background_color((byte(ground.r), byte(ground.g), byte(ground.b), 255))
+                .with_download_started_handler(|_, _| false)
+                .with_document_title_changed_handler(move |t| _ = title.unbounded_send(Raw::Titled(t)))
+                .with_new_window_req_handler(|_, _| wry::NewWindowResponse::Deny)
+                .with_navigation_handler(|url| super::sealed_stays(&url))
+                .build_as_child(&parent)
+                .map_err(|e| format!("the frame could not be made: {e}"))
+        })?;
+        let container = webview
+            .webview()
+            .toplevel()
+            .and_then(|t| t.window())
+            .and_then(|w| w.downcast::<gdkx11::X11Window>().ok())
+            .ok_or_else(|| "the frame's X11 window was not made".to_owned())?;
+        let native = Native {
+            webview,
+            container: container.xid() as u32,
+            toplevel,
+            gtk_scale,
+            scale: Rc::new(Cell::new(window.scale_factor())),
+            holds_keys: Rc::default(),
+            shown: Cell::new(false),
+        };
+        native.wire(tx);
+        if let Some(settings) = webkit2gtk::WebViewExt::settings(&native.webview.webview()) {
+            settings.set_javascript_can_open_windows_automatically(false);
+            if !trusted_types {
+                features::turn_off(&settings, "TrustedTypes")?;
+            }
+        }
+        native.webview.load_html(shell).map_err(|e| format!("the frame could not be made: {e}"))?;
         glib_loop::nudge();
         Ok(native)
     }
@@ -398,6 +462,18 @@ impl Native {
         })
     }
 
+    /// Moves the real pointer over the page's window and across it, as a person's would; for the frame check.
+    pub fn sweep_pointer(&self) {
+        X11.with(|conn| {
+            let Some(conn) = conn else { return };
+            let Some(g) = conn.get_geometry(self.container).ok().and_then(|c| c.reply().ok()) else { return };
+            for (x, y) in [(g.width / 4, g.height / 4), (g.width / 2, g.height / 2), (g.width * 3 / 4, g.height / 2)] {
+                _ = conn.warp_pointer(x11rb::NONE, self.container, 0, 0, 0, 0, x as i16, y as i16);
+                _ = conn.flush();
+            }
+        });
+    }
+
     /// The page's shape as the X server holds it, in device pixels relative to the page; for the checks.
     pub fn shape(&self) -> Option<Vec<(i32, i32, i32, i32)>> {
         X11.with(|conn| {
@@ -489,5 +565,48 @@ fn modifiers(state: gtk::gdk::ModifierType) -> Modifiers {
         shift: state.contains(M::SHIFT_MASK),
         platform: state.contains(M::SUPER_MASK) || state.contains(M::MOD4_MASK),
         function: false,
+    }
+}
+
+/// WebKitGTK's runtime features (2.42 and later), which webkit2gtk-rs does not bind. Looked up when asked for, so an
+/// older WebKitGTK still starts the app and only the frame check finds them missing.
+mod features {
+    use gtk::glib::translate::ToGlibPtr as _;
+    use std::ffi::{c_char, c_int, c_void, CStr};
+
+    #[repr(C)]
+    struct List([u8; 0]);
+    #[repr(C)]
+    struct Feature([u8; 0]);
+
+    /// # Safety
+    /// `T` is the function pointer type the named symbol has.
+    unsafe fn symbol<T>(name: &CStr) -> Result<T, String> {
+        let found = libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr());
+        if found.is_null() {
+            return Err(format!("this WebKitGTK has no {}; it is older than 2.42", name.to_string_lossy()));
+        }
+        Ok(std::mem::transmute_copy::<*mut c_void, T>(&found))
+    }
+
+    pub fn turn_off(settings: &webkit2gtk::Settings, name: &str) -> Result<(), String> {
+        // SAFETY: each symbol is looked up with its documented signature; the list holds its features until unreffed,
+        // and each identifier is a static string WebKit owns.
+        unsafe {
+            let all: unsafe extern "C" fn() -> *mut List = symbol(c"webkit_settings_get_all_features")?;
+            let length: unsafe extern "C" fn(*mut List) -> usize = symbol(c"webkit_feature_list_get_length")?;
+            let at: unsafe extern "C" fn(*mut List, usize) -> *mut Feature = symbol(c"webkit_feature_list_get")?;
+            let unref: unsafe extern "C" fn(*mut List) = symbol(c"webkit_feature_list_unref")?;
+            let identifier: unsafe extern "C" fn(*mut Feature) -> *const c_char = symbol(c"webkit_feature_get_identifier")?;
+            let set: unsafe extern "C" fn(*mut webkit2gtk::ffi::WebKitSettings, *mut Feature, c_int) =
+                symbol(c"webkit_settings_set_feature_enabled")?;
+            let list = all();
+            let found = (0..length(list)).map(|i| at(list, i)).find(|&f| CStr::from_ptr(identifier(f)).to_bytes() == name.as_bytes());
+            if let Some(feature) = found {
+                set(settings.to_glib_none().0, feature, 0);
+            }
+            unref(list);
+            found.map(|_| ()).ok_or_else(|| format!("this WebKit has no feature named {name}"))
+        }
     }
 }

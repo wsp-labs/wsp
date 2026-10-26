@@ -8,6 +8,7 @@ ops! {
     "slates.event" => SlatesEventRequest => protocol::SlateEventAnswer,
     "slates.get" => SlatesGetRequest => protocol::SlatesGetAnswer,
     "slates.image" => SlatesImageRequest => protocol::SlatesImageAnswer,
+    "slates.page" => SlatesPageRequest => protocol::SlatesPageAnswer,
     "slates.read" => SlatesReadRequest => protocol::SlateReadAnswer,
     "slates.resolve" => SlatesResolveRequest => protocol::SlatesResolveAnswer,
     "slates.revoke" => SlatesRevokeRequest => Done,

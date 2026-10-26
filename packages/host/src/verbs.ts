@@ -564,6 +564,8 @@ export const FLAG_WORDS: Readonly<Record<string, string>> = {
   "slate read no-text": "leave out the slate in the JSX-like form a patch is written against",
   "slate read document": "also print the stored JSON document",
   "slate read no-sketch": "leave the sketch out",
+  "slate look width": "the panel's width in px to draw at, from 280 to 1600; the person's own panel width unless given",
+  "slate look out": "the file to save the PNG to; else one file per thread in the temporary folder, each look over the last",
   threads: "how many threads may run on that computer at once; a new one waits past it",
   machines: "how many machines may run on that cloud at once",
   spend: "the dollars a day that cloud may spend before it starts no new machine",

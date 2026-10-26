@@ -1,18 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! A run's output as it streams, after `apps/web/src/slate/pieces/output.tsx`: a row with its label and its state as
-//! one word, Cancel in the slot while it runs, then the tail of its lines in 12 px mono, `lines` rows tall, following
-//! the end while it runs; why under them when held or failed. A tool or resource run's result draws by its shape
-//! (`shape.tsx`) through the kit's own text, facts and table pieces.
+//! A run's output summary first, after `apps/web/src/slate/pieces/output.tsx`: a row with its label and its state as
+//! one word, Cancel in the slot while it runs, then what passed and failed as the runner tallied it and the lines that
+//! name a failure, or the last line where no tally reads; the raw lines fold under "All N lines", 12 px mono and
+//! `lines` rows tall once open, following the end while it runs. Why under them when held or failed. A tool or
+//! resource run's result draws by its shape (`shape.tsx`) through the kit's own text, facts and table pieces.
 
-use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _};
-use gpui_kit::{div, prelude::*, px, AnyElement, App, FontWeight, Hsla, Pixels, ScrollHandle, SharedString, Window};
+use std::sync::LazyLock;
+
+use gpui_kit::component::{h_flex, v_flex, ActiveTheme as _, Icon, Sizable as _};
+use gpui_kit::{div, prelude::*, px, AnyElement, App, FontWeight, Hsla, Pixels, ScrollHandle, SharedString, Transformation, Window};
+use regex::Regex;
 use serde_json::{Map, Value};
 
 use super::layout::{place_of, Place};
 use super::lists::{table_view, tight_widths, Column, Table, TableRow};
+use super::look;
 use super::text::{facts_grid, Fact};
 use super::{quiet, PieceCx};
-use crate::ui::{spinner, ActivePalette, Button, Crab};
+use crate::ui::{motion, spinner, ActivePalette, Button, Crab, Glyph};
 
 /// A run state as the status mark's grammar says it (`RUN_WORDS`).
 pub fn run_word(state: &str) -> &'static str {
@@ -153,34 +158,68 @@ pub fn draw(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement
         parts.push(
             div().min_w_0().py(px(12.)).px(inset).debug_selector(move || format!("slate-result-{run}")).children(body).into_any_element(),
         );
-    } else if !(lines.is_empty() && state == "idle") {
-        let rows = p.num("lines").map_or(LINES.0, |n| n.floor().clamp(LINES.1, LINES.2));
-        let follow = window.use_keyed_state(p.el("log"), cx, |_, _| (ScrollHandle::new(), 0usize));
-        let (handle, seen) = follow.read(cx).clone();
-        // `running` leaves a refresh out, and a refresh still streams lines to follow.
-        if state == "running" && seen != lines.len() {
-            handle.scroll_to_bottom();
-            follow.update(cx, |f, _| f.1 = lines.len());
-        }
-        let wrap = p.bool("wrap");
-        let log = v_flex()
-            .id(p.el("log-box"))
-            .track_scroll(&handle)
-            .when(wrap, |el| el.overflow_y_scroll())
-            .when(!wrap, |el| el.overflow_scroll())
-            .max_h(px((rows * 16. + 20.) as f32))
-            .py(px(10.))
-            .px(inset)
-            .font_family(mono)
+    } else if !lines.is_empty() {
+        parts.push(summary(&slate_run_summary(&lines), stale, inset, cx));
+        let fold = format!("{}/lines", p.id());
+        let open = slate.folds.get(&fold).copied().unwrap_or(false);
+        let turn = motion::ease_px(p.el("lines-chevron"), "turn", px(if open { 0.25 } else { 0. }), motion::COLORS, window, cx);
+        let screen = p.screen.clone();
+        let toggle = div()
+            .id(p.el("lines"))
+            .debug_selector(move || format!("slate-fold-{run}{}", if open { "-open" } else { "" }))
+            .flex()
+            .items_center()
+            .gap(px(4.))
+            .h(px(28.))
+            .cursor_pointer()
             .text_size(px(12.))
             .line_height(px(16.))
-            .text_color(if stale { pal.muted_foreground } else { pal.foreground })
-            .debug_selector(|| "slate-log".into())
-            .children(lines.into_iter().map(|line| {
-                let line = if line.is_empty() { " ".to_owned() } else { line };
-                div().when(!wrap, |el| el.whitespace_nowrap().flex_none()).child(SharedString::from(line))
-            }));
-        parts.push(log.into_any_element());
+            .text_color(pal.muted_foreground)
+            .hover(|el| el.text_color(pal.foreground))
+            .on_click(move |_, _, cx| {
+                let fold = fold.clone();
+                _ = screen.update(cx, |s, cx| s.fold(fold, !open, cx));
+            })
+            .child(
+                Icon::new(Glyph::ChevronRight)
+                    .with_size(px(14.))
+                    .flex_none()
+                    .transform(Transformation::rotate(gpui_kit::percentage(f32::from(turn)))),
+            )
+            .child(format!(
+                "All {} line{}",
+                look::slate_figure(lines.len() as f64, "integer", None),
+                if lines.len() == 1 { "" } else { "s" }
+            ));
+        let log = open.then(|| {
+            let rows = p.num("lines").map_or(LINES.0, |n| n.floor().clamp(LINES.1, LINES.2));
+            let follow = window.use_keyed_state(p.el("log"), cx, |_, _| (ScrollHandle::new(), 0usize));
+            let (handle, seen) = follow.read(cx).clone();
+            // `running` leaves a refresh out, and a refresh still streams lines to follow.
+            if state == "running" && seen != lines.len() {
+                handle.scroll_to_bottom();
+                follow.update(cx, |f, _| f.1 = lines.len());
+            }
+            let wrap = p.bool("wrap");
+            v_flex()
+                .id(p.el("log-box"))
+                .track_scroll(&handle)
+                .when(wrap, |el| el.overflow_y_scroll())
+                .when(!wrap, |el| el.overflow_scroll())
+                .max_h(px((rows * 16. + 10.) as f32))
+                .pt(px(4.))
+                .pb(px(6.))
+                .font_family(mono)
+                .text_size(px(12.))
+                .line_height(px(16.))
+                .text_color(if stale { pal.muted_foreground } else { pal.foreground })
+                .debug_selector(|| "slate-log".into())
+                .children(lines.into_iter().map(move |line| {
+                    let line = if line.is_empty() { " ".to_owned() } else { line };
+                    div().when(!wrap, |el| el.whitespace_nowrap().flex_none()).child(SharedString::from(line))
+                }))
+        });
+        parts.push(v_flex().min_w_0().py(px(6.)).px(inset).child(toggle).children(log).into_any_element());
     }
     if let Some(why) = why {
         parts.push(div().py(px(10.)).px(inset).debug_selector(|| "slate-why".into()).child(quiet(why, cx)).into_any_element());
@@ -201,6 +240,174 @@ pub fn draw(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement
             )
             .into_any_element(),
     )
+}
+
+/// `SlateRunSummary` in `protocol:slate/output.ts`: a run's lines as the runner tallied them, the lines that name a
+/// failure, and the last line.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RunSummary {
+    pub passed: Option<u64>,
+    pub failed: Option<u64>,
+    pub skipped: Option<u64>,
+    /// Failure and error lines, trimmed, in order, at most `SUMMARY_LINES`.
+    pub matters: Vec<String>,
+    /// The last line that is not blank, for output no runner's tally reads.
+    pub last: Option<String>,
+}
+
+/// `SLATE_SUMMARY_LINES`.
+pub const SUMMARY_LINES: usize = 5;
+
+// JavaScript reads `\d`, `\w` and `\b` as ASCII and `$` before a `\r` too, so these spell them out to read alike.
+static TALLY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)([0-9][0-9,]*) (passed|passing|failed|failing|failures|errors?|skipped|pending|ignored|todo)(?-u:\b)").unwrap()
+});
+/// cargo prints one per test binary, so a run of several crates sums them.
+static CARGO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*test result: [0-9A-Za-z_]+\. ").unwrap());
+/// `RUNNER_FAILURE`, then `NAMED_FAILURE`: the lines a runner or a language prints on its own, then the ones that only
+/// name a failure inside a log; the summary reads both.
+static MATTERS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(concat!(
+        r"(?mR)^\s*FAIL +(?:\|[^|]+\| +)?\S+\.[0-9A-Za-z_]+|--- FAIL|\.\.\. FAILED$|^\s*error(?:\[[0-9A-Za-z_]+\])?:",
+        r"|^\s*[0-9A-Za-z_.]*(?:Error|Exception)(?:\[[0-9A-Za-z_]+\])?:|(?-u:\b)panicked at(?-u:\b)",
+        r"|^Traceback \(most recent call last\)|(?-u:\b)npm ERR!|(?-u:\b)error TS[0-9]+:",
+        r"|^\s*(?:FAIL(?-u:\b)|FAILED(?-u:\b)|ERROR(?-u:\b)|[×✗✖❌]|[0-9]+\) )|(?-u:\b)error(?:\[[0-9A-Za-z_]+\])?:",
+        r"|(?-u:\b)AssertionError(?-u:\b)",
+    ))
+    .unwrap()
+});
+/// `FAIL_NAMES` and `MARK_NAMES`: vitest names a failed test twice, by its mark in the tree and on its FAIL line after;
+/// the FAIL line, with the file, is the one kept.
+static FAIL_NAMES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?R)^\s*FAIL\s+(?:\|[^|]+\|\s+)?\S+ > (.+)$").unwrap());
+static MARK_NAMES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?R)^\s*[×✗✖]\s+(.+?)(?:\s+[0-9]+(?:\.[0-9]+)?m?s)?$").unwrap());
+static ANSI: LazyLock<Regex> = LazyLock::new(|| Regex::new("\x1b\\[[0-9;]*m").unwrap());
+/// `LINE_CHARS`: a failure line or the last line is cut to one line's worth.
+const LINE_CHARS: usize = 160;
+
+fn cut(line: &str) -> String {
+    if line.chars().count() > LINE_CHARS {
+        format!("{}…", line.chars().take(LINE_CHARS - 1).collect::<String>())
+    } else {
+        line.to_owned()
+    }
+}
+
+/// One line's counts, by passed, failed and skipped.
+fn tally(line: &str) -> [Option<u64>; 3] {
+    let mut out = [None; 3];
+    for m in TALLY.captures_iter(line) {
+        let at = match m[2].to_lowercase().as_str() {
+            "passed" | "passing" => 0,
+            "failed" | "failing" | "failures" | "error" | "errors" => 1,
+            _ => 2,
+        };
+        let n: u64 = m[1].replace(',', "").parse().unwrap_or(0);
+        out[at] = Some(out[at].unwrap_or(0) + n);
+    }
+    out
+}
+
+fn tallies(line: &str) -> bool {
+    tally(line).iter().any(Option::is_some)
+}
+
+/// `slateRunSummary`: adjacent tally lines merge, the later winning a count both say; every cargo test result line
+/// sums.
+pub fn slate_run_summary(lines: &[String]) -> RunSummary {
+    let clean: Vec<String> = lines.iter().map(|l| ANSI.replace_all(l, "").into_owned()).collect();
+    let mut counts = [None; 3];
+    let cargo: Vec<&String> = clean.iter().filter(|l| CARGO.is_match(l)).collect();
+    if !cargo.is_empty() {
+        for line in cargo {
+            for (at, n) in tally(line).into_iter().enumerate() {
+                if let Some(n) = n {
+                    counts[at] = Some(counts[at].unwrap_or(0) + n);
+                }
+            }
+        }
+    } else if let Some(end) = clean.iter().rposition(|l| tallies(l)) {
+        let mut start = end;
+        while start > 0 && tallies(&clean[start - 1]) {
+            start -= 1;
+        }
+        for line in &clean[start..=end] {
+            for (at, n) in tally(line).into_iter().enumerate() {
+                if n.is_some() {
+                    counts[at] = n;
+                }
+            }
+        }
+    }
+    let fail_named: Vec<&str> = clean.iter().filter_map(|l| FAIL_NAMES.captures(l)).filter_map(|c| c.get(1)).map(|m| m.as_str()).collect();
+    let mut matters: Vec<String> = Vec::new();
+    for line in &clean {
+        let said = cut(line.trim());
+        if said.is_empty() || !MATTERS.is_match(line) || matters.contains(&said) || tallies(line) {
+            continue;
+        }
+        if MARK_NAMES.captures(line).and_then(|c| c.get(1)).is_some_and(|m| fail_named.contains(&m.as_str())) {
+            continue;
+        }
+        matters.push(said);
+        if matters.len() == SUMMARY_LINES {
+            break;
+        }
+    }
+    let last = clean.iter().rev().map(|l| l.trim()).find(|l| !l.is_empty()).map(cut);
+    RunSummary { passed: counts[0], failed: counts[1], skipped: counts[2], matters, last }
+}
+
+/// `slateSummaryCounts`: the counts as words, failed first and only those above nought.
+pub fn summary_counts(s: &RunSummary) -> Vec<(&'static str, String)> {
+    [("failed", s.failed), ("passed", s.passed), ("skipped", s.skipped)]
+        .into_iter()
+        .filter_map(|(word, n)| n.filter(|n| *n > 0).map(|n| (word, format!("{} {word}", look::slate_figure(n as f64, "integer", None)))))
+        .collect()
+}
+
+/// What the lines come to, ahead of them: the runner's counts, failed first, then the lines that name a failure; the
+/// last line alone where neither reads.
+fn summary(s: &RunSummary, stale: bool, inset: Pixels, cx: &App) -> AnyElement {
+    let pal = cx.palette().clone();
+    let counts = summary_counts(s);
+    let told = !counts.is_empty() || !s.matters.is_empty();
+    let lead: Vec<String> = if told { s.matters.clone() } else { s.last.clone().into_iter().collect() };
+    v_flex()
+        .debug_selector(|| "slate-summary".into())
+        .min_w_0()
+        .gap(px(6.))
+        .py(px(12.))
+        .px(inset)
+        .when(!counts.is_empty(), |el| {
+            el.child(h_flex().min_w_0().flex_wrap().gap_x(px(16.)).gap_y(px(4.)).text_size(px(14.)).line_height(px(20.)).children(
+                counts.into_iter().map(|(count, words)| {
+                    let ink = match (stale, count) {
+                        (true, _) | (false, "skipped") => pal.muted_foreground,
+                        (false, "failed") => pal.error_foreground,
+                        _ => pal.foreground,
+                    };
+                    div()
+                        .debug_selector(move || format!("slate-count-{count}"))
+                        .text_color(ink)
+                        .when(count == "failed" && !stale, |el| el.font_weight(FontWeight::MEDIUM))
+                        .child(words)
+                }),
+            ))
+        })
+        .when(!lead.is_empty(), |el| {
+            el.child(
+                v_flex()
+                    .debug_selector(|| "slate-matters".into())
+                    .min_w_0()
+                    .gap(px(2.))
+                    .font_family(cx.theme().mono_font_family.clone())
+                    .text_size(px(12.))
+                    .line_height(px(16.))
+                    .text_color(if told || stale { pal.muted_foreground } else { pal.foreground })
+                    .children(lead.into_iter().map(|line| div().min_w_0().child(line))),
+            )
+        })
+        .into_any_element()
 }
 
 /// `SlateResultShape`: the protocol's one decision for how a result draws.
@@ -397,6 +604,49 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    /// The protocol's own readings of real and written runner output, which `protocol:test/slate/output.test.ts` holds
+    /// `slateRunSummary` to, so the two apps never read one output two ways.
+    const READINGS: &str = include_str!("../../../../../../../packages/protocol/test/slate/output/readings.json");
+    fn printed(name: &str) -> String {
+        match name {
+            "vitest.txt" => include_str!("../../../../../../../packages/protocol/test/slate/output/vitest.txt"),
+            "vitest-color.txt" => include_str!("../../../../../../../packages/protocol/test/slate/output/vitest-color.txt"),
+            "cargo.txt" => include_str!("../../../../../../../packages/protocol/test/slate/output/cargo.txt"),
+            "tsc.txt" => include_str!("../../../../../../../packages/protocol/test/slate/output/tsc.txt"),
+            "tsc-pretty.txt" => include_str!("../../../../../../../packages/protocol/test/slate/output/tsc-pretty.txt"),
+            other => panic!("readings.json names {other}: include it here too"),
+        }
+        .to_owned()
+    }
+
+    #[test]
+    fn a_summary_reads_every_output_as_the_protocols_readings_say() {
+        let cases: Vec<Value> = serde_json::from_str(READINGS).unwrap();
+        assert!(cases.len() > 20);
+        for case in cases {
+            let name = case["name"].as_str().unwrap();
+            let lines: Vec<String> = match case["file"].as_str() {
+                Some(file) => printed(file).split('\n').map(str::to_owned).collect(),
+                None => case["lines"].as_array().unwrap().iter().map(|l| l.as_str().unwrap().to_owned()).collect(),
+            };
+            let s = slate_run_summary(&lines);
+            let want = &case["summary"];
+            let count = |k: &str| want.get(k).and_then(Value::as_u64);
+            assert_eq!((s.passed, s.failed, s.skipped), (count("passed"), count("failed"), count("skipped")), "{name}: the counts");
+            assert_eq!(json!(s.matters), want["matters"], "{name}: the lines that name a failure");
+            assert_eq!(s.last.as_deref(), want.get("last").and_then(Value::as_str), "{name}: the last line");
+            let words: Vec<String> = summary_counts(&s).into_iter().map(|c| c.1).collect();
+            assert_eq!(json!(words), case["counts"], "{name}: the counts as words");
+        }
+    }
+
+    #[test]
+    fn r3_a_long_last_line_is_kept_to_one_lines_worth_as_a_failure_line_is() {
+        let rows: Vec<String> = (0..60).map(|i| format!("{{\"number\":{i},\"title\":\"Pull request {i}\",\"state\":\"open\"}}")).collect();
+        let last = slate_run_summary(&[format!("[{}]", rows.join(","))]).last.unwrap();
+        assert!(last.chars().count() <= 160, "{} characters", last.chars().count());
+    }
 
     #[test]
     fn a_result_draws_by_its_shape() {
