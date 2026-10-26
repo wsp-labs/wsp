@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! kinds.ts:26-316, 506-563: the roads every kind shares. Spec: spec/kinds_roads.md.
+#![allow(clippy::result_large_err)]
 use std::path::{Component, Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -251,7 +252,7 @@ impl KindsArea {
             shell_line(&["git", "-C", path, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
         );
         let read = machine.exec(&command, ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..ExecOptions::default() }).await?;
-        let mut lines = read.stdout.split('\n').map(|line| js_trim(line));
+        let mut lines = read.stdout.split('\n').map(js_trim);
         let remote = lines.next().unwrap_or_default().to_string();
         let head = lines.next().unwrap_or_default();
         Ok((remote, head.strip_prefix("origin/").unwrap_or(head).to_string()))

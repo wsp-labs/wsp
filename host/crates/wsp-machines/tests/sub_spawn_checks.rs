@@ -163,7 +163,7 @@ fn writes_the_record_before_the_cloud_and_answers_out_notice_and_preamble() {
         assert_eq!(
             w().borrow().enqueued[0],
             js_text(&json!({
-                "id": SPAWNED_ID, "name": NAME, "kind": "cloud", "machineId": "", "phase": "running", "golden": "wsp-host-default-v1", "createdAt": SPAWNED_AT,
+                "id": SPAWNED_ID, "name": NAME, "kind": "cloud", "machineId": "", "phase": "running", "golden": "wsp-host-default-v1", "createdAt": "2025-10-09T08:53:20.040Z",
                 "project": "pr_1", "spec": {}, "place": "box", "size": { "cpu": 2, "memMb": 4096 }, "firstLife": true,
                 "parentThreadId": LEAD_THREAD, "rootThreadId": LEAD_THREAD, "lead": { "threadId": LEAD_THREAD, "workspaceId": LEAD_WS },
                 "sub": {

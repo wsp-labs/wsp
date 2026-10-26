@@ -8,7 +8,7 @@ use serde_json::{json, Map, Value};
 
 use wsp_core::types::internal::SessionEntry;
 use wsp_engine::disk_sync::{disk_use_of, DISK_USE_CMD};
-use wsp_engine::machine::{BackendPricing, ExecOptions, Size};
+use wsp_engine::machine::{ExecOptions, Size};
 use wsp_engine::exec_detached::put::INLINE_EXEC_MS;
 use wsp_wire::types::js_number::JsInt;
 use wsp_wire::views::workspace::{ReachState, WorkspacePhase};

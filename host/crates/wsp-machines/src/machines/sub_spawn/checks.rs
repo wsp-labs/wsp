@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! sub-spawn.ts:25-30, 76-281, 343-412: the record and every check before it. Spec: spec/sub_spawn_checks.md.
+#![allow(clippy::result_large_err)]
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -9,7 +10,7 @@ use serde_json::{json, Map, Value};
 use indexmap::{IndexMap, IndexSet};
 use wsp_catalog::git_hosts::{git_host_of, remote_host, GitHost, GitHostId};
 use wsp_engine::box_backend::{BoxLimits, BOX_CLASSES};
-use wsp_engine::machine::{BackendPricing, ExecOptions, ExecResult, MachineBackend, Size};
+use wsp_engine::machine::{ExecOptions, ExecResult, MachineBackend, Size};
 use wsp_engine::exec_detached::put::INLINE_EXEC_MS;
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::init_job::LoginState;
@@ -186,7 +187,7 @@ impl SubSpawnArea {
         };
         let uncommitted = if ask.from.is_none() { read.entries.iter().filter(|e| e.xy != "!!").count() as u64 } else { 0 };
         let brokered = self.ctx.brokered("cloud", place_id.as_deref());
-        let image = self.image_at(&place, &on, &host, &project.remote, brokered).await?;
+        let image = self.image_at(&place, &on, host, &project.remote, brokered).await?;
         let limits = if at.offers().limits { Some(at.limits().await?) } else { None };
         let sold = self.sold_by(&*at, limits.as_ref());
         let kept = self.kept_size(&place).and_then(|size| {
@@ -474,6 +475,7 @@ impl SubSpawnArea {
     }
 
     /// sub-spawn.ts:369 (rule 14). Answers `(branch, sha)`.
+    #[allow(clippy::wrong_self_convention)]
     pub(crate) async fn from_ref(&self, from: &str, lead: &Entry, preferred: Option<&str>) -> Result<(String, String), HostError> {
         let name = from.strip_prefix("origin/").unwrap_or(from);
         let listed = self.remote_read(lead, from, &["origin", name, &format!("{name}^{{}}")]).await?;
@@ -548,7 +550,7 @@ impl SubSpawnArea {
         let packed = self.ctx.seed_pack(&plan, &paths, &homes).await?;
         if packed.tar.len() as u64 > SUB_SEED_MAX_BYTES {
             let mut largest: Vec<(String, u64)> = paths.iter().filter_map(|p| travelling.get(p).map(|bytes| (p.clone(), *bytes))).collect();
-            largest.sort_by(|a, b| b.1.cmp(&a.1));
+            largest.sort_by_key(|(_, bytes)| std::cmp::Reverse(*bytes));
             let largest: Vec<String> = largest.iter().take(2).map(|(path, bytes)| format!("{path} ({})", fmt_bytes(*bytes as f64))).collect();
             return Err(AreaError::Host(sub_seed_too_big_refusal(
                 &project.name,

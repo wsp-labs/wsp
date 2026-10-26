@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Port of packages/runtime/src/machines/sub-spawn.ts at 65f6b89c7: a sub-thread's start on a cloud. Specs:
 //! spec/sub_spawn_checks.md (the record and every check before it) and spec/sub_spawn_machine.md (the machine).
+#![allow(clippy::result_large_err)]
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
@@ -14,7 +15,7 @@ use wsp_engine::box_backend::BoxLimits;
 use wsp_engine::machine::{Machine, MachineBackend};
 use wsp_wire::views::golden_image::GoldenManifest;
 use wsp_wire::views::session::ThreadCapWait;
-use wsp_wire::views::workspace::{BranchOfRecord, Caller, ProjectView, SeedChoice, SeedPlan};
+use wsp_wire::views::workspace::{Caller, ProjectView, SeedChoice, SeedPlan};
 use wsp_wire::views::workspace_more::ThreadScope;
 use wsp_words::exit::HostError;
 

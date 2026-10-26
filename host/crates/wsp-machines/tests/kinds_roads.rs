@@ -480,7 +480,7 @@ fn a_codex_launch_refuses_where_the_broker_named_no_login() {
         host.script("broker_status", Err(failed("broker is down")));
         area.read_broker().await;
         assert!(area.brokered_launch(&entry.borrow(), "codex", Some("tok")).is_err());
-        host.script("broker_status", Ok(json!({ "codex": "none" })));
+        host.script("broker_status", Ok(json!({})));
         area.read_broker().await;
         assert!(area.brokered_launch(&entry.borrow(), "codex", Some("tok")).is_err());
         assert!(host.calls_of("broker_codex_claims").is_empty());
@@ -621,7 +621,7 @@ fn a_joined_computers_agent_homes_and_env_follow_its_login() {
             d.github_from_vault = true;
         }));
         assert!(!keys.contains(&"USER".to_string()) && !keys.contains(&"PATH".to_string()), "{keys:?}");
-        assert!(at(&keys, "IS_SANDBOX") < at(&keys, "HOME") && at(&keys, "DISABLE_AUTOUPDATER") < at(&keys, "HOME"));
+        assert!(at(&keys, "HOME") < at(&keys, "IS_SANDBOX") && at(&keys, "HOME") < at(&keys, "DISABLE_AUTOUPDATER"));
         assert_eq!(env["HOME"], "/home/srv");
         assert!(at(&keys, "HOME") < at(&keys, "CLAUDE_CONFIG_DIR"));
         assert!(at(&keys, "CLAUDE_CONFIG_DIR") < at(&keys, "CLAUDE_CODE_OAUTH_TOKEN"));

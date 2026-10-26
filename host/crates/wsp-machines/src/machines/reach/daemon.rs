@@ -8,16 +8,14 @@ use std::sync::Arc;
 
 use futures::future::LocalBoxFuture;
 use futures::FutureExt;
-use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 use tokio_util::sync::CancellationToken;
 
 use wsp_core::clock::Cancel as Timer;
 use wsp_core::reach::DaemonReach;
 use wsp_core::types::events::CHECKOUT_TTL_MS;
-use wsp_core::types::wiring::{Joined, LiveWorkspace};
-use wsp_engine::machine::{ExecOptions, Machine};
-use wsp_engine::Cancel;
+use wsp_core::types::wiring::Joined;
+use wsp_engine::machine::ExecOptions;
 use wsp_wire::types::changes::Checkout;
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::tree::{GitBranchCompareReply, TreeChild, TreeFact};
@@ -25,7 +23,6 @@ use wsp_wire::views::workspace::WorkspacePhase;
 use wsp_wire::wire::daemon::{GitStatusReply, DETACHED_HEAD};
 use wsp_wire::wire::daemon_events::DaemonEvent;
 use wsp_words::exit::HostError;
-use wsp_words::js::js_round;
 use wsp_words::js::utf16::tail;
 use wsp_words::js::js_trim;
 use wsp_words::words::computer::WAKE_STOPPED;
@@ -82,7 +79,7 @@ impl ReachArea {
             }),
         );
         let work = Box::pin(work);
-        let timer = Box::pin(async move { timer.await });
+        let timer = Box::pin(timer);
         match futures::future::select(work, timer).await {
             futures::future::Either::Left((done, _)) => {
                 cancel();
@@ -135,10 +132,7 @@ impl ReachArea {
                 let ask_ms = answers_ms.min(ASK_DAEMON_MS) as u64;
                 let asked = self
                     .until(
-                        async {
-                            let up = self.or_stopped(async { machine.daemon_answers(Some(ask_ms)).await.map_err(AreaError::from) }, quit, wake).await?;
-                            Ok(up)
-                        },
+                        self.or_stopped(async { machine.daemon_answers(Some(ask_ms)).await.map_err(AreaError::from) }, quit, wake),
                         deadline,
                         "daemon answer",
                     )
@@ -152,7 +146,7 @@ impl ReachArea {
                     return Some(format!("nothing listens on the daemon's port inside {machine_id}"));
                 }
                 let pause = self.ctx.sleep(ASK_AGAIN_MS);
-                if let Err(error) = self.or_stopped(async { Ok(pause.await) }, quit, wake).await {
+                if let Err(error) = self.or_stopped(async { pause.await; Ok(()) }, quit, wake).await {
                     return Some(format!("the daemon on {machine_id} could not be asked ({})", error.message()));
                 }
             }
@@ -377,12 +371,12 @@ impl ReachArea {
         let head_is_oid = said.branch.oid.len() >= 7 && said.branch.oid.len() <= 40 && said.branch.oid.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase());
         let fact = Checkout {
             branch: said.branch.head.clone(),
-            ahead: JsInt(said.branch.ahead.clone()),
-            behind: JsInt(said.branch.behind.clone()),
+            ahead: JsInt(said.branch.ahead),
+            behind: JsInt(said.branch.behind),
             changed: JsInt(JsNumber(said.entries.iter().filter(|e| e.xy != "!!").count() as f64)),
             edits_unread: (said.edits_unread == Some(true)).then_some(true),
             counts_unknown: (said.counts_unknown == Some(true)).then_some(true),
-            stashes: said.stashes.clone(),
+            stashes: said.stashes,
             head: head_is_oid.then(|| said.branch.oid.clone()),
             read_at: JsNumber(now),
         };
@@ -411,9 +405,7 @@ impl ReachArea {
         if let Some(reading) = reading {
             return reading.await.ok().flatten();
         }
-        let Some(area) = self.me.upgrade() else {
-            return None;
-        };
+        let area = self.me.upgrade()?;
         let owned = Rc::clone(lead);
         let future: LocalBoxFuture<'static, Result<Option<TreeFact>, HostError>> = Box::pin(async move {
             let outcome = area.read_tree_now(&owned).await;

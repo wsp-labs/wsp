@@ -232,6 +232,12 @@ impl Machine for FakeMachine {
     fn kind(&self) -> MachineKind {
         MachineKind::Sandbox
     }
+    async fn preview_url(&self, _port: u16) -> Result<wsp_wire::wire::machine_link::PreviewReach, EngineError> {
+        if !self.offers().preview_url {
+            return Err(EngineError::Other { message: "not on this road".to_string(), code: None });
+        }
+        Ok(wsp_wire::wire::machine_link::PreviewReach { url: "http://127.0.0.1:1/".to_string(), token: "preview".to_string(), expires_at: 9_999_999_999_999.0.into() })
+    }
     fn offers(&self) -> MachineOffers {
         *self.offers.lock().unwrap()
     }
