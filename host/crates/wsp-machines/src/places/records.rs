@@ -245,7 +245,6 @@ pub(super) fn bare_view(id: &str, kind: PlaceKind, name: &str, default: bool) ->
         os: None,
         shape: None,
         disk_free_bytes: None,
-        engine: None,
         copies: None,
         present: None,
         takes_runtime: None,
@@ -314,7 +313,6 @@ pub(super) fn iso(at: u64) -> String {
 /// The `spawn` patch a place's settings hold (records.ts:112).
 fn spawn_patch(spawn: Option<&PlaceSettingsSpawn>) -> WorkspaceAgentsPatch {
     WorkspaceAgentsPatch {
-        spawn: spawn.and_then(|s| s.spawn),
         max_machines: spawn.and_then(|s| s.max_machines),
         max_depth: spawn.and_then(|s| s.max_depth),
     }

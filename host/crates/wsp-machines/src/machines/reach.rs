@@ -108,7 +108,16 @@ pub struct ReachArea {
 
 impl ReachArea {
     pub fn new(ctx: Rc<dyn ReachCtx>) -> Rc<ReachArea> {
-        todo!()
+        Rc::new_cyclic(|me| ReachArea {
+            ctx,
+            me: me.clone(),
+            polled_reach: RefCell::default(),
+            nap_refusals: RefCell::default(),
+            stop_refusals: RefCell::default(),
+            disks: RefCell::default(),
+            disk_reads: RefCell::default(),
+            disk_timer: RefCell::default(),
+        })
     }
 }
 
