@@ -293,7 +293,7 @@ impl Rig {
             }),
         );
         let l = log.clone();
-        host.hooks.set::<dyn Fn(&str, &str, &str) -> ()>(
+        host.hooks.set::<dyn Fn(&str, &str, &str)>(
             "SessionsCtx::move_session",
             Rc::new(move |thread: &str, from: &str, to: &str| l.lock().unwrap().push(format!("move_session {thread} {from} {to}"))),
         );
@@ -323,7 +323,7 @@ impl Rig {
         );
         let l = log.clone();
         let h = host.clone();
-        host.hooks.set::<dyn Fn(EventUnion) -> ()>(
+        host.hooks.set::<dyn Fn(EventUnion)>(
             "SessionsCtx::emit",
             Rc::new(move |event: EventUnion| {
                 let event = serde_json::to_value(&event).expect("an event serializes");
@@ -648,12 +648,13 @@ fn a_copied_turn_is_not_rewound() {
     run_local(async {
         let r = Rig::new(Shape::new(Cuts::Copy));
         // The history a fork starts with: its first turn's rows name the thread they were copied from.
-        let mut recorded = r.host.recorded.borrow_mut();
-        let first = serde_json::to_value(&recorded[0]).unwrap();
-        let mut copied = first.clone();
-        copied["copiedFrom"] = json!("thread-zz");
-        recorded[0] = event(copied);
-        drop(recorded);
+        {
+            let mut recorded = r.host.recorded.borrow_mut();
+            let first = serde_json::to_value(&recorded[0]).unwrap();
+            let mut copied = first.clone();
+            copied["copiedFrom"] = json!("thread-zz");
+            recorded[0] = event(copied);
+        }
         let e = r.to(1, true).await.unwrap_err();
         assert_eq!(said(&e), conflict(REWIND_COPIED_LINE));
         assert_eq!(r.log(), Vec::<String>::new());

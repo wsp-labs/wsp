@@ -468,7 +468,7 @@ impl SessionsArea {
             row.replaces = st.p.replaces.clone();
             row.notify = st.p.notify.clone();
             row.notify_by = st.p.notify_by.clone();
-            row.notify_road = st.p.notify_road.clone();
+            row.notify_road = st.p.notify_road;
         }
         ctx.sessions().borrow_mut().insert(st.turn_id.clone(), st.row.clone());
         let mut doc = json!({ "type": "session.held", "workspaceId": st.p.workspace_id, "threadId": thread_id });
@@ -841,10 +841,7 @@ impl SessionsArea {
             let gone = record.worktree.as_ref().is_some_and(|w| w.gone.is_some());
             if cwd != from && gone {
                 let fresh = ran_in.is_some()
-                    && wsp_catalog::catalog::catalog_agents()
-                        .iter()
-                        .find(|a| a.id == harness)
-                        .map_or(true, |a| a.project_key_env.is_none());
+                    && wsp_catalog::catalog::catalog_agents().iter().find(|a| a.id == harness).is_none_or(|a| a.project_key_env.is_none());
                 let mut doc = json!({ "type": "session.moved", "workspaceId": ws, "sessionId": session_id, "turnId": turn_id, "threadId": thread_id, "from": from, "to": cwd });
                 if let Some(branch) = record.worktree.as_ref().and_then(|w| w.branch.clone()) {
                     doc["branch"] = json!(branch);
@@ -1001,7 +998,7 @@ impl SessionsArea {
             turn_id: turn_id.clone(),
             notify: st.p.notify.clone(),
             notify_by: st.p.notify_by.clone(),
-            notify_road: st.p.notify_road.clone(),
+            notify_road: st.p.notify_road,
             turn_token,
             scope_device_id: scope_device,
             outcome: st.saying.outcome.get(),

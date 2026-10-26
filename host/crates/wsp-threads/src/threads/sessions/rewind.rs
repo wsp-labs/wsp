@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use serde_json::{json, Map, Value};
-use wsp_adapters::port::{CountedTurn, ForkTurn, ForkedSession, HarnessAdapter, RevertAsk, RevertAt, Reverted};
+use wsp_adapters::port::{CountedTurn, ForkTurn, ForkedSession, RevertAsk, RevertAt, Reverted};
 use wsp_core::types::api::RewindAsk;
 use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::internal_index::write_lines;

@@ -277,7 +277,7 @@ impl Delivery {
     /// O4: holds the line for the parent's wake where its workspace refuses a send now.
     fn hold_for_wake(&self) -> bool {
         let phase = self.area.ctx.entry(&self.parent_workspace).map(|entry| {
-            let phase = entry.borrow().record.borrow().phase.clone();
+            let phase = entry.borrow().record.borrow().phase;
             phase
         });
         let Some(phase) = phase else {
@@ -556,7 +556,7 @@ impl Delivery {
             attachments: (!attachments.is_empty()).then_some(attachments),
             harness: Some(self.parent_harness.clone()),
             thread: Some(self.line.notify.clone()),
-            started_by: Some(self.line.started_by.clone().unwrap_or(SessionOrigin::Agent)),
+            started_by: Some(self.line.started_by.unwrap_or(SessionOrigin::Agent)),
             request_id: Some(self.request_id.clone()),
             owed: true,
             asks_until_stopped: self.deadline > now,
@@ -759,8 +759,8 @@ impl ThreadsArea {
             return;
         }
         let as_who = match &line.by {
-            None => line.road.clone().map(Caller::Road),
-            Some(by) => Some(Caller::Scoped { origin: line.road.clone().unwrap_or(WorkspaceOrigin::Here), by: by.clone() }),
+            None => line.road.map(Caller::Road),
+            Some(by) => Some(Caller::Scoped { origin: line.road.unwrap_or(WorkspaceOrigin::Here), by: by.clone() }),
         };
         tokio::task::spawn_local(d.run(kept, as_who));
     }
@@ -888,8 +888,8 @@ impl ThreadsArea {
             let line = Owed {
                 to_person: Some(to_person),
                 by: steered.by.clone(),
-                road: steered.road.clone(),
-                started_by: Some(steered.started_by.clone()),
+                road: steered.road,
+                started_by: Some(steered.started_by),
                 images,
                 text: steered.prompt.clone(),
                 ..bare_line(format!("{turn_id}:unread:{id}"), &thread_id, &thread_id, String::new())
@@ -940,7 +940,7 @@ impl ThreadsArea {
             }
             let line = Owed {
                 by: named.by.clone(),
-                road: named.road.clone(),
+                road: named.road,
                 to_person: if me_told { None } else { Some(to_person.clone()) },
                 awaits_result: sub.clone(),
                 ..bare_line(format!("{turn_id}:{told}:{target}"), &thread_id, target, text)
@@ -1015,7 +1015,7 @@ impl ThreadsArea {
                 if !self.line_try(row_id) {
                     let (by, road) = {
                         let s = row.borrow();
-                        (s.notify_by.clone(), s.notify_road.clone())
+                        (s.notify_by.clone(), s.notify_road)
                     };
                     self.notify_end(&row, &notify, &TellAs { by, road }, &cut, false);
                 }

@@ -42,7 +42,7 @@ pub fn trimmed_row(ctx: &dyn TrimmedCtx, thread_id: &str, held: &ThreadRecord, e
         title_source: None,
         started_at: times,
         ended_at: times,
-        cwd: cwd,
+        cwd,
         refusal: None,
         limit: None,
         resume_at: None,

@@ -88,13 +88,13 @@ impl SessionsArea {
         }
         let keep = ask.processes == Some(ProcessesAsk::Keep);
         if ask.check == Some(true) {
-            if let Some(processes) = ask.processes.clone() {
+            if let Some(processes) = ask.processes {
                 let processes = if processes == ProcessesAsk::Stop { ProcessesAsk::Keep } else { processes };
                 ctx.activity().meet(&[thread_id.to_string()], processes, MeetVerb::Delete, origin.clone()).await?;
             }
             return Ok(deleted(&workspace_id, worktree, Vec::new()));
         }
-        let ended = match ask.processes.clone() {
+        let ended = match ask.processes {
             None => Vec::new(),
             Some(processes) => ctx.activity().meet(&[thread_id.to_string()], processes, MeetVerb::Delete, origin.clone()).await?,
         };

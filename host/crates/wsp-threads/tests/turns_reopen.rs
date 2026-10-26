@@ -231,7 +231,7 @@ fn invariant_5_a_transcript_that_does_not_read_leaves_the_turn_running_and_unrea
         let held = r.clone();
         assert_eq!(TurnsArea::new(host.clone()).reattach(r, false).await, Reopened::Unreached);
         assert_eq!(adapter.asked.lock().unwrap().len(), 0, "the run is never opened");
-        assert_eq!(serde_json::to_value(&held.borrow().view.status).unwrap(), json!("running"));
+        assert_eq!(serde_json::to_value(held.borrow().view.status).unwrap(), json!("running"));
         assert_eq!(host.rows.borrow().len(), 0, "no row is put");
         assert_eq!(warned.lines(), vec!["thread t1 on w1 was left running: the transcript of w1 does not parse".to_string()]);
     });
@@ -308,7 +308,7 @@ fn a_run_the_machine_no_longer_holds_is_gone() {
         let r = left_running(json!({}));
         let held = r.clone();
         assert_eq!(TurnsArea::new(host.clone()).reattach(r, false).await, Reopened::Gone);
-        assert_eq!(serde_json::to_value(&held.borrow().view.status).unwrap(), json!("running"), "the caller ends it on the gone line");
+        assert_eq!(serde_json::to_value(held.borrow().view.status).unwrap(), json!("running"), "the caller ends it on the gone line");
         assert_eq!(host.rows.borrow().len(), 0);
     });
 }
@@ -364,7 +364,7 @@ fn invariant_1_reopens_the_run_by_its_handle_from_its_first_line() {
         let adapter =
             Arc::new(Attaching { answer: Mutex::new(Some(Ok(Some(session.clone())))), asked: Mutex::new(Vec::new()), early: vec![] });
         let host = host_with(adapter.clone());
-        host.live("w1").map(|_| ());
+        let _ = host.live("w1");
         transcript(
             &host,
             vec![
@@ -417,7 +417,7 @@ fn invariant_1_keeps_a_reply_that_landed_before_the_restart() {
         let held = r.clone();
         assert_eq!(TurnsArea::new(host.clone()).reattach(r, false).await, Reopened::Attached);
         assert_eq!(
-            serde_json::to_value(&held.borrow().view.status).unwrap(),
+            serde_json::to_value(held.borrow().view.status).unwrap(),
             json!("running"),
             "a reply that landed still reads working until the exit"
         );
@@ -425,7 +425,7 @@ fn invariant_1_keeps_a_reply_that_landed_before_the_restart() {
         emit(&adapter.asked, json!({ "type": "session.end", "sessionId": "sess-1", "exitCode": 0, "sawResult": true }));
         assert_eq!(host.recorded_of("session.done").len(), 1, "the reply is not written again");
         assert_eq!(host.recorded_of("session.end"), vec![with(base("session.end"), json!({ "exitCode": 0, "sawResult": true }))]);
-        assert_eq!(serde_json::to_value(&held.borrow().view.status).unwrap(), json!("completed"));
+        assert_eq!(serde_json::to_value(held.borrow().view.status).unwrap(), json!("completed"));
     });
 }
 

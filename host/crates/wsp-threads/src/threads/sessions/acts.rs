@@ -58,13 +58,13 @@ fn row_for_view(sessions: &Sessions, view: &SessionView) -> Option<Row> {
 /// The refusal a send to this workspace meets, the name in it where `named` (workspace-state.ts sendRefusal).
 fn send_refusal_of(entry: &Entry, named: bool) -> Option<String> {
     let record = entry.borrow().record.borrow().clone();
-    let state = workspace_state(&WorkspaceStateInput { phase: record.phase.clone(), machine_state: None, reach: None, wake_refused: None });
+    let state = workspace_state(&WorkspaceStateInput { phase: record.phase, machine_state: None, reach: None, wake_refused: None });
     send_refusal(&SendRefusalKind::State(state), record.gone.as_deref(), named.then_some(record.name.as_str()))
 }
 
 fn rename_refusal_of(entry: &Entry) -> Option<String> {
     let record = entry.borrow().record.borrow().clone();
-    let state = workspace_state(&WorkspaceStateInput { phase: record.phase.clone(), machine_state: None, reach: None, wake_refused: None });
+    let state = workspace_state(&WorkspaceStateInput { phase: record.phase, machine_state: None, reach: None, wake_refused: None });
     action_refusal(&state, "rename", record.gone.as_deref(), Some(record.name.as_str()))
 }
 
@@ -193,7 +193,7 @@ impl SessionsArea {
                 Some(row) => Some(row),
                 None => {
                     let rows: Vec<Row> = sessions.borrow().values().cloned().collect();
-                    rows.into_iter().filter(|r| r.borrow().view.thread_id.as_deref() == Some(id)).last()
+                    rows.into_iter().rfind(|r| r.borrow().view.thread_id.as_deref() == Some(id))
                 }
             }
         };

@@ -64,7 +64,7 @@ impl SessionHandle for FakeHandle {
         self.turn.clone()
     }
     fn outcome(&self) -> SessionStartOutcome {
-        self.outcome.clone()
+        self.outcome
     }
     fn notice(&self) -> Option<String> {
         None
@@ -225,19 +225,20 @@ fn deliver_writes_since_and_request_before_the_first_try_and_takes_the_line_once
         assert_eq!(kept["since"], json!(1_000_000));
         assert_eq!(kept["requestId"], json!("uuid-1"));
         assert_eq!(ctx.store.logged()[0], "put notify-owed/L1", "the write goes before the start");
-        let started = ctx.started.borrow();
-        assert_eq!(started.len(), 1);
-        let (ws, o, caller) = &started[0];
-        assert_eq!(ws, "ws1");
-        assert_eq!(o.prompt, "thread child000 finished (completed): the report");
-        assert_eq!(o.harness.as_deref(), Some("claude"));
-        assert_eq!(o.thread.as_deref(), Some(PARENT));
-        assert_eq!(o.started_by, Some(serde_json::from_value(json!("agent")).expect("an origin")));
-        assert_eq!(o.request_id.as_deref(), Some("uuid-1"));
-        assert!(o.owed && o.asks_until_stopped && o.wakes_lead);
-        assert!(o.attachments.is_none());
-        assert!(caller.is_none(), "a line nobody but the person registered goes as theirs");
-        drop(started);
+        {
+            let started = ctx.started.borrow();
+            assert_eq!(started.len(), 1);
+            let (ws, o, caller) = &started[0];
+            assert_eq!(ws, "ws1");
+            assert_eq!(o.prompt, "thread child000 finished (completed): the report");
+            assert_eq!(o.harness.as_deref(), Some("claude"));
+            assert_eq!(o.thread.as_deref(), Some(PARENT));
+            assert_eq!(o.started_by, Some(serde_json::from_value(json!("agent")).expect("an origin")));
+            assert_eq!(o.request_id.as_deref(), Some("uuid-1"));
+            assert!(o.owed && o.asks_until_stopped && o.wakes_lead);
+            assert!(o.attachments.is_none());
+            assert!(caller.is_none(), "a line nobody but the person registered goes as theirs");
+        }
         ctx.taken.borrow_mut().insert(
             ("ws1".into(), "uuid-1".into()),
             Taken { session_id: "r-try".into(), thread_id: PARENT.into(), turn_id: "u-try".into(), outcome: TakenOutcome::Started },

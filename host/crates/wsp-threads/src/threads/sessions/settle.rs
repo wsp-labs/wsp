@@ -177,10 +177,10 @@ impl SessionsArea {
     pub async fn mark_threads(&self, thread_ids: Vec<String>, marks: ThreadMarks, origin: Option<Caller>) -> Result<(), HostError> {
         let at = self.ctx.clock().now() as f64;
         let pinned_number = match &marks.pinned {
-            Some(ThreadMarksPinned::V1(n)) => Some(n.clone()),
+            Some(ThreadMarksPinned::V1(n)) => Some(*n),
             _ => None,
         };
-        let order_number = marks.order.clone().flatten();
+        let order_number = marks.order.flatten();
         for key in [pinned_number, order_number].into_iter().flatten() {
             if !key.0.is_finite() {
                 return Err(usage_refusal(
