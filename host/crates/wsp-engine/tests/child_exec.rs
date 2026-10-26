@@ -57,7 +57,8 @@ fn running(pid: u32) -> bool {
 }
 
 /// A command that starts `child` in the background holding its stdout, writes that child's pid where the case and the
-/// cleanup read it, says started, then runs `then`.
+/// cleanup read it, says started, then runs `then`. Run it through /bin/sh: an exec of a file this process just wrote
+/// fails with ETXTBSY while another test thread is between its fork and its exec.
 fn command(child: &str, then: &str) -> Holder {
     let dir = tempfile::tempdir().unwrap();
     let pid_file = dir.path().join("sleep.pid");
@@ -80,7 +81,7 @@ fn holder(wait: bool) -> Holder {
 #[tokio::test]
 async fn returns_at_its_deadline_with_the_commands_own_children_gone_the_output_so_far_kept() {
     let h = holder(true);
-    let result = run_child(h.at(), &[], ChildOptions { timeout_ms: Some(500), ..Default::default() }).await;
+    let result = run_child("/bin/sh", &[h.at().to_string()], ChildOptions { timeout_ms: Some(500), ..Default::default() }).await;
     assert_eq!(result.exit_code, CHILD_TIMED_OUT.into());
     assert_eq!(result.stdout, "started\n");
     let sleep = h.pid();
@@ -92,7 +93,7 @@ async fn returns_at_its_deadline_with_the_commands_own_children_gone_the_output_
 #[tokio::test]
 async fn answers_when_the_command_exits_though_a_child_it_left_behind_still_holds_its_output() {
     let h = holder(false);
-    let result = run_child(h.at(), &[], ChildOptions::default()).await;
+    let result = run_child("/bin/sh", &[h.at().to_string()], ChildOptions::default()).await;
     assert_eq!(result.exit_code, 0.into());
     assert_eq!(result.stdout, "started\n");
     assert!(running(h.pid()));
@@ -102,7 +103,7 @@ async fn answers_when_the_command_exits_though_a_child_it_left_behind_still_hold
 #[tokio::test]
 async fn answers_a_command_that_exited_0_before_its_deadline_with_0_though_what_it_left_outlives_the_deadline() {
     let h = command(WRITER, "exit 0");
-    let result = run_child(h.at(), &[], ChildOptions { timeout_ms: Some(2_000), ..Default::default() }).await;
+    let result = run_child("/bin/sh", &[h.at().to_string()], ChildOptions { timeout_ms: Some(2_000), ..Default::default() }).await;
     assert_eq!(result.exit_code, 0.into());
     assert!(result.stdout.contains("started\n"), "stdout: {:?}", result.stdout);
 }
@@ -111,7 +112,7 @@ async fn answers_a_command_that_exited_0_before_its_deadline_with_0_though_what_
 #[tokio::test]
 async fn answers_a_command_whose_child_keeps_writing_within_a_second_of_the_commands_exit() {
     let h = command(WRITER, "exit 0");
-    let result = run_child(h.at(), &[], ChildOptions::default()).await;
+    let result = run_child("/bin/sh", &[h.at().to_string()], ChildOptions::default()).await;
     assert_eq!(result.exit_code, 0.into());
     assert!(result.stdout.contains("started\n"), "stdout: {:?}", result.stdout);
     // The writer prints 400 ticks over 20 s; an answer that waited for it to end holds them all.

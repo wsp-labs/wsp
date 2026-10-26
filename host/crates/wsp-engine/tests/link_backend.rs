@@ -20,8 +20,8 @@ use wsp_engine::exec_detached::INLINE_EXEC_MS;
 use wsp_engine::labels::BUILDER_LABEL;
 use wsp_engine::link_backend::{is_place_absent, place_absent, LinkAsk, LinkBackend, LinkMachine, CREATE_MS, LINK_MARGIN_MS};
 use wsp_engine::machine::{
-    Capabilities, DaemonSupervisor, ExecOptions, Machine, MachineBackend, MachineKind, MachineLife, MachineSpec, PlaceCapacity,
-    PreviewReach, RunOptions, Size, SnapshotOptions,
+    Capabilities, DaemonSupervisor, ExecOptions, Machine, MachineBackend, MachineLife, MachineSpec, PlaceCapacity, PreviewReach,
+    RunOptions, Size, SnapshotOptions,
 };
 use wsp_wire::types::JsNumber;
 use wsp_wire::wire::machine_link::{BackendFacts, MachineHandle, MACHINE_PUT_PART_BYTES, NO_IMAGES_HERE};

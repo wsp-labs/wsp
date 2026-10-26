@@ -72,5 +72,5 @@ pub const DAEMON_TARGETS: [DaemonTarget; 4] = [
 /// daemon-targets.ts:31. node's word for the system a machine's `uname -s` names; exact, case-sensitive match on
 /// `system`, `None` for a system no row has (`linux`, `""`, `FreeBSD`).
 pub fn platform_of_system(system: &str) -> Option<Platform> {
-    todo!()
+    DAEMON_TARGETS.iter().find(|t| t.system == system).map(|t| t.platform)
 }

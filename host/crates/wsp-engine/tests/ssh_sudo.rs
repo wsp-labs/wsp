@@ -128,7 +128,7 @@ impl Drop for Stubbed {
 
 async fn client(script: &str, opts: SshTransportOptions) -> ExecResult {
     let carry = ssh_client();
-    carry(reach(), script.to_string(), opts).await
+    carry(reach(), script.to_string(), opts).await.unwrap()
 }
 
 fn ride(ride: SshRide) -> SshTransportOptions {
@@ -251,7 +251,7 @@ async fn reads_the_road_as_the_login() {
         assert!(asked[0].opts.on_line.is_none());
         assert!(asked[0].opts.stdin.is_none());
     }
-    assert_eq!(try_ssh_sudo(&reach(), "pw one", &taken).await, SshSudo::Taken);
+    assert_eq!(try_ssh_sudo(&reach(), "pw one", &taken).await.unwrap(), SshSudo::Taken);
     let asked = asked.lock().unwrap().clone();
     assert_eq!(asked[1].script, SSH_SUDO_TRY);
     assert_eq!(asked[1].opts.ride, SshRide::Login);
@@ -260,11 +260,11 @@ async fn reads_the_road_as_the_login() {
 
     let (wrong, _) =
         answering_box("asks", None, Some("Sorry, try again.\nsudo: no password was provided\nsudo: 1 incorrect password attempt\n"));
-    assert_eq!(try_ssh_sudo(&reach(), "pw", &wrong).await, SshSudo::Wrong);
+    assert_eq!(try_ssh_sudo(&reach(), "pw", &wrong).await.unwrap(), SshSudo::Wrong);
     let (none, _) = answering_box("asks", None, Some("maya is not in the sudoers file.\n"));
-    assert_eq!(try_ssh_sudo(&reach(), "pw", &none).await, SshSudo::None);
+    assert_eq!(try_ssh_sudo(&reach(), "pw", &none).await.unwrap(), SshSudo::None);
     let (tty, _) = answering_box("asks", None, Some("sudo: sorry, you must have a tty to run sudo\n"));
-    assert_eq!(try_ssh_sudo(&reach(), "pw", &tty).await, SshSudo::Tty);
+    assert_eq!(try_ssh_sudo(&reach(), "pw", &tty).await.unwrap(), SshSudo::Tty);
     for (road, want) in [("root", SshSudo::Root), ("free", SshSudo::Free), ("tty", SshSudo::Tty), ("none", SshSudo::None)] {
         assert_eq!(read_ssh_sudo(&reach(), &answering_box(road, None, None).0).await.unwrap(), want);
     }

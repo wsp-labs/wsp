@@ -103,7 +103,7 @@ fn gzip_of_exact_length(blob: &[u8], target: usize) -> Vec<u8> {
     let mut header = gz[..10].to_vec();
     header[3] |= 0x10;
     let mut out = header;
-    out.extend(std::iter::repeat(0x61u8).take(pad - 1));
+    out.extend(std::iter::repeat_n(0x61u8, pad - 1));
     out.push(0);
     out.extend_from_slice(&gz[10..]);
     out

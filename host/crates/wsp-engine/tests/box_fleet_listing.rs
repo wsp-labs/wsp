@@ -200,7 +200,7 @@ async fn lists_every_snapshot_with_the_size_storage_holds_and_the_size_it_restor
     );
     assert_eq!(cursors(&api, "/snapshots"), vec![None, Some("c2".to_string())]);
     let other = FakeBox::new().on("GET", "/named-snapshots", vec![reply(200, json!({ "ok": true, "items": [] }))]);
-    let e = backend_on(&other, "trial", Default::default()).backend.list_snapshots(None).await.err().expect("a refusal");
+    let e = backend_on(&other, "trial", Default::default()).backend.list_snapshots(None).await.expect_err("a refusal");
     assert!(e.to_string().contains("GET /named-snapshots answered without a snapshots array"), "{e}");
 }
 
@@ -478,7 +478,7 @@ async fn a_failed_backstop_waits_its_backoff_30s_doubling_to_five_minutes_and_ev
     let waits: Vec<i64> = tries.windows(2).map(|w| w[1] - w[0]).collect();
     assert!(waits.len() >= 6, "{waits:?}");
     let mut expected = vec![30_000, 60_000, 120_000, 240_000];
-    expected.extend(std::iter::repeat(300_000).take(waits.len() - 4));
+    expected.extend(std::iter::repeat_n(300_000, waits.len() - 4));
     assert_eq!(waits, expected);
 }
 
