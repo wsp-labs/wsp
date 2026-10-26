@@ -2,11 +2,15 @@
 //! The rules both turn roads share: the cut, the idle clock, when a tree is worth reading, the guest's awk programs
 //! and the log's line cutter. Port of packages/runtime/src/machine-exec.ts:95-298 at 65f6b89c7. Spec:
 //! spec/machine_exec_rules.md.
-use std::sync::atomic::AtomicU64;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use indexmap::IndexMap;
-use wsp_adapters::port::ExecFailure;
+use wsp_adapters::port::{ExecFailure, ExecFailureKind};
+use wsp_wire::wire::limits::{EXEC_LINE_MAX_BYTES, TURN_WORK_TICKS_PER_S};
+use wsp_words::words::thread::{turn_cut_line, TurnCutRule};
+
+const LINE_MAX: usize = EXEC_LINE_MAX_BYTES as usize;
 
 /// The two limits a turn runs under on every kind of machine. `f64::INFINITY` is no limit (the exec verb's).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -25,7 +29,15 @@ pub struct TurnLimits {
 //   return rule === undefined ? undefined : new Error(turnCutLine(rule, elapsedMs, rule === "wall" ? limits.deadlineMs : limits.idleMs));
 // }
 pub fn turn_cut(limits: TurnLimits, elapsed_ms: i64, quiet_ms: i64) -> Option<ExecFailure> {
-    todo!()
+    let elapsed = elapsed_ms as f64;
+    let (rule, limit) = if elapsed >= limits.deadline_ms {
+        (TurnCutRule::Wall, limits.deadline_ms)
+    } else if quiet_ms as f64 >= limits.idle_ms {
+        (TurnCutRule::Idle, limits.idle_ms)
+    } else {
+        return None;
+    };
+    Some(ExecFailure { kind: ExecFailureKind::Other, message: turn_cut_line(rule, elapsed, limit) })
 }
 
 /// One reading of a turn's tree and the clock it was taken on; only the difference between two means anything.
@@ -63,19 +75,31 @@ pub struct TurnActivity {
 impl TurnActivity {
     /// How long the turn has done nothing: what the idle limit is compared with.
     pub fn quiet_ms(&self, now_ms: i64) -> i64 {
-        todo!()
+        now_ms - self.active_at
     }
     /// A byte from the harness or a message the person sent; sets the clock to `at_ms` even when earlier.
     pub fn touch(&mut self, at_ms: i64) {
-        todo!()
+        self.active_at = at_ms;
     }
     /// A stretch the road was dark: no part of the quiet, the clock goes on from where it stood.
     pub fn hold(&mut self, ms: i64) {
-        todo!()
+        self.active_at += ms;
     }
     /// One reading of the tree; the first, and any below the base, only becomes the base.
     pub fn read(&mut self, ticks: i64, at_ms: i64) {
-        todo!()
+        let base = match self.base {
+            Some(base) if ticks >= base.ticks => base,
+            _ => {
+                self.base = Some(WorkReading { ticks, at: at_ms });
+                return;
+            }
+        };
+        let floor = (TURN_WORK_TICKS_PER_S as f64 * (at_ms - base.at) as f64 / 1_000.0).max(1.0);
+        if ((ticks - base.ticks) as f64) < floor {
+            return;
+        }
+        self.active_at = at_ms;
+        self.base = Some(WorkReading { ticks, at: at_ms });
     }
 }
 
@@ -103,7 +127,7 @@ impl TurnActivity {
 //   };
 // }
 pub fn turn_activity(started_at: i64) -> TurnActivity {
-    todo!()
+    TurnActivity { active_at: started_at, base: None }
 }
 
 /// Whether the tree is worth reading now: a finite idle limit and half of it quiet.
@@ -116,7 +140,7 @@ pub fn turn_activity(started_at: i64) -> TurnActivity {
 //   return Number.isFinite(idleMs) && quietMs >= idleMs / 2;
 // }
 pub fn reads_work(idle_ms: f64, quiet_ms: i64) -> bool {
-    todo!()
+    idle_ms.is_finite() && quiet_ms as f64 >= idle_ms / 2.0
 }
 
 /// The guest's reading of a run's tree, given the run's leader in `p`; the TS text byte for byte.
@@ -198,15 +222,43 @@ pub struct LineCut {
 
 impl LineCut {
     pub fn new() -> Self {
-        todo!()
+        LineCut { pending: Vec::new() }
     }
     /// Every complete line the buffered bytes now hold, decoded lossily as node's `Buffer.toString("utf8")` does.
     pub fn take(&mut self, chunk: &[u8]) -> Vec<String> {
-        todo!()
+        let mut seen = self.pending.len();
+        self.pending.extend_from_slice(chunk);
+        let mut lines = Vec::new();
+        let mut from = 0;
+        loop {
+            let nl = self.pending[seen..].iter().position(|&b| b == b'\n').map(|i| seen + i);
+            let end = nl.unwrap_or(self.pending.len());
+            if end - from > LINE_MAX {
+                let mut at = from + LINE_MAX;
+                for _ in 0..3 {
+                    if self.pending[at] & 0xc0 != 0x80 {
+                        break;
+                    }
+                    at -= 1;
+                }
+                lines.push(String::from_utf8_lossy(&self.pending[from..at]).into_owned());
+                from = at;
+                seen = end;
+            } else if let Some(nl) = nl {
+                lines.push(String::from_utf8_lossy(&self.pending[from..nl]).into_owned());
+                from = nl + 1;
+                seen = from;
+            } else {
+                break;
+            }
+        }
+        self.pending.drain(..from);
+        lines
     }
     /// The tail no newline ended, let go of as it is handed over; `None` when nothing is pending.
     pub fn rest(&mut self) -> Option<String> {
-        todo!()
+        let last = std::mem::take(&mut self.pending);
+        (!last.is_empty()).then(|| String::from_utf8_lossy(&last).into_owned())
     }
 }
 
@@ -220,24 +272,32 @@ pub struct ReadingSet {
 
 impl ReadingSet {
     pub fn new() -> Arc<Self> {
-        todo!()
+        Arc::new(Self::default())
+    }
+    fn locked(&self) -> MutexGuard<'_, IndexMap<u64, Arc<dyn Fn()>>> {
+        self.drops.lock().unwrap_or_else(PoisonError::into_inner)
     }
     /// Registers one reader's let-go; answers the key `remove` takes.
     pub fn add(&self, drop: Arc<dyn Fn()>) -> u64 {
-        todo!()
+        let key = self.next.fetch_add(1, Ordering::Relaxed);
+        self.locked().insert(key, drop);
+        key
     }
     pub fn remove(&self, key: u64) {
-        todo!()
+        self.locked().shift_remove(&key);
     }
     pub fn len(&self) -> usize {
-        todo!()
+        self.locked().len()
     }
     pub fn is_empty(&self) -> bool {
-        todo!()
+        self.locked().is_empty()
     }
     /// Calls every registered let-go, in the order they were added, off a copy of the set taken first (the TS
     /// `for (const drop of [...reading]) drop()`); the lock is never held while one runs.
     pub fn let_go_all(&self) {
-        todo!()
+        let drops: Vec<Arc<dyn Fn()>> = self.locked().values().cloned().collect();
+        for drop in drops {
+            drop();
+        }
     }
 }
