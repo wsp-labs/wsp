@@ -22,6 +22,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use async_trait::async_trait;
 use indexmap::IndexMap;
 use regex::Regex;
+use wsp_wire::types::env::CLOUD_ENV;
 use wsp_words::exit::{usage_refusal, HostError};
 use wsp_words::words::thread::foreign_flag_line;
 
@@ -155,6 +156,12 @@ pub fn verbs_for(cloud_on: bool) -> Vec<Verb> {
     let kept: Vec<Verb> =
         if cloud_on { all_verbs() } else { all_verbs().iter().filter(|verb| !verb.is_cloud()).map(without_cloud_flags).collect() };
     kept.iter().map(|verb| in_cloud_words(verb, cloud_on)).collect()
+}
+
+/// Whether the cloud is on for a caller holding this environment: the line's own, which carries the table it runs
+/// from, or this process's.
+pub fn cloud_of(vars: &IndexMap<String, String>) -> bool {
+    crate::cloud::cloud_on_in(vars) || crate::cloud::cloud_on()
 }
 
 /// `VERBS` of this process: `verbs_for(crate::cloud::cloud_on())`, built once.
@@ -530,6 +537,7 @@ pub async fn run_verb(
     deps: RunDeps,
 ) -> i32 {
     let name = verb.name();
+    let cloud = table.iter().any(Verb::is_cloud);
     let json = json_asked(argv);
     let own_words = name.split(' ').count();
     let rest = argv.get(own_words..).unwrap_or_default();
@@ -545,7 +553,7 @@ pub async fn run_verb(
     let host_side = verb.host_side();
     if flag_set(&flags, "help") {
         let host = if host_side.is_some() { common_flag_words::HOST_SIDE } else { common_flag_words::HOST };
-        io.log(&verb_page(verb, host, crate::cloud::cloud_on()));
+        io.log(&verb_page(verb, host, cloud));
         return 0;
     }
     let state_path = state_path_of(flag(&flags, "state"));
@@ -571,11 +579,17 @@ pub async fn run_verb(
         noted: Mutex::new(false),
         client: Mutex::new(None),
     });
+    let mut env = deps.env.clone();
+    if cloud {
+        env.insert(CLOUD_ENV.to_owned(), "1".to_owned());
+    } else {
+        env.shift_remove(CLOUD_ENV);
+    }
     let ctx = VerbContext {
         deps: VerbDeps {
             state_path,
             cwd: deps.cwd.clone(),
-            env: deps.env.clone(),
+            env,
             dialer: dialer.clone(),
             host_wait_ms: None,
             start: deps.start.clone(),

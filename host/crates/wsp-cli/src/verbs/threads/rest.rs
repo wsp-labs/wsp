@@ -450,7 +450,7 @@ pub(super) fn run_exec(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError
         };
         let given = absolute_folder(flag(&ctx.flags, "cwd"))?;
         let client = ctx.client(None).await?;
-        let (thread, workspace) = thread_at(&*client, &reference, "wsp exec", false).await?;
+        let (thread, workspace) = thread_at_in(&*client, &reference, "wsp exec", false, cloud_of(&ctx.env)).await?;
         let say = |line: &str| ctx.io.error(line);
         let woken = awake(&*client, &view_of(&workspace)?, "exec", &say).await?;
         let folder = given.or_else(|| thread_cwd(thread.cwd.as_deref(), workspace.worktree.as_ref()));
@@ -478,7 +478,8 @@ pub(super) fn call_exec(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<Ca
     Box::pin(async move {
         let given = absolute_folder(frame_str(&args, "cwd").as_deref())?;
         let client = deps.client(None).await?;
-        let (thread, workspace) = thread_at(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp exec", false).await?;
+        let (thread, workspace) =
+            thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp exec", false, cloud_of(&deps.env)).await?;
         let asked = given.or_else(|| thread_cwd(thread.cwd.as_deref(), workspace.worktree.as_ref()));
         let quiet = |_: &str| {};
         let woken = awake(&*client, &view_of(&workspace)?, "exec", &quiet).await?;
@@ -494,8 +495,12 @@ pub(super) fn call_exec(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<Ca
             return Err(HostError::new(error));
         }
         let output = output.lock().unwrap().clone();
-        let mut structured = exec_answer(run.exit.exit_code, run.ran_in.as_deref());
+        let mut structured = Map::new();
+        structured.insert("exitCode".to_owned(), json!(run.exit.exit_code));
         structured.insert("output".to_owned(), json!(output));
+        if let Some(cwd) = run.ran_in.as_deref() {
+            structured.insert("cwd".to_owned(), json!(cwd));
+        }
         let text = output.join("\n");
         Ok(as_text(&text, Value::Object(structured)))
     })
