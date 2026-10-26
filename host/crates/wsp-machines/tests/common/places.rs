@@ -883,7 +883,11 @@ impl PlaceRecording for FakeRecording {
     async fn sign_in_line(&self, _place_id: &str, agent: &str) -> Option<PlaceResult<SignInLine>> {
         let s = self.sign_ins.borrow().clone()?;
         let status = if s.status.get() { wsp_catalog::catalog::login_sign_in(agent).and_then(|l| l.status().map(|st| st.command.to_string())) } else { None };
-        Some(Ok(serde_json::from_value(json!({ "command": format!("{agent} login"), "status": status })).expect("a sign-in line")))
+        let mut line = json!({ "command": format!("{agent} login") });
+        if let Some(status) = status {
+            line["status"] = json!(status);
+        }
+        Some(Ok(serde_json::from_value(line).expect("a sign-in line")))
     }
     fn stores_on(&self, _place_id: &str, _home: &str) -> Option<IndexMap<String, String>> {
         self.stores.borrow().clone()
