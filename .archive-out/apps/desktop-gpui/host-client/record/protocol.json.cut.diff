@@ -1,0 +1,1483 @@
+diff --git a/apps/desktop-gpui/host-client/record/protocol.json b/apps/desktop-gpui/host-client/record/protocol.json
+index 69f231fe9..4af389a68 100644
+--- a/apps/desktop-gpui/host-client/record/protocol.json
++++ b/apps/desktop-gpui/host-client/record/protocol.json
+@@ -39,16 +39,8 @@
+   "host.terminalConfig": "HostTerminalConfigRequest",
+   "image.build": "ImageBuildRequest",
+   "image.get": "ImageGetRequest",
+-  "init.answer": "InitAnswerRequest",
+-  "init.build": "InitBuildRequest",
+-  "init.cancel": "InitCancelRequest",
+-  "init.draft": "InitDraftRequest",
+   "init.get": "InitGetRequest",
+   "init.keys": "InitKeysRequest",
+-  "init.retry": "InitRetryRequest",
+-  "init.signInCode": "InitSignInCodeRequest",
+-  "init.start": "InitStartRequest",
+-  "init.step": "InitStepRequest",
+   "pair.issue": "PairIssueRequest",
+   "pair.redeem": "PairRedeemRequest",
+   "places.add": "PlacesAddRequest",
+@@ -72,7 +64,6 @@
+   "preferences.get": "PreferencesGetRequest",
+   "preferences.set": "PreferencesSetRequest",
+   "project.export": "ProjectExportRequest",
+-  "projectGoldens.list": "ProjectGoldensListRequest",
+   "projects.add": "ProjectsAddRequest",
+   "projects.branch": "ProjectsBranchRequest",
+   "projects.defaults": "ProjectsDefaultsRequest",
+@@ -173,7 +164,6 @@
+   "workspaces.review": "WorkspacesReviewRequest",
+   "workspaces.reviewDraft": "WorkspacesReviewDraftRequest",
+   "workspaces.reviewPost": "WorkspacesReviewPostRequest",
+-  "workspaces.snapshot": "WorkspacesSnapshotRequest",
+   "workspaces.start": "WorkspacesStartRequest",
+   "workspaces.stopWake": "WorkspacesStopWakeRequest",
+   "workspaces.touch": "WorkspacesTouchRequest",
+@@ -2175,9 +2165,6 @@
+         "agents": {
+          "type": "object",
+          "properties": {
+-          "spawn": {
+-           "type": "boolean"
+-          },
+           "maxMachines": {
+            "type": "integer",
+            "minimum": 0
+@@ -2188,7 +2175,6 @@
+           }
+          },
+          "required": [
+-          "spawn",
+           "maxMachines",
+           "maxDepth"
+          ]
+@@ -6156,67 +6142,6 @@
+       "release"
+      ]
+     },
+-    {
+-     "type": "object",
+-     "properties": {
+-      "type": {
+-       "type": "string",
+-       "enum": [
+-        "init.job"
+-       ]
+-      },
+-      "job": {
+-       "$ref": "#/definitions/InitJob"
+-      },
+-      "seq": {
+-       "type": "integer",
+-       "exclusiveMinimum": 0
+-      }
+-     },
+-     "required": [
+-      "type",
+-      "job"
+-     ]
+-    },
+-    {
+-     "type": "object",
+-     "properties": {
+-      "type": {
+-       "type": "string",
+-       "enum": [
+-        "job.needs-you"
+-       ]
+-      },
+-      "jobId": {
+-       "type": "string"
+-      },
+-      "needsYou": {
+-       "type": "object",
+-       "properties": {
+-        "what": {
+-         "type": "string"
+-        },
+-        "since": {
+-         "type": "integer",
+-         "minimum": 0
+-        }
+-       },
+-       "required": [
+-        "what",
+-        "since"
+-       ]
+-      },
+-      "seq": {
+-       "type": "integer",
+-       "exclusiveMinimum": 0
+-      }
+-     },
+-     "required": [
+-      "type",
+-      "jobId",
+-      "needsYou"
+-     ]
+-    },
+     {
+      "type": "object",
+      "properties": {
+@@ -8234,676 +8159,84 @@
+     "hidden"
+    ]
+   },
+-  "InitJob": {
++  "InitSetup": {
+    "type": "object",
+    "properties": {
+-    "id": {
+-     "type": "string"
+-    },
+-    "road": {
+-     "type": "string",
+-     "enum": [
+-      "manual",
+-      "agent",
+-      "terminal"
+-     ]
+-    },
+-    "phase": {
+-     "type": "string",
+-     "enum": [
+-      "agent",
+-      "reading",
+-      "answering",
+-      "building",
+-      "signing-in",
+-      "sealing",
+-      "finishing",
+-      "done",
+-      "failed",
+-      "cancelled"
+-     ]
+-    },
+     "keys": {
+      "type": "object",
+      "additionalProperties": {
+       "type": "boolean"
+      }
+     },
+-    "step": {
+-     "type": "integer",
+-     "minimum": 0
+-    },
+-    "stoppable": {
+-     "type": "boolean"
++    "keyProvider": {
++     "type": "string"
+     },
+-    "disk": {
+-     "type": "object",
+-     "properties": {
+-      "fixed": {
+-       "type": "number",
+-       "minimum": 0
+-      },
+-      "total": {
+-       "type": "number",
+-       "exclusiveMinimum": 0
+-      }
+-     },
+-     "required": [
+-      "fixed",
+-      "total"
+-     ]
++    "home": {
++     "type": "string"
+     },
+-    "screens": {
+-     "type": "array",
+-     "items": {
+-      "type": "object",
+-      "properties": {
+-       "id": {
+-        "type": "string",
+-        "enum": [
+-         "agents",
+-         "tools",
+-         "also",
+-         "logins",
+-         "wsp"
+-        ]
+-       },
+-       "title": {
+-        "type": "string"
+-       },
+-       "top": {
+-        "type": "string"
+-       },
+-       "items": {
+-        "type": "array",
+-        "items": {
+-         "type": "object",
+-         "properties": {
+-          "id": {
+-           "type": "string"
+-          },
+-          "label": {
+-           "type": "string"
+-          },
+-          "size": {
+-           "anyOf": [
+-            {
+-             "type": "number",
+-             "minimum": 0
+-            },
+-            {
+-             "type": "null"
+-            }
+-           ]
+-          },
+-          "why": {
+-           "type": "string"
+-          },
+-          "group": {
+-           "type": "string"
+-          },
+-          "detail": {
+-           "type": "array",
+-           "items": {
+-            "type": "string"
+-           }
+-          },
+-          "lock": {
+-           "type": "string",
+-           "enum": [
+-            "on",
+-            "off"
+-           ]
+-          },
+-          "choices": {
+-           "type": "array",
+-           "items": {
+-            "type": "object",
+-            "properties": {
+-             "value": {
+-              "type": "string"
+-             },
+-             "label": {
+-              "type": "string"
+-             }
+-            },
+-            "required": [
+-             "value",
+-             "label"
+-            ]
+-           }
+-          },
+-          "key": {
+-           "type": "object",
+-           "properties": {
+-            "name": {
+-             "type": "string"
+-            },
+-            "saved": {
+-             "type": "boolean"
+-            }
+-           },
+-           "required": [
+-            "name",
+-            "saved"
+-           ]
+-          },
+-          "state": {
+-           "type": "string"
+-          },
+-          "mark": {
+-           "type": "string"
+-          }
+-         },
+-         "required": [
+-          "id",
+-          "label",
+-          "detail"
+-         ]
+-        }
+-       },
+-       "ticks": {
+-        "type": "array",
+-        "items": {
+-         "type": "string"
+-        }
+-       },
+-       "answers": {
+-        "type": "object",
+-        "additionalProperties": {
+-         "type": "string"
+-        }
+-       },
+-       "footer": {
+-        "type": "array",
+-        "items": {
++    "pricing": {
++     "anyOf": [
++      {
++       "type": "object",
++       "properties": {
++        "size": {
+          "type": "object",
+          "properties": {
+-          "text": {
+-           "type": "string"
++          "cpu": {
++           "type": "number"
+           },
+-          "tone": {
+-           "type": "string",
+-           "enum": [
+-            "yellow",
+-            "yellowBright",
+-            "red"
+-           ]
++          "memMb": {
++           "type": "number"
+           }
+          },
+          "required": [
+-          "text"
++          "cpu",
++          "memMb"
+          ]
++        },
++        "rateUsdPerHour": {
++         "type": "number"
++        },
++        "builderDiskGb": {
++         "type": "number",
++         "exclusiveMinimum": 0
+         }
+        },
+-       "tally": {
+-        "type": "string"
+-       }
++       "required": [
++        "size",
++        "rateUsdPerHour"
++       ]
+       },
+-      "required": [
+-       "id",
+-       "title",
+-       "top",
+-       "items",
+-       "ticks",
+-       "answers",
+-       "footer"
+-      ]
+-     }
++      {
++       "type": "null"
++      }
++     ]
+     },
+-    "rows": {
++    "forksOn": {
++     "type": "string"
++    }
++   },
++   "required": [
++    "keys",
++    "home",
++    "pricing"
++   ]
++  },
++  "JoinMint": {
++   "type": "object",
++   "properties": {
++    "joins": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+-       "id": {
+-        "type": "string"
+-       },
+-       "kind": {
+-        "type": "string",
+-        "enum": [
+-         "fact",
+-         "stage",
+-         "sign-in",
+-         "secret",
+-         "agent",
+-         "workspace",
+-         "project",
+-         "machine"
+-        ]
+-       },
+-       "tool": {
++       "url": {
+         "type": "string"
+        },
+-       "label": {
++       "line": {
+         "type": "string"
+        },
+-       "state": {
+-        "type": "string"
+-       },
+-       "login": {
+-        "type": "string",
+-        "enum": [
+-         "signed-in",
+-         "not-signed-in",
+-         "not-verified",
+-         "skipped",
+-         "copied",
+-         "deferred"
+-        ]
+-       },
+-       "detail": {
+-        "type": "string"
+-       },
+-       "page": {
+-        "type": "string"
+-       },
+-       "code": {
+-        "type": "string"
+-       },
+-       "finish": {
+-        "type": "string",
+-        "enum": [
+-         "callback",
+-         "code",
+-         "none"
+-        ]
+-       },
+-       "ms": {
+-        "type": "number"
+-       },
+-       "since": {
+-        "type": "number"
+-       },
+-       "lines": {
+-        "type": "array",
+-        "items": {
+-         "type": "string"
+-        }
+-       }
+-      },
+-      "required": [
+-       "id",
+-       "kind",
+-       "label",
+-       "state"
+-      ]
+-     }
+-    },
+-    "progress": {
+-     "type": "object",
+-     "properties": {
+-      "done": {
+-       "type": "integer",
+-       "minimum": 0
+-      },
+-      "total": {
+-       "type": "integer",
+-       "minimum": 0
+-      }
+-     },
+-     "required": [
+-      "done",
+-      "total"
+-     ]
+-    },
+-    "needsYou": {
+-     "type": "object",
+-     "properties": {
+-      "what": {
+-       "type": "string"
+-      },
+-      "since": {
+-       "type": "integer",
+-       "minimum": 0
+-      }
+-     },
+-     "required": [
+-      "what",
+-      "since"
+-     ]
+-    },
+-    "drafts": {
+-     "type": "array",
+-     "items": {
+-      "type": "object",
+-      "properties": {
+-       "at": {
+-        "type": "string"
+-       },
+-       "ticks": {
+-        "type": "array",
+-        "items": {
+-         "type": "string"
+-        }
+-       },
+-       "answers": {
+-        "type": "object",
+-        "additionalProperties": {
+-         "type": "string"
+-        }
+-       }
+-      },
+-      "required": [
+-       "at",
+-       "ticks",
+-       "answers"
+-      ]
+-     }
+-    },
+-    "log": {
+-     "type": "array",
+-     "items": {
+-      "type": "string"
+-     }
+-    },
+-    "thread": {
+-     "type": "object",
+-     "properties": {
+-      "id": {
+-       "type": "string"
+-      },
+-      "workspaceId": {
+-       "type": "string"
+-      },
+-      "session": {
+-       "type": "string"
+-      },
+-      "harness": {
+-       "type": "string"
+-      }
+-     },
+-     "required": [
+-      "id",
+-      "workspaceId",
+-      "session",
+-      "harness"
+-     ]
+-    },
+-    "line": {
+-     "type": "string"
+-    },
+-    "error": {
+-     "type": "string"
+-    },
+-    "keyRefused": {
+-     "type": "boolean"
+-    },
+-    "golden": {
+-     "type": "object",
+-     "properties": {
+-      "version": {
+-       "type": "integer"
+-      }
+-     },
+-     "required": [
+-      "version"
+-     ]
+-    },
+-    "cleanup": {
+-     "type": "array",
+-     "items": {
+-      "type": "object",
+-      "properties": {
+-       "level": {
+-        "type": "string",
+-        "enum": [
+-         "info",
+-         "step",
+-         "success",
+-         "warn"
+-        ]
+-       },
+-       "line": {
+-        "type": "string"
+-       }
+-      },
+-      "required": [
+-       "level",
+-       "line"
+-      ]
+-     }
+-    },
+-    "update": {
+-     "type": "array",
+-     "items": {
+-      "type": "object",
+-      "properties": {
+-       "level": {
+-        "type": "string",
+-        "enum": [
+-         "info",
+-         "step",
+-         "success",
+-         "warn"
+-        ]
+-       },
+-       "line": {
+-        "type": "string"
+-       }
+-      },
+-      "required": [
+-       "level",
+-       "line"
+-      ]
+-     }
+-    },
+-    "builders": {
+-     "type": "array",
+-     "items": {
+-      "type": "object",
+-      "properties": {
+-       "level": {
+-        "type": "string",
+-        "enum": [
+-         "info",
+-         "step",
+-         "success",
+-         "warn"
+-        ]
+-       },
+-       "line": {
+-        "type": "string"
+-       }
+-      },
+-      "required": [
+-       "level",
+-       "line"
+-      ]
+-     }
+-    },
+-    "workspace": {
+-     "type": "object",
+-     "properties": {
+-      "id": {
+-       "type": "string"
+-      },
+-      "name": {
+-       "type": "string"
+-      }
+-     },
+-     "required": [
+-      "id",
+-      "name"
+-     ]
+-    },
+-    "place": {
+-     "type": "object",
+-     "properties": {
+-      "id": {
+-       "type": "string"
+-      },
+-      "name": {
+-       "type": "string"
+-      },
+-      "kind": {
+-       "type": "string",
+-       "enum": [
+-        "computer",
+-        "provider"
+-       ]
+-      }
+-     },
+-     "required": [
+-      "id",
+-      "name"
+-     ]
+-    }
+-   },
+-   "required": [
+-    "id",
+-    "road",
+-    "phase",
+-    "keys",
+-    "step",
+-    "stoppable",
+-    "screens",
+-    "rows",
+-    "progress",
+-    "log"
+-   ]
+-  },
+-  "InitSetup": {
+-   "type": "object",
+-   "properties": {
+-    "keys": {
+-     "type": "object",
+-     "additionalProperties": {
+-      "type": "boolean"
+-     }
+-    },
+-    "keyProvider": {
+-     "type": "string"
+-    },
+-    "home": {
+-     "type": "string"
+-    },
+-    "agents": {
+-     "type": "array",
+-     "items": {
+-      "type": "object",
+-      "properties": {
+-       "id": {
+-        "type": "string"
+-       },
+-       "name": {
+-        "type": "string"
+-       },
+-       "configured": {
+-        "type": "boolean"
+-       },
+-       "takesTools": {
+-        "type": "boolean"
+-       }
+-      },
+-      "required": [
+-       "id",
+-       "name",
+-       "configured",
+-       "takesTools"
+-      ]
+-     }
+-    },
+-    "pricing": {
+-     "anyOf": [
+-      {
+-       "type": "object",
+-       "properties": {
+-        "size": {
+-         "type": "object",
+-         "properties": {
+-          "cpu": {
+-           "type": "number"
+-          },
+-          "memMb": {
+-           "type": "number"
+-          }
+-         },
+-         "required": [
+-          "cpu",
+-          "memMb"
+-         ]
+-        },
+-        "rateUsdPerHour": {
+-         "type": "number"
+-        },
+-        "builderDiskGb": {
+-         "type": "number",
+-         "exclusiveMinimum": 0
+-        }
+-       },
+-       "required": [
+-        "size",
+-        "rateUsdPerHour"
+-       ]
+-      },
+-      {
+-       "type": "null"
+-      }
+-     ]
+-    },
+-    "place": {
+-     "type": "object",
+-     "properties": {
+-      "id": {
+-       "type": "string"
+-      },
+-      "name": {
+-       "type": "string"
+-      },
+-      "kind": {
+-       "type": "string",
+-       "enum": [
+-        "computer",
+-        "provider"
+-       ]
+-      }
+-     },
+-     "required": [
+-      "id",
+-      "name"
+-     ]
+-    },
+-    "forksOn": {
+-     "type": "string"
+-    },
+-    "buildRefusal": {
+-     "type": "string"
+-    },
+-    "job": {
+-     "anyOf": [
+-      {
+-       "$ref": "#/definitions/InitJob"
+-      },
+-      {
+-       "type": "null"
+-      }
+-     ]
+-    }
+-   },
+-   "required": [
+-    "keys",
+-    "home",
+-    "agents",
+-    "pricing",
+-    "job"
+-   ]
+-  },
+-  "JoinMint": {
+-   "type": "object",
+-   "properties": {
+-    "joins": {
+-     "type": "array",
+-     "items": {
+-      "type": "object",
+-      "properties": {
+-       "url": {
+-        "type": "string"
+-       },
+-       "line": {
+-        "type": "string"
+-       },
+-       "note": {
++       "note": {
+         "type": "string"
+        }
+       },
+@@ -9882,14 +9215,6 @@
+     "diskFreeBytes": {
+      "type": "integer"
+     },
+-    "engine": {
+-     "type": "string",
+-     "enum": [
+-      "none",
+-      "docker",
+-      "podman"
+-     ]
+-    },
+     "copies": {
+      "type": "string",
+      "enum": [
+@@ -10523,9 +9848,6 @@
+       "spawn": {
+        "type": "object",
+        "properties": {
+-        "spawn": {
+-         "type": "boolean"
+-        },
+         "maxMachines": {
+          "type": "integer",
+          "minimum": 0
+@@ -10594,9 +9916,6 @@
+     "spawn": {
+      "type": "object",
+      "properties": {
+-      "spawn": {
+-       "type": "boolean"
+-      },
+       "maxMachines": {
+        "type": "integer",
+        "minimum": 0
+@@ -10607,7 +9926,6 @@
+       }
+      },
+      "required": [
+-      "spawn",
+       "maxMachines",
+       "maxDepth"
+      ]
+@@ -10615,9 +9933,6 @@
+     "spawnDefault": {
+      "type": "object",
+      "properties": {
+-      "spawn": {
+-       "type": "boolean"
+-      },
+       "maxMachines": {
+        "type": "integer",
+        "minimum": 0
+@@ -10628,7 +9943,6 @@
+       }
+      },
+      "required": [
+-      "spawn",
+       "maxMachines",
+       "maxDepth"
+      ]
+@@ -11487,66 +10801,6 @@
+     "agents"
+    ]
+   },
+-  "ProjectGolden": {
+-   "type": "object",
+-   "properties": {
+-    "snapshotId": {
+-     "type": "string"
+-    },
+-    "projects": {
+-     "type": "array",
+-     "items": {
+-      "type": "object",
+-      "properties": {
+-       "name": {
+-        "type": "string"
+-       },
+-       "dest": {
+-        "type": "string"
+-       },
+-       "importedAt": {
+-        "type": "string"
+-       },
+-       "size": {
+-        "type": "integer",
+-        "minimum": 0
+-       }
+-      },
+-      "required": [
+-       "name",
+-       "dest",
+-       "importedAt"
+-      ]
+-     }
+-    },
+-    "golden": {
+-     "type": "string"
+-    },
+-    "version": {
+-     "type": "integer"
+-    },
+-    "workspaceId": {
+-     "type": "string"
+-    },
+-    "workspaceName": {
+-     "type": "string"
+-    },
+-    "createdAt": {
+-     "type": "string"
+-    },
+-    "place": {
+-     "type": "string"
+-    }
+-   },
+-   "required": [
+-    "snapshotId",
+-    "projects",
+-    "golden",
+-    "workspaceId",
+-    "workspaceName",
+-    "createdAt"
+-   ]
+-  },
+   "ProjectView": {
+    "type": "object",
+    "properties": {
+@@ -11711,24 +10965,6 @@
+       "seconds"
+      ]
+     },
+-    "image": {
+-     "type": "object",
+-     "properties": {
+-      "snapshotId": {
+-       "type": "string"
+-      },
+-      "builtAt": {
+-       "type": "string"
+-      },
+-      "lockfileSha": {
+-       "type": "string"
+-      }
+-     },
+-     "required": [
+-      "snapshotId",
+-      "builtAt"
+-     ]
+-    },
+     "base": {
+      "type": "string"
+     },
+@@ -13156,14 +12392,6 @@
+           "at": {
+            "type": "string"
+           },
+-          "tick": {
+-           "type": "string",
+-           "enum": [
+-            "used",
+-            "installed",
+-            "default"
+-           ]
+-          },
+           "histories": {
+            "type": "array",
+            "items": {
+@@ -13405,58 +12633,18 @@
+              "id",
+              "name",
+              "install",
+-             "check",
+-             "why"
+-            ]
+-           }
+-          },
+-          "engine": {
+-           "type": "boolean"
+-          }
+-         },
+-         "required": [
+-          "version",
+-          "at",
+-          "histories",
+-          "rows"
+-         ]
+-        },
+-        "pins": {
+-         "type": "array",
+-         "items": {
+-          "type": "object",
+-          "properties": {
+-           "tag": {
+-            "type": "string"
+-           },
+-           "sha256": {
+-            "type": "string"
+-           },
+-           "arch": {
+-            "type": "string",
+-            "enum": [
+-             "x86_64",
+-             "aarch64"
+-            ]
+-           },
+-           "latest": {
+-            "type": "boolean",
+-            "enum": [
+-             true
++             "check",
++             "why"
+             ]
+-           },
+-           "id": {
+-            "type": "string"
+-           },
+-           "road": {
+-            "type": "string"
+            }
+-          },
+-          "required": [
+-           "tag",
+-           "id"
+-          ]
+-         }
++          }
++         },
++         "required": [
++          "version",
++          "at",
++          "histories",
++          "rows"
++         ]
+         },
+         "logins": {
+          "type": "array",
+@@ -13583,78 +12771,11 @@
+        "builtAt"
+       ]
+      }
+-    },
+-    "projects": {
+-     "type": "array",
+-     "items": {
+-      "type": "object",
+-      "properties": {
+-       "snapshotId": {
+-        "type": "string"
+-       },
+-       "projects": {
+-        "type": "array",
+-        "items": {
+-         "type": "object",
+-         "properties": {
+-          "name": {
+-           "type": "string"
+-          },
+-          "dest": {
+-           "type": "string"
+-          },
+-          "importedAt": {
+-           "type": "string"
+-          },
+-          "size": {
+-           "type": "integer",
+-           "minimum": 0
+-          }
+-         },
+-         "required": [
+-          "name",
+-          "dest",
+-          "importedAt"
+-         ]
+-        }
+-       },
+-       "golden": {
+-        "type": "string"
+-       },
+-       "version": {
+-        "type": "integer"
+-       },
+-       "workspaceId": {
+-        "type": "string"
+-       },
+-       "workspaceName": {
+-        "type": "string"
+-       },
+-       "createdAt": {
+-        "type": "string"
+-       },
+-       "place": {
+-        "type": "string"
+-       },
+-       "sizeBytes": {
+-        "type": "number"
+-       }
+-      },
+-      "required": [
+-       "snapshotId",
+-       "projects",
+-       "golden",
+-       "workspaceId",
+-       "workspaceName",
+-       "createdAt"
+-      ]
+-     }
+     }
+    },
+    "required": [
+     "image",
+-    "copies",
+-    "projects"
++    "copies"
+    ]
+   },
+   "ServerToolsAnswer": {
+@@ -19381,9 +18502,6 @@
+     "agents": {
+      "type": "object",
+      "properties": {
+-      "spawn": {
+-       "type": "boolean"
+-      },
+       "maxMachines": {
+        "type": "integer",
+        "minimum": 0
+@@ -19394,7 +18512,6 @@
+       }
+      },
+      "required": [
+-      "spawn",
+       "maxMachines",
+       "maxDepth"
+      ]
+@@ -19788,9 +18905,6 @@
+     "agents": {
+      "type": "object",
+      "properties": {
+-      "spawn": {
+-       "type": "boolean"
+-      },
+       "maxMachines": {
+        "type": "integer",
+        "minimum": 0
+@@ -19801,7 +18915,6 @@
+       }
+      },
+      "required": [
+-      "spawn",
+       "maxMachines",
+       "maxDepth"
+      ]
+@@ -21234,111 +20347,6 @@
+     }
+    }
+   },
+-  "InitAnswerRequest": {
+-   "type": "object",
+-   "properties": {
+-    "screen": {
+-     "type": "string",
+-     "enum": [
+-      "agents",
+-      "tools",
+-      "also",
+-      "logins",
+-      "wsp"
+-     ]
+-    },
+-    "ticks": {
+-     "anyOf": [
+-      {
+-       "type": "array",
+-       "items": {
+-        "type": "string"
+-       }
+-      },
+-      {
+-       "type": "null"
+-      }
+-     ]
+-    },
+-    "answers": {
+-     "anyOf": [
+-      {
+-       "type": "object",
+-       "additionalProperties": {
+-        "type": "string"
+-       }
+-      },
+-      {
+-       "type": "null"
+-      }
+-     ]
+-    }
+-   },
+-   "required": [
+-    "screen"
+-   ]
+-  },
+-  "InitBuildRequest": {
+-   "type": "object",
+-   "properties": {
+-    "firstWorkspace": {
+-     "type": "string"
+-    },
+-    "importFolder": {
+-     "type": "string"
+-    },
+-    "yes": {
+-     "type": "boolean"
+-    },
+-    "on": {
+-     "type": "string"
+-    },
+-    "rebuild": {
+-     "type": "boolean"
+-    }
+-   }
+-  },
+-  "InitCancelRequest": {
+-   "type": "object",
+-   "properties": {}
+-  },
+-  "InitDraftRequest": {
+-   "type": "object",
+-   "properties": {
+-    "at": {
+-     "type": "string"
+-    },
+-    "ticks": {
+-     "anyOf": [
+-      {
+-       "type": "array",
+-       "items": {
+-        "type": "string"
+-       }
+-      },
+-      {
+-       "type": "null"
+-      }
+-     ]
+-    },
+-    "answers": {
+-     "anyOf": [
+-      {
+-       "type": "object",
+-       "additionalProperties": {
+-        "type": "string"
+-       }
+-      },
+-      {
+-       "type": "null"
+-      }
+-     ]
+-    }
+-   },
+-   "required": [
+-    "at"
+-   ]
+-  },
+   "InitGetRequest": {
+    "type": "object",
+    "properties": {
+@@ -21355,82 +20363,9 @@
+     },
+     "key": {
+      "type": "string"
+-    },
+-    "rows": {
+-     "anyOf": [
+-      {
+-       "type": "object",
+-       "additionalProperties": {
+-        "type": "string"
+-       }
+-      },
+-      {
+-       "type": "null"
+-      }
+-     ]
+     }
+    }
+   },
+-  "InitRetryRequest": {
+-   "type": "object",
+-   "properties": {
+-    "tool": {
+-     "type": "string"
+-    }
+-   },
+-   "required": [
+-    "tool"
+-   ]
+-  },
+-  "InitSignInCodeRequest": {
+-   "type": "object",
+-   "properties": {
+-    "tool": {
+-     "type": "string"
+-    },
+-    "code": {
+-     "type": "string"
+-    }
+-   },
+-   "required": [
+-    "tool",
+-    "code"
+-   ]
+-  },
+-  "InitStartRequest": {
+-   "type": "object",
+-   "properties": {
+-    "road": {
+-     "type": "string",
+-     "enum": [
+-      "manual",
+-      "agent",
+-      "terminal"
+-     ]
+-    },
+-    "harness": {
+-     "type": "string"
+-    },
+-    "on": {
+-     "type": "string"
+-    }
+-   },
+-   "required": [
+-    "road"
+-   ]
+-  },
+-  "InitStepRequest": {
+-   "type": "object",
+-   "properties": {
+-    "at": {
+-     "type": "integer",
+-     "minimum": 0
+-    }
+-   },
+-   "required": [
+-    "at"
+-   ]
+-  },
+   "PairIssueRequest": {
+    "type": "object",
+    "properties": {
+@@ -22148,7 +21083,7 @@
+          "delete-after",
+          "nap",
+          "turn-limit",
+-         "spawn",
++         "max-machines",
+          "max-depth"
+         ]
+        }
+@@ -22188,9 +21123,6 @@
+     "spawn": {
+      "type": "object",
+      "properties": {
+-      "spawn": {
+-       "type": "boolean"
+-      },
+       "maxMachines": {
+        "type": "integer",
+        "minimum": 0
+@@ -23332,10 +22264,6 @@
+     "dest"
+    ]
+   },
+-  "ProjectGoldensListRequest": {
+-   "type": "object",
+-   "properties": {}
+-  },
+   "ProjectsAddRequest": {
+    "type": "object",
+    "properties": {
+@@ -25312,9 +24240,6 @@
+   "WorkspacesCreateRequest": {
+    "type": "object",
+    "properties": {
+-    "golden": {
+-     "type": "string"
+-    },
+     "project": {
+      "type": "string"
+     },
+@@ -25356,9 +24281,6 @@
+     "agents": {
+      "type": "object",
+      "properties": {
+-      "spawn": {
+-       "type": "boolean"
+-      },
+       "maxMachines": {
+        "type": "integer",
+        "minimum": 0
+@@ -25375,9 +24297,6 @@
+     "parent": {
+      "type": "string"
+     },
+-    "engine": {
+-     "type": "boolean"
+-    },
+     "sub": {
+      "type": "object",
+      "properties": {
+@@ -25969,17 +24888,6 @@
+     "workspaceId"
+    ]
+   },
+-  "WorkspacesSnapshotRequest": {
+-   "type": "object",
+-   "properties": {
+-    "workspaceId": {
+-     "type": "string"
+-    }
+-   },
+-   "required": [
+-    "workspaceId"
+-   ]
+-  },
+   "WorkspacesStartRequest": {
+    "type": "object",
+    "properties": {
+@@ -26167,7 +25075,6 @@
+     "cloning",
+     "seeding",
+     "installing",
+-    "imaging",
+     "done",
+     "failed"
+    ]

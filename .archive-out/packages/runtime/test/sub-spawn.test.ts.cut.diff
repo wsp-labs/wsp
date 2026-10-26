@@ -1,0 +1,39 @@
+diff --git a/packages/runtime/test/sub-spawn.test.ts b/packages/runtime/test/sub-spawn.test.ts
+index 8bb3ff56f..9d31b3ccd 100644
+--- a/packages/runtime/test/sub-spawn.test.ts
++++ b/packages/runtime/test/sub-spawn.test.ts
+@@ -15,7 +15,7 @@ import { gunzipSync } from "node:zlib";
+ import { afterEach, describe, expect, it } from "vitest";
+ import { BOX_WORK_DIR, SERVERS_OFF_LINE, placeLimitsOf } from "@wsp/engine";
+ import {
+-  agentsOffRefusal, placeSaid, SUB_SEED_MAX_BYTES, subAheadUnknownRefusal, subBesideRefusal, subOtherProjectRefusal, subBranchNameOk, subLeadOnMachineRefusal, subNotSentLine, subPickedElsewhereWhy, subStartsNothingRefusal, subStayedLine, TURN_TOKEN_ENV, exitClassOf, fmtBytes, refusalLine, spawnCapRefusal, subAheadRefusal, subBranchNameRefusal, subDetachedRefusal, startsUsedLine,
++  placeSaid, SUB_SEED_MAX_BYTES, subAheadUnknownRefusal, subBesideRefusal, subOtherProjectRefusal, subBranchNameOk, subLeadOnMachineRefusal, subNotSentLine, subPickedElsewhereWhy, subStartsNothingRefusal, subStayedLine, TURN_TOKEN_ENV, exitClassOf, fmtBytes, refusalLine, spawnCapRefusal, subAheadRefusal, subBranchNameRefusal, subDetachedRefusal, startsUsedLine,
+   subLeadBranchRefusal, subMachineTakenRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, brokeredAgentRefusal, subHostNoSignInRefusal, subHostOtherGitRefusal, subNoThreadRefusal,
+   subNoUpstreamRefusal, subFromNotOnRemoteRefusal, subOpening, subOtherHostRefusal, subSeedTooBigRefusal, subSizeRefusal, spendCapRefusal, type Caller,
+ } from "@wsp/protocol";
+@@ -106,7 +106,7 @@ describe("run --on boat from a thread on this computer", () => {
+     );
+     // The record names the lead's project and the lead, and stands in its root's tree.
+     const record = (await store.get("workspaces", made.id)) as Record<string, unknown>;
+-    expect(record).toMatchObject({ kind: "cloud", project: project.id, lead: { threadId, workspaceId: folder.id }, rootThreadId: threadId, parentThreadId: threadId, agents: { spawn: false }, golden: "wsp-host-default-v1", size: { cpu: 2, memMb: 4096 } });
++    expect(record).toMatchObject({ kind: "cloud", project: project.id, lead: { threadId, workspaceId: folder.id }, rootThreadId: threadId, parentThreadId: threadId, golden: "wsp-host-default-v1", size: { cpu: 2, memMb: 4096 } });
+     expect(record["sub"]).toEqual({ on: "boat", repo: "https://github.com/acme/web.git", base: { branch: "feat/upload", sha: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a" }, branch: "wsp/fix-the-flaky-upload-test", folder: "/root/web", rateUsdPerHour: 0.018, sizeName: "small", spawn: expect.any(Object) });
+     // The thread opens in that folder, the preamble above the task, and is the lead's child.
+     const child = await rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, TASK), harness: made.sub!.harness, notify: ["me"], turnToken: token, title: NAME, cwd: made.sub!.folder }, lead);
+@@ -342,7 +342,6 @@ describe("Boat's row", () => {
+ describe("every check refuses before Boat is asked for a start", () => {
+   const cases: { name: string; setup?: Setup; sub?: { on?: string; size?: string; from?: string; branch?: string; harness?: string }; asked?: "terminal"; expect: (f: Awaited<ReturnType<typeof leadOnThisComputer>>) => { said: string; cls: string }; before?: (f: Awaited<ReturnType<typeof leadOnThisComputer>>) => void | Promise<void> }[] = [
+     { name: "S1 a line from no thread", asked: "terminal", expect: () => ({ said: subNoThreadRefusal("boat").message, cls: "usage" }) },
+-    { name: "S2 the lead's switch off", setup: { agents: { spawn: false } }, expect: () => ({ said: agentsOffRefusal("web", "fork"), cls: "usage" }) },
+     { name: "S3 a cloud this host holds no key for", sub: { on: "solari" }, expect: () => ({ said: subNoCloudRefusal("solari", ["Boat"]).message, cls: "usage" }) },
+     { name: "S4 a folder with no remote", setup: { remote: null }, expect: () => ({ said: subNoRemoteRefusal("web", "Boat").message, cls: "usage" }) },
+     { name: "S4 a remote on another host", setup: { remote: "https://git.example.com/acme/web.git" }, expect: () => ({ said: subOtherHostRefusal("web", "git.example.com", "Boat").message, cls: "usage" }) },
+@@ -493,7 +492,7 @@ describe("a lead off this computer", () => {
+   it("refuses a lead on a machine wsp forked, before any create", async () => {
+     const { rt, boat } = await leadOnThisComputer();
+     const cloud = await rt.projects.add({ source: "https://github.com/acme/web", on: "box", name: "web-cloud" });
+-    const machine = await rt.workspaces.create({ project: cloud.id, name: "cloud-lead", agents: { spawn: true } });
++    const machine = await rt.workspaces.create({ project: cloud.id, name: "cloud-lead", agents: { } });
+     const opened = await rt.sessions.start(machine.id, { prompt: "look around", harness: "claude" });
+     await opened.finished;
+     const onMachine: Caller = { origin: "relayed", by: { kind: "thread", threadId: opened.view().threadId!, workspaceId: machine.id, rootThreadId: opened.view().threadId! } };

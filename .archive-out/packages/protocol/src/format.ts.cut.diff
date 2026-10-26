@@ -1,0 +1,16 @@
+diff --git a/packages/protocol/src/format.ts b/packages/protocol/src/format.ts
+index f6ee1a798..c3e500b60 100644
+--- a/packages/protocol/src/format.ts
++++ b/packages/protocol/src/format.ts
+@@ -3,9 +3,9 @@
+ // runtime's import and export events and the app; a turn's duration as the chat's footer,
+ // the notify line and the cut line print it, and its cost. The files that keep their own
+ // rule are the exception list in the protocol format test, each with its reason.
+-import type { AgentSignInState, Capabilities, ContextMenuItem, CopyRoad, GoldenMissingTool, GoldenStage, GoldenStageEvent, HarnessCatalog, HostsView, InitDraft, InitJob, InitPhase, InitRow, InitScreen, InitScreenId, InitSetup, LoginState, MachineSizeOffer, MachineState, PermissionEffect, PermissionOption, PermissionOutcome, PlaceCapacity, PlaceView, ProjectExportEvent, ProjectGolden, ProjectImportEvent, ProjectSecret, SealedImage, SealedImageCopy, SealedImageExport, SealedProjectImage, SessionEvent, SessionPermissionEvent, TerminalConfig, TerminalRgb, TitleSource, ToolPin, TurnRefusal, TurnResult, WorkspaceGlyph, WorkspaceSize, WorkspaceView } from "./index.js";
++import type { AgentSignInState, Capabilities, ContextMenuItem, CopyRoad, GoldenMissingTool, GoldenStage, GoldenStageEvent, HarnessCatalog, HostsView, InitSetup, LoginState, MachineSizeOffer, MachineState, PermissionEffect, PermissionOption, PermissionOutcome, PlaceCapacity, PlaceView, ProjectExportEvent, ProjectImportEvent, ProjectSecret, SealedImage, SealedImageCopy, SessionEvent, SessionPermissionEvent, TerminalConfig, TerminalRgb, TitleSource, ToolPin, TurnRefusal, TurnResult, WorkspaceGlyph, WorkspaceSize, WorkspaceView } from "./index.js";
+ import { namesPlace, PROVIDER_KEY_WORDS, providerKeyName } from "./place-word.js";
+-import { LOGIN_CHOICES, type LoginChoice } from "./init-job.js";
++import { LOGIN_CHOICES, type LoginChoice } from "./setup.js";
+ import { dotColour, effectiveOpacity, themeInk, type Rgb, type WorkspaceTheme } from "./workspace-look.js";
+ import { compareVersions } from "./semver.mjs";
+ import { folderName, parentFolderName } from "./project-path.js";

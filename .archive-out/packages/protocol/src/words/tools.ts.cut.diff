@@ -1,0 +1,35 @@
+diff --git a/packages/protocol/src/words/tools.ts b/packages/protocol/src/words/tools.ts
+index c1e6159a8..18f20b7f0 100644
+--- a/packages/protocol/src/words/tools.ts
++++ b/packages/protocol/src/words/tools.ts
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+-import type { PermissionEffect, PermissionOption, PermissionOutcome, SessionAnswerOutcome, SessionEvent, SessionPermissionEvent } from "../index.js";
++import type { PermissionEffect, PermissionOption, PermissionOutcome, SessionAnswerOutcome, SessionPermissionEvent } from "../index.js";
+ import { folderName, parentFolderName } from "../project-path.js";
+-import { lastLine, plural } from "./base.js";
++import { plural } from "./base.js";
+ import { fmtBytes } from "./units.js";
+ import { titleLine } from "./turn.js";
+ /** One tool call's input, as the wire's delta carries it: the JSON the harness reported, already parsed. */
+@@ -425,20 +425,6 @@ export const subagentAskerLine = (task: string): string => `${task} asks`;
+  * question, named, since the thread reading this one is only held up until somebody answers it. */
+ export const waitingAskerLine = (title: string): string => `${title} asks; this thread waits on the answer`;
+ 
+-/** What a thread is doing, as the one line a client with no transcript shows: the tool call it is running, the
+- * prompt it is blocked on, else its own latest line of prose. Nothing for an event that says nothing about the
+- * work, so a caller keeps the line it had. */
+-export function threadWorkingLine(e: SessionEvent): string | undefined {
+-  switch (e.type) {
+-    case "session.delta":
+-      return e.kind === "text" || e.kind === "thinking" ? lastLine(e.text) : e.kind === "tool_use" ? toolActivityLine(e.toolName, e.text) : undefined;
+-    case "session.permission":
+-      return permissionAskLine(e.toolName, e.input, e.detail);
+-    default:
+-      return undefined;
+-  }
+-}
+-
+ /** A prompt's lead in two parts: the words, and the call's own text where the call has some. They are apart because
+  * a command is judged by characters a sentence face blurs, two hyphens reading as one dash among them, so a client
+  * with more than one face draws the second part as code while a one-face surface joins them back into a sentence. */

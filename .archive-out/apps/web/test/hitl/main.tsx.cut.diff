@@ -1,0 +1,13 @@
+diff --git a/apps/web/test/hitl/main.tsx b/apps/web/test/hitl/main.tsx
+index fb06e6688..934064708 100644
+--- a/apps/web/test/hitl/main.tsx
++++ b/apps/web/test/hitl/main.tsx
+@@ -247,8 +247,6 @@ const api: Api = {
+     return () => watching.delete(fn);
+   },
+   getGolden: async () => undefined,
+-  listProjectGoldens: async () => [],
+-  snapshotWorkspace: async id => ({ snapshotId: "snap_taken", projects: [], golden: "", workspaceId: id, workspaceName: "wsp", createdAt: new Date().toISOString() }),
+ } as Api;
+ 
+ useStore.setState({

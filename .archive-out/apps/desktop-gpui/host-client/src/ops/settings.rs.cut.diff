@@ -1,0 +1,25 @@
+diff --git a/apps/desktop-gpui/host-client/src/ops/settings.rs b/apps/desktop-gpui/host-client/src/ops/settings.rs
+index d3a8430e4..a861a0739 100644
+--- a/apps/desktop-gpui/host-client/src/ops/settings.rs
++++ b/apps/desktop-gpui/host-client/src/ops/settings.rs
+@@ -15,7 +15,6 @@ ops! {
+     "snapshots.list" => SnapshotsListRequest => Lineage,
+     "snapshots.rollback" => SnapshotsRollbackRequest => protocol::SnapshotRollbackResult,
+     "snapshots.storage" => SnapshotsStorageRequest => Storage,
+-    "projectGoldens.list" => ProjectGoldensListRequest => ProjectGoldens,
+     "preferences.get" => PreferencesGetRequest => PreferencesReply,
+     "preferences.set" => PreferencesSetRequest => PreferencesSet,
+     "recipes.list" => RecipesListRequest => Recipes,
+@@ -89,12 +88,6 @@ pub struct Storage {
+     pub storage: Option<protocol::SnapshotStorage>,
+ }
+ 
+-#[derive(Debug, Deserialize)]
+-#[serde(rename_all = "camelCase")]
+-pub struct ProjectGoldens {
+-    pub project_goldens: Vec<protocol::ProjectGolden>,
+-}
+-
+ #[derive(Debug, Deserialize)]
+ pub struct PreferencesReply {
+     pub preferences: protocol::Preferences,

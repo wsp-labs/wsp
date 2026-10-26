@@ -1,0 +1,72 @@
+diff --git a/apps/web/test/store.test.ts b/apps/web/test/store.test.ts
+index 804a27cfa..8965218e1 100644
+--- a/apps/web/test/store.test.ts
++++ b/apps/web/test/store.test.ts
+@@ -2,7 +2,7 @@
+ // The store's session folding: rows come from the sessions.list op at a bind
+ // or a reconnect, and each row that moves after that lands as the host pushes it.
+ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+-import { CLOUD_SETUP_WORDS, DEFAULT_THEME, HOSTNAME_KEPT, type GoldenManifest, type InitJob, type PlaceView, type ProjectView, type ReleaseView, type SessionView, type WorkspaceView } from "@wsp/protocol";
++import { CLOUD_SETUP_WORDS, DEFAULT_THEME, HOSTNAME_KEPT, type GoldenManifest, type PlaceView, type ProjectView, type ReleaseView, type SessionView, type WorkspaceView } from "@wsp/protocol";
+ import { readProjectHome } from "../src/protocol/address.js";
+ import { DisconnectedError, RequestError, type Api, type ProtocolEvent } from "../src/protocol/client.js";
+ import { LAST_WORKSPACE_KEY } from "../src/protocol/lastWorkspace.js";
+@@ -293,7 +293,7 @@ describe("the address is the one record of what the person is reading", () => {
+ 
+ describe("store creations", () => {
+   const HERE_PLACE: PlaceView = { id: "here", kind: "computer", name: "studio.local", default: false, present: true };
+-  const HETZNER_PLACE: PlaceView = { id: "p_1", kind: "computer", name: "hetzner", default: true, engine: "docker", present: true, takesForks: true };
++  const HETZNER_PLACE: PlaceView = { id: "p_1", kind: "computer", name: "hetzner", default: true, present: true, takesForks: true };
+   /** The project every create here is made of: a repo on the computer that clones it, so the work goes there. */
+   const PROJECT_ON_HETZNER: ProjectView = { id: "pr_1", name: "spoo-landing", computer: "p_1", source: { kind: "git", url: "https://github.com/dev/spoo.git" }, path: "/root/spoo-landing", remote: "https://github.com/dev/spoo.git", defaultBranch: "main", memoryKey: "-root-spoo-landing", memoryDir: "/wsp/projects/pr_1/memory", createdAt: "t" };
+ 
+@@ -498,11 +498,11 @@ describe("store creations", () => {
+     expect(useStore.getState().selectedId).toBe("ws_a");
+   });
+ 
+-  it("createWorkspace with a project image forks that image instead of the computer's head, and a retry keeps it", async () => {
++  it("createWorkspace with a picked size creates at that size, and a retry keeps it", async () => {
+     const { api, emit } = fakeApi([view("ws_a")], []);
+-    const calls: Array<[string, string, string | undefined]> = [];
++    const calls: Array<[string, string, { cpu: number; memMb: number } | undefined]> = [];
+     api.createWorkspace = async (project, name, picked) => {
+-      calls.push([project, name, picked?.golden]);
++      calls.push([project, name, picked?.size]);
+       if (calls.length === 1) {
+         emit(stage({ name: "proj-fork" }));
+         emit(stage({ name: "proj-fork", stage: "failed", message: "Sandbox limit reached (2)", elapsedMs: 900 }));
+@@ -512,10 +512,10 @@ describe("store creations", () => {
+     };
+     useStore.getState().bind(api);
+     await flush();
+-    expect(await useStore.getState().createWorkspace("pr_1", "proj-fork", { golden: "snap_project" })).toBeNull();
++    expect(await useStore.getState().createWorkspace("pr_1", "proj-fork", { size: { cpu: 2, memMb: 8192 } })).toBeNull();
+     const failed = useStore.getState().creations[0]!;
+     await useStore.getState().retryCreation(failed.key);
+-    expect(calls).toEqual([["pr_1", "proj-fork", "snap_project"], ["pr_1", "proj-fork", "snap_project"]]);
++    expect(calls).toEqual([["pr_1", "proj-fork", { cpu: 2, memMb: 8192 }], ["pr_1", "proj-fork", { cpu: 2, memMb: 8192 }]]);
+     expect(useStore.getState().selectedId).toBe("ws_new");
+   });
+ 
+@@ -1001,21 +1001,6 @@ describe("store connection", () => {
+     expect(useStore.getState().selectedId).toBe("ws_a");
+   });
+ 
+-  it("a setup read that answers after a newer job's view never puts the older job back", async () => {
+-    const ended = { id: "init_1", road: "manual", phase: "cancelled", keys: {}, step: 0, stoppable: true, screens: [], rows: [], progress: { done: 0, total: 0 }, log: [] } as InitJob;
+-    const fresh: InitJob = { ...ended, id: "init_2", phase: "reading" };
+-    const { api, emit } = fakeApi([], []);
+-    let answer: () => void = () => {};
+-    api.initGet = () => new Promise(r => (answer = () => r({ keys: {}, home: "/Users/dev", agents: [], pricing: null, job: ended })));
+-    useStore.getState().bind(api);
+-    // Start over ended one job and the next one is already reading, so its view lands before the read of the setup.
+-    emit({ type: "init.job", job: fresh });
+-    expect(useStore.getState().initJob?.id).toBe("init_2");
+-    answer();
+-    await flush();
+-    expect(useStore.getState().initJob?.id).toBe("init_2");
+-  });
+-
+   it("live before anything is bound pulls nothing", () => {
+     useStore.getState().setConn("live");
+     expect(useStore.getState().conn).toBe("live");

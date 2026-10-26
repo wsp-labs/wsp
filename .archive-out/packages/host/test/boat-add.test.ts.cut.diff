@@ -1,0 +1,40 @@
+diff --git a/packages/host/test/boat-add.test.ts b/packages/host/test/boat-add.test.ts
+index 5dfbfe571..65df08769 100644
+--- a/packages/host/test/boat-add.test.ts
++++ b/packages/host/test/boat-add.test.ts
+@@ -9,8 +9,8 @@ import { tmpdir } from "node:os";
+ import { join } from "node:path";
+ import { PassThrough } from "node:stream";
+ import { afterAll, describe, expect, it, onTestFinished, vi } from "vitest";
+-import { BOX_PRICING, boxClassFor, limitsOf, keyCheckLine } from "@wsp/engine";
+-import { BOAT_READY_LINE, GOLDEN_STAGE_WORDS, boatAddedLine, boatForksNoFirstLine, imageBuiltOnLine, imageHomeKeptLine, placeSaid, savedKeyStoppedLine, type PlaceView } from "@wsp/protocol";
++import { BOX_PRICING, boxClassFor, limitsOf } from "@wsp/engine";
++import { GOLDEN_STAGE_WORDS, boatAddedLine, type PlaceView } from "@wsp/protocol";
+ import { buildImageAt } from "../src/verbs/workspaces-help.js";
+ import type { HostClient } from "../src/verbs.js";
+ import { addCommand, addLines, addRefusal } from "../src/places.js";
+@@ -246,24 +246,4 @@ describe("what the command line says about Boat", () => {
+     expect(streamed).toBe(`Boat: ${GOLDEN_STAGE_WORDS.creating}\n`);
+   });
+ 
+-  it("names Boat, never box, on every line wsp init --on boat prints about where the image is built and what the seal leaves", () => {
+-    const boat = { id: "box", name: "box", kind: "provider" };
+-    const lines = [
+-      imageBuiltOnLine(placeSaid(boat)),
+-      imageHomeKeptLine("solari", boat)!,
+-      BOAT_READY_LINE,
+-      keyCheckLine({ state: "refused", said: "401 Unauthorized" }, "box", true)!,
+-      keyCheckLine({ state: "unchecked", said: "fetch failed" }, "box", true)!,
+-      savedKeyStoppedLine("box"),
+-    ];
+-    expect(lines[0]).toBe("your image is built on Boat");
+-    expect(lines[1]).toBe("your image lives on Boat, so it is built there and not on solari");
+-    for (const line of lines) expect(line).not.toMatch(BOX_WORD);
+-    // --on boat names the cloud whose id is box, so there is no other home to say the image stays on.
+-    expect(imageHomeKeptLine("boat", boat)).toBeUndefined();
+-    expect(imageHomeKeptLine("Boat", boat)).toBeUndefined();
+-    // A computer somebody named box is still box: only a cloud's row is named by its id.
+-    expect(imageBuiltOnLine(placeSaid({ name: "box", kind: "computer" }))).toBe("your image is built on box");
+-    expect(boatForksNoFirstLine(["--first-workspace", "--import"])).toBe("Boat forks no first machine, so --first-workspace and --import do nothing here.");
+-  });
+ });

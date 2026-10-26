@@ -1,0 +1,44 @@
+diff --git a/packages/runtime/test/box-lead.test.ts b/packages/runtime/test/box-lead.test.ts
+index 38a4e4e0e..89edffa59 100644
+--- a/packages/runtime/test/box-lead.test.ts
++++ b/packages/runtime/test/box-lead.test.ts
+@@ -13,7 +13,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+ import { tmpdir } from "node:os";
+ import { join } from "node:path";
+ import { afterEach, describe, expect, it } from "vitest";
+-import { agentsOffComputerRefusal, agentsOffRefusal, childToLeadsComputerLine, elsewhereWorkspaceLine, HERE_PLACE_ID, noWorkspaceRefusal, refusalLine, rootGoneRefusal, sendFilesAcrossLine, SEND_FILES_ACROSS_FIX, spawnDepthRefusal, spawnFolderRefusal, spawnReachFix, spawnReachRefusal, spawnRepositoryRefusal, spawnRepositoryWorkspaceRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX, TURN_TOKEN_ENV, waitAcrossLine, WAIT_ACROSS_FIX, type AcrossAct, type Caller, type ThreadScope } from "@wsp/protocol";
++import { childToLeadsComputerLine, elsewhereWorkspaceLine, HERE_PLACE_ID, noWorkspaceRefusal, refusalLine, rootGoneRefusal, sendFilesAcrossLine, SEND_FILES_ACROSS_FIX, spawnDepthRefusal, spawnFolderRefusal, spawnReachFix, spawnReachRefusal, spawnRepositoryRefusal, spawnRepositoryWorkspaceRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX, TURN_TOKEN_ENV, waitAcrossLine, WAIT_ACROSS_FIX, type AcrossAct, type Caller, type ThreadScope } from "@wsp/protocol";
+ import { copyKey } from "../src/runtime.js";
+ import { code, ctx, join as joinHost, placesOf, sockets } from "./places-fixture.js";
+ import { WsClient } from "./ws-client.js";
+@@ -161,7 +161,7 @@ describe("the tree rule over a lead's children on a computer the person joined",
+     const { rt, store, onBox, starts } = held;
+     await store.put("goldens", copyKey("default", "default"), IMAGE);
+     const cloud = await rt.projects.add({ source: "https://github.com/acme/lab", on: "default", name: "lab-cloud" });
+-    const fork = await rt.workspaces.create({ project: cloud.id, name: "cloud-lead", agents: { spawn: true } });
++    const fork = await rt.workspaces.create({ project: cloud.id, name: "cloud-lead", agents: { } });
+     const opened = await rt.sessions.start(fork.id, { prompt: "look around", harness: "claude" });
+     await opened.finished;
+     const threadId = opened.view().threadId!;
+@@ -457,21 +457,6 @@ describe("the tree rule over a lead's children on a computer the person joined",
+     await (await rt.sessions.start(folder.id, { prompt: "one more beside", harness: "claude" }, sub.caller)).finished;
+   });
+ 
+-  it("stops the child spawning while its computer's switch is off, read at each act, and caps its depth at the smaller of the lead's and the computer's", async () => {
+-    const held = await leadAndBox();
+-    const { rt, placeId } = held;
+-    const child = await childIn(held, "lab-box");
+-    const beside = () => rt.sessions.start(child.workspaceId, { prompt: "a grandchild", harness: "claude" }, child.caller);
+-    // The box folder holds no switch of its own, so the computer's is the one over it.
+-    await rt.places!.set(placeId, { spawn: { spawn: false } });
+-    await expect(beside()).rejects.toThrow(agentsOffComputerRefusal(child.threadId, "hetzner", "thread_new"));
+-    // Depth is counted from the lead, under the smaller cap: the lead allows two, the box one, so the child stops at one.
+-    await rt.places!.set(placeId, { spawn: { spawn: true, maxDepth: 1 } });
+-    await expect(beside()).rejects.toThrow(spawnDepthRefusal(child.threadId, 1, 1, { computer: "hetzner" }));
+-    await rt.places!.set(placeId, { spawn: { spawn: true, maxDepth: 2 } });
+-    await (await beside()).finished;
+-  });
+-
+   it("answers a child on the box naming another repository's project with the repository rule and the person's other folder with the folder rule, never a road to the lead", async () => {
+     const held = await leadAndBox();
+     const { rt } = held;

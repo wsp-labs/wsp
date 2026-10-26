@@ -1,0 +1,13 @@
+diff --git a/apps/desktop-gpui/app/src/screens/settings/mod.rs b/apps/desktop-gpui/app/src/screens/settings/mod.rs
+index 23b78caee..d9691e6d4 100644
+--- a/apps/desktop-gpui/app/src/screens/settings/mod.rs
++++ b/apps/desktop-gpui/app/src/screens/settings/mod.rs
+@@ -370,7 +370,7 @@ impl SettingsScreen {
+                 }
+             }
+             Arrival::Read(read) => match *read {
+-                Read::Preferences(Ok(p)) => self.preferences_landed(p, cx),
++                Read::Preferences(Ok(p)) => self.preferences_landed(*p, cx),
+                 read => {
+                     if let Some(said) = refusal(&read) {
+                         self.notice = Some((said.into(), Said::Failed));

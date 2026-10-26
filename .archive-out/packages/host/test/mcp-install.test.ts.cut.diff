@@ -1,0 +1,36 @@
+diff --git a/packages/host/test/mcp-install.test.ts b/packages/host/test/mcp-install.test.ts
+index d3d84ade8..405878445 100644
+--- a/packages/host/test/mcp-install.test.ts
++++ b/packages/host/test/mcp-install.test.ts
+@@ -276,7 +276,7 @@ describe("installing the MCP server for a local agent", () => {
+       "leave",
+       "doctor",
+     ]);
+-    expect(JSON_COMMANDS).toEqual(["init", "add", "remove"]);
++    expect(JSON_COMMANDS).toEqual(["add", "remove"]);
+     for (const cmd of PROSE_COMMANDS) {
+       const out = io();
+       expect(await cli([...cmd.split(" "), "--json", "--state", statePath], out), cmd).toBe(3);
+@@ -303,14 +303,14 @@ describe("installing the MCP server for a local agent", () => {
+     const stray = io();
+     expect(await cli(["mcp", "install", "--nope", "--state", statePath], stray)).toBe(3);
+     expect(stray.errors[0]).toContain("Unknown option '--nope'");
+-    // recipe is a verb with its own flags, so --json reaches it and --agent is refused naming the verbs that read it.
+-    const recipeAgent = io();
+-    expect(await cli(["recipe", "--agent", "claude", "--state", statePath], recipeAgent)).toBe(3);
+-    expect(recipeAgent.errors[0]).toContain("--agent belongs to wsp skills add, wsp servers signin, wsp servers tools, wsp servers add, wsp servers remove, wsp servers disable, wsp servers enable, wsp plugins disable, wsp plugins enable, wsp projects set, wsp fork, wsp start, wsp review, wsp run and wsp conversations; wsp recipe does not read it");
+-    expect(recipeAgent.errors[0]).toContain("usage: wsp recipe");
+-    const recipeHelp = io();
+-    expect(await cli(["recipe", "--help", "--state", statePath], recipeHelp)).toBe(0);
+-    expect(recipeHelp.lines[0]).toMatch(/^usage: wsp recipe \[--tick used\|installed\|default\]/);
++    // threads is a verb with its own flags, so --json reaches it and --agent is refused naming the verbs that read it.
++    const threadsAgent = io();
++    expect(await cli(["threads", "--agent", "claude", "--state", statePath], threadsAgent)).toBe(3);
++    expect(threadsAgent.errors[0]).toContain("--agent belongs to wsp skills add, wsp servers signin, wsp servers tools");
++    expect(threadsAgent.errors[0]).toContain("usage: wsp threads");
++    const threadsHelp = io();
++    expect(await cli(["threads", "--help", "--state", statePath], threadsHelp)).toBe(0);
++    expect(threadsHelp.lines[0]).toMatch(/^usage: wsp threads/);
+   });
+ 
+   it("a line that puts a shared flag before the word still selects the word's own line, and a word no line answers to is named", async () => {

@@ -1,0 +1,15 @@
+diff --git a/apps/web/test/agents-broker.test.tsx b/apps/web/test/agents-broker.test.tsx
+index dc4b0edca..c571ea55a 100644
+--- a/apps/web/test/agents-broker.test.tsx
++++ b/apps/web/test/agents-broker.test.tsx
+@@ -13,8 +13,8 @@ import { useSettingsStore } from "../src/settings/settingsStore.js";
+ import { AGENTS_REPORT } from "./fixtures/agents-report.js";
+ import { mountSettings, resetSettings, settingsApi, settle } from "./settings-harness.js";
+ 
+-const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", label: "zingzy's MacBook Pro", default: true, present: true, takesForks: false, engine: "none", shape: { cpu: 8, memMb: 16384 }, diskFreeBytes: 210 * 1024 ** 3 };
+-const boat: PlaceView = { id: "box", kind: "provider", name: "box", default: false, present: true, takesForks: true, engine: "none", shape: { cpu: 2, memMb: 4096 }, diskFreeBytes: 0 };
++const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", label: "zingzy's MacBook Pro", default: true, present: true, takesForks: false, shape: { cpu: 8, memMb: 16384 }, diskFreeBytes: 210 * 1024 ** 3 };
++const boat: PlaceView = { id: "box", kind: "provider", name: "box", default: false, present: true, takesForks: true, shape: { cpu: 2, memMb: 4096 }, diskFreeBytes: 0 };
+ const setup = { keys: { box: true, solari: false }, home: "/Users/dev", agents: [], pricing: null, job: null } as unknown as InitSetup;
+ 
+ /** Claude Code signed in here with its own login, Codex not signed in here: the broker's word is what each row says. */

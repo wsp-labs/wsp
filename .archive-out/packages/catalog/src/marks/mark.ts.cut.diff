@@ -1,0 +1,13 @@
+diff --git a/packages/catalog/src/marks/mark.ts b/packages/catalog/src/marks/mark.ts
+index f1f24bee3..a58d18155 100644
+--- a/packages/catalog/src/marks/mark.ts
++++ b/packages/catalog/src/marks/mark.ts
+@@ -5,8 +5,6 @@ import type { AgentMark } from "../catalog.js";
+  * fetched. A mark without inks takes the row's ink. */
+ export interface BrandMark extends AgentMark {
+   id: string;
+-  /** Catalog CLI ids it marks. */
+-  tools: readonly string[];
+   /** Domains that serve a remote MCP server of the company's, matched as the host or a host under it. */
+   hosts: readonly string[];
+   /** Packages or images a command server runs, matched as a word of its line, a version after it or not. */

@@ -1,0 +1,22 @@
+diff --git a/daemon/crates/wsp-mcp/record/tools/wake.json b/daemon/crates/wsp-mcp/record/tools/wake.json
+index 2cb2b30ba..263345b4b 100644
+--- a/daemon/crates/wsp-mcp/record/tools/wake.json
++++ b/daemon/crates/wsp-mcp/record/tools/wake.json
+@@ -228,9 +228,6 @@
+             "agents": {
+               "type": "object",
+               "properties": {
+-                "spawn": {
+-                  "type": "boolean"
+-                },
+                 "maxMachines": {
+                   "type": "integer",
+                   "minimum": 0
+@@ -241,7 +238,6 @@
+                 }
+               },
+               "required": [
+-                "spawn",
+                 "maxMachines",
+                 "maxDepth"
+               ],

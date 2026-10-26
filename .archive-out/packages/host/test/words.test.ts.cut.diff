@@ -1,0 +1,39 @@
+diff --git a/packages/host/test/words.test.ts b/packages/host/test/words.test.ts
+index bb2ab778e..df4bf401d 100644
+--- a/packages/host/test/words.test.ts
++++ b/packages/host/test/words.test.ts
+@@ -25,14 +25,13 @@ const SOURCE_BANNED = /\bworkspaces?\b/i;
+ const CLOUD = "the cloud's machines alone: a public build has no verb that reaches it";
+ const BOX_MACHINE = "a machine on a box, which no public line makes since the owner's 2026-10-08 ruling";
+ const BOX_ADD = "adding or joining a box with wsp add, which this change does not move";
+-const INIT = "wsp init, whose wizard and first machine wsp-map#1624 cuts";
++const INIT = "the cloud setup the app walks a person through, which this change does not move";
+ const DOCTOR = "wsp doctor, which this change does not move; wsp-map#1954 rewords it";
+ 
+ /** Everything that may still say workspace, in one place, each with why: a word another change cuts, or a file or a
+  * declaration of the protocol and runtime source (`file#name`) whose every line is printed by a road a public build
+  * has no verb for. Every entry must still be read somewhere, so the list only shrinks. */
+ const KEPT: readonly ({ text: string; why: string } | { at: string; why: string })[] = [
+-  { text: "--first-workspace", why: INIT },
+   { at: "packages/protocol/src/agents-report.ts#providerAgentsRefusal", why: CLOUD },
+   { at: "packages/protocol/src/daemon-contract.ts#boxFullLine", why: BOX_MACHINE },
+   { at: "packages/protocol/src/daemon-contract.ts#onBaseRefusal", why: CLOUD },
+@@ -54,11 +53,8 @@ const KEPT: readonly ({ text: string; why: string } | { at: string; why: string
+   { at: "packages/protocol/src/words/computer.ts#idPrefixRefusal", why: CLOUD },
+   { at: "packages/protocol/src/words/computer.ts#placeRootShellRefusal", why: BOX_ADD },
+   { at: "packages/protocol/src/words/computer.ts#wakeFailedLine", why: CLOUD },
+-  { at: "packages/protocol/src/words/image.ts", why: CLOUD },
+   { at: "packages/protocol/src/words/init.ts", why: INIT },
+-  { at: "packages/protocol/src/words/places.ts#placeEngineLine", why: BOX_ADD },
+   { at: "packages/host/src/doctor.ts#toolsInside", why: DOCTOR },
+-  { at: "packages/host/src/init-job.ts#InitJobs", why: INIT },
+   { at: "packages/host/src/relay.ts#startCallbackRelay", why: `${CLOUD}: the ssh road into a machine` },
+   { at: "packages/host/src/verbs/workspaces-help.ts#sshWorkspaceOf", why: `${CLOUD}: wsp ssh` },
+   { at: "packages/protocol/src/words/thread.ts#machineUnreachableLine", why: CLOUD },
+@@ -236,6 +232,5 @@ describe("the words a person and an agent read with no cloud registered", () =>
+     expect(banned('wsp run [<workspace>] "<task>"')).toEqual(["workspace", "task"]);
+     expect(banned("a thread in `wsp workspaces` with background tasks running")).toEqual(["workspaces"]);
+     expect(banned("`stop` (thread, task) by the id in the TASK column")).toEqual(["task", "TASK"]);
+-    expect(banned("wsp init [--first-workspace <name>]")).toEqual([]);
+   });
+ });

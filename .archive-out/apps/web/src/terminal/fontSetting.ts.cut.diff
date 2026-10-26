@@ -1,0 +1,49 @@
+diff --git a/apps/web/src/terminal/fontSetting.ts b/apps/web/src/terminal/fontSetting.ts
+index 577f10ef8..f88a3b5de 100644
+--- a/apps/web/src/terminal/fontSetting.ts
++++ b/apps/web/src/terminal/fontSetting.ts
+@@ -1,12 +1,10 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ // The terminal font as this viewer chose it, kept in localStorage; with no
+-// choice the pane draws with the family the collector read from the person's
+-// terminal config (the boot payload), and with neither its own default stack.
++// choice the pane draws its own default stack.
+ // The size is the other half: a base the preferences record names, the app's
+ // own text size or the Ghostty file's, and per workspace the pixels a zoom
+ // chord added, kept on the same record so every client draws the pane alike.
+ import { useCallback, useMemo, useSyncExternalStore } from "react";
+-import { bootPayload } from "../boot.js";
+ import type { TerminalViewportConfig } from "../components/ThreadTerminalDrawer.js";
+ import { openTerminalPath } from "../files/open.js";
+ import { useStore } from "../protocol/store.js";
+@@ -42,15 +40,9 @@ export function writeTerminalFont(family: string): void {
+   window.dispatchEvent(new Event(CHANGE_EVENT));
+ }
+ 
+-/** The family the collector read from the person's terminal config, when the recipe ticked it. */
+-export function detectedTerminalFont(): string | undefined {
+-  const family = bootPayload()?.terminalFont?.trim();
+-  return family === undefined || family.length === 0 ? undefined : family;
+-}
+-
+-/** The family the pane draws with: the viewer's choice, else the detected one, else undefined for the default stack. */
++/** The family the pane draws with: the viewer's choice, else undefined for the default stack. */
+ export function effectiveTerminalFont(): string | undefined {
+-  return readTerminalFont() ?? detectedTerminalFont();
++  return readTerminalFont();
+ }
+ 
+ /** The pixels this workspace's panes add to the base size; none until a zoom chord moves it. */
+@@ -86,10 +78,10 @@ function subscribe(onChange: () => void): () => void {
+ 
+ const chosen = (): string => readTerminalFont() ?? "";
+ 
+-export function useTerminalFont(): { family: string; detected: string | undefined; setFamily: (family: string) => void } {
++export function useTerminalFont(): { family: string; setFamily: (family: string) => void } {
+   const family = useSyncExternalStore(subscribe, chosen, chosen);
+   const setFamily = useCallback((next: string) => writeTerminalFont(next), []);
+-  return { family, detected: detectedTerminalFont(), setFamily };
++  return { family, setFamily };
+ }
+ 
+ /** The viewport config for the effective family and this workspace's sizing, saying whether the viewer typed the

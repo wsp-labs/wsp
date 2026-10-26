@@ -1,0 +1,174 @@
+diff --git a/apps/web/test/notices-host.test.tsx b/apps/web/test/notices-host.test.tsx
+index 2db5ae90a..617c6951c 100644
+--- a/apps/web/test/notices-host.test.tsx
++++ b/apps/web/test/notices-host.test.tsx
+@@ -3,22 +3,19 @@
+ // screen and left alone when the person is already looking at it, the waits
+ // keyed until the event that closes them, and the noise said nowhere.
+ import { act, render } from "@testing-library/react";
+-import { NEEDS_YOU, SKIPPED_FOR_NOW, askingLine, initNeedsYouLine, setupNeedsYouLine, waitLine, type InitJob, type PlaceView, type ReleaseView, type SessionView, type WorkspaceView } from "@wsp/protocol";
++import { NEEDS_YOU, SKIPPED_FOR_NOW, askingLine, setupNeedsYouLine, waitLine, type PlaceView, type ReleaseView, type SessionView, type WorkspaceView } from "@wsp/protocol";
+ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+ import type { Api, ProtocolEvent } from "../src/protocol/client.js";
+ import { useStore } from "../src/protocol/store.js";
+ import { HOST_NOTICE_WORDS, useHostNotices } from "../src/notices/hostNotices.js";
+ import { useNotices, type Notice } from "../src/notices/store.js";
+ import { closeAdd, openSetup, useAddFlow } from "../src/settings/add/addFlow.js";
+-import { closeCloudAdd, goCloud, openCloudAdd } from "../src/settings/add/cloudFlow.js";
+ import { useSettingsStore } from "../src/settings/settingsStore.js";
+ import { resetAskedToNotify } from "../src/shell/needsYou.js";
+ 
+ const WS: WorkspaceView = { id: "ws_1", name: "api", machineId: "m1", phase: "running", golden: "snap_g", createdAt: "2026-09-10T00:00:00Z", project: { id: "pr_api", name: "the-project", path: "/root", computer: "default" } };
+ const ROW: SessionView = { id: "s1", workspaceId: "ws_1", harness: "claude", status: "running", threadId: "thr_1", prompt: "fix the login page" };
+ const BOX = { id: "pl_box", kind: "computer", name: "spoo", present: true } as unknown as PlaceView;
+-const JOB: InitJob = { id: "init_1", road: "manual", phase: "signing-in", keys: { solari: true }, step: 0, stoppable: true, screens: [], rows: [], progress: { done: 1, total: 2 }, log: [] };
+-const NEED = { what: "sign in to GitHub CLI login", since: 1_760_000_000_000 };
+ const ASKED = {
+   type: "session.permission" as const,
+   workspaceId: "ws_1",
+@@ -61,13 +58,12 @@ beforeEach(async () => {
+     },
+   } as unknown as Api;
+   closeAdd();
+-  useStore.setState({ api: null, initJob: null, settingsOpen: false, addComputerOpen: false, selectedId: null, selectedThreadId: null, freshThread: false, workspaces: [], sessions: {}, places: [], release: null });
++  useStore.setState({ api: null, settingsOpen: false, addComputerOpen: false, selectedId: null, selectedThreadId: null, freshThread: false, workspaces: [], sessions: {}, places: [], release: null });
+   useStore.getState().bind(api);
+   // The bind's own reads land first, then the page is put where each case starts: nothing selected.
+   await act(async () => await new Promise(resolve => setTimeout(resolve, 0)));
+   useStore.setState({ workspaces: [WS], sessions: { ws_1: [ROW] }, places: [BOX], selectedId: null, selectedThreadId: null });
+   useSettingsStore.getState().go({ kind: "group", group: "appearance" });
+-  useSettingsStore.setState({ buildShown: null });
+   act(() => useNotices.getState().clear());
+   emit = e => act(() => listeners.forEach(fn => fn(e)));
+   mounted = render(<Harness />);
+@@ -329,130 +325,6 @@ describe("a thread's end, its prompts and its line to me", () => {
+   });
+ });
+ 
+-describe("the image build", () => {
+-  it("a need waits under its key with an Open onto Computers when its job names no place, and ends when a view carries no need or another one", () => {
+-    emit({ type: "job.needs-you", jobId: "init_1", needsYou: NEED });
+-    expect(notices()).toMatchObject([{ kind: "waiting", text: initNeedsYouLine(NEED.what), action: { word: "Open" } }]);
+-    // A view of the same standing need leaves it.
+-    emit({ type: "init.job", job: { ...JOB, needsYou: NEED } });
+-    expect(notices()).toHaveLength(1);
+-    act(() => notices()[0]!.action!.run());
+-    expect(useStore.getState().settingsOpen).toBe(true);
+-    expect(useSettingsStore.getState().at).toEqual({ kind: "group", group: "computers" });
+-    act(() => useStore.setState({ settingsOpen: false }));
+-    emit({ type: "init.job", job: JOB });
+-    expect(notices()).toEqual([]);
+-
+-    emit({ type: "job.needs-you", jobId: "init_1", needsYou: NEED });
+-    emit({ type: "init.job", job: { ...JOB, needsYou: { what: "sign in to Claude Code login", since: NEED.since + 1 } } });
+-    expect(notices()).toEqual([]);
+-  });
+-
+-  it("a need the host no longer holds on a fresh read goes too", () => {
+-    emit({ type: "job.needs-you", jobId: "init_1", needsYou: NEED });
+-    act(() => useStore.setState({ initJob: { ...JOB, phase: "done" } }));
+-    expect(notices()).toEqual([]);
+-  });
+-
+-  it("a build that failed or sealed while its page was not showing is said once per job", () => {
+-    emit({ type: "init.job", job: { ...JOB, phase: "failed", error: "the provider ran out of machines" } });
+-    emit({ type: "init.job", job: { ...JOB, phase: "failed", error: "the provider ran out of machines" } });
+-    emit({ type: "init.job", job: { ...JOB, id: "init_2", phase: "done", golden: { version: 3 } } });
+-    emit({ type: "init.job", job: { ...JOB, id: "init_2", phase: "done", golden: { version: 3 } } });
+-    expect(notices().map(n => [n.kind, n.text])).toEqual([
+-      ["done", HOST_NOTICE_WORDS.imageSealed(3)],
+-      ["error", HOST_NOTICE_WORDS.imageNotBuilt("the provider ran out of machines")],
+-    ]);
+-  });
+-
+-  it("a need with its build's own page showing is the page's to say; leaving that page says it with an Open back onto it, and coming back ends it", () => {
+-    const job: InitJob = { ...JOB, place: { id: "pl_box", name: "spoo" }, needsYou: NEED };
+-    act(() => {
+-      useStore.setState({ initJob: job, settingsOpen: true });
+-      useSettingsStore.getState().go({ kind: "computer", id: "pl_box" });
+-      useSettingsStore.getState().showBuild("pl_box");
+-    });
+-    emit({ type: "job.needs-you", jobId: "init_1", needsYou: NEED });
+-    expect(notices()).toEqual([]);
+-    // Computers is showing, but not the build: the list draws no sign-in.
+-    act(() => {
+-      useSettingsStore.getState().hideBuild("pl_box");
+-      useSettingsStore.getState().go({ kind: "group", group: "computers" });
+-    });
+-    expect(notices()).toMatchObject([{ kind: "waiting", text: initNeedsYouLine(NEED.what), action: { word: "Open" } }]);
+-    act(() => notices()[0]!.action!.run());
+-    expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: "pl_box" });
+-    act(() => useSettingsStore.getState().showBuild("pl_box"));
+-    expect(notices()).toEqual([]);
+-  });
+-
+-  it("a need arriving with another page up waits with an Open onto the build's page", () => {
+-    act(() => useStore.setState({ initJob: { ...JOB, place: { id: "pl_box", name: "spoo" } } }));
+-    emit({ type: "job.needs-you", jobId: "init_1", needsYou: NEED });
+-    act(() => notices()[0]!.action!.run());
+-    expect(useStore.getState().settingsOpen).toBe(true);
+-    expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: "pl_box" });
+-  });
+-
+-  it("a build that ended with its page showing says nothing; one that failed away opens that page", () => {
+-    const placed: InitJob = { ...JOB, place: { id: "pl_box", name: "spoo" } };
+-    act(() => {
+-      useStore.setState({ settingsOpen: true });
+-      useSettingsStore.getState().go({ kind: "computer", id: "pl_box" });
+-      useSettingsStore.getState().showBuild("pl_box");
+-    });
+-    emit({ type: "init.job", job: { ...placed, phase: "failed", error: "boom" } });
+-    expect(notices()).toEqual([]);
+-    act(() => {
+-      useSettingsStore.getState().hideBuild("pl_box");
+-      useStore.setState({ settingsOpen: false });
+-    });
+-    emit({ type: "init.job", job: { ...placed, id: "init_2", phase: "failed", error: "boom" } });
+-    expect(notices().map(n => n.text)).toEqual([HOST_NOTICE_WORDS.imageNotBuilt("boom")]);
+-    act(() => notices()[0]!.action!.run());
+-    expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: "pl_box" });
+-  });
+-
+-  it("a build sent to the background says its computer is ready with the image's version, in the app and outside it, with an Open onto its page", () => {
+-    const said: { title: string; body: string }[] = [];
+-    window.wsp = { sayOutside: (line: { title: string; body: string }) => void said.push(line), onNeedsYouOpen: () => () => {} };
+-    try {
+-      remount();
+-      act(() => useStore.setState({ settingsOpen: true }));
+-      emit({ type: "init.job", job: { ...JOB, place: { id: "pl_box", name: "spoo" }, phase: "done", golden: { version: 1 } } });
+-      expect(notices()).toMatchObject([{ kind: "done", text: "spoo is ready", detail: "Image v1 sealed.", where: "spoo", action: { word: "Open" } }]);
+-      expect(said).toMatchObject([{ title: "spoo is ready", body: "Image v1 sealed" }]);
+-      act(() => notices()[0]!.action!.run());
+-      expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: "pl_box" });
+-    } finally {
+-      delete (window as { wsp?: unknown }).wsp;
+-    }
+-  });
+-
+-  it("a build watched to its end in Add a cloud provider is said by the dialog alone, and still goes out on the shell's road", () => {
+-    const said: { title: string }[] = [];
+-    window.wsp = { sayOutside: (line: { title: string }) => void said.push(line), onNeedsYouOpen: () => () => {} };
+-    try {
+-      remount();
+-      act(() => {
+-        openCloudAdd("pl_box");
+-        goCloud("building");
+-      });
+-      emit({ type: "init.job", job: { ...JOB, place: { id: "pl_box", name: "spoo" }, phase: "done", golden: { version: 1 } } });
+-      expect(notices()).toEqual([]);
+-      expect(said.map(l => l.title)).toEqual(["spoo is ready"]);
+-    } finally {
+-      act(() => closeCloudAdd());
+-      delete (window as { wsp?: unknown }).wsp;
+-    }
+-  });
+-
+-  it("a build that was cancelled says nothing", () => {
+-    emit({ type: "init.job", job: { ...JOB, phase: "cancelled" } });
+-    expect(notices()).toEqual([]);
+-  });
+-});
+-
+ describe("a workspace gone and a newer release", () => {
+   it("a workspace gone at the provider while another is selected is an error; selected, it says nothing", () => {
+     emit({ type: "workspace.gone", workspaceId: "ws_1", machineId: "m1", reason: "the provider no longer knows m1" });

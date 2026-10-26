@@ -1,0 +1,25 @@
+diff --git a/apps/desktop-gpui/app/src/screens/settings/pages/computers/words.rs b/apps/desktop-gpui/app/src/screens/settings/pages/computers/words.rs
+index b657aa8ad..35b7dfabb 100644
+--- a/apps/desktop-gpui/app/src/screens/settings/pages/computers/words.rs
++++ b/apps/desktop-gpui/app/src/screens/settings/pages/computers/words.rs
+@@ -528,7 +528,6 @@ pub mod where_words {
+     pub const HEAD_MEMORY: &str = "Memory";
+     pub const HEAD_THREADS: &str = "Threads";
+     pub const HEAD_CLOUD: &str = "Clouds";
+-    pub const HEAD_VERSION: &str = "Version";
+     pub const HEAD_AGENTS: &str = "Agents";
+     pub const HEAD_IMAGE: &str = "Image";
+     pub const HEAD_PENDING: &str = "Pending";
+@@ -602,12 +601,6 @@ pub mod page_words {
+     pub const DELETE_LINE: &str = "Its transcript and the agent's session are kept, and a message after the delete starts a new machine.";
+     pub const DELETE_AT_ONCE: &str = "At once";
+     pub const THREADS_HERE: &str = "Threads here";
+-    pub const SPAWN_TITLE: &str = "Agents may start agents";
+-    pub fn spawn_line(depth: u64, machines: Option<u64>) -> String {
+-        let machines = machines.map(|m| format!("{m} {} and ", if m == 1 { "machine" } else { "machines" })).unwrap_or_default();
+-        let deep = if depth == 1 { "one level deep".to_owned() } else { format!("{depth} levels deep") };
+-        format!("A thread here may open threads of its own, up to {machines}{deep}.")
+-    }
+     pub const LEVELS_TITLE: &str = "Levels deep";
+     pub const LEVELS_LINE: &str = "1 lets the thread you start open threads, 2 lets those open their own.";
+     pub const NAME_TITLE: &str = "Name";

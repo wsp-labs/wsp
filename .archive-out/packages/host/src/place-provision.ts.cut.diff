@@ -1,0 +1,53 @@
+diff --git a/packages/host/src/place-provision.ts b/packages/host/src/place-provision.ts
+index e9365e4bd..6fb7c1cc0 100644
+--- a/packages/host/src/place-provision.ts
++++ b/packages/host/src/place-provision.ts
+@@ -38,11 +38,10 @@ import {
+ import { agentOfRow, GITHUB_CLI as GH, GITHUB_ROW, keysKeptLine, signInRowId, MCP_ID_PREFIX, probePath, toolRowId, type Recipe, type RecipeFile, type RecipeKind } from "@wsp/protocol";
+ import type { GoldenImport, PlaceProvisioner, PlaceUndo } from "@wsp/runtime";
+ import { serverVault } from "./env-keys.js";
+-import { brewTableFor, copyRows, planImport } from "./image-recipe.js";
++import { brewTableFor, copyRows, planImport } from "./import-plan.js";
+ import { stayedLine } from "./cloud-configs.js";
+ import { CONFIG_PATHS, configTexts, type ConfigText } from "./recipe-configs.js";
+ import { folderFiles, LINKED_FOLDER_NOTE } from "./folder-files.js";
+-import { loadRecipe, smallRecipePath } from "./recipe-file.js";
+ import { estimatePicks } from "./pick-sizes.js";
+ import { agentOwnPaths } from "./recipes.js";
+ import { withoutWspHere } from "./wsp-own.js";
+@@ -96,7 +95,7 @@ const under = (path: string, dir: string): boolean => path === dir || path.start
+  * server for each agent it is picked for, answered copy where it carries a key and the picks said yes to copying it,
+  * a CLI by the manager it came from or the catalog's row for it. */
+ export function picksRows(manifest: Manifest, picks: RecipeFile, o: { home: string; brew: BrewTable }): ManifestEntry[] {
+-  const rows = copyRows(manifest, { recipe: smallOf(picks), pins: [] }, o);
++  const rows = copyRows(manifest, { recipe: smallOf(picks) }, o);
+   const tools = new Set(Object.entries(picks.clis).map(([name, row]) => toolRowId(row.via, name)));
+   const catalog = new Set([...tools].flatMap(id => catalogIdOfRow({ id }) ?? []));
+   return rows.map(e => {
+@@ -354,25 +353,10 @@ export async function undoPlan(before: RecipeFile, removed: readonly { kind: Rec
+ }
+ 
+ /** The host's side of the setup job: the plan off a computer's picks, the floor alone for a computer that joined
+- * before anything was picked, and each step the engine runs on the computer itself. `plan` is the recipe beside the
+- * state, which the doctor's road reads for a computer set up before picks were kept. */
++ * before anything was picked, and each step the engine runs on the computer itself. */
+ export function placeProvisioner(o: ProvisionReaders): PlaceProvisioner {
+   const here = (): Host => o.here ?? { ...nodeHost(), home: o.home };
+   return {
+-    async plan(on) {
+-      const recipePath = smallRecipePath(o.statePath);
+-      if (!existsSync(recipePath)) return { noRecipe: recipePath };
+-      const recipe = loadRecipe(recipePath);
+-      const manifest = await o.collect();
+-      const brew = await brewTableFor(manifest, o.brew);
+-      const rows = copyRows(manifest, { recipe, pins: [] }, { home: o.home, brew });
+-      const { path, prefix } = placePaths(on.home);
+-      const imp = planImport(
+-        rows.filter(e => e.bring === true),
+-        { rows, small: recipe, home: o.home, platform: o.platform, brew, secrets: new Map(), vault: serverVault(o.statePath), keepFile: agentStateFile, path, prefix },
+-      );
+-      return provisionPlanOf(imp, recipe.at, path, prefix);
+-    },
+     async setup(given, on, only) {
+       const picks = await withoutWspHere(here(), given);
+       const { path, prefix } = placePaths(on.home);

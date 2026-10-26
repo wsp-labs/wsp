@@ -1,0 +1,28 @@
+diff --git a/packages/host/src/recipes.ts b/packages/host/src/recipes.ts
+index 6bc1922d0..06f84fd68 100644
+--- a/packages/host/src/recipes.ts
++++ b/packages/host/src/recipes.ts
+@@ -8,18 +8,21 @@ import { createHash } from "node:crypto";
+ import { existsSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
+ import { dirname, join } from "node:path";
+ import { CATALOG_AGENTS, MCP_AGENTS, hookFiles } from "@wsp/catalog";
+-import { DETECTORS, expand, isSecretName, nodeHost, type Host, type Manifest } from "@wsp/collect";
++import { DETECTORS, expand, fileHistoryCache, isSecretName, nodeHost, type HistoryCache, type Host, type Manifest } from "@wsp/collect";
+ import { rowRoad } from "@wsp/engine";
+ import { writeOwn } from "@wsp/own-file";
+ import { issuesLine, noSuchRecipeRefusal, RECIPE_NAME_REFUSAL, RecipeFile, recipeCanon, recipeSlug, toolRowId, withoutWspOwn, type RecipeOptions, type ResolvedRecipe } from "@wsp/protocol";
+ import type { RecipeShelf } from "@wsp/runtime";
+ import { CONFIG_PATHS, configDigest, configTexts, type ConfigFiles } from "./recipe-configs.js";
+-import { historyCache } from "./recipe-file.js";
+ import { folderOptions, readRecipeOptions } from "./recipe-options.js";
+ import { folderFiles } from "./folder-files.js";
+ import { tokenShaped } from "./token-shapes.js";
+ import { withoutWspHere, wspPackages } from "./wsp-own.js";
+ 
++/** What each of the agents' session files came to, beside the state: the one place that path is decided, so every
++ * read of the options rewrites the same cache and none reads a session file another already read. */
++const historyCache = (statePath: string): HistoryCache => fileHistoryCache(join(dirname(statePath), "history-cache.json"));
++
+ /** Where a host keeps its recipes: beside its state file, one file per recipe. */
+ export const recipesDir = (statePath: string): string => join(dirname(statePath), "recipes");
+ 

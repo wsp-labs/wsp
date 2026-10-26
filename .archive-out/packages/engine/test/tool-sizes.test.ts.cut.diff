@@ -1,0 +1,152 @@
+diff --git a/packages/engine/test/tool-sizes.test.ts b/packages/engine/test/tool-sizes.test.ts
+index 683ec6429..acef04d14 100644
+--- a/packages/engine/test/tool-sizes.test.ts
++++ b/packages/engine/test/tool-sizes.test.ts
+@@ -1,26 +1,18 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ import { describe, expect, it } from "vitest";
+ import { catalogEntry, sizeBytes } from "@wsp/catalog";
+-import { MIB, TOOLS_DISK_FLOOR } from "../src/golden-tools.js";
++import { MIB } from "../src/golden-tools.js";
+ import { brewfileFor, toolInstallsFor, type BrewTable, type RecipeEntry } from "../src/golden-import.js";
+ import {
+-  BREW_TOOLCHAIN_BYTES,
+-  BUILDER_DISK_GB,
+-  BUILDER_FREE_BYTES,
+-  DISK_ROOM_BYTES,
+-  PACK_BUDGET_BYTES,
+   agentSize,
+   assumedSize,
+   brewTable,
+-  estimateDisk,
+   parseBrewInfo,
+   parseDu,
+   sourceOf,
+   toolSize,
+ } from "../src/tool-sizes.js";
+ 
+-const GIB = 1024 * MIB;
+-
+ function formula(over: Record<string, unknown>): Record<string, unknown> {
+   return { tap: "homebrew/core", dependencies: [], build_dependencies: [], requirements: [], urls: { stable: { url: "https://example.org/src.tar.xz", tag: null } }, versions: { stable: "1.0", bottle: true }, installed: [{ version: "1.0", runtime_dependencies: [] }], ...over };
+ }
+@@ -125,18 +117,6 @@ describe("agentSize", () => {
+   });
+ });
+ 
+-describe("the disk", () => {
+-  it("room is what the 20 GB builder had free less the tools floor; the pack budget is half of what the upload stage has", () => {
+-    expect(BUILDER_DISK_GB).toBe(20);
+-    // df -Pk on the real builder before the upload: 17,992,136 KiB, the base image and the reserved blocks already gone.
+-    expect(BUILDER_FREE_BYTES).toBe(17570 * MIB);
+-    expect(DISK_ROOM_BYTES).toBe(BUILDER_FREE_BYTES - TOOLS_DISK_FLOOR);
+-    expect(DISK_ROOM_BYTES).toBeLessThan(15.2 * GIB);
+-    expect(PACK_BUDGET_BYTES).toBe(Math.floor((BUILDER_FREE_BYTES - 256 * MIB) / 2));
+-    expect(PACK_BUDGET_BYTES).toBeGreaterThan(8 * GIB);
+-  });
+-});
+-
+ describe("assumedSize", () => {
+   it("a row nothing measured counts at the default for its kind, and says which kind", () => {
+     expect(assumedSize(row({ id: "tools/go/gopls" }))).toEqual({ bytes: 500 * MIB, kind: "a go install" });
+@@ -149,100 +129,6 @@ describe("assumedSize", () => {
+   });
+ });
+ 
+-describe("estimateDisk", () => {
+-  const files = 300 * MIB;
+-
+-  it("adds files, Homebrew's toolchain once, the tools' closures with shared dependencies once, and the agents", () => {
+-    const ticked = [brew("ffmpeg"), brew("openssl@3"), brew("llvm@21"), { ...row({ id: "agents/opencode" }), rung: "agents" as const }, { ...row({ id: "agents/gemini" }), rung: "agents" as const }];
+-    const est = estimateDisk(ticked, files, TABLE);
+-    expect(est.files).toBe(files);
+-    expect(est.toolchain).toBe(BREW_TOOLCHAIN_BYTES);
+-    // ffmpeg + x264 + openssl@3 + ca-certificates (openssl@3's own row adds nothing new) + llvm@21 + zstd, all from
+-    // this Mac, and the Node the Gemini CLI's engines floor asks for, which is no longer part of the base.
+-    expect(est.tools).toBe((102400 + 20480 + 30720 + 1024 + 5120 + 2048000) * 1024 + sizeBytes(catalogEntry("node")!.size)!);
+-    // The agents' own bytes; the Node they run on is a tool row's, counted once above.
+-    expect(est.agents).toBe((673 + 189) * MIB);
+-    expect(est.unknown).toEqual([]);
+-    expect(est.assumed).toBe(0);
+-    expect(est.total).toBe(est.files + est.toolchain + est.tools + est.agents);
+-    expect(est.room).toBe(DISK_ROOM_BYTES);
+-    expect(est.over).toBe(0);
+-  });
+-
+-  it("no Homebrew formula, no toolchain; an npm row and an agent nobody measured are named as unknown", () => {
+-    const est = estimateDisk([row({ id: "tools/npm/left-pad", label: "left-pad" }), row({ id: "tools/npm/bun", label: "bun" }), { ...row({ id: "agents/aider", label: "Aider" }), rung: "agents" as const }, { ...row({ id: "agents/zed", label: "Zed" }), rung: "agents" as const }], 0, TABLE);
+-    expect(est.toolchain).toBe(0);
+-    // The npm rows bring node along, once, as the plan's own step.
+-    expect(est.tools).toBe(sizeBytes(catalogEntry("bun")!.size)! + sizeBytes(catalogEntry("node")!.size)!);
+-    // Zed has no installer, so nothing of it lands on the machine and nothing is unknown about it.
+-    expect(est.unknown).toEqual(["left-pad", "Aider"]);
+-    // The unknown rows still count, each at its kind's default, and the total carries them.
+-    expect(est.assumed).toBe((50 + 350) * MIB);
+-    expect(est.agents).toBe(0);
+-    expect(est.total).toBe(est.tools + est.assumed);
+-  });
+-
+-  it("an agent whose engines floor asks for Node brings one, counted once beside the agents' own bytes", () => {
+-    const node = sizeBytes(catalogEntry("node")!.size)!;
+-    const codex = { ...row({ id: "agents/codex" }), rung: "agents" as const };
+-    expect(estimateDisk([codex], 0, TABLE).agents).toBe(455 * MIB);
+-    expect(estimateDisk([codex], 0, TABLE).tools).toBe(node);
+-    const pi = { ...row({ id: "agents/pi" }), rung: "agents" as const };
+-    expect(estimateDisk([codex, pi], 0, TABLE).agents).toBe((455 + 165) * MIB);
+-    expect(estimateDisk([codex, pi], 0, TABLE).tools).toBe(node);
+-    // A ticked row that already brings node is the one that counts: the harness stage keeps what the tools stage put there.
+-    expect(estimateDisk([codex, row({ id: "tools/npm/pnpm", label: "pnpm" })], 0, TABLE).tools).toBe(node + sizeBytes(catalogEntry("pnpm")!.size)!);
+-    // Claude Code's installer is its vendor's native one, so a recipe with it alone carries no node.
+-    expect(estimateDisk([{ ...row({ id: "agents/claude" }), rung: "agents" as const }], 0, TABLE).tools).toBe(0);
+-  });
+-
+-  it("a manager the plan pulls in as a formula counts that formula from this Mac, and so does the toolchain it needs", () => {
+-    const est = estimateDisk([row({ id: "tools/pipx/black", label: "black" })], 0, new Map([["pipx", { name: "pipx", fullName: "pipx", deps: [], bytes: 400 * MIB, macosOnly: false }]]));
+-    expect(est.toolchain).toBe(BREW_TOOLCHAIN_BYTES);
+-    expect(est.tools).toBe(400 * MIB);
+-    expect(est.unknown).toEqual(["black"]);
+-    expect(est.assumed).toBe(100 * MIB);
+-    expect(est.total).toBe(BREW_TOOLCHAIN_BYTES + 400 * MIB + 100 * MIB);
+-  });
+-
+-  it("a manager the catalog installs off Homebrew counts at the catalog's measurement, with no toolchain behind it", () => {
+-    const rust = sizeBytes(catalogEntry("rust")!.size)!;
+-    const est = estimateDisk([row({ id: "tools/cargo/bat", label: "bat" })], 0, TABLE);
+-    expect(est.toolchain).toBe(0);
+-    expect(est.tools).toBe(rust);
+-    expect(est.unknown).toEqual(["bat"]);
+-    expect(est.total).toBe(rust + 100 * MIB);
+-  });
+-
+-  for (const formula of ["rust", "rustup"]) {
+-    it(`a Mac's ${formula} formula for a manager's toolchain counts at the catalog's measurement, not this Mac's Cellar, and brings no toolchain`, () => {
+-      const rust = sizeBytes(catalogEntry("rust")!.size)!;
+-      const table: BrewTable = new Map([
+-        [formula, { name: formula, fullName: formula, deps: ["llvm@21"], bytes: 3 * GIB, macosOnly: false }],
+-        ["llvm@21", { name: "llvm@21", fullName: "llvm@21", deps: [], bytes: 2 * GIB, macosOnly: false }],
+-      ]);
+-      const est = estimateDisk([brew(formula), row({ id: "tools/cargo/bat", label: "bat" })], 0, table);
+-      expect(est.toolchain).toBe(0);
+-      expect(est.tools).toBe(rust);
+-      expect(est.unknown).toEqual(["bat"]);
+-      expect(est.total).toBe(rust + 100 * MIB);
+-    });
+-  }
+-
+-  it("says by how much a recipe overshoots the room", () => {
+-    const huge: BrewTable = new Map([["gh", { name: "gh", fullName: "gh", deps: [], bytes: 30 * GIB, macosOnly: false }]]);
+-    const est = estimateDisk([brew("gh")], 0, huge);
+-    expect(est.over).toBe(30 * GIB + BREW_TOOLCHAIN_BYTES - DISK_ROOM_BYTES);
+-  });
+-
+-  it("a tap adds nothing and is not unknown", () => {
+-    const est = estimateDisk([row({ id: "tools/brew-tap/zingzy/tap", label: "zingzy/tap" })], 0, TABLE);
+-    expect(est.tools).toBe(0);
+-    expect(est.unknown).toEqual([]);
+-    expect(est.toolchain).toBe(BREW_TOOLCHAIN_BYTES);
+-  });
+-});
+-
+ describe("tap formulae without a Linux bottle", () => {
+   const rows = [
+     brew("felixkratz/formulae/sketchybar", "unknown"),

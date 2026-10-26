@@ -1,0 +1,178 @@
+diff --git a/daemon/crates/wsp-mcp/record/tools/computers_set.json b/daemon/crates/wsp-mcp/record/tools/computers_set.json
+index 783eaa2e4..d491fb023 100644
+--- a/daemon/crates/wsp-mcp/record/tools/computers_set.json
++++ b/daemon/crates/wsp-mcp/record/tools/computers_set.json
+@@ -1,7 +1,7 @@
+ {
+   "cloudOff": {
+     "name": "computers_set",
+-    "description": "Sets what the person may set on one computer and answers its row as it now reads, the same row computers lists: name, what a computer the person added is called from now, in every listing and wherever a computer is named, its id, its projects and its machines staying as they are, refused for the computer the app runs on and for a name another computer answers to; ssh, the login user@host the host reaches it by over ssh from now, for an update or a remove while its link is down and for the forward it dials back through, saved only once the computer that login reaches reads as this same one, its place file naming this computer and this host; threads, how many threads may run there at once, a new one waiting past it, except a turn a thread there follows to its end, not detached, which runs in that thread's slot (one per 2 GB of that computer's memory up to twice its cores until it is set); nap, the minutes a machine there with no window of its own runs with no turn and no work before it naps and stops costing anything, waking on the next message (20 until it is set, 0 never naps it), which every machine there counts again from now and which the computer the app runs on does not take, since its threads run in folders; turn_limit, the hours one turn there may run before it is stopped, a send carrying it on from where it stopped (none on a computer the person owns until it is set, 0 is none), read at each turn's start; spawn, max_machines and max_depth, what the agents there may ask of this host where the folder or the machine they run in holds no switch of its own (on, up to 3 machines and 2 levels deep, until it is set), read at every ask so one made before the change follows it; machines and spend on a cloud, how many machines may run there at once and the dollars a day it may spend before it starts no new machine (3 and $10 until they are set); size on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as <cpu>x<memGb>, one of the sizes that cloud's row lists (the size its provider builds at until it is set); delete_after on a cloud, the minutes a finished sub-thread's machine stays before it is deleted, read at each finish, 0 deleting it once it is done (30 until it is set). A setting left out keeps what stands, and each word under reset takes that setting back to its default. The row carries cap, what runs there now, capDefault, what it reads by default, and settings, what the person set. A setting the computer's kind does not take, and a call that sets nothing, are refused in one line.",
++    "description": "Sets what the person may set on one computer and answers its row as it now reads, the same row computers lists: name, what a computer the person added is called from now, in every listing and wherever a computer is named, its id, its projects and its machines staying as they are, refused for the computer the app runs on and for a name another computer answers to; ssh, the login user@host the host reaches it by over ssh from now, for an update or a remove while its link is down and for the forward it dials back through, saved only once the computer that login reaches reads as this same one, its place file naming this computer and this host; threads, how many threads may run there at once, a new one waiting past it, except a turn a thread there follows to its end, not detached, which runs in that thread's slot (one per 2 GB of that computer's memory up to twice its cores until it is set); nap, the minutes a machine there with no window of its own runs with no turn and no work before it naps and stops costing anything, waking on the next message (20 until it is set, 0 never naps it), which every machine there counts again from now and which the computer the app runs on does not take, since its threads run in folders; turn_limit, the hours one turn there may run before it is stopped, a send carrying it on from where it stopped (none on a computer the person owns until it is set, 0 is none), read at each turn's start; max_machines and max_depth, how many machines and levels deep the agents there may start where the folder or the machine they run in holds no caps of its own (up to 3 machines and 2 levels deep, until it is set), read at every ask so one made before the change follows it; machines and spend on a cloud, how many machines may run there at once and the dollars a day it may spend before it starts no new machine (3 and $10 until they are set); size on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as <cpu>x<memGb>, one of the sizes that cloud's row lists (the size its provider builds at until it is set); delete_after on a cloud, the minutes a finished sub-thread's machine stays before it is deleted, read at each finish, 0 deleting it once it is done (30 until it is set). A setting left out keeps what stands, and each word under reset takes that setting back to its default. The row carries cap, what runs there now, capDefault, what it reads by default, and settings, what the person set. A setting the computer's kind does not take, and a call that sets nothing, are refused in one line.",
+     "inputSchema": {
+       "type": "object",
+       "properties": {
+@@ -55,23 +55,15 @@
+           "maximum": 24,
+           "description": "the hours one turn there may run before it is stopped; 0 never stops one"
+         },
+-        "spawn": {
+-          "type": "string",
+-          "enum": [
+-            "on",
+-            "off"
+-          ],
+-          "description": "whether agents there may open threads and fork machines under the thread they run in, capped, where the folder or the machine they run in holds no switch of its own"
+-        },
+         "max_machines": {
+           "type": "integer",
+           "minimum": 0,
+-          "description": "how many machines may stand at once under one root thread there while spawn is on"
++          "description": "how many machines may stand at once under one root thread there"
+         },
+         "max_depth": {
+           "type": "integer",
+           "minimum": 1,
+-          "description": "how many levels deep the tree under a root thread there may go while spawn is on"
++          "description": "how many levels deep the tree under a root thread there may go"
+         },
+         "recipe": {
+           "type": "string",
+@@ -89,7 +81,7 @@
+               "delete-after",
+               "nap",
+               "turn-limit",
+-              "spawn",
++              "max-machines",
+               "max-depth"
+             ]
+           },
+@@ -159,14 +151,6 @@
+             "diskFreeBytes": {
+               "type": "integer"
+             },
+-            "engine": {
+-              "type": "string",
+-              "enum": [
+-                "none",
+-                "docker",
+-                "podman"
+-              ]
+-            },
+             "copies": {
+               "type": "string",
+               "enum": [
+@@ -909,9 +893,6 @@
+                 "spawn": {
+                   "type": "object",
+                   "properties": {
+-                    "spawn": {
+-                      "type": "boolean"
+-                    },
+                     "maxMachines": {
+                       "type": "integer",
+                       "minimum": 0
+@@ -983,9 +964,6 @@
+             "spawn": {
+               "type": "object",
+               "properties": {
+-                "spawn": {
+-                  "$ref": "#/properties/computer/properties/settings/properties/spawn/properties/spawn"
+-                },
+                 "maxMachines": {
+                   "$ref": "#/properties/computer/properties/settings/properties/spawn/properties/maxMachines"
+                 },
+@@ -994,7 +972,6 @@
+                 }
+               },
+               "required": [
+-                "spawn",
+                 "maxMachines",
+                 "maxDepth"
+               ],
+@@ -1135,7 +1112,7 @@
+   },
+   "cloudOn": {
+     "name": "computers_set",
+-    "description": "Sets what the person may set on one computer and answers its row as it now reads, the same row computers lists: name, what a computer the person added is called from now, in every listing and wherever a computer is named, its id, its projects and its machines staying as they are, refused for the computer the app runs on, for a cloud and for a name another computer answers to; ssh, the login user@host the host reaches it by over ssh from now, for an update or a remove while its link is down and for the forward it dials back through, saved only once the computer that login reaches reads as this same one, its place file naming this computer and this host; threads, how many threads may run there at once, a new one waiting past it, except a turn a thread there follows to its end, not detached, which runs in that thread's slot (one per 2 GB of that computer's memory up to twice its cores until it is set); nap, the minutes a machine there with no window of its own runs with no turn and no work before it naps and stops costing anything, waking on the next message (20 until it is set, 0 never naps it), which every machine there counts again from now and which the computer the app runs on does not take, since its threads run in folders; turn_limit, the hours one turn there may run before it is stopped, a send carrying it on from where it stopped (none on a computer the person owns and 6 on a cloud until it is set, 0 is none), read at each turn's start; spawn, max_machines and max_depth, what the agents there may ask of this host where the folder or the machine they run in holds no switch of its own (on, up to 3 machines and 2 levels deep, until it is set), read at every ask so one made before the change follows it; machines and spend on a cloud, how many machines may run there at once and the dollars a day it may spend before it starts no new machine (3 and $10 until they are set); size on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as <cpu>x<memGb>, one of the sizes that cloud's row lists (the size its provider builds at until it is set); delete_after on a cloud, the minutes a finished sub-thread's machine stays before it is deleted, read at each finish, 0 deleting it once it is done (30 until it is set). A setting left out keeps what stands, and each word under reset takes that setting back to its default. The row carries cap, what runs there now, capDefault, what it reads by default, and settings, what the person set. A setting the computer's kind does not take, and a call that sets nothing, are refused in one line.",
++    "description": "Sets what the person may set on one computer and answers its row as it now reads, the same row computers lists: name, what a computer the person added is called from now, in every listing and wherever a computer is named, its id, its projects and its machines staying as they are, refused for the computer the app runs on, for a cloud and for a name another computer answers to; ssh, the login user@host the host reaches it by over ssh from now, for an update or a remove while its link is down and for the forward it dials back through, saved only once the computer that login reaches reads as this same one, its place file naming this computer and this host; threads, how many threads may run there at once, a new one waiting past it, except a turn a thread there follows to its end, not detached, which runs in that thread's slot (one per 2 GB of that computer's memory up to twice its cores until it is set); nap, the minutes a machine there with no window of its own runs with no turn and no work before it naps and stops costing anything, waking on the next message (20 until it is set, 0 never naps it), which every machine there counts again from now and which the computer the app runs on does not take, since its threads run in folders; turn_limit, the hours one turn there may run before it is stopped, a send carrying it on from where it stopped (none on a computer the person owns and 6 on a cloud until it is set, 0 is none), read at each turn's start; max_machines and max_depth, how many machines and levels deep the agents there may start where the folder or the machine they run in holds no caps of its own (up to 3 machines and 2 levels deep, until it is set), read at every ask so one made before the change follows it; machines and spend on a cloud, how many machines may run there at once and the dollars a day it may spend before it starts no new machine (3 and $10 until they are set); size on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as <cpu>x<memGb>, one of the sizes that cloud's row lists (the size its provider builds at until it is set); delete_after on a cloud, the minutes a finished sub-thread's machine stays before it is deleted, read at each finish, 0 deleting it once it is done (30 until it is set). A setting left out keeps what stands, and each word under reset takes that setting back to its default. The row carries cap, what runs there now, capDefault, what it reads by default, and settings, what the person set. A setting the computer's kind does not take, and a call that sets nothing, are refused in one line.",
+     "inputSchema": {
+       "type": "object",
+       "properties": {
+@@ -1189,23 +1166,15 @@
+           "maximum": 24,
+           "description": "the hours one turn there may run before it is stopped; 0 never stops one"
+         },
+-        "spawn": {
+-          "type": "string",
+-          "enum": [
+-            "on",
+-            "off"
+-          ],
+-          "description": "whether agents there may open threads and fork machines under the thread they run in, capped, where the folder or the machine they run in holds no switch of its own"
+-        },
+         "max_machines": {
+           "type": "integer",
+           "minimum": 0,
+-          "description": "how many machines may stand at once under one root thread there while spawn is on"
++          "description": "how many machines may stand at once under one root thread there"
+         },
+         "max_depth": {
+           "type": "integer",
+           "minimum": 1,
+-          "description": "how many levels deep the tree under a root thread there may go while spawn is on"
++          "description": "how many levels deep the tree under a root thread there may go"
+         },
+         "recipe": {
+           "type": "string",
+@@ -1223,7 +1192,7 @@
+               "delete-after",
+               "nap",
+               "turn-limit",
+-              "spawn",
++              "max-machines",
+               "max-depth"
+             ]
+           },
+@@ -1293,14 +1262,6 @@
+             "diskFreeBytes": {
+               "type": "integer"
+             },
+-            "engine": {
+-              "type": "string",
+-              "enum": [
+-                "none",
+-                "docker",
+-                "podman"
+-              ]
+-            },
+             "copies": {
+               "type": "string",
+               "enum": [
+@@ -2043,9 +2004,6 @@
+                 "spawn": {
+                   "type": "object",
+                   "properties": {
+-                    "spawn": {
+-                      "type": "boolean"
+-                    },
+                     "maxMachines": {
+                       "type": "integer",
+                       "minimum": 0
+@@ -2117,9 +2075,6 @@
+             "spawn": {
+               "type": "object",
+               "properties": {
+-                "spawn": {
+-                  "$ref": "#/properties/computer/properties/settings/properties/spawn/properties/spawn"
+-                },
+                 "maxMachines": {
+                   "$ref": "#/properties/computer/properties/settings/properties/spawn/properties/maxMachines"
+                 },
+@@ -2128,7 +2083,6 @@
+                 }
+               },
+               "required": [
+-                "spawn",
+                 "maxMachines",
+                 "maxDepth"
+               ],

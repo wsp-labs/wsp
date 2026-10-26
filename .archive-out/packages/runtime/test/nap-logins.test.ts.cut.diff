@@ -1,0 +1,96 @@
+diff --git a/packages/runtime/test/nap-logins.test.ts b/packages/runtime/test/nap-logins.test.ts
+index 1bb665665..6564dbcd2 100644
+--- a/packages/runtime/test/nap-logins.test.ts
++++ b/packages/runtime/test/nap-logins.test.ts
+@@ -3,13 +3,11 @@
+ // as it lands, and refuses a snapshot while one stands on the machine. A fork on a computer somebody joined keeps
+ // its home as it was.
+ import { LOGIN_PATHS } from "@wsp/catalog";
+-import type { MachineBackend } from "@wsp/engine";
+-import { DAEMON_TOKEN_PATH, verbFailure } from "@wsp/protocol";
++import { DAEMON_TOKEN_PATH } from "@wsp/protocol";
+ import { describe, expect, it, vi } from "vitest";
+ import { createRuntime, type PlaceBackends } from "../src/runtime.js";
+-import { newPlaceKeyPair } from "../src/places.js";
+ import { memoryStore } from "../src/store.js";
+-import { wiring, report } from "./place-join.js";
++import { report } from "./place-join.js";
+ import { code, ctx, forks, join, serving, sockets, type ForkingPlace } from "./places-fixture.js";
+ import { createOn, stubBackend, tokenGuest, type StubBackend } from "./stub-backend.js";
+ 
+@@ -37,14 +35,6 @@ function guest(held: string[] = []): { backend: StubBackend; cmds: { machine: st
+   return { backend, cmds };
+ }
+ 
+-const twoProviders = (wired: string, at: Record<string, MachineBackend>): PlaceBackends => ({
+-  get wired() {
+-    return wired;
+-  },
+-  backend: place => at[place],
+-  list: () => Object.keys(at),
+-});
+-
+ describe("the vault of a fork at a provider", () => {
+   it("a nap archives the home with every login path and both secrets files left out", async () => {
+     const { backend, cmds } = guest();
+@@ -129,60 +119,6 @@ describe("the vault of a fork at a provider", () => {
+   });
+ });
+ 
+-describe("a snapshot of a fork at a provider", () => {
+-  it("refuses while a login path stands, naming every one it found, and takes no snapshot", async () => {
+-    const { backend } = guest(["/root/.codex/auth.json", "/etc/profile.d/wsp-secrets.sh"]);
+-    const rt = createRuntime({ backend, store: memoryStore(), adapters: {} });
+-    try {
+-      const ws = await createOn(rt, { golden: "snap_g", name: "x" });
+-      const refused = await rt.workspaces.snapshot(ws.id).then(
+-        () => undefined,
+-        (e: unknown) => e as Error & { fix?: string },
+-      );
+-      expect(refused?.message).toBe(
+-        "x was not snapshotted: it holds sign-in files (/root/.codex/auth.json, /etc/profile.d/wsp-secrets.sh), which every workspace forked from the snapshot would carry. Remove them on the machine, then snapshot again.",
+-      );
+-      expect(refused?.fix).toBe("Remove them on the machine, then snapshot again.");
+-      // Something the person fixes on the machine, so wsp snapshot exits 3 and not as a provider failure.
+-      expect(verbFailure(refused)).toMatchObject({ class: "usage", exit: 3 });
+-      expect(backend.snapshots).toEqual([]);
+-    } finally {
+-      await rt.close();
+-      vi.unstubAllGlobals();
+-    }
+-  });
+-
+-  it("asks after every login path and both secrets files, and snapshots once none stands", async () => {
+-    const { backend, cmds } = guest();
+-    const rt = createRuntime({ backend, store: memoryStore(), adapters: {} });
+-    try {
+-      const ws = await createOn(rt, { golden: "snap_g", name: "x" });
+-      await rt.workspaces.snapshot(ws.id);
+-      const probe = cmds.find(c => c.cmd.startsWith("for p in "))?.cmd ?? "";
+-      for (const p of [...NAMED, ...LOGIN_PATHS]) expect(probe, p).toContain(`'${p}'`);
+-      expect(backend.snapshots).toHaveLength(1);
+-    } finally {
+-      await rt.close();
+-      vi.unstubAllGlobals();
+-    }
+-  });
+-
+-  it("refuses at a provider this host is not wired to, whose forks carry its id as their place", async () => {
+-    const solari = guest().backend;
+-    const box = guest(["/root/.config/gh/hosts.yml"]).backend;
+-    const rt = createRuntime({ backend: solari, store: memoryStore(), adapters: {}, places: twoProviders("solari", { solari, box }), placeLinks: wiring(newPlaceKeyPair(), { id: "solari", rateUsdPerHour: 0.11 }) });
+-    try {
+-      const there = await createOn(rt, { golden: "snap_g", name: "x", on: "box" });
+-      expect(there.place).toBe("box");
+-      await expect(rt.workspaces.snapshot(there.id)).rejects.toThrow("it holds sign-in files (/root/.config/gh/hosts.yml),");
+-      expect(box.snapshots).toEqual([]);
+-    } finally {
+-      await rt.close();
+-      vi.unstubAllGlobals();
+-    }
+-  });
+-});
+-
+ describe("a fork on a computer somebody joined", () => {
+   it("naps with its home archived as it is, sign-ins and all, since that computer is the person's own", async () => {
+     const { hostKey } = await serving();

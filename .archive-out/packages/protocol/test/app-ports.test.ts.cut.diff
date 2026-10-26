@@ -1,0 +1,24 @@
+diff --git a/packages/protocol/test/app-ports.test.ts b/packages/protocol/test/app-ports.test.ts
+index 251b1a803..c4db4a79b 100644
+--- a/packages/protocol/test/app-ports.test.ts
++++ b/packages/protocol/test/app-ports.test.ts
+@@ -17,8 +17,7 @@ import {
+   portsAsked,
+   portsPickedLine,
+   servedHostname,
+-  stateFileLine,
+-} from "../src/index.js";
++  } from "../src/index.js";
+ import { ROOT, sourceFiles } from "./source-files.js";
+ 
+ describe("an address where an alias could go", () => {
+@@ -130,9 +129,6 @@ describe("who holds a port, and the lines about it", () => {
+     expect(PORT_TAKEN_REFUSAL).not.toContain("—");
+   });
+ 
+-  it("the state file line names the file and the flag that starts a fresh setup", () => {
+-    expect(stateFileLine("/Users/z/.wsp/state.json")).toBe("Setting up /Users/z/.wsp/state.json; --state <path> starts a fresh setup instead.");
+-  });
+ });
+ 
+ describe("one home for the default port and for the loopback address", () => {

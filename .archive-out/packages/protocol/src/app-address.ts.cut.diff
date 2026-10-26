@@ -1,0 +1,16 @@
+diff --git a/packages/protocol/src/app-address.ts b/packages/protocol/src/app-address.ts
+index 3c07f3cae..3c39470cc 100644
+--- a/packages/protocol/src/app-address.ts
++++ b/packages/protocol/src/app-address.ts
+@@ -44,11 +44,6 @@ export function appHash(address: AppAddress): string {
+   return address.fresh === true ? `${base}${NEW}` : base;
+ }
+ 
+-/** The hash wsp init opens the app on: the workspace it made, or none, with the code that lets the browser in. */
+-export function openingHash(code: string, workspaceId?: string): string {
+-  return `${workspaceId === undefined ? CODE_ALONE : `${workspaceHash(workspaceId)}${CODE}`}${encodeURIComponent(code)}`;
+-}
+-
+ /** The pairing code a hash carries and the hash left once it is taken out, or nothing when it carries none. */
+ export function pairingCodeOf(hash: string): { code: string; rest: string } | undefined {
+   const alone = hash.startsWith(CODE_ALONE);

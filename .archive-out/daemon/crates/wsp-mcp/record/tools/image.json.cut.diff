@@ -1,0 +1,305 @@
+diff --git a/daemon/crates/wsp-mcp/record/tools/image.json b/daemon/crates/wsp-mcp/record/tools/image.json
+index a1e03127f..bfc2c248d 100644
+--- a/daemon/crates/wsp-mcp/record/tools/image.json
++++ b/daemon/crates/wsp-mcp/record/tools/image.json
+@@ -41,14 +41,6 @@
+                       "type": "string",
+                       "minLength": 1
+                     },
+-                    "tick": {
+-                      "type": "string",
+-                      "enum": [
+-                        "used",
+-                        "installed",
+-                        "default"
+-                      ]
+-                    },
+                     "histories": {
+                       "type": "array",
+                       "items": {
+@@ -301,9 +293,6 @@
+                         ],
+                         "additionalProperties": false
+                       }
+-                    },
+-                    "engine": {
+-                      "type": "boolean"
+                     }
+                   },
+                   "required": [
+@@ -314,38 +303,6 @@
+                   ],
+                   "additionalProperties": false
+                 },
+-                "pins": {
+-                  "type": "array",
+-                  "items": {
+-                    "type": "object",
+-                    "properties": {
+-                      "tag": {
+-                        "$ref": "#/properties/image/anyOf/0/properties/recipe/properties/rows/items/properties/pin/properties/tag"
+-                      },
+-                      "sha256": {
+-                        "$ref": "#/properties/image/anyOf/0/properties/recipe/properties/rows/items/properties/pin/properties/sha256"
+-                      },
+-                      "arch": {
+-                        "$ref": "#/properties/image/anyOf/0/properties/recipe/properties/rows/items/properties/pin/properties/arch"
+-                      },
+-                      "latest": {
+-                        "$ref": "#/properties/image/anyOf/0/properties/recipe/properties/rows/items/properties/pin/properties/latest"
+-                      },
+-                      "id": {
+-                        "type": "string",
+-                        "minLength": 1
+-                      },
+-                      "road": {
+-                        "type": "string"
+-                      }
+-                    },
+-                    "required": [
+-                      "tag",
+-                      "id"
+-                    ],
+-                    "additionalProperties": false
+-                  }
+-                },
+                 "logins": {
+                   "type": "array",
+                   "items": {
+@@ -479,80 +436,11 @@
+             ],
+             "additionalProperties": false
+           }
+-        },
+-        "projects": {
+-          "type": "array",
+-          "items": {
+-            "type": "object",
+-            "properties": {
+-              "snapshotId": {
+-                "type": "string"
+-              },
+-              "projects": {
+-                "type": "array",
+-                "items": {
+-                  "type": "object",
+-                  "properties": {
+-                    "name": {
+-                      "type": "string"
+-                    },
+-                    "dest": {
+-                      "type": "string"
+-                    },
+-                    "importedAt": {
+-                      "type": "string"
+-                    },
+-                    "size": {
+-                      "type": "integer",
+-                      "minimum": 0
+-                    }
+-                  },
+-                  "required": [
+-                    "name",
+-                    "dest",
+-                    "importedAt"
+-                  ],
+-                  "additionalProperties": false
+-                }
+-              },
+-              "golden": {
+-                "type": "string"
+-              },
+-              "version": {
+-                "type": "integer"
+-              },
+-              "workspaceId": {
+-                "type": "string"
+-              },
+-              "workspaceName": {
+-                "type": "string"
+-              },
+-              "createdAt": {
+-                "type": "string"
+-              },
+-              "place": {
+-                "type": "string"
+-              },
+-              "sizeBytes": {
+-                "type": "number"
+-              }
+-            },
+-            "required": [
+-              "snapshotId",
+-              "projects",
+-              "golden",
+-              "workspaceId",
+-              "workspaceName",
+-              "createdAt"
+-            ],
+-            "additionalProperties": false
+-          }
+         }
+       },
+       "required": [
+         "image",
+-        "copies",
+-        "projects"
++        "copies"
+       ],
+       "additionalProperties": false,
+       "$schema": "http://json-schema.org/draft-07/schema#"
+@@ -566,7 +454,7 @@
+   },
+   "cloudOn": {
+     "name": "image",
+-    "description": "The image this host owns and the copy each place has built of it. The record is the recipe the seal was planned from, the sign-ins it holds and a hash over both; a copy built at that hash is current and any other is stale, whatever version the place's own manifest gave it. A record with no vault was read back off its own copy rather than written at a seal, so it judges none of them and every copy of it asks for the sign-ins again: cutting the next version holds them. An image built on Boat holds no sign-in: its machines use the sign-ins on this computer through wsp. The project images taken off workspaces are listed under it, each with its snapshot id, the workspace it was taken off, its size where the provider lists one and its date.",
++    "description": "The image this host owns and the copy each place has built of it. The record is the recipe the seal was planned from, the sign-ins it holds and a hash over both; a copy built at that hash is current and any other is stale, whatever version the place's own manifest gave it. A record with no vault was read back off its own copy rather than written at a seal, so it judges none of them and every copy of it asks for the sign-ins again: cutting the next version holds them. An image built on Boat holds no sign-in: its machines use the sign-ins on this computer through wsp.",
+     "inputSchema": {
+       "type": "object",
+       "properties": {},
+@@ -606,14 +494,6 @@
+                       "type": "string",
+                       "minLength": 1
+                     },
+-                    "tick": {
+-                      "type": "string",
+-                      "enum": [
+-                        "used",
+-                        "installed",
+-                        "default"
+-                      ]
+-                    },
+                     "histories": {
+                       "type": "array",
+                       "items": {
+@@ -866,9 +746,6 @@
+                         ],
+                         "additionalProperties": false
+                       }
+-                    },
+-                    "engine": {
+-                      "type": "boolean"
+                     }
+                   },
+                   "required": [
+@@ -879,38 +756,6 @@
+                   ],
+                   "additionalProperties": false
+                 },
+-                "pins": {
+-                  "type": "array",
+-                  "items": {
+-                    "type": "object",
+-                    "properties": {
+-                      "tag": {
+-                        "$ref": "#/properties/image/anyOf/0/properties/recipe/properties/rows/items/properties/pin/properties/tag"
+-                      },
+-                      "sha256": {
+-                        "$ref": "#/properties/image/anyOf/0/properties/recipe/properties/rows/items/properties/pin/properties/sha256"
+-                      },
+-                      "arch": {
+-                        "$ref": "#/properties/image/anyOf/0/properties/recipe/properties/rows/items/properties/pin/properties/arch"
+-                      },
+-                      "latest": {
+-                        "$ref": "#/properties/image/anyOf/0/properties/recipe/properties/rows/items/properties/pin/properties/latest"
+-                      },
+-                      "id": {
+-                        "type": "string",
+-                        "minLength": 1
+-                      },
+-                      "road": {
+-                        "type": "string"
+-                      }
+-                    },
+-                    "required": [
+-                      "tag",
+-                      "id"
+-                    ],
+-                    "additionalProperties": false
+-                  }
+-                },
+                 "logins": {
+                   "type": "array",
+                   "items": {
+@@ -1044,80 +889,11 @@
+             ],
+             "additionalProperties": false
+           }
+-        },
+-        "projects": {
+-          "type": "array",
+-          "items": {
+-            "type": "object",
+-            "properties": {
+-              "snapshotId": {
+-                "type": "string"
+-              },
+-              "projects": {
+-                "type": "array",
+-                "items": {
+-                  "type": "object",
+-                  "properties": {
+-                    "name": {
+-                      "type": "string"
+-                    },
+-                    "dest": {
+-                      "type": "string"
+-                    },
+-                    "importedAt": {
+-                      "type": "string"
+-                    },
+-                    "size": {
+-                      "type": "integer",
+-                      "minimum": 0
+-                    }
+-                  },
+-                  "required": [
+-                    "name",
+-                    "dest",
+-                    "importedAt"
+-                  ],
+-                  "additionalProperties": false
+-                }
+-              },
+-              "golden": {
+-                "type": "string"
+-              },
+-              "version": {
+-                "type": "integer"
+-              },
+-              "workspaceId": {
+-                "type": "string"
+-              },
+-              "workspaceName": {
+-                "type": "string"
+-              },
+-              "createdAt": {
+-                "type": "string"
+-              },
+-              "place": {
+-                "type": "string"
+-              },
+-              "sizeBytes": {
+-                "type": "number"
+-              }
+-            },
+-            "required": [
+-              "snapshotId",
+-              "projects",
+-              "golden",
+-              "workspaceId",
+-              "workspaceName",
+-              "createdAt"
+-            ],
+-            "additionalProperties": false
+-          }
+         }
+       },
+       "required": [
+         "image",
+-        "copies",
+-        "projects"
++        "copies"
+       ],
+       "additionalProperties": false,
+       "$schema": "http://json-schema.org/draft-07/schema#"

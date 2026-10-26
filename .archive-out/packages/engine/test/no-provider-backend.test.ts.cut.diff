@@ -1,0 +1,13 @@
+diff --git a/packages/engine/test/no-provider-backend.test.ts b/packages/engine/test/no-provider-backend.test.ts
+index a95be7356..3a42b6170 100644
+--- a/packages/engine/test/no-provider-backend.test.ts
++++ b/packages/engine/test/no-provider-backend.test.ts
+@@ -40,7 +40,7 @@ describe("no provider backend", () => {
+     // typed wsp new on a fresh home reads, and one provider's variable is not the answer for the others.
+     expect(NO_PROVIDER_LINE).toContain("wsp add <provider>");
+     expect(NO_PROVIDER_LINE).not.toContain("SOLARI_API_KEY");
+-    expect(NO_PROVIDER_LINE).toContain("wsp init");
++    expect(NO_PROVIDER_LINE).toContain("wsp add");
+   });
+ 
+   it("nothing bills on it and it names no size to bill for", () => {

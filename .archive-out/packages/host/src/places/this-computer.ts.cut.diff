@@ -1,0 +1,11 @@
+diff --git a/packages/host/src/places/this-computer.ts b/packages/host/src/places/this-computer.ts
+index 31c59c5b5..b2ef4df45 100644
+--- a/packages/host/src/places/this-computer.ts
++++ b/packages/host/src/places/this-computer.ts
+@@ -101,5 +101,5 @@ export function placeHere(name: string = placeNameHere()): HerePlace {
+   const report = placeFacts({ name });
+   const label = placeLabelHere();
+   const mac = placeMacHere();
+-  return { name: report.name, ...(label !== undefined ? { label } : {}), ...(mac !== undefined ? { mac } : {}), os: report.os, shape: report.shape, engine: report.engine, ...(report.diskFreeBytes !== undefined ? { diskFreeBytes: report.diskFreeBytes } : {}), home: homedir() };
++  return { name: report.name, ...(label !== undefined ? { label } : {}), ...(mac !== undefined ? { mac } : {}), os: report.os, shape: report.shape, ...(report.diskFreeBytes !== undefined ? { diskFreeBytes: report.diskFreeBytes } : {}), home: homedir() };
+ }

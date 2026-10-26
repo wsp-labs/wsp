@@ -1,0 +1,122 @@
+diff --git a/packages/engine/src/golden.ts b/packages/engine/src/golden.ts
+index 06b017c18..b5c9663de 100644
+--- a/packages/engine/src/golden.ts
++++ b/packages/engine/src/golden.ts
+@@ -8,13 +8,13 @@
+ 
+ import { createHash } from "node:crypto";
+ import { GUEST_HOME, NEVER_IN_IMAGE, ROAD_STEPS, SEED_ROWS, catalogEntry, catalogIdOfRow, smokeOf } from "@wsp/catalog";
+-import { AGENTS_BIN, ALREADY_APPLIED, DISK_SYNC_LINE, TOOL_LINKS_DIR, onNpmBin, MCP_ID_PREFIX, credentialOnBuilderLine, diskUnsettledLine, SAVING_IMAGE_LINE, SNAPSHOT_GONE_REASON, fmtBytes, goldenHead, goldenImage, machineLeftLine, snapshotAttemptLine, snapshotFailedLine, snapshotProgressLine, snapshotStageLine, templateFailedLine, templateStatusLine, templateWaitedLine, pinsReadLine, type GoldenBaseTool, type GoldenLeftBehind, type GoldenLogin, type GoldenManifest, type GoldenMissingTool, type GoldenRetired, type GoldenStage, type GoldenStep, type GoldenVersion, type BuilderReading, type ProviderAnswer, type RecipeDigest, type ToolPin } from "@wsp/protocol";
++import { AGENTS_BIN, ALREADY_APPLIED, DISK_SYNC_LINE, TOOL_LINKS_DIR, onNpmBin, MCP_ID_PREFIX, credentialOnBuilderLine, diskUnsettledLine, SAVING_IMAGE_LINE, SNAPSHOT_GONE_REASON, fmtBytes, goldenHead, goldenImage, machineLeftLine, snapshotAttemptLine, snapshotFailedLine, snapshotProgressLine, snapshotStageLine, templateFailedLine, templateStatusLine, templateWaitedLine, type GoldenBaseTool, type GoldenLeftBehind, type GoldenLogin, type GoldenManifest, type GoldenMissingTool, type GoldenRetired, type GoldenStage, type GoldenStep, type GoldenVersion, type BuilderReading, type ProviderAnswer, type RecipeDigest } from "@wsp/protocol";
+ import { nameOf, rungOf } from "./golden-diff.js";
+ import { AGENT_INSTALLERS, NODE_PATH_LINE, PATH_LINE, TOOLS_PATH, type AgentInstall, type LoginShell, type NodeInstall, type ShellInstall, type SkippedPath, type ToolInstall } from "./golden-import.js";
+ import { PRELUDE } from "./dotfiles-presets.js";
+ import { INLINE_EXEC_MS, machineAnswer } from "./exec-detached.js";
+ import { DiskSyncError, diskUnsettled, syncDisk } from "./disk-sync.js";
+-import { MIB, applyPlugins, closing, freeBytes, freeNote, guardDeadlineMs, guarded, installTools, pinRead, plural, reasonOf, sweepCaches, usedBytes, withRecordedPins, type PluginsPlan, type ToolResult } from "./golden-tools.js";
++import { MIB, applyPlugins, closing, freeBytes, freeNote, guardDeadlineMs, guarded, installTools, plural, reasonOf, sweepCaches, usedBytes, type PluginsPlan, type ToolResult } from "./golden-tools.js";
+ import { PROFILE_PATH_FILE, installBase, profilePathLine } from "./golden-base.js";
+ import { applyMcp, mcpTally, type McpPlan, type McpResult } from "./golden-mcp.js";
+ import { BROWSER_SHIM_PATH, applyMachineContext, boundedCommand, type ContextResult } from "./machine-context.js";
+@@ -542,8 +542,6 @@ export interface AgentResult {
+   outcome: "installed" | "failed" | "skipped";
+   note?: string;
+   ms?: number;
+-  /** What the agent installed, read back once its version check passed; absent when the read printed nothing. */
+-  pin?: ToolPin;
+ }
+ 
+ export interface ImportResult {
+@@ -725,12 +723,10 @@ export async function applyGoldenImport(machine: Machine, opts: ApplyImportOptio
+         stage("installing-harness", `${agent.name} (${i + 1}/${imp.agents.length})`);
+         const install = await machine.run(guardedHarness(`${NODE_PATH_LINE}\n${agent.install}`), { deadlineMs: guardDeadlineMs(AGENT_TIMEOUT_S), onLine: line => stage("installing-harness", `${agent.name}: ${line}`) });
+         const check = install.exitCode === 0 ? await machine.run(`${NODE_PATH_LINE}\n${agent.smoke}`, { deadlineMs: 60_000 }) : install;
+-        const pin = check.exitCode === 0 && agent.pin?.read !== undefined ? pinRead((await machine.exec(`${NODE_PATH_LINE}\nexport PATH=${TOOLS_PATH}:$PATH\n${agent.pin.read}`, { timeoutMs: INLINE_EXEC_MS })).stdout, agent.pin.fixed) : undefined;
+         const ms = Date.now() - t0;
+-        if (check.exitCode === 0) result.agents.push({ id: agent.id, name: agent.name, outcome: "installed", ms, ...(pin !== undefined ? { pin } : {}) });
++        if (check.exitCode === 0) result.agents.push({ id: agent.id, name: agent.name, outcome: "installed", ms });
+         else result.agents.push({ id: agent.id, name: agent.name, outcome: "failed", note: reasonOf(check, AGENT_TIMEOUT_S), ms });
+       }
+-      if (ledger.recipe !== undefined) ledger.recipe = withRecordedPins(ledger.recipe, result.agents);
+       const installed = imp.agents.filter(a => result.agents.some(r => r.id === a.id && r.outcome === "installed"));
+       const failed = result.agents.filter(r => r.outcome === "failed");
+       // A golden with an agent missing is not sealed: the person ticked it, and the hand-off would open a terminal
+@@ -743,13 +739,7 @@ export async function applyGoldenImport(machine: Machine, opts: ApplyImportOptio
+       if (imp.plugins !== undefined) await applyPlugins(machine, imp.plugins, stage);
+       ledger.smoke = joinSmoke(installed.map(a => a.smoke));
+       const summary = result.agents.length === 0 ? "no agent ticked" : summarizeAgents(result.agents);
+-      const pinned = result.agents.filter(a => a.pin !== undefined);
+-      const wordsOf = (id: string): string | undefined => imp.agents.find(a => a.id === id)?.pin?.words;
+-      const pins = pinsReadLine(
+-        pinned.filter(a => a.pin!.latest !== true).map(a => ({ name: a.name, tag: a.pin!.tag })),
+-        pinned.filter(a => a.pin!.latest === true).map(a => ({ name: a.name, tag: a.pin!.tag, ...(wordsOf(a.id) !== undefined ? { words: wordsOf(a.id)! } : {}) })),
+-      );
+-      stage("installing-harness", imp.agents.length > 0 || node !== undefined ? closing(summary, pins, await sweepCaches(machine), await freeNote(machine)) : summary);
++      stage("installing-harness", imp.agents.length > 0 || node !== undefined ? closing(summary, await sweepCaches(machine), await freeNote(machine)) : summary);
+     }
+     mark("installing-harness");
+   }
+@@ -768,7 +758,6 @@ export async function applyGoldenImport(machine: Machine, opts: ApplyImportOptio
+         const tools = await installTools(machine, imp.tools, stage);
+         result.tools.push(...tools.tools);
+         if (tools.homebrew !== undefined) result.homebrew = tools.homebrew;
+-        if (ledger.recipe !== undefined) ledger.recipe = withRecordedPins(ledger.recipe, tools.tools);
+         ledger.smoke = nextSmoke(ledger.smoke, [], joinSmoke(tools.tools.flatMap(t => (t.outcome === "installed" ? (managerCheckOf(t) ?? []) : []))));
+       }
+       const missing = missingToolsOf([...(result.base ?? []), ...result.tools]);
+@@ -1264,15 +1253,13 @@ export interface ApplyDeltaOptions {
+   previousLeftBehind?: readonly GoldenLeftBehind[];
+   /** The base tools read on the version being updated; a version sealed before they existed has none and is refused. */
+   previousBase: readonly GoldenBaseTool[] | undefined;
+-  /** The digest the version being updated was sealed with, whose pins the rows this delta leaves alone keep. */
+-  previousRecipe?: RecipeDigest;
+   fetch?: typeof globalThis.fetch;
+   onStage?: StageListener;
+ }
+ 
+ /** A version without the base tools never ran them, so a delta on it would report covered rows it does not have. */
+ function refusePreFloor(base: readonly GoldenBaseTool[] | undefined, which: string): asserts base is readonly GoldenBaseTool[] {
+-  if (base === undefined) throw new Error(`${which} was sealed before the base tools existed and cannot take an update; run wsp init and pick the rebuild`);
++  if (base === undefined) throw new Error(`${which} was sealed before the base tools existed and cannot take an update; seal it again`);
+ }
+ 
+ const SMOKE_JOIN = " && ";
+@@ -1325,13 +1312,6 @@ export function nextMissing(previous: readonly GoldenMissingTool[], delta: Golde
+   return [...previous.filter(p => !touched.has(p.id)), ...fresh];
+ }
+ 
+-/** The pins the version being updated recorded, on the ticks this delta left alone: a row the delta did not run
+- * still stands on the image at what that version installed, so the next record says what a copy installs for it. */
+-export function carriedPins(digest: RecipeDigest, previous: RecipeDigest, touched: ReadonlySet<string>): RecipeDigest {
+-  const was = new Map(previous.ticks.map(t => [t.id, t.pin]));
+-  return { ...digest, ticks: digest.ticks.map(t => { const pin = was.get(t.id); return t.pin === undefined && !touched.has(t.id) && pin !== undefined ? { ...t, pin } : t; }) };
+-}
+-
+ /** What an updated image is without: the previous version's notes for rows the delta neither retired nor planned
+  * again, then what this delta's pack left behind. */
+ export function nextLeftBehind(previous: readonly GoldenLeftBehind[], delta: GoldenDelta, fresh: readonly GoldenLeftBehind[]): GoldenLeftBehind[] {
+@@ -1376,7 +1356,6 @@ export async function applyDelta(machine: Machine, delta: GoldenDelta, opts: App
+   const left = nextLeftBehind(opts.previousLeftBehind ?? [], delta, applied.ledger.leftBehind ?? []);
+   if (left.length > 0) applied.ledger.leftBehind = left;
+   else delete applied.ledger.leftBehind;
+-  if (opts.previousRecipe !== undefined && applied.ledger.recipe !== undefined) applied.ledger.recipe = carriedPins(applied.ledger.recipe, opts.previousRecipe, touchedBy(delta));
+   return { ledger: applied.ledger, result };
+ }
+ 
+@@ -1386,8 +1365,6 @@ export interface UpgradeBuilderOptions extends MachineSize {
+   head: GoldenVersion;
+   delta: GoldenDelta;
+   setup: string;
+-  /** The digest the head was sealed with; its pins ride onto the rows the delta leaves alone. */
+-  previousRecipe?: RecipeDigest;
+   fetch?: typeof globalThis.fetch;
+   onStage?: StageListener;
+ }
+@@ -1419,7 +1396,6 @@ export async function upgradeBuilder(opts: UpgradeBuilderOptions): Promise<Build
+       previousBase: opts.head.base,
+       ...(opts.head.missingTools !== undefined ? { previousMissing: opts.head.missingTools } : {}),
+       ...(opts.head.leftBehind !== undefined ? { previousLeftBehind: opts.head.leftBehind } : {}),
+-      ...(opts.previousRecipe !== undefined ? { previousRecipe: opts.previousRecipe } : {}),
+       onStage: stage,
+       ...(opts.fetch !== undefined ? { fetch: opts.fetch } : {}),
+     });

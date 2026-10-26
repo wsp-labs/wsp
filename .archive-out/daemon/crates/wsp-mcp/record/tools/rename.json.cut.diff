@@ -1,0 +1,22 @@
+diff --git a/daemon/crates/wsp-mcp/record/tools/rename.json b/daemon/crates/wsp-mcp/record/tools/rename.json
+index 8e4a8320a..8cd7eb5ad 100644
+--- a/daemon/crates/wsp-mcp/record/tools/rename.json
++++ b/daemon/crates/wsp-mcp/record/tools/rename.json
+@@ -235,9 +235,6 @@
+             "agents": {
+               "type": "object",
+               "properties": {
+-                "spawn": {
+-                  "type": "boolean"
+-                },
+                 "maxMachines": {
+                   "type": "integer",
+                   "minimum": 0
+@@ -248,7 +245,6 @@
+                 }
+               },
+               "required": [
+-                "spawn",
+                 "maxMachines",
+                 "maxDepth"
+               ],

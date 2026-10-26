@@ -1,0 +1,26 @@
+diff --git a/apps/web/test/add-signins.test.tsx b/apps/web/test/add-signins.test.tsx
+index 7315dec9b..252739a96 100644
+--- a/apps/web/test/add-signins.test.tsx
++++ b/apps/web/test/add-signins.test.tsx
+@@ -17,9 +17,9 @@ import { AGENTS_REPORT } from "./fixtures/agents-report.js";
+ import { mountSettings, resetSettings, settingsApi, settle } from "./settings-harness.js";
+ 
+ const AT = "2026-09-12T11:00:00.000Z";
+-const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", default: true, present: true, takesForks: false, engine: "none", buildsImages: false };
+-const box: PlaceView = { id: "p_2", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true, engine: "docker", buildsImages: true };
+-const NO_IMAGE: SealedImageView = { image: null, copies: [], projects: [] };
++const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", default: true, present: true, takesForks: false, buildsImages: false };
++const box: PlaceView = { id: "p_2", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true, buildsImages: true };
++const NO_IMAGE: SealedImageView = { image: null, copies: [] };
+ 
+ const reportWith = (codex: AgentsReport["agents"][number]["signIn"]): AgentsReport => ({
+   ...AGENTS_REPORT,
+@@ -55,7 +55,7 @@ const joined = async (api: Api): Promise<void> => {
+ beforeEach(() => {
+   resetSettings();
+   forgetAgentsReports();
+-  useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, labs: false }, places: [here, box], initJob: null, goldenFrames: {} });
++  useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, labs: false }, places: [here, box], goldenFrames: {} });
+ });
+ 
+ afterEach(() => cleanup());

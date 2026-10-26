@@ -1,0 +1,18 @@
+diff --git a/packages/host/test/up.test.ts b/packages/host/test/up.test.ts
+index 7cf68b0f3..0d2c69bca 100644
+--- a/packages/host/test/up.test.ts
++++ b/packages/host/test/up.test.ts
+@@ -630,13 +630,6 @@ describe("wsp up", () => {
+     expect(existsSync(join(home, "state", "host.lock"))).toBe(false);
+   });
+ 
+-  it("starts the server in one place that init's tail and up both call", () => {
+-    const source = cliSource();
+-    const initSource = readFileSync(new URL("../src/init.ts", import.meta.url), "utf8");
+-    expect(source.match(/startHost\(/g)).toHaveLength(1);
+-    expect(initSource).not.toMatch(/startHost\(/);
+-  });
+-
+   it("--port names the one port, and every command of the shared parse reads it from one call", () => {
+     expect(optsFor({ port: "4401", state: statePath })).toMatchObject({ port: 4401, named: true });
+     expect(optsFor({ state: statePath })).toMatchObject({ port: 4400, named: false });

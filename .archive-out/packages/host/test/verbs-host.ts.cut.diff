@@ -1,0 +1,13 @@
+diff --git a/packages/host/test/verbs-host.ts b/packages/host/test/verbs-host.ts
+index fbdb69007..93dbd2c54 100644
+--- a/packages/host/test/verbs-host.ts
++++ b/packages/host/test/verbs-host.ts
+@@ -155,7 +155,7 @@ export function verbsHost() {
+     for (let i = 0; i < words.length; i++) {
+       const word = words[i]!;
+       if (!word.startsWith("--")) named.push(word);
+-      else if (["--engine", "--json"].includes(word) || words[i + 1] === undefined) flags.set(word.slice(2), true);
++      else if (["--json"].includes(word) || words[i + 1] === undefined) flags.set(word.slice(2), true);
+       else flags.set(word.slice(2), words[++i]!);
+     }
+     const [projectWord, name] = named.length === 2 ? named : [undefined, named[0]!];

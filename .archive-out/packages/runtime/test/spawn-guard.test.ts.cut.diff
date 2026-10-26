@@ -1,0 +1,369 @@
+diff --git a/packages/runtime/test/spawn-guard.test.ts b/packages/runtime/test/spawn-guard.test.ts
+index d90fc5f85..1e59112a9 100644
+--- a/packages/runtime/test/spawn-guard.test.ts
++++ b/packages/runtime/test/spawn-guard.test.ts
+@@ -6,14 +6,13 @@ import { tmpdir } from "node:os";
+ import { join } from "node:path";
+ import { afterEach, beforeEach, describe, expect, it } from "vitest";
+ import { LocalBackend, type MachineBackend } from "@wsp/engine";
+-import { HERE_PLACE_ID,
++import {
++  HERE_PLACE_ID,
+   AGENTS_ON,
+-  agentsOffComputerRefusal,
+   HOST_KEY_ENV,
+   HOST_TOKEN_ENV,
+   HOST_URL_ENV,
+   MCP_SERVER_NAME,
+-  NOTIFY_ME,
+   RUNTIME_OPS,
+   LAUNCH_ENV,
+   SCOPED_MCP_ARG,
+@@ -23,12 +22,12 @@ import { HERE_PLACE_ID,
+   THREAD_OPS,
+   threadOpRefusal,
+   MACHINE_WSP_FORKS,
++  NOTIFY_ME,
+   folderForkFix,
+   folderForkRefusal,
+   defaultBranchFix,
+   defaultBranchRefusal,
+   workspaceIdOf,
+-  agentsOffRefusal,
+   noMcpServersLine,
+   spawnActRefusal,
+   spawnCapRefusal,
+@@ -158,20 +157,15 @@ describe("agents spawning agents", () => {
+   /** A caller that is a thread on a machine, as the door builds one off a scoped device token. */
+   const asThread = (scope: ThreadScope): Caller => ({ origin: "relayed", by: scope });
+ 
+-  it("a workspace nobody set the switch on lets its agents spawn under the default caps, and one turned off opens nothing and forks nothing", async () => {
++  it("a workspace nobody set caps on lets its agents spawn under the default caps", async () => {
+     const rt = runtimeWith({ claude: heldAdapter().factory });
+     const open = await createOn(rt, { golden: "snap_g", name: "b0" });
+     expect(open.agents).toEqual(AGENTS_ON);
+     const opened = await rt.sessions.start(open.id, { prompt: "hi" }, asThread({ kind: "thread", threadId: "t_open", workspaceId: open.id, rootThreadId: "t_open" }));
+     expect(opened.view().parentThreadId).toBe("t_open");
+-    // A record written before the default moved carries no switch at all, and reads the same.
++    // A record written before the default moved carries no caps at all, and reads the same.
+     const stored = (await store.get("workspaces", open.id)) as Record<string, unknown>;
+     expect(stored["agents"]).toBeUndefined();
+-    const ws = await createOn(rt, { golden: "snap_g", name: "b1", agents: { spawn: false } });
+-    expect(ws.agents).toEqual({ ...AGENTS_ON, spawn: false });
+-    const scope: ThreadScope = { kind: "thread", threadId: "t_root", workspaceId: ws.id, rootThreadId: "t_root" };
+-    await expect(rt.sessions.start(ws.id, { prompt: "hi" }, asThread(scope))).rejects.toThrow(agentsOffRefusal("b1", "thread_new"));
+-    await expect(createOn(rt, { name: "b2" }, asThread(scope))).rejects.toThrow(agentsOffRefusal("b1", "fork"));
+     await rt.close();
+   });
+ 
+@@ -465,7 +459,7 @@ describe("agents spawning agents", () => {
+ 
+   it("the machine past the cap is refused with the sentence naming the root and the count", async () => {
+     const rt = runtimeWith({ claude: heldAdapter().factory });
+-    const ws = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true, maxMachines: 2, maxDepth: 1 } });
++    const ws = await createOn(rt, { golden: "snap_g", name: "lead", agents: { maxMachines: 2, maxDepth: 1 } });
+     const scope: ThreadScope = { kind: "thread", threadId: "t_root", workspaceId: ws.id, rootThreadId: "t_root" };
+     await createOn(rt, { name: "b1" }, asThread(scope));
+     await createOn(rt, { name: "b2" }, asThread(scope));
+@@ -758,38 +752,6 @@ describe("agents spawning agents", () => {
+     await rt.close();
+   });
+ 
+-  it("a turn on a workspace with the switch off still carries its own token and the wsp tools, and the switch refuses what it refuses", async () => {
+-    const held = heldAdapter({ takesMcpServers: true });
+-    const wspMcp = { command: "node", args: ["/opt/wsp/dist/bin.js", "mcp"] };
+-    const rt = runtimeWith({ claude: held.factory }, { here: { url: "http://127.0.0.1:4801" }, wspMcp });
+-    const mac = await createOn(rt, { on: HERE_PLACE_ID, name: "mac", agents: { spawn: false } });
+-    const quiet = await createOn(rt, { golden: "snap_g", name: "quiet", agents: { spawn: false } });
+-    const onMac = await rt.sessions.start(mac.id, { prompt: "hi" });
+-    const onQuiet = await rt.sessions.start(quiet.id, { prompt: "hi" });
+-    const [macLaunch, quietLaunch] = held.launches;
+-    // Without a server of its own named wsp, the agent loads the person's, which acts as the person: children land
+-    // outside the thread's tree and the switch is never read.
+-    expect(macLaunch!.env[HOST_URL_ENV]).toBe("http://127.0.0.1:4801");
+-    expect(macLaunch!.env[HOST_TOKEN_ENV]).toMatch(/\S/);
+-    expect(macLaunch!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG, NO_LOOK_MCP_ARG] });
+-    expect(quietLaunch!.env[HOST_TOKEN_ENV]).toMatch(/\S/);
+-    expect(quietLaunch!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ command: "wsp", args: ["mcp"] });
+-    const macThread = onMac.view().threadId!;
+-    const scope = (await rt.devices.list()).find(d => d.scope?.threadId === macThread)?.scope;
+-    expect(scope).toEqual({ kind: "thread", threadId: macThread, workspaceId: mac.id, rootThreadId: macThread });
+-    const asMacThread: Caller = { origin: "here", by: scope! };
+-    await expect(rt.sessions.start(mac.id, { prompt: "a sonnet agent" }, asMacThread)).rejects.toThrow(agentsOffRefusal(mac.name, "thread_new"));
+-    // What it may read is its own tree, which is the thread itself.
+-    expect((await rt.sessions.list(undefined, asMacThread)).map(s => s.threadId)).toEqual([macThread]);
+-    held.end(0);
+-    held.end(1);
+-    await onMac.finished;
+-    await onQuiet.finished;
+-    await gone(rt);
+-    expect(await rt.devices.list()).toEqual([]);
+-    await rt.close();
+-  });
+-
+   it("the wsp tools ride the launch on a harness that takes servers, at the path the daemon bundle put them", async () => {
+     const held = heldAdapter({ takesMcpServers: true });
+     const rt = runtimeWith({ claude: held.factory });
+@@ -1033,7 +995,6 @@ describe("agents spawning agents", () => {
+       expect(refused).toContain("snapshots.rollback");
+       expect(refused).toContain("preferences.get");
+       expect(refused).toContain("preferences.set");
+-      expect(refused).toContain("projectGoldens.list");
+       expect(refused).toContain("init.keys");
+       expect(refused).toContain("host.folders");
+       expect(refused).toContain("project.import");
+@@ -1203,7 +1164,7 @@ describe("agents spawning agents", () => {
+ 
+   it("two forks asked for in one tick cannot both take the last place under the root", async () => {
+     const rt = runtimeWith({ claude: heldAdapter().factory });
+-    const ws = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true, maxMachines: 1, maxDepth: 1 } });
++    const ws = await createOn(rt, { golden: "snap_g", name: "lead", agents: { maxMachines: 1, maxDepth: 1 } });
+     const scope: ThreadScope = { kind: "thread", threadId: "t_root", workspaceId: ws.id, rootThreadId: "t_root" };
+     // The record enters the live map only after the provider has answered, so a count read at the guard and nothing
+     // held would let every fork in one tick past the same reading.
+@@ -1222,7 +1183,7 @@ describe("agents spawning agents", () => {
+ 
+   it("a fork still booting counts as the one machine it is, not as two", async () => {
+     const rt = runtimeWith({ claude: heldAdapter().factory });
+-    const ws = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true, maxMachines: 2, maxDepth: 1 } });
++    const ws = await createOn(rt, { golden: "snap_g", name: "lead", agents: { maxMachines: 2, maxDepth: 1 } });
+     const scope: ThreadScope = { kind: "thread", threadId: "t_root", workspaceId: ws.id, rootThreadId: "t_root" };
+     // The first stage after the record enters the live map: the create names the machine before it names the
+     // workspace on it, so a fork still booting is already one this guard counts.
+@@ -1250,7 +1211,7 @@ describe("agents spawning agents", () => {
+   it("a thread on a fork is handed a token too, and under a lead allowing two levels it forks once more", async () => {
+     const held = heldAdapter();
+     const rt = runtimeWith({ claude: held.factory });
+-    const lead = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true, maxMachines: 3, maxDepth: 2 } });
++    const lead = await createOn(rt, { golden: "snap_g", name: "lead", agents: { maxMachines: 3, maxDepth: 2 } });
+     const opener = await rt.sessions.start(lead.id, { prompt: "lead" });
+     const rootThread = opener.view().threadId!;
+     const rootScope: ThreadScope = { kind: "thread", threadId: rootThread, workspaceId: lead.id, rootThreadId: rootThread };
+@@ -1271,27 +1232,6 @@ describe("agents spawning agents", () => {
+     await rt.close();
+   });
+ 
+-  it("a lead whose computer's switch is off is told so as its thread, with the line that turns the switch on", async () => {
+-    const held = heldAdapter();
+-    const rt = runtimeWith({ claude: held.factory });
+-    const ws = await createOn(rt, { on: HERE_PLACE_ID, name: "proj" });
+-    const opener = await rt.sessions.start(ws.id, { prompt: "lead" });
+-    const rootThread = opener.view().threadId!;
+-    const lead: Caller = { origin: "here", by: { kind: "thread", threadId: rootThread, workspaceId: ws.id, rootThreadId: rootThread } };
+-    await rt.places!.set(HERE_PLACE_ID, { spawn: { spawn: false } });
+-    const here = rt.places!.nameOf(HERE_PLACE_ID);
+-    await expect(rt.sessions.start(ws.id, { prompt: "a child" }, lead)).rejects.toThrow(agentsOffComputerRefusal(rootThread, here, "thread_new"));
+-    held.end(0);
+-    await rt.close();
+-  });
+-
+-  it("this computer takes the switch as a fork does, since its agents reach the host as themselves", async () => {
+-    const rt = runtimeWith({ claude: heldAdapter().factory });
+-    expect((await createOn(rt, { on: HERE_PLACE_ID, name: "mac", agents: { spawn: true } })).agents?.spawn).toBe(true);
+-    expect((await createOn(rt, { golden: "snap_g", name: "b1", agents: { spawn: true } })).agents?.spawn).toBe(true);
+-    await rt.close();
+-  });
+-
+   it("a turn refused before it launches leaves no token standing", async () => {
+     const held = heldAdapter();
+     const rt = runtimeWith({ claude: held.factory });
+@@ -1308,7 +1248,7 @@ describe("agents spawning agents", () => {
+   it("a thread's own token drives its thread and the tree under it, and reads nothing else on the workspace they share", async () => {
+     const held = heldAdapter();
+     const rt = runtimeWith({ claude: held.factory });
+-    const ws = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true, maxMachines: 3, maxDepth: 3 } });
++    const ws = await createOn(rt, { golden: "snap_g", name: "lead", agents: { maxMachines: 3, maxDepth: 3 } });
+     // Three trees on one workspace: the person's own thread, the lead whose token every line below runs on, and a
+     // second lead the person opened beside it, which is the shape a box with two jobs on one machine has.
+     const mine = await rt.sessions.start(ws.id, { prompt: "the person's own" });
+@@ -1371,7 +1311,7 @@ describe("agents spawning agents", () => {
+   it("a thread's notify target is a thread of its own tree, and one outside it reads as no thread at all", async () => {
+     const held = heldAdapter();
+     const rt = runtimeWith({ claude: held.factory });
+-    const lead = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true, maxMachines: 3, maxDepth: 2 } });
++    const lead = await createOn(rt, { golden: "snap_g", name: "lead", agents: { maxMachines: 3, maxDepth: 2 } });
+     const opener = await rt.sessions.start(lead.id, { prompt: "lead" });
+     const rootThread = opener.view().threadId!;
+     const scope: ThreadScope = { kind: "thread", threadId: rootThread, workspaceId: lead.id, rootThreadId: rootThread };
+@@ -1413,7 +1353,7 @@ describe("agents spawning agents", () => {
+   it("a notify target is a thread of the caller's tree: its parent, its sibling and its child pass, and the person's does not", async () => {
+     const held = heldAdapter();
+     const rt = runtimeWith({ claude: held.factory });
+-    const ws = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true, maxMachines: 3, maxDepth: 3 } });
++    const ws = await createOn(rt, { golden: "snap_g", name: "lead", agents: { maxMachines: 3, maxDepth: 3 } });
+     const opener = await rt.sessions.start(ws.id, { prompt: "lead" });
+     const rootThread = opener.view().threadId!;
+     const rootScope: ThreadScope = { kind: "thread", threadId: rootThread, workspaceId: ws.id, rootThreadId: rootThread };
+@@ -1441,30 +1381,35 @@ describe("agents spawning agents", () => {
+     await rt.close();
+   });
+ 
+-  it("the line a child's end delivers starts the target's turn under the thread that named it, and a refused line tells the person once", async () => {
++  it("the line a child's end delivers starts the target's turn under the thread that named it, and a line whose namer lost its folder tells the person once", async () => {
+     const held = heldAdapter();
+     const rt = runtimeWith({ claude: held.factory });
+-    // On this computer with no switch of its own, so the computer's is the one over it, which the person can turn off.
+-    const ws = await createOn(rt, { on: HERE_PLACE_ID, name: "lead" });
+-    const opener = await rt.sessions.start(ws.id, { prompt: "lead" });
++    const lead = await createOn(rt, { golden: "snap_g", name: "lead", agents: { maxMachines: 3, maxDepth: 3 } });
++    const opener = await rt.sessions.start(lead.id, { prompt: "lead" });
+     const rootThread = opener.view().threadId!;
+-    const scope: ThreadScope = { kind: "thread", threadId: rootThread, workspaceId: ws.id, rootThreadId: rootThread };
+-    const kid = await rt.sessions.start(ws.id, { prompt: "build it", notify: [rootThread] }, { origin: "here", by: scope });
++    const rootScope: ThreadScope = { kind: "thread", threadId: rootThread, workspaceId: lead.id, rootThreadId: rootThread };
++    // The namer and the child run on forks of their own, so the folder the namer works in can go while the lead stays.
++    const namerBox = await createOn(rt, { name: "namer" }, asThread(rootScope));
++    const namer = await rt.sessions.start(namerBox.id, { prompt: "namer" }, asThread(rootScope));
++    const namerScope: ThreadScope = { kind: "thread", threadId: namer.view().threadId!, workspaceId: namerBox.id, rootThreadId: rootThread };
++    const kidBox = await createOn(rt, { name: "kid" }, asThread(namerScope));
++    const kid = await rt.sessions.start(kidBox.id, { prompt: "build it", notify: [rootThread] }, asThread(namerScope));
+     const kidThread = kid.view().threadId!;
+-    const stored = async (): Promise<{ threadId?: string; notifyBy?: ThreadScope }[]> => ((await store.get("sessions", ws.id)) as { sessions: { threadId?: string; notifyBy?: ThreadScope }[] } | undefined)?.sessions ?? [];
++    const stored = async (): Promise<{ threadId?: string; notifyBy?: ThreadScope }[]> => ((await store.get("sessions", kidBox.id)) as { sessions: { threadId?: string; notifyBy?: ThreadScope }[] } | undefined)?.sessions ?? [];
+     await until(async () => (await stored()).some(r => r.threadId === kidThread && r.notifyBy !== undefined));
+     // The row says who named the target, and the index keeps it, so the line goes the same way after a restart.
+-    expect((await stored()).find(r => r.threadId === kidThread)?.notifyBy).toEqual(scope);
++    expect((await stored()).find(r => r.threadId === kidThread)?.notifyBy).toEqual(namerScope);
+ 
+-    // The switch goes off after the registration: the door is read again when the line goes, so nothing starts on
++    // The namer's folder goes after the registration: the guard reads it again when the line goes, so nothing starts on
+     // the lead and the person is told once instead of the turn running as theirs.
+-    await rt.places!.set(HERE_PLACE_ID, { spawn: { spawn: false } });
+-    const before = (await rt.sessions.list(ws.id)).length;
++    await rt.workspaces.delete(namerBox.id);
++    const starts = async (): Promise<number> => (await rt.sessions.history(lead.id)).filter(e => e.type === "session.start" && e.threadId === rootThread).length;
++    const before = await starts();
+     held.end(held.launches.length - 1);
+-    const told = async (): Promise<string[]> => (await rt.sessions.history(ws.id)).filter(e => e.type === "session.notify" && e.threadId === kidThread).map(e => (e as { notify: string }).notify);
++    const told = async (): Promise<string[]> => (await rt.sessions.history(kidBox.id)).filter(e => e.type === "session.notify" && e.threadId === kidThread).map(e => (e as { notify: string }).notify);
+     await until(async () => (await told()).length === 2);
+     expect((await told()).sort()).toEqual([NOTIFY_ME, rootThread].sort());
+-    expect((await rt.sessions.list(ws.id)).length).toBe(before);
++    expect(await starts()).toBe(before);
+     for (let nth = held.launches.length - 1; nth >= 0; nth--) held.end(nth);
+     await rt.close();
+   });
+@@ -1472,32 +1417,35 @@ describe("agents spawning agents", () => {
+   it("a row an older host wrote names no thread beside its targets, and its line goes as the person's", async () => {
+     const held = heldAdapter();
+     // One backend for both hosts: the machine the first host forked is the one the second comes back to.
+-    const backend = stubBackend();
++    const backend = withDaemonRoads(stubBackend());
+     const first = runtimeWith({ claude: held.factory }, undefined, backend);
+-    const ws = await createOn(first, { golden: "snap_g", name: "lead", agents: { spawn: true, maxMachines: 2, maxDepth: 2 } });
+-    const opener = await first.sessions.start(ws.id, { prompt: "lead" });
++    const lead = await createOn(first, { golden: "snap_g", name: "lead", agents: { maxMachines: 3, maxDepth: 3 } });
++    const opener = await first.sessions.start(lead.id, { prompt: "lead" });
+     const rootThread = opener.view().threadId!;
+-    const scope: ThreadScope = { kind: "thread", threadId: rootThread, workspaceId: ws.id, rootThreadId: rootThread };
+-    const kid = await first.sessions.start(ws.id, { prompt: "build it", notify: [rootThread] }, asThread(scope));
++    const rootScope: ThreadScope = { kind: "thread", threadId: rootThread, workspaceId: lead.id, rootThreadId: rootThread };
++    const namerBox = await createOn(first, { name: "namer" }, asThread(rootScope));
++    const namer = await first.sessions.start(namerBox.id, { prompt: "namer" }, asThread(rootScope));
++    const namerScope: ThreadScope = { kind: "thread", threadId: namer.view().threadId!, workspaceId: namerBox.id, rootThreadId: rootThread };
++    const kidBox = await createOn(first, { name: "kid" }, asThread(namerScope));
++    const kid = await first.sessions.start(kidBox.id, { prompt: "build it", notify: [rootThread] }, asThread(namerScope));
+     const kidThread = kid.view().threadId!;
+-    const stored = async (): Promise<{ threadId?: string; notifyBy?: ThreadScope }[]> => ((await store.get("sessions", ws.id)) as { sessions: { threadId?: string; notifyBy?: ThreadScope }[] } | undefined)?.sessions ?? [];
++    const stored = async (): Promise<{ threadId?: string; notifyBy?: ThreadScope }[]> => ((await store.get("sessions", kidBox.id)) as { sessions: { threadId?: string; notifyBy?: ThreadScope }[] } | undefined)?.sessions ?? [];
+     await until(async () => (await stored()).some(r => r.threadId === kidThread && r.notifyBy !== undefined));
+-    // The host goes down under the running turn, so its line is the load's to send, and comes back to a lead whose
+-    // switch the store holds off.
++    // The namer's folder is gone, which refuses any line that names it; the host goes down under the running turn, so
++    // the line is the load's to send.
++    await first.workspaces.delete(namerBox.id);
+     await first.close();
+-    const record = (await store.get("workspaces", ws.id)) as Record<string, unknown>;
+-    await store.put("workspaces", ws.id, { ...record, agents: { spawn: false, maxMachines: 2, maxDepth: 2 } });
+     // The document as a host from before this rule wrote it: the targets, and nothing about who named them.
+-    const doc = (await store.get("sessions", ws.id)) as { workspaceId: string; sessions: Record<string, unknown>[] };
+-    await store.put("sessions", ws.id, { ...doc, sessions: doc.sessions.map(({ notifyBy: _named, ...row }) => row) });
++    const doc = (await store.get("sessions", kidBox.id)) as { workspaceId: string; sessions: Record<string, unknown>[] };
++    await store.put("sessions", kidBox.id, { ...doc, sessions: doc.sessions.map(({ notifyBy: _named, ...row }) => row) });
+ 
+     const again = runtimeWith({ claude: heldAdapter().factory }, undefined, backend);
+     await again.workspaces.list();
+-    await until(async () => (await again.sessions.history(ws.id)).some(e => e.type === "session.notify" && e.threadId === kidThread && (e as { notify: string }).notify === rootThread));
+-    // The turn the cut line asked for ran, switch or no switch, which is the road that stood when the row was
+-    // written: the lead's thread holds a second start and nothing fell away to the person.
+-    await until(async () => (await again.sessions.history(ws.id)).filter(e => e.type === "session.start" && e.threadId === rootThread).length === 2);
+-    expect((await again.sessions.history(ws.id)).filter(e => e.type === "session.notify" && (e as { notify: string }).notify === NOTIFY_ME)).toEqual([]);
++    await until(async () => (await again.sessions.history(kidBox.id)).some(e => e.type === "session.notify" && e.threadId === kidThread && (e as { notify: string }).notify === rootThread));
++    // The turn the cut line asked for ran as the person's: the lead's thread holds a second start and nothing fell
++    // away to the person.
++    await until(async () => (await again.sessions.history(lead.id)).filter(e => e.type === "session.start" && e.threadId === rootThread).length === 2);
++    expect((await again.sessions.history(kidBox.id)).filter(e => e.type === "session.notify" && (e as { notify: string }).notify === NOTIFY_ME)).toEqual([]);
+     await again.close();
+   });
+ 
+@@ -1524,7 +1472,7 @@ describe("agents spawning agents", () => {
+   it("a thread's socket is pushed its own tree's session events and none of a sibling tree's", async () => {
+     const held = heldAdapter();
+     const rt = runtimeWith({ claude: held.factory });
+-    const ws = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true, maxMachines: 2, maxDepth: 2 } });
++    const ws = await createOn(rt, { golden: "snap_g", name: "lead", agents: { maxMachines: 2, maxDepth: 2 } });
+     const opener = await rt.sessions.start(ws.id, { prompt: "lead" });
+     const rootThread = opener.view().threadId!;
+     const scope: ThreadScope = { kind: "thread", threadId: rootThread, workspaceId: ws.id, rootThreadId: rootThread };
+@@ -1557,52 +1505,6 @@ describe("agents spawning agents", () => {
+     }
+   });
+ 
+-  it("the init job's own events reach no thread's socket either, since they are about this host", async () => {
+-    const held = heldAdapter();
+-    const rt = runtimeWith({ claude: held.factory });
+-    const ws = await createOn(rt, { golden: "snap_g", name: "lead", agents: AGENTS_ON });
+-    const handle = await rt.sessions.start(ws.id, { prompt: "hi" });
+-    const token = held.launches[0]!.env[HOST_TOKEN_ENV]!;
+-    const listeners = new Set<(e: Record<string, unknown>) => void>();
+-    const init = {
+-      get: async () => ({}) as never,
+-      keys: async () => ({}) as never,
+-      start: async () => ({}) as never,
+-      answer: async () => ({}) as never,
+-      step: async () => ({}) as never,
+-      draft: async () => ({}) as never,
+-      retry: async () => ({}) as never,
+-      build: async () => ({}) as never,
+-      signInCode: async () => ({}) as never,
+-      cancel: async () => ({}) as never,
+-      on: (fn: (e: Record<string, unknown>) => void) => {
+-        listeners.add(fn);
+-        return () => listeners.delete(fn);
+-      },
+-    } as unknown as Parameters<typeof serveRuntime>[1]["init"];
+-    const srv = await serveRuntime(rt, { port: 0, authToken: "secret", devices: rt.devices, init });
+-    try {
+-      const client = await WsClient.connect(srv.port, { token });
+-      await client.request("events.subscribe", {});
+-      const mine = await WsClient.connect(srv.port, { token: "secret" });
+-      await mine.request("events.subscribe", {});
+-      for (const fn of listeners) fn({ type: "init.job", job: { id: "j1" } });
+-      for (const fn of listeners) fn({ type: "job.needs-you", jobId: "j1", needsYou: { what: "a sign in", since: 0 } });
+-      await new Promise(r => setTimeout(r, 50));
+-      expect(client.events.map(e => e.type)).not.toContain("init.job");
+-      expect(client.events.map(e => e.type)).not.toContain("job.needs-you");
+-      // The person's own client is where the init job is read, and it still is.
+-      expect(mine.events.map(e => e.type)).toEqual(expect.arrayContaining(["init.job", "job.needs-you"]));
+-      mine.close();
+-      client.close();
+-    } finally {
+-      await srv.close();
+-      held.end(0);
+-      await handle.finished;
+-      await rt.close();
+-    }
+-  });
+-
+   it("a child on the copy its lead forked reaches the lead on the workspace the person made, on every session verb, and the lead reaches it back", async () => {
+     const held = heldAdapter();
+     const rt = runtimeWith({ claude: held.factory });
+@@ -1721,7 +1623,7 @@ describe("agents spawning agents", () => {
+   it("stopping a root ends every thread its agents spawned under it", async () => {
+     const held = heldAdapter();
+     const rt = runtimeWith({ claude: held.factory });
+-    const ws = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true, maxMachines: 3, maxDepth: 2 } });
++    const ws = await createOn(rt, { golden: "snap_g", name: "lead", agents: { maxMachines: 3, maxDepth: 2 } });
+     const opener = await rt.sessions.start(ws.id, { prompt: "lead" });
+     const rootThread = opener.view().threadId!;
+     const rootScope: ThreadScope = { kind: "thread", threadId: rootThread, workspaceId: ws.id, rootThreadId: rootThread };

@@ -1,0 +1,25 @@
+diff --git a/packages/runtime/test/runtime.test.ts b/packages/runtime/test/runtime.test.ts
+index 10c7cb458..b221555c1 100644
+--- a/packages/runtime/test/runtime.test.ts
++++ b/packages/runtime/test/runtime.test.ts
+@@ -22,7 +22,7 @@ import { tarRead } from "../../engine/test/tar-read.js";
+ import { droppingPort } from "./held-port.js";
+ import { until } from "./until.js";
+ import { wsRequest } from "./ws-client.js";
+-import { answersGoneOnce, missesFirstDelete, ownedStore, stubBackend, tokenGuest, type StubBackend, type StubMachine, createOn, projectOn } from "./stub-backend.js";
++import { imagedStore, answersGoneOnce, missesFirstDelete, ownedStore, stubBackend, tokenGuest, type StubBackend, type StubMachine, createOn, projectOn } from "./stub-backend.js";
+ import { scriptGuest } from "./script-guest.js";
+ import { fakeClock } from "./fake-clock.js";
+ import { WebSocketServer } from "ws";
+@@ -286,9 +286,9 @@ describe("runtime", () => {
+   });
+ 
+   it("same behavior over the wire: serveRuntime round-trips create via WS", async () => {
+-    const rt = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: {} });
++    const rt = createRuntime({ backend: stubBackend(), store: imagedStore(), adapters: {} });
+     const srv = await serveRuntime(rt, { port: 0, authToken: "t" });
+-    const res = await wsRequest(srv.port, "t", { op: "workspaces.create", project: (await projectOn(rt)).id, golden: "snap_g", name: "x" });
++    const res = await wsRequest(srv.port, "t", { op: "workspaces.create", project: (await projectOn(rt)).id, name: "x" });
+     expect(res["ok"]).toBe(true);
+     await srv.close();
+   });

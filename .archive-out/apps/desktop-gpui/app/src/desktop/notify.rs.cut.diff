@@ -1,0 +1,28 @@
+diff --git a/apps/desktop-gpui/app/src/desktop/notify.rs b/apps/desktop-gpui/app/src/desktop/notify.rs
+index 1b077d8a5..f8bf9d5b3 100644
+--- a/apps/desktop-gpui/app/src/desktop/notify.rs
++++ b/apps/desktop-gpui/app/src/desktop/notify.rs
+@@ -84,7 +84,6 @@ pub enum Moment<'a> {
+     SetupFailed { computer: &'a str, said: &'a str },
+     SetupNeedsYou { computer: &'a str, what: &'a str },
+     SetupReady { computer: &'a str, missed: Option<&'a str> },
+-    ImageReady { computer: &'a str, image: &'a str },
+ }
+ 
+ /// `oneLine`: every run of white space one space, trimmed.
+@@ -122,7 +121,6 @@ pub fn outside_line(moment: &Moment, choices: &Choices) -> Option<OutsideLine> {
+         Moment::SetupFailed { computer, said: line } => said(needs, setup_failed(computer), one_line(line)),
+         Moment::SetupNeedsYou { computer, what } => said(needs, NEEDS_YOU.to_owned(), words::setup_needs_you(computer, what)),
+         Moment::SetupReady { computer, missed } => said(done, setup_ready(computer, missed), String::new()),
+-        Moment::ImageReady { computer, image } => said(done, setup_ready(computer, None), image.to_owned()),
+     }
+ }
+ 
+@@ -372,7 +370,6 @@ mod tests {
+         assert_eq!(line(Moment::SetupNeedsYou { computer: "spoo", what: "a code" }), pair("wsp needs you", "spoo needs you: a code"));
+         assert_eq!(line(Moment::SetupReady { computer: "spoo", missed: Some("no GitHub") }), pair("spoo is ready; no GitHub", ""));
+         assert_eq!(line(Moment::SetupReady { computer: "spoo", missed: None }), pair("spoo is ready", ""));
+-        assert_eq!(line(Moment::ImageReady { computer: "spoo", image: "v3" }), pair("spoo is ready", "v3"));
+     }
+ 
+     #[test]

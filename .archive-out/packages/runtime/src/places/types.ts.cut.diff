@@ -1,0 +1,26 @@
+diff --git a/packages/runtime/src/places/types.ts b/packages/runtime/src/places/types.ts
+index 1de9b8c87..49298dac5 100644
+--- a/packages/runtime/src/places/types.ts
++++ b/packages/runtime/src/places/types.ts
+@@ -147,7 +147,6 @@ export interface HerePlace {
+   mac?: MacKind;
+   os?: string;
+   shape?: WorkspaceSize;
+-  engine?: "none" | "docker" | "podman";
+   diskFreeBytes?: number;
+   /** The person's home here, which a path under it is written from, as a joined computer's report names its own. */
+   home?: string;
+@@ -225,12 +224,10 @@ export interface PlaceBackHolder {
+ 
+ /** How a computer's picks are put on it. `setup` plans them against this computer and the one they go to; `floor`
+  * puts the base tools on a computer that joined before anything was picked; `step` runs one engine step of a plan
+- * there. `plan` is the recipe beside the host's state, what the doctor reads on a computer set up before picks were
+- * kept. The host wires it because the reading of this computer is the host's, as the installer is. */
++ * there. The host wires it because the reading of this computer is the host's, as the installer is. */
+ export interface PlaceProvisioner {
+   /** `on` is the computer the plan is for: its home is what every path of the job hangs off and what the PATH the
+    * job's scripts export is read from, since a directory under it is one the workspaces there write. */
+-  plan(on: { home: string }): Promise<ProvisionPlan | { noRecipe: string }>;
+   /** `only` holds a sync to the steps it runs, so a plan for those alone reads no more of this computer than they need;
+    * `on.stores` is the folder each agent's threads there are pointed at, which a line run as that agent there sets;
+    * `on.recipe` is the name of the recipe the computer follows, where it follows one. */

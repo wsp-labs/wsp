@@ -1,0 +1,37 @@
+diff --git a/packages/catalog/src/catalog.ts b/packages/catalog/src/catalog.ts
+index beede3125..fbba28f28 100644
+--- a/packages/catalog/src/catalog.ts
++++ b/packages/catalog/src/catalog.ts
+@@ -184,10 +184,6 @@ export interface ToolEntry extends EntryBase {
+   brings?: readonly { bin: string; version: string }[];
+   /** Package names a recipe's tools row may carry for this same tool, besides its id, its command and its road's argument. */
+   covers?: readonly string[];
+-  /** Registry packages a project's manifest may depend on that mean this row, per the road the project installs
+-   * them by: the row puts on the machine what the package needs and its own install does not bring (a browser). A
+-   * client library named like a server's tools is not listed, so a dependency ticks nothing else. */
+-  depends?: Partial<Record<RoadName, readonly string[]>>;
+   /** The major the floor pins, with the tool's plain name: a Mac on another major hears both in the covered row's note. */
+   major?: { name: string; version: string };
+   /** What a computer runs once the row is on it for the tool to take hold there, and what takes that back before the
+@@ -309,7 +305,7 @@ export const CATALOG: readonly CatalogEntry[] = [
+   { ...tool, id: "bazel", name: "Bazel via bazelisk", bin: "bazel", ...github(72921088, "bazelbuild/bazelisk", "github.com/bazelbuild/bazelisk"), covers: ["bazelisk"], signIn: NO_SIGN_IN, defaultOn: false, source: { sessions: 0, images: 1, road: "unmeasured" }, size: measured("du", 72921088) },
+   { ...tool, id: "llvm", name: "clang, clang-format, clang-tidy", bin: "clang", ...apt(750848000, "clang", "clang-format", "clang-tidy"), covers: ["llvm"], brings: [{ bin: "clang-format", version: "clang-format --version" }, { bin: "clang-tidy", version: "clang-tidy --version" }], signIn: NO_SIGN_IN, defaultOn: false, source: { sessions: 0, images: 2, road: "unmeasured" } },
+   // The du counts the global, Chromium with its headless shell and ffmpeg under ~/.cache/ms-playwright, and the browser's Debian packages.
+-  { ...tool, id: "playwright", name: "Chromium for Playwright", bin: "playwright", installRoad: { road: "script", script: PLAYWRIGHT_INSTALL, version: PLAYWRIGHT.version }, after: "node", covers: ["chromium"], depends: { npm: ["playwright", "@playwright/test", "playwright-core"] }, signIn: NO_SIGN_IN, defaultOn: false, source: { sessions: 0, images: 0, road: "unmeasured" }, size: measured("du", 1015808000) },
++  { ...tool, id: "playwright", name: "Chromium for Playwright", bin: "playwright", installRoad: { road: "script", script: PLAYWRIGHT_INSTALL, version: PLAYWRIGHT.version }, after: "node", covers: ["chromium"], signIn: NO_SIGN_IN, defaultOn: false, source: { sessions: 0, images: 0, road: "unmeasured" }, size: measured("du", 1015808000) },
+ ];
+ 
+ export const CATALOG_AGENTS: readonly AgentEntry[] = CATALOG.filter((e): e is AgentEntry => e.kind === "agent");
+@@ -395,12 +391,6 @@ export function catalogIdOfRow(e: { id: string }): string | undefined {
+   return e.id.startsWith(TOOLS_PREFIX) ? catalogToolFor(packageOf(e))?.id : undefined;
+ }
+ 
+-/** The catalog tool a project's dependency stands for, by the road the project installs it by: only a row that names
+- * the package as meaning it, never a command or a cover word; or nothing. */
+-export function catalogToolForDependency(road: RoadName, pkg: string): ToolEntry | undefined {
+-  return CATALOG_TOOLS.find(e => (e.depends?.[road] ?? []).includes(pkg));
+-}
+-
+ /** The catalog tool a package name the collector wrote stands for: by id, by the command it puts on PATH, by its
+  * road's own name for it, by a name it covers, or by a command it brings along; or nothing. */
+ export function catalogToolFor(pkg: string): ToolEntry | undefined {

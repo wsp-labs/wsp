@@ -1,0 +1,41 @@
+diff --git a/apps/docs-next/content/reference/cli/computers-set.mdx b/apps/docs-next/content/reference/cli/computers-set.mdx
+index 1b90564f7..e633adb7f 100644
+--- a/apps/docs-next/content/reference/cli/computers-set.mdx
++++ b/apps/docs-next/content/reference/cli/computers-set.mdx
+@@ -6,13 +6,13 @@
+ usage: wsp computers set <computer> [--name <new>] [--ssh <login>]
+        [--threads <n>] [--machines <n>] [--spend <usd>] [--size <cpu>x<memGb>]
+        [--delete-after <minutes>] [--nap <minutes>|off]
+-       [--turn-limit <hours>|off] [--spawn on|off] [--max-machines <n>]
+-       [--max-depth <n>] [--recipe <name>|none] [--reset <setting>]...
++       [--turn-limit <hours>|off] [--max-machines <n>] [--max-depth <n>]
++       [--recipe <name>|none] [--reset <setting>]...
+   what you set on one of your computers: its name, the ssh login it is reached
+   by, how many threads run there at once, how long a quiet machine there runs
+-  before it naps, how long one turn there may run, whether agents there may
+-  start agents, the recipe it follows, and on a cloud how many machines at once,
+-  how much it spends a day, the size a sub-thread's machine gets and how long a
++  before it naps, how long one turn there may run, the caps on agents starting
++  agents, the recipe it follows, and on a cloud how many machines at once, how
++  much it spends a day, the size a sub-thread's machine gets and how long a
+   finished one stays; --reset takes a setting back to its default
+ 
+   --name            what to call a computer you added from now, which every
+@@ -35,13 +35,10 @@ usage: wsp computers set <computer> [--name <new>] [--ssh <login>]
+                     off
+   --turn-limit      the hours one turn there may run before it is stopped, or
+                     off; off on a computer you own until it is set
+-  --spawn           on lets agents there whose folder or machine holds no switch
+-                    of its own open threads and fork machines, capped; off
+-                    refuses them
+-  --max-machines    how many machines may stand at once under one root thread
+-                    while spawning is on; defaults to 3
+-  --max-depth       how many levels of threads may stand under the root thread
+-                    while spawning is on; defaults to 2
++  --max-machines    how many machines may stand at once under one root thread;
++                    defaults to 3
++  --max-depth       how many levels of threads may stand under the root thread;
++                    defaults to 2
+   --recipe          the saved recipe it follows from now, by the name wsp
+                     recipes shows, or none to keep what it has and follow
+                     nothing

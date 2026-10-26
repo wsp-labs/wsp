@@ -1,0 +1,13 @@
+diff --git a/apps/web/test/composer-checkout.test.tsx b/apps/web/test/composer-checkout.test.tsx
+index 270234cc8..9bcaac1e1 100644
+--- a/apps/web/test/composer-checkout.test.tsx
++++ b/apps/web/test/composer-checkout.test.tsx
+@@ -413,7 +413,7 @@ describe("composer checkout row", () => {
+     await setup(api);
+     expect(folder()).toBe(WORK);
+     // The computer's icon is the one the Computers page draws for it, the person's own pick included.
+-    const here: PlaceView = { id: "here", kind: "computer", name: "dev-mbp", label: "dev's MacBook Pro", mac: "macbook", default: true, present: true, takesForks: false, engine: "none", shape: { cpu: 8, memMb: 16384 }, diskFreeBytes: 1024 ** 3 };
++    const here: PlaceView = { id: "here", kind: "computer", name: "dev-mbp", label: "dev's MacBook Pro", mac: "macbook", default: true, present: true, takesForks: false, shape: { cpu: 8, memMb: 16384 }, diskFreeBytes: 1024 ** 3 };
+     act(() => useStore.setState({ places: [here] }));
+     const glyph = () => row()!.querySelector("[data-composer-computer] [data-computer-glyph]")?.getAttribute("data-computer-glyph");
+     await waitFor(() => expect(glyph()).toBe("laptop"));

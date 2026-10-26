@@ -1,0 +1,16 @@
+diff --git a/apps/desktop-gpui/host-client/tests/ops/sidebar.rs b/apps/desktop-gpui/host-client/tests/ops/sidebar.rs
+index d307d6507..14bc656d0 100644
+--- a/apps/desktop-gpui/host-client/tests/ops/sidebar.rs
++++ b/apps/desktop-gpui/host-client/tests/ops/sidebar.rs
+@@ -81,11 +81,6 @@ async fn a_project_of_its_own() {
+         "is this computer, which wsp does not run; it cannot be paused",
+     );
+     refused("workspaces.rebuild", client.call(ask::<WorkspacesRebuildRequest>(json!({ "workspaceId": ws }))).await, "it cannot be rebuilt");
+-    refused(
+-        "workspaces.snapshot",
+-        client.call(ask::<WorkspacesSnapshotRequest>(json!({ "workspaceId": ws }))).await,
+-        "it cannot be snapshotted",
+-    );
+     refused(
+         "workspaces.restartDaemon",
+         client.call(ask::<WorkspacesRestartDaemonRequest>(json!({ "workspaceId": ws }))).await,

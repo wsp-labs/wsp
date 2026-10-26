@@ -1,0 +1,25 @@
+diff --git a/packages/host/test/places-ssh-add.test.ts b/packages/host/test/places-ssh-add.test.ts
+index d6270de47..d55c85743 100644
+--- a/packages/host/test/places-ssh-add.test.ts
++++ b/packages/host/test/places-ssh-add.test.ts
+@@ -14,7 +14,7 @@ describe("wsp add on a computer reached over ssh", () => {
+   it("asks the host to do it, prints each step as it lands and says what joined", async () => {
+     const io = captured();
+     const frames: ((frame: Record<string, unknown>) => void)[] = [];
+-    const place: PlaceView = { id: "p_1", kind: "computer", name: "box", default: true, shape: { cpu: 4, memMb: 4096 }, diskFreeBytes: 38 * 1024 ** 3, engine: "none", present: true, takesForks: true };
++    const place: PlaceView = { id: "p_1", kind: "computer", name: "box", default: true, shape: { cpu: 4, memMb: 4096 }, diskFreeBytes: 38 * 1024 ** 3, present: true, takesForks: true };
+     const client = {
+       request: async (op: string, params?: Record<string, unknown>) => {
+         expect(op).toBe("places.add");
+@@ -45,10 +45,8 @@ describe("wsp add on a computer reached over ssh", () => {
+     expect(said).toContain(`${PLACE_ADD_WORDS.connect}: Linux 6.8.0`);
+     expect(said).toContain("box joined this wsp");
+     expect(said).toContain("ssh-ed25519 SHA256:abc");
+-    // A computer that joined runs your workspaces by definition, so the only doctor sentence left on the line is
+-    // the engine a project's own containers would run on there.
++    // A computer that joined runs your workspaces by definition, so there is no doctor sentence on the line.
+     expect(said).not.toContain("box runs your workspaces");
+-    expect(said).toContain("box has no container engine");
+     expect(said).toContain("wsp remove box");
+     expect(said).not.toContain("somebody else");
+   });

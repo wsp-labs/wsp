@@ -1,0 +1,14 @@
+diff --git a/apps/web/src/settings/openAt.ts b/apps/web/src/settings/openAt.ts
+index eaec5dfb6..d510571bb 100644
+--- a/apps/web/src/settings/openAt.ts
++++ b/apps/web/src/settings/openAt.ts
+@@ -21,9 +21,3 @@ export function openComputerSettings(placeId: string): void {
+   useStore.getState().openSettings();
+ }
+ 
+-/** A computer's page in Settings with its Image card's recipe open: every Edit image outside that card. */
+-export function openImageRecipe(placeId: string): void {
+-  useSettingsStore.getState().go({ kind: "computer", id: placeId });
+-  useSettingsStore.getState().askRecipe(placeId);
+-  useStore.getState().openSettings();
+-}

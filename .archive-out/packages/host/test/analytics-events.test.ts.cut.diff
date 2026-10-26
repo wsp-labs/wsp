@@ -1,0 +1,115 @@
+diff --git a/packages/host/test/analytics-events.test.ts b/packages/host/test/analytics-events.test.ts
+index d949255d6..43cf12f6a 100644
+--- a/packages/host/test/analytics-events.test.ts
++++ b/packages/host/test/analytics-events.test.ts
+@@ -3,15 +3,14 @@ import { mkdtempSync, rmSync } from "node:fs";
+ import { tmpdir } from "node:os";
+ import { join } from "node:path";
+ import { afterEach, describe, expect, it } from "vitest";
+-import { HERE_PLACE_ID, usageRefusal, type EventUnion, type InitJob, type InitJobEvent, type Preferences } from "@wsp/protocol";
+-import { hostAnalytics, NO_ANALYTICS, type AnalyticsProps } from "../src/analytics.js";
++import { HERE_PLACE_ID, usageRefusal, type EventUnion, type Preferences } from "@wsp/protocol";
++import { hostAnalytics, type AnalyticsProps } from "../src/analytics.js";
+ import { followUsage, hostCommon, OP_FAILED_EVERY_MS, osWord, usageReader } from "../src/analytics-events.js";
+ 
+ // Every property each event may carry. A property not written here fails the suite, so adding one is a change to
+ // this list that a reviewer reads, never a field that rides along unseen.
+ const ALLOWED: Record<string, readonly string[]> = {
+   "host.started": ["projects", "computers", "workspaces", "firstRun"],
+-  "init.ended": ["road", "outcome", "durationMs", "stoppedAt"],
+   "thread.started": ["agent", "startedBy", "model", "permissionMode"],
+   "turn.done": ["agent", "status", "startedBy", "refusal", "model", "models", "durationMs", "waitedMs", "costUsd", "inputTokens", "outputTokens", "cachedTokens", "cacheWriteTokens", "reasoningTokens"],
+   "computer.added": ["os", "agents"],
+@@ -74,7 +73,6 @@ const projectAdded: EventUnion = {
+   project: { id: S, name: S, computer: HERE_PLACE_ID, source: { kind: "folder", path: S }, path: S, remote: S, defaultBranch: S, memoryKey: S, memoryDir: S },
+   seq: 6,
+ } as unknown as EventUnion;
+-const initJob = (phase: InitJob["phase"]): InitJobEvent => ({ type: "init.job", job: { id: "job-1", road: "agent", phase, error: S, log: [S], line: S, place: { id: S, name: S }, workspace: { id: S, name: S } } as unknown as InitJob });
+ 
+ function readAll() {
+   let clock = 1_000_000;
+@@ -89,10 +87,6 @@ function readAll() {
+   reader.bus(setupLine("mcp", "failed"));
+   reader.bus(setupEnd);
+   reader.bus(projectAdded);
+-  reader.init(initJob("reading"));
+-  reader.init(initJob("building"));
+-  tick(60_000);
+-  reader.init(initJob("failed"));
+   reader.failed("sessions.start", Object.assign(new Error(S), { kind: S }));
+   reader.started({ projects: 2, computers: 1, workspaces: 3, firstRun: true });
+   return { got, reader, tick };
+@@ -140,7 +134,6 @@ describe("what each event carries", () => {
+     expect(of("computer.added")).toEqual({ os: "linux", agents: 2 });
+     expect(of("computer.setup.ended")).toEqual({ end: "needs-you", failedSteps: ["mcp"], durationMs: 3_000 });
+     expect(of("project.added")).toEqual({ source: "folder", here: true });
+-    expect(of("init.ended")).toEqual({ road: "agent", outcome: "failed", durationMs: 60_000, stoppedAt: "building" });
+     expect(of("op.failed")).toEqual({ op: "sessions.start", class: "provider" });
+     expect(of("host.started")).toEqual({ projects: 2, computers: 1, workspaces: 3, firstRun: true });
+   });
+@@ -184,15 +177,6 @@ describe("counting once", () => {
+     expect(got).toEqual(["turn.done"]);
+   });
+ 
+-  it("an init job is ended once, however often its ended view is sent again", () => {
+-    const got: string[] = [];
+-    const reader = usageReader(event => got.push(event));
+-    reader.init(initJob("answering"));
+-    reader.init(initJob("done"));
+-    reader.init(initJob("done"));
+-    expect(got).toEqual(["init.ended"]);
+-  });
+-
+   it("an op failing the same way is counted once a minute", () => {
+     let clock = 0;
+     const got: string[] = [];
+@@ -253,19 +237,16 @@ function wired(productUsage: boolean) {
+   }) as typeof globalThis.fetch;
+   const client = hostAnalytics({ off: undefined, key: "phc_test", host: "http://capture.test", idDir: join(home, "config"), fetch, flushMs: 3_600_000, common: hostCommon("0.2.0", undefined) });
+   const runtime = fakeRuntime(productUsage);
+-  let initListener: ((e: InitJobEvent) => void) | undefined;
+-  const usage = followUsage(client, runtime.rt, { on: fn => ((initListener = fn), () => (initListener = undefined)) });
+-  return { client, runtime, usage, bodies, init: (e: InitJobEvent) => initListener?.(e) };
++  const usage = followUsage(client, runtime.rt);
++  return { client, runtime, usage, bodies };
+ }
+ 
+ describe("following a runtime", () => {
+-  it("sends every event off the bus, the init job and the ops, and no sentinel reaches the posted body", async () => {
+-    const { client, runtime, usage, bodies, init } = wired(true);
++  it("sends every event off the bus and the ops, and no sentinel reaches the posted body", async () => {
++    const { client, runtime, usage, bodies } = wired(true);
+     usage.begin();
+     await new Promise(r => setTimeout(r, 10));
+     for (const e of [turnStart("t1", true), turnDone("t1"), placeJoined, setupLine("mcp", "failed"), setupEnd, projectAdded]) runtime.emit(e);
+-    init(initJob("reading"));
+-    init(initJob("done"));
+     usage.failed("sessions.start", new Error(S));
+     await client.flush();
+     usage.close();
+@@ -306,25 +287,6 @@ describe("following a runtime", () => {
+     expect(bodies.flatMap(b => (JSON.parse(b) as { batch: Array<{ event: string }> }).batch.map(e => e.event))).toEqual(["thread.started"]);
+   });
+ 
+-  it("follows nothing and reads nothing where the build has no key, so a dev host and a test host pay for none of it", async () => {
+-    const reads: string[] = [];
+-    const rt = {
+-      events: { on: (type: string) => (reads.push(`on ${type}`), () => {}) },
+-      preferences: { get: async () => (reads.push("preferences"), { productUsage: true }) },
+-      projects: { list: async () => (reads.push("projects"), []) },
+-      workspaces: { list: async () => (reads.push("workspaces"), []) },
+-      places: { list: async () => (reads.push("places"), []) },
+-    } as unknown as Parameters<typeof followUsage>[1];
+-    let initFollowed = false;
+-    const usage = followUsage(NO_ANALYTICS, rt, { on: () => ((initFollowed = true), () => {}) });
+-    usage.begin();
+-    usage.failed("sessions.start", new Error("no"));
+-    await new Promise(r => setTimeout(r, 10));
+-    usage.close();
+-    expect(reads).toEqual([]);
+-    expect(initFollowed).toBe(false);
+-  });
+-
+   it("a mapping that throws never reaches the emitter", () => {
+     const { runtime, usage } = wired(true);
+     expect(() => runtime.emit({ type: "place.joined", seq: 1 } as unknown as EventUnion)).not.toThrow();

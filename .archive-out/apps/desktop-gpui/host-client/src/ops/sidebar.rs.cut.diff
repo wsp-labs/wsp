@@ -1,0 +1,25 @@
+diff --git a/apps/desktop-gpui/host-client/src/ops/sidebar.rs b/apps/desktop-gpui/host-client/src/ops/sidebar.rs
+index f517b6d36..a3d19df0c 100644
+--- a/apps/desktop-gpui/host-client/src/ops/sidebar.rs
++++ b/apps/desktop-gpui/host-client/src/ops/sidebar.rs
+@@ -27,7 +27,6 @@ ops! {
+     "workspaces.rebuild" => WorkspacesRebuildRequest => Workspace,
+     "workspaces.restartDaemon" => WorkspacesRestartDaemonRequest => Done,
+     "workspaces.landing" => WorkspacesLandingRequest => protocol::WorkspaceLanding,
+-    "workspaces.snapshot" => WorkspacesSnapshotRequest => Snapshotted,
+     // Each ask adds a status watcher for the socket's life: ask once per socket.
+     "status.subscribe" => StatusSubscribeRequest => Statuses,
+     "sessions.list" => SessionsListRequest => Sessions,
+@@ -97,12 +96,6 @@ pub struct WorkspaceCreated {
+     pub sub: Option<protocol::SubStarted>,
+ }
+ 
+-#[derive(Debug, Deserialize)]
+-#[serde(rename_all = "camelCase")]
+-pub struct Snapshotted {
+-    pub project_golden: protocol::ProjectGolden,
+-}
+-
+ #[derive(Debug, Deserialize)]
+ pub struct Statuses {
+     pub statuses: Vec<protocol::WorkspaceStatus>,

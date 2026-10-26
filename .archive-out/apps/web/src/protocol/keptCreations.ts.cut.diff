@@ -1,0 +1,12 @@
+diff --git a/apps/web/src/protocol/keptCreations.ts b/apps/web/src/protocol/keptCreations.ts
+index 3f0ff5234..a72feb132 100644
+--- a/apps/web/src/protocol/keptCreations.ts
++++ b/apps/web/src/protocol/keptCreations.ts
+@@ -66,7 +66,6 @@ function creationOf(raw: unknown): Creation | undefined {
+     asked: r["asked"],
+     queued: true,
+     ...(opens !== undefined ? { opens } : {}),
+-    ...(text(r["golden"]) ? { golden: r["golden"] } : {}),
+     ...(size.success ? { size: size.data } : {}),
+     ...(text(r["where"]) ? { where: r["where"] } : {}),
+     workspaceId,

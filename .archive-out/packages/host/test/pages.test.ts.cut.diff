@@ -1,0 +1,48 @@
+diff --git a/packages/host/test/pages.test.ts b/packages/host/test/pages.test.ts
+index 94806f3ea..6212cd122 100644
+--- a/packages/host/test/pages.test.ts
++++ b/packages/host/test/pages.test.ts
+@@ -20,7 +20,7 @@ const captured = (): CliIO & { lines: string[]; errors: string[] } => {
+ };
+ 
+ /** The sixteen words, in the order the front page prints them. */
+-const FRONT = ["init", "add", "computers", "remove", "projects", "threads", "run", "send", "stop", ...(CLOUD_ON ? ["pause", "wake"] : []), "delete", "status", "mcp"];
++const FRONT = ["add", "computers", "remove", "projects", "threads", "run", "send", "stop", ...(CLOUD_ON ? ["pause", "wake"] : []), "delete", "status", "mcp"];
+ 
+ /** The three lines about the person's own account, which print in the block under the sixteen rather than among
+  * them: they are not work on a workspace, and a person meets them once. */
+@@ -86,18 +86,6 @@ describe("the pages wsp prints", () => {
+     expect(THREAD_PREFIX_WORD).toBe("wsp thread read, wsp send and wsp stop take its first characters");
+   });
+ 
+-  it("the front page's init line says what init does in the person's words, and none of the five words a tester could not read is on the page at all", () => {
+-    // Priya skipped wsp init outright: she did not know what sealing was, whether it was reversible, or what it
+-    // would take from her machine, and "once" read as permanent. The other four she named are words for what is
+-    // under the product, not for what a person does with it, and the first page carries none of them.
+-    const init = frontLines().find(line => line.trim().startsWith("wsp init"))!;
+-    const row = HELP.split("\n").slice(HELP.split("\n").indexOf(init), HELP.split("\n").indexOf(init) + 2).join(" ");
+-    expect(row).toContain("set this computer up");
+-    for (const word of ["seal", "once", "place", "recipe", "tick"]) expect(HELP, word).not.toContain(word);
+-    // The one the front page does still need is the noun for a folder on a computer, which is a project.
+-    expect(HELP).toContain("wsp projects");
+-  });
+-
+   it("the rules under the front page hold against the lines above them, and the page fits one screen", () => {
+     // A summary the list under it contradicts is worse than no summary: a reader who checks the claim against the
+     // rows stops believing the page. Each clause of the sentence is held to the rows here.
+@@ -200,14 +188,9 @@ describe("the pages wsp prints", () => {
+     expect(up.lines[0]).toContain("--service");
+     // init's flags are init's; up's page never advertises them.
+     expect(up.lines[0]).not.toContain("--recipe");
+-    const init = captured();
+-    expect(await cli(["init", "--help"], init, undefined, {}, false)).toBe(0);
+-    expect(init.lines[0]).toContain("usage: wsp init");
+-    expect(init.lines[0]).toContain("--recipe");
+-    expect(init.lines[0]).not.toContain("--service");
+     const foreign = captured();
+     expect(await cli(["down", "--recipe", "x"], foreign, undefined, {}, false)).toBe(EXIT_CODES.usage);
+-    expect(foreign.errors[0]).toBe("--recipe belongs to wsp add and wsp init; wsp down does not read it. usage: wsp down");
++    expect(foreign.errors[0]).toBe("--recipe belongs to wsp add; wsp down does not read it. usage: wsp down");
+   });
+ 
+   it("the tool server's own two pages say what each does and give each flag it reads a line", async () => {

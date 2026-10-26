@@ -1,0 +1,22 @@
+diff --git a/packages/protocol/src/outside-line.ts b/packages/protocol/src/outside-line.ts
+index df71515cc..084922a35 100644
+--- a/packages/protocol/src/outside-line.ts
++++ b/packages/protocol/src/outside-line.ts
+@@ -27,8 +27,7 @@ export type OutsideMoment =
+   | { kind: "plan"; label: string; alert: PlanAlert }
+   | { kind: "setupFailed"; computer: string; said: string }
+   | { kind: "setupNeedsYou"; computer: string; what: string }
+-  | { kind: "setupReady"; computer: string; missed?: string }
+-  | { kind: "imageReady"; computer: string; image: string };
++  | { kind: "setupReady"; computer: string; missed?: string };
+ 
+ /** What a setup's three moments say. */
+ export const setupFailedLine = (computer: string): string => `${computer}: setup failed`;
+@@ -60,7 +59,5 @@ export function outsideLine(moment: OutsideMoment, choices: Pick<GeneralPreferen
+       return said(notifyBy(choices.notifyNeeds), NEEDS_YOU, setupNeedsYouLine(moment.computer, moment.what));
+     case "setupReady":
+       return said(notifyBy(choices.notifyDone), setupReadyLine(moment.computer, moment.missed), "");
+-    case "imageReady":
+-      return said(notifyBy(choices.notifyDone), setupReadyLine(moment.computer), moment.image);
+   }
+ }
