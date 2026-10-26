@@ -54,6 +54,9 @@ export const GLANCE_CASES: Readonly<Record<string, { text: string; values?: Reco
   "glance-facts-row": {
     text: `<slate><column><row id="head" wrap><status tone="warning">Investigating</status><facts id="facts" layout="line"><fact label="Started" value="14:10" emphasis="strong" /><fact label="Scope" value="Checkout API" /><fact label="Impact" value="Customers receive 502 during checkout" tone="bad" /></facts></row></column></slate>`,
   },
+  "glance-facts-row-long": {
+    text: `<slate><column><row id="head" wrap><status tone="warning">Investigating</status><facts id="facts" layout="line"><fact label="Started" value="14:10" emphasis="strong" /><fact label="Scope" value="Checkout API" /><fact label="Impact" value="Customers on the mobile app receive 502 during checkout after every retry" tone="bad" /></facts></row></column></slate>`,
+  },
   "glance-choices": {
     text: `<slate><value name="pick" start="" /><column><choices id="choices" label="Which queue runs the jobs?" value={$pick} options={["Graphile Worker", "BullMQ", "A cron table"]} /></column></slate>`,
   },

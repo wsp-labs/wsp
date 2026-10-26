@@ -502,3 +502,25 @@ fn facts_in_a_row_at_760_share_one_line(cx: &mut TestAppContext) {
     let one_line = at(wide, "slate-facts").size.height;
     assert!(one_line <= px(24.), "in a row the facts share a line: {one_line:?}");
 }
+
+const FACTS_IN_ROW_LONG: &str = r#"<slate title="Checkout incident">
+  <column>
+    <row id="r" wrap>
+      <status tone="warning">Investigating</status>
+      <facts id="f" layout="line">
+        <fact label="Started" value="14:10" emphasis="strong" />
+        <fact label="Scope" value="Checkout API" />
+        <fact label="Impact" value="Customers on the mobile app receive 502 during checkout after every retry" tone="bad" />
+      </facts>
+    </row>
+  </column>
+</slate>
+"#;
+
+#[gpui_kit::test]
+fn a_fact_in_a_row_too_long_for_its_line_wraps_inside_the_row(cx: &mut TestAppContext) {
+    // Wider than the row at 400 px, the value wraps under its label rather than run past the card's edge.
+    let narrow = open(cx, FACTS_IN_ROW_LONG, 400.);
+    let facts = at(narrow, "slate-facts").size.height;
+    assert!(facts >= px(3. * 19.5), "the long value wraps onto lines of its own: {facts:?}");
+}

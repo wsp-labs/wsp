@@ -153,6 +153,17 @@ describe.skipIf(renderSkipped !== undefined)("the glance pieces in Chromium", ()
     await page.close();
   });
 
+  it.each(MATRIX)("a fact in a row too long for one line stays inside the row, at $w px in $theme", async ({ w, theme }) => {
+    const page = await open("glance-facts-row-long", w, theme);
+    const read = await page.evaluate(() => {
+      const facts = document.querySelector<HTMLElement>("[data-slate-piece=facts]")!;
+      return { right: facts.getBoundingClientRect().right, values: [...facts.querySelectorAll<HTMLElement>("[data-settings-word]")].map(v => Math.round(v.getBoundingClientRect().right)) };
+    });
+    await shoot(page, "glance-facts-row-long", w, theme);
+    for (const right of read.values) expect(right).toBeLessThanOrEqual(Math.round(read.right));
+    await page.close();
+  });
+
   it.each(MATRIX)("a decision, a progress, an output, choices and a table draw inside the panel at $w px in $theme", async ({ w, theme }) => {
     for (const doc of ["glance-decision", "glance-progress", "glance-output", "glance-choices", "glance-table"]) {
       const page = await open(doc, w, theme);
