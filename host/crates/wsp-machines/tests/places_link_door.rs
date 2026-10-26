@@ -598,9 +598,9 @@ fn load_reads_every_record_back() {
         scene.records.map.borrow_mut().insert("p_b".into(), b);
         scene.records.map.borrow_mut().insert("p_a".into(), a);
         link.load().await.unwrap();
-        assert_eq!(scene.ctx.kept.borrow().keys().cloned().collect::<Vec<_>>(), ["p_a", "p_b"]);
+        assert_eq!(scene.ctx.kept.borrow().keys().cloned().collect::<Vec<_>>(), ["p_b", "p_a"]);
         assert_eq!(scene.views.built.borrow().iter().map(|(p, _)| p.clone()).collect::<Vec<_>>(), ["p_a"]);
-        assert_eq!(*scene.records.held_back.borrow(), ["p_a", "p_b"]);
+        assert_eq!(*scene.records.held_back.borrow(), ["p_b", "p_a"]);
         assert!(scene.records.settings.borrow().contains_key("p_a"));
         assert_eq!(serde_json::to_value(scene.records.get("p_b").sync.unwrap()).unwrap()["state"], json!("behind"));
     });

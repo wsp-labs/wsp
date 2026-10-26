@@ -981,7 +981,7 @@ fn gh_there_puts_gh_on_alone_and_lands_it() {
                 Value::Object(patch)
             },
         );
-        scene.linked("p1", "spoo", report("spoo", json!({})), answers_ok());
+        scene.live("p1", answers_ok());
         let lines = Arc::new(Mutex::new(Vec::<String>::new()));
         let stage: ProvisionStage = {
             let lines = Arc::clone(&lines);

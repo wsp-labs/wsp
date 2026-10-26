@@ -11,6 +11,8 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use futures::FutureExt;
+
 use base64::Engine as _;
 use indexmap::{IndexMap, IndexSet};
 use serde::Serialize;
@@ -678,9 +680,15 @@ impl PlaceRecordsArea {
             });
         });
         let on = BackOn { home, computer: Some(BackComputer { id: record.id.clone(), name: record.name.clone() }) };
-        tokio::task::spawn_local(async move {
+        let mut hold = async move {
             let _ = holder.hold(&login, back, on, Some(moved)).await;
-        });
+        }
+        .boxed_local();
+        // The TS calls `hold` at once and runs its body up to the first await; the rest goes on as a task.
+        let mut cx = std::task::Context::from_waker(futures::task::noop_waker_ref());
+        if hold.as_mut().poll(&mut cx).is_pending() {
+            tokio::task::spawn_local(hold);
+        }
     }
 
     /// R24 (:271-276).

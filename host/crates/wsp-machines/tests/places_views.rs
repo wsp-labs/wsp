@@ -106,7 +106,7 @@ fn drop_pending_frame_has_no_pending() {
 fn floor_while_choosing_no_provisioner_goes_choosing() {
     // spec: V4. TS: places-setup.test.ts:1221 "a computer added with nothing picked waits at its choices".
     run(async {
-        let d = door(|s| s.pending = vec![pending_json("a_000000000001", "10.0.0.5", json!({ "step": "join" }))]);
+        let d = door(|s| s.pending = vec![pending_json("a_000000000001", "10.0.0.5", json!({ "step": "floor" }))]);
         let p = pending_record(d.pending_docs()[0].clone());
         d.views.floor_while_choosing(&p, PLACE).await.unwrap();
         let stored = d.store.doc("pending-computers", "a_000000000001").unwrap();
@@ -118,7 +118,7 @@ fn floor_while_choosing_no_provisioner_goes_choosing() {
 
 fn flooring(rows: Result<Vec<Value>, &'static str>) -> Door {
     door(move |s| {
-        s.pending = vec![pending_json("a_000000000001", "10.0.0.5", json!({ "step": "join" }))];
+        s.pending = vec![pending_json("a_000000000001", "10.0.0.5", json!({ "step": "floor" }))];
         *s.setup.link.borrow_mut() = Some(FakeMachineLink::exec_says(""));
         let prov = Rc::new(Provision::default());
         *prov.floor_rows.borrow_mut() = Some(rows.map(|r| r.into_iter().map(|v| serde_json::from_value(v).unwrap()).collect()).map_err(String::from));
@@ -167,7 +167,7 @@ fn floor_pending_gone_writes_nothing() {
         let prov = Rc::new(Provision::default());
         let p2 = prov.clone();
         let d = door(move |s| {
-            s.pending = vec![pending_json("a_000000000001", "10.0.0.5", json!({ "step": "join" }))];
+            s.pending = vec![pending_json("a_000000000001", "10.0.0.5", json!({ "step": "floor" }))];
             *s.setup.link.borrow_mut() = Some(FakeMachineLink::exec_says(""));
             s.wiring = Box::new(move |w| w.provision = Some(p2));
         });
@@ -349,6 +349,7 @@ fn facts_on_answers_held_after_add_facts_ms() {
     // spec: V11. TS: places-facts.test.ts:48 "a computer slower than one round trip joins all the same".
     run(async {
         let d = door(|_| {});
+        d.links.slow.set(true);
         let held = record(json!({}));
         let (views, h2) = (d.views.clone(), held.clone());
         let read = tokio::task::spawn_local(async move { views.facts_on(PLACE, &h2).await });

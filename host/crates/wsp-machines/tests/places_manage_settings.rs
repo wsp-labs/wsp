@@ -486,9 +486,9 @@ fn set_login_unread_refused() {
             no_writes(&d);
             assert!(d.event_types().is_empty());
         }
-        assert_eq!(at2("/cases/loginExit/err"), "root@10.0.0.9 could not be checked as old-macbook, so nothing was saved: last line. Check that ssh root@10.0.0.9 logs in as root, or through a sudo that asks no password, and try again.");
-        assert_eq!(at2("/cases/loginExitSilent/err"), "root@10.0.0.9 could not be checked as old-macbook, so nothing was saved: the read exited 3. Check that ssh root@10.0.0.9 logs in as root, or through a sudo that asks no password, and try again.");
-        assert_eq!(at2("/cases/loginNoRoad/err"), "root@10.0.0.9 could not be checked as old-macbook, so nothing was saved: this host holds no ssh road to read it over. Check that ssh root@10.0.0.9 logs in as root, or through a sudo that asks no password, and try again.");
+        assert_eq!(at2("/cases/loginExit/answer/err"), "root@10.0.0.9 could not be checked as old-macbook, so nothing was saved: last line. Check that ssh root@10.0.0.9 logs in as root, or through a sudo that asks no password, and try again.");
+        assert_eq!(at2("/cases/loginExitSilent/answer/err"), "root@10.0.0.9 could not be checked as old-macbook, so nothing was saved: the read exited 3. Check that ssh root@10.0.0.9 logs in as root, or through a sudo that asks no password, and try again.");
+        assert_eq!(at2("/cases/loginNoRoad/answer/err"), "root@10.0.0.9 could not be checked as old-macbook, so nothing was saved: this host holds no ssh road to read it over. Check that ssh root@10.0.0.9 logs in as root, or through a sudo that asks no password, and try again.");
     });
 }
 
@@ -531,7 +531,10 @@ fn set_login_equal_to_the_records_own_is_not_read() {
 #[test]
 fn set_patch_spawn_and_reset() {
     run(async {
-        let d = door(|s| s.caps = vec![(PLACE.into(), json!({ "threads": 3, "spawn": { "maxMachines": 5 } }))]);
+        let d = door(|s| {
+            s.caps = vec![(PLACE.into(), json!({ "threads": 3, "spawn": { "maxMachines": 5 } }))];
+            s.recording.running.borrow_mut().insert(PLACE.into(), 2);
+        });
         let placed = set(&d, PLACE, json!({ "threads": 2, "spawn": { "maxDepth": 1 } }), &["nap"], json!({})).await.expect("set");
         assert_eq!(view(&placed), at("/set/patch/ok/place"));
         assert_eq!(d.caps(PLACE).unwrap(), at("/set/patchCaps"));
@@ -575,7 +578,9 @@ fn set_reset_all_deletes_caps() {
 #[test]
 fn set_null_nap_is_given() {
     run(async {
-        let d = door(|_| {});
+        let d = door(|s| {
+            s.recording.running.borrow_mut().insert(PLACE.into(), 2);
+        });
         let placed = set(&d, PLACE, json!({ "napMs": null }), &[], json!({})).await.expect("a null nap");
         assert_eq!(view(&placed), at("/set/nullNap/ok/place"));
         assert_eq!(d.caps(PLACE).unwrap(), at("/set/nullNapCaps"));
