@@ -92,7 +92,7 @@ pub trait PhasesCtx: Base {
     fn can_resume_at(&self, entry: &Entry) -> bool;
     fn provider_of(&self, entry: &Entry) -> Option<String>;
     /// `backendFor(record).limits?.()` (failure ignored) then its capabilities.
-    async fn backend_capabilities(&self, entry: &Entry) -> Capabilities;
+    async fn backend_capabilities(&self, entry: &Entry) -> Result<Capabilities, HostError>;
     fn thread_runs(&self, thread_id: &str) -> bool;
     async fn shape_of(&self, entry: &Entry) -> Option<MachineShape>;
     fn size_built(&self, shape: Option<&MachineShape>, asked: SizeAsk) -> SizeAsk;
@@ -692,7 +692,7 @@ pub async fn resize(ctx: &Rc<dyn PhasesCtx>, id: &str, size: SizeAsk, origin: Op
         let provider = ctx.provider_of(&entry).unwrap_or_else(|| "the provider".to_owned());
         return Err(invalid(refusal_line(&resize_no_move_line(&provider_key_name(&provider)), RESIZE_NO_MOVE_FIX)));
     }
-    let at: Capabilities = ctx.backend_capabilities(&entry).await;
+    let at: Capabilities = ctx.backend_capabilities(&entry).await?;
     let want = workspace_size(size);
     let offered = at.sizes.iter().any(|s| s.cpu == size.cpu && s.mem_mb == size.mem_mb);
     if !offered {

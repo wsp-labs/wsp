@@ -59,7 +59,8 @@ impl ProjectIconsCtx for Icons {
 #[test]
 fn ctx_throws_state_folder_passes_through_icon_read() {
     run(async {
-        let ctx: Rc<dyn ProjectIconsCtx> = Rc::new(Icons { fail: RefCell::new(Some(plain("the state folder is not readable"))), ids: TestIds::new() });
+        let ctx: Rc<dyn ProjectIconsCtx> =
+            Rc::new(Icons { fail: RefCell::new(Some(plain("the state folder is not readable"))), ids: TestIds::new() });
         let area = project_icons_area(ctx);
         let got = area.read(vec!["a".repeat(64)]).await.expect_err("stateFolder throws");
         assert_eq!(got.message, "the state folder is not readable");

@@ -199,11 +199,8 @@ impl<C: SlatesAreaCtx + 'static> SlatesWiring<C> {
         }
 
         let path = ctx.checkout_of(&entry)?;
-        let Some(read) = ctx.agents_reader_server(
-            vec![AgentsProject { id: workspace_id, name: "thread".into(), path }],
-            &harness,
-            name,
-        ) else {
+        let Some(read) = ctx.agents_reader_server(vec![AgentsProject { id: workspace_id, name: "thread".into(), path }], &harness, name)
+        else {
             return Err(HostError::new("this host reads no agent's MCP config"));
         };
         let spec = read.await?;

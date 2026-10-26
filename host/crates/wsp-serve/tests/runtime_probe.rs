@@ -94,7 +94,12 @@ impl Fetch for Scripted {
         if self.never {
             let abort = req.abort.expect("the probe arms a timeout");
             abort.token.cancelled().await;
-            return Err(RoadError { name: "TimeoutError".into(), message: "The operation was aborted due to timeout".into(), code: None, cause: None });
+            return Err(RoadError {
+                name: "TimeoutError".into(),
+                message: "The operation was aborted due to timeout".into(),
+                code: None,
+                cause: None,
+            });
         }
         let pulled = self.pulled.clone();
         let body = stream::iter(0..10)
@@ -137,7 +142,16 @@ async fn a_failed_fetch_says_what_fetch_says() {
             unreachable!()
         }
         async fn fetch_stream(&self, _req: FetchRequest) -> Result<FetchStream, RoadError> {
-            Err(RoadError { name: "TypeError".into(), message: "fetch failed".into(), code: None, cause: Some(RoadCause { message: "connect ECONNREFUSED 127.0.0.1:1".into(), code: Some("ECONNREFUSED".into()), errors: None }) })
+            Err(RoadError {
+                name: "TypeError".into(),
+                message: "fetch failed".into(),
+                code: None,
+                cause: Some(RoadCause {
+                    message: "connect ECONNREFUSED 127.0.0.1:1".into(),
+                    code: Some("ECONNREFUSED".into()),
+                    errors: None,
+                }),
+            })
         }
     }
     let err = probe_port(&Refused, "http://127.0.0.1:1/x").await.expect_err("refused");

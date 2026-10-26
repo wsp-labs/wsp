@@ -317,7 +317,8 @@ pub trait WorkspacesApi {
     async fn landing(&self, project: &str, sized: bool, origin: Option<Caller>) -> Result<Landing, HostError>;
     async fn get(&self, id: &str, origin: Option<Caller>, thread_id: Option<&str>) -> Result<WorkspaceView, HostError>;
     async fn held_or_creating(&self, id: &str) -> Result<Option<WorkspaceView>, HostError>;
-    fn thread_place(&self, scope: &ThreadScope) -> Option<String>;
+    /// `threadPlace(scope)`: fails where the thread's workspace's project is not held (the TS throws).
+    fn thread_place(&self, scope: &ThreadScope) -> Result<Option<String>, HostError>;
     async fn list(&self, origin: Option<Caller>) -> Result<Vec<WorkspaceView>, HostError>;
     async fn resolve(&self, reference: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError>;
     async fn nap(&self, id: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError>;
@@ -411,9 +412,10 @@ pub trait WorkspacesApi {
     async fn port_probe(&self, id: &str, port: u16, origin: Option<Caller>) -> Result<PortProbeView, HostError>;
     async fn origin_refusal(&self, id: &str, origin: Option<Caller>) -> Result<Option<String>, HostError>;
     /// Synchronous: the one road that cannot await. api.ts:334.
-    fn seen_by(&self, event: &serde_json::Value, origin: Option<&Caller>) -> bool;
+    /// Fails where the event's workspace's project is not held (the rule the TS reads throws).
+    fn seen_by(&self, event: &serde_json::Value, origin: Option<&Caller>) -> Result<bool, HostError>;
     /// api.ts:337.
-    fn shown_to(&self, event: serde_json::Value, origin: Option<&Caller>) -> serde_json::Value;
+    fn shown_to(&self, event: serde_json::Value, origin: Option<&Caller>) -> Result<serde_json::Value, HostError>;
     /// The last stage of every create in flight and every refused one still held, oldest first.
     fn creating(&self) -> Vec<WorkspaceCreatingEvent>;
 }

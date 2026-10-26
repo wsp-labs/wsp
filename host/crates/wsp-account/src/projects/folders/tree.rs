@@ -183,7 +183,7 @@ impl Folders {
                 return Ok(Value::Null);
             }
             if Path::new(&tree.path).exists() {
-                let remove = WorktreeRemove { from: top, home: me.ctx.state_folder(), path: tree.path.clone(), force };
+                let remove = WorktreeRemove { from: top, home: me.ctx.state_folder()?, path: tree.path.clone(), force };
                 me.ctx.copier_worktree_remove(remove).await?;
             }
             me.setup_lines.borrow_mut().shift_remove(&record.id);
@@ -235,8 +235,15 @@ impl Folders {
         if self.ctx.not_a_repo(&record) {
             return Ok(());
         }
-        let request = json!({ "op": "git.checkpointDrop", "cwd": self.ctx.checkout_of(&record), "scope": record.id, "thread": thread_id });
-        let work: DaemonWork = Box::new(move |ask: DaemonAsk| ask(request));
+        let ctx = self.ctx.clone();
+        let thread = thread_id.to_owned();
+        let work: DaemonWork = Box::new(move |ask: DaemonAsk| {
+            async move {
+                let cwd = ctx.checkout_of(&record)?;
+                ask(json!({ "op": "git.checkpointDrop", "cwd": cwd, "scope": record.id, "thread": thread })).await
+            }
+            .boxed_local()
+        });
         if let Err(e) = self.ctx.with_daemon(entry, work).await {
             warn(&format!("the checkpoints of thread {} were not dropped: {}", thread_word(thread_id), e.message));
         }

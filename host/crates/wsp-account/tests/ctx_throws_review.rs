@@ -21,7 +21,12 @@ fn ctx_throws_refusal_for_passes_through_origin_refusal() {
     run(async {
         let fake = FakeReview::new();
         let ctx: Rc<dyn ReviewCtx> = fake.clone();
-        fake.base.hold_project(project("pr_1", "spoo", "here", json!({ "remote": "https://github.com/dev/spoo.git", "path": "/home/me/spoo" })));
+        fake.base.hold_project(project(
+            "pr_1",
+            "spoo",
+            "here",
+            json!({ "remote": "https://github.com/dev/spoo.git", "path": "/home/me/spoo" }),
+        ));
         fake.base.hold(record("ws_1", "local", "pr_1", json!({})));
         *fake.refusal_fail.borrow_mut() = Some(plain("the record's project is not held"));
         let got = door::origin_refusal(&ctx, "ws_1", Some(person())).await.expect_err("refusalFor throws");

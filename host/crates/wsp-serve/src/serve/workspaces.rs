@@ -358,13 +358,23 @@ impl Pass {
         }
     }
 
+    /// The listener cannot fail the socket: the TS lets a throw out of the bus's listener, so an event whose rule throws is
+    /// not sent and the failure is said.
     fn seen(&self, value: &Value) -> bool {
-        self.socket.served.rt.workspaces().seen_by(value, self.origin.as_ref())
+        match self.socket.served.rt.workspaces().seen_by(value, self.origin.as_ref()) {
+            Ok(seen) => seen,
+            Err(e) => {
+                wsp_core::console::warn(&format!("an event was not sent to a socket: {}", e.message));
+                false
+            }
+        }
     }
 
     fn show(&self, value: Value) {
-        if let Value::Object(shown) = self.socket.served.rt.workspaces().shown_to(value, self.origin.as_ref()) {
-            self.socket.send(shown);
+        match self.socket.served.rt.workspaces().shown_to(value, self.origin.as_ref()) {
+            Ok(Value::Object(shown)) => self.socket.send(shown),
+            Ok(_) => {}
+            Err(e) => wsp_core::console::warn(&format!("an event was not sent to a socket: {}", e.message)),
         }
     }
 }

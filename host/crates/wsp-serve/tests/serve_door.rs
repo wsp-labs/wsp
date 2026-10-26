@@ -299,11 +299,27 @@ fn bare_values_on_the_owners_socket_are_refused_and_it_stays() {
 }
 
 #[test]
+fn a_place_read_that_throws_answers_the_refusal_as_a_failure() {
+    // serve.ts:657 reads `rt.workspaces.threadPlace(by)` ahead of the handler's try, so the TS lets the throw out of the handler; the Rust
+    // answers it as the frame's failure rather than drop the connection.
+    block(async {
+        let rt = FakeRuntime::new();
+        rt.script.on("workspaces.threadPlace", |_| Err::<Option<String>, _>(HostError::new("no project p1")));
+        let served = served_with(&rt, dopts(&rt));
+        let by = scope("t-1", "ws-1");
+        let (socket, sink) = device_socket(&rt, &served, held("d-1", Some(by), Some(WorkspaceOrigin::Relayed))).await;
+        let refused = request(&socket, &sink, 3, "places.remove", json!({ "placeId": "p" })).await;
+        assert_eq!(refused, json!({ "id": 3, "ok": false, "error": "no project p1" }));
+        assert!(rt.script.calls_to("places.remove").is_empty());
+    })
+}
+
+#[test]
 fn a_threads_token_is_refused_an_op_outside_its_list_by_name() {
     // D9. spawn-guard.test.ts (the door half), serve.ts:654-659
     block(async {
         let rt = FakeRuntime::new();
-        rt.script.on("workspaces.threadPlace", |_| Some("my-box".to_string()));
+        rt.script.on("workspaces.threadPlace", |_| Ok::<_, HostError>(Some("my-box".to_string())));
         let served = served_with(&rt, dopts(&rt));
         let by = scope("t-1", "ws-1");
         let (socket, sink) = device_socket(&rt, &served, held("d-1", Some(by.clone()), Some(WorkspaceOrigin::Relayed))).await;

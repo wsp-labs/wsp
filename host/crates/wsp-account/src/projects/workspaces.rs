@@ -70,7 +70,7 @@ impl WorkspacesApi for Workspaces {
     async fn held_or_creating(&self, id: &str) -> Result<Option<WorkspaceView>, HostError> {
         create::held_or_creating(&self.create, id).await
     }
-    fn thread_place(&self, scope: &ThreadScope) -> Option<String> {
+    fn thread_place(&self, scope: &ThreadScope) -> Result<Option<String>, HostError> {
         self.create.place_of_thread(scope)
     }
     async fn list(&self, origin: Option<Caller>) -> Result<Vec<WorkspaceView>, HostError> {
@@ -272,10 +272,10 @@ impl WorkspacesApi for Workspaces {
     async fn origin_refusal(&self, id: &str, origin: Option<Caller>) -> Result<Option<String>, HostError> {
         review::origin_refusal(&self.review, id, origin).await
     }
-    fn seen_by(&self, event: &serde_json::Value, origin: Option<&Caller>) -> bool {
+    fn seen_by(&self, event: &serde_json::Value, origin: Option<&Caller>) -> Result<bool, HostError> {
         review::seen_by(&self.review, event, origin)
     }
-    fn shown_to(&self, event: serde_json::Value, origin: Option<&Caller>) -> serde_json::Value {
+    fn shown_to(&self, event: serde_json::Value, origin: Option<&Caller>) -> Result<serde_json::Value, HostError> {
         review::shown_to(&self.review, event, origin)
     }
     fn creating(&self) -> Vec<WorkspaceCreatingEvent> {

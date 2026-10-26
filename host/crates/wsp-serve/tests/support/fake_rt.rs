@@ -313,8 +313,8 @@ impl WorkspacesApi for FakeRuntime {
     async fn held_or_creating(&self, id: &str) -> Result<Option<WorkspaceView>, HostError> {
         self.script.call("workspaces.heldOrCreating", json!({ "id": id }))
     }
-    fn thread_place(&self, scope: &ThreadScope) -> Option<String> {
-        self.script.call_or("workspaces.threadPlace", json!({ "scope": sj(scope) }), || None)
+    fn thread_place(&self, scope: &ThreadScope) -> Result<Option<String>, HostError> {
+        self.script.call_or("workspaces.threadPlace", json!({ "scope": sj(scope) }), || Ok(None))
     }
     async fn list(&self, origin: Option<Caller>) -> Result<Vec<WorkspaceView>, HostError> {
         self.script.call("workspaces.list", json!({ "origin": oj(&origin) }))
@@ -527,12 +527,12 @@ impl WorkspacesApi for FakeRuntime {
     async fn origin_refusal(&self, id: &str, origin: Option<Caller>) -> Result<Option<String>, HostError> {
         self.script.call("workspaces.originRefusal", json!({ "id": id, "origin": oj(&origin) }))
     }
-    fn seen_by(&self, event: &Value, origin: Option<&Caller>) -> bool {
-        self.script.call_or("workspaces.seenBy", json!({ "event": event, "origin": oj(&origin.cloned()) }), || true)
+    fn seen_by(&self, event: &Value, origin: Option<&Caller>) -> Result<bool, HostError> {
+        self.script.call_or("workspaces.seenBy", json!({ "event": event, "origin": oj(&origin.cloned()) }), || Ok(true))
     }
-    fn shown_to(&self, event: Value, origin: Option<&Caller>) -> Value {
+    fn shown_to(&self, event: Value, origin: Option<&Caller>) -> Result<Value, HostError> {
         let args = json!({ "event": event, "origin": oj(&origin.cloned()) });
-        self.script.call_or("workspaces.shownTo", args, || event)
+        self.script.call_or("workspaces.shownTo", args, || Ok(event))
     }
     fn creating(&self) -> Vec<WorkspaceCreatingEvent> {
         self.script.call_or("workspaces.creating", json!({}), Vec::new)

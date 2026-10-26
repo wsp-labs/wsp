@@ -66,7 +66,7 @@ pub trait MoveRoads {
     /// `guestAgentHomes()`.
     fn guest_agent_homes(&self) -> indexmap::IndexMap<String, String>;
     /// `moduleOf(kind).scratch(entry)`.
-    fn scratch(&self, entry: &Entry) -> String;
+    fn scratch(&self, entry: &Entry) -> Result<String, HostError>;
     /// `landBundle(machine, tar, dest, {replace?, tmpDir, timeoutMs, onPart, onLanding})`: the parts it took.
     async fn land_bundle(&self, entry: &Entry, tar: Vec<u8>, dest: &str, replace: Option<bool>, hooks: LandHooks)
         -> Result<u64, HostError>;
@@ -471,7 +471,7 @@ impl Projects {
         let hook_failed: HookFailure = Rc::default();
         let tar_len = packed.tar.len() as u64;
         report(ProjectImportStage::Uploading, &format!("Uploading {}.", fmt_bytes(tar_len as f64)), Some((0, tar_len)))?;
-        let hooks = upload_hooks(&report, Some(o.dest.clone()), self.ctx.scratch(entry), &hook_failed);
+        let hooks = upload_hooks(&report, Some(o.dest.clone()), self.ctx.scratch(entry)?, &hook_failed);
         let parts = self.ctx.land_bundle(entry, packed.tar.clone(), &o.dest, o.replace, hooks).await?;
         if let Some(e) = hook_failed.borrow_mut().take() {
             return Err(e);
@@ -497,7 +497,7 @@ impl Projects {
                     &format!("Uploading {}, {}.", what.join(" and "), fmt_bytes(state_len as f64)),
                     Some((0, state_len)),
                 )?;
-                let hooks = upload_hooks(&report, None, self.ctx.scratch(entry), &hook_failed);
+                let hooks = upload_hooks(&report, None, self.ctx.scratch(entry)?, &hook_failed);
                 self.ctx.import_into(entry, state.tar.clone(), hooks).await?;
                 if let Some(e) = hook_failed.borrow_mut().take() {
                     return Err(e);

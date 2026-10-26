@@ -116,16 +116,33 @@ fn a_cursor_from_another_stream_is_a_gap() {
     })
 }
 
+// serve.ts:1176: `pass` reads the rule in a bus listener, which the TS lets a throw leave; the Rust says the failure and sends nothing.
+#[test]
+fn an_event_whose_rule_throws_is_not_sent_and_the_failure_is_said() {
+    support::block(async {
+        let rt = FakeRuntime::new();
+        rt.script.on("workspaces.seenBy", |_| -> Result<bool, HostError> { Err(HostError::new("no project p1")) });
+        let served = served_with(&rt, base(&rt));
+        let (socket, sink) = host_socket(&served).await;
+        let warned = wsp_core::console::capture();
+        request(&socket, &sink, 2, "events.subscribe", json!({})).await;
+        rt.bus.emit(&ev("ws_ok", 3));
+        assert_eq!(sink.pushes(), Vec::<Value>::new());
+        assert_eq!(warned.lines(), vec!["an event was not sent to a socket: no project p1".to_string()]);
+    })
+}
+
 // S1. serve.test.ts:1326 and the runtime's one rule: seen_by decides, shown_to words the frame
 #[test]
 fn an_event_the_caller_may_not_see_is_never_sent() {
     support::block(async {
         let rt = FakeRuntime::new();
-        rt.script.on("workspaces.seenBy", |call| -> bool { call.args["event"]["workspaceId"] != json!("ws_hidden") });
-        rt.script.on("workspaces.shownTo", |call| -> Value {
+        rt.script
+            .on("workspaces.seenBy", |call| -> Result<bool, HostError> { Ok(call.args["event"]["workspaceId"] != json!("ws_hidden")) });
+        rt.script.on("workspaces.shownTo", |call| -> Result<Value, HostError> {
             let mut shown = call.args["event"].clone();
             shown["shownTo"] = call.args["origin"].clone();
-            shown
+            Ok(shown)
         });
         rt.script.once::<Since>("events.since", since(2, vec![ev("ws_hidden", 1), ev("ws_ok", 2)], false));
         let served = served_with(&rt, base(&rt));

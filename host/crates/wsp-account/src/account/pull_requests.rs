@@ -77,7 +77,7 @@ pub trait PullRequestsCtx {
     /// `ctx.status.watched()`: a window is open.
     fn status_watched(&self) -> bool;
     async fn persist(&self, record: &WorkspaceRecord) -> AccountResult<()>;
-    async fn status_now(&self, entry: &Entry);
+    async fn status_now(&self, entry: &Entry) -> AccountResult<()>;
     /// `ctx.readCheckout(entry, force)`: the branch line, read or held.
     async fn read_checkout(&self, entry: &Entry, force: bool) -> AccountResult<Option<wsp_wire::types::changes::Checkout>>;
     /// `ctx.slates.watchesPr(id)`.
@@ -582,7 +582,7 @@ impl PullRequestsArea {
             written.clone()
         };
         self.ctx.persist(&record).await?;
-        self.ctx.status_now(entry).await;
+        self.ctx.status_now(entry).await?;
         Ok(())
     }
 
@@ -667,7 +667,7 @@ impl PullRequestsArea {
                 self.ctx.persist(&saved).await?;
             }
         }
-        self.ctx.status_now(entry).await;
+        self.ctx.status_now(entry).await?;
         self.poll_pull_request(entry, None);
         let settled = record_of(entry).pr.is_some_and(|pr| pr.state != wsp_wire::types::pull_request::PullRequestState::Open);
         if settled {

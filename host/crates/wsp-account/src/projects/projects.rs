@@ -26,7 +26,7 @@ use moves::MoveRoads;
 /// What the projects area reads off the runtime context, past `Base`.
 #[async_trait(?Send)]
 pub trait ProjectsCtx: Base + MoveRoads {
-    fn state_folder(&self) -> String;
+    fn state_folder(&self) -> Result<String, HostError>;
     fn has_state_path(&self) -> bool;
     /// `ctx.opts.seed`.
     fn seed_wiring(&self) -> Option<Rc<dyn SeedWiring>>;
@@ -67,13 +67,13 @@ pub trait ProjectsCtx: Base + MoveRoads {
     /// `ctx.rememberProject(project)`.
     async fn remember_project(&self, project: ProjectView) -> Result<(), HostError>;
     /// `ctx.projectReached(origin, id)`.
-    fn project_reached(&self, origin: Option<&Caller>, project_id: &str) -> bool;
+    fn project_reached(&self, origin: Option<&Caller>, project_id: &str) -> Result<bool, HostError>;
     /// `ctx.projectOfScope(scope)`.
     fn project_of_scope(&self, origin: Option<&Caller>) -> Option<String>;
     /// `ctx.elsewhereRefusal(origin, project, word)`.
-    fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &ProjectView, word: &str) -> Option<HostError>;
+    fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &ProjectView, word: &str) -> Result<Option<HostError>, HostError>;
     /// `ctx.ofThreadsRepository(origin, id)`.
-    fn of_threads_repository(&self, origin: Option<&Caller>, project_id: &str) -> bool;
+    fn of_threads_repository(&self, origin: Option<&Caller>, project_id: &str) -> Result<bool, HostError>;
     /// `ctx.holdsThread(workspaceId)` (folders').
     fn holds_thread(&self, workspace_id: &str) -> bool;
     /// `ctx.workspaces.delete(id, origin)`.

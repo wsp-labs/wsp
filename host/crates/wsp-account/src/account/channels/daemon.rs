@@ -350,7 +350,7 @@ impl ChannelsArea {
                 if running {
                     let machine = entry.borrow().machine.clone();
                     if matches!(machine.state().await, Ok(MachineState::Paused)) {
-                        self.ctx.adopt_pause(entry).await;
+                        self.ctx.adopt_pause(entry).await?;
                     }
                 }
                 Err(e)

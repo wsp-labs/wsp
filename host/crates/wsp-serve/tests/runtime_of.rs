@@ -666,8 +666,13 @@ fn status_list_filters_after_the_probes() {
 fn a_listing_that_throws_fails_the_status_list() {
     // U5. runtime.ts:1069 `ctx.listedFor(origin)` throws where a record's project is gone (rules.ts:174); the call rejects with it.
     block(async {
-        let ctx = Status { script: Script::new(), rows: vec![status_row("ws-a")], listed: RefCell::new(vec![]), listing_fails: Some("no project p-1") };
-        let err = status_list(&ctx, None, None).await.err().expect("the listing failed");
+        let ctx = Status {
+            script: Script::new(),
+            rows: vec![status_row("ws-a")],
+            listed: RefCell::new(vec![]),
+            listing_fails: Some("no project p-1"),
+        };
+        let err = status_list(&ctx, None, None).await.expect_err("the listing failed");
         assert_eq!(err.message, "no project p-1");
     })
 }

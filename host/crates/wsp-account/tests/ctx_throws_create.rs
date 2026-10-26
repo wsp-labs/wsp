@@ -127,7 +127,10 @@ fn ctx_throws_refusal_for_passes_through_resolve() {
         h.throws("refusal_for", "the workspace's record is not readable");
         let got = err_of(resolve(&h.ctx, "ws_theirs", Some(lead())).await);
         assert_eq!(got.message, "the workspace's record is not readable");
-        assert_eq!(h.calls(&["refusal_for", "of_threads_repository", "elsewhere_refusal", "away_for", "project_reached"]), vec!["refusal_for".to_string()]);
+        assert_eq!(
+            h.calls(&["refusal_for", "of_threads_repository", "elsewhere_refusal", "away_for", "project_reached"]),
+            vec!["refusal_for".to_string()]
+        );
     });
 }
 
@@ -142,7 +145,10 @@ fn ctx_throws_of_threads_repository_passes_through_resolve() {
         h.throws("of_threads_repository", "the repository is not readable");
         let got = err_of(resolve(&h.ctx, "ws_theirs", Some(lead())).await);
         assert_eq!(got.message, "the repository is not readable");
-        assert_eq!(h.calls(&["refusal_for", "of_threads_repository", "elsewhere_refusal", "away_for", "project_reached"]), vec!["refusal_for".to_string(), "of_threads_repository".to_string()]);
+        assert_eq!(
+            h.calls(&["refusal_for", "of_threads_repository", "elsewhere_refusal", "away_for", "project_reached"]),
+            vec!["refusal_for".to_string(), "of_threads_repository".to_string()]
+        );
     });
 }
 
@@ -157,7 +163,10 @@ fn ctx_throws_elsewhere_refusal_passes_through_resolve() {
         h.throws("elsewhere_refusal", "the folder's computer is not reachable");
         let got = err_of(resolve(&h.ctx, "ws_theirs", Some(lead())).await);
         assert_eq!(got.message, "the folder's computer is not reachable");
-        assert_eq!(h.calls(&["refusal_for", "of_threads_repository", "elsewhere_refusal", "away_for", "project_reached"]), vec!["refusal_for".to_string(), "of_threads_repository".to_string(), "elsewhere_refusal".to_string()]);
+        assert_eq!(
+            h.calls(&["refusal_for", "of_threads_repository", "elsewhere_refusal", "away_for", "project_reached"]),
+            vec!["refusal_for".to_string(), "of_threads_repository".to_string(), "elsewhere_refusal".to_string()]
+        );
     });
 }
 
@@ -172,7 +181,10 @@ fn ctx_throws_away_for_passes_through_resolve() {
         h.throws("away_for", "the workspace is away");
         let got = err_of(resolve(&h.ctx, "ws_theirs", Some(lead())).await);
         assert_eq!(got.message, "the workspace is away");
-        assert_eq!(h.calls(&["refusal_for", "of_threads_repository", "elsewhere_refusal", "away_for", "project_reached"]), vec!["refusal_for".to_string(), "of_threads_repository".to_string(), "away_for".to_string()]);
+        assert_eq!(
+            h.calls(&["refusal_for", "of_threads_repository", "elsewhere_refusal", "away_for", "project_reached"]),
+            vec!["refusal_for".to_string(), "of_threads_repository".to_string(), "away_for".to_string()]
+        );
     });
 }
 
@@ -187,6 +199,9 @@ fn ctx_throws_project_reached_passes_through_resolve() {
         h.throws("project_reached", "the thread's reach is not readable");
         let got = err_of(resolve(&h.ctx, "ws_theirs", Some(lead())).await);
         assert_eq!(got.message, "the thread's reach is not readable");
-        assert_eq!(h.calls(&["refusal_for", "of_threads_repository", "elsewhere_refusal", "away_for", "project_reached"]), vec!["refusal_for".to_string(), "of_threads_repository".to_string(), "away_for".to_string(), "project_reached".to_string()]);
+        assert_eq!(
+            h.calls(&["refusal_for", "of_threads_repository", "elsewhere_refusal", "away_for", "project_reached"]),
+            vec!["refusal_for".to_string(), "of_threads_repository".to_string(), "away_for".to_string(), "project_reached".to_string()]
+        );
     });
 }

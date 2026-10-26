@@ -158,7 +158,7 @@ pub trait ChannelsCtx {
     fn local_home_dir(&self) -> String;
     /// `ctx.localRoad()`.
     async fn local_road(&self) -> AccountResult<DaemonReachView>;
-    async fn adopt_pause(&self, entry: &Entry);
+    async fn adopt_pause(&self, entry: &Entry) -> AccountResult<()>;
     /// `ctx.opts.broker?.ready() === true`.
     fn broker_ready(&self) -> bool;
     fn root_of(&self, thread_id: &str) -> String;
@@ -203,7 +203,7 @@ pub trait ChannelsCtx {
     fn terminal_sign_in(&self, harness: &str, entry: &Entry, token: &str) -> Option<TerminalSignIn>;
     /// `terminalLine(harness, program)`: no program where the sign-in carries none, as Claude's does (brokered.ts:94-98).
     fn terminal_line(&self, harness: &str, program: Option<&str>) -> String;
-    async fn thread_folder(&self, entry: &Entry) -> String;
+    async fn thread_folder(&self, entry: &Entry) -> AccountResult<String>;
     fn thread_env(&self, entry: &Entry) -> IndexMap<String, String>;
     async fn persist(&self, record: &WorkspaceRecord) -> AccountResult<()>;
     /// `void ctx.readCheckout(entry, true)`.
