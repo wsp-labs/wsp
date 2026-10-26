@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The site's counts: PostHog's EU cloud in its cookieless mode, so nothing is written to the visitor's browser and no
-// banner is owed. It loads once the page is idle and goes to the app's project, every event marked as the site's.
+// banner is owed. It loads once the page is idle and goes to the app's project, every event marked as the site's. The
+// country comes from the site's own worker, since cookieless mode drops the address before PostHog looks it up.
 import type { PostHog } from "posthog-js";
 
 /** The project's public key, the one the app's counts go to; it is meant to sit in a page. */
@@ -12,7 +13,7 @@ export function startAnalytics(): void {
   if (import.meta.env.DEV || loaded !== undefined) return;
   loaded = new Promise(resolve => {
     const go = (): void =>
-      void import("posthog-js").then(({ default: posthog }) => {
+      void Promise.all([import("posthog-js"), fetch("/api/country").then(r => (r.ok ? r.text() : ""), () => "")]).then(([{ default: posthog }, country]) => {
         posthog.init(KEY, {
           api_host: "https://eu.i.posthog.com",
           ui_host: "https://eu.posthog.com",
@@ -20,6 +21,10 @@ export function startAnalytics(): void {
           cookieless_mode: "always",
           disable_session_recording: true,
           person_profiles: "never",
+          before_send: event => {
+            if (event !== null && country !== "") Object.assign(event.properties, { $geoip_country_code: country, $geoip_disable: true });
+            return event;
+          },
         });
         posthog.register({ surface: "site" });
         resolve(posthog);
