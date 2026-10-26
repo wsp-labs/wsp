@@ -8,7 +8,9 @@ use indexmap::IndexMap;
 use regex::Regex;
 use serde_json::{json, Value};
 use wsp_adapters::codex::limits::credits_of;
-use wsp_adapters::codex::reset::{parse_reset_credit, parse_reset_read, reset_credit_command, reset_read_command, CodexPlanResets, TOO_OLD};
+use wsp_adapters::codex::reset::{
+    parse_reset_credit, parse_reset_read, reset_credit_command, reset_read_command, CodexPlanResets, TOO_OLD,
+};
 use wsp_adapters::port::{HarnessLimit, PlanResets, ResetReading, ResetRoad, ResetSpend};
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::types::usage::{BankedResets, HarnessLimitAccount, LimitKind, LimitStatus, LimitWindow, ResetCredit, ResetCreditStatus};
@@ -69,7 +71,8 @@ mod reading_the_banked_resets {
         let script = reset_read_command(&road(&f)).unwrap();
         assert!(script.contains(&format!("CODEX_HOME='{}'", f.home)), "{script}");
         let read = parse_reset_read(&run(&script));
-        let asked: Vec<(String, Value)> = f.requests().iter().map(|r| (r["method"].as_str().unwrap().to_string(), r["params"].clone())).collect();
+        let asked: Vec<(String, Value)> =
+            f.requests().iter().map(|r| (r["method"].as_str().unwrap().to_string(), r["params"].clone())).collect();
         assert_eq!(
             asked,
             [
@@ -92,8 +95,16 @@ mod reading_the_banked_resets {
                     credits: Some(BankedResets {
                         count: 2.into(),
                         credits: Some(vec![
-                            ResetCredit { id: "rc_1".to_string(), status: ResetCreditStatus::Available, expires_at: Some(JsNumber(1_792_000_000_000.0)) },
-                            ResetCredit { id: "rc_2".to_string(), status: ResetCreditStatus::Available, expires_at: Some(JsNumber(1_793_000_000_000.0)) },
+                            ResetCredit {
+                                id: "rc_1".to_string(),
+                                status: ResetCreditStatus::Available,
+                                expires_at: Some(JsNumber(1_792_000_000_000.0))
+                            },
+                            ResetCredit {
+                                id: "rc_2".to_string(),
+                                status: ResetCreditStatus::Available,
+                                expires_at: Some(JsNumber(1_793_000_000_000.0))
+                            },
                         ]),
                     }),
                 }),
@@ -179,12 +190,19 @@ mod spending_one {
 
     #[test]
     fn reads_a_server_that_has_no_such_method_as_one_too_old_for_resets_and_any_other_r() {
-        let missing = codex_shell::fake_app_server(json!({ "account/rateLimitResetCredit/consume": { "error": { "code": -32601, "message": "Method not found" } } }));
+        let missing = codex_shell::fake_app_server(
+            json!({ "account/rateLimitResetCredit/consume": { "error": { "code": -32601, "message": "Method not found" } } }),
+        );
         let script = reset_credit_command(&road(&missing), "k-1", None).unwrap();
         assert_eq!(parse_reset_credit(&run(&script)), ResetSpend::Refused { refused: "Method not found".to_string(), too_old: true });
-        let refused = codex_shell::fake_app_server(json!({ "account/rateLimitResetCredit/consume": { "error": { "code": -32600, "message": "chatgpt authentication required" } } }));
+        let refused = codex_shell::fake_app_server(
+            json!({ "account/rateLimitResetCredit/consume": { "error": { "code": -32600, "message": "chatgpt authentication required" } } }),
+        );
         let script = reset_credit_command(&road(&refused), "k-1", None).unwrap();
-        assert_eq!(parse_reset_credit(&run(&script)), ResetSpend::Refused { refused: "chatgpt authentication required".to_string(), too_old: false });
+        assert_eq!(
+            parse_reset_credit(&run(&script)),
+            ResetSpend::Refused { refused: "chatgpt authentication required".to_string(), too_old: false }
+        );
     }
 
     #[test]
@@ -205,7 +223,10 @@ mod spending_one {
 
     #[test]
     fn kills_only_the_pid_the_shell_recorded_for_the_server_and_waits_on_no_clock() {
-        let scripts = [reset_read_command(&bare_road("/root/.codex")).unwrap(), reset_credit_command(&bare_road("/root/.codex"), "k-1", None).unwrap()];
+        let scripts = [
+            reset_read_command(&bare_road("/root/.codex")).unwrap(),
+            reset_credit_command(&bare_road("/root/.codex"), "k-1", None).unwrap(),
+        ];
         let banned = Regex::new(r#"pkill|kill[a]ll|kill -|kill "?0|\bsleep\b|\bcoproc\b"#).unwrap();
         for script in scripts {
             assert!(script.contains("kill \"$WSP_APP_SERVER_PID\""), "{script}");
@@ -250,20 +271,34 @@ mod credits_of {
 
     #[test]
     fn reads_the_count_alone_where_the_details_are_null_or_not_a_list() {
-        assert_eq!(read(json!({ "rateLimitResetCredits": { "availableCount": 2, "credits": null } })), Some(BankedResets { count: 2.into(), credits: None }));
-        assert_eq!(read(json!({ "rateLimitResetCredits": { "availableCount": 2, "credits": "two" } })), Some(BankedResets { count: 2.into(), credits: None }));
+        assert_eq!(
+            read(json!({ "rateLimitResetCredits": { "availableCount": 2, "credits": null } })),
+            Some(BankedResets { count: 2.into(), credits: None })
+        );
+        assert_eq!(
+            read(json!({ "rateLimitResetCredits": { "availableCount": 2, "credits": "two" } })),
+            Some(BankedResets { count: 2.into(), credits: None })
+        );
     }
 
     #[test]
     fn reads_each_credit_s_id_status_and_expiry_seconds_made_ms_and_an_empty_list_as_de() {
         assert_eq!(
-            read(json!({ "rateLimitResetCredits": { "availableCount": 2, "credits": [credit(json!({})), credit(json!({ "id": "rc_2", "expiresAt": null }))] } })),
+            read(
+                json!({ "rateLimitResetCredits": { "availableCount": 2, "credits": [credit(json!({})), credit(json!({ "id": "rc_2", "expiresAt": null }))] } })
+            ),
             Some(BankedResets {
                 count: 2.into(),
-                credits: Some(vec![banked("rc_1", ResetCreditStatus::Available, Some(1_792_000_000_000.0)), banked("rc_2", ResetCreditStatus::Available, None)]),
+                credits: Some(vec![
+                    banked("rc_1", ResetCreditStatus::Available, Some(1_792_000_000_000.0)),
+                    banked("rc_2", ResetCreditStatus::Available, None)
+                ]),
             })
         );
-        assert_eq!(read(json!({ "rateLimitResetCredits": { "availableCount": 0, "credits": [] } })), Some(BankedResets { count: 0.into(), credits: Some(vec![]) }));
+        assert_eq!(
+            read(json!({ "rateLimitResetCredits": { "availableCount": 0, "credits": [] } })),
+            Some(BankedResets { count: 0.into(), credits: Some(vec![]) })
+        );
     }
 
     #[test]
@@ -310,10 +345,44 @@ mod rules_added {
     #[test]
     fn a_reset_below_1e11_is_seconds_made_ms_and_anything_not_a_number_is_none() {
         // CL1; limits.ts:7, 20.
-        let reset = |at: Value| limit_of(&obj(json!({"primary": {"usedPercent": 1, "windowDurationMins": 300, "resetsAt": at}})), &LimitAccount::default(), None).unwrap().windows[0].resets_at;
-        let got: Vec<Option<JsNumber>> = [json!(99999999999_i64), json!(99999999999.9), json!(100000000000_i64), json!(0), json!(-5), json!(1.5), json!(86400.123456), json!("5"), json!(null)].into_iter().map(reset).collect();
-        let want: Vec<Option<JsNumber>> =
-            [Some(99999999999000.0), Some(99999999999900.0), Some(100000000000.0), Some(0.0), Some(-5000.0), Some(1500.0), Some(86400123.456), None, None].into_iter().map(|v| v.map(JsNumber)).collect();
+        let reset = |at: Value| {
+            limit_of(
+                &obj(json!({"primary": {"usedPercent": 1, "windowDurationMins": 300, "resetsAt": at}})),
+                &LimitAccount::default(),
+                None,
+            )
+            .unwrap()
+            .windows[0]
+                .resets_at
+        };
+        let got: Vec<Option<JsNumber>> = [
+            json!(99999999999_i64),
+            json!(99999999999.9),
+            json!(100000000000_i64),
+            json!(0),
+            json!(-5),
+            json!(1.5),
+            json!(86400.123456),
+            json!("5"),
+            json!(null),
+        ]
+        .into_iter()
+        .map(reset)
+        .collect();
+        let want: Vec<Option<JsNumber>> = [
+            Some(99999999999000.0),
+            Some(99999999999900.0),
+            Some(100000000000.0),
+            Some(0.0),
+            Some(-5000.0),
+            Some(1500.0),
+            Some(86400123.456),
+            None,
+            None,
+        ]
+        .into_iter()
+        .map(|v| v.map(JsNumber))
+        .collect();
         assert_eq!(got, want);
     }
 
@@ -348,14 +417,29 @@ mod rules_added {
     fn a_window_s_kind_cuts_at_300_and_10080_minutes_and_any_reached_type_but_null_is_reached() {
         // CL3; limits.ts:45-70. A minutes value that is not a number takes the slot's fallback (300 for primary); a
         // negative percent is a window; an empty plan is a plan.
-        let kind = |mins: Value| limit_of(&obj(json!({"primary": {"usedPercent": -3.5, "windowDurationMins": mins}})), &LimitAccount::default(), None).unwrap().windows[0].clone();
-        let kinds: Vec<LimitKind> = [json!(0), json!(-5), json!(299), json!(300), json!(300.5), json!(301), json!(10080), json!(10080.5), json!(null), json!("5")].into_iter().map(|m| kind(m).kind).collect();
+        let kind = |mins: Value| {
+            limit_of(&obj(json!({"primary": {"usedPercent": -3.5, "windowDurationMins": mins}})), &LimitAccount::default(), None)
+                .unwrap()
+                .windows[0]
+                .clone()
+        };
+        let kinds: Vec<LimitKind> =
+            [json!(0), json!(-5), json!(299), json!(300), json!(300.5), json!(301), json!(10080), json!(10080.5), json!(null), json!("5")]
+                .into_iter()
+                .map(|m| kind(m).kind)
+                .collect();
         use LimitKind::*;
         assert_eq!(kinds, [Session, Session, Session, Session, Week, Week, Week, Month, Session, Session]);
         assert_eq!(kind(json!(0)).used_percent, JsNumber(-3.5));
         let pro = LimitAccount { plan: Some("pro".into()), ..Default::default() };
-        for (reached, status) in [(json!(""), LimitStatus::Reached), (json!(false), LimitStatus::Reached), (json!(0), LimitStatus::Reached), (json!(null), LimitStatus::Ok)] {
-            let limit = limit_of(&obj(json!({"primary": {"usedPercent": 1}, "planType": "", "rateLimitReachedType": reached})), &pro, None).unwrap();
+        for (reached, status) in [
+            (json!(""), LimitStatus::Reached),
+            (json!(false), LimitStatus::Reached),
+            (json!(0), LimitStatus::Reached),
+            (json!(null), LimitStatus::Ok),
+        ] {
+            let limit = limit_of(&obj(json!({"primary": {"usedPercent": 1}, "planType": "", "rateLimitReachedType": reached})), &pro, None)
+                .unwrap();
             assert_eq!((limit.plan.as_deref(), limit.status), (Some(""), Some(status)), "{reached}");
         }
     }

@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 
-use futures::future::{LocalBoxFuture, FutureExt};
+use futures::future::{FutureExt, LocalBoxFuture};
 use indexmap::IndexSet;
 use serde_json::{json, Map, Value};
 
@@ -20,10 +20,17 @@ use wsp_adapters::claude::adapter::AdapterDeps;
 use wsp_adapters::claude::catalog::{catalog_probe_command, parse_catalog_probe};
 use wsp_adapters::claude::conversations::{keys_for, live_command, origin_of, parse_live, PROGRAMMATIC_ENTRYPOINTS};
 use wsp_adapters::claude::landmines::{build_command, build_env, BaseEnv, BuildCommandOptions, ClaudeEnvOptions};
-use wsp_adapters::claude::session_title::{draft_for_command, parse_draft_for, parse_rename, parse_session_title, parse_title_for, rename_command, session_title_command, title_for_command};
+use wsp_adapters::claude::session_title::{
+    draft_for_command, parse_draft_for, parse_rename, parse_session_title, parse_title_for, rename_command, session_title_command,
+    title_for_command,
+};
 use wsp_adapters::claude::{create_claude_adapter, ClaudeAdapter};
 use wsp_adapters::pending::title_prompt;
-use wsp_adapters::port::{ConversationEarlier, ConversationLine, ConversationOrigin, ConversationRoad, DraftAsk, EarlierAsk, EarlierRead, Env, ExecFailure, ExecFailureKind, ExecOptions, ExecStream, ExecStreamFactory, HarnessCatalogModelProbe, HarnessExec, HarnessStartOptions, SessionRenameWrite, StoredConversation, TitleTurn};
+use wsp_adapters::port::{
+    ConversationEarlier, ConversationLine, ConversationOrigin, ConversationRoad, DraftAsk, EarlierAsk, EarlierRead, Env, ExecFailure,
+    ExecFailureKind, ExecOptions, ExecStream, ExecStreamFactory, HarnessCatalogModelProbe, HarnessExec, HarnessStartOptions,
+    SessionRenameWrite, StoredConversation, TitleTurn,
+};
 use wsp_wire::types::shell_quote::ENV_FROM_INPUT;
 
 const SEP: &str = "__WSP_CATALOG_SEP__";
@@ -165,7 +172,12 @@ fn rename_to(config_dir: &str, session_id: &str, title: &str) -> SessionRenameWr
 }
 
 fn session_lines(config_dir: &str) -> Vec<String> {
-    std::fs::read_to_string(format!("{config_dir}/projects/-root-work-proj/{SESSION}.jsonl")).unwrap().split('\n').filter(|l| !l.is_empty()).map(String::from).collect()
+    std::fs::read_to_string(format!("{config_dir}/projects/-root-work-proj/{SESSION}.jsonl"))
+        .unwrap()
+        .split('\n')
+        .filter(|l| !l.is_empty())
+        .map(String::from)
+        .collect()
 }
 
 fn model<'a>(models: &'a [HarnessCatalogModelProbe], slug: &str) -> &'a HarnessCatalogModelProbe {
@@ -182,7 +194,12 @@ async fn probe_reads_base_env_off_its_input_and_carries_no_value_in_its_words() 
 }
 
 async fn probe_reads_base_env_off_its_input_and_carries_no_value_in_its_words_body() {
-    let adapter = adapter(Arc::new(NoTurns), "/root/.claude-cfg", Some(base(&[("PATH", "/root/.local/bin:/usr/bin"), ("CLAUDECODE", "1"), ("GATEWAY_TOKEN", "tok-x")])), None);
+    let adapter = adapter(
+        Arc::new(NoTurns),
+        "/root/.claude-cfg",
+        Some(base(&[("PATH", "/root/.local/bin:/usr/bin"), ("CLAUDECODE", "1"), ("GATEWAY_TOKEN", "tok-x")])),
+        None,
+    );
     let (asked, exec) = recording_exec("");
     adapter.probe_catalog(exec).await.unwrap();
     let asked = asked.lock().unwrap().clone();
@@ -219,7 +236,11 @@ fn probe_asks_for_version_help_and_one_initialize_handshake_never_a_prompt() {
 fn probe_runs_under_the_config_dir_with_every_nesting_mark_gone() {
     let scratch = Scratch::new("probe_runs_under_config_dir");
     let bin = scratch.fake_claude("bin", "cat >/dev/null; echo CALL; env");
-    let input: String = build_env(&ClaudeEnvOptions { base: Some(base(&[("CLAUDE_CONFIG_DIR", "/root/.claude-cfg")])), ..Default::default() }).iter().map(|(k, v)| format!("{k}={v}\0")).collect();
+    let input: String =
+        build_env(&ClaudeEnvOptions { base: Some(base(&[("CLAUDE_CONFIG_DIR", "/root/.claude-cfg")])), ..Default::default() })
+            .iter()
+            .map(|(k, v)| format!("{k}={v}\0"))
+            .collect();
     let env = vec![
         ("PATH".to_string(), format!("{bin}:/usr/bin:/bin")),
         ("HOME".to_string(), scratch.text("")),
@@ -231,7 +252,12 @@ fn probe_runs_under_the_config_dir_with_every_nesting_mark_gone() {
     let lines: Vec<&str> = out.lines().collect();
     assert_eq!(lines.iter().filter(|l| **l == "CALL").count(), 3);
     assert_eq!(lines.iter().filter(|l| **l == "CLAUDE_CONFIG_DIR=/root/.claude-cfg").count(), 3);
-    assert!(!lines.iter().any(|l| l.starts_with("CLAUDECODE=") || l.starts_with("CLAUDE_CODE_ENTRYPOINT=") || l.starts_with("FORCE_CODE_TERMINAL=")), "{out}");
+    assert!(
+        !lines
+            .iter()
+            .any(|l| l.starts_with("CLAUDECODE=") || l.starts_with("CLAUDE_CODE_ENTRYPOINT=") || l.starts_with("FORCE_CODE_TERMINAL=")),
+        "{out}"
+    );
     assert_eq!(lines.iter().filter(|l| **l == "CLAUDE_CODE_AUTO_CONNECT_IDE=0").count(), 3);
 }
 
@@ -240,7 +266,10 @@ fn probe_runs_under_the_config_dir_with_every_nesting_mark_gone() {
 fn parse_catalog_reads_version_models_effort_levels_1m_variants_and_flag_choices() {
     let probe = parse_catalog_probe(&fixture("catalog-probe.txt")).expect("a probe");
     assert_eq!(probe.version.as_deref(), Some("2.1.257"));
-    assert_eq!(probe.models.iter().map(|m| m.slug.as_str()).collect::<Vec<_>>(), ["claude-opus-5", "claude-fable-5-1", "claude-sonnet-5", "claude-haiku-4-5-20251001"]);
+    assert_eq!(
+        probe.models.iter().map(|m| m.slug.as_str()).collect::<Vec<_>>(),
+        ["claude-opus-5", "claude-fable-5-1", "claude-sonnet-5", "claude-haiku-4-5-20251001"]
+    );
     assert_eq!(probe.models.iter().map(|m| m.label.as_str()).collect::<Vec<_>>(), ["Opus", "Fable", "Sonnet", "Haiku"]);
     let all = strings(&["low", "medium", "high", "xhigh", "max"]);
     let opus = model(&probe.models, "claude-opus-5");
@@ -264,7 +293,10 @@ fn parse_catalog_reads_version_models_effort_levels_1m_variants_and_flag_choices
 fn parse_catalog_reads_the_pinned_versions_recording() {
     let probe = parse_catalog_probe(&fixture("catalog-probe-2.1.296.txt")).expect("a probe");
     assert_eq!(probe.version.as_deref(), Some("2.1.296"));
-    assert_eq!(probe.models.iter().map(|m| m.slug.as_str()).collect::<Vec<_>>(), ["claude-opus-5-5", "claude-fable-5-1", "claude-sonnet-5-5", "claude-haiku-5-5"]);
+    assert_eq!(
+        probe.models.iter().map(|m| m.slug.as_str()).collect::<Vec<_>>(),
+        ["claude-opus-5-5", "claude-fable-5-1", "claude-sonnet-5-5", "claude-haiku-5-5"]
+    );
     assert_eq!(probe.models.iter().filter(|m| m.is_default).map(|m| m.slug.as_str()).collect::<Vec<_>>(), ["claude-opus-5-5"]);
     assert_eq!(probe.models.iter().map(|m| m.context_windows.clone()).collect::<Vec<_>>(), vec![Vec::<String>::new(); 4]);
     let all = strings(&["low", "medium", "high", "xhigh", "max"]);
@@ -284,7 +316,10 @@ fn parse_catalog_is_none_without_initialize_and_tolerates_missing_version_or_hel
     assert_eq!(bare.efforts, Vec::<String>::new());
     assert_eq!(bare.permission_modes, strings(&["default"]));
     assert_eq!(bare.models.len(), 4);
-    assert_eq!(bare.models.iter().map(|m| m.slug.as_str()).collect::<Vec<_>>(), ["claude-opus-5", "claude-fable-5-1", "claude-sonnet-5", "claude-haiku-4-5-20251001"]);
+    assert_eq!(
+        bare.models.iter().map(|m| m.slug.as_str()).collect::<Vec<_>>(),
+        ["claude-opus-5", "claude-fable-5-1", "claude-sonnet-5", "claude-haiku-4-5-20251001"]
+    );
 }
 
 // TS: catalog.test.ts:114
@@ -296,7 +331,10 @@ fn parse_catalog_ignores_hook_chatter_and_a_response_without_models() {
     let noisy = format!("{version}{SEP}{help}{SEP}\n{{\"type\":\"system\",\"subtype\":\"hook_started\"}}\n{}\n", init.trim());
     let probe = parse_catalog_probe(&noisy).expect("a probe");
     assert_eq!(probe.models.len(), 4);
-    assert_eq!(probe.models.iter().map(|m| m.slug.as_str()).collect::<Vec<_>>(), ["claude-opus-5", "claude-fable-5-1", "claude-sonnet-5", "claude-haiku-4-5-20251001"]);
+    assert_eq!(
+        probe.models.iter().map(|m| m.slug.as_str()).collect::<Vec<_>>(),
+        ["claude-opus-5", "claude-fable-5-1", "claude-sonnet-5", "claude-haiku-4-5-20251001"]
+    );
     let empty = format!("{version}{SEP}{help}{SEP}\n{{\"type\":\"control_response\",\"response\":{{\"subtype\":\"success\",\"request_id\":\"init\",\"response\":{{\"commands\":[]}}}}}}\n");
     assert_eq!(parse_catalog_probe(&empty), None);
 }
@@ -307,7 +345,9 @@ fn parse_catalog_ignores_hook_chatter_and_a_response_without_models() {
 // TS: session-title.test.ts:49
 #[tokio::test]
 async fn title_comes_out_of_the_session_file_the_persons_rename_beating_a_later_generated_title() {
-    tokio::task::LocalSet::new().run_until(title_comes_out_of_the_session_file_the_persons_rename_beating_a_later_generated_title_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(title_comes_out_of_the_session_file_the_persons_rename_beating_a_later_generated_title_body())
+        .await
 }
 
 async fn title_comes_out_of_the_session_file_the_persons_rename_beating_a_later_generated_title_body() {
@@ -393,11 +433,18 @@ async fn title_for_sends_the_question_on_stdin_and_reads_the_print_mode_result_b
 // TS: session-title.test.ts:107
 #[tokio::test]
 async fn title_for_and_draft_for_run_under_the_logins_config_dir_after_the_nesting_marks_are_dropped() {
-    tokio::task::LocalSet::new().run_until(title_for_and_draft_for_run_under_the_logins_config_dir_after_the_nesting_marks_are_dropped_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(title_for_and_draft_for_run_under_the_logins_config_dir_after_the_nesting_marks_are_dropped_body())
+        .await
 }
 
 async fn title_for_and_draft_for_run_under_the_logins_config_dir_after_the_nesting_marks_are_dropped_body() {
-    let adapter = adapter(Arc::new(NoTurns), "/root/.claude-cfg", Some(base(&[("CLAUDE_CONFIG_DIR", "/root/it's here"), ("CLAUDE_CODE_ENTRYPOINT", "cli"), ("PATH", "/bin")])), None);
+    let adapter = adapter(
+        Arc::new(NoTurns),
+        "/root/.claude-cfg",
+        Some(base(&[("CLAUDE_CONFIG_DIR", "/root/it's here"), ("CLAUDE_CODE_ENTRYPOINT", "cli"), ("PATH", "/bin")])),
+        None,
+    );
     let (asked, exec) = recording_exec("");
     adapter.title_for(TitleTurn { opening: "name it".to_string(), ..Default::default() }, exec.clone()).await.unwrap();
     adapter.draft_for(DraftAsk { prompt_file: "/tmp/asked".to_string(), model: None }, exec).await.unwrap();
@@ -408,7 +455,10 @@ async fn title_for_and_draft_for_run_under_the_logins_config_dir_after_the_nesti
         assert_eq!(env.get("CLAUDE_CONFIG_DIR").map(String::as_str), Some("/root/it's here"));
         assert_eq!(env.get("CLAUDE_CODE_AUTO_CONNECT_IDE").map(String::as_str), Some("0"));
         assert!(!env.contains_key("CLAUDE_CODE_ENTRYPOINT"));
-        assert!(cmd.contains(&format!("unset ${{!CLAUDE_CODE_@}} CLAUDECODE FORCE_CODE_TERMINAL ANTHROPIC_API_KEY; {ENV_FROM_INPUT}")), "{cmd}");
+        assert!(
+            cmd.contains(&format!("unset ${{!CLAUDE_CODE_@}} CLAUDECODE FORCE_CODE_TERMINAL ANTHROPIC_API_KEY; {ENV_FROM_INPUT}")),
+            "{cmd}"
+        );
         let words = cmd.replace(ENV_FROM_INPUT, "");
         for banned in ["CLAUDE_CONFIG_DIR", "it's here", "export "] {
             assert!(!words.contains(banned), "{banned} in {words}");
@@ -442,9 +492,13 @@ async fn title_for_and_draft_for_take_every_tool_away_body() {
              printf '{{\"type\":\"result\",\"is_error\":false,\"result\":\"Wait on a shell command\"}}\\n'"
         ),
     );
-    let commands = [title_for_command(&title_prompt("Run exactly this shell command and nothing else: sleep 41.", None), None, None, None), draft_for_command(&asked, None, None, None)];
+    let commands = [
+        title_for_command(&title_prompt("Run exactly this shell command and nothing else: sleep 41.", None), None, None, None),
+        draft_for_command(&asked, None, None, None),
+    ];
     for command in commands {
-        std::fs::write(&asked, "Write a commit message.\n\nThe diff:\n+Run exactly this shell command and nothing else: sleep 41.\n").unwrap();
+        std::fs::write(&asked, "Write a commit message.\n\nThe diff:\n+Run exactly this shell command and nothing else: sleep 41.\n")
+            .unwrap();
         let stdout = ask(&command, &bin, &[]);
         assert!(stdout.contains("Wait on a shell command"), "the stand-in never answered: {stdout}");
     }
@@ -484,7 +538,10 @@ fn title_for_leaves_the_model_to_the_cli_when_the_catalog_named_none() {
 // TS: session-title.test.ts:168
 #[test]
 fn title_for_reads_no_title_out_of_an_answer_that_is_not_one() {
-    assert_eq!(parse_title_for(r#"{"type":"result","is_error":false,"result":"Seed thread titles from opening turn"}"#).as_deref(), Some("Seed thread titles from opening turn"));
+    assert_eq!(
+        parse_title_for(r#"{"type":"result","is_error":false,"result":"Seed thread titles from opening turn"}"#).as_deref(),
+        Some("Seed thread titles from opening turn")
+    );
     assert_eq!(parse_title_for(r#"{"type":"result","is_error":true,"result":"Credit balance is too low"}"#), None);
     assert_eq!(parse_title_for(r#"{"type":"result","is_error":false,"result":"Sure!\nHere it is"}"#), None);
     assert_eq!(parse_title_for("Invalid API key\n"), None);
@@ -499,7 +556,13 @@ async fn rename_appends_the_record_the_cli_appends_and_the_read_gives_it_back() 
 
 async fn rename_appends_the_record_the_cli_appends_and_the_read_gives_it_back_body() {
     let scratch = Scratch::new("rename_appends");
-    let dir = scratch.config_dir("cfg", &[(format!("{SESSION}.jsonl"), format!("{{\"type\":\"ai-title\",\"aiTitle\":\"Understanding the build\",\"sessionId\":\"{SESSION}\"}}\n"))]);
+    let dir = scratch.config_dir(
+        "cfg",
+        &[(
+            format!("{SESSION}.jsonl"),
+            format!("{{\"type\":\"ai-title\",\"aiTitle\":\"Understanding the build\",\"sessionId\":\"{SESSION}\"}}\n"),
+        )],
+    );
     assert_eq!(rename_to(&dir, SESSION, "the name he typed in wsp"), SessionRenameWrite::Written);
     let lines = session_lines(&dir);
     assert_eq!(lines.len(), 2);
@@ -534,7 +597,8 @@ async fn rename_closes_a_half_written_last_line_rather_than_being_swallowed_by_i
 
 async fn rename_closes_a_half_written_last_line_rather_than_being_swallowed_by_it_body() {
     let scratch = Scratch::new("rename_half_written_line");
-    let content = format!("{{\"type\":\"ai-title\",\"aiTitle\":\"Understanding the build\",\"sessionId\":\"{SESSION}\"}}\n{{\"type\":\"assis");
+    let content =
+        format!("{{\"type\":\"ai-title\",\"aiTitle\":\"Understanding the build\",\"sessionId\":\"{SESSION}\"}}\n{{\"type\":\"assis");
     let dir = scratch.config_dir("cfg", &[(format!("{SESSION}.jsonl"), content)]);
     assert_eq!(rename_to(&dir, SESSION, "the name"), SessionRenameWrite::Written);
     let lines = session_lines(&dir);
@@ -574,7 +638,9 @@ async fn rename_says_failed_with_the_machines_own_line_when_the_append_cannot_ru
 // TS: session-title.test.ts:217
 #[tokio::test]
 async fn rename_quotes_the_dir_and_id_and_a_name_that_reads_as_shell_lands_as_the_bytes_it_is() {
-    tokio::task::LocalSet::new().run_until(rename_quotes_the_dir_and_id_and_a_name_that_reads_as_shell_lands_as_the_bytes_it_is_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(rename_quotes_the_dir_and_id_and_a_name_that_reads_as_shell_lands_as_the_bytes_it_is_body())
+        .await
 }
 
 async fn rename_quotes_the_dir_and_id_and_a_name_that_reads_as_shell_lands_as_the_bytes_it_is_body() {
@@ -601,7 +667,9 @@ fn parse_rename_reads_an_unknown_stdout_as_a_failure_carrying_what_was_said() {
 // TS: session-title.test.ts:236
 #[tokio::test]
 async fn draft_for_reads_the_question_from_the_file_on_stdin_with_no_tool_and_answers_the_result_whole() {
-    tokio::task::LocalSet::new().run_until(draft_for_reads_the_question_from_the_file_on_stdin_with_no_tool_and_answers_the_result_whole_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(draft_for_reads_the_question_from_the_file_on_stdin_with_no_tool_and_answers_the_result_whole_body())
+        .await
 }
 
 async fn draft_for_reads_the_question_from_the_file_on_stdin_with_no_tool_and_answers_the_result_whole_body() {
@@ -668,7 +736,9 @@ fn id_set(ids: &[&str]) -> IndexSet<String> {
 // TS: conversations.test.ts:53
 #[tokio::test]
 async fn list_comes_off_transcripts_list_under_the_turns_store_in_the_folders_keys_and_the_pinned_one() {
-    tokio::task::LocalSet::new().run_until(list_comes_off_transcripts_list_under_the_turns_store_in_the_folders_keys_and_the_pinned_one_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(list_comes_off_transcripts_list_under_the_turns_store_in_the_folders_keys_and_the_pinned_one_body())
+        .await
 }
 
 async fn list_comes_off_transcripts_list_under_the_turns_store_in_the_folders_keys_and_the_pinned_one_body() {
@@ -685,12 +755,33 @@ async fn list_comes_off_transcripts_list_under_the_turns_store_in_the_folders_ke
         "[]",
     );
     let rows = adapter.conversations().list(strings(&["/work/acme/lab", "/work/acme/lab-wt"]), r.road.clone()).await.unwrap();
-    assert_eq!(r.frames(), json!([{"op": "transcripts.list", "root": "/home/dev/.config/claude/projects", "dirs": ["-work-acme-lab", "-work-acme-lab-wt"], "cwds": ["/work/acme/lab", "/work/acme/lab-wt"]}]));
+    assert_eq!(
+        r.frames(),
+        json!([{"op": "transcripts.list", "root": "/home/dev/.config/claude/projects", "dirs": ["-work-acme-lab", "-work-acme-lab-wt"], "cwds": ["/work/acme/lab", "/work/acme/lab-wt"]}])
+    );
     assert_eq!(
         rows,
         vec![
-            StoredConversation { id: ID.to_string(), title: "lab codewords".to_string(), first_prompt: Some("Remember ALPHA.".to_string()), branch: Some("feat/x".to_string()), cwd: "/work/acme/lab".to_string(), last_at: 1_791_673_566_000.0, bytes: Some(209_753.0), origin: ConversationOrigin::Terminal },
-            StoredConversation { id: NEW.to_string(), title: NEW.to_string(), first_prompt: None, branch: None, cwd: "/work/acme/lab-wt".to_string(), last_at: 1_791_673_570_000.0, bytes: Some(1_024.0), origin: ConversationOrigin::Script },
+            StoredConversation {
+                id: ID.to_string(),
+                title: "lab codewords".to_string(),
+                first_prompt: Some("Remember ALPHA.".to_string()),
+                branch: Some("feat/x".to_string()),
+                cwd: "/work/acme/lab".to_string(),
+                last_at: 1_791_673_566_000.0,
+                bytes: Some(209_753.0),
+                origin: ConversationOrigin::Terminal
+            },
+            StoredConversation {
+                id: NEW.to_string(),
+                title: NEW.to_string(),
+                first_prompt: None,
+                branch: None,
+                cwd: "/work/acme/lab-wt".to_string(),
+                last_at: 1_791_673_570_000.0,
+                bytes: Some(1_024.0),
+                origin: ConversationOrigin::Script
+            },
         ]
     );
 }
@@ -721,7 +812,8 @@ async fn live_is_open_where_claude_agents_json_names_the_session_under_the_turns
 }
 
 async fn live_is_open_where_claude_agents_json_names_the_session_under_the_turns_environment_body() {
-    let adapter = adapter(recorded(), "/home/dev/.claude", Some(base(&[("PATH", "/usr/bin"), ("CLAUDE_CONFIG_DIR", "/home/dev/.claude")])), None);
+    let adapter =
+        adapter(recorded(), "/home/dev/.claude", Some(base(&[("PATH", "/usr/bin"), ("CLAUDE_CONFIG_DIR", "/home/dev/.claude")])), None);
     let agents = json!([{"pid": 30886, "cwd": "/work/acme/lab", "kind": "interactive", "startedAt": 1, "sessionId": ID, "name": "lab codewords", "status": "idle"}]).to_string();
     let r = road(json!({}), &agents);
     let live = adapter.conversations().live(r.road.clone()).expect("live is offered").await;
@@ -745,8 +837,12 @@ async fn live_is_none_where_the_command_answers_no_list_body() {
     assert_eq!(parse_live(r#"{"not":"a list"}"#), None);
     assert_eq!(parse_live("[]"), Some(IndexSet::new()));
     let adapter = adapter(recorded(), "/home/dev/.claude", None, None);
-    let exec = |_command: &str, _env: Option<&Env>| -> LocalBoxFuture<'static, Result<String, ExecFailure>> { async { Err(ExecFailure { kind: ExecFailureKind::Other, message: "exit 127".to_string() }) }.boxed_local() };
-    let ask = |_frame: Map<String, Value>| -> LocalBoxFuture<'static, Result<Map<String, Value>, ExecFailure>> { async { Ok(Map::new()) }.boxed_local() };
+    let exec = |_command: &str, _env: Option<&Env>| -> LocalBoxFuture<'static, Result<String, ExecFailure>> {
+        async { Err(ExecFailure { kind: ExecFailureKind::Other, message: "exit 127".to_string() }) }.boxed_local()
+    };
+    let ask = |_frame: Map<String, Value>| -> LocalBoxFuture<'static, Result<Map<String, Value>, ExecFailure>> {
+        async { Ok(Map::new()) }.boxed_local()
+    };
     let failing = ConversationRoad { exec: Arc::new(exec), ask: Arc::new(ask) };
     assert_eq!(adapter.conversations().live(failing).expect("live is offered").await, None);
 }
@@ -754,7 +850,9 @@ async fn live_is_none_where_the_command_answers_no_list_body() {
 // TS: conversations.test.ts:101
 #[tokio::test]
 async fn earlier_reads_one_conversation_off_transcripts_read_and_is_gone_where_no_folder_holds_it() {
-    tokio::task::LocalSet::new().run_until(earlier_reads_one_conversation_off_transcripts_read_and_is_gone_where_no_folder_holds_it_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(earlier_reads_one_conversation_off_transcripts_read_and_is_gone_where_no_folder_holds_it_body())
+        .await
 }
 
 async fn earlier_reads_one_conversation_off_transcripts_read_and_is_gone_where_no_folder_holds_it_body() {
@@ -772,13 +870,21 @@ async fn earlier_reads_one_conversation_off_transcripts_read_and_is_gone_where_n
             title: Some("lab codewords".to_string()),
             lines: vec![
                 ConversationLine { who: "person".to_string(), text: "hi".to_string(), tool: None, at: Some(1791848679454.0) },
-                ConversationLine { who: "tool".to_string(), text: "{\"command\":\"ls\"}".to_string(), tool: Some("Bash".to_string()), at: Some(1791848681000.0) },
+                ConversationLine {
+                    who: "tool".to_string(),
+                    text: "{\"command\":\"ls\"}".to_string(),
+                    tool: Some("Bash".to_string()),
+                    at: Some(1791848681000.0)
+                },
                 ConversationLine { who: "agent".to_string(), text: "done".to_string(), tool: None, at: None },
             ],
             earlier: 4,
         })
     );
-    assert_eq!(found.frames(), json!([{"op": "transcripts.read", "root": "/home/dev/.claude/projects", "dirs": ["-work-acme-lab"], "session": ID, "last": 200}]));
+    assert_eq!(
+        found.frames(),
+        json!([{"op": "transcripts.read", "root": "/home/dev/.claude/projects", "dirs": ["-work-acme-lab"], "session": ID, "last": 200}])
+    );
     let missing = road(json!({"transcripts.read": {"found": false, "messages": [], "earlier": 0}}), "[]");
     assert_eq!(adapter.conversations().earlier(ID.to_string(), ask, missing.road.clone()).await.unwrap(), EarlierRead::Gone);
 }
@@ -796,15 +902,25 @@ async fn earlier_asks_the_daemon_for_the_end_of_the_file_alone_where_the_read_na
     let read = adapter.conversations().earlier(ID.to_string(), ask, found.road.clone()).await.unwrap();
     assert_eq!(
         read,
-        EarlierRead::Read(ConversationEarlier { cwd: None, title: None, lines: vec![ConversationLine { who: "agent".to_string(), text: "done".to_string(), tool: None, at: None }], earlier: 0 })
+        EarlierRead::Read(ConversationEarlier {
+            cwd: None,
+            title: None,
+            lines: vec![ConversationLine { who: "agent".to_string(), text: "done".to_string(), tool: None, at: None }],
+            earlier: 0
+        })
     );
-    assert_eq!(found.frames(), json!([{"op": "transcripts.read", "root": "/home/dev/.claude/projects", "dirs": ["-work-acme-lab"], "session": ID, "last": 4, "tail": 262144}]));
+    assert_eq!(
+        found.frames(),
+        json!([{"op": "transcripts.read", "root": "/home/dev/.claude/projects", "dirs": ["-work-acme-lab"], "session": ID, "last": 4, "tail": 262144}])
+    );
 }
 
 // TS: conversations.test.ts:121
 #[tokio::test]
 async fn list_of_more_than_64_folders_asks_in_frames_of_at_most_64_and_keeps_the_newest_of_an_id() {
-    tokio::task::LocalSet::new().run_until(list_of_more_than_64_folders_asks_in_frames_of_at_most_64_and_keeps_the_newest_of_an_id_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(list_of_more_than_64_folders_asks_in_frames_of_at_most_64_and_keeps_the_newest_of_an_id_body())
+        .await
 }
 
 async fn list_of_more_than_64_folders_asks_in_frames_of_at_most_64_and_keeps_the_newest_of_an_id_body() {
@@ -833,11 +949,16 @@ async fn list_of_more_than_64_folders_asks_in_frames_of_at_most_64_and_keeps_the
 // TS: conversations.test.ts:145
 #[test]
 fn copy_is_a_new_session_the_cli_starts_off_the_original_with_fork_session() {
-    let line = build_command(&BuildCommandOptions { session_id: Some(NEW.to_string()), copy_of: Some(ID.to_string()), ..Default::default() }).unwrap();
+    let line =
+        build_command(&BuildCommandOptions { session_id: Some(NEW.to_string()), copy_of: Some(ID.to_string()), ..Default::default() })
+            .unwrap();
     assert!(line.contains(&format!("--session-id {NEW} --resume {ID} --fork-session")), "{line}");
-    let both = build_command(&BuildCommandOptions { resume: Some(ID.to_string()), copy_of: Some(NEW.to_string()), ..Default::default() }).unwrap_err();
+    let both = build_command(&BuildCommandOptions { resume: Some(ID.to_string()), copy_of: Some(NEW.to_string()), ..Default::default() })
+        .unwrap_err();
     assert!(both.0.contains("a copy opens a new session"), "{both}");
-    let not_an_id = build_command(&BuildCommandOptions { session_id: Some(NEW.to_string()), copy_of: Some("x".to_string()), ..Default::default() }).unwrap_err();
+    let not_an_id =
+        build_command(&BuildCommandOptions { session_id: Some(NEW.to_string()), copy_of: Some("x".to_string()), ..Default::default() })
+            .unwrap_err();
     assert!(not_an_id.0.contains("a copy opens a new session"), "{not_an_id}");
 }
 
@@ -851,7 +972,15 @@ async fn copy_runs_under_an_id_of_wsps_with_no_name_and_no_saved_spend_read_off_
     let exec = recorded();
     let adapter = adapter(exec.clone(), "/home/dev/.claude", None, None);
     let (_events, on_event) = collect();
-    let session = adapter.start(HarnessStartOptions { prompt: "go on".to_string(), resume: Some(ID.to_string()), copy: true, on_event: Some(on_event), ..Default::default() }).unwrap();
+    let session = adapter
+        .start(HarnessStartOptions {
+            prompt: "go on".to_string(),
+            resume: Some(ID.to_string()),
+            copy: true,
+            on_event: Some(on_event),
+            ..Default::default()
+        })
+        .unwrap();
     session.finished().await;
     let command = exec.calls()[0].command.clone();
     let local_id = session.local_id();
@@ -871,7 +1000,16 @@ async fn plain_resume_resumes_the_original_by_its_id_and_never_forks_body() {
     let exec = recorded();
     let adapter = adapter(exec.clone(), "/home/dev/.claude", None, None);
     let (_events, on_event) = collect();
-    adapter.start(HarnessStartOptions { prompt: "go on".to_string(), resume: Some(ID.to_string()), on_event: Some(on_event), ..Default::default() }).unwrap().finished().await;
+    adapter
+        .start(HarnessStartOptions {
+            prompt: "go on".to_string(),
+            resume: Some(ID.to_string()),
+            on_event: Some(on_event),
+            ..Default::default()
+        })
+        .unwrap()
+        .finished()
+        .await;
     let command = exec.calls()[0].command.clone();
     assert!(command.contains(&format!("--resume {ID}")), "{command}");
     assert!(!command.contains("--fork-session"), "{command}");
@@ -913,7 +1051,10 @@ fn a_rename_reads_its_answer_line_by_line() {
 // Rule S3: a title is blank by JS trim: U+FEFF alone is blank, so the generated title stands; U+0085 is a title.
 #[test]
 fn a_title_is_blank_by_javascript_trim() {
-    let custom = |t: &str| [json!({"type": "custom-title", "customTitle": t}).to_string(), json!({"type": "ai-title", "aiTitle": "gen"}).to_string()].join("\n");
+    let custom = |t: &str| {
+        [json!({"type": "custom-title", "customTitle": t}).to_string(), json!({"type": "ai-title", "aiTitle": "gen"}).to_string()]
+            .join("\n")
+    };
     assert_eq!(parse_session_title(&custom("\u{FEFF}")), Some("gen".into()));
     assert_eq!(parse_session_title(&custom("\u{85}")), Some("\u{85}".into()));
 }
@@ -929,7 +1070,8 @@ fn folder_keys_count_utf16_units() {
 // Rule S5: runs of at most 64, in order.
 #[test]
 fn runs_hold_at_most_64() {
-    let sizes = |n: usize| wsp_adapters::claude::conversations::runs_of(&(0..n).collect::<Vec<_>>()).iter().map(Vec::len).collect::<Vec<_>>();
+    let sizes =
+        |n: usize| wsp_adapters::claude::conversations::runs_of(&(0..n).collect::<Vec<_>>()).iter().map(Vec::len).collect::<Vec<_>>();
     assert_eq!([0, 1, 64, 65, 128, 129].map(sizes).to_vec(), vec![vec![], vec![1], vec![64], vec![64, 1], vec![64, 64], vec![64, 64, 1]]);
 }
 
@@ -938,7 +1080,10 @@ fn runs_hold_at_most_64() {
 #[test]
 fn the_live_list_reads_only_a_whole_array() {
     let read = |s: &str| parse_live(s).map(|set| set.into_iter().collect::<Vec<_>>());
-    assert_eq!(read(r#"[{"sessionId":"a"},{"sessionId":""},{"sessionId":1},null,[1],{"sessionId":"a"},"x",{"sessionId":"b"}]"#), Some(vec!["a".to_string(), "b".to_string()]));
+    assert_eq!(
+        read(r#"[{"sessionId":"a"},{"sessionId":""},{"sessionId":1},null,[1],{"sessionId":"a"},"x",{"sessionId":"b"}]"#),
+        Some(vec!["a".to_string(), "b".to_string()])
+    );
     for none in ["", "null", "{}", "[{\"sessionId\":\"a\"}]\ntrailing"] {
         assert_eq!(read(none), None, "{none:?}");
     }
@@ -949,12 +1094,19 @@ fn the_live_list_reads_only_a_whole_array() {
 // Rule S7: the presence check writes `\n` as two characters for printf to read, unlike the rename script.
 #[test]
 fn the_presence_check_is_the_ts_bytes() {
-    assert_eq!(wsp_adapters::claude::conversations::present_command("/r", &["a".to_string(), "b".to_string()], None), r#"cd '/r' 2>/dev/null && for d in 'a' 'b'; do [ -d "$d" ] && printf '%s\n' "$d"; done; true"#);
+    assert_eq!(
+        wsp_adapters::claude::conversations::present_command("/r", &["a".to_string(), "b".to_string()], None),
+        r#"cd '/r' 2>/dev/null && for d in 'a' 'b'; do [ -d "$d" ] && printf '%s\n' "$d"; done; true"#
+    );
 }
 
 // Rule S8: the first result that is no error decides the title, even where it gives none.
 #[test]
 fn the_first_good_result_decides_the_title() {
-    let lines = [json!({"type": "result", "is_error": false, "result": "Sure!\nHere"}).to_string(), json!({"type": "result", "is_error": false, "result": "Good title"}).to_string()].join("\n");
+    let lines = [
+        json!({"type": "result", "is_error": false, "result": "Sure!\nHere"}).to_string(),
+        json!({"type": "result", "is_error": false, "result": "Good title"}).to_string(),
+    ]
+    .join("\n");
     assert_eq!(parse_title_for(&lines), None);
 }

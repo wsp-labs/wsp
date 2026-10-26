@@ -2,8 +2,6 @@
 //! The harness adapters: packages/adapter-{claude,codex,cursor,opencode}, against the port in
 //! packages/protocol/src/adapter-port.ts and the runtime's HarnessAdapter (packages/runtime/src/types/harness.ts).
 
-#![allow(clippy::arc_with_non_send_sync)]
-
 mod kept_run;
 mod lost_session;
 pub mod pending;

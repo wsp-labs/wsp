@@ -11,15 +11,18 @@ mod codex_shell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use futures::future::{LocalBoxFuture, FutureExt};
+use futures::future::{FutureExt, LocalBoxFuture};
 use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
+use wsp_adapters::codex::catalog::{catalog_probe_command, version_probe_command};
 use wsp_adapters::codex::command::{build_env, codex_launch, codex_word, BrokerMode, CodexBroker, CodexEnvOptions};
 use wsp_adapters::codex::conversations::{codex_conversations, items_command, list_command, turns_command, CodexConversations, CodexRoad};
-use wsp_adapters::codex::catalog::{catalog_probe_command, version_probe_command};
 use wsp_adapters::codex::session_title::{draft_for_command, rename_command, title_for_command};
 use wsp_adapters::pending::CodexClaims;
-use wsp_adapters::port::{ConversationEarlier, ConversationLine, ConversationOrigin, ConversationRoad, ConversationStore, EarlierAsk, EarlierRead, Env, ExecFailure, ExecFailureKind, StoredConversation};
+use wsp_adapters::port::{
+    ConversationEarlier, ConversationLine, ConversationOrigin, ConversationRoad, ConversationStore, EarlierAsk, EarlierRead, Env,
+    ExecFailure, ExecFailureKind, StoredConversation,
+};
 
 use codex_shell::{fake_app_server, nul_env, run_shell, FakeAppServer, TempDir};
 
@@ -41,7 +44,10 @@ fn shell_exec(command: &str, env: Option<&Env>) -> LocalBoxFuture<'static, Resul
     let input = env.map(|e| nul_env(e.iter())).unwrap_or_default();
     async move {
         let ran = tokio::task::spawn_blocking(move || {
-            let shell_env = vec![("PATH".to_string(), "/usr/bin:/bin".to_string()), ("HOME".to_string(), std::env::temp_dir().to_string_lossy().into_owned())];
+            let shell_env = vec![
+                ("PATH".to_string(), "/usr/bin:/bin".to_string()),
+                ("HOME".to_string(), std::env::temp_dir().to_string_lossy().into_owned()),
+            ];
             run_shell("bash", &command, &shell_env, &input)
         })
         .await
@@ -54,7 +60,9 @@ fn shell_exec(command: &str, env: Option<&Env>) -> LocalBoxFuture<'static, Resul
 fn plain_road() -> ConversationRoad {
     ConversationRoad {
         exec: Arc::new(shell_exec),
-        ask: Arc::new(|_frame| async { Err(ExecFailure { kind: ExecFailureKind::Other, message: "codex asks no daemon".into() }) }.boxed_local()),
+        ask: Arc::new(|_frame| {
+            async { Err(ExecFailure { kind: ExecFailureKind::Other, message: "codex asks no daemon".into() }) }.boxed_local()
+        }),
     }
 }
 
@@ -119,19 +127,42 @@ mod the_threads_codex_kept_in_a_folder {
         let o = store_over(json!({ "thread/list": answer }));
         let rows = o.store.list(vec![LAB.to_string(), format!("{LAB}-wt")], o.road.clone()).await.unwrap();
         let asked: Vec<(Value, Value)> = o.requests().iter().map(|r| (r["method"].clone(), r["params"].clone())).collect();
-        assert_eq!(asked, vec![(json!("thread/list"), json!({ "cwd": [LAB, format!("{LAB}-wt")], "sortKey": "recency_at", "limit": 100 }))]);
+        assert_eq!(
+            asked,
+            vec![(json!("thread/list"), json!({ "cwd": [LAB, format!("{LAB}-wt")], "sortKey": "recency_at", "limit": 100 }))]
+        );
         assert_eq!(
             rows,
             vec![
-                StoredConversation { id: WSP.into(), title: "first prompt from wsp".into(), first_prompt: Some("first prompt from wsp".into()), branch: Some("feat/x".into()), cwd: LAB.into(), last_at: 1_791_673_749_000.0, bytes: Some(sizes[WSP]), origin: ConversationOrigin::Wsp },
-                StoredConversation { id: TUI.into(), title: "lab terminal thread".into(), first_prompt: Some("first prompt from codex-tui".into()), branch: Some("feat/x".into()), cwd: LAB.into(), last_at: 1_791_673_748_000.0, bytes: Some(sizes[TUI]), origin: ConversationOrigin::Terminal },
+                StoredConversation {
+                    id: WSP.into(),
+                    title: "first prompt from wsp".into(),
+                    first_prompt: Some("first prompt from wsp".into()),
+                    branch: Some("feat/x".into()),
+                    cwd: LAB.into(),
+                    last_at: 1_791_673_749_000.0,
+                    bytes: Some(sizes[WSP]),
+                    origin: ConversationOrigin::Wsp
+                },
+                StoredConversation {
+                    id: TUI.into(),
+                    title: "lab terminal thread".into(),
+                    first_prompt: Some("first prompt from codex-tui".into()),
+                    branch: Some("feat/x".into()),
+                    cwd: LAB.into(),
+                    last_at: 1_791_673_748_000.0,
+                    bytes: Some(sizes[TUI]),
+                    origin: ConversationOrigin::Terminal
+                },
             ]
         );
     }
 
     #[tokio::test]
     async fn pages_thread_list_by_its_cursor_and_leaves_out_the_size_of_a_rollout_that_is_not() {
-        tokio::task::LocalSet::new().run_until(pages_thread_list_by_its_cursor_and_leaves_out_the_size_of_a_rollout_that_is_not_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(pages_thread_list_by_its_cursor_and_leaves_out_the_size_of_a_rollout_that_is_not_body())
+            .await
     }
 
     async fn pages_thread_list_by_its_cursor_and_leaves_out_the_size_of_a_rollout_that_is_not_body() {
@@ -221,14 +252,21 @@ mod a_codex_threads_earlier_messages {
         let read = o.store.earlier(TUI.into(), earlier_ask(1, false, false), o.road.clone()).await.unwrap();
         assert_eq!(
             read,
-            EarlierRead::Read(ConversationEarlier { cwd: Some(LAB.into()), title: Some("lab terminal thread".into()), lines: vec![line("agent", "stub reply to: second turn", 1791673748904.0)], earlier: 0 })
+            EarlierRead::Read(ConversationEarlier {
+                cwd: Some(LAB.into()),
+                title: Some("lab terminal thread".into()),
+                lines: vec![line("agent", "stub reply to: second turn", 1791673748904.0)],
+                earlier: 0
+            })
         );
         assert_eq!(o.methods(), vec!["thread/read", "thread/turns/list", "thread/items/list"]);
     }
 
     #[tokio::test]
     async fn keep_the_newest_messages_and_count_the_rest_and_read_the_thread_without_taking_i() {
-        tokio::task::LocalSet::new().run_until(keep_the_newest_messages_and_count_the_rest_and_read_the_thread_without_taking_i_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(keep_the_newest_messages_and_count_the_rest_and_read_the_thread_without_taking_i_body())
+            .await
     }
 
     async fn keep_the_newest_messages_and_count_the_rest_and_read_the_thread_without_taking_i_body() {
@@ -236,7 +274,12 @@ mod a_codex_threads_earlier_messages {
         let read = o.store.earlier(TUI.into(), earlier_ask(1, false, true), o.road.clone()).await.unwrap();
         assert_eq!(
             read,
-            EarlierRead::Read(ConversationEarlier { cwd: Some(LAB.into()), title: Some("lab terminal thread".into()), lines: vec![line("agent", "stub reply to: second turn", 1791673748904.0)], earlier: 3 })
+            EarlierRead::Read(ConversationEarlier {
+                cwd: Some(LAB.into()),
+                title: Some("lab terminal thread".into()),
+                lines: vec![line("agent", "stub reply to: second turn", 1791673748904.0)],
+                earlier: 3
+            })
         );
         assert_eq!(o.requests()[0]["method"], json!("thread/read"));
     }
@@ -250,9 +293,13 @@ mod a_codex_threads_earlier_messages {
         let rec = recorded();
         let held = store_over(with("thread/resume", rec["resume-held"].clone()));
         assert_eq!(held.store.earlier(TUI.into(), earlier_ask(200, true, true), held.road.clone()).await.unwrap(), EarlierRead::Open);
-        let gone = store_over(with("thread/resume", json!({ "error": { "code": -32600, "message": format!("no rollout found for thread id {TUI}") } })));
+        let gone = store_over(with(
+            "thread/resume",
+            json!({ "error": { "code": -32600, "message": format!("no rollout found for thread id {TUI}") } }),
+        ));
         assert_eq!(gone.store.earlier(TUI.into(), earlier_ask(200, true, true), gone.road.clone()).await.unwrap(), EarlierRead::Gone);
-        let unread = store_over(with("thread/read", json!({ "error": { "code": -32600, "message": format!("thread not loaded: {TUI}") } })));
+        let unread =
+            store_over(with("thread/read", json!({ "error": { "code": -32600, "message": format!("thread not loaded: {TUI}") } })));
         assert_eq!(unread.store.earlier(TUI.into(), earlier_ask(200, false, true), unread.road.clone()).await.unwrap(), EarlierRead::Gone);
     }
 
@@ -282,7 +329,12 @@ mod every_other_codex_launch_on_a_brokered_machine {
     fn chatgpt() -> CodexBroker {
         CodexBroker {
             mode: BrokerMode::Chatgpt {
-                claims: CodexClaims { account_id: "11111111-2222-4333-8444-555555555555".into(), plan_type: Some("plus".into()), user_id: Some("user-acme0001".into()), fedramp: Some(false) },
+                claims: CodexClaims {
+                    account_id: "11111111-2222-4333-8444-555555555555".into(),
+                    plan_type: Some("plus".into()),
+                    user_id: Some("user-acme0001".into()),
+                    fedramp: Some(false),
+                },
                 models: None,
             },
             providers: None,
@@ -300,7 +352,9 @@ mod every_other_codex_launch_on_a_brokered_machine {
             words.extend(question.flags.iter().cloned());
             words.join(" ")
         };
-        for l in [title_for_command("name this", None, None, b, now).unwrap(), draft_for_command("/tmp/acme-draft", None, None, b, now).unwrap()] {
+        for l in
+            [title_for_command("name this", None, None, b, now).unwrap(), draft_for_command("/tmp/acme-draft", None, None, b, now).unwrap()]
+        {
             assert!(l.contains(&expected), "{l}");
         }
         let word = codex_word(None, b).unwrap();
@@ -328,21 +382,26 @@ mod rules_added {
     fn a_blank_preview_trims_to_an_empty_title_and_first_prompt_and_a_blank_name_is_kept_as_it_is() {
         // CV1; conversations.ts:63-82 (`str(preview)?.trim()`, `title ?? preview`).
         let page = parse_list("{\"id\":1,\"result\":{}}\n{\"id\":2,\"result\":{\"data\":[{\"id\":\"T1\",\"cwd\":\"/w\",\"preview\":\"   \"},{\"id\":\"T2\",\"cwd\":\"/w\",\"name\":\"  \",\"preview\":\"P\"}]}}").unwrap();
-        let rows: Vec<(String, String, Option<String>)> = page.rows.into_iter().map(|r| (r.row.id, r.row.title, r.row.first_prompt)).collect();
+        let rows: Vec<(String, String, Option<String>)> =
+            page.rows.into_iter().map(|r| (r.row.id, r.row.title, r.row.first_prompt)).collect();
         assert_eq!(rows, [("T1".into(), String::new(), Some(String::new())), ("T2".into(), "  ".into(), Some("P".into()))]);
     }
 
     #[test]
     fn a_size_is_js_number_of_the_trimmed_line_where_that_is_a_safe_integer() {
         // CV2; conversations.ts:112-118.
-        let got = parse_sizes(&["1e3", "0x10", "+5", "12.0", "-5", "Infinity", "NaN", "1_0", "5 6", "9007199254740992", "", " 7 "].join("\n"), 13);
+        let got = parse_sizes(
+            &["1e3", "0x10", "+5", "12.0", "-5", "Infinity", "NaN", "1_0", "5 6", "9007199254740992", "", " 7 "].join("\n"),
+            13,
+        );
         assert_eq!(got, [Some(1000.0), Some(16.0), Some(5.0), Some(12.0), Some(-5.0), None, None, None, None, None, None, Some(7.0), None]);
     }
 
     #[test]
     fn opening_reads_a_blank_preview_as_an_empty_title_and_an_empty_name_falls_to_the_preview() {
         // CV3; conversations.ts:136-149.
-        let opened = |thread: &str| parse_opened(&format!("{{\"id\":1,\"result\":{{}}}}\n{{\"id\":3,\"result\":{{\"thread\":{thread}}}}}")).unwrap();
+        let opened =
+            |thread: &str| parse_opened(&format!("{{\"id\":1,\"result\":{{}}}}\n{{\"id\":3,\"result\":{{\"thread\":{thread}}}}}")).unwrap();
         assert_eq!(opened(r#"{"cwd":"/w","preview":"   "}"#), Opened::Read { cwd: Some("/w".into()), title: Some(String::new()) });
         assert_eq!(opened(r#"{"cwd":"/w","name":"","preview":"P"}"#), Opened::Read { cwd: Some("/w".into()), title: Some("P".into()) });
     }
@@ -357,7 +416,16 @@ mod rules_added_newest {
     fn the_newest_lines_keep_every_tool_line_back_to_the_last_message_kept() {
         // CV4; conversations.ts:200-213, over [t0, p1, t1, a1, t2, p2, a2, t3] with a total of 10.
         let line = |who: &str, text: &str| ConversationLine { who: who.into(), text: text.into(), tool: None, at: None };
-        let items = [line("tool", "t0"), line("person", "p1"), line("tool", "t1"), line("agent", "a1"), line("tool", "t2"), line("person", "p2"), line("agent", "a2"), line("tool", "t3")];
+        let items = [
+            line("tool", "t0"),
+            line("person", "p1"),
+            line("tool", "t1"),
+            line("agent", "a1"),
+            line("tool", "t2"),
+            line("person", "p2"),
+            line("agent", "a2"),
+            line("tool", "t3"),
+        ];
         let kept = |last: u32| {
             let r = newest_lines(&items, 10, last);
             (r.lines.into_iter().map(|l| l.text).collect::<Vec<_>>(), r.earlier)

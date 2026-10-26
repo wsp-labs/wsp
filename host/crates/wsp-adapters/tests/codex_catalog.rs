@@ -56,7 +56,8 @@ fn lists(stdout: &str) -> HarnessCatalogProbe {
 
 /// The same output with model/list answering an empty catalog, which 0.153.0 does under no config we have seen.
 fn without_models(account: &str) -> String {
-    let mut kept: Vec<String> = server_lines(&real()).into_iter().filter(|l| !l.starts_with("{\"id\":2") && !l.starts_with("{\"id\":4")).collect();
+    let mut kept: Vec<String> =
+        server_lines(&real()).into_iter().filter(|l| !l.starts_with("{\"id\":2") && !l.starts_with("{\"id\":4")).collect();
     kept.push("{\"id\":2,\"result\":{\"data\":[]}}".to_string());
     if !account.is_empty() {
         kept.push(account.to_string());
@@ -224,8 +225,18 @@ mod parse_catalog_probe {
             Some(HarnessCatalogAnswer::Refused(format!("Codex is not signed in where this thread runs; run {LOGIN} there")))
         );
         // Signed in, or routed to a provider that wants no OpenAI login: an empty catalog is not a sign-in to ask for.
-        assert_eq!(parse_catalog_probe(&without_models("{\"id\":4,\"result\":{\"account\":null,\"requiresOpenaiAuth\":false}}"), LOGIN, None), None);
-        assert_eq!(parse_catalog_probe(&without_models("{\"id\":4,\"result\":{\"account\":{\"id\":\"a\"},\"requiresOpenaiAuth\":true}}"), LOGIN, None), None);
+        assert_eq!(
+            parse_catalog_probe(&without_models("{\"id\":4,\"result\":{\"account\":null,\"requiresOpenaiAuth\":false}}"), LOGIN, None),
+            None
+        );
+        assert_eq!(
+            parse_catalog_probe(
+                &without_models("{\"id\":4,\"result\":{\"account\":{\"id\":\"a\"},\"requiresOpenaiAuth\":true}}"),
+                LOGIN,
+                None
+            ),
+            None
+        );
         assert_eq!(parse_catalog_probe(&without_models(""), LOGIN, None), None);
     }
 
