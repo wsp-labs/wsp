@@ -64,6 +64,7 @@ The servers.add, servers.remove, servers.toggle and plugins.toggle tapes of #244
 ## After the port
 
 - Removing a key under a missing parent is refused instead of being a no-op (mcp.ts:636 with set_at's object making).
+- `parseTree` (jsonc-parser, mcp.ts:458) edits a file nested to about 2,344 levels; `jsonc_tree.rs` keeps the one cap of the whole host, 500 levels (ruling 1 of round 2 of #2448), and an object file nested deeper is refused with "could not be changed in place". A file whose root is not an object is "the file is not a JSON object" at any depth, as in node.
 
 ## Rules to tests
 
