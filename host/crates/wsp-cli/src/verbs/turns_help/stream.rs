@@ -30,7 +30,7 @@ use wsp_words::words::thread::{AFTER_CUT_LINE, NOT_DELIVERED_LINE};
 use wsp_words::words::tools::{answer_words, asking_line, tool_activity_line, tool_answered_line};
 use wsp_words::words::turn::{compacted_line, retry_line, turn_settled_line, Retry};
 
-use super::follow::{follow, history, start_detached, FollowOn, SharedTurn};
+use super::follow::{event_of, follow_heard, history, start_detached, FollowOn, RawEvent, SharedTurn};
 use super::{Picks, Turn};
 use crate::verbs::client::{
     flag_set, host_back, opened_thread_said, other_version, pick, stopped_under, thread_id_of, BoxFuture, CliIo, Frame, HostClient,
@@ -513,16 +513,16 @@ pub async fn follow_verb(
         let _ = tx.send(Seen::Redialed);
     };
     let tx = seen_tx.clone();
-    let event = move |e: &SessionEvent, turn: &Turn| {
-        let _ = tx.send(Seen::Event(Box::new(e.clone()), turn.thread_id.clone()));
-    };
+    let event: RawEvent = Arc::new(move |frame: &Frame, turn: &Turn| {
+        let _ = tx.send(Seen::Event(frame.clone(), turn.thread_id.clone()));
+    });
     let on = FollowOn {
         queued: Some(Arc::new(queued)),
         starting: Some(Arc::new(starting)),
         steered: Some(Arc::new(steered)),
         started: Some(Arc::new(started)),
         redialed: Some(Arc::new(redialed)),
-        event: Some(Arc::new(event)),
+        event: None,
     };
     let redial_ctx = shared.clone();
     let redial = move || -> BoxFuture<'static, Result<Arc<dyn HostClient>, HostError>> {
@@ -540,7 +540,7 @@ pub async fn follow_verb(
         redialed: false,
         turn: None,
     };
-    let follow_turn = follow(client, start, SessionOrigin::Cli, &on, Some(redial_ref));
+    let follow_turn = follow_heard(client, start, SessionOrigin::Cli, &on, Some(event), Some(redial_ref));
     tokio::pin!(follow_turn);
     let result = loop {
         tokio::select! {
@@ -569,7 +569,7 @@ enum Seen {
     Steered(bool),
     Started(SharedTurn, Turn),
     Redialed,
-    Event(Box<SessionEvent>, String),
+    Event(Frame, String),
 }
 
 /// A tool call the turn has open: its name and the input it has streamed so far.
@@ -612,7 +612,7 @@ impl Following {
                 self.redialed = true;
                 self.ctx.io.error(HOST_RESTARTING_LINE);
             }
-            Seen::Event(event, thread_id) => self.event(&event, &thread_id, said.spend.as_deref()),
+            Seen::Event(frame, thread_id) => self.event(&frame, &thread_id, said.spend.as_deref()),
         }
     }
 
@@ -658,15 +658,17 @@ impl Following {
         }
     }
 
-    fn event(&mut self, event: &SessionEvent, thread_id: &str, spend: Option<&str>) {
-        if let SessionEvent::SessionDoneEvent(done) = event {
+    fn event(&mut self, frame: &Frame, thread_id: &str, spend: Option<&str>) {
+        let event = event_of(frame);
+        if let Some(SessionEvent::SessionDoneEvent(done)) = &event {
             let reply = self.stream.lock().unwrap().reply(done.result.text.as_deref());
             let line = if self.redialed { done.result.text.clone() } else { reply };
-            self.emit(event, line.as_deref());
+            self.emit(frame, line.as_deref());
         } else {
-            self.emit(event, None);
+            self.emit(frame, None);
         }
-        match event {
+        let Some(event) = event else { return };
+        match &event {
             SessionEvent::SessionCappedEvent(capped) => self.ctx.io.error(&cap_wait_line(&cap_wait_of(capped))),
             SessionEvent::SessionUncappedEvent(uncapped) => self.ctx.io.error(&cap_started_line(uncapped)),
             SessionEvent::SessionStartEvent(start) => {
@@ -727,9 +729,8 @@ impl Following {
         self.stream.lock().unwrap().line(l);
     }
 
-    fn emit(&self, event: &SessionEvent, line: Option<&str>) {
-        let value = serde_json::to_value(event).expect("a session event writes as JSON");
-        self.ctx.out.emit(&value, line);
+    fn emit(&self, frame: &Frame, line: Option<&str>) {
+        self.ctx.out.emit(&Value::Object(frame.clone()), line);
     }
 }
 
