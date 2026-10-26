@@ -1,0 +1,9 @@
+<slate title="Bench timers with a title long enough to run past the edge of the header in a narrow panel">
+  <run name="clock" cmd="sleep 3; date +%s" every={10} />
+  <run name="load" cmd="uptime" every={10} />
+  <column>
+    <text id="clock-text">Clock {$clock.out}</text>
+    <output run={$clock} />
+    <output run={$load} />
+  </column>
+</slate>

@@ -15,7 +15,7 @@ import { pipeline } from "node:stream/promises";
 import type { ReadableStream } from "node:stream/web";
 import { RELEASE_BODY_MAX_BYTES, RELEASE_TIMEOUT_MS, cappedText, releaseAssetUrl, releaseTagUrl } from "@wsp/host";
 import { RELEASE_API_ENV, compareVersions, type BundleOutcome } from "@wsp/protocol";
-import { RELEASE_TAG, bundleNames } from "../../../packages/protocol/src/bundles.mjs";
+import { RELEASE_TAG, classicNames } from "../../../packages/protocol/src/bundles.mjs";
 import type { Staged } from "./self-update.js";
 
 export const BUNDLE_WORDS = {
@@ -53,12 +53,12 @@ interface BundleRoad {
 const BUNDLE_ROADS: Partial<Record<NodeJS.Platform, BundleRoad>> = {
   // Mounting the disk image opens its drag window.
   darwin: {
-    asset: version => bundleNames(version).mac,
+    asset: version => classicNames(version).mac,
     hover: "Downloads the disk image and checks its sha256. Unsigned builds need Privacy & Security, Open Anyway, once.",
     open: (file, o) => o.open(file),
   },
   linux: {
-    asset: version => bundleNames(version).appImage,
+    asset: version => classicNames(version).appImage,
     hover: "Downloads the AppImage into Downloads and checks its sha256. The app you run is not replaced.",
     open: async (file, o) => {
       await chmod(file, 0o755);
@@ -187,8 +187,8 @@ function causeOf(e: unknown): string | undefined {
 export const updateLogLine = (step: string, outcome: BundleOutcome): string =>
   `update: ${step} ${outcome.ok ? "done" : `failed: ${outcome.error}${outcome.cause === undefined ? "" : ` (cause: ${outcome.cause})`}`}`;
 
-/** The release's zip an installed mac app replaces itself from. */
-export const zipAsset = (version: string): string => bundleNames(version).macZip;
+/** The release's zip an installed mac app replaces itself from: the classic app's, so it stays the classic app. */
+export const zipAsset = (version: string): string => classicNames(version).macZip;
 
 /** This release's bundle for this platform in the download folder, verified against the published sha256; `pick`
  * names another of its assets. */

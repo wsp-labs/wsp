@@ -1,0 +1,15 @@
+<slate title="Failed pieces">
+  <value name="many" start={["shots/missing-0.png", "shots/missing-1.png", "shots/missing-2.png", "shots/missing-3.png", "shots/missing-4.png", "shots/missing-5.png", "shots/missing-6.png", "shots/missing-7.png", "shots/missing-8.png", "shots/missing-9.png", "shots/missing-10.png", "shots/missing-11.png", "shots/missing-12.png", "shots/missing-13.png", "shots/missing-14.png", "shots/missing-15.png", "shots/missing-16.png", "shots/missing-17.png", "shots/missing-18.png", "shots/missing-19.png", "shots/missing-20.png", "shots/missing-21.png", "shots/missing-22.png", "shots/missing-23.png", "shots/missing-24.png", "shots/missing-25.png", "shots/missing-26.png", "shots/missing-27.png", "shots/missing-28.png", "shots/missing-29.png", "shots/missing-30.png", "shots/missing-31.png", "shots/missing-32.png", "shots/missing-33.png", "shots/missing-34.png", "shots/missing-35.png", "shots/missing-36.png", "shots/missing-37.png", "shots/missing-38.png", "shots/missing-39.png", "shots/missing-40.png", "shots/missing-41.png", "shots/missing-42.png", "shots/missing-43.png", "shots/missing-44.png", "shots/missing-45.png", "shots/missing-46.png", "shots/missing-47.png", "shots/missing-48.png", "shots/missing-49.png", "shots/missing-50.png", "shots/missing-51.png", "shots/missing-52.png", "shots/missing-53.png", "shots/missing-54.png", "shots/missing-55.png", "shots/missing-56.png", "shots/missing-57.png", "shots/missing-58.png", "shots/missing-59.png", "shots/missing-60.png"]} />
+  <value name="three" start={["shots/before.png", "shots/after.png", "shots/plot.png"]} />
+  <column>
+    <image src="shots/missing.png" caption="A file that is not there" />
+    <image src="shots/notes.png" caption="A text file named .png" />
+    <image src="https://example.com/chart.png" caption="An address not yet allowed" />
+    <diagram label="Does not parse">flowchart LR
+  a[Build --> b</diagram>
+    <diagram label="Names an address">flowchart LR
+  a["See https://example.com"] --> b</diagram>
+    <images items={$many} src={item} />
+    <images layout="compare" items={$three} src={item} />
+  </column>
+</slate>

@@ -17,7 +17,7 @@ import { RELEASE_API_ENV } from "@wsp/protocol";
 import { BUNDLE_WORDS, getBundle } from "../src/get-bundle.js";
 
 const BYTES = Buffer.from("a disk image, as far as this test is concerned");
-const ASSET = "wsp-0.3.0-mac.dmg";
+const ASSET = "wsp-classic-0.3.0-mac.dmg";
 const dir = mkdtempSync(join(tmpdir(), "wsp-get-bundle-connect-"));
 let tls: { key: Buffer; cert: Buffer };
 

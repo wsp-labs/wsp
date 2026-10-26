@@ -164,6 +164,10 @@ describe("the preload's bridge", () => {
     expect(invoke).toHaveBeenLastCalledWith("service:login");
     void wsp.setLoginStart(false);
     expect(invoke).toHaveBeenLastCalledWith("service:login-set", false);
+    void wsp.experimental?.();
+    expect(invoke).toHaveBeenLastCalledWith("experimental:get");
+    void wsp.setExperimental?.(true);
+    expect(invoke).toHaveBeenLastCalledWith("experimental:set", true);
     let opened = 0;
     const stop = wsp.onNeedsYouOpen(() => (opened += 1));
     expect(on).toHaveBeenLastCalledWith("needs-you:open", expect.any(Function));

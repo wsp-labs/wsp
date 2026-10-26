@@ -7,11 +7,12 @@
 
 mod aim;
 mod checked;
-mod client;
-mod failure;
-mod host;
+pub mod client;
+pub mod failure;
+pub mod host;
 mod js;
 mod json;
+mod proof;
 mod record;
 mod release;
 mod start;
@@ -29,6 +30,19 @@ use std::sync::Arc;
 use tokio::io::{AsyncBufRead, AsyncWrite, BufReader};
 
 use crate::failure::Failure;
+pub use crate::proof::{LOCK_REFUSED, NOT_ANSWERING};
+pub use crate::release::{order as release_order, own as own_release, ReleaseRule};
+
+/// The host's lock beside a state file, its process and its port, read once for every reader on this computer.
+pub mod lock {
+    pub use crate::aim::{answers, authority, dial_address, proved_token, serving, vanished, Lock};
+    pub use crate::proof::{alive, page_release};
+}
+
+/// The hosts on the account this computer holds records of, and the wsp home they are kept under.
+pub mod hosts {
+    pub use crate::aim::{account_hosts, wsp_home, HostRecord};
+}
 
 /// The words `wsp-daemon mcp` was started with.
 #[derive(Debug, Default, Clone)]
@@ -79,7 +93,7 @@ pub fn run(args: &Args) -> i32 {
 /// A scoped server missing its pair refuses before anything else is read: it would otherwise dial this computer's
 /// host on the host's own token, which is acting as the person.
 fn refused_before(args: &Args, env: &Env) -> Option<Failure> {
-    (args.scoped && aim::launched(env).is_none()).then(|| Failure::auth(record::words().scoped_no_pair))
+    (args.scoped && aim::launched(env).is_none()).then(|| Failure::auth(record::words().scoped_no_pair.clone()))
 }
 
 pub async fn serve<R: AsyncBufRead + Unpin, W: AsyncWrite + Unpin>(args: &Args, env: &Env, input: R, output: W) -> i32 {
