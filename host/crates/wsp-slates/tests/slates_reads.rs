@@ -235,7 +235,7 @@ fn names(items: &[&str]) -> Vec<String> {
 
 fn ask_without_key(ask: &SlateAsk) -> String {
     let mut j = ask.to_json();
-    j.as_object_mut().unwrap().remove("key");
+    j.as_object_mut().unwrap().shift_remove("key");
     serde_json::to_string(&j).unwrap()
 }
 
@@ -535,11 +535,11 @@ fn a_bound_source_path_with_no_value_reads_r900_data_missing() {
     support::local(async {
         let rig = rig("wsp-slates-read-r900-");
         let s = &rig.slates;
-        agent_write(s, r##"<slate title="Pr"><column><text id="n">{pr.number}</text></column></slate>"##).await;
+        agent_write(s, r##"<slate title="Pr"><column><text id="n">{pr.checks[0].name}</text></column></slate>"##).await;
         let read = s.read(ReadParams::default(), Some(&agent())).await.unwrap();
         let found: Vec<(String, String, String)> =
             read.problems.iter().map(|p| (p.code.clone(), p.name.clone(), p.message.clone())).collect();
-        assert_eq!(found, vec![("R900".to_string(), "data-missing".to_string(), "pr.number has no value yet".to_string())]);
+        assert_eq!(found, vec![("R900".to_string(), "data-missing".to_string(), "pr.checks[0].name has no value yet".to_string())]);
     });
 }
 
