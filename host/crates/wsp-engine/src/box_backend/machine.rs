@@ -13,8 +13,8 @@ use super::plan::{
     FILE_GET_MAX, FILE_PUT_MAX, FIREWALL_HOLD_MS, FIREWALL_WATCH_MS,
 };
 use super::request::{
-    encode_uri_component, still_restoring, stop_refusal_of, BoxBackend, BoxView, CommandView, NamedSnapshotView, RequestOpts,
-    DISK_EXPIRED_CODE,
+    encode_uri_component, read_view, still_restoring, stop_refusal_of, taken, BoxBackend, BoxView, CommandView, NamedSnapshotView,
+    RequestOpts, DISK_EXPIRED_CODE,
 };
 use crate::errors::{EngineError, ErrorKind, Result};
 use crate::exec_detached::{exec_detached, DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS};
@@ -158,7 +158,7 @@ impl BoxMachine {
             .while_restoring(|| self.backend.request("POST", &path, opts.clone()), signal)
             .await
             .map_err(|e| self.command_failure(e))?;
-        let res: CommandView = serde_json::from_value(raw).map_err(|e| EngineError::Other { message: e.to_string(), code: None })?;
+        let res: CommandView = read_view(raw).map_err(|e| EngineError::Other { message: e.to_string(), code: None })?;
         let stderr = res.stderr.clone().unwrap_or_default();
         if loader_emfile(&stderr) {
             return Err(EngineError::guest_unusable(&self.id, &provider_key_name("box"), js_trim(&stderr), 200));
@@ -265,10 +265,10 @@ impl BoxMachine {
         let started = self.backend.clock().now();
         loop {
             self.backend.clock().sleep(budgets.poll_ms).await;
-            let raw =
+            let mut raw =
                 self.backend.request("GET", &format!("/named-snapshots/{}", encode_uri_component(&saved)), RequestOpts::default()).await?;
-            let snapshot: NamedSnapshotView = serde_json::from_value(raw.get("snapshot").cloned().unwrap_or(Value::Null))
-                .map_err(|e| EngineError::Other { message: e.to_string(), code: None })?;
+            let snapshot: NamedSnapshotView =
+                read_view(taken(&mut raw, "snapshot")).map_err(|e| EngineError::Other { message: e.to_string(), code: None })?;
             if snapshot.status == "ready" {
                 return Ok(saved);
             }
