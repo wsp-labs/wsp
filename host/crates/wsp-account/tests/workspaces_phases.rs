@@ -251,7 +251,7 @@ fn nap_refuses_a_pauseless_kind_and_naps() {
         let view = nap(&h.ctx, "ws_a", Some(the_person())).await.unwrap();
         assert_eq!(view.phase, WorkspacePhase::Napping);
         assert_eq!(h.args("nap_with"), vec![json!({ "id": "ws_a", "napWaitMs": null })]);
-        assert_eq!(h.calls(&["spawn_guard", "entry_of", "refuse_pauseless", "nap_with"])[4..], ["spawn_guard", "entry_of", "refuse_pauseless", "nap_with"]);
+        assert_eq!(h.calls(&["spawn_guard", "entry_of", "refuse_pauseless", "nap_with"])[3..], ["spawn_guard", "entry_of", "refuse_pauseless", "nap_with"]);
         assert_eq!(h.args("spawn_guard")[0], json!({ "act": "pause", "scoped": false }));
         // A guard that refuses ends it before the entry is read.
         h.f.base.answer_with("spawn_guard", vec![err_answer("the cap", Some("conflict"))]);
@@ -545,6 +545,7 @@ fn wake_counts_the_cadence_from_when_the_ask_began() {
         settle().await;
         assert_eq!(h.args("sleeps"), vec![json!({ "ms": EVERY / 2, "now": began + EVERY / 2 })]);
         base::assert_due(h.clock(), &[began + EVERY]);
+        h.clock().advance(EVERY / 2);
         h.pump(&task).await;
         task.await.unwrap().unwrap();
         // Ask 2 failed at once, a cadence in: what is left of its cadence is a whole one.
@@ -1024,7 +1025,10 @@ fn rebuild_of_a_napped_keeping_backend_wakes_first() {
         assert_eq!(view.machine_id, "m_new");
         assert_eq!(h.args("refuse_cannot")[0], json!({ "id": "ws_a", "cap": "replacesMachine", "act": "be rebuilt" }));
         // It woke first, then took the vault off the running machine: an upgrade, not a rebuild.
-        assert_eq!(h.calls(&["recover_gone", "ws_wake", "ws_upgrade", "ws_rebuild", "follow_machine", "emit"]), ["recover_gone", "ws_wake", "ws_upgrade", "follow_machine", "emit"]);
+        assert_eq!(
+            h.calls(&["recover_gone", "ws_wake", "ws_upgrade", "ws_rebuild", "follow_machine", "emit"]),
+            ["recover_gone", "ws_wake", "follow_machine", "emit", "ws_upgrade", "follow_machine", "emit"]
+        );
         assert_eq!(h.events().last().unwrap(), &json!({ "type": "workspace.upgraded", "workspaceId": "ws_a", "machineId": "m_new" }));
         let reason = "rebuilt: m_a replaced by m_new";
         assert_eq!(h.args("emit_status").pop().unwrap()["words"], json!(reason));

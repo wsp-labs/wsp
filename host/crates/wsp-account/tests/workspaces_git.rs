@@ -67,6 +67,7 @@ fn origin() -> Option<wsp_wire::views::workspace::Caller> {
 }
 
 fn script(w: &World, name: &str, v: Value) {
+    w.base.script.borrow_mut().shift_remove(name);
     w.base.answer_with(name, vec![v]);
 }
 
