@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Port of `packages/runtime/src/threads/agents.ts` at 65f6b89c7: the agents area. Specs: `spec/agents_lists.md`,
 //! `spec/agents_launch.md`.
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
 
-use futures::future::{LocalBoxFuture, Shared};
+use futures::future::{FutureExt, LocalBoxFuture, Shared};
 use indexmap::{IndexMap, IndexSet};
 use wsp_adapters::port::{AgentLaunch, Env, ExecStreamFactory, HarnessCatalogModelProbe, SessionRenameWrite};
 use wsp_catalog::mcp_launch::TurnServer;
 use wsp_core::clock::Clock;
 use wsp_core::context::Joined;
 use wsp_core::machine_exec::TurnWaiting;
-use wsp_core::types::events::EventBus;
+use wsp_core::types::events::{EventBus, EventListener};
+use wsp_wire::types::agents_report::AgentsTarget;
+use wsp_wire::wire::events_union::EventUnion;
 use wsp_core::types::harness::HarnessAdapterFactory;
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_store::store::Store;
@@ -156,16 +158,106 @@ pub struct AgentsArea {
     pub setup_refusals: RefCell<IndexMap<String, String>>,
     /// agents.ts:573
     pub cloud_servers: RefCell<IndexMap<String, Shared<LocalBoxFuture<'static, Option<Vec<TurnServer>>>>>>,
+    /// The key of the next ask held in `agent_asks`.
+    asks_seq: Cell<u64>,
+}
+
+/// A future that is already answered.
+pub(super) fn ready<T: 'static>(value: T) -> LocalBoxFuture<'static, T> {
+    async move { value }.boxed_local()
 }
 
 impl AgentsArea {
     /// Builds the area and registers its listeners: `agents.changed`, `workspace.deleted`, `workspace.upgraded`
     /// each drop the servers read for a workspace (agents.ts:577-585).
     pub fn new(ctx: Rc<dyn AgentsCtx>) -> Rc<AgentsArea> {
-        todo!()
+        let bus = ctx.bus();
+        let area = Rc::new_cyclic(|me| AgentsArea {
+            ctx: ctx.clone(),
+            me: me.clone(),
+            catalogs: RefCell::default(),
+            account_reads: RefCell::default(),
+            heard_versions: RefCell::default(),
+            agent_asks: RefCell::default(),
+            title_reads: RefCell::default(),
+            titles_asked: RefCell::default(),
+            setup_refusals: RefCell::default(),
+            cloud_servers: RefCell::default(),
+            asks_seq: Cell::new(0),
+        });
+        let weak = Rc::downgrade(&area);
+        let changed: EventListener = Rc::new(move |e: &EventUnion| {
+            if let EventUnion::AgentsChanged(changed) = e {
+                match &changed.event.target {
+                    None => drop_servers_of(&weak, None),
+                    Some(AgentsTarget::V1(target)) => drop_servers_of(&weak, Some(&target.workspace_id)),
+                    Some(AgentsTarget::V0(_)) => {}
+                }
+            }
+            Ok(())
+        });
+        let weak = Rc::downgrade(&area);
+        let deleted: EventListener = Rc::new(move |e: &EventUnion| {
+            if let EventUnion::WorkspaceDeleted(deleted) = e {
+                drop_servers_of(&weak, Some(&deleted.event.workspace_id));
+            }
+            Ok(())
+        });
+        let weak = Rc::downgrade(&area);
+        let upgraded: EventListener = Rc::new(move |e: &EventUnion| {
+            if let EventUnion::WorkspaceUpgraded(upgraded) = e {
+                drop_servers_of(&weak, Some(&upgraded.event.workspace_id));
+            }
+            Ok(())
+        });
+        drop(bus.on("agents.changed", changed));
+        drop(bus.on("workspace.deleted", deleted));
+        drop(bus.on("workspace.upgraded", upgraded));
+        area
     }
     /// The asks in flight a close waits for (agents.ts:43).
     pub fn agent_asks(&self) -> Vec<Joined> {
-        todo!()
+        self.agent_asks.borrow().values().cloned().collect()
     }
+
+    /// `holdAsk` (agents.ts:43): starts an ask of the agent's own CLI now, so it runs whether or not its caller waits,
+    /// and holds it in `agent_asks` until it settles.
+    pub(crate) fn hold<T: Clone + 'static>(&self, ask: LocalBoxFuture<'static, T>) -> Shared<LocalBoxFuture<'static, T>> {
+        let shared = ask.shared();
+        let id = self.asks_seq.get();
+        self.asks_seq.set(id + 1);
+        let done: Joined = shared.clone().map(|_| ()).boxed_local().shared();
+        self.agent_asks.borrow_mut().insert(id, done);
+        let me = self.me.clone();
+        let run = shared.clone();
+        fire(
+            async move {
+                run.await;
+                if let Some(area) = me.upgrade() {
+                    area.agent_asks.borrow_mut().shift_remove(&id);
+                }
+            }
+            .boxed_local(),
+        );
+        shared
+    }
+}
+
+/// Starts `future` now, as the TS starts an async call's synchronous half (wsp-adapters' `started`): polled once here,
+/// and spawned for the rest where it is still pending.
+pub(super) fn fire(mut future: LocalBoxFuture<'static, ()>) {
+    if future.as_mut().poll(&mut std::task::Context::from_waker(futures::task::noop_waker_ref())).is_pending() {
+        tokio::task::spawn_local(async move {
+            future.await;
+        });
+    }
+}
+
+/// `dropServersOf` (agents.ts:594): one workspace's reads, or every read when no workspace is named.
+fn drop_servers_of(me: &Weak<AgentsArea>, workspace_id: Option<&str>) {
+    let Some(area) = me.upgrade() else {
+        return;
+    };
+    let prefix = workspace_id.map(|id| format!("{id}\0"));
+    area.cloud_servers.borrow_mut().retain(|key, _| prefix.as_ref().is_some_and(|prefix| !key.starts_with(prefix.as_str())));
 }
