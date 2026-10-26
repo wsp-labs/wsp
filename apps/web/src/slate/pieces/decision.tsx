@@ -65,7 +65,7 @@ export const decision: PieceView = {
               <span className="flex min-w-0 flex-col gap-1">
                 {mine === undefined ? null : <span className={NOTE}>My pick: {mine.label}{mine.note === undefined ? "" : `. ${mine.note}`}</span>}
                 {others.map((answer, at) => (
-                  <span key={at} data-slate-answer-note className={cn(NOTE, "text-muted-foreground/70")}>{answer.label}: {answer.note}</span>
+                  <span key={at} data-slate-answer-note className={NOTE}>{answer.label}: {answer.note}</span>
                 ))}
               </span>
             )}

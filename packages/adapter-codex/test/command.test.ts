@@ -72,7 +72,7 @@ describe("buildCommand", () => {
 
   it("serves the slate tools again as a server of their own that codex lists up front, and keeps them off the deferred wsp one", () => {
     const command = buildCommand({ mcpServers: { wsp: { command: "/opt/wsp/bin/wsp", args: ["mcp"] } } });
-    const slate = JSON.stringify(["slate_catalog", "slate_write", "slate_state", "slate_read"]);
+    const slate = JSON.stringify(["slate_catalog", "slate_write", "slate_state", "slate_read", "slate_look"]);
     // Codex 0.155.1 keeps every MCP tool behind its search when the model has one, unless the server omits "deferred".
     expect(command).toContain(`-c mcp_servers.wsp.disabled_tools='${slate}'`);
     expect(command).toContain(`-c mcp_servers.wsp_slate.command='"/opt/wsp/bin/wsp"'`);
@@ -81,9 +81,9 @@ describe("buildCommand", () => {
     expect(command).toContain(`-c mcp_servers.wsp_slate.enabled_tools='${slate}'`);
     expect(command).toContain(`-c mcp_servers.wsp_slate.omit_tools_from='["deferred"]'`);
     expect(buildCommand({ mcpServers: { docs: { command: "npx", args: [] } } })).not.toContain("wsp_slate");
-    // The four slate tools are called without an ask in read-only and workspace-write, each named; no other tool is.
-    for (const tool of ["slate_catalog", "slate_write", "slate_state", "slate_read"]) expect(command).toContain(`-c mcp_servers.wsp_slate.tools.${tool}.approval_mode='"approve"'`);
-    expect(command.match(/approval_mode/g)).toHaveLength(4);
+    // The five slate tools are called without an ask in read-only and workspace-write, each named; no other tool is.
+    for (const tool of ["slate_catalog", "slate_write", "slate_state", "slate_read", "slate_look"]) expect(command).toContain(`-c mcp_servers.wsp_slate.tools.${tool}.approval_mode='"approve"'`);
+    expect(command.match(/approval_mode/g)).toHaveLength(5);
     expect(command).not.toContain("default_tools_approval_mode");
   });
 
