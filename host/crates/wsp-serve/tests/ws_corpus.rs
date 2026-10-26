@@ -28,8 +28,15 @@ fn every_case_reads_as_ws_reads_it() {
         let mut receiver = Receiver::new();
         let mut got = Vec::new();
         for chunk in case["chunks"].as_array().expect("chunks") {
-            let bytes = hex::decode(chunk.as_str().expect("hex")).expect("hex");
-            got.extend(receiver.push(&bytes).into_iter().map(event));
+            // A chunk is a hex string, or {hex, n}: the same read n times.
+            let (hex, times) = match chunk.as_str() {
+                Some(hex) => (hex, 1),
+                None => (chunk["hex"].as_str().expect("hex"), chunk["n"].as_u64().expect("n")),
+            };
+            let bytes = hex::decode(hex).expect("hex");
+            for _ in 0..times {
+                got.extend(receiver.push(&bytes).into_iter().map(event));
+            }
         }
         if Value::Array(got.clone()) != case["events"] {
             let short = |v: &Value| v.to_string().chars().take(300).collect::<String>();
