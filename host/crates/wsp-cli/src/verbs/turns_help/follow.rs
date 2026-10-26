@@ -56,6 +56,21 @@ pub struct FollowOn {
     pub event: Option<Arc<dyn Fn(&SessionEvent, &Turn) + Send + Sync>>,
 }
 
+/// What `follow` hands the verb for each event of the turn: the host's frame as it came, keys in its order, with the
+/// turn so far.
+pub type RawEvent = Arc<dyn Fn(&Frame, &Turn) + Send + Sync>;
+
+/// A session event read off a frame; a frame the typed event cannot hold (an `afterCut` of `false`) is read again
+/// without that key, since the TS hears every frame as it is.
+pub fn event_of(frame: &Frame) -> Option<SessionEvent> {
+    if let Ok(event) = serde_json::from_value::<SessionEvent>(Value::Object(frame.clone())) {
+        return Some(event);
+    }
+    let mut lenient = frame.clone();
+    lenient.shift_remove("afterCut");
+    serde_json::from_value::<SessionEvent>(Value::Object(lenient)).ok()
+}
+
 /// `Sent` and `sent(start)` (turns-help.ts:581): the start with a fresh `requestId` (a v4 UUID) put last; the id
 /// is stripped again before the frame is sent and re-added after `startedBy`.
 pub fn sent(start: &Frame) -> Frame {
@@ -229,7 +244,7 @@ pub async fn start_detached(
 
 /// Folds one of the named turn's frames into the turn and hands it to `on.event` (turns-help.ts:633-641): a cut start,
 /// a done's result, an end's reason; the frame that ends the follow sets `over`, and nothing after it is taken.
-fn take(f: &Frame, turn: &SharedTurn, on: &FollowOn, over: &Mutex<bool>) {
+fn take(f: &Frame, turn: &SharedTurn, on: &FollowOn, raw: Option<&RawEvent>, over: &Mutex<bool>) {
     if *over.lock().unwrap() {
         return;
     }
@@ -246,7 +261,10 @@ fn take(f: &Frame, turn: &SharedTurn, on: &FollowOn, over: &Mutex<bool>) {
             live.reason = Some(reason.to_owned());
         }
     }
-    if let (Some(event), Ok(e)) = (&on.event, serde_json::from_value::<SessionEvent>(Value::Object(f.clone()))) {
+    if let Some(raw) = raw {
+        raw(f, &live);
+    }
+    if let (Some(event), Some(e)) = (&on.event, event_of(f)) {
         event(&e, &live);
     }
     drop(live);
@@ -261,6 +279,7 @@ async fn follow_on(
     going: &Frame,
     started_by: SessionOrigin,
     on: &FollowOn,
+    raw: Option<&RawEvent>,
     pushed: &PushedFrames,
     named: &mut Option<(SharedTurn, String)>,
 ) -> Result<Turn, HostError> {
@@ -278,11 +297,11 @@ async fn follow_on(
     let (done_tx, done_rx) = oneshot::channel::<()>();
     let done = Arc::new(Mutex::new(Some(done_tx)));
     let over = Arc::new(Mutex::new(false));
-    let (live, on_c, over_c, done_c, id) = (turn.clone(), on.clone(), over.clone(), done.clone(), turn_id.clone());
+    let (live, on_c, raw_c, over_c, done_c, id) = (turn.clone(), on.clone(), raw.cloned(), over.clone(), done.clone(), turn_id.clone());
     pushed.follow(
         Arc::new(move |f: &Frame| is_session_event(f) && f.get("turnId").and_then(Value::as_str) == Some(id.as_str())),
         Arc::new(move |f: &Frame| {
-            take(f, &live, &on_c, &over_c);
+            take(f, &live, &on_c, raw_c.as_ref(), &over_c);
             if *over_c.lock().unwrap() {
                 let tx = done_c.lock().unwrap().take();
                 if let Some(tx) = tx {
@@ -296,12 +315,12 @@ async fn follow_on(
             let live = turn.lock().unwrap();
             (live.session.workspace_id.clone(), live.thread_id.clone())
         };
-        for event in history(socket.as_ref(), &workspace_id, &thread_id).await? {
-            if let Value::Object(frame) = serde_json::to_value(&event).expect("an event writes as JSON") {
+        for event in history_frames(socket.as_ref(), &workspace_id, &thread_id).await? {
+            if let Value::Object(frame) = event {
                 if frame.get("turnId").and_then(Value::as_str) == Some(turn_id.as_str())
                     && matches!(kind_of(&frame), Some("session.done") | Some("session.end"))
                 {
-                    take(&frame, &turn, on, &over);
+                    take(&frame, &turn, on, raw, &over);
                 }
             }
         }
@@ -337,6 +356,18 @@ pub async fn follow(
     on: &FollowOn,
     redial: Option<Redial<'_>>,
 ) -> Result<Turn, HostError> {
+    follow_heard(client, start, started_by, on, None, redial).await
+}
+
+/// `follow` with `raw` hearing each event's frame as the host wrote it, beside the typed `on.event`.
+pub async fn follow_heard(
+    client: Arc<dyn HostClient>,
+    start: &Frame,
+    started_by: SessionOrigin,
+    on: &FollowOn,
+    raw: Option<RawEvent>,
+    redial: Option<Redial<'_>>,
+) -> Result<Turn, HostError> {
     let mut asked = start.clone();
     asked.insert("followed".into(), json!(true));
     let going = sent(&asked);
@@ -345,7 +376,7 @@ pub async fn follow(
     let mut named: Option<(SharedTurn, String)> = None;
     loop {
         let pushed = PushedFrames::new(socket.as_ref());
-        let attempt = follow_on(&socket, &original, &going, started_by, on, &pushed, &mut named).await;
+        let attempt = follow_on(&socket, &original, &going, started_by, on, raw.as_ref(), &pushed, &mut named).await;
         pushed.stop();
         match attempt {
             Ok(turn) => return Ok(turn),
@@ -475,6 +506,16 @@ pub async fn history(client: &dyn HostClient, workspace_id: &str, thread_id: &st
     reply_field(&frame, "sessions.history", "events")
 }
 
+/// `history` as the host wrote it: the `events` of `sessions.history`, each frame with its keys in the host's order.
+pub async fn history_frames(client: &dyn HostClient, workspace_id: &str, thread_id: &str) -> Result<Vec<Value>, HostError> {
+    let params = pick(vec![("workspaceId", Some(json!(workspace_id))), ("threadId", Some(json!(thread_id))), ("whole", Some(json!(true)))]);
+    let frame = client.request("sessions.history", params).await?;
+    match frame.get("events") {
+        Some(Value::Array(events)) => Ok(events.clone()),
+        _ => Err(HostError::new(other_version("sessions.history"))),
+    }
+}
+
 /// What `readThread` answers: the thread's full id and its messages.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ThreadRead {
@@ -503,17 +544,46 @@ pub fn read_line(read: &ThreadRead, last: bool, offset_seconds_at: &dyn Fn(f64) 
     thread_read_text(&read.messages, offset_seconds_at)
 }
 
+/// What `threadHead` answers: the host's `facts`, `events`, `pos` and `total` as it wrote them (unknown keys kept, its
+/// key order), and the same read into the typed head that `head_line` takes. It writes as the raw head and reads as the typed one.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HeadRead {
+    pub typed: ThreadHead,
+    pub raw: Value,
+}
+
+impl std::ops::Deref for HeadRead {
+    type Target = ThreadHead;
+
+    fn deref(&self) -> &ThreadHead {
+        &self.typed
+    }
+}
+
+impl serde::Serialize for HeadRead {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.raw.serialize(serializer)
+    }
+}
+
 /// `threadHead(client, thread)` (turns-help.ts:778): `sessions.head {threadId: thread.id}`, only its `facts`,
-/// `events`, `pos` and `total` kept.
-pub async fn thread_head(client: &dyn HostClient, thread: &ThreadView) -> Result<ThreadHead, HostError> {
+/// `events`, `pos` and `total` kept, as the host wrote them.
+pub async fn thread_head(client: &dyn HostClient, thread: &ThreadView) -> Result<HeadRead, HostError> {
     let frame = client.request("sessions.head", pick(vec![("threadId", Some(json!(thread.id)))])).await?;
-    Ok(ThreadHead {
+    let typed = ThreadHead {
         facts: reply_field(&frame, "sessions.head", "facts")?,
         events: reply_field(&frame, "sessions.head", "events")?,
         pos: reply_field(&frame, "sessions.head", "pos")?,
         total: reply_field(&frame, "sessions.head", "total")?,
         trimmed: None,
-    })
+    };
+    let mut raw = serde_json::Map::new();
+    for key in ["facts", "events", "pos", "total"] {
+        if let Some(part) = frame.get(key) {
+            raw.insert(key.to_owned(), part.clone());
+        }
+    }
+    Ok(HeadRead { typed, raw: Value::Object(raw) })
 }
 
 /// `headLine(head)` (turns-help.ts:785): the title; `<harness>[ on <model>], <permissionMode>?, <status>` joined
@@ -522,7 +592,16 @@ pub async fn thread_head(client: &dyn HostClient, thread: &ThreadView) -> Result
 pub fn head_line(head: &ThreadHead, offset_seconds_at: &dyn Fn(f64) -> i64) -> String {
     let facts = &head.facts;
     let status = serde_json::to_value(facts.status).ok().and_then(|word| word.as_str().map(str::to_owned)).unwrap_or_default();
-    let mut lines = vec![facts.title.clone(), format!("{}, {status}", facts.harness)];
+    let runs = [match &facts.model {
+        Some(model) => format!("{} on {model}", facts.harness),
+        None => facts.harness.clone(),
+    }]
+    .into_iter()
+    .chain(facts.permission_mode.clone())
+    .chain([status])
+    .collect::<Vec<_>>()
+    .join(", ");
+    let mut lines = vec![facts.title.clone(), runs];
     if let Some(cwd) = &facts.cwd {
         lines.push(cwd.clone());
     }
