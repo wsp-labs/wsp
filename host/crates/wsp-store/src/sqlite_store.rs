@@ -21,6 +21,7 @@ use wsp_wire::wire::daemon_version::StateShape;
 use wsp_words::exit::HostError;
 
 use crate::own_file::{own_folder, OWN_FILE_MODE};
+use crate::row_json::parse_row;
 use crate::sqlite_transcripts::{SqliteTranscripts, TranscriptRows};
 use crate::store::{refuse_other_shape, shape_now, state_shape_unreadable_line, state_unreadable_line, BlobMark, StateWriter, Store};
 
@@ -514,9 +515,4 @@ fn let_go(value: Value) {
             _ => {}
         }
     }
-}
-
-/// A stored row parsed afresh; a row that is not JSON fails the call (the TS throws `SyntaxError`).
-fn parse_row(json: &str) -> Result<Value, HostError> {
-    serde_json::from_str(json).map_err(|e| HostError::new(e.to_string()))
 }
