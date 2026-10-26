@@ -9,6 +9,7 @@
 //! authed socket (`ticket.issue`) and redeemed as `?ticket=...` on the next connect.
 pub mod answer;
 pub mod door;
+pub mod flat;
 pub mod ops;
 pub mod places;
 pub mod served;
