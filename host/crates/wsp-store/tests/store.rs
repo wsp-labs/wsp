@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The store unit against the TS oracle (tests/fixtures/store/store.json, made by oracle/store.oracle.ts) and the
-// memory store cases of packages/runtime/test/store.test.ts. The Rust host reads shape 3 where the TS fixture's lines
-// say 2, so the refusal lines are written out here with 3.
+// memory store cases of packages/runtime/test/store.test.ts. The Rust host reads shape 2, the TS host's own.
 mod common;
 
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -184,8 +183,8 @@ fn deleting_a_missing_id_is_ok() {
 #[test]
 fn the_newer_state_line_names_both_shapes_the_writer_and_the_fix() {
     assert_eq!(
-        state_written_by_newer_line("/h/state.db", &shape_doc(4)),
-        "/h/state.db was written by a newer wsp (state shape 4; this wsp reads 3; written 2026-09-18T15:15:00.000Z by /Applications/wsp.app/Contents/Resources/bin.js (wsp 0.3.0, daemon 160)): run that wsp, or move the file aside"
+        state_written_by_newer_line("/h/state.db", &shape_doc(3)),
+        "/h/state.db was written by a newer wsp (state shape 3; this wsp reads 2; written 2026-09-18T15:15:00.000Z by /Applications/wsp.app/Contents/Resources/bin.js (wsp 0.3.0, daemon 160)): run that wsp, or move the file aside"
     );
 }
 
@@ -193,15 +192,15 @@ fn the_newer_state_line_names_both_shapes_the_writer_and_the_fix() {
 fn the_older_state_line_with_no_shape_recorded_says_none_recorded() {
     assert_eq!(
         state_written_by_older_line("/h/state.db", None),
-        "/h/state.db holds state in an older shape (none recorded; this wsp reads shape 3): move the file aside and this wsp starts a fresh one"
+        "/h/state.db holds state in an older shape (none recorded; this wsp reads shape 2): move the file aside and this wsp starts a fresh one"
     );
 }
 
 #[test]
 fn the_older_state_line_with_a_shape_names_it_and_the_writer() {
     assert_eq!(
-        state_written_by_older_line("/h/state.db", Some(&shape_doc(2))),
-        "/h/state.db holds state in an older shape (shape 2, written 2026-09-18T15:15:00.000Z by /Applications/wsp.app/Contents/Resources/bin.js (wsp 0.3.0, daemon 160); this wsp reads shape 3): move the file aside and this wsp starts a fresh one"
+        state_written_by_older_line("/h/state.db", Some(&shape_doc(1))),
+        "/h/state.db holds state in an older shape (shape 1, written 2026-09-18T15:15:00.000Z by /Applications/wsp.app/Contents/Resources/bin.js (wsp 0.3.0, daemon 160); this wsp reads shape 2): move the file aside and this wsp starts a fresh one"
     );
 }
 
@@ -227,31 +226,31 @@ fn a_state_with_no_shape_recorded_is_refused_as_older() {
     let e = refuse_other_shape("/h/state.db", None).unwrap_err();
     assert_eq!(
         e.message,
-        "/h/state.db holds state in an older shape (none recorded; this wsp reads shape 3): move the file aside and this wsp starts a fresh one"
+        "/h/state.db holds state in an older shape (none recorded; this wsp reads shape 2): move the file aside and this wsp starts a fresh one"
     );
 }
 
 #[test]
-fn a_state_in_shape_two_is_refused_as_older() {
-    let e = refuse_other_shape("/h/state.db", Some(&shape_doc(2))).unwrap_err();
+fn a_state_in_shape_one_is_refused_as_older() {
+    let e = refuse_other_shape("/h/state.db", Some(&shape_doc(1))).unwrap_err();
     assert_eq!(
         e.message,
-        "/h/state.db holds state in an older shape (shape 2, written 2026-09-18T15:15:00.000Z by /Applications/wsp.app/Contents/Resources/bin.js (wsp 0.3.0, daemon 160); this wsp reads shape 3): move the file aside and this wsp starts a fresh one"
+        "/h/state.db holds state in an older shape (shape 1, written 2026-09-18T15:15:00.000Z by /Applications/wsp.app/Contents/Resources/bin.js (wsp 0.3.0, daemon 160); this wsp reads shape 2): move the file aside and this wsp starts a fresh one"
     );
 }
 
 #[test]
-fn a_state_in_shape_four_is_refused_as_newer() {
-    let e = refuse_other_shape("/h/state.db", Some(&shape_doc(4))).unwrap_err();
+fn a_state_in_shape_three_is_refused_as_newer() {
+    let e = refuse_other_shape("/h/state.db", Some(&shape_doc(3))).unwrap_err();
     assert_eq!(
         e.message,
-        "/h/state.db was written by a newer wsp (state shape 4; this wsp reads 3; written 2026-09-18T15:15:00.000Z by /Applications/wsp.app/Contents/Resources/bin.js (wsp 0.3.0, daemon 160)): run that wsp, or move the file aside"
+        "/h/state.db was written by a newer wsp (state shape 3; this wsp reads 2; written 2026-09-18T15:15:00.000Z by /Applications/wsp.app/Contents/Resources/bin.js (wsp 0.3.0, daemon 160)): run that wsp, or move the file aside"
     );
 }
 
 #[test]
 fn a_state_in_this_builds_shape_is_accepted() {
-    assert_eq!(refuse_other_shape("/h/state.db", Some(&shape_doc(3))), Ok(()));
+    assert_eq!(refuse_other_shape("/h/state.db", Some(&shape_doc(2))), Ok(()));
 }
 
 fn epoch_ms(at: &str) -> i64 {
@@ -282,7 +281,7 @@ fn is_iso_millis(at: &str) -> bool {
 }
 
 #[test]
-fn shape_now_writes_shape_three_the_writers_build_and_the_time_in_that_key_order() {
+fn shape_now_writes_shape_two_the_writers_build_and_the_time_in_that_key_order() {
     let wrote = shape_now(&writer());
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as i64;
     let mut doc: Map<String, Value> = match serde_json::to_value(&wrote).unwrap() {
@@ -292,7 +291,7 @@ fn shape_now_writes_shape_three_the_writers_build_and_the_time_in_that_key_order
     assert_eq!(doc.keys().cloned().collect::<Vec<_>>(), ["shape", "wsp", "daemon", "bin", "at"]);
     let at = doc.remove("at").unwrap();
     let at = at.as_str().unwrap().to_string();
-    assert_eq!(Value::Object(doc), json!({"shape": 3, "wsp": "test", "daemon": 1, "bin": "/usr/local/bin/wsp"}));
+    assert_eq!(Value::Object(doc), json!({"shape": 2, "wsp": "test", "daemon": 1, "bin": "/usr/local/bin/wsp"}));
     assert!(is_iso_millis(&at), "at is {at}");
     assert!((epoch_ms(&at) - now).abs() <= 5000, "at {at} is not within 5 seconds of now");
 }
