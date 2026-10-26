@@ -350,3 +350,11 @@ impl Ctx {
         ctx
     }
 }
+
+// Helpers every packet's file reads go here: a method on Ctx defined in two packet files no longer builds once both land.
+impl Ctx {
+    /// `placeDoor`, where the host wired one.
+    pub(crate) fn wired_door(&self) -> Option<Rc<dyn PlaceDoor>> {
+        self.place_door.get()
+    }
+}
