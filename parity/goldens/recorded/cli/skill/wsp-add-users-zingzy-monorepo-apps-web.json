@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": "web <pr-1>: /Users/zingzy/monorepo/apps/web on this computer, at /Users/zingzy/monorepo/apps/web\nopen a thread on it with: wsp run 'web' \"<message>\"\n",
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

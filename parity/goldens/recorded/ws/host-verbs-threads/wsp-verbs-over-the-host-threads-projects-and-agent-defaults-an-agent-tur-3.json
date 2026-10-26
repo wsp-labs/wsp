@@ -1,0 +1,31 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "agent": {
+        "id": "codex",
+        "name": "Codex",
+        "installed": true,
+        "version": "0.155.1",
+        "pinned": "0.155.1",
+        "road": "own",
+        "path": "/usr/bin/codex",
+        "signIn": "none",
+        "signInRoad": "device",
+        "wspTools": false,
+        "setup": {
+          "on": true,
+          "envNames": []
+        }
+      }
+    }
+  ],
+  "events": []
+}

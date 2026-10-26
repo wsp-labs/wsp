@@ -138,6 +138,7 @@ else
   show scripts/ghostty.sh
 fi
 run mkdir -p "$dist"
+export GIT_CEILING_DIRECTORIES="$PWD/vendor"
 
 # Runs a check of a file the bundle must hold, and refuses the build where it fails.
 check() {

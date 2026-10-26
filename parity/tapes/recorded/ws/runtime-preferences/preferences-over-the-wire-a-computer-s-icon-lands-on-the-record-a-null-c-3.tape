@@ -1,0 +1,5 @@
+{"meta":{"door":"ws","source":"packages/runtime/test/preferences.test.ts > preferences over the wire > a computer's icon lands on the record, a null clears it, and the next runtime on the store reads it","outs":"recorded"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
+{"out":{"id":1,"ok":true}}
+{"in":{"patch":{"computerLook":{"pl_box":{"icon":"toaster"}}},"id":2,"op":"preferences.set"}}
+{"out":{"id":2,"ok":false,"error":"[\n  {\n    \"received\": \"toaster\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"laptop\",\n      \"desktop\",\n      \"mac-mini\",\n      \"mac-studio\",\n      \"tower\",\n      \"server\",\n      \"cloud\",\n      \"cpu\",\n      \"drive\",\n      \"container\",\n      \"home\"\n    ],\n    \"path\": [\n      \"patch\",\n      \"computerLook\",\n      \"pl_box\",\n      \"icon\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'laptop' | 'desktop' | 'mac-mini' | 'mac-studio' | 'tower' | 'server' | 'cloud' | 'cpu' | 'drive' | 'container' | 'home', received 'toaster'\"\n  }\n]"}}

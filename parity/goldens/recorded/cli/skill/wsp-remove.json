@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp remove takes one computer. usage: wsp remove <computer> [--yes] [--force] [--forget] [--json]\n"
+    }
+  ],
+  "events": []
+}

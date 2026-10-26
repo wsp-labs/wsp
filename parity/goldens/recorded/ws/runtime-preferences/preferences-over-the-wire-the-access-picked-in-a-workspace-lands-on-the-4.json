@@ -1,0 +1,31 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": {
+        "json": [
+          {
+            "code": "invalid_type",
+            "expected": "string",
+            "received": "number",
+            "path": [
+              "patch",
+              "access",
+              "ws_b"
+            ],
+            "message": "Expected string, received number"
+          }
+        ],
+        "layout": "indented"
+      }
+    }
+  ],
+  "events": []
+}
