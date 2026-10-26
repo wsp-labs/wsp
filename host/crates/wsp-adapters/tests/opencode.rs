@@ -13,15 +13,16 @@ mod codex_shell;
 
 use std::sync::{Arc, Mutex};
 
-use futures::future::{LocalBoxFuture, FutureExt};
+use futures::future::{FutureExt, LocalBoxFuture};
 use indexmap::IndexMap;
 use serde_json::{json, Value};
-use wsp_adapters::opencode::adapter::{AttachedSession, OpenCodeAdapter, OpenCodeAdapterDeps, OpenCodeSession};
 use wsp_adapters::opencode::adapter::create_opencode_adapter;
+use wsp_adapters::opencode::adapter::{AttachedSession, OpenCodeAdapter, OpenCodeAdapterDeps, OpenCodeSession};
 use wsp_adapters::opencode::command::{build_command, build_env, BuildCommandOptions, OpenCodeEnvOptions, AUTO_MODE};
 use wsp_adapters::port::{
-    agent_word, AdapterAttachOptions, AdapterEvent, AgentLaunch, DeltaKind, Env, ExecFailure, HarnessCatalogAnswer, HarnessCatalogModelProbe,
-    HarnessCatalogProbe, HarnessExec, HarnessStartOptions, TurnDelta, TurnImage, TurnResult, TurnStatus, TurnTokens,
+    agent_word, AdapterAttachOptions, AdapterEvent, AgentLaunch, DeltaKind, Env, ExecFailure, HarnessCatalogAnswer,
+    HarnessCatalogModelProbe, HarnessCatalogProbe, HarnessExec, HarnessStartOptions, TurnDelta, TurnImage, TurnResult, TurnStatus,
+    TurnTokens,
 };
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::session::TurnRefusal;
@@ -72,7 +73,20 @@ fn n(v: f64) -> Option<JsNumber> {
 }
 
 fn bare(status: TurnStatus) -> TurnResult {
-    TurnResult { status, duration_ms: None, waited_ms: None, cost_usd: None, tokens: None, model: None, models: None, text: None, error: None, unreached: None, refusal: None, limit: None }
+    TurnResult {
+        status,
+        duration_ms: None,
+        waited_ms: None,
+        cost_usd: None,
+        tokens: None,
+        model: None,
+        models: None,
+        text: None,
+        error: None,
+        unreached: None,
+        refusal: None,
+        limit: None,
+    }
 }
 
 fn failed(error: &str) -> TurnResult {
@@ -117,7 +131,9 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
 
     #[tokio::test]
     async fn launches_the_run_line_with_the_picks_under_the_login_environment_the_prompt_on_t() {
-        tokio::task::LocalSet::new().run_until(launches_the_run_line_with_the_picks_under_the_login_environment_the_prompt_on_t_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(launches_the_run_line_with_the_picks_under_the_login_environment_the_prompt_on_t_body())
+            .await
     }
 
     async fn launches_the_run_line_with_the_picks_under_the_login_environment_the_prompt_on_t_body() {
@@ -137,9 +153,15 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
         );
         session.finished().await;
         let call = exec.calls().remove(0);
-        assert!(call.command.starts_with(&format!("cd '/root/app' && {} run --format json", agent_word("opencode", None))), "{}", call.command);
         assert!(
-            call.command.contains("-m anthropic/claude-sonnet-4-5 --variant high --auto <<'WSP_PROMPT_END'\nlist the three largest files\nWSP_PROMPT_END"),
+            call.command.starts_with(&format!("cd '/root/app' && {} run --format json", agent_word("opencode", None))),
+            "{}",
+            call.command
+        );
+        assert!(
+            call.command.contains(
+                "-m anthropic/claude-sonnet-4-5 --variant high --auto <<'WSP_PROMPT_END'\nlist the three largest files\nWSP_PROMPT_END"
+            ),
             "{}",
             call.command
         );
@@ -164,7 +186,13 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
         let events = Events::default();
         let session = start(
             &adapter_over(&exec, Extra::default()),
-            HarnessStartOptions { prompt: "go".into(), cwd: Some("/root/app".into()), model: Some("anthropic/claude-sonnet-4-5".into()), on_event: Some(events.on_event()), ..Default::default() },
+            HarnessStartOptions {
+                prompt: "go".into(),
+                cwd: Some("/root/app".into()),
+                model: Some("anthropic/claude-sonnet-4-5".into()),
+                on_event: Some(events.on_event()),
+                ..Default::default()
+            },
         );
         let result = session.finished().await;
         assert_eq!(session.session_id(), SESSION);
@@ -175,15 +203,32 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
         );
         assert_eq!(
             all[0],
-            AdapterEvent::SessionStart { session_id: SESSION.into(), model: Some("anthropic/claude-sonnet-4-5".into()), cwd: Some("/root/app".into()), tools: None, harness: None, prompted: None }
+            AdapterEvent::SessionStart {
+                session_id: SESSION.into(),
+                model: Some("anthropic/claude-sonnet-4-5".into()),
+                cwd: Some("/root/app".into()),
+                tools: None,
+                harness: None,
+                prompted: None
+            }
         );
-        assert_eq!(all[1], AdapterEvent::TurnDelta(TurnDelta { message_id: Some("msg_f1d4a1b2c001".into()), ..delta(DeltaKind::Text, "I will list the files by size.") }));
+        assert_eq!(
+            all[1],
+            AdapterEvent::TurnDelta(TurnDelta {
+                message_id: Some("msg_f1d4a1b2c001".into()),
+                ..delta(DeltaKind::Text, "I will list the files by size.")
+            })
+        );
         assert_eq!(
             all[2],
             AdapterEvent::TurnDelta(TurnDelta {
                 tool_name: Some("bash".into()),
                 tool_use_id: Some("call_f1d4ls01".into()),
-                ..delta(DeltaKind::ToolUse, &serde_json::to_string(&json!({ "command": "ls -S | head -3", "description": "Lists the three largest files" })).unwrap())
+                ..delta(
+                    DeltaKind::ToolUse,
+                    &serde_json::to_string(&json!({ "command": "ls -S | head -3", "description": "Lists the three largest files" }))
+                        .unwrap()
+                )
             })
         );
         assert_eq!(
@@ -200,9 +245,20 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
         // Every step's input side summed, cache reads and writes in; what the model held is the last step's whole count.
         assert_eq!(
             result.tokens,
-            Some(TurnTokens { input: JsNumber(3300.0), output: JsNumber(190.0), cached: n(1000.0), cache_write: n(0.0), reasoning: n(50.0), context: n(2340.0), window: None })
+            Some(TurnTokens {
+                input: JsNumber(3300.0),
+                output: JsNumber(190.0),
+                cached: n(1000.0),
+                cache_write: n(0.0),
+                reasoning: n(50.0),
+                context: n(2340.0),
+                window: None
+            })
         );
-        assert_eq!(all.last().unwrap(), &AdapterEvent::SessionEnd { session_id: SESSION.into(), exit_code: Some(0), saw_result: true, failure: None });
+        assert_eq!(
+            all.last().unwrap(),
+            &AdapterEvent::SessionEnd { session_id: SESSION.into(), exit_code: Some(0), saw_result: true, failure: None }
+        );
     }
 
     #[tokio::test]
@@ -216,7 +272,12 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
             json!({ "part": { "id": "prt_1", "sessionID": SESSION, "messageID": "msg_1", "type": "tool", "callID": "call_rd", "tool": "read", "state": { "status": "error", "input": { "filePath": "/nope" }, "error": "File not found: /nope", "time": { "start": 1, "end": 2 } } } }),
         );
         let events = Events::default();
-        start(&adapter_over(&scripted_exec(vec![failed_part], ScriptOpts::default(), RUN_HANDLE), Extra::default()), turn_start("go", &events)).finished().await;
+        start(
+            &adapter_over(&scripted_exec(vec![failed_part], ScriptOpts::default(), RUN_HANDLE), Extra::default()),
+            turn_start("go", &events),
+        )
+        .finished()
+        .await;
         assert!(events.all().contains(&AdapterEvent::TurnDelta(TurnDelta {
             tool_use_id: Some("call_rd".into()),
             is_error: Some(true),
@@ -232,7 +293,9 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
     async fn the_turn_ends_at_the_step_whose_reason_ends_the_loop_and_a_process_that_lingers_body() {
         let exec = scripted_exec(fixture("opencode", "turn.jsonl"), ScriptOpts { hang: true, ..Default::default() }, RUN_HANDLE);
         let events = Events::default();
-        let result = start(&adapter_over(&exec, Extra { result_exit_ms: Some(5), interrupt_grace_ms: Some(5) }), turn_start("go", &events)).finished().await;
+        let result = start(&adapter_over(&exec, Extra { result_exit_ms: Some(5), interrupt_grace_ms: Some(5) }), turn_start("go", &events))
+            .finished()
+            .await;
         assert_eq!(result.status, TurnStatus::Completed);
         assert!(exec.order().contains(&"teardown".to_string()), "{:?}", exec.order());
         assert_eq!(events.all().iter().filter(|e| matches!(e, AdapterEvent::TurnDone { .. })).count(), 1);
@@ -240,24 +303,37 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
 
     #[tokio::test]
     async fn a_step_that_asked_for_tools_does_not_end_the_turn_the_process_exiting_after_it_w() {
-        tokio::task::LocalSet::new().run_until(a_step_that_asked_for_tools_does_not_end_the_turn_the_process_exiting_after_it_w_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(a_step_that_asked_for_tools_does_not_end_the_turn_the_process_exiting_after_it_w_body())
+            .await
     }
 
     async fn a_step_that_asked_for_tools_does_not_end_the_turn_the_process_exiting_after_it_w_body() {
         let lines: Vec<String> = fixture("opencode", "turn.jsonl").into_iter().take(4).collect();
         let exec = scripted_exec(lines, ScriptOpts::default(), RUN_HANDLE);
-        let result = start(&adapter_over(&exec, Extra::default()), HarnessStartOptions { prompt: "go".into(), on_event: Some(no_events()), ..Default::default() }).finished().await;
+        let result = start(
+            &adapter_over(&exec, Extra::default()),
+            HarnessStartOptions { prompt: "go".into(), on_event: Some(no_events()), ..Default::default() },
+        )
+        .finished()
+        .await;
         assert_eq!(result.status, TurnStatus::Completed);
         assert_eq!(result.text, Some("I will list the files by size.".to_string()));
     }
 
     #[tokio::test]
     async fn an_unknown_model_fails_the_turn_in_the_log_s_own_words_not_the_stream_s_server_e() {
-        tokio::task::LocalSet::new().run_until(an_unknown_model_fails_the_turn_in_the_log_s_own_words_not_the_stream_s_server_e_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(an_unknown_model_fails_the_turn_in_the_log_s_own_words_not_the_stream_s_server_e_body())
+            .await
     }
 
     async fn an_unknown_model_fails_the_turn_in_the_log_s_own_words_not_the_stream_s_server_e_body() {
-        let exec = scripted_exec(fixture("opencode", "model-not-found.jsonl"), ScriptOpts { exit_code: Some(1), ..Default::default() }, RUN_HANDLE);
+        let exec = scripted_exec(
+            fixture("opencode", "model-not-found.jsonl"),
+            ScriptOpts { exit_code: Some(1), ..Default::default() },
+            RUN_HANDLE,
+        );
         let events = Events::default();
         let result = start(&adapter_over(&exec, Extra::default()), turn_start("say hi", &events)).finished().await;
         assert_eq!(result.status, TurnStatus::Failed);
@@ -272,17 +348,35 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
 
     #[tokio::test]
     async fn a_provider_that_refuses_the_credential_is_a_sign_in_refusal_with_wsp_s_road_besi() {
-        tokio::task::LocalSet::new().run_until(a_provider_that_refuses_the_credential_is_a_sign_in_refusal_with_wsp_s_road_besi_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(a_provider_that_refuses_the_credential_is_a_sign_in_refusal_with_wsp_s_road_besi_body())
+            .await
     }
 
     async fn a_provider_that_refuses_the_credential_is_a_sign_in_refusal_with_wsp_s_road_besi_body() {
-        let refused = line("error", json!({ "error": { "name": "ProviderAuthError", "data": { "providerID": "anthropic", "message": "Invalid API key" } } }));
+        let refused = line(
+            "error",
+            json!({ "error": { "name": "ProviderAuthError", "data": { "providerID": "anthropic", "message": "Invalid API key" } } }),
+        );
         let exec = scripted_exec(vec![refused], ScriptOpts { exit_code: Some(1), ..Default::default() }, RUN_HANDLE);
-        let result = start(&adapter_over(&exec, Extra::default()), HarnessStartOptions { prompt: "go".into(), on_event: Some(no_events()), ..Default::default() }).finished().await;
+        let result = start(
+            &adapter_over(&exec, Extra::default()),
+            HarnessStartOptions { prompt: "go".into(), on_event: Some(no_events()), ..Default::default() },
+        )
+        .finished()
+        .await;
         assert_eq!(result, TurnResult { refusal: Some(TurnRefusal::SignIn), ..failed(&format!("Invalid API key; {SIGN_IN_ROAD}")) });
-        let unauthorized = line("error", json!({ "error": { "name": "APIError", "data": { "message": "Unauthorized", "statusCode": 401, "isRetryable": false } } }));
+        let unauthorized = line(
+            "error",
+            json!({ "error": { "name": "APIError", "data": { "message": "Unauthorized", "statusCode": 401, "isRetryable": false } } }),
+        );
         let exec = scripted_exec(vec![unauthorized], ScriptOpts { exit_code: Some(1), ..Default::default() }, RUN_HANDLE);
-        let second = start(&adapter_over(&exec, Extra::default()), HarnessStartOptions { prompt: "go".into(), on_event: Some(no_events()), ..Default::default() }).finished().await;
+        let second = start(
+            &adapter_over(&exec, Extra::default()),
+            HarnessStartOptions { prompt: "go".into(), on_event: Some(no_events()), ..Default::default() },
+        )
+        .finished()
+        .await;
         assert_eq!(second.refusal, Some(TurnRefusal::SignIn));
     }
 
@@ -292,8 +386,17 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
     }
 
     async fn a_process_that_dies_before_any_event_fails_the_turn_with_what_it_printed_body() {
-        let exec = scripted_exec(vec!["bash: opencode: command not found".into()], ScriptOpts { exit_code: Some(127), ..Default::default() }, RUN_HANDLE);
-        let result = start(&adapter_over(&exec, Extra::default()), HarnessStartOptions { prompt: "go".into(), on_event: Some(no_events()), ..Default::default() }).finished().await;
+        let exec = scripted_exec(
+            vec!["bash: opencode: command not found".into()],
+            ScriptOpts { exit_code: Some(127), ..Default::default() },
+            RUN_HANDLE,
+        );
+        let result = start(
+            &adapter_over(&exec, Extra::default()),
+            HarnessStartOptions { prompt: "go".into(), on_event: Some(no_events()), ..Default::default() },
+        )
+        .finished()
+        .await;
         assert_eq!(result, failed("opencode exited with code 127 before its turn ended: bash: opencode: command not found"));
     }
 
@@ -321,7 +424,9 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
 
     #[tokio::test]
     async fn an_attach_re_opens_the_run_with_no_channel_and_takes_the_model_and_folder_off_th() {
-        tokio::task::LocalSet::new().run_until(an_attach_re_opens_the_run_with_no_channel_and_takes_the_model_and_folder_off_th_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(an_attach_re_opens_the_run_with_no_channel_and_takes_the_model_and_folder_off_th_body())
+            .await
     }
 
     async fn an_attach_re_opens_the_run_with_no_channel_and_takes_the_model_and_folder_off_th_body() {
@@ -362,7 +467,9 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
 
     #[tokio::test]
     async fn an_image_reaches_the_line_as_a_file_on_the_machine_and_one_with_no_path_is_refus() {
-        tokio::task::LocalSet::new().run_until(an_image_reaches_the_line_as_a_file_on_the_machine_and_one_with_no_path_is_refus_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(an_image_reaches_the_line_as_a_file_on_the_machine_and_one_with_no_path_is_refus_body())
+            .await
     }
 
     async fn an_image_reaches_the_line_as_a_file_on_the_machine_and_one_with_no_path_is_refus_body() {
@@ -372,7 +479,11 @@ mod opencode_adapter_over_an_opencode_run_format_json_turn {
             &adapter,
             HarnessStartOptions {
                 prompt: "what is this".into(),
-                images: vec![TurnImage { media_type: "image/png".into(), bytes: "".into(), path: Some("/root/.wsp/images/t/a.png".into()) }],
+                images: vec![TurnImage {
+                    media_type: "image/png".into(),
+                    bytes: "".into(),
+                    path: Some("/root/.wsp/images/t/a.png".into()),
+                }],
                 on_event: Some(no_events()),
                 ..Default::default()
             },
@@ -396,12 +507,15 @@ mod what_opencode_reports_about_itself {
 
     #[tokio::test]
     async fn reads_its_version_and_each_model_with_the_variants_it_offers_off_opencode_models() {
-        tokio::task::LocalSet::new().run_until(reads_its_version_and_each_model_with_the_variants_it_offers_off_opencode_models_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(reads_its_version_and_each_model_with_the_variants_it_offers_off_opencode_models_body())
+            .await
     }
 
     async fn reads_its_version_and_each_model_with_the_variants_it_offers_off_opencode_models_body() {
         let (exec, asked) = probe_over(&fixture("opencode", "catalog-probe.txt").join("\n"));
-        let probe = adapter_over(&scripted_exec(vec![], ScriptOpts::default(), RUN_HANDLE), Extra::default()).probe_catalog(exec).await.unwrap();
+        let probe =
+            adapter_over(&scripted_exec(vec![], ScriptOpts::default(), RUN_HANDLE), Extra::default()).probe_catalog(exec).await.unwrap();
         assert_eq!(
             asked.lock().unwrap()[0],
             "cd ~ && export PATH='/root/.local/bin:/usr/bin'; opencode --version; echo __WSP_CATALOG_SEP__; opencode models --verbose"
@@ -489,7 +603,13 @@ mod the_opencode_run_line {
             ..opts("list the files")
         })
         .unwrap();
-        assert!(line.starts_with(&format!("cd '/root/app' && {} run --format json --print-logs --log-level ERROR --dir '/root/app'", agent_word("opencode", None))), "{line}");
+        assert!(
+            line.starts_with(&format!(
+                "cd '/root/app' && {} run --format json --print-logs --log-level ERROR --dir '/root/app'",
+                agent_word("opencode", None)
+            )),
+            "{line}"
+        );
         assert!(line.contains(" -s ses_f1d55cde0ffe2JZqKKpAnaa1c3"), "{line}");
         assert!(line.contains(" -m openrouter/anthropic/claude-sonnet-4.5"), "{line}");
         assert!(line.contains(" --variant high"), "{line}");
@@ -526,7 +646,11 @@ mod the_opencode_run_line {
 
     #[test]
     fn takes_one_f_per_image_each_an_absolute_path_after_every_other_flag() {
-        let line = build_command(&BuildCommandOptions { images: vec!["/root/.wsp/images/t1/a.png".into(), "/root/.wsp/images/t1/b c.png".into()], ..opts("what is this") }).unwrap();
+        let line = build_command(&BuildCommandOptions {
+            images: vec!["/root/.wsp/images/t1/a.png".into(), "/root/.wsp/images/t1/b c.png".into()],
+            ..opts("what is this")
+        })
+        .unwrap();
         assert!(line.contains(" -f '/root/.wsp/images/t1/a.png' -f '/root/.wsp/images/t1/b c.png' <<'WSP_PROMPT_END'"), "{line}");
         let err = build_command(&BuildCommandOptions { images: vec!["-rf".into()], ..opts("x") }).unwrap_err();
         assert!(err.contains("absolute path"), "{err}");
@@ -561,7 +685,11 @@ mod the_opencode_turn_s_environment {
         let mut keyed = plain.clone();
         keyed.insert("OPENCODE_API_KEY".into(), "sk-x".into());
         assert_eq!(
-            build_env(&OpenCodeEnvOptions { base: Some(keyed_base), api_key: Some("sk-x".into()), key_env: Some("OPENCODE_API_KEY".into()) }),
+            build_env(&OpenCodeEnvOptions {
+                base: Some(keyed_base),
+                api_key: Some("sk-x".into()),
+                key_env: Some("OPENCODE_API_KEY".into())
+            }),
             keyed
         );
     }
@@ -598,7 +726,14 @@ mod rules_this_port_pins {
         let exec = scripted_exec(vec![said, blank], ScriptOpts::default(), RUN_HANDLE);
         let result = start(&adapter_over(&exec, Extra::default()), turn_start("go", &events)).finished().await;
         assert_eq!(result.text.as_deref(), Some("the reply"));
-        let texts: Vec<String> = events.all().iter().filter_map(|e| match e { AdapterEvent::TurnDelta(d) => Some(d.text.clone()), _ => None }).collect();
+        let texts: Vec<String> = events
+            .all()
+            .iter()
+            .filter_map(|e| match e {
+                AdapterEvent::TurnDelta(d) => Some(d.text.clone()),
+                _ => None,
+            })
+            .collect();
         assert_eq!(texts, vec!["the reply".to_string()]);
     }
 }
@@ -627,15 +762,34 @@ mod rules_added {
     }
 
     fn deltas(events: &Events) -> Vec<TurnDelta> {
-        events.all().into_iter().filter_map(|e| match e { AdapterEvent::TurnDelta(d) => Some(d), _ => None }).collect()
+        events
+            .all()
+            .into_iter()
+            .filter_map(|e| match e {
+                AdapterEvent::TurnDelta(d) => Some(d),
+                _ => None,
+            })
+            .collect()
     }
 
     fn zero_tokens(context: Option<f64>) -> TurnTokens {
-        TurnTokens { input: JsNumber(0.0), output: JsNumber(0.0), cached: n(0.0), cache_write: n(0.0), reasoning: n(0.0), context: context.map(JsNumber), window: None }
+        TurnTokens {
+            input: JsNumber(0.0),
+            output: JsNumber(0.0),
+            cached: n(0.0),
+            cache_write: n(0.0),
+            reasoning: n(0.0),
+            context: context.map(JsNumber),
+            window: None,
+        }
     }
 
     #[tokio::test]
     async fn a_tool_part_reads_its_id_name_input_and_error_as_the_ts_does_on_odd_fields() {
+        tokio::task::LocalSet::new().run_until(a_tool_part_reads_its_id_name_input_and_error_as_the_ts_does_on_odd_fields_body()).await
+    }
+
+    async fn a_tool_part_reads_its_id_name_input_and_error_as_the_ts_does_on_odd_fields_body() {
         // O1; adapter.ts:186-198. callID "" shadows id; no state draws `{}` and an empty result; a string input is JSON-
         // quoted; only the exact status `error` is an error, and a non-string error reads "".
         let tool = |part: Value| {
@@ -653,29 +807,64 @@ mod rules_added {
             stop(None, "stop"),
         ];
         let (_, events, _, _) = run(lines, ScriptOpts::default(), None).await;
-        let used = |text: &str, name: &str, id: &str| TurnDelta { tool_name: Some(name.into()), tool_use_id: Some(id.into()), ..delta(DeltaKind::ToolUse, text) };
-        let came = |text: &str, id: &str, err: bool| TurnDelta { tool_use_id: Some(id.into()), is_error: Some(err), ..delta(DeltaKind::ToolResult, text) };
+        let used = |text: &str, name: &str, id: &str| TurnDelta {
+            tool_name: Some(name.into()),
+            tool_use_id: Some(id.into()),
+            ..delta(DeltaKind::ToolUse, text)
+        };
+        let came = |text: &str, id: &str, err: bool| TurnDelta {
+            tool_use_id: Some(id.into()),
+            is_error: Some(err),
+            ..delta(DeltaKind::ToolResult, text)
+        };
         assert_eq!(
             deltas(&events),
-            vec![used("\"raw\"", "", ""), came("out", "", false), used("{}", "tool", "pid2"), came("", "pid2", false), used("{}", "bash", "c3"), came("o", "c3", false), used("{}", "bash", "c4"), came("", "c4", true)]
+            vec![
+                used("\"raw\"", "", ""),
+                came("out", "", false),
+                used("{}", "tool", "pid2"),
+                came("", "pid2", false),
+                used("{}", "bash", "c3"),
+                came("o", "c3", false),
+                used("{}", "bash", "c4"),
+                came("", "c4", true)
+            ]
         );
     }
 
     #[tokio::test]
     async fn an_empty_reason_ends_the_turn_and_context_rides_only_where_tokens_is_an_object() {
+        tokio::task::LocalSet::new().run_until(an_empty_reason_ends_the_turn_and_context_rides_only_where_tokens_is_an_object_body()).await
+    }
+
+    async fn an_empty_reason_ends_the_turn_and_context_rides_only_where_tokens_is_an_object_body() {
         // O2; adapter.ts:200-215.
         let text = line("text", json!({"part": {"type": "text", "text": "a"}}));
         let (r, _, _, _) = run(vec![text, stop(Some(json!({})), "")], ScriptOpts { hang: true, ..Default::default() }, None).await;
         assert!(r.duration_ms.is_some());
-        assert_eq!(TurnResult { duration_ms: None, ..r }, TurnResult { cost_usd: n(0.0), tokens: Some(zero_tokens(Some(0.0))), text: Some("a".into()), ..bare(TurnStatus::Completed) });
+        assert_eq!(
+            TurnResult { duration_ms: None, ..r },
+            TurnResult { cost_usd: n(0.0), tokens: Some(zero_tokens(Some(0.0))), text: Some("a".into()), ..bare(TurnStatus::Completed) }
+        );
         let (r, _, _, _) = run(vec![stop(None, "stop")], ScriptOpts { hang: true, ..Default::default() }, None).await;
-        assert_eq!(TurnResult { duration_ms: None, ..r }, TurnResult { cost_usd: n(0.0), tokens: Some(zero_tokens(None)), ..bare(TurnStatus::Completed) });
+        assert_eq!(
+            TurnResult { duration_ms: None, ..r },
+            TurnResult { cost_usd: n(0.0), tokens: Some(zero_tokens(None)), ..bare(TurnStatus::Completed) }
+        );
     }
 
     #[tokio::test]
     async fn lines_after_the_result_are_still_said_and_a_later_error_changes_nothing() {
+        tokio::task::LocalSet::new().run_until(lines_after_the_result_are_still_said_and_a_later_error_changes_nothing_body()).await
+    }
+
+    async fn lines_after_the_result_are_still_said_and_a_later_error_changes_nothing_body() {
         // O3; adapter.ts:166-215.
-        let lines = vec![stop(None, "stop"), line("text", json!({"part": {"type": "text", "text": "late"}})), line("error", json!({"error": {"name": "APIError", "data": {"message": "late failure"}}}))];
+        let lines = vec![
+            stop(None, "stop"),
+            line("text", json!({"part": {"type": "text", "text": "late"}})),
+            line("error", json!({"error": {"name": "APIError", "data": {"message": "late failure"}}})),
+        ];
         let (r, events, _, _) = run(lines, ScriptOpts::default(), None).await;
         assert_eq!(r.status, TurnStatus::Completed);
         assert_eq!(events.all().iter().map(kind_of).collect::<Vec<_>>(), ["session.start", "turn.done", "delta:text", "session.end"]);
@@ -683,17 +872,30 @@ mod rules_added {
 
     #[tokio::test]
     async fn an_empty_sign_in_message_reads_as_the_road_alone_and_a_string_401_is_no_sign_in() {
+        tokio::task::LocalSet::new().run_until(an_empty_sign_in_message_reads_as_the_road_alone_and_a_string_401_is_no_sign_in_body()).await
+    }
+
+    async fn an_empty_sign_in_message_reads_as_the_road_alone_and_a_string_401_is_no_sign_in_body() {
         // O4; adapter.ts:84-95, 230-240.
         let refused = TurnResult { error: Some(ROAD_WORDS.into()), refusal: Some(TurnRefusal::SignIn), ..bare(TurnStatus::Failed) };
         let fail = |e: Value| vec![line("error", json!({ "error": e }))];
         let one = ScriptOpts { exit_code: Some(1), ..Default::default() };
         assert_eq!(run(fail(json!({"name": "APIError", "data": {"message": "", "statusCode": 401}})), one.clone(), None).await.0, refused);
-        assert_eq!(run(fail(json!({"name": "APIError", "data": {"message": "Unauthorized", "statusCode": "401"}})), one.clone(), None).await.0, failed("Unauthorized"));
+        assert_eq!(
+            run(fail(json!({"name": "APIError", "data": {"message": "Unauthorized", "statusCode": "401"}})), one.clone(), None).await.0,
+            failed("Unauthorized")
+        );
         assert_eq!(run(fail(json!({"name": "ProviderAuthError", "data": {"message": ""}})), one, None).await.0, refused);
     }
 
     #[tokio::test]
     async fn the_logged_error_is_the_first_line_naming_the_ref_with_an_error_field_each_escape_dropped() {
+        tokio::task::LocalSet::new()
+            .run_until(the_logged_error_is_the_first_line_naming_the_ref_with_an_error_field_each_escape_dropped_body())
+            .await
+    }
+
+    async fn the_logged_error_is_the_first_line_naming_the_ref_with_an_error_field_each_escape_dropped_body() {
         // O5; adapter.ts:96-110. `ref=r10` is not `ref=r1 `; `xerror=` is not the field; `\n` reads `n`.
         let lines = vec![
             "INFO ref=r1 hello".to_string(),
@@ -707,6 +909,12 @@ mod rules_added {
 
     #[tokio::test]
     async fn the_stderr_tail_is_the_last_ten_non_blank_trimmed_lines_unreadable_json_among_them() {
+        tokio::task::LocalSet::new()
+            .run_until(the_stderr_tail_is_the_last_ten_non_blank_trimmed_lines_unreadable_json_among_them_body())
+            .await
+    }
+
+    async fn the_stderr_tail_is_the_last_ten_non_blank_trimmed_lines_unreadable_json_among_them_body() {
         // O6; adapter.ts:166-172, 70.
         let mut lines: Vec<String> = [r#"{"a":1}"#, "[1]", "", "  "].map(String::from).to_vec();
         lines.extend((1..=9).map(|i| format!("  l{i}  ")));
@@ -716,6 +924,12 @@ mod rules_added {
 
     #[tokio::test]
     async fn the_first_string_session_id_announces_once_an_empty_one_included_and_the_registry_keeps_the_local_id() {
+        tokio::task::LocalSet::new()
+            .run_until(the_first_string_session_id_announces_once_an_empty_one_included_and_the_registry_keeps_the_local_id_body())
+            .await
+    }
+
+    async fn the_first_string_session_id_announces_once_an_empty_one_included_and_the_registry_keeps_the_local_id_body() {
         // O7; adapter.ts:174-180, 252-270.
         let raw = |sid: Option<&str>, text: &str| {
             let mut v = json!({"type": "text", "timestamp": 1, "part": {"type": "text", "text": text}});
@@ -724,11 +938,22 @@ mod rules_added {
             }
             v.to_string()
         };
-        let (r, events, session, adapter) = run(vec![raw(None, "one"), raw(Some("newer"), "two"), raw(Some("third"), "three")], ScriptOpts::default(), Some("older")).await;
+        let (r, events, session, adapter) =
+            run(vec![raw(None, "one"), raw(Some("newer"), "two"), raw(Some("third"), "three")], ScriptOpts::default(), Some("older")).await;
         assert_eq!(r.status, TurnStatus::Completed);
         let said: Vec<(String, String)> = events.all().iter().map(|e| (kind_of(e), e.session_id().to_string())).collect();
         let s = |k: &str, id: &str| (k.to_string(), id.to_string());
-        assert_eq!(said, [s("delta:text", "older"), s("session.start", "newer"), s("delta:text", "newer"), s("delta:text", "newer"), s("turn.done", "newer"), s("session.end", "newer")]);
+        assert_eq!(
+            said,
+            [
+                s("delta:text", "older"),
+                s("session.start", "newer"),
+                s("delta:text", "newer"),
+                s("delta:text", "newer"),
+                s("turn.done", "newer"),
+                s("session.end", "newer")
+            ]
+        );
         assert_eq!((session.local_id(), session.session_id()), ("older".to_string(), "newer".to_string()));
         assert_eq!(adapter.sessions().keys().cloned().collect::<Vec<_>>(), ["older".to_string()]);
         let (r, events, _, _) = run(vec![raw(Some(""), "x")], ScriptOpts::default(), None).await;
@@ -739,7 +964,10 @@ mod rules_added {
     #[test]
     fn a_model_s_efforts_are_its_variants_in_js_key_order_integer_names_first() {
         // O8; catalog.ts:46-69 (`Object.keys(variants)`).
-        let probe = format!("1.18.18\n__WSP_CATALOG_SEP__\nopencode/m1\n{}\n", json!({"name": "M", "variants": {"b": {}, "2": {}, "a": {}, "1": {}}}));
+        let probe = format!(
+            "1.18.18\n__WSP_CATALOG_SEP__\nopencode/m1\n{}\n",
+            json!({"name": "M", "variants": {"b": {}, "2": {}, "a": {}, "1": {}}})
+        );
         let Some(HarnessCatalogAnswer::Probe(p)) = parse_catalog_probe(&probe) else { panic!("no probe") };
         let order = ["1", "2", "b", "a"].map(String::from).to_vec();
         assert_eq!(p.models[0].efforts, Some(order.clone()));
@@ -751,19 +979,29 @@ mod rules_added {
         // O9; command.ts:63-83.
         let agent = r#"sh -c '[ -z "${WSP_AGENT_PID_FILE:-}" ] || echo $$ > "$WSP_AGENT_PID_FILE"; unset WSP_AGENT_PID_FILE; exec "$0" "$@"' opencode"#;
         let o = BuildCommandOptions { prompt: "p".into(), permission_mode: Some(AUTO_MODE.into()), ..Default::default() };
-        assert_eq!(build_command(&o).unwrap(), format!("cd ~ && {agent} run --format json --print-logs --log-level ERROR --auto <<'WSP_PROMPT_END'\np\nWSP_PROMPT_END"));
+        assert_eq!(
+            build_command(&o).unwrap(),
+            format!("cd ~ && {agent} run --format json --print-logs --log-level ERROR --auto <<'WSP_PROMPT_END'\np\nWSP_PROMPT_END")
+        );
         assert_eq!(
             build_command(&BuildCommandOptions { cwd: Some(String::new()), ..o }).unwrap(),
-            format!("cd '' && {agent} run --format json --print-logs --log-level ERROR --dir '' --auto <<'WSP_PROMPT_END'\np\nWSP_PROMPT_END")
+            format!(
+                "cd '' && {agent} run --format json --print-logs --log-level ERROR --dir '' --auto <<'WSP_PROMPT_END'\np\nWSP_PROMPT_END"
+            )
         );
     }
 
     #[tokio::test]
     async fn a_stop_after_the_result_keeps_it_and_the_end_reads_the_process_s_own_code() {
+        tokio::task::LocalSet::new().run_until(a_stop_after_the_result_keeps_it_and_the_end_reads_the_process_s_own_code_body()).await
+    }
+
+    async fn a_stop_after_the_result_keeps_it_and_the_end_reads_the_process_s_own_code_body() {
         // O10; adapter.ts:271-280.
         let events = Events::default();
         let exec = scripted_exec(vec![stop(None, "stop")], ScriptOpts { hang: true, ..Default::default() }, RUN_HANDLE);
-        let session = start(&adapter_over(&exec, Extra { result_exit_ms: Some(1000), interrupt_grace_ms: Some(5) }), turn_start("go", &events));
+        let session =
+            start(&adapter_over(&exec, Extra { result_exit_ms: Some(1000), interrupt_grace_ms: Some(5) }), turn_start("go", &events));
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         session.interrupt().await;
         assert_eq!(session.finished().await.status, TurnStatus::Completed);
