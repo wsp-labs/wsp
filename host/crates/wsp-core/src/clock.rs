@@ -63,6 +63,30 @@ pub fn real_clock() -> Rc<dyn Clock> {
     Rc::new(RealClock)
 }
 
+/// A `Clock` as the engine's retries read time (`kill_until_gone`, `until_reached`): `now` is the clock's, and a sleep
+/// is one of its timers, so a test clock moves their time and a sleep ends only when it is moved.
+pub struct RetryOnClock(pub Rc<dyn Clock>);
+
+#[async_trait::async_trait(?Send)]
+impl wsp_engine::errors::RetryClock for RetryOnClock {
+    fn now(&self) -> i64 {
+        self.0.now()
+    }
+    async fn sleep(&self, ms: u64) {
+        let (tx, rx) = futures::channel::oneshot::channel::<()>();
+        let _cancel = self.0.schedule(
+            Box::new(move || {
+                let _ = tx.send(());
+            }),
+            ms as i64,
+        );
+        let _ = rx.await;
+    }
+    fn random(&self) -> f64 {
+        rand::random::<f64>()
+    }
+}
+
 struct Pending {
     id: u64,
     at: i64,

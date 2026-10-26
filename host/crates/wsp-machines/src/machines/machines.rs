@@ -5,7 +5,7 @@
 //! the idle wiring, the wake proof). The handles every unit of this slice shares are declared here.
 //!
 //! wsp-core's context traits are empty; each area of this slice takes one trait of its own naming every call it makes on
-//! the rest of the runtime (spec/README.md). `ThreadOn`, `Refusal`, `Unreached`, `ImageRead` and `MachinesConfig` are the
+//! the rest of the runtime (spec/README.md). `ThreadOn`, `Unreached`, `ImageRead` and `MachinesConfig` are the
 //! anonymous object types context.ts and machines.ts write inline; no wsp-core item names them, so they stay here. No borrow of a shared map is held across an `.await` or a
 //! call out (chapter 03, rule 3.3).
 
@@ -19,8 +19,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use indexmap::{IndexMap, IndexSet};
-use serde::{Deserialize, Serialize};
 
+use super::reach::ForMachine;
 use wsp_core::types::internal::KindModule;
 use wsp_core::types::internal::{SessionEntry, ThreadRecord};
 use wsp_core::types::pending::{Clock, KillConfirm, Store};
@@ -43,23 +43,24 @@ pub type Entry = Rc<RefCell<LiveWorkspace>>;
 /// One row the runtime holds, a turn of a thread, by reference: `end` and the re-key change the row in place.
 pub type Row = Rc<RefCell<SessionEntry>>;
 
-/// A thread's record as the runtime's map holds it: `ThreadRecord & { workspaceId }` (TS context.ts:202).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ThreadOn {
-    pub workspace_id: String,
-    #[serde(flatten)]
-    pub record: ThreadRecord,
+/// A thread's record as areas read it with the workspace it stands on: the record is `ThreadRecord & { workspaceId }`
+/// (TS context.ts:213), the one form the runtime's map stores, so this is a view off it, never stored or written.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ThreadOn<'a> {
+    pub workspace_id: &'a str,
+    pub record: &'a ThreadRecord,
+}
+
+impl<'a> ThreadOn<'a> {
+    pub fn of(record: &'a ThreadRecord) -> Self {
+        ThreadOn {
+            workspace_id: &record.workspace_id,
+            record,
+        }
+    }
 }
 
 pub use wsp_core::ids::Ids;
-
-/// A refusal the provider stands on for one machine: `{ machineId, said }` (context.ts `napRefusals`, `stopRefusals`).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Refusal {
-    pub machine_id: String,
-    pub said: String,
-}
 
 /// The provider's word that it cannot reach a machine, with the sentence its row carries (daemon.ts:272).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -133,11 +134,11 @@ pub trait MachinesRuntime {
     // The shared maps (03, rule 3.3: borrowed inside a call, never across one).
     fn live(&self) -> Rc<RefCell<IndexMap<String, Entry>>>;
     fn sessions(&self) -> Rc<RefCell<IndexMap<String, Row>>>;
-    fn thread_records(&self) -> Rc<RefCell<IndexMap<String, ThreadOn>>>;
+    fn thread_records(&self) -> Rc<RefCell<IndexMap<String, ThreadRecord>>>;
     /// `ctx.unreached` (the daemon area's map).
     fn unreached(&self) -> Rc<RefCell<IndexMap<String, Unreached>>>;
-    fn nap_refusals(&self) -> Rc<RefCell<IndexMap<String, Refusal>>>;
-    fn stop_refusals(&self) -> Rc<RefCell<IndexMap<String, Refusal>>>;
+    fn nap_refusals(&self) -> Rc<RefCell<IndexMap<String, ForMachine<String>>>>;
+    fn stop_refusals(&self) -> Rc<RefCell<IndexMap<String, ForMachine<String>>>>;
     /// `ctx.projectsHeld.has(id)`.
     fn project_held(&self, project_id: &str) -> bool;
     /// `ctx.keptAgents`: the thread ids whose kept agent stands on that workspace.
@@ -228,7 +229,7 @@ pub struct MachinesArea {
     /// `inflight`: ids this process created and has not recorded yet.
     pub(crate) inflight: RefCell<IndexSet<String>>,
     /// `rereading`: records whose gone verdict is being read again.
-    pub(crate) rereading: RefCell<IndexSet<String>>,
+    pub(crate) rereading: Rc<RefCell<IndexSet<String>>>,
 }
 
 impl MachinesArea {
@@ -239,7 +240,7 @@ impl MachinesArea {
             config,
             holding: RefCell::default(),
             inflight: RefCell::default(),
-            rereading: RefCell::default(),
+            rereading: Rc::default(),
         })
     }
 
@@ -251,6 +252,11 @@ impl MachinesArea {
     /// The records whose gone verdict is being read again now.
     pub fn rereading(&self) -> Vec<String> {
         self.rereading.borrow().iter().cloned().collect()
+    }
+
+    /// The set itself, for the boot area, which reads and writes it.
+    pub fn rereading_held(&self) -> Rc<RefCell<IndexSet<String>>> {
+        self.rereading.clone()
     }
 
     /// The area's bus listeners, called by the wiring for every event in emit order: the `workspace.status` adoption

@@ -17,6 +17,7 @@ use wsp_core::types::internal::{
 use wsp_core::types::pending::{Builder, Sighting};
 use wsp_core::types::wiring::{FoundMachine, WorkspaceRecord};
 use wsp_engine::errors::{is_missing, EngineError};
+use wsp_engine::gone::sight_machine;
 use wsp_engine::machine::{Machine, MachineBackend, MachineState};
 use wsp_engine::orphans::date_parse;
 use wsp_wire::types::js_number::JsNumber;
@@ -28,7 +29,7 @@ use wsp_words::words::thread::{gone_unconfirmed_line, gone_words, GoneSeenBy, Go
 
 use super::BootArea;
 use crate::machines::area_error::AreaError;
-use crate::machines::machines::create::{host_to_engine, GONE_READS};
+use crate::machines::machines::create::host_to_engine;
 use crate::machines::machines::Entry;
 
 /// How long the load waits on the provider's reads of its records' machines, all together (boot.ts:18).
@@ -76,40 +77,6 @@ fn state_word(state: Option<MachineState>) -> &'static str {
         Some(MachineState::Gone) => "gone",
         None => "undefined",
     }
-}
-
-/// One read as `readOnce` makes it (golden.ts:130): the handle `get` found and the state it carried, or one state read
-/// on it; a 404 from either is a gone read.
-async fn read_once(
-    at: &Arc<dyn MachineBackend>,
-    id: &str,
-) -> Result<(MachineState, Option<Arc<dyn Machine>>), EngineError> {
-    let found = match at.get(id).await {
-        Ok(machine) => match machine.seen().map(|s| s.state) {
-            Some(state) => Ok((state, Some(machine))),
-            None => machine.state().await.map(|state| (state, Some(machine))),
-        },
-        Err(e) => Err(e),
-    };
-    match found {
-        Err(e) if is_missing(&e) => Ok((MachineState::Gone, None)),
-        other => other,
-    }
-}
-
-/// `sightMachine` (golden.ts:138): gone only when every one of GONE_READS reads in a row said gone, else the first read
-/// that found the machine, with its handle.
-async fn sight(
-    at: &Arc<dyn MachineBackend>,
-    id: &str,
-) -> Result<(MachineState, Option<Arc<dyn Machine>>), EngineError> {
-    for _ in 0..GONE_READS {
-        let seen = read_once(at, id).await?;
-        if seen.0 != MachineState::Gone {
-            return Ok(seen);
-        }
-    }
-    Ok((MachineState::Gone, None))
 }
 
 impl BootArea {
@@ -244,8 +211,10 @@ impl BootArea {
                 if !is_missing(&e) {
                     return Err(host_to_engine_back(e));
                 }
-                let (state, _) = sight(&at, &stored.id).await.map_err(host_to_engine_back)?;
-                if state == MachineState::Gone {
+                let seen = sight_machine(at.as_ref(), &stored.id)
+                    .await
+                    .map_err(host_to_engine_back)?;
+                if seen.state == MachineState::Gone {
                     self.rt.store().delete(BUILDERS, &stored.id).await?;
                 }
                 return Ok(());
@@ -547,14 +516,14 @@ impl BootArea {
         let machine_id = snapshot.machine_id.clone();
         let at = self.rt.backend_for(&snapshot);
         tokio::task::yield_now().await;
-        let seen = sight(&at, &machine_id).await;
+        let seen = sight_machine(at.as_ref(), &machine_id).await;
         // `Promise.resolve().then(sight).catch(...)` answers turns after the sighting does: the promise the callback
         // returns is adopted in two, the catch passes it on in one, the `await` goes on in one, and the stored row is
         // read in one more.
         for _ in 0..5 {
             tokio::task::yield_now().await;
         }
-        let Ok((state, machine)) = seen else {
+        let Ok(wsp_engine::gone::Sighting { state, machine }) = seen else {
             return Ok(());
         };
         if self.rt.closed()

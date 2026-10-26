@@ -45,12 +45,9 @@ use wsp_words::words::image::{
 };
 use wsp_words::words::units::fmt_bytes;
 
-/// `ctx.copyRows`' entry as the image area reads it: whether the place's copy row reads stopped. Two reads are the
-/// same row only where `Rc::ptr_eq` (TS object identity, image.ts:137, 155).
-#[derive(Debug, PartialEq, Eq)]
-pub struct CopyRow {
-    pub stopped: bool,
-}
+/// `ctx.copyRows`' entry: the row the runtime stores, which the image area reads `stopped` off. Two reads are the same
+/// row only where `Rc::ptr_eq` (TS object identity, image.ts:137, 155).
+pub type CopyRow = crate::places::types::CopyBuild;
 
 /// Every call the image area makes on the rest of the runtime.
 #[async_trait(?Send)]

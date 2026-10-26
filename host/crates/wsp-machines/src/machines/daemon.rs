@@ -104,7 +104,7 @@ pub struct DaemonArea {
     pub(crate) daemon_syncs: RefCell<IndexMap<String, Join<Result<(), HostError>>>>,
     /// `daemonRevivals`.
     pub(crate) daemon_revivals: RefCell<IndexMap<String, Join<()>>>,
-    pub(crate) revived_at: RefCell<IndexMap<String, MachineMoment>>,
+    pub(crate) revived_at: Rc<RefCell<IndexMap<String, MachineMoment>>>,
     pub(crate) unread_at: Rc<RefCell<IndexMap<String, MachineMoment>>>,
     pub(crate) unreached: Rc<RefCell<IndexMap<String, Unreached>>>,
     /// The waits on a turn's end and on a queued start's event, woken from `on_event`.
@@ -184,7 +184,7 @@ impl DaemonArea {
             roots_writes: RefCell::default(),
             daemon_syncs: RefCell::default(),
             daemon_revivals: RefCell::default(),
-            revived_at: RefCell::default(),
+            revived_at: Rc::default(),
             unread_at: Rc::default(),
             unreached: Rc::default(),
             listeners: RefCell::default(),
@@ -736,6 +736,11 @@ impl DaemonArea {
 
     pub fn revived_at(&self) -> IndexMap<String, MachineMoment> {
         self.revived_at.borrow().clone()
+    }
+
+    /// The map itself, which a deleted workspace's id leaves (machines.ts:540).
+    pub fn revived_at_held(&self) -> Rc<RefCell<IndexMap<String, MachineMoment>>> {
+        self.revived_at.clone()
     }
 
     pub fn unread_at(&self) -> Rc<RefCell<IndexMap<String, MachineMoment>>> {

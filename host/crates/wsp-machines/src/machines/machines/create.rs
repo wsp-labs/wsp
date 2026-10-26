@@ -13,7 +13,7 @@ use indexmap::IndexMap;
 use serde::de::DeserializeOwned;
 use sha2::{Digest, Sha256};
 
-use wsp_core::clock::Timer;
+use wsp_core::clock::{RetryOnClock, Timer};
 use wsp_core::host_id::template_host;
 use wsp_core::idle::IDLE_OFF_BACKSTOP_MS;
 use wsp_core::types::harness::login_env_on;
@@ -25,7 +25,8 @@ use wsp_core::types::pending::Clock;
 use wsp_core::types::wiring::{
     set_hostname, GoldenExec, StageSaid, WorkspaceRecord, WorkspaceSpec,
 };
-use wsp_engine::errors::{is_missing, EngineError};
+use wsp_engine::errors::EngineError;
+use wsp_engine::gone::{kill_until_gone, KillConfirm};
 use wsp_engine::machine::{
     Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineState, ProviderBoxState,
     RunOptions, Waiting,
@@ -578,12 +579,6 @@ impl ExecHook for ObserveExec {
     }
 }
 
-/// Whether a machine stays as the provider holds it: `kill_until_gone` (golden.ts:119) with its constants.
-pub(crate) const GONE_READS: u32 = 12;
-const KILL_ASKS: u32 = 3;
-const KILL_GRACE_MS: i64 = 30_000;
-const KILL_POLL_MS: i64 = 1_000;
-
 /// machines.ts:23-39 `forkSpec`'s blank spec: every key unset, with the kind the machine boots as.
 fn blank_spec(kind: MachineKind) -> MachineSpec {
     MachineSpec {
@@ -654,22 +649,6 @@ fn parse_row<T: DeserializeOwned>(v: serde_json::Value) -> Result<T, HostError> 
     serde_json::from_value(v).map_err(|e| HostError::new(e.to_string()))
 }
 
-/// One read of a machine as `readOnce` reads it: the state its handle reported, or a state read on the handle; a 404
-/// reads as gone (golden.ts:150).
-pub(crate) async fn read_once(
-    at: &Arc<dyn MachineBackend>,
-    id: &str,
-) -> Result<MachineState, EngineError> {
-    match at.get(id).await {
-        Ok(machine) => match machine.seen().map(|s| s.state) {
-            Some(state) => Ok(state),
-            None => machine.state().await,
-        },
-        Err(e) if is_missing(&e) => Ok(MachineState::Gone),
-        Err(e) => Err(e),
-    }
-}
-
 pub(crate) async fn sleep_ms(clock: &Rc<dyn Clock>, ms: i64) {
     let (tx, rx) = oneshot::channel::<()>();
     let run: Timer = Box::new(move || {
@@ -677,59 +656,6 @@ pub(crate) async fn sleep_ms(clock: &Rc<dyn Clock>, ms: i64) {
     });
     let _cancel = clock.schedule(run, ms);
     let _ = rx.await;
-}
-
-/// killUntilGone (golden.ts:119): asks the kill, then reads the machine until it reads gone GONE_READS times in a row.
-async fn kill_until_gone(
-    clock: &Rc<dyn Clock>,
-    at: &Arc<dyn MachineBackend>,
-    machine: &Arc<dyn Machine>,
-) -> Result<(), HostError> {
-    let mut alive = MachineState::Running;
-    for _ in 0..KILL_ASKS {
-        if let Err(e) = machine.kill().await {
-            if !is_missing(&e) {
-                return Err(host_of(e));
-            }
-        }
-        let deadline = clock.now() + KILL_GRACE_MS;
-        let mut gone = 0;
-        loop {
-            let state = read_once(at, machine.id()).await.map_err(host_of)?;
-            if state == MachineState::Gone {
-                gone += 1;
-                if gone >= GONE_READS {
-                    return Ok(());
-                }
-            } else {
-                alive = state;
-                if gone > 0 {
-                    break;
-                }
-                sleep_ms(clock, KILL_POLL_MS).await;
-            }
-            if clock.now() >= deadline && gone == 0 {
-                break;
-            }
-        }
-    }
-    Err(HostError::with_kind(
-        format!(
-            "machine {} is still {} after three kills; it bills until reap or a kill by hand takes",
-            machine.id(),
-            machine_state_word(alive)
-        ),
-        Kind::MachineAlive,
-    ))
-}
-
-pub(crate) fn machine_state_word(state: MachineState) -> &'static str {
-    match state {
-        MachineState::Starting => "starting",
-        MachineState::Running => "running",
-        MachineState::Paused => "paused",
-        MachineState::Gone => "gone",
-    }
 }
 
 /// A purpose's hold: dropping it, whether or not its release was called, frees the purpose and wakes its waiters.
@@ -1431,7 +1357,14 @@ impl MachinesArea {
         };
         let at = self.rt.backend_for(&snapshot);
         let clock = self.rt.clock();
-        kill_until_gone(&clock, &at, &machine).await?;
+        kill_until_gone(
+            at.as_ref(),
+            machine.as_ref(),
+            KillConfirm::default(),
+            &RetryOnClock(clock.clone()),
+        )
+        .await
+        .map_err(host_of)?;
         let mark = DroppedMachine {
             machine_id: id.clone(),
             at: iso(clock.now()),
