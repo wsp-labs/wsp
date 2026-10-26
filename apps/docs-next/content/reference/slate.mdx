@@ -52,7 +52,7 @@ Declarations: <value name start> <secret name> <derived name value> <run name cm
 Steps: set toggle start cancel send steer queue fill open copy pane. Functions: slate_catalog functions; ago(t) "30s ago", until(t) "in 4m".
 After |: where sortBy take count and more. $run reads state exit out err json; a secret only .set .len.
 Rules:
-1. One <slate>, one root piece, declarations beside it. Give an id to a piece you will change.
+1. One <slate>, one root piece, declarations beside it. Give an id to what you will change.
 2. prop="text" is literal; prop={formula} reads live data or $values with operators, a ? b : c, [lists], {records} and functions, never methods or =>. A text child with {holes} fills a sentence.
 3. Props are meaning, never style. held is a sentence that disables: bind it to a condition; "" or false enables.
 4. A list binds to items; item and index read the row.
@@ -65,15 +65,15 @@ Rules:
 11. A secret the person types goes in a <secret> input, never a file or the chat. One in a file stays there for the run to read, never you.
 12. A button asked for where the project has no UI goes here: the slate is its UI, and the reply says so.
 <slate title="Deploy">
-  <run name="ci" cmd="./ci --json" every={30} />
+  <run name="ci" cmd="./ci" every={30} />
   <value name="ship" start="" />
   <column>
     <stats>
       <stat label="Passed" value={$ci.json.passed} max={$ci.json.total} window="this run" />
       <stat label="Spent" value={thread.cost.usd} format="usd" window="this thread" />
     </stats>
-    <chart label="Build time" items={$ci.json.runs} x={item.at} value={item.s} />
-    <decision label="Ship it?" value={$ship} pick="yes" onChange={send("Ship it?", $ship)}>
+    <chart label="Build" items={$ci.json.runs} x={item.at} value={item.s} unit="s" />
+    <decision label="Ship?" value={$ship} onChange={send("Ship?", $ship)}>
       <option value="yes" label="Ship" /><option value="no" label="Wait" />
     </decision>
   </column>
