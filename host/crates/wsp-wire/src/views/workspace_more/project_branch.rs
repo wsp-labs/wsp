@@ -938,6 +938,10 @@ impl Check for WorkspaceViewDaemonRefusedAt {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceView {
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    pub folder: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    pub home: Option<String>,
     pub id: String,
     pub name: String,
     pub machine_id: String,
@@ -947,10 +951,6 @@ pub struct WorkspaceView {
     pub golden: String,
     pub created_at: String,
     pub project: ProjectRef,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub folder: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub home: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub claude_session_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
