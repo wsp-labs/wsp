@@ -193,7 +193,7 @@ fn taken_turn_of_an_ended_turn_reads_its_result_off_the_transcript() {
             ],
         );
         let taken = Taken { session_id: "cs-1".into(), thread_id: "t1".into(), turn_id: "u1".into(), outcome: TakenOutcome::Started };
-        let handle = area.taken_turn("ws1", &taken).await.expect("the row is held");
+        let handle = area.taken_turn("ws1", &taken).await.expect("the thread reads").expect("the row is held");
         assert_eq!((handle.id(), handle.turn_id(), handle.workspace_id()), ("cs-1".to_string(), "u1".to_string(), "ws1".to_string()));
         assert_eq!(support::json_of(&handle.finished().now_or_never().expect("settled")), json!({ "status": "completed", "text": "done" }));
         ctx.sessions.with(|s| s.get("cs-1").expect("row").borrow_mut().view.prompt = Some("read at each call".into()));
@@ -202,13 +202,13 @@ fn taken_turn_of_an_ended_turn_reads_its_result_off_the_transcript() {
             ("ws1".into(), "t1".into()),
             vec![event(json!({ "type": "session.end", "workspaceId": "ws1", "sessionId": "cs-1", "turnId": "u1", "threadId": "t1", "exitCode": null, "sawResult": false, "reason": "the end said why" }))],
         );
-        let ended = area.taken_turn("ws1", &taken).await.expect("held");
+        let ended = area.taken_turn("ws1", &taken).await.expect("the thread reads").expect("held");
         assert_eq!(
             support::json_of(&ended.finished().now_or_never().expect("settled")),
             json!({ "status": "failed", "error": "the end said why" })
         );
         ctx.thread_events.borrow_mut().clear();
-        let silent = area.taken_turn("ws1", &taken).await.expect("held");
+        let silent = area.taken_turn("ws1", &taken).await.expect("the thread reads").expect("held");
         assert_eq!(
             support::json_of(&silent.finished().now_or_never().expect("settled")),
             json!({ "status": "failed", "error": "host restarted while the agent was working" })
@@ -228,7 +228,7 @@ fn taken_turn_hands_back_the_running_handle_with_the_taken_outcome() {
             });
             ctx2.thread_events.borrow_mut().insert(("ws1".into(), "t1".into()), vec![]);
             let t = Taken { session_id: "cs-1".into(), thread_id: "t1".into(), turn_id: "u1".into(), outcome: TakenOutcome::Started };
-            (a.taken_turn("ws1", &t).await.expect("a handle to hold"), a)
+            (a.taken_turn("ws1", &t).await.expect("the thread reads").expect("a handle to hold"), a)
         };
         ctx.sessions.with(|s| {
             let r = row(view(json!({ "id": "cs-1", "threadId": "t1", "status": "running" })), "u1");
@@ -236,7 +236,7 @@ fn taken_turn_hands_back_the_running_handle_with_the_taken_outcome() {
             s.insert("cs-1".into(), r);
         });
         let taken = Taken { session_id: "cs-1".into(), thread_id: "t1".into(), turn_id: "u1".into(), outcome: TakenOutcome::Steered };
-        let handle = area.taken_turn("ws1", &taken).await.expect("held");
+        let handle = area.taken_turn("ws1", &taken).await.expect("the thread reads").expect("held");
         assert_eq!(support::json_of(&handle.outcome()), json!("steered"));
         assert_eq!(handle.id(), "cs-1");
     });
@@ -247,7 +247,7 @@ fn taken_turn_of_a_row_gone_is_none() {
     local(async {
         let (_ctx, area, _) = host();
         let taken = Taken { session_id: "cs-gone".into(), thread_id: "t1".into(), turn_id: "u1".into(), outcome: TakenOutcome::Started };
-        assert!(area.taken_turn("ws1", &taken).await.is_none());
+        assert!(area.taken_turn("ws1", &taken).await.expect("the thread reads").is_none());
     });
 }
 
