@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Round 2 of wsp-labs/wsp-map#2448 (wsp-wire): a process list that holds a pid twice walks as node answers where node
-//! answers and ends where a parent cycle would not, and a chain of agents is placed in linear time.
+//! answers and ends where a parent cycle would not, and a chain of agents is placed in linear time,
+//! and a tree the readers keep is cloned and dropped on a 1 MiB stack.
 use std::time::{Duration, Instant};
 
 use wsp_frames::ProcEntry;
@@ -144,4 +145,20 @@ fn agent_chain_body() {
 #[test]
 fn a_chain_of_agents_is_placed_in_linear_time() {
     in_child("a_chain_of_agents_is_placed_in_linear_time", agent_chain_body);
+}
+
+// ruling 3 of the round 2 brief: json_text::parse_json reads 500 levels of objects, keeps 100 and answers null below; the tree
+// it hands back is cloned (a Value of objects dies in clone at 628 levels on this stack) and dropped.
+fn kept_tree_body() {
+    let text = format!("{}1{}", "{\"a\":".repeat(500), "}".repeat(500));
+    let read = wsp_wire::wire::json_text::parse_json(&text).expect("a text at 500 levels is read");
+    let copy = read.clone();
+    assert_eq!(copy, read);
+    drop(copy);
+    drop(read);
+}
+
+#[test]
+fn a_tree_of_500_object_levels_read_by_json_text_is_cloned_and_dropped() {
+    in_child("a_tree_of_500_object_levels_read_by_json_text_is_cloned_and_dropped", kept_tree_body);
 }
