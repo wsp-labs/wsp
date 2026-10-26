@@ -508,14 +508,18 @@ pub struct Stages {
     pub on_stage: StageFn,
     /// The `left` list of each frame that carried one, with its stage.
     pub left: Rc<RefCell<Vec<(String, Vec<String>)>>>,
+    /// The step of each frame, in the order of `lines`.
+    pub steps: Rc<RefCell<Vec<Option<GoldenStep>>>>,
 }
 
 pub fn stage_recorder() -> Stages {
     let lines: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
     let left: Rc<RefCell<Vec<(String, Vec<String>)>>> = Rc::new(RefCell::new(Vec::new()));
-    let (l, k) = (lines.clone(), left.clone());
+    let steps: Rc<RefCell<Vec<Option<GoldenStep>>>> = Rc::new(RefCell::new(Vec::new()));
+    let (l, k, t) = (lines.clone(), left.clone(), steps.clone());
     let on_stage: StageFn =
-        Arc::new(move |stage: GoldenStage, detail: Option<&str>, _step: Option<GoldenStep>, left: Option<&[String]>| {
+        Arc::new(move |stage: GoldenStage, detail: Option<&str>, step: Option<GoldenStep>, left: Option<&[String]>| {
+            t.borrow_mut().push(step);
             let word = stage_word(stage);
             l.borrow_mut().push(match detail {
                 None => word.to_string(),
@@ -525,12 +529,16 @@ pub fn stage_recorder() -> Stages {
                 k.borrow_mut().push((word.to_string(), left.to_vec()));
             }
         });
-    Stages { lines, on_stage, left }
+    Stages { lines, on_stage, left, steps }
 }
 
 impl Stages {
     pub fn all(&self) -> Vec<String> {
         self.lines.borrow().clone()
+    }
+    /// Each frame as `stage:detail` beside the step it carried, in order.
+    pub fn framed(&self) -> Vec<(String, Option<GoldenStep>)> {
+        self.all().into_iter().zip(self.steps.borrow().clone()).collect()
     }
 }
 

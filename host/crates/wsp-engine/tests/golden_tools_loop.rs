@@ -27,7 +27,7 @@ const FREE: &str = "df -Pk /root | awk 'NR==2{print $4}'";
 const READS_PER_EXEC: usize = 8;
 
 fn quiet_stage() -> ToolStage {
-    Arc::new(|_, _| {})
+    Arc::new(|_, _, _| {})
 }
 
 fn quiet_provision() -> ProvisionStage {
@@ -419,4 +419,55 @@ async fn hands_each_row_to_the_caller_watching_the_moment_its_outcome_exists_in_
     assert_eq!(seen, vec!["agents/node".to_string(), "agents/codex".to_string()]);
     let ids: Vec<String> = tools.iter().map(|t| t.id.clone()).collect();
     assert_eq!(ids, seen);
+}
+
+// TS: packages/engine/test/golden.test.ts:1953, at the loop itself
+// "every frame of a step names the step and the line a person reads for it, so a screen can clock the step; the stage's own lines name none"
+#[tokio::test(flavor = "multi_thread")]
+async fn every_frame_of_a_step_names_the_step_and_the_stage_s_own_lines_name_none() {
+    let exec: ExecFn = Arc::new(move |cmd, _| {
+        let said = if cmd == FREE { res(0, &format!("{}\n", 3_000 * 1024), "") } else { ok() };
+        Box::pin(async move { Ok(said) })
+    });
+    let run: RunFn = Arc::new(move |script, opts| {
+        if script.contains("brew install gh") {
+            for line in ["==> Downloading gh", "==> Pouring gh"] {
+                (opts.on_line.as_ref().expect("a line watcher"))(line);
+            }
+        }
+        Box::pin(async { Ok(ok()) })
+    });
+    let machine = FakeMachine { id: "m1".to_string(), exec, run: Some(run), download_url: None, upload_url: None, put_bytes: None };
+    let frames: Arc<Mutex<Vec<(String, Option<(String, String)>)>>> = Arc::new(Mutex::new(Vec::new()));
+    let seen = frames.clone();
+    let stage: ToolStage = Arc::new(move |_, detail, step| {
+        let step = step.map(|s| (s.label, s.command));
+        seen.lock().unwrap().push((detail.unwrap_or_default().to_string(), step));
+    });
+    let tools = vec![
+        ToolInstall {
+            id: "tools/brew/gh".into(),
+            label: "gh".into(),
+            manager: "brew".into(),
+            cmd: "su -c 'brew install gh'".into(),
+            shown: Some("brew install gh".into()),
+            ..Default::default()
+        },
+        ToolInstall { id: "tools/npm/bun".into(), label: "bun@1.4.0".into(), manager: "npm".into(), cmd: "npm install -g bun@1.4.0".into(), ..Default::default() },
+    ];
+    install_tools(&machine, &tools, stage, InstallToolsOptions::default()).await.unwrap();
+    let frames = frames.lock().unwrap().clone();
+    let gh = Some(("gh".to_string(), "brew install gh".to_string()));
+    assert_eq!(
+        frames[..3],
+        [
+            ("gh (1/2)".to_string(), gh.clone()),
+            ("gh: ==> Downloading gh".to_string(), gh.clone()),
+            ("gh: ==> Pouring gh".to_string(), gh),
+        ]
+    );
+    let bun = Some(("bun@1.4.0".to_string(), "npm install -g bun@1.4.0".to_string()));
+    assert!(frames.contains(&("bun@1.4.0 (2/2)".to_string(), bun)));
+    let (last, last_step) = frames.last().unwrap();
+    assert!(last_step.is_none() && last.starts_with("2 installed"), "{last}");
 }

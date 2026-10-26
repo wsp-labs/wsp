@@ -8,6 +8,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use futures::future::{LocalBoxFuture, Shared};
 use futures::FutureExt;
@@ -18,9 +19,13 @@ use tokio::task::LocalSet;
 use wsp_core::clock::FakeClock;
 use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::wiring::Detach;
+use wsp_engine::errors::EngineError;
+use wsp_engine::link_backend::{LinkAsk, MachineLink};
+use wsp_engine::place_machine::PlaceFolderMachine;
 use wsp_engine::target_line::{Platform, TargetLogin};
 use wsp_frames::ProcKind;
 use wsp_slates::account::slates::*;
+use wsp_slates::slate_images::ImageRefusal;
 use wsp_slates::slate_mcp::{McpHttpAnswer, McpHttpRequest, McpPipeEvents, McpPost, McpServerSpec, McpSignIn, McpTransport, ToolAsks};
 use wsp_slates::slate_mcp_on::StdioRoad;
 use wsp_slates::slate_sources::context::{AccountRow, SessionView};
@@ -126,6 +131,10 @@ struct Fake {
     local_env: Option<IndexMap<String, String>>,
     state_folder: Option<String>,
     napped: RefCell<Option<Napped>>,
+    image_refusal: Option<ImageRefusal>,
+    place: Option<Arc<PlaceFolderMachine>>,
+    checkout_fails: Option<String>,
+    project_fails: Option<String>,
 }
 
 impl Fake {
@@ -165,6 +174,9 @@ impl SlatesAreaCtx for Fake {
     fn box_of(&self, thread: &str) -> Option<Entry> {
         self.boxes.get(thread).cloned()
     }
+    fn place_of(&self, thread: &str) -> Option<Arc<PlaceFolderMachine>> {
+        self.boxes.contains_key(thread).then(|| self.place.clone()).flatten()
+    }
     fn folder_of(&self, workspace: &str, session: &str) -> Option<String> {
         self.folder_of.get(&(workspace.to_string(), session.to_string())).cloned()
     }
@@ -174,8 +186,11 @@ impl SlatesAreaCtx for Fake {
     fn kind_folder(&self, entry: &Entry) -> Option<String> {
         self.facts_of(entry).kind_folder
     }
-    fn checkout_of(&self, entry: &Entry) -> String {
-        self.facts_of(entry).checkout
+    fn checkout_of(&self, entry: &Entry) -> Result<String, HostError> {
+        match &self.checkout_fails {
+            Some(why) => Err(HostError::new(why.clone())),
+            None => Ok(self.facts_of(entry).checkout),
+        }
     }
     fn path_exists(&self, path: &str) -> bool {
         self.exists.iter().any(|p| p == path)
@@ -231,8 +246,15 @@ impl SlatesAreaCtx for Fake {
     fn own_process(&self, _thread: &str, _pid: u32, _kind: ProcKind) -> Detach {
         Box::new(|| {})
     }
-    fn daemon_image(&self, _entry: &Entry, path: String) -> LocalBoxFuture<'static, Result<Value, String>> {
-        async move { Ok(json!({ "size": 3, "mediaType": "image/png", "content": "AAAA", "path": path })) }.boxed_local()
+    fn daemon_image(&self, _entry: &Entry, path: String) -> LocalBoxFuture<'static, Result<Value, ImageRefusal>> {
+        let refusal = self.image_refusal.clone();
+        async move {
+            match refusal {
+                Some(refusal) => Err(refusal),
+                None => Ok(json!({ "size": 3, "mediaType": "image/png", "content": "AAAA", "path": path })),
+            }
+        }
+        .boxed_local()
     }
     fn daemon_hash(&self, _entry: &Entry, root: String, paths: Vec<String>) -> LocalBoxFuture<'static, Result<Value, String>> {
         async move { Ok(json!({ "files": { "a.sh": format!("{root}:{}", paths.join(",")) } })) }.boxed_local()
@@ -282,8 +304,11 @@ impl SlatesAreaCtx for Fake {
         let rows: Vec<AccountRow> = self.accounts.iter().map(|v| serde_json::from_value(v.clone()).unwrap()).collect();
         async move { rows }.boxed_local()
     }
-    fn project_name(&self, project: &str) -> String {
-        format!("{project}-name")
+    fn project_name(&self, project: &str) -> Result<String, HostError> {
+        match &self.project_fails {
+            Some(why) => Err(HostError::new(why.clone())),
+            None => Ok(format!("{project}-name")),
+        }
     }
     fn accrued(&self, workspace: &str) -> Option<f64> {
         self.accrued.get(workspace).copied()
@@ -602,6 +627,40 @@ async fn mcp_server_here_adds_post_here_only_with_a_sign_in_read() {
         .await;
 }
 
+// slates.ts:100 `ctx.checkoutOf(entry.record)` throws inside the server read, which rejects with it.
+#[tokio::test(flavor = "current_thread")]
+async fn mcp_server_here_fails_with_the_checkout_read_that_threw() {
+    LocalSet::new()
+        .run_until(async {
+            let mut f = Fake::default();
+            f.live.insert("w2".into(), entry("w2"));
+            f.latest.insert("t2".into(), row(json!({ "id": "s2", "workspaceId": "w2", "harness": "claude" })));
+            f.reader = Some(Rc::new(|_n: &str| panic!("the reader was asked after the checkout failed")));
+            f.checkout_fails = Some("no project p1".into());
+            let (_fake, w, _) = wire(f);
+            assert_eq!(w.mcp_server("t2", "zones").await.unwrap().err().map(|e| e.message), Some("no project p1".to_string()));
+        })
+        .await;
+}
+
+// slates.ts:40 and :137 read `ctx.checkoutOf` and `ctx.projectHeld(..).name` for the thread's facts; the Rust seams answer
+// facts or none, so a read that throws leaves them none, as for a thread nobody holds.
+#[test]
+fn a_failed_checkout_or_project_read_leaves_no_facts() {
+    for (checkout, project) in [(Some("no project p1"), None), (None, Some("no project p1"))] {
+        let mut f = Fake::default();
+        f.live.insert("w2".into(), entry("w2"));
+        f.latest.insert("t2".into(), row(json!({ "id": "s2", "workspaceId": "w2", "harness": "claude" })));
+        f.checkout_fails = checkout.map(str::to_string);
+        f.project_fails = project.map(str::to_string);
+        let (_fake, w, _) = wire(f);
+        if checkout.is_some() {
+            assert_eq!(w.thread("t2"), None);
+        }
+        assert!(w.sources("t2", "w2").workspace().is_none());
+    }
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn mcp_server_with_no_folder_or_no_reader_fails() {
     // spec rule 7.
@@ -649,6 +708,52 @@ async fn box_roads_answer_none_for_a_thread_here() {
                 w.away("t1"),
                 Some(wsp_slates::slate_mcp::Away { computer: "hetzner".into(), host: "studio".into(), machine: None })
             );
+        })
+        .await;
+}
+
+struct NoLink;
+
+#[async_trait::async_trait(?Send)]
+impl MachineLink for NoLink {
+    async fn request(&self, _op: &str, _params: serde_json::Map<String, Value>, _ask: LinkAsk) -> wsp_engine::errors::Result<serde_json::Map<String, Value>> {
+        Err(EngineError::Other { message: "no link".into(), code: None })
+    }
+    async fn forward(&self, _place_port: u16) -> wsp_engine::errors::Result<u16> {
+        Err(EngineError::Other { message: "no link".into(), code: None })
+    }
+}
+
+// slate-box.ts:104 `machine instanceof PlaceFolderMachine`: the Rust cannot downcast a `Machine`, so the wiring names the place.
+#[tokio::test(flavor = "current_thread")]
+async fn the_wiring_names_the_joined_computer_a_thread_runs_on() {
+    LocalSet::new()
+        .run_until(async {
+            let (_f, w, _) = wire(box_fake("t1"));
+            assert!(w.place_of("t1").is_none(), "a box that is no joined computer names no place");
+            let place = PlaceFolderMachine::new(Arc::new(NoLink), "hetzner-id", "/root", None);
+            let mut f = box_fake("t1");
+            f.place = Some(place.clone());
+            let (_f, w, _) = wire(f);
+            assert!(Arc::ptr_eq(&w.place_of("t1").expect("the place"), &place));
+            assert!(w.place_of("t2").is_none(), "a thread here names none");
+        })
+        .await;
+}
+
+// slate-images.ts:127 reads `codeOf(e)` off the daemon's refusal: `not-found` and `not-a-file` have their own words.
+#[tokio::test(flavor = "current_thread")]
+async fn a_daemon_refusal_of_an_image_keeps_its_code() {
+    LocalSet::new()
+        .run_until(async {
+            for (code, message) in [(Some("not-found"), "no such file"), (Some("not-a-file"), "is a directory"), (None, "boom")] {
+                let mut f = box_fake("t1");
+                f.image_refusal = Some(ImageRefusal { code: code.map(str::to_string), message: message.to_string() });
+                let (_f, w, _) = wire(f);
+                let image = w.image_on("t1").expect("read there");
+                let refused = (image.read)("/tmp/a.png".into()).await.expect_err("the daemon refused");
+                assert_eq!(refused, ImageRefusal { code: code.map(str::to_string), message: message.to_string() });
+            }
         })
         .await;
 }

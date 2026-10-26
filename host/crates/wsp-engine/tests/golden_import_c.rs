@@ -19,7 +19,7 @@ use wsp_engine::golden_seam::{
     install_tools, GoldenFiles, GoldenImport, GoldenVolatile, InstallToolsOptions, McpAgentPlan, McpPlan, McpScope, PackFiles, PackedFiles,
     SkippedPath, SkippedRow, ToolInstall, ToolStage,
 };
-use wsp_wire::views::golden_image::{GoldenLeftBehind, GoldenMissingToolOutcome, GoldenStage};
+use wsp_wire::views::golden_image::{GoldenLeftBehind, GoldenMissingToolOutcome, GoldenStage, GoldenStep};
 
 use golden_import_support::*;
 
@@ -327,7 +327,7 @@ fn an_exec_that_rejects_under_the_free_read_throws_before_anything_installs() {
         cmd: "brew install gh".into(),
         ..Default::default()
     }];
-    let stage: ToolStage = Arc::new(|_: GoldenStage, _: Option<&str>| {});
+    let stage: ToolStage = Arc::new(|_: GoldenStage, _: Option<&str>, _: Option<GoldenStep>| {});
     let err = run(install_tools(&m, &tools, stage, InstallToolsOptions::default())).expect_err("the free read throws");
     assert!(err.to_string().contains("exec lost the machine"), "{err}");
     assert!(m.ran.borrow().is_empty());

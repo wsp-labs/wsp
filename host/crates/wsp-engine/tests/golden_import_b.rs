@@ -2,7 +2,6 @@
 //! golden.test.ts:1722-2553 (inside "golden import stages"): the plugin seed's failed link road, the agents' and the Node
 //! step's floors, the tools' guard and timeouts, the disk floor and its cleanups, the df readings, the upload's size check,
 //! the ledger's missing, silenced and left-behind lists, and the attach that finds a recipe already applied.
-//! A stage frame's `step` is not carried by the engine's tools loop, so no assertion here reads one.
 #![allow(clippy::type_complexity)]
 mod golden_import_support;
 mod golden_roads_common;
@@ -22,6 +21,7 @@ use wsp_engine::golden_seam::{
     ToolInstall, TOOLS_PATH,
 };
 use wsp_wire::types::shell_quote::shell_quote;
+use wsp_wire::views::golden_image::GoldenStep;
 
 use golden_import_support::*;
 
@@ -512,14 +512,21 @@ fn every_frame_of_a_step_names_the_step_and_its_line_and_stage_lines_name_none()
     o.import = Some(GoldenImport { tools, ..import_of() });
     o.on_stage = Some(st.on_stage.clone());
     build(o);
-    let frames = starting(&st.all(), "installing-tools");
+    let frames: Vec<(String, Option<GoldenStep>)> = st.framed().into_iter().filter(|(l, _)| l.starts_with("installing-tools")).collect();
+    let step = |label: &str, command: &str| Some(GoldenStep { label: label.into(), command: command.into() });
+    let gh = step("gh", "brew install gh");
     assert_eq!(
         frames[..3],
-        strings(&["installing-tools:gh (1/2)", "installing-tools:gh: ==> Downloading gh", "installing-tools:gh: ==> Pouring gh"])[..]
+        [
+            ("installing-tools:gh (1/2)".to_string(), gh.clone()),
+            ("installing-tools:gh: ==> Downloading gh".to_string(), gh.clone()),
+            ("installing-tools:gh: ==> Pouring gh".to_string(), gh),
+        ]
     );
     // A step with no line of its own is read by its command.
-    assert!(frames.contains(&"installing-tools:bun@1.4.0 (2/2)".to_string()));
-    assert!(frames.last().is_some_and(|l| l.starts_with("installing-tools:2 installed")));
+    assert!(frames.contains(&("installing-tools:bun@1.4.0 (2/2)".to_string(), step("bun@1.4.0", "npm install -g bun@1.4.0"))));
+    let (last, last_step) = frames.last().expect("frames");
+    assert!(last_step.is_none() && last.starts_with("installing-tools:2 installed"));
 }
 
 // golden.test.ts:1976

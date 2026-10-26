@@ -330,6 +330,22 @@ fn claiming_holds_every_claimed_id_until_run_settles() {
     })
 }
 
+/// machines.ts:185-231 for a caller that holds the handle across its own awaits (the runtime's `claiming` returns a
+/// guard released on drop): `begin_claim` is the handle, `end_claim` the release `claiming` runs after `run`.
+#[test]
+fn begin_claim_holds_every_claimed_id_until_end_claim() {
+    common::run_local(async {
+        let w = World::new(Opts::default());
+        let at = w.provider(BackendOpts::default());
+        let claim = w.area.begin_claim("workspace/ws_1", at as Arc<dyn MachineBackend>, None);
+        claim.create(support::spec_default(), None).await.map_err(AreaError::into_host).expect("the handle creates");
+        assert!(w.area.inflight().contains(&"m-made".to_string()), "the handle claimed the machine it made");
+        w.area.end_claim(&claim);
+        assert!(w.area.inflight().is_empty(), "end_claim releases every id the handle claimed");
+        assert!(w.area.hold("workspace/ws_1").now_or_never().is_some(), "and the purpose is free");
+    })
+}
+
 /// machines.ts:187-200: the handle reaches `at`'s own calls, bound to it, and `at` is the runtime's provider when no
 /// provider is named.
 #[test]

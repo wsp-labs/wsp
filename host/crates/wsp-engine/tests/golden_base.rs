@@ -132,7 +132,7 @@ impl Recorder {
 fn recorder() -> Recorder {
     let stages: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let seen = stages.clone();
-    let stage: ToolStage = Arc::new(move |s, d| {
+    let stage: ToolStage = Arc::new(move |s, d, _step| {
         let name = stage_name(s);
         seen.lock().unwrap().push(match d {
             None => name,

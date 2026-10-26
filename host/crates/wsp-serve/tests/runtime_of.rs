@@ -606,6 +606,7 @@ struct Status {
     script: Rc<Script>,
     rows: Vec<WorkspaceStatus>,
     listed: RefCell<Vec<String>>,
+    listing_fails: Option<&'static str>,
 }
 
 #[async_trait(?Send)]
@@ -616,9 +617,12 @@ impl StatusCtx for Status {
         self.listed.borrow_mut().retain(|id| id != "ws-dropped");
         Ok(self.rows.clone())
     }
-    fn listed_for(&self, origin: Option<&Caller>) -> Vec<String> {
+    fn listed_for(&self, origin: Option<&Caller>) -> Result<Vec<String>, HostError> {
         self.script.record("listedFor", json!({ "origin": support::script::caller_json(&origin.cloned()) }));
-        self.listed.borrow().clone()
+        match self.listing_fails {
+            Some(why) => Err(HostError::new(why)),
+            None => Ok(self.listed.borrow().clone()),
+        }
     }
     fn refuse_named(&self, workspace_id: &str, _origin: Option<&Caller>) -> Result<(), HostError> {
         self.script.record("refuseNamed", json!({ "id": workspace_id }));
@@ -650,10 +654,21 @@ fn status_list_filters_after_the_probes() {
             script: Script::new(),
             rows: vec![status_row("ws-b"), status_row("ws-a"), status_row("ws-hidden")],
             listed: RefCell::new(vec!["ws-a".into(), "ws-b".into()]),
+            listing_fails: None,
         };
         let rows = status_list(&ctx, None, Some(Caller::Road(WorkspaceOrigin::Relayed))).await.unwrap();
         assert_eq!(rows.iter().map(|r| r.id.clone()).collect::<Vec<_>>(), vec!["ws-b", "ws-a"], "the probes' order, the caller's rows");
         assert_eq!(ctx.script.names(), vec!["probeList", "listedFor"]);
+    })
+}
+
+#[test]
+fn a_listing_that_throws_fails_the_status_list() {
+    // U5. runtime.ts:1069 `ctx.listedFor(origin)` throws where a record's project is gone (rules.ts:174); the call rejects with it.
+    block(async {
+        let ctx = Status { script: Script::new(), rows: vec![status_row("ws-a")], listed: RefCell::new(vec![]), listing_fails: Some("no project p-1") };
+        let err = status_list(&ctx, None, None).await.err().expect("the listing failed");
+        assert_eq!(err.message, "no project p-1");
     })
 }
 
@@ -665,6 +680,7 @@ fn a_record_dropped_mid_probe_leaves_the_list() {
             script: Script::new(),
             rows: vec![status_row("ws-dropped"), status_row("ws-a")],
             listed: RefCell::new(vec!["ws-a".into(), "ws-dropped".into()]),
+            listing_fails: None,
         };
         let rows = status_list(&ctx, None, None).await.unwrap();
         assert_eq!(rows.iter().map(|r| r.id.clone()).collect::<Vec<_>>(), vec!["ws-a"]);
@@ -675,7 +691,7 @@ fn a_record_dropped_mid_probe_leaves_the_list() {
 fn status_history_refuses_off_the_named_rule() {
     // U6. runtime.ts:1073-1076
     block(async {
-        let ctx = Status { script: Script::new(), rows: vec![], listed: RefCell::new(vec![]) };
+        let ctx = Status { script: Script::new(), rows: vec![], listed: RefCell::new(vec![]), listing_fails: None };
         assert_eq!(status_history(&ctx, "ws-gone-from-host", None).await.unwrap(), vec![json!({ "t": 1 })]);
         let refused = status_history(&ctx, "ws-not-yours", None).await.err().unwrap();
         assert_eq!(refused.message, "not yours");
