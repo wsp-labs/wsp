@@ -25,5 +25,28 @@ pub trait ForwardsSource {
 /// Every source as one: listed in the order given, stopped by the first that holds the forward (the rest are not
 /// asked), heard from each; `None` sources are dropped. forwards.ts:17.
 pub fn forwards_of(sources: Vec<Option<Rc<dyn ForwardsSource>>>) -> Rc<dyn ForwardsSource> {
-    todo!()
+    Rc::new(Forwards { held: sources.into_iter().flatten().collect() })
+}
+
+struct Forwards {
+    held: Vec<Rc<dyn ForwardsSource>>,
+}
+
+impl ForwardsSource for Forwards {
+    fn list(&self) -> Vec<PortForward> {
+        self.held.iter().flat_map(|s| s.list()).collect()
+    }
+
+    fn stop(&self, workspace_id: &str, port: i64) -> bool {
+        self.held.iter().any(|s| s.stop(workspace_id, port))
+    }
+
+    fn on(&self, listener: Rc<dyn Fn(&ForwardEvent)>) -> Detach {
+        let offs: Vec<Detach> = self.held.iter().map(|s| s.on(listener.clone())).collect();
+        Box::new(move || {
+            for off in offs {
+                off();
+            }
+        })
+    }
 }
