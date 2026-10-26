@@ -532,6 +532,23 @@ fn undo_puts_the_files_back_and_drops_the_mark() {
     });
 }
 
+// TS: sessions.ts:1286 `const cwd = ctx.checkoutOf(entry.record)` throws where the record's project is not held and the rewind rejects
+// with it, before any file goes back.
+#[test]
+fn a_rewind_fails_with_the_checkout_read_that_threw_and_restores_nothing() {
+    run_local(async {
+        let r = Rig::new(undoable());
+        r.host.hooks.set::<dyn Fn(&wsp_core::types::wiring::WorkspaceRecord) -> Result<String, HostError>>(
+            "SessionsCtx::checkout_of",
+            Rc::new(|_r: &wsp_core::types::wiring::WorkspaceRecord| Err(HostError::new("no project p1"))),
+        );
+        let e = r.undo().await.unwrap_err();
+        assert_eq!(e.message, "no project p1");
+        assert_eq!(r.restores().len(), 0);
+        assert_eq!(r.rewound().is_some(), true, "the mark stays");
+    });
+}
+
 // W3
 #[test]
 fn undo_with_nothing_to_undo_is_refused() {

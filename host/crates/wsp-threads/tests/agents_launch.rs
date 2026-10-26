@@ -852,7 +852,7 @@ fn place_stores_reads_variable_then_folder_then_default() {
         },
     );
     ctx.keep_config_dir("srv", "codex", "/kept/codex");
-    let stores = area.place_stores("srv", "/home/maya");
+    let stores = area.place_stores("srv", "/home/maya").expect("the stores");
     assert_eq!(stores.get("claude").map(String::as_str), Some("/set/by/variable"));
     assert_eq!(stores.get("codex").map(String::as_str), Some("/kept/codex"));
     assert_eq!(stores.len(), 2, "only the agents with a store variable");
@@ -860,9 +860,29 @@ fn place_stores_reads_variable_then_folder_then_default() {
     ctx.setups.borrow_mut().clear();
     ctx.place_agent_homes.borrow_mut().insert(("srv".to_string(), "claude".to_string()), "/root/.claude-cfg".to_string());
     ctx.place_agent_homes.borrow_mut().insert(("srv".to_string(), "codex".to_string()), "/var/lib/wsp/logins/codex".to_string());
-    let stores = area.place_stores("srv", "/root");
+    let stores = area.place_stores("srv", "/root").expect("the stores");
     assert_eq!(stores.get("claude").map(String::as_str), Some("/root/.claude-cfg"));
     assert_eq!(stores.get("codex").map(String::as_str), Some("/var/lib/wsp/logins/codex"));
+}
+
+// TS: agents.ts:529 `placeAgentHome(place, home, id)` throws where the kind has no home for the agent, and `placeStores` fails with it.
+#[test]
+fn place_stores_fails_with_the_home_read_that_threw() {
+    let ctx = FakeAgentsCtx::new();
+    let area = ctx.area();
+    *ctx.place_home_fails.borrow_mut() = Some("no home for claude on srv".to_string());
+    assert_eq!(refused(area.place_stores("srv", "/home/maya")).message, "no home for claude on srv");
+}
+
+// TS: agents.ts:638 `ctx.brokeredLaunch(entry, harness, token)` throws the unbrokered and codex-login refusals; `adapterFor` fails with it.
+#[test]
+fn adapter_for_fails_with_the_brokered_launch_that_threw() {
+    let ctx = FakeAgentsCtx::new();
+    ctx.add_adapter("claude", plain_factory(FakeAdapter::new().arc()));
+    *ctx.brokered_fails.borrow_mut() = Some("this machine is unbrokered".to_string());
+    let (e, _) = entry(json!({}));
+    let area = ctx.area();
+    assert_eq!(refused(area.adapter_for(&e, AdapterAsk::default())).message, "this machine is unbrokered");
 }
 
 // ---- A14: reading the agent's config files ---------------------------------------------------------------------------------

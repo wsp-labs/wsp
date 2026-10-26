@@ -1149,3 +1149,31 @@ fn pay_cut_owed_changes_nothing_where_nothing_is_owed_or_the_agent_forks_no_sess
         assert_eq!(sessions_now(&f), vec![Some("cs1".into()), Some("cs1".into()), Some("cs0".into()), Some("cs1".into())]);
     });
 }
+
+// TS: forks.ts:204 `ctx.projectHeld(entry.record.project)` throws and the fork rejects with it, before git is asked.
+#[test]
+fn fork_start_fails_with_the_project_read_that_threw() {
+    local(async {
+        let f = fixture();
+        *f.ctx.project_fails.borrow_mut() = Some("no project p1".into());
+        let got = refused(fork_start(&f.dyn_ctx, f.ctx.start_fn(), options(Some("main-fork"), fork_of(Some("u1"), None)), None).await);
+        assert_eq!(got.message, "no project p1");
+        assert!(!f.ctx.called().iter().any(|c| c.starts_with("git") || c.starts_with("worktreeFolder")), "nothing is asked after it");
+        assert_eq!(f.ctx.started.borrow().len(), 0);
+    });
+}
+
+// TS: forks.ts:214 `ctx.checkoutOf(entry.record)` is outside the try that takes a refused fork's worktree away, so its throw leaves
+// the worktree made and starts nothing.
+#[test]
+fn fork_start_fails_with_the_checkout_read_that_threw_and_starts_nothing() {
+    local(async {
+        let f = fixture();
+        f.ctx.worktrees.borrow_mut().push_back(Ok(made_worktree(true)));
+        *f.ctx.checkout_fails.borrow_mut() = Some("no project p1".into());
+        let got = refused(fork_start(&f.dyn_ctx, f.ctx.start_fn(), options(Some("main-fork"), fork_of(Some("u1"), None)), None).await);
+        assert_eq!(got.message, "no project p1");
+        assert_eq!(after_worktree(&f), vec!["worktreeFolder p1 /repo/p1 main-fork ws1 - refs/c/u1".to_string()]);
+        assert_eq!(f.ctx.started.borrow().len(), 0);
+    });
+}

@@ -215,8 +215,8 @@ fn an_opening_reads_its_entry_with_the_callers_origin_unless_it_may_open_there()
             hook!(
                 fx.host,
                 "SessionsCtx::opens_in",
-                dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool,
-                move |_r: &WorkspaceRecord, _o: Option<&Caller>| opens_there
+                dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Result<bool, HostError>,
+                move |_r: &WorkspaceRecord, _o: Option<&Caller>| Ok(opens_there)
             );
             fx.launches(go("hi"), origin).await;
             assert_eq!(*seen.borrow(), vec![("w1".to_string(), read_with)]);
@@ -520,15 +520,15 @@ fn an_opening_the_computer_rule_keeps_out_is_refused_in_its_own_words() {
         hook!(
             fx.host,
             "SessionsCtx::opens_in",
-            dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool,
-            |_r: &WorkspaceRecord, _o: Option<&Caller>| false
+            dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Result<bool, HostError>,
+            |_r: &WorkspaceRecord, _o: Option<&Caller>| Ok(false)
         );
-        hook!(fx.host, "SessionsCtx::of_threads_repository", dyn Fn(Option<&Caller>, &str) -> bool, |_o: Option<&Caller>, _p: &str| true);
+        hook!(fx.host, "SessionsCtx::of_threads_repository", dyn Fn(Option<&Caller>, &str) -> Result<bool, HostError>, |_o: Option<&Caller>, _p: &str| Ok(true));
         hook!(
             fx.host,
             "SessionsCtx::elsewhere_refusal",
-            dyn Fn(Option<&Caller>, &str, &str) -> Option<HostError>,
-            move |_o: Option<&Caller>, _p: &str, _n: &str| Some(w.clone())
+            dyn Fn(Option<&Caller>, &str, &str) -> Result<Option<HostError>, HostError>,
+            move |_o: Option<&Caller>, _p: &str, _n: &str| Ok(Some(w.clone()))
         );
         let e = fx.refused(go("hi"), Some(child.clone())).await;
         assert_eq!(said(&e), said(&want), "a folder");
@@ -542,15 +542,15 @@ fn an_opening_the_computer_rule_keeps_out_is_refused_in_its_own_words() {
         hook!(
             fx.host,
             "SessionsCtx::opens_in",
-            dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool,
-            |_r: &WorkspaceRecord, _o: Option<&Caller>| false
+            dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Result<bool, HostError>,
+            |_r: &WorkspaceRecord, _o: Option<&Caller>| Ok(false)
         );
-        hook!(fx.host, "SessionsCtx::of_threads_repository", dyn Fn(Option<&Caller>, &str) -> bool, |_o: Option<&Caller>, _p: &str| true);
+        hook!(fx.host, "SessionsCtx::of_threads_repository", dyn Fn(Option<&Caller>, &str) -> Result<bool, HostError>, |_o: Option<&Caller>, _p: &str| Ok(true));
         hook!(
             fx.host,
             "SessionsCtx::away_for",
-            dyn Fn(&WorkspaceRecord, Option<&Caller>, &str, &str) -> Option<HostError>,
-            move |_r: &WorkspaceRecord, _o: Option<&Caller>, _a: &str, _w: &str| Some(m.clone())
+            dyn Fn(&WorkspaceRecord, Option<&Caller>, &str, &str) -> Result<Option<HostError>, HostError>,
+            move |_r: &WorkspaceRecord, _o: Option<&Caller>, _a: &str, _w: &str| Ok(Some(m.clone()))
         );
         let e = fx.refused(go("hi"), Some(child.clone())).await;
         assert_eq!(said(&e), said(&machine), "a machine");
@@ -562,27 +562,27 @@ fn an_opening_the_computer_rule_keeps_out_is_refused_in_its_own_words() {
         hook!(
             fx.host,
             "SessionsCtx::opens_in",
-            dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool,
-            |_r: &WorkspaceRecord, _o: Option<&Caller>| false
+            dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Result<bool, HostError>,
+            |_r: &WorkspaceRecord, _o: Option<&Caller>| Ok(false)
         );
         let w = want.clone();
         hook!(
             fx.host,
             "SessionsCtx::elsewhere_refusal",
-            dyn Fn(Option<&Caller>, &str, &str) -> Option<HostError>,
-            move |_o: Option<&Caller>, _p: &str, _n: &str| Some(w.clone())
+            dyn Fn(Option<&Caller>, &str, &str) -> Result<Option<HostError>, HostError>,
+            move |_o: Option<&Caller>, _p: &str, _n: &str| Ok(Some(w.clone()))
         );
         fx.launches(go("hi"), Some(child.clone())).await;
         assert_eq!(fx.host.hooks.called("elsewhere_refusal"), Vec::<String>::new(), "a project of another repository reads as absent here");
 
         let fx = fx_on(Agent::default());
-        hook!(fx.host, "SessionsCtx::of_threads_repository", dyn Fn(Option<&Caller>, &str) -> bool, |_o: Option<&Caller>, _p: &str| true);
+        hook!(fx.host, "SessionsCtx::of_threads_repository", dyn Fn(Option<&Caller>, &str) -> Result<bool, HostError>, |_o: Option<&Caller>, _p: &str| Ok(true));
         let w = want;
         hook!(
             fx.host,
             "SessionsCtx::elsewhere_refusal",
-            dyn Fn(Option<&Caller>, &str, &str) -> Option<HostError>,
-            move |_o: Option<&Caller>, _p: &str, _n: &str| Some(w.clone())
+            dyn Fn(Option<&Caller>, &str, &str) -> Result<Option<HostError>, HostError>,
+            move |_o: Option<&Caller>, _p: &str, _n: &str| Ok(Some(w.clone()))
         );
         fx.launches(go("hi"), Some(child)).await;
         assert_eq!(fx.host.hooks.called("elsewhere_refusal"), Vec::<String>::new(), "a workspace the caller may open in is not asked");
@@ -641,11 +641,11 @@ fn a_send_across_computers_carries_no_files_and_no_follow() {
                 dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool,
                 |r: &WorkspaceRecord, _o: Option<&Caller>| r.id != "w1"
             );
-            hook!(fx.host, "SessionsCtx::project_computer_name", dyn Fn(&str) -> String, |p: &str| if p == "pbox" {
+            hook!(fx.host, "SessionsCtx::project_computer_name", dyn Fn(&str) -> Result<String, HostError>, |p: &str| Ok(if p == "pbox" {
                 "hetzner".to_string()
             } else {
                 "default".to_string()
-            });
+            }));
         };
         let file = Attachment { media_type: "text/plain".into(), bytes: "aGk=".into(), name: Some("notes.sh".into()) };
         let sent = |o: StartOptions| StartOptions { thread: Some("t1".into()), ..o };

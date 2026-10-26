@@ -256,6 +256,10 @@ pub struct FakeForksCtx {
     /// Every `keepSentImages` call: workspace, thread, request and the images.
     pub kept_images: RefCell<Vec<(String, String, Option<String>, Vec<Attachment>)>>,
     pub projects: RefCell<IndexMap<String, ProjectView>>,
+    /// Makes `project_held` throw with these words.
+    pub project_fails: RefCell<Option<String>>,
+    /// Makes `checkout_of` throw with these words.
+    pub checkout_fails: RefCell<Option<String>>,
     /// A git command containing the needle (its args joined by a space) answers; the first match wins, else exit 0.
     pub git: RefCell<Vec<(String, Result<ExecResult, HostError>)>>,
     pub live: RefCell<Vec<String>>,
@@ -290,6 +294,8 @@ impl FakeForksCtx {
             kept_writes: RefCell::default(),
             kept_images: RefCell::default(),
             projects: RefCell::default(),
+            project_fails: RefCell::default(),
+            checkout_fails: RefCell::default(),
             git: RefCell::default(),
             live: RefCell::default(),
             worktrees: RefCell::default(),
@@ -428,12 +434,16 @@ impl ForksCtx for FakeForksCtx {
         self.call(format!("persist {workspace_id}"));
         async {}.boxed_local()
     }
-    fn project_held(&self, project: &str) -> ProjectView {
-        self.projects
+    fn project_held(&self, project: &str) -> Result<ProjectView, HostError> {
+        if let Some(why) = self.project_fails.borrow().clone() {
+            return Err(err(&why));
+        }
+        Ok(self
+            .projects
             .borrow()
             .get(project)
             .cloned()
-            .unwrap_or_else(|| project_view(project, project, &format!("/repo/{project}"), Some(&format!("/repo/{project}"))))
+            .unwrap_or_else(|| project_view(project, project, &format!("/repo/{project}"), Some(&format!("/repo/{project}")))))
     }
     fn place_name(&self, computer: &str) -> String {
         format!("{computer}-name")
@@ -466,8 +476,11 @@ impl ForksCtx for FakeForksCtx {
         let answer = self.worktrees.borrow_mut().pop_front().unwrap_or_else(|| Err(err("no worktree answer queued")));
         async move { answer }.boxed_local()
     }
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String {
-        self.checkouts.borrow().get(&record.id).cloned().unwrap_or_else(|| format!("/work/{}", record.id))
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError> {
+        if let Some(why) = self.checkout_fails.borrow().clone() {
+            return Err(err(&why));
+        }
+        Ok(self.checkouts.borrow().get(&record.id).cloned().unwrap_or_else(|| format!("/work/{}", record.id)))
     }
     fn take_setup_line(&self, workspace_id: &str) -> Option<String> {
         self.call(format!("takeSetupLine {workspace_id}"));

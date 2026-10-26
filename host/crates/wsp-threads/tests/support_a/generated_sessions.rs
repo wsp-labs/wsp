@@ -344,35 +344,46 @@ impl SessionsCtx for FakeHost {
         }
         None
     }
-    fn opens_in(&self, record: &WorkspaceRecord, origin: Option<&Caller>) -> bool {
+    fn opens_in(&self, record: &WorkspaceRecord, origin: Option<&Caller>) -> Result<bool, HostError> {
         self.hooks.log("opens_in", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool>("SessionsCtx::opens_in") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Result<bool, HostError>>("SessionsCtx::opens_in")
+        {
             return hook(record, origin);
         }
-        true
+        Ok(true)
     }
-    fn of_threads_repository(&self, origin: Option<&Caller>, project: &str) -> bool {
+    fn of_threads_repository(&self, origin: Option<&Caller>, project: &str) -> Result<bool, HostError> {
         self.hooks.log("of_threads_repository", vec![project.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(Option<&Caller>, &str) -> bool>("SessionsCtx::of_threads_repository") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(Option<&Caller>, &str) -> Result<bool, HostError>>("SessionsCtx::of_threads_repository")
+        {
             return hook(origin, project);
         }
-        false
+        Ok(false)
     }
-    fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &str, name: &str) -> Option<HostError> {
+    fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &str, name: &str) -> Result<Option<HostError>, HostError> {
         self.hooks.log("elsewhere_refusal", vec![project.to_string(), name.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(Option<&Caller>, &str, &str) -> Option<HostError>>("SessionsCtx::elsewhere_refusal") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(Option<&Caller>, &str, &str) -> Result<Option<HostError>, HostError>>("SessionsCtx::elsewhere_refusal")
+        {
             return hook(origin, project, name);
         }
-        None
+        Ok(None)
     }
-    fn away_for(&self, record: &WorkspaceRecord, origin: Option<&Caller>, act: &str, workspace_id: &str) -> Option<HostError> {
+    fn away_for(
+        &self,
+        record: &WorkspaceRecord,
+        origin: Option<&Caller>,
+        act: &str,
+        workspace_id: &str,
+    ) -> Result<Option<HostError>, HostError> {
         self.hooks.log("away_for", vec![act.to_string(), workspace_id.to_string()]);
-        if let Some(hook) =
-            self.hooks.get::<dyn Fn(&WorkspaceRecord, Option<&Caller>, &str, &str) -> Option<HostError>>("SessionsCtx::away_for")
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(&WorkspaceRecord, Option<&Caller>, &str, &str) -> Result<Option<HostError>, HostError>>("SessionsCtx::away_for")
         {
             return hook(record, origin, act, workspace_id);
         }
-        None
+        Ok(None)
     }
     fn acts_on(&self, record: &WorkspaceRecord, origin: Option<&Caller>) -> bool {
         self.hooks.log("acts_on", vec![]);
@@ -381,12 +392,12 @@ impl SessionsCtx for FakeHost {
         }
         true
     }
-    fn project_computer_name(&self, project: &str) -> String {
+    fn project_computer_name(&self, project: &str) -> Result<String, HostError> {
         self.hooks.log("project_computer_name", vec![project.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> String>("SessionsCtx::project_computer_name") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> Result<String, HostError>>("SessionsCtx::project_computer_name") {
             return hook(project);
         }
-        project.to_string()
+        Ok(project.to_string())
     }
     async fn worktree_gone(&self, entry: &Entry, why: &str, starting: bool) -> Result<(), HostError> {
         self.hooks.log("worktree_gone", vec![why.to_string(), starting.to_string()]);
@@ -1209,12 +1220,12 @@ impl SessionsCtx for FakeHost {
         }
         ()
     }
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String {
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError> {
         self.hooks.log("checkout_of", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&WorkspaceRecord) -> String>("SessionsCtx::checkout_of") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(&WorkspaceRecord) -> Result<String, HostError>>("SessionsCtx::checkout_of") {
             return hook(record);
         }
-        format!("/work/{}", record.id)
+        Ok(format!("/work/{}", record.id))
     }
     async fn wake(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<(), HostError> {
         self.hooks.log("wake", vec![workspace_id.to_string()]);

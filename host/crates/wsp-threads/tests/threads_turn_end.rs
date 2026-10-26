@@ -162,6 +162,49 @@ fn keep_checkpoint_warns_and_records_the_anchor_alone_when_the_daemon_fails() {
     });
 }
 
+// TS: threads.ts:957 `notARepo` reads `ctx.projectHeld` outside keepCheckpoint's try, and `ctx.checkoutOf` inside it: the Rust caller
+// joins a future of nothing, so a read that throws is the checkpoint not kept and said as any other, the anchor still recorded.
+#[test]
+fn keep_checkpoint_warns_and_records_the_anchor_alone_when_a_read_throws() {
+    local(async {
+        for (project, checkout) in [(Some("no project p1"), None), (None, Some("no project p1"))] {
+            let (ctx, area, e) = host();
+            *ctx.project_fails.borrow_mut() = project.map(String::from);
+            *ctx.checkout_fails.borrow_mut() = checkout.map(String::from);
+            let warned = wsp_core::console::capture();
+            area.keep_checkpoint(
+                &e,
+                CheckpointAsk {
+                    session_id: "cs-1".into(),
+                    thread_id: "t1".into(),
+                    turn_id: "u1".into(),
+                    anchor: Some("msg-9".into()),
+                    kept: None,
+                },
+            )
+            .await;
+            assert_eq!(warned.lines(), vec![wsp_core::types::internal::no_checkpoint_log_line("t1", "ws1", "no project p1")]);
+            assert!(ctx.frames.borrow().is_empty(), "the daemon is asked nothing");
+            let said = ctx.recorded_json();
+            assert_eq!((said[0]["anchor"].clone(), said[0].get("ref").cloned()), (json!("msg-9"), None));
+        }
+    });
+}
+
+// TS: threads.ts:1068 `notARepo(entry.record)` throws inside snapshotOf; the Rust seam answers a shared future of an option, so the
+// turn runs without a snapshot and the failure is said as the TS says a snapshot that was not taken.
+#[test]
+fn snapshot_of_says_a_project_read_that_threw_and_answers_nothing() {
+    local(async {
+        let (ctx, area, e) = host();
+        *ctx.project_fails.borrow_mut() = Some("no project p1".into());
+        let warned = wsp_core::console::capture();
+        assert_eq!(area.snapshot_of(&e, "/w").await, None);
+        assert_eq!(warned.lines(), vec!["no snapshot of /w on the-folder: no project p1".to_string()]);
+        assert!(ctx.frames.borrow().is_empty());
+    });
+}
+
 #[test]
 fn keep_checkpoint_with_nothing_to_keep_records_nothing() {
     local(async {

@@ -145,10 +145,10 @@ fn picks_named_win_over_the_threads_own() {
             "LaunchCtx::access_of",
             Rc::new(|_w: &str, _t: &str, _s: Option<&str>| Some("default".to_string())),
         );
-        host.hooks.set::<dyn Fn(Option<&HarnessCatalog>, &str, &AccessChoice) -> Option<String>>(
+        host.hooks.set::<dyn Fn(Option<&HarnessCatalog>, &str, &AccessChoice) -> Result<Option<String>, HostError>>(
             "LaunchCtx::named_mode",
             Rc::new(|_c: Option<&HarnessCatalog>, _h: &str, a: &AccessChoice| {
-                (*a == AccessChoice::Full).then(|| "bypassPermissions".to_string())
+                Ok((*a == AccessChoice::Full).then(|| "bypassPermissions".to_string()))
             }),
         );
         // A permission mode named is the access, and the access word is never read.
@@ -178,6 +178,27 @@ fn picks_named_win_over_the_threads_own() {
         assert_eq!(
             (read.picks_for)(Some("sess-1")).unwrap(),
             launch_picks_of(picks(Some("claude-sonnet-5"), Some("low"), Some("default")), None)
+        );
+    });
+}
+
+// TS: launch.ts:53 `ctx.namedMode(catalog, harness, o.access)` throws the usage refusal naming the words the agent takes, and the pick read
+// rejects with it.
+#[test]
+fn an_access_word_the_agent_has_no_mode_for_fails_the_pick_read_with_its_refusal() {
+    run_local(async {
+        let (host, area, e) = picks_rig();
+        host.hooks.set::<dyn Fn(Option<&HarnessCatalog>, &str, &AccessChoice) -> Result<Option<String>, HostError>>(
+            "LaunchCtx::named_mode",
+            Rc::new(|_c: Option<&HarnessCatalog>, _h: &str, _a: &AccessChoice| {
+                Err(HostError::with_kind("Claude Code takes no plan access; it takes ask, auto-edit, full", Kind::Usage))
+            }),
+        );
+        let got = read_picks(&area, &e, &LaunchAsked { access: Some(AccessChoice::Plan), ..Default::default() }).await;
+        let refused = got.err().expect("the read throws");
+        assert_eq!(
+            (refused.message.as_str(), refused.kind),
+            ("Claude Code takes no plan access; it takes ask, auto-edit, full", Some(Kind::Usage))
         );
     });
 }

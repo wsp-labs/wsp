@@ -397,10 +397,10 @@ fn a_relayed_caller_reads_nothing_outside_a_thread_and_ends_none() {
         let person = view_of(lab.read(ActivityAsk::default(), None).await);
         assert_eq!(person["unowned"], json!([unowned]));
         lab.drives(|_k: WorkspaceKind, c: Option<&Caller>| !is_relayed(c));
-        lab.host.hooks.set::<dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Option<HostError>>(
+        lab.host.hooks.set::<dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Result<Option<HostError>, HostError>>(
             "ActivityCtx::refusal_for",
             Rc::new(|_r: &WorkspaceRecord, c: Option<&Caller>| {
-                is_relayed(c).then(|| HostError::with_kind("a relayed road drives no local workspace", Kind::Usage))
+                Ok(is_relayed(c).then(|| HostError::with_kind("a relayed road drives no local workspace", Kind::Usage)))
             }),
         );
         let seen = view_of(lab.read(ActivityAsk::default(), Some(relayed())).await);
@@ -463,9 +463,9 @@ fn a_thread_asked_that_the_caller_does_not_reach_is_not_found() {
 fn a_workspace_the_rule_refuses_the_caller_makes_its_thread_not_found() {
     run_local(async {
         let lab = Lab::main();
-        lab.host.hooks.set::<dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Option<HostError>>(
+        lab.host.hooks.set::<dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Result<Option<HostError>, HostError>>(
             "ActivityCtx::refusal_for",
-            Rc::new(|_r: &WorkspaceRecord, _c: Option<&Caller>| Some(HostError::new("not yours"))),
+            Rc::new(|_r: &WorkspaceRecord, _c: Option<&Caller>| Ok(Some(HostError::new("not yours")))),
         );
         let said = said_of(lab.read(ask_of(Some(T1), None), None).await);
         assert_eq!(said, nf(&format!("no thread {}", thread_word(T1))));
