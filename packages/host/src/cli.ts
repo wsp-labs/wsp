@@ -32,7 +32,6 @@ export { HOST_STARTS_ITSELF, type HostFlag, type CommandDeps, SYSTEM_COMMAND_DEP
 import { HELP, HELP_PAGES, agentPage, hostPage, devPage, commandPage } from "./cli/help.js";
 export { HELP, HELP_PAGES, agentPage, hostPage, devPage, commandPage } from "./cli/help.js";
 import { mcp } from "./cli/mcp.js";
-import { tapeOf } from "@wsp/runtime";
 
 export type { Keys } from "./env-keys.js";
 
@@ -67,7 +66,6 @@ export async function cli(
   deps: CommandDeps = SYSTEM_COMMAND_DEPS,
 ): Promise<number> {
   const env = given;
-  tapeOf(env, "cli")?.in({ argv });
   const starter = start ?? starterFor(run, env);
   const starts = starter === false ? {} : { start: starter };
   // One reading for every road out of this process, and the sentence about it said once: a verb, a command and the

@@ -1,7 +1,0 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/thread-cap.test.ts > a held start that never launches tells whoever it was to report to > a send answered held whose agent then fails to start leaves its reason on the thread, which keeps its last turn's end","outs":"recorded","computer":"ip-172-31-35-82"}}
-{"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true}}
-{"in":{"placeId":"here","threads":1,"id":2,"op":"places.set"}}
-{"out":{"id":2,"ok":true,"place":{"id":"here","kind":"computer","name":"zingzys-mac","mac":"mac-mini","default":true,"os":"macOS 15.0","shape":{"cpu":8,"memMb":16384},"engine":"docker","home":"/home/dev","present":true,"takesForks":false,"buildsImages":false,"cap":{"threads":1},"capDefault":{"threads":8},"settings":{"threads":1},"turnLimitMs":null,"turnLimitDefault":null,"spawn":{"spawn":true,"maxMachines":3,"maxDepth":2},"spawnDefault":{"spawn":true,"maxMachines":3,"maxDepth":2},"running":0}}}
-{"in":{"workspaceId":"ws_00000001","thread":"00000000-0000-4000-8000-000000000001","prompt":"boom again","answerHeld":true,"id":3,"op":"sessions.start"}}
-{"out":{"id":3,"ok":true,"session":{"id":"00000000-0000-4000-8000-000000000002","workspaceId":"ws_00000001","harness":"claude","status":"running","startedBy":"person","threadId":"00000000-0000-4000-8000-000000000001","prompt":"boom again","startedAt":1792950414827,"claudeSessionId":"00000000-0000-4000-8000-000000000003","capped":{"placeId":"here","place":"zingzys-mac","running":1,"atOnce":1}},"outcome":"held","turnId":"00000000-0000-4000-8000-000000000002"}}

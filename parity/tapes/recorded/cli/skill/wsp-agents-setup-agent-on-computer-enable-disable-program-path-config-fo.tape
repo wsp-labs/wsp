@@ -1,2 +1,0 @@
-{"meta":{"door":"cli","source":"skill > wsp agents setup <agent> --on <computer> --enable \\| --disable --program <path> --config <folder> --arg <word>... --env <NAME>... --unset-env <NAME>... --reset <field>..."}}
-{"in":{"argv":["agents","setup","<agent>","--on","<computer>","--enable","\\|","--disable","--program","<path>","--config","<folder>","--arg","<word>...","--env","<NAME>...","--unset-env","<NAME>...","--reset","<field>..."]}}

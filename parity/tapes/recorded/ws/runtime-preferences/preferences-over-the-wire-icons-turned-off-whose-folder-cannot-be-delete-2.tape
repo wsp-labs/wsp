@@ -1,5 +1,0 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/preferences.test.ts > preferences over the wire > icons turned off whose folder cannot be deleted still save, tell every socket, and answer with a notice naming the folder","outs":"recorded"}}
-{"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true}}
-{"in":{"patch":{"theme":"dark"},"id":2,"op":"preferences.set"}}
-{"out":{"id":2,"ok":true,"preferences":{"theme":"dark","lightTheme":"paper","darkTheme":"graphite","sidebarMode":"list","terminalSize":"app","terminalZoom":{},"access":{},"projectLook":{},"projectIcon":{},"computerLook":{},"serverIcons":false,"agentVersions":true,"usageLogs":true,"productUsage":true,"keepAwake":true,"transparency":true,"projectOrder":[],"keybindings":{},"appFont":"","codeFont":"","agentDefaults":{},"projectDefaults":{},"sendWith":"enter","midTurn":"queue","notifyNeeds":"notify-sound","notifyDone":"notify","planAlerts":true,"settleAfter":"2h","askDelete":true,"onQuit":"ask","newThreadIn":"current","labs":false}}}
