@@ -8,12 +8,14 @@ use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
 
 use futures::future::{LocalBoxFuture, Shared};
+use wsp_wire::views::preferences::Preferences;
 use wsp_wire::views::session::ThreadCapWait;
 
-use crate::clock::Cancel;
+pub use crate::clock::Cancel;
 use crate::status::StatusTracker;
 
-/// A promise more than one area awaits.
+/// A promise more than one area awaits. The context's `Joined` and `Cancel`: wsp-core's `types::wiring::Joined<T>`,
+/// wsp-machines' `Cancel` and the engine's `Cancel` are other types for other callers.
 pub type Joined = Shared<LocalBoxFuture<'static, ()>>;
 
 // context.ts:156
@@ -57,8 +59,8 @@ pub struct RuntimeState {
     /// Set as close() starts, before it shuts the daemon channels a card read still out goes over.
     pub closing: bool,
     pub ticking: Option<Joined>,
-    /// The preferences record as last read or written. Typed when preferences.ts is ported.
-    pub preferences_held: Option<serde_json::Value>,
+    /// The preferences record as last read or written.
+    pub preferences_held: Option<Preferences>,
 }
 
 /// The handle over shared state: a borrow lives only inside `with` (rule 3.3). Clones share one state.
