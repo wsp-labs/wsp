@@ -12,7 +12,9 @@ use futures::FutureExt;
 use rest::{fixture, json, run_local, wire};
 use serde_json::{json, Value};
 use wsp_adapters::claude::landmines::is_landmine;
-use wsp_core::agent_setup::{agent_setups, key_of, loop_line, real_folder_here, real_folder_script, SetupSetOptions, AGENT_SETUPS, LINK_HOPS};
+use wsp_core::agent_setup::{
+    agent_setups, key_of, loop_line, real_folder_here, real_folder_script, SetupSetOptions, AGENT_SETUPS, LINK_HOPS,
+};
 use wsp_core::protocol_pending::{agent_env_refusal, config_dir_refusal, no_config_dir_line, not_run_refusal, setup_patched};
 use wsp_store::store::{BlobMark, Store};
 use wsp_wire::types::thread_defaults::{AgentSetup, AgentSetupSet, ResolvedFolder};
@@ -213,19 +215,39 @@ fn a_setup_is_checked_kept_in_the_store_then_in_memory_and_read_by_every_launch(
             let row = &expected[at];
             assert_eq!(row["name"], name);
             assert_eq!(out, row["out"], "{name}");
-            assert_eq!(store.text(AGENT_SETUPS, "here:claude").map(|t| serde_json::from_str::<Value>(&t).unwrap()).unwrap_or(Value::Null), row["doc"], "{name}: the stored document");
+            assert_eq!(
+                store.text(AGENT_SETUPS, "here:claude").map(|t| serde_json::from_str::<Value>(&t).unwrap()).unwrap_or(Value::Null),
+                row["doc"],
+                "{name}: the stored document"
+            );
             assert_eq!(json(&store.ids(AGENT_SETUPS)), row["keys"], "{name}");
             at += 1;
         }
-        assert_eq!(store.text(AGENT_SETUPS, "here:claude").unwrap(), serde_json::to_string(&expected[7]["doc"]).unwrap(), "the stored document's key order is the TS's");
+        assert_eq!(
+            store.text(AGENT_SETUPS, "here:claude").unwrap(),
+            serde_json::to_string(&expected[7]["doc"]).unwrap(),
+            "the stored document's key order is the TS's"
+        );
         let launch = s.launch_of("here", "claude");
-        assert_eq!(json!({ "configDir": launch.config_dir, "env": json(&launch.env), "launch": launch.launch.as_ref().map(json) }), f["launchClaude"]);
-        assert_eq!(serde_json::to_string(&launch.env).unwrap(), serde_json::to_string(&f["launchClaude"]["env"]).unwrap(), "the config folder's own variable comes last");
+        assert_eq!(
+            json!({ "configDir": launch.config_dir, "env": json(&launch.env), "launch": launch.launch.as_ref().map(json) }),
+            f["launchClaude"]
+        );
+        assert_eq!(
+            serde_json::to_string(&launch.env).unwrap(),
+            serde_json::to_string(&f["launchClaude"]["env"]).unwrap(),
+            "the config folder's own variable comes last"
+        );
         assert_eq!(json!(s.off("here", "claude")), f["offClaude"]);
         for (name, agent, change, label) in [
             ("codex dir refused", "codex", json!({ "configDir": "/home/dev/cx" }), "Codex"),
             ("cursor no dir", "cursor", json!({ "configDir": "/home/dev/cu" }), "Cursor"),
-            ("back to nothing", "claude", json!({ "on": true, "program": null, "args": null, "configDir": null, "env": { "FOO": null } }), "Claude Code"),
+            (
+                "back to nothing",
+                "claude",
+                json!({ "on": true, "program": null, "args": null, "configDir": null, "env": { "FOO": null } }),
+                "Claude Code",
+            ),
         ] {
             let out = out_of(s.set("here", agent, set(change), o(label)).await);
             let row = &expected[at];
@@ -244,7 +266,11 @@ fn a_load_reads_every_kept_setup_and_a_launch_leaves_off_a_variable_kept_before_
     run_local(async {
         let f = fx();
         let store = MemStore::new();
-        store.seed(AGENT_SETUPS, "box:claude", json!({ "configDir": "/root/cfg", "env": { "PATH": "/kept/before", "GOOD": "1", "CLAUDECODE": "1" } }));
+        store.seed(
+            AGENT_SETUPS,
+            "box:claude",
+            json!({ "configDir": "/root/cfg", "env": { "PATH": "/kept/before", "GOOD": "1", "CLAUDECODE": "1" } }),
+        );
         let s = agent_setups(store.clone());
         assert_eq!(s.get("box", "claude"), None, "nothing is read before load");
         s.load().await.unwrap();
@@ -287,7 +313,14 @@ fn tree() -> (tempfile::TempDir, std::path::PathBuf, String) {
 }
 
 fn bash(script: &str, home: &std::path::Path) -> std::process::Output {
-    std::process::Command::new("/bin/bash").arg("-c").arg(script).env_clear().env("HOME", home).env("PATH", "/usr/bin:/bin").output().unwrap()
+    std::process::Command::new("/bin/bash")
+        .arg("-c")
+        .arg(script)
+        .env_clear()
+        .env("HOME", home)
+        .env("PATH", "/usr/bin:/bin")
+        .output()
+        .unwrap()
 }
 
 // TS: thread-defaults.test.ts:333
@@ -320,7 +353,11 @@ fn the_same_folder_read_here_follows_every_link_and_keeps_the_part_not_made_yet(
         assert_eq!(here(root.join("b").join("later").join("x")).await.unwrap(), format!("{etc}/wsp-not-made/x"));
         assert_eq!(here(root.join("b").join("near")).await.unwrap(), format!("{etc}/wsp-not-made"));
         assert_eq!(here(root.join("b")).await.unwrap(), format!("{real}/a"));
-        assert_eq!(real_folder_here(&format!("{}/./b/../b//", root.display())).await.unwrap(), format!("{real}/a"), "the path is normalized before it is read");
+        assert_eq!(
+            real_folder_here(&format!("{}/./b/../b//", root.display())).await.unwrap(),
+            format!("{real}/a"),
+            "the path is normalized before it is read"
+        );
         let e = here(root.join("loop").join("x")).await.unwrap_err();
         assert_eq!(e.message, loop_line(&root.join("loop").join("x").display().to_string()));
         assert_eq!(e.kind, Some(Kind::Usage));

@@ -158,52 +158,50 @@ async fn burned(file: &str) -> i32 {
 mod local_exec_stream {
     use super::*;
 
-    own_group_test!(
-        the_agent_a_launch_starts_through_agent_word_writes_its_own_pid_the_process_it_r,
-        15_000,
-        {
-            let c = Case::new("wsp-localexec-");
-            let factory = c.factory();
-            // A link named claude to sleep, as a native Claude Code's link to its version file.
-            std::fs::create_dir(c.path("bin")).unwrap();
-            std::os::unix::fs::symlink("/bin/sleep", c.path("bin/claude")).unwrap();
-            let stream = factory.launch(&format!("echo before; PATH={}:/usr/bin:/bin {} 30", sq(&c.path("bin")), agent_word("claude", None)), Launch::default());
-            let run = stream.run().expect("a run");
-            wait_for("the agent's pid", 5_000, || agent_pid_of(&run).is_some()).await;
-            let pid = agent_pid_of(&run).unwrap();
-            let out = Command::new("ps").args(["-o", "pgid=,ucomm=,command=", "-p", &pid.to_string()]).output().expect("ps");
-            let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            let mut words = text.split_whitespace();
-            let pgid = words.next().expect("a pgid").parse::<u32>().expect("a number");
-            let ucomm = words.next().expect("a name").to_string();
-            let command = words.collect::<Vec<_>>().join(" ");
-            // A Mac names a process by the file its link resolves to, Linux by the name exec was handed.
-            let named = if cfg!(target_os = "macos") { "sleep" } else { "claude" };
-            assert_eq!((Some(pgid), ucomm.as_str(), command.as_str()), (stream.pid(), named, "claude 30"));
-            stream.kill();
-            stream.exited().await;
-            assert_eq!(agent_pid_of(&run), None);
-            c.sweep().await;
-        }
-    );
+    own_group_test!(the_agent_a_launch_starts_through_agent_word_writes_its_own_pid_the_process_it_r, 15_000, {
+        let c = Case::new("wsp-localexec-");
+        let factory = c.factory();
+        // A link named claude to sleep, as a native Claude Code's link to its version file.
+        std::fs::create_dir(c.path("bin")).unwrap();
+        std::os::unix::fs::symlink("/bin/sleep", c.path("bin/claude")).unwrap();
+        let stream = factory.launch(
+            &format!("echo before; PATH={}:/usr/bin:/bin {} 30", sq(&c.path("bin")), agent_word("claude", None)),
+            Launch::default(),
+        );
+        let run = stream.run().expect("a run");
+        wait_for("the agent's pid", 5_000, || agent_pid_of(&run).is_some()).await;
+        let pid = agent_pid_of(&run).unwrap();
+        let out = Command::new("ps").args(["-o", "pgid=,ucomm=,command=", "-p", &pid.to_string()]).output().expect("ps");
+        let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let mut words = text.split_whitespace();
+        let pgid = words.next().expect("a pgid").parse::<u32>().expect("a number");
+        let ucomm = words.next().expect("a name").to_string();
+        let command = words.collect::<Vec<_>>().join(" ");
+        // A Mac names a process by the file its link resolves to, Linux by the name exec was handed.
+        let named = if cfg!(target_os = "macos") { "sleep" } else { "claude" };
+        assert_eq!((Some(pgid), ucomm.as_str(), command.as_str()), (stream.pid(), named, "claude 30"));
+        stream.kill();
+        stream.exited().await;
+        assert_eq!(agent_pid_of(&run), None);
+        c.sweep().await;
+    });
 
-    own_group_test!(
-        the_pid_agent_word_writes_is_the_agent_s_own_and_the_agent_never_sees_the_variab,
-        15_000,
-        {
-            let c = Case::new("wsp-localexec-");
-            let factory = c.factory();
-            let stream = factory.launch(&format!("{} -c {}", agent_word("sh", None), sq(r#"echo "[${WSP_AGENT_PID_FILE:-}] $$"; sleep 30"#)), Launch::default());
-            let run = stream.run().expect("a run");
-            let log = format!("{run}.log");
-            wait_for("the agent's line", 5_000, || !support::read(&log).trim().is_empty()).await;
-            let line = support::read(&log).trim().to_string();
-            assert_eq!(line, format!("[] {}", agent_pid_of(&run).expect("the agent's pid")));
-            stream.kill();
-            stream.exited().await;
-            c.sweep().await;
-        }
-    );
+    own_group_test!(the_pid_agent_word_writes_is_the_agent_s_own_and_the_agent_never_sees_the_variab, 15_000, {
+        let c = Case::new("wsp-localexec-");
+        let factory = c.factory();
+        let stream = factory.launch(
+            &format!("{} -c {}", agent_word("sh", None), sq(r#"echo "[${WSP_AGENT_PID_FILE:-}] $$"; sleep 30"#)),
+            Launch::default(),
+        );
+        let run = stream.run().expect("a run");
+        let log = format!("{run}.log");
+        wait_for("the agent's line", 5_000, || !support::read(&log).trim().is_empty()).await;
+        let line = support::read(&log).trim().to_string();
+        assert_eq!(line, format!("[] {}", agent_pid_of(&run).expect("the agent's pid")));
+        stream.kill();
+        stream.exited().await;
+        c.sweep().await;
+    });
 
     own_group_test!(the_tree_s_reading_keeps_the_work_of_a_child_its_parent_has_reaped, 30_000, {
         let c = Case::new("wsp-localexec-");
@@ -251,7 +249,10 @@ mod local_exec_stream {
         let bin = c.path("bin");
         std::fs::create_dir(&bin).unwrap();
         // procps reads /proc pid by pid, so a pid reused mid-read can print a parent loop; the leader's tree is 999 and 1000.
-        write_stub(&format!("{bin}/ps"), "#!/bin/sh\nprintf '999 1 999 0:00.50\\n1000 999 999 0:01.00\\n500 600 500 0:01.00\\n600 500 600 0:01.00\\n'\n");
+        write_stub(
+            &format!("{bin}/ps"),
+            "#!/bin/sh\nprintf '999 1 999 0:00.50\\n1000 999 999 0:01.00\\n500 600 500 0:01.00\\n600 500 600 0:01.00\\n'\n",
+        );
         std::env::set_var("PATH", format!("{bin}:{}", std::env::var("PATH").unwrap_or_default()));
         let read = tree_work();
         assert_eq!(read(999).await, Some(150));

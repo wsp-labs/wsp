@@ -112,7 +112,18 @@ async fn an_absent_machine_refuses_every_call_with_the_away_error() {
 }
 
 fn broke(message: &str) -> HostError {
-    HostError { message: message.into(), fix: None, kind: None, errors: None, warnings: None, left: None, host_key: None, code: None, status: None, marks: vec![] }
+    HostError {
+        message: message.into(),
+        fix: None,
+        kind: None,
+        errors: None,
+        warnings: None,
+        left: None,
+        host_key: None,
+        code: None,
+        status: None,
+        marks: vec![],
+    }
 }
 
 /// A body of chunks that counts how many were pulled.

@@ -40,8 +40,10 @@ fn scope(thread: &str) -> ThreadScope {
 }
 
 fn via(fingerprint: &str) -> DeviceVia {
-    serde_json::from_value(json!({"kind": "account", "relayDeviceId": "rd_1", "fingerprint": fingerprint, "publicKey": "pk", "admittedBy": "fp_host"}))
-        .unwrap()
+    serde_json::from_value(
+        json!({"kind": "account", "relayDeviceId": "rd_1", "fingerprint": fingerprint, "publicKey": "pk", "admittedBy": "fp_host"}),
+    )
+    .unwrap()
 }
 
 #[test]
@@ -194,7 +196,11 @@ fn match_finds_the_device_a_token_names_and_writes_nothing() {
 fn a_device_row_without_a_token_hash_is_no_device() {
     run_local(async {
         let (store, _, door) = door();
-        store.seed(DEVICES, "d_0000000000000000", json!({"id": "d_0000000000000000", "name": "ghost", "createdAt": "x", "lastSeenAt": "x"}));
+        store.seed(
+            DEVICES,
+            "d_0000000000000000",
+            json!({"id": "d_0000000000000000", "name": "ghost", "createdAt": "x", "lastSeenAt": "x"}),
+        );
         assert_eq!(door.list().await.unwrap(), vec![]);
         assert_eq!(door.seen("d_0000000000000000", 5).await.unwrap(), None);
         assert!(!door.revoke("d_0000000000000000").await.unwrap());
@@ -236,7 +242,10 @@ fn a_seen_moves_only_the_last_seen_and_keeps_the_key_order() {
         let held = door.seen(&paired.device_id, 9_000).await.unwrap().unwrap();
         assert_eq!(held.view.last_seen_at, "1970-01-01T00:00:09.000Z");
         assert_eq!(held.view.created_at, "1970-01-01T00:00:01.000Z");
-        assert_eq!(store.text(DEVICES, &paired.device_id).unwrap(), before.replace("lastSeenAt\":\"1970-01-01T00:00:01.000Z", "lastSeenAt\":\"1970-01-01T00:00:09.000Z"));
+        assert_eq!(
+            store.text(DEVICES, &paired.device_id).unwrap(),
+            before.replace("lastSeenAt\":\"1970-01-01T00:00:01.000Z", "lastSeenAt\":\"1970-01-01T00:00:09.000Z")
+        );
     });
 }
 
@@ -360,7 +369,10 @@ fn invariant_3_a_requests_origin_is_read_off_the_token_it_presents() {
     run_local(async {
         let (_, _, door) = door();
         let here = door.mint("turn here", scope("t1"), 1_000, MintMore { road: Some(WorkspaceOrigin::Here), aside: false }).await.unwrap();
-        let relayed = door.mint("turn on a machine", scope("t2"), 1_000, MintMore { road: Some(WorkspaceOrigin::Relayed), aside: false }).await.unwrap();
+        let relayed = door
+            .mint("turn on a machine", scope("t2"), 1_000, MintMore { road: Some(WorkspaceOrigin::Relayed), aside: false })
+            .await
+            .unwrap();
         let laptop = door.admit("laptop", 1_000).await.unwrap();
         // The road comes from the record the token names, so a token minted for a machine reads relayed whatever the
         // request that carries it says about itself.

@@ -123,7 +123,8 @@ pub struct ReachError {
 //   return url.toString();
 // }
 pub fn daemon_ws_url(preview_url: &str) -> Result<String, ReachError> {
-    let mut url = url::Url::parse(preview_url).map_err(|_| ReachError { message: "Invalid URL".into(), kind: None, status: None, code: None })?;
+    let mut url =
+        url::Url::parse(preview_url).map_err(|_| ReachError { message: "Invalid URL".into(), kind: None, status: None, code: None })?;
     match url.scheme() {
         "https" => {
             let _ = url.set_scheme("wss");
@@ -770,7 +771,7 @@ fn handle_message(core: &Rc<Core>, raw: RawFrame<'_>) {
             return;
         }
     }
-    if let Some(event) = parse_daemon_event(&msg).ok() {
+    if let Ok(event) = parse_daemon_event(&msg) {
         (core.on_event)(event);
     }
 }

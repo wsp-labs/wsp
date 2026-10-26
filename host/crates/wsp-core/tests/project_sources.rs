@@ -10,7 +10,9 @@ use std::rc::Rc;
 use futures::FutureExt;
 use rest::*;
 use serde_json::{json, Value};
-use wsp_core::project_sources::{project_remote, project_source, project_sources, FolderRemote, ResolvedSource, SourceDeps, DEFAULT_BRANCH};
+use wsp_core::project_sources::{
+    project_remote, project_source, project_sources, FolderRemote, ResolvedSource, SourceDeps, DEFAULT_BRANCH,
+};
 use wsp_wire::views::workspace::{ProjectSource, SeedPlan};
 use wsp_words::exit::{HostError, Kind};
 
@@ -178,7 +180,7 @@ fn a_folder_that_seeds_another_computer_with_no_origin_is_refused_as_invalid() {
         let fx = fixture("project_sources");
         let row = named(rows(&fx, "resolve"), "folder seeding no remote");
         let d = deps(true, plan(json!({ "remote": null })), "", "");
-        let e = resolve("folder", &folder_source(), &d).await.err().expect("a folder with no origin is refused");
+        let e = resolve("folder", &folder_source(), &d).await.expect_err("a folder with no origin is refused");
         assert_eq!(e.message, row["err"].as_str().unwrap(), "resolve row folder seeding no remote");
         assert_eq!(e.kind, Some(Kind::Invalid));
         assert_eq!(row["kind"], "invalid");
@@ -238,7 +240,11 @@ fn the_command_each_kind_clones_through_is_the_ts_answer_for_every_row() {
     assert_eq!(all.len(), 4);
     for row in all {
         let kind = row[0].as_str().unwrap();
-        let got = project_source(kind).ok().unwrap().cli().map_or(Value::Null, |c| json!({ "bin": c.bin, "setupGit": c.setup_git, "missing": c.missing("hetzner") }));
+        let got = project_source(kind)
+            .ok()
+            .unwrap()
+            .cli()
+            .map_or(Value::Null, |c| json!({ "bin": c.bin, "setupGit": c.setup_git, "missing": c.missing("hetzner") }));
         assert_eq!(got, row[1], "cli row {kind}");
     }
 }

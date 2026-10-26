@@ -49,7 +49,18 @@ pub async fn until(what: &str, ms: u64, mut cond: impl FnMut() -> bool) {
 
 /// A plain error, built from its fields (wsp-words' constructors are not implemented yet).
 pub fn broke(message: &str) -> HostError {
-    HostError { message: message.into(), fix: None, kind: None, errors: None, warnings: None, left: None, host_key: None, code: None, status: None, marks: vec![] }
+    HostError {
+        message: message.into(),
+        fix: None,
+        kind: None,
+        errors: None,
+        warnings: None,
+        left: None,
+        host_key: None,
+        code: None,
+        status: None,
+        marks: vec![],
+    }
 }
 
 /// A store over JSON text, so every read parses afresh (rule 2.27). Writes are counted, and a list, a put or a
@@ -128,7 +139,12 @@ impl Store for MemStore {
         Ok(())
     }
     async fn stat_blob(&self, collection: &str, id: &str) -> Result<Option<BlobMark>, HostError> {
-        Ok(self.blobs.borrow().get(collection).and_then(|c| c.get(id)).map(|(b, at)| BlobMark { bytes: JsNumber(b.len() as f64), at: JsNumber(*at) }))
+        Ok(self
+            .blobs
+            .borrow()
+            .get(collection)
+            .and_then(|c| c.get(id))
+            .map(|(b, at)| BlobMark { bytes: JsNumber(b.len() as f64), at: JsNumber(*at) }))
     }
 }
 
@@ -245,7 +261,8 @@ pub fn mode_of(path: &str) -> String {
 
 /// The names in a folder, sorted.
 pub fn names(dir: &str) -> Vec<String> {
-    let mut v: Vec<String> = std::fs::read_dir(dir).map(|d| d.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect()).unwrap_or_default();
+    let mut v: Vec<String> =
+        std::fs::read_dir(dir).map(|d| d.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect()).unwrap_or_default();
     v.sort();
     v
 }

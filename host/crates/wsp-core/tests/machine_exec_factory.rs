@@ -12,8 +12,8 @@ use futures::StreamExt;
 use regex::Regex;
 use support::guest::{errors, Hook, Inner, LocalGuest, ScriptGuest, Step, Wrapped};
 use wsp_adapters::port::{
-    Attached, AttachRunOptions, Env, ExecFailure, ExecFailureKind, ExecOptions as Launch, ExecSecret, ExecStream, ExecStreamFactory, WriteOutcome,
-    AGENT_PID_FILE_ENV,
+    AttachRunOptions, Attached, Env, ExecFailure, ExecFailureKind, ExecOptions as Launch, ExecSecret, ExecStream, ExecStreamFactory,
+    WriteOutcome, AGENT_PID_FILE_ENV,
 };
 use wsp_core::machine_exec::{machine_exec_stream, MachineExecFactory, MachineExecOptions, NowFn, SleepFn};
 use wsp_engine::errors::{EngineError, ErrorKind, Result as EngineResult};
@@ -24,7 +24,8 @@ use wsp_wire::wire::limits::{EXEC_BODY_MAX, EXEC_CHUNK_BYTES, LINK_RETRY_WINDOW_
 
 const WORK_SCORE_LINE: &str = "{ echo 500 > /proc/self/oom_score_adj; } 2>/dev/null; renice 0 $$ >/dev/null 2>&1";
 const CUT_6H: &str = "at the 6h turn limit; send to continue where it stopped, or change the limit in Settings > Computers";
-const UNREACHABLE_LINE: &str = "the provider cannot reach the machine (Sandbox is not reachable); pause and wake the workspace, or delete it";
+const UNREACHABLE_LINE: &str =
+    "the provider cannot reach the machine (Sandbox is not reachable); pause and wake the workspace, or delete it";
 const EXEC_FAILED_LINE: &str =
     "the provider cannot run commands on the machine (exec failed) while the machine and its threads may still be running; wait, or pause and wake the workspace, or delete it";
 const ABSENT_SENTENCE: &str = "old-laptop is not answering; it connects on its own when it is on";
@@ -75,7 +76,9 @@ where
     F: Fn(String, Option<Vec<u8>>, Inner) -> Fut + 'static,
     Fut: Future<Output = EngineResult<ExecResult>> + 'static,
 {
-    Arc::new(move |cmd: String, stdin: Option<Vec<u8>>, inner: Inner| -> LocalBoxFuture<'static, EngineResult<ExecResult>> { Box::pin(f(cmd, stdin, inner)) })
+    Arc::new(move |cmd: String, stdin: Option<Vec<u8>>, inner: Inner| -> LocalBoxFuture<'static, EngineResult<ExecResult>> {
+        Box::pin(f(cmd, stdin, inner))
+    })
 }
 
 fn wrapped<F, Fut>(inner: Arc<dyn Machine>, f: F) -> Arc<dyn Machine>
@@ -83,7 +86,9 @@ where
     F: Fn(Arc<dyn Machine>, String, MachineExec) -> Fut + 'static,
     Fut: Future<Output = EngineResult<ExecResult>> + 'static,
 {
-    let f = Arc::new(move |m: Arc<dyn Machine>, c: String, o: MachineExec| -> LocalBoxFuture<'static, EngineResult<ExecResult>> { Box::pin(f(m, c, o)) });
+    let f = Arc::new(move |m: Arc<dyn Machine>, c: String, o: MachineExec| -> LocalBoxFuture<'static, EngineResult<ExecResult>> {
+        Box::pin(f(m, c, o))
+    });
     Arc::new(Wrapped { inner, f })
 }
 
@@ -225,7 +230,9 @@ mod machine_exec_stream {
     fn a_launch_the_machine_refused_carries_what_the_machine_said_beside_the_code() {
         support::run_local(async {
             let (guest, machine) = ScriptGuest::new(vec![]);
-            guest.set_hook(hook(|_cmd, _stdin, _inner| async move { answered(1, "", "no run folder on this machine: /tmp/wsp-run/ab12cd34ef56.d\n") }));
+            guest.set_hook(hook(|_cmd, _stdin, _inner| async move {
+                answered(1, "", "no run folder on this machine: /tmp/wsp-run/ab12cd34ef56.d\n")
+            }));
             let stream = machine_exec_stream(machine.clone(), poll(5), None).launch("true", launch_env(&[]));
             let message = failure_message(&stream).await;
             assert_eq!(
@@ -242,7 +249,8 @@ mod machine_exec_stream {
     fn a_command_that_fits_one_exec_body_launches_in_one_exec_under_the_cap() {
         support::run_local(async {
             let (guest, machine) = ScriptGuest::new(vec![Step::append("hi\n").exit(0), Step::none()]);
-            let stream = machine_exec_stream(machine, poll(5), None).launch("claude -p 'hi' </dev/null", launch_env(&[("CLAUDE_CONFIG_DIR", "/root/.claude-cfg")]));
+            let stream = machine_exec_stream(machine, poll(5), None)
+                .launch("claude -p 'hi' </dev/null", launch_env(&[("CLAUDE_CONFIG_DIR", "/root/.claude-cfg")]));
             drain(&stream).await;
             assert_eq!(stream.exited().await, Some(0));
             let launch = launch_calls(&guest.calls());
@@ -263,7 +271,8 @@ mod machine_exec_stream {
             let command = big_command();
             assert!(command.len() > 40_000);
             let (guest, machine) = ScriptGuest::new(vec![Step::append("hi\n").exit(0), Step::none()]);
-            let stream = machine_exec_stream(machine, poll(5), None).launch(&command, launch_env(&[("CLAUDE_CONFIG_DIR", "/root/.claude-cfg")]));
+            let stream =
+                machine_exec_stream(machine, poll(5), None).launch(&command, launch_env(&[("CLAUDE_CONFIG_DIR", "/root/.claude-cfg")]));
             let lines = support::lines_ok(&*stream).await;
             assert_eq!(lines, vec!["hi"]);
             assert_eq!(stream.exited().await, Some(0));
@@ -293,7 +302,8 @@ mod machine_exec_stream {
     fn makes_every_file_of_a_run_under_the_login_s_own_mask_from_the_claim_folder_down() {
         support::run_local(async {
             let (guest, machine) = ScriptGuest::new(vec![Step::append("hi\n").exit(0), Step::none()]);
-            let stream = machine_exec_stream(machine, poll(5), None).launch("claude -p 'hi'", launch_input(&[("ANTHROPIC_API_KEY", "sk-ant-x")], &["one"]));
+            let stream = machine_exec_stream(machine, poll(5), None)
+                .launch("claude -p 'hi'", launch_input(&[("ANTHROPIC_API_KEY", "sk-ant-x")], &["one"]));
             drain(&stream).await;
             let launch = launch_calls(&guest.calls());
             let lines: Vec<String> = launch.last().unwrap().split('\n').map(str::to_string).collect();
@@ -311,7 +321,8 @@ mod machine_exec_stream {
     fn the_run_script_puts_the_turn_s_processes_at_the_work_score_before_anything_else() {
         support::run_local(async {
             let (guest, machine) = ScriptGuest::new(vec![Step::append("hi\n").exit(0), Step::none()]);
-            let stream = machine_exec_stream(machine, poll(5), None).launch("claude -p 'hi'", launch_env(&[("PATH", "/root/.local/bin:/usr/bin")]));
+            let stream =
+                machine_exec_stream(machine, poll(5), None).launch("claude -p 'hi'", launch_env(&[("PATH", "/root/.local/bin:/usr/bin")]));
             drain(&stream).await;
             let script = guest.get_script();
             let head: Vec<&str> = script.split('\n').take(2).collect();
@@ -343,7 +354,8 @@ mod machine_exec_stream {
             assert_eq!(stream.exited().await, Some(0));
             assert_eq!(guest.get_input(), "{\"type\":\"user\",\"text\":\"go\"}\n");
             // Every path in the script is one quoted word, so a run folder with a space in it feeds the same command.
-            let base = Regex::new(r"mkfifo '(/tmp/r/[a-f0-9]+)'\.fifo").unwrap().captures(&guest.get_launch()).expect("the fifo's path")[1].to_string();
+            let base = Regex::new(r"mkfifo '(/tmp/r/[a-f0-9]+)'\.fifo").unwrap().captures(&guest.get_launch()).expect("the fifo's path")[1]
+                .to_string();
             let script = guest.get_script();
             assert!(script.contains(&format!("( tail -n +1 -f '{base}'.in > '{base}'.fifo & echo $! > '{base}'.tail )")));
             assert!(script.contains(&format!("}} < '{base}'.fifo")));
@@ -361,7 +373,8 @@ mod machine_exec_stream {
             let prompt = format!("{{\"type\":\"user\",\"text\":{}}}", serde_json::to_string(&text).unwrap());
             assert!(prompt.len() > 40_000);
             let (guest, machine) = ScriptGuest::new(vec![Step::append("{\"type\":\"result\"}\n").exit(0), Step::none()]);
-            let stream = machine_exec_stream(machine, poll(5), None).launch("claude -p --input-format stream-json", launch_input(&[], &[prompt.as_str()]));
+            let stream = machine_exec_stream(machine, poll(5), None)
+                .launch("claude -p --input-format stream-json", launch_input(&[], &[prompt.as_str()]));
             drain(&stream).await;
             assert_eq!(stream.exited().await, Some(0));
             for c in guest.calls() {
@@ -461,7 +474,13 @@ mod machine_exec_stream {
             let failure = failure_of(&stream).await;
             assert_eq!(failure.kind, ExecFailureKind::Unreached);
             // Seven five-second posts and the waits between them run past the minute a name that will not resolve is given.
-            assert!(Regex::new(r"^the machine could not be reached from this computer after 7 attempts over 1m \d+s$").unwrap().is_match(&failure.message), "{}", failure.message);
+            assert!(
+                Regex::new(r"^the machine could not be reached from this computer after 7 attempts over 1m \d+s$")
+                    .unwrap()
+                    .is_match(&failure.message),
+                "{}",
+                failure.message
+            );
             assert!(!failure.message.contains("fetch failed"));
             assert!(!failure.message.contains(g.machine.id()));
             assert_eq!(g.launches(), 7);
@@ -490,9 +509,7 @@ mod machine_exec_stream {
                     }
                     if cmd.contains("WSP_LAUNCHED") && la.load(SeqCst) == 0 {
                         la.fetch_add(1, SeqCst);
-                        if let Err(e) = inner(&cmd) {
-                            return Err(e);
-                        }
+                        inner(&cmd)?;
                     }
                     c.fetch_add(5_000, SeqCst);
                     Err(errors::reset())
@@ -528,7 +545,13 @@ mod machine_exec_stream {
 
     /// The first launch post lands on the machine and its answer is lost with `lost`; every exec after it fails with
     /// `meanwhile` until `dark_ms` of the stream's clock, then the machine answers again and holds the run.
-    async fn landed_then_dark(lost: fn() -> EngineError, meanwhile: fn() -> EngineError, dark_ms: i64, asks_until_stopped: bool, stop_at: Option<i64>) -> LandedThenDark {
+    async fn landed_then_dark(
+        lost: fn() -> EngineError,
+        meanwhile: fn() -> EngineError,
+        dark_ms: i64,
+        asks_until_stopped: bool,
+        stop_at: Option<i64>,
+    ) -> LandedThenDark {
         let (guest, machine) = ScriptGuest::new(vec![Step::append("ran\n").exit(0), Step::none()]);
         let clock = Arc::new(AtomicI64::new(0));
         let landed = Arc::new(AtomicU32::new(0));
@@ -551,9 +574,7 @@ mod machine_exec_stream {
                 }
                 if cmd.contains("WSP_LAUNCHED") && la.load(SeqCst) == 0 {
                     la.fetch_add(1, SeqCst);
-                    if let Err(e) = inner(&cmd) {
-                        return Err(e);
-                    }
+                    inner(&cmd)?;
                     return Err(lost());
                 }
                 Err(meanwhile())
@@ -578,7 +599,9 @@ mod machine_exec_stream {
     #[test]
     fn a_launch_that_ran_and_lost_its_answer_to_a_link_drop_is_read_as_that_run_while_t() {
         support::run_local(async {
-            let r = landed_then_dark(|| errors::plain("connection lost"), || errors::absent("lab-box is not connected"), 20_000, false, None).await;
+            let r =
+                landed_then_dark(|| errors::plain("connection lost"), || errors::absent("lab-box is not connected"), 20_000, false, None)
+                    .await;
             assert!(r.failure.is_none(), "{:?}", r.failure);
             assert_eq!(r.lines, vec!["ran"]);
             assert_eq!(r.launches, 1);
@@ -588,7 +611,14 @@ mod machine_exec_stream {
     #[test]
     fn a_launch_that_ran_and_lost_its_answer_is_read_as_that_run_while_the_provider_say() {
         support::run_local(async {
-            let r = landed_then_dark(errors::reset, || errors::unreachable("m1", "Sandbox is not reachable", 502, "the computer is not reachable"), 20_000, false, None).await;
+            let r = landed_then_dark(
+                errors::reset,
+                || errors::unreachable("m1", "Sandbox is not reachable", 502, "the computer is not reachable"),
+                20_000,
+                false,
+                None,
+            )
+            .await;
             assert!(r.failure.is_none(), "{:?}", r.failure);
             assert_eq!(r.lines, vec!["ran"]);
             assert_eq!(r.launches, 1);
@@ -657,7 +687,7 @@ mod machine_exec_stream {
             let r = dark_machine(missing_gone).await;
             assert_eq!(r.failure.message, format!("remote launch failed on {}: gone", r.machine.id()));
             assert_eq!(ran(&r.calls, "WSP_LAUNCHED"), 1);
-            assert!(r.calls.iter().filter(|c| c.contains("WSP_RUN")).next().is_none(), "{:?}", r.calls);
+            assert!(r.calls.iter().find(|c| c.contains("WSP_RUN")).is_none(), "{:?}", r.calls);
             assert!(r.at < 10_000, "{}", r.at);
         });
     }
@@ -679,7 +709,7 @@ mod machine_exec_stream {
             let g = unreached_guest(99, fetch_failed);
             let stream = machine_exec_stream(g.machine.clone(), g.opts.clone(), None).launch("claude -p hi", launch_env(&[]));
             assert_eq!(failure_of(&stream).await.kind, ExecFailureKind::Unreached);
-            assert!(g.guest.calls().iter().filter(|c| c.contains("WSP_RUN")).next().is_none());
+            assert!(g.guest.calls().iter().find(|c| c.contains("WSP_RUN")).is_none());
         });
     }
 
@@ -747,7 +777,11 @@ mod machine_exec_stream {
             let g = unreached_guest(99, || errors::refusal(ErrorKind::Transient, 503, "Service Unavailable"));
             let stream = machine_exec_stream(g.machine.clone(), g.opts.clone(), None).launch("claude -p hi", launch_env(&[]));
             let failure = failure_of(&stream).await;
-            assert!(failure.message.contains(&format!("remote launch failed on {}: Service Unavailable", g.machine.id())), "{}", failure.message);
+            assert!(
+                failure.message.contains(&format!("remote launch failed on {}: Service Unavailable", g.machine.id())),
+                "{}",
+                failure.message
+            );
             assert_eq!(g.launches(), 1);
             assert!(g.backoffs().is_empty());
         });
@@ -785,7 +819,11 @@ mod machine_exec_stream_attaching_to_a_run_its_process_did_not_launch {
     #[test]
     fn reads_the_run_s_whole_log_from_its_first_byte_and_ends_on_the_exit_the_run_left() {
         support::run_local(async {
-            let a = abandoned(vec![Step::append("{\"type\":\"system\",\"subtype\":\"init\"}\n{\"type\":\"assistant\"}\n"), Step::append("{\"type\":\"result\"}\n").exit(0)]).await;
+            let a = abandoned(vec![
+                Step::append("{\"type\":\"system\",\"subtype\":\"init\"}\n{\"type\":\"assistant\"}\n"),
+                Step::append("{\"type\":\"result\"}\n").exit(0),
+            ])
+            .await;
             let stream = attach_stream(&a.factory, &a.run, true, now_ms() as f64).await;
             let lines = support::lines_ok(&*stream).await;
             assert_eq!(lines, three_lines());
@@ -796,7 +834,10 @@ mod machine_exec_stream_attaching_to_a_run_its_process_did_not_launch {
     #[test]
     fn hands_over_every_line_the_run_s_channel_took_the_launch_s_own_and_each_written_s() {
         support::run_local(async {
-            let (guest, machine) = ScriptGuest::new(vec![Step::append("{\"type\":\"system\",\"subtype\":\"init\"}\n"), Step::append("{\"type\":\"result\"}\n").exit(0)]);
+            let (guest, machine) = ScriptGuest::new(vec![
+                Step::append("{\"type\":\"system\",\"subtype\":\"init\"}\n"),
+                Step::append("{\"type\":\"result\"}\n").exit(0),
+            ]);
             let launched = machine_exec_stream(machine.clone(), poll(5), None).launch("claude -p hi", launch_input(&[], &["go"]));
             support::wait_for("the launch", 5_000, || !guest.get_launch().is_empty()).await;
             assert_eq!(launched.write("{\"type\":\"user\",\"uuid\":\"u1\"}".to_string()).await.unwrap(), WriteOutcome::Written);
@@ -864,7 +905,11 @@ mod machine_exec_stream_attaching_to_a_run_its_process_did_not_launch {
                     Err(errors::plain("gateway said 502"))
                 }
             }));
-            let factory = machine_exec_stream(a.machine.clone(), MachineExecOptions { poll_ms: Some(1), now: Some(clock_now(&clock)), ..Default::default() }, None);
+            let factory = machine_exec_stream(
+                a.machine.clone(),
+                MachineExecOptions { poll_ms: Some(1), now: Some(clock_now(&clock)), ..Default::default() },
+                None,
+            );
             let stream = attach_stream(&factory, &a.run, true, -7.0 * 3_600_000.0).await;
             let failure = failure_of(&stream).await;
             assert!(failure.message.ends_with(CUT_6H), "{}", failure.message);
@@ -969,7 +1014,13 @@ mod machine_exec_stream_attaching_to_a_run_its_process_did_not_launch {
         support::run_local(async {
             let a = abandoned(vec![Step::append("still working\n")]).await;
             let before = a.guest.calls().len();
-            for bad in ["/tmp/wsp-run/../../etc/x", "/tmp/wsp-run/$(id)", "/etc/wsp-run/aabbccddeeff", "/tmp/wsp-run/nothex000000", "/tmp/wsp-run/aabbccddeef"] {
+            for bad in [
+                "/tmp/wsp-run/../../etc/x",
+                "/tmp/wsp-run/$(id)",
+                "/etc/wsp-run/aabbccddeeff",
+                "/tmp/wsp-run/nothex000000",
+                "/tmp/wsp-run/aabbccddeef",
+            ] {
                 let failure = attach_failure(&a.factory, bad, true, now_ms() as f64).await;
                 assert!(failure.message.contains("is not a run this host could have launched"), "{}", failure.message);
             }
@@ -993,7 +1044,8 @@ mod machine_exec_stream_over_this_machine_s_bash {
                 first
             }
         });
-        let stream = machine_exec_stream(retrying, poll_in(50, &run_dir), None).launch(&format!("echo ran >> {marks}; echo hi"), launch_env(&[("WSP_MARK", "x")]));
+        let stream = machine_exec_stream(retrying, poll_in(50, &run_dir), None)
+            .launch(&format!("echo ran >> {marks}; echo hi"), launch_env(&[("WSP_MARK", "x")]));
         let lines = support::lines_ok(&*stream).await;
         assert_eq!(stream.exited().await, Some(0));
         assert_eq!(lines, vec!["hi"]);
@@ -1045,7 +1097,8 @@ mod machine_exec_stream_keeping_a_key_off_the_machine_s_disk {
         let factory = machine_exec_stream(machine, poll_in(20, &run_dir), None);
         let seen = r#"case "$ANTHROPIC_API_KEY" in sk-ant-x-*) echo "seen ${#ANTHROPIC_API_KEY}";; esac"#;
         // A turn as an agent's launch makes one, its prompt on an input channel; an exec as the exec verb makes one.
-        let turn = factory.launch(&format!("{seen}; read -r line; echo \"got $line\""), launch_input(&[("ANTHROPIC_API_KEY", &key)], &["hello"]));
+        let turn =
+            factory.launch(&format!("{seen}; read -r line; echo \"got $line\""), launch_input(&[("ANTHROPIC_API_KEY", &key)], &["hello"]));
         let exec = factory.launch(&format!("{seen}; {}", support::gate(&gate)), launch_env(&[("ANTHROPIC_API_KEY", &key)]));
         let mut turn_lines = turn.lines();
         let mut exec_lines = exec.lines();
@@ -1090,7 +1143,11 @@ mod machine_exec_stream_keeping_a_key_off_the_machine_s_disk {
         let script = format!("export ANTHROPIC_API_KEY={}\n{command}\necho $? > {b}.exit\n", support::sq(key));
         let res = machine
             .exec(
-                &format!("umask 077; mkdir -p {} {b}.d && printf %s {} > {b}.sh && {{ setsid bash {b}.sh > {b}.log 2>&1 & echo $! > {b}.pid; }}", support::sq(run_dir), support::sq(&script)),
+                &format!(
+                    "umask 077; mkdir -p {} {b}.d && printf %s {} > {b}.sh && {{ setsid bash {b}.sh > {b}.log 2>&1 & echo $! > {b}.pid; }}",
+                    support::sq(run_dir),
+                    support::sq(&script)
+                ),
                 MachineExec::default(),
             )
             .await
@@ -1115,7 +1172,7 @@ mod machine_exec_stream_keeping_a_key_off_the_machine_s_disk {
         // The host that comes next re-opens the run its rows hold and sweeps the one they do not.
         let next = machine_exec_stream(machine.clone(), poll_in(20, &run_dir), None);
         let attached = attach_stream(&next, &read, false, now_ms() as f64).await;
-        assert_eq!(next.sweep(&[read.clone()]).expect("this factory sweeps").await.unwrap(), vec![ended.clone()]);
+        assert_eq!(next.sweep(std::slice::from_ref(&read)).expect("this factory sweeps").await.unwrap(), vec![ended.clone()]);
         std::fs::write(&gate, "").unwrap();
         let lines = support::lines_ok(&*attached).await;
         assert_eq!((lines, attached.exited().await), (vec!["done".to_string()], Some(0)));
@@ -1145,7 +1202,7 @@ mod machine_exec_stream_sweeping_the_runs_a_connecting_host_does_not_hold {
         // A claim of a shape this factory could not have minted is the guest's, not a run of ours to end.
         std::fs::create_dir(format!("{run_dir}/notarun.d")).unwrap();
 
-        assert_eq!(factory.sweep(&[held_run.clone()]).expect("this factory sweeps").await.unwrap(), vec![orphan_run.clone()]);
+        assert_eq!(factory.sweep(std::slice::from_ref(&held_run)).expect("this factory sweeps").await.unwrap(), vec![orphan_run.clone()]);
 
         support::strays::gone(orphan_pid).await;
         assert_eq!(files_of(&orphan_run), Vec::<String>::new());
@@ -1163,7 +1220,8 @@ mod machine_exec_stream_sweeping_the_runs_a_connecting_host_does_not_hold {
         support::run_local(async {
             let stale: Vec<String> = (0..200).map(|i| format!("/tmp/wsp-run/{i:012x}")).collect();
             let calls = Arc::new(Mutex::new(Vec::<String>::new()));
-            let (k, listing) = (calls.clone(), format!("{}\n", stale.iter().map(|base| format!("{base}.d")).collect::<Vec<_>>().join("\n")));
+            let (k, listing) =
+                (calls.clone(), format!("{}\n", stale.iter().map(|base| format!("{base}.d")).collect::<Vec<_>>().join("\n")));
             let (_guest, inner) = ScriptGuest::new(vec![]);
             let machine = wrapped(inner, move |_inner, cmd, _opts| {
                 let (k, listing) = (k.clone(), listing.clone());
@@ -1174,7 +1232,8 @@ mod machine_exec_stream_sweeping_the_runs_a_connecting_host_does_not_hold {
                 }
             });
 
-            let swept = machine_exec_stream(machine, MachineExecOptions::default(), None).sweep(&[]).expect("this factory sweeps").await.unwrap();
+            let swept =
+                machine_exec_stream(machine, MachineExecOptions::default(), None).sweep(&[]).expect("this factory sweeps").await.unwrap();
             assert_eq!(swept, stale);
 
             let calls = calls.lock().unwrap().clone();
@@ -1185,7 +1244,11 @@ mod machine_exec_stream_sweeping_the_runs_a_connecting_host_does_not_hold {
             }
             assert!(reaps.len() > 1);
             // Every run is reaped once across the pages, and no page carries a run twice.
-            let reaped: Vec<String> = stale.iter().filter(|base| reaps.iter().filter(|cmd| cmd.contains(&format!("rm -rf '{base}'.*"))).count() == 1).cloned().collect();
+            let reaped: Vec<String> = stale
+                .iter()
+                .filter(|base| reaps.iter().filter(|cmd| cmd.contains(&format!("rm -rf '{base}'.*"))).count() == 1)
+                .cloned()
+                .collect();
             assert_eq!(reaped, stale);
         });
     }
@@ -1202,7 +1265,11 @@ mod machine_exec_stream_sweeping_the_runs_a_connecting_host_does_not_hold {
                 inner.exec(&cmd, opts).await
             }
         });
-        let swept = machine_exec_stream(counted, MachineExecOptions { run_dir: Some(run_dir.clone()), ..Default::default() }, None).sweep(&[]).expect("this factory sweeps").await.unwrap();
+        let swept = machine_exec_stream(counted, MachineExecOptions { run_dir: Some(run_dir.clone()), ..Default::default() }, None)
+            .sweep(&[])
+            .expect("this factory sweeps")
+            .await
+            .unwrap();
         assert_eq!(swept, Vec::<String>::new());
         assert_eq!(calls.lock().unwrap().len(), 1);
     });
@@ -1236,7 +1303,10 @@ mod text_a_run_reads_that_holds_a_value {
             }
             lines.push(line);
         }
-        assert_eq!(lines, vec!["-rw-------".to_string(), format!("{{\"token\":\"{value}\"}}"), format!("got seed {value}"), "0".to_string()]);
+        assert_eq!(
+            lines,
+            vec!["-rw-------".to_string(), format!("{{\"token\":\"{value}\"}}"), format!("got seed {value}"), "0".to_string()]
+        );
         assert_eq!(stream.exited().await, Some(0));
         assert_eq!(guest.calls().into_iter().filter(|cmd| cmd.contains(&value)).collect::<Vec<_>>(), Vec::<String>::new());
         assert_eq!(support::names(&run_dir), Vec::<String>::new());

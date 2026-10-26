@@ -44,7 +44,7 @@ use wsp_wire::views::workspace_events::WorkspaceCreatingEvent;
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::views::workspace_more::{ProjectBranch, ThreadScope, WorkspaceView, WorktreeMade};
 use wsp_wire::wire::capabilities::Capabilities;
-use wsp_wire::wire::machine_link::{ExecResult, SnapshotRow, SysSample, TemplateRow};
+use wsp_wire::wire::machine_link::{ExecResult, SnapshotRow, TemplateRow};
 use wsp_wire::wire::runtime::{
     SessionAccessResult, SessionAnswerResult, SessionAsideResult, SessionInterruptResult, SessionRenameResult, SessionRestoreResult,
     SessionRewindResult, SessionSearchResult, SessionSettleResult, SessionSteerResult, SessionWarmResult,

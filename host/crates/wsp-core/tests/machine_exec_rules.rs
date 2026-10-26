@@ -22,7 +22,10 @@ fn turn_cut_picks_the_wall_before_the_idle_and_says_each_limit_it_read() {
     assert_eq!(idle.kind, ExecFailureKind::Other);
     assert!(turn_cut(limits, 1999, 999).is_none());
     // The TS tests' own lines, each from the limit that rule read.
-    assert_eq!(turn_cut(TurnLimits { idle_ms: 600_000.0, deadline_ms: 21_600_000.0 }, 900_000, 600_000).unwrap().message, "stopped after 15m 00s with no output for 10m");
+    assert_eq!(
+        turn_cut(TurnLimits { idle_ms: 600_000.0, deadline_ms: 21_600_000.0 }, 900_000, 600_000).unwrap().message,
+        "stopped after 15m 00s with no output for 10m"
+    );
     assert_eq!(
         turn_cut(TurnLimits { idle_ms: 600_000.0, deadline_ms: 7_200_000.0 }, 7_200_000, 0).unwrap().message,
         format!("stopped after 2h 00m 00s at the 2h turn limit; {WALL_WORDS}")
@@ -105,7 +108,11 @@ fn read_with(awk: &[&str], root: u32, files: &[String]) -> String {
 #[test]
 fn a_process_that_exits_between_the_shell_s_glob_and_the_read_leaves_the_run_s_o() {
     let dir = tempfile::tempdir().unwrap();
-    let files = vec![fake_stat(dir.path(), 21, 1, 21, 60, 0), dir.path().join("22").join("stat").to_string_lossy().into_owned(), fake_stat(dir.path(), 23, 21, 21, 740, 0)];
+    let files = vec![
+        fake_stat(dir.path(), 21, 1, 21, 60, 0),
+        dir.path().join("22").join("stat").to_string_lossy().into_owned(),
+        fake_stat(dir.path(), 23, 21, 21, 740, 0),
+    ];
     let awks = awks_here();
     assert!(!awks.is_empty());
     for awk in awks {
@@ -137,13 +144,21 @@ fn the_tree_program_over_a_fake_proc_counts_ticks_and_whole_mib_of_io() {
     let d = dir.path();
     let proc_ = |pid: u32, comm: &str, pgrp: u32, utime: u64, stime: u64, io: Option<(u64, u64)>| -> String {
         std::fs::create_dir_all(d.join(pid.to_string())).unwrap();
-        std::fs::write(d.join(pid.to_string()).join("stat"), format!("{pid} ({comm}) S 1 {pgrp} 0 0 -1 0 0 0 0 0 {utime} {stime} 0 0 20 0 1 0 0\n")).unwrap();
+        std::fs::write(
+            d.join(pid.to_string()).join("stat"),
+            format!("{pid} ({comm}) S 1 {pgrp} 0 0 -1 0 0 0 0 0 {utime} {stime} 0 0 20 0 1 0 0\n"),
+        )
+        .unwrap();
         if let Some((r, w)) = io {
             std::fs::write(d.join(pid.to_string()).join("io"), format!("rchar: {r}\nwchar: {w}\nread_bytes: 4096\n")).unwrap();
         }
         d.join(pid.to_string()).join("stat").to_string_lossy().into_owned()
     };
-    let files = vec![proc_(11, "bash", 11, 30, 12, Some((2 * 1_048_576, 1_048_576))), proc_(12, "node (2)", 11, 400, 100, None), proc_(13, "daemon", 13, 9_000, 9_000, Some((99 * 1_048_576, 0)))];
+    let files = [
+        proc_(11, "bash", 11, 30, 12, Some((2 * 1_048_576, 1_048_576))),
+        proc_(12, "node (2)", 11, 400, 100, None),
+        proc_(13, "daemon", 13, 9_000, 9_000, Some((99 * 1_048_576, 0))),
+    ];
     let read = |p: u32| -> u64 {
         let mut args = vec!["-v".to_string(), format!("p={p}"), TREE_WORK_AWK.to_string()];
         args.extend(files.iter().cloned());
@@ -155,7 +170,10 @@ fn the_tree_program_over_a_fake_proc_counts_ticks_and_whole_mib_of_io() {
 }
 
 fn read_live(group: u32) -> u64 {
-    let out = Command::new("sh").args(["-c", "awk -v p=\"$1\" \"$2\" /proc/[0-9]*/stat 2>/dev/null", "sh", &group.to_string(), TREE_WORK_AWK]).output().unwrap();
+    let out = Command::new("sh")
+        .args(["-c", "awk -v p=\"$1\" \"$2\" /proc/[0-9]*/stat 2>/dev/null", "sh", &group.to_string(), TREE_WORK_AWK])
+        .output()
+        .unwrap();
     String::from_utf8_lossy(&out.stdout).trim().parse().unwrap_or(0)
 }
 
@@ -165,6 +183,7 @@ own_group_test!(a_child_in_a_session_of_its_own_counts_while_it_burns_cpu_as_an_
     }
     use std::io::Read;
     use std::os::unix::process::CommandExt;
+    #[allow(clippy::zombie_processes)]
     let mut group = Command::new("sh")
         .args(["-c", "setsid sh -c 'while :; do :; done' & echo $!; exec sleep 30"])
         .stdout(std::process::Stdio::piped())

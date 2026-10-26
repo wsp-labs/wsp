@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use wsp_engine::errors::{EngineError, Result};
-use wsp_engine::machine::{ExecOptions, ExecResult, MachineKind, MachineLife, MachineState, MachineOffers, RunOptions, SnapshotOptions};
+use wsp_engine::machine::{ExecOptions, ExecResult, MachineKind, MachineLife, MachineOffers, MachineState, RunOptions, SnapshotOptions};
 use wsp_engine::Machine;
 use wsp_wire::types::js_number::JsInt;
 
@@ -139,7 +139,11 @@ impl Machine for RecMachine {
         self.offers
     }
     async fn exec(&self, cmd: &str, opts: ExecOptions) -> Result<ExecResult> {
-        self.ran.borrow_mut().push(Ran { cmd: cmd.into(), timeout_ms: opts.timeout_ms, stdin: opts.stdin.map(|b| String::from_utf8(b).unwrap()) });
+        self.ran.borrow_mut().push(Ran {
+            cmd: cmd.into(),
+            timeout_ms: opts.timeout_ms,
+            stdin: opts.stdin.map(|b| String::from_utf8(b).unwrap()),
+        });
         if let Some(f) = &self.fail_on {
             if cmd.contains(f.as_str()) {
                 return Err(EngineError::Other { message: "the link went".into(), code: None });

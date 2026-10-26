@@ -211,7 +211,12 @@ fn a_forward_numbers_its_tunnels_and_close_drops_every_connection_once() {
         let mut a = dial(forward.port).await.unwrap();
         let mut b = dial(forward.port).await.unwrap();
         until("both tunnels opened", || link.ops().iter().filter(|op| *op == "tunnel.open").count() == 2).await;
-        let mut ids: Vec<String> = link.asked().into_iter().filter(|(op, _)| op == "tunnel.open").map(|(_, p)| p["tunnelId"].as_str().unwrap().to_string()).collect();
+        let mut ids: Vec<String> = link
+            .asked()
+            .into_iter()
+            .filter(|(op, _)| op == "tunnel.open")
+            .map(|(_, p)| p["tunnelId"].as_str().unwrap().to_string())
+            .collect();
         ids.sort();
         assert_eq!(ids, ["pl1", "pl2"]);
         forward.close();
@@ -221,7 +226,11 @@ fn a_forward_numbers_its_tunnels_and_close_drops_every_connection_once() {
         let other = open_place_forward(link.clone(), 4321).await.unwrap();
         let _c = dial(other.port).await.unwrap();
         until("a third tunnel opened", || link.ops().iter().filter(|op| *op == "tunnel.open").count() == 3).await;
-        assert_eq!(link.asked().into_iter().filter(|(op, _)| op == "tunnel.open").last().unwrap().1["tunnelId"], "pl1", "each forward counts its own");
+        assert_eq!(
+            link.asked().into_iter().rfind(|(op, _)| op == "tunnel.open").unwrap().1["tunnelId"],
+            "pl1",
+            "each forward counts its own"
+        );
         other.close();
     });
 }
@@ -255,7 +264,14 @@ fn bytes_read_before_the_open_answers_wait_and_go_after_it_in_order() {
         assert_eq!(link.asked()[0].1, json!({ "tunnelId": "t1", "port": 7000 }));
         tx.send(()).unwrap();
         until("the early bytes are carried", || link.ops().len() >= 2).await;
-        let written: String = link.asked().into_iter().filter(|(op, _)| op == "tunnel.write").map(|(_, p)| String::from_utf8(base64::engine::general_purpose::STANDARD.decode(p["data"].as_str().unwrap()).unwrap()).unwrap()).collect();
+        let written: String = link
+            .asked()
+            .into_iter()
+            .filter(|(op, _)| op == "tunnel.write")
+            .map(|(_, p)| {
+                String::from_utf8(base64::engine::general_purpose::STANDARD.decode(p["data"].as_str().unwrap()).unwrap()).unwrap()
+            })
+            .collect();
         assert_eq!(written, "early");
         drop(browser);
         until("the tunnel is closed", || link.ops().last().map(String::as_str) == Some("tunnel.close")).await;

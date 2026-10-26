@@ -220,7 +220,8 @@ fn an_explicit_list_asks_the_provider_once_per_machine_and_never_list() {
             vec![(
                 "alpha".to_string(),
                 "m1".to_string(),
-                "machine m1 is gone at the provider: the status poll found it gone at 2026-10-25T10:00:00Z (404 sandbox not found)".to_string()
+                "machine m1 is gone at the provider: the status poll found it gone at 2026-10-25T10:00:00Z (404 sandbox not found)"
+                    .to_string()
             )]
         );
 
@@ -497,7 +498,12 @@ fn asks_the_provider_once_after_a_failed_reach_then_not_again_inside_the_reconci
         let dead = http_stub(502, Delay::Ms(0)).await;
         serve(&r, &dead);
         rig.put(record(view("alpha", "m1", "running"), &r));
-        let o = StatusWatchOptions { cost_interval_ms: Some(60_000), poll_interval_ms: Some(5_000), reconcile_min_ms: Some(60_000), ..Default::default() };
+        let o = StatusWatchOptions {
+            cost_interval_ms: Some(60_000),
+            poll_interval_ms: Some(5_000),
+            reconcile_min_ms: Some(60_000),
+            ..Default::default()
+        };
         let t = rig.tracker(o);
         let stop = t.watch(o);
         ticks(&rig, &dead, 5_000, 8).await;
@@ -531,7 +537,10 @@ fn emits_workspace_status_when_the_enriched_status_changes_not_on_every_poll() {
         settle().await;
         let moved = rig.bus.statuses();
         assert_eq!(moved.len(), 2);
-        assert_eq!((moved[1].id.as_str(), moved[1].phase, moved[1].machine_state, moved[1].reach.state), ("alpha", WorkspacePhase::Napping, Paused, ReachState::Napping));
+        assert_eq!(
+            (moved[1].id.as_str(), moved[1].phase, moved[1].machine_state, moved[1].reach.state),
+            ("alpha", WorkspacePhase::Napping, Paused, ReachState::Napping)
+        );
 
         for _ in 0..3 {
             rig.fc.advance(5_000);
@@ -612,7 +621,12 @@ fn an_answer_the_guest_did_not_send_sends_the_poll_to_the_provider_once_and_leav
         let edge = http_stub(401, Delay::Ms(0)).await;
         serve(&r, &edge);
         rig.put(record(view("alpha", "m1", "running"), &r));
-        let o = StatusWatchOptions { cost_interval_ms: Some(60_000), poll_interval_ms: Some(5_000), reconcile_min_ms: Some(60_000), ..Default::default() };
+        let o = StatusWatchOptions {
+            cost_interval_ms: Some(60_000),
+            poll_interval_ms: Some(5_000),
+            reconcile_min_ms: Some(60_000),
+            ..Default::default()
+        };
         let t = rig.tracker(o);
         let stop = t.watch(o);
         ticks(&rig, &edge, 5_000, 8).await;
@@ -699,7 +713,10 @@ fn reach_slow_past_the_window_and_a_failing_exec_probe_mark_the_workspace_zombie
 
         let statuses = rig.bus.statuses();
         let zombie = statuses.iter().find(|s| s.reach.state == Zombie).unwrap();
-        assert_eq!((zombie.id.as_str(), zombie.phase, zombie.machine_state, zombie.machine_id.as_str()), ("ws_z", WorkspacePhase::Running, Running, "m1"));
+        assert_eq!(
+            (zombie.id.as_str(), zombie.phase, zombie.machine_state, zombie.machine_id.as_str()),
+            ("ws_z", WorkspacePhase::Running, Running, "m1")
+        );
         // the spell began when the first slow answer landed, 20 ms in, and the third landed 30 060 ms in
         let reason = "m1 reports running at the provider; reach slow since 2026-10-25T10:00:00.020Z (30 s); exec probe \"echo ok\" failed after 0 ms (exit 1: 502 exec failed)";
         assert_eq!(zombie.reason.as_deref(), Some(reason));
@@ -792,7 +809,13 @@ fn a_listing_that_will_not_wait_spends_no_exec_probe_on_a_machine_dark_past_the_
         rig.put(record(view("ws_d", "m1", "running"), &r));
         let o = zombie_opts();
         let t = rig.tracker(o);
-        let listing = StatusListOptions { reconcile: Some(Reconcile::OnFailure), zombie_probe: Some(false), prompt_ms: Some(10), probe_timeout_ms: Some(500), ..Default::default() };
+        let listing = StatusListOptions {
+            reconcile: Some(Reconcile::OnFailure),
+            zombie_probe: Some(false),
+            prompt_ms: Some(10),
+            probe_timeout_ms: Some(500),
+            ..Default::default()
+        };
 
         let h = list_task(&t, listing);
         until("the request lands", 5_000, || stub.hits.get() >= 1).await;
@@ -864,7 +887,8 @@ impl Marked {
         let rig = rig();
         let roads = roads();
         let daemon = http_stub(426, Delay::Ms(0)).await;
-        *roads.route.borrow_mut() = Some(Ok(RouteReach { url: format!("http://127.0.0.1:{}/?port=7681", daemon.port), expires_at: EXPIRES }));
+        *roads.route.borrow_mut() =
+            Some(Ok(RouteReach { url: format!("http://127.0.0.1:{}/?port=7681", daemon.port), expires_at: EXPIRES }));
         *roads.exec.borrow_mut() = exec;
         let mut rec = record(view("ws_u", "sbx_1", phase), &roads);
         rec.rate_usd_per_hour = 0.11;
@@ -1166,7 +1190,12 @@ fn over_the_poll_a_single_silence_pushes_no_status_at_all_and_two_push_unreachab
         let daemon = http_stub(426, Delay::Ms(0)).await;
         serve(&r, &daemon);
         rig.put(record(view("watched", "m1", "running"), &r));
-        let o = StatusWatchOptions { probe_timeout_ms: Some(300), prompt_ms: Some(5_000), cost_interval_ms: Some(24 * 3_600_000), ..Default::default() };
+        let o = StatusWatchOptions {
+            probe_timeout_ms: Some(300),
+            prompt_ms: Some(5_000),
+            cost_interval_ms: Some(24 * 3_600_000),
+            ..Default::default()
+        };
         let t = rig.tracker(o);
         let stop = t.watch(o);
         until("the first status", 5_000, || rig.bus.statuses().len() == 1).await;
@@ -1397,7 +1426,10 @@ fn poll_reads_only_the_named_workspaces_while_watched() {
         stop();
         let statuses = rig.bus.statuses();
         assert_eq!(statuses.len(), 3);
-        assert_eq!((statuses[2].id.as_str(), statuses[2].phase, seen(&statuses[2])), ("a", WorkspacePhase::Napping, (Paused, ReachState::Napping)));
+        assert_eq!(
+            (statuses[2].id.as_str(), statuses[2].phase, seen(&statuses[2])),
+            ("a", WorkspacePhase::Napping, (Paused, ReachState::Napping))
+        );
     });
 }
 

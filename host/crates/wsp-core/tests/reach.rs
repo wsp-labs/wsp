@@ -140,7 +140,8 @@ fn survives_a_cut_socket_reconnects_resubscribes_and_rescans_the_inbox() {
         until("the reconnect counted", 5_000, || reach.stats().reconnects >= 1).await;
         // ports.watch and inbox.watch were subscribed again on the new socket.
         daemon.set_listener(9999, 42);
-        until("the port", 5_000, || events.borrow().iter().any(|e| matches!(e, DaemonEvent::PortOpen { port, .. } if port.0 == 9999.0))).await;
+        until("the port", 5_000, || events.borrow().iter().any(|e| matches!(e, DaemonEvent::PortOpen { port, .. } if port.0 == 9999.0)))
+            .await;
         daemon.add_inbox_file("/inbox/after.bin", 33);
         until("the file after", 5_000, || inbox_seen(&events, "/inbox/after.bin") >= 1).await;
         let pongs = reach.stats().pongs_received;
@@ -410,7 +411,9 @@ fn a_refused_request_carries_the_daemons_kind_status_and_code() {
             while let Some(Ok(Message::Text(t))) = ws.next().await {
                 let f: Value = serde_json::from_str(&t).unwrap();
                 let reply = match f["op"].as_str().unwrap() {
-                    "git.read" => json!({"id": f["id"], "ok": false, "error": "no remote", "kind": "missing", "status": 404, "code": "no-remote"}),
+                    "git.read" => {
+                        json!({"id": f["id"], "ok": false, "error": "no remote", "kind": "missing", "status": 404, "code": "no-remote"})
+                    }
                     "odd" => json!({"id": f["id"], "ok": false, "kind": "not-a-kind", "status": "404", "code": 7}),
                     _ => json!({"id": f["id"], "ok": true}),
                 };
@@ -441,7 +444,12 @@ fn a_frame_that_is_no_daemon_event_is_dropped() {
             while let Some(Ok(Message::Text(t))) = ws.next().await {
                 let f: Value = serde_json::from_str(&t).unwrap();
                 if f["op"] == "inbox.rescan" {
-                    for e in ["not json", r#"{"type":"no.such.event"}"#, r#"{"type":"inbox.file","path":"/a"}"#, r#"{"type":"inbox.file","path":"/b","bytes":3}"#] {
+                    for e in [
+                        "not json",
+                        r#"{"type":"no.such.event"}"#,
+                        r#"{"type":"inbox.file","path":"/a"}"#,
+                        r#"{"type":"inbox.file","path":"/b","bytes":3}"#,
+                    ] {
                         ws.send(Message::text(e)).await.unwrap();
                     }
                 }

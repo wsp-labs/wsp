@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The event bus: runtime/src/types/events.ts at 65f6b89c7, spec/events.md, chapter 03 rules 3.6, 3.7, 3.20 to 3.22
 //! and 3.28. Expected values are the TS bus's own answers (tests/fixtures/core_types/events.json).
+#![allow(unused_must_use)]
 mod common;
 
 use std::cell::RefCell;
@@ -27,7 +28,18 @@ fn since_value(s: &Since) -> Value {
 }
 
 fn broke(message: &str) -> HostError {
-    HostError { message: message.into(), fix: None, kind: None, errors: None, warnings: None, left: None, host_key: None, code: None, status: None, marks: vec![] }
+    HostError {
+        message: message.into(),
+        fix: None,
+        kind: None,
+        errors: None,
+        warnings: None,
+        left: None,
+        host_key: None,
+        code: None,
+        status: None,
+        marks: vec![],
+    }
 }
 
 type Log = Rc<RefCell<Vec<String>>>;

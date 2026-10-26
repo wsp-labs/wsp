@@ -141,7 +141,13 @@ impl AgentSetups {
 
     /// The change over what stands, checked first and refused with a usage error; the store written before memory.
     /// agent-setup.ts:101.
-    pub async fn set(&self, place_id: &str, agent: &str, change: AgentSetupSet, o: SetupSetOptions) -> Result<Option<AgentSetup>, HostError> {
+    pub async fn set(
+        &self,
+        place_id: &str,
+        agent: &str,
+        change: AgentSetupSet,
+        o: SetupSetOptions,
+    ) -> Result<Option<AgentSetup>, HostError> {
         let key = key_of(place_id, agent);
         let mut patch = change.clone();
         if let Some(Some(dir)) = &change.config_dir {

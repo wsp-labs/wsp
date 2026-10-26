@@ -648,7 +648,8 @@ pub fn fold_words(index: &mut TranscriptIndex, e: &SessionEvent) {
             held.open = None;
         }
         Some("session.delta") if f.str("kind") == Some("text") && !f.has("parentToolUseId") => {
-            let message = format!("{}:{}", f.str("turnId").or(f.str("sessionId")).unwrap_or_default(), f.str("messageId").unwrap_or_default());
+            let message =
+                format!("{}:{}", f.str("turnId").or(f.str("sessionId")).unwrap_or_default(), f.str("messageId").unwrap_or_default());
             let text = f.str("text").unwrap_or_default();
             if held.open.as_deref() == Some(message.as_str()) {
                 if let Some(last) = held.lines.last_mut() {
@@ -761,10 +762,11 @@ pub fn turn_written(events: &[SessionEvent], turn_id: &str) -> TurnWritten {
     let compactions = count("session.compacted", false);
     let retries = count("session.retry", true);
     let reply = events.iter().rev().find_map(|e| match e {
-        SessionEvent::SessionDoneEvent(d) if d.turn_id.as_deref() == Some(turn_id) => Some(d.result.status.clone()),
+        SessionEvent::SessionDoneEvent(d) if d.turn_id.as_deref() == Some(turn_id) => Some(d.result.status),
         _ => None,
     });
-    let started = lines > 0 || subagents > 0 || compactions > 0 || retries > 0 || reply.is_some() || last_of("session.start", false).is_some();
+    let started =
+        lines > 0 || subagents > 0 || compactions > 0 || retries > 0 || reply.is_some() || last_of("session.start", false).is_some();
     let changes = last_of("session.changes", false).is_some();
     TurnWritten { lines, subagents, compactions, retries, reply, started, changes }
 }
@@ -1448,7 +1450,15 @@ struct DeadMachine {
 }
 
 fn gone(id: &str) -> EngineError {
-    EngineError::Provider(WspError { kind: ErrorKind::Missing, status: 404, code: None, message: format!("machine {id} is gone"), request_id: None, window: None, said: None })
+    EngineError::Provider(WspError {
+        kind: ErrorKind::Missing,
+        status: 404,
+        code: None,
+        message: format!("machine {id} is gone"),
+        request_id: None,
+        window: None,
+        said: None,
+    })
 }
 
 #[async_trait(?Send)]
@@ -1497,7 +1507,7 @@ struct AbsentMachine {
 
 thread_local! {
     /// The addresses of the live absent machines, since a `dyn Machine` cannot say what it is.
-    static ABSENT: RefCell<BTreeSet<usize>> = RefCell::new(BTreeSet::new());
+    static ABSENT: RefCell<BTreeSet<usize>> = const { RefCell::new(BTreeSet::new()) };
 }
 
 impl Drop for AbsentMachine {

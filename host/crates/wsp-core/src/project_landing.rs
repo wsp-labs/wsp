@@ -7,9 +7,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::future::LocalBoxFuture;
+use futures::FutureExt;
 use indexmap::{IndexMap, IndexSet};
 use serde::Serialize;
-use futures::FutureExt;
+use wsp_catalog::roads::{CLAUDE_CONFIG_DIR, GUEST_HOME};
 use wsp_engine::errors::EngineError;
 use wsp_engine::exec_detached::put::INLINE_EXEC_MS;
 use wsp_engine::machine::{ExecOptions, Machine};
@@ -22,19 +23,20 @@ use wsp_wire::types::project_seed::{SEED_DIR, SEED_MEMORY_DIR, SEED_PATCH};
 use wsp_wire::types::shell_quote::{shell_line, shell_quote};
 use wsp_wire::views::place::MachineBind;
 use wsp_wire::views::workspace::{
-    BranchOfRecord, ProjectAddStage, ProjectSource, ProjectView, ProjectViewGit, ProjectViewInstalled, ProjectViewSeeded, ProjectViewSeededMemory, SeedChoice,
-    SeedPlan,
+    BranchOfRecord, ProjectAddStage, ProjectSource, ProjectView, ProjectViewGit, ProjectViewInstalled, ProjectViewSeeded,
+    ProjectViewSeededMemory, SeedChoice, SeedPlan,
 };
-use wsp_wire::wire::machine_link::project_folder_named;
 use wsp_wire::views::workspace_more::ProjectBranch;
+use wsp_wire::wire::machine_link::project_folder_named;
 use wsp_wire::wire::machine_link::ExecResult;
 use wsp_words::exit::HostError;
-use wsp_catalog::roads::{CLAUDE_CONFIG_DIR, GUEST_HOME};
 use wsp_words::js::to_number;
 use wsp_words::js_date::iso_string;
 use wsp_words::project_path::{claude_memory_dir, claude_project_key, place_daemon_paths, place_install_log};
 use wsp_words::project_seed::{seed_bytes, seed_commits_landed_line, seed_commits_lost_line, seeding_line};
-use wsp_words::projects::{project_left_on_computer_line, project_path_on, project_removed_at_provider_line, project_removed_here_line, seed_memory_kept_line};
+use wsp_words::projects::{
+    project_left_on_computer_line, project_path_on, project_removed_at_provider_line, project_removed_here_line, seed_memory_kept_line,
+};
 use wsp_words::workspace_state::{unpushed_line, unpushed_unread_line};
 
 use crate::console;
@@ -146,13 +148,13 @@ pub trait ProjectLanding {
     async fn land(&self, o: LandRequest, deps: &LandingDeps) -> Result<Landed, HostError>;
     fn refusal(&self, project: &ProjectView, deps: &LandingDeps) -> Option<String>;
     async fn remove(&self, project: &ProjectView, deps: &LandingDeps) -> Result<String, HostError>;
-    async fn folder_stands(&self, project: &ProjectView, deps: &LandingDeps) -> Option<Result<bool, HostError>> {
+    async fn folder_stands(&self, _project: &ProjectView, _deps: &LandingDeps) -> Option<Result<bool, HostError>> {
         None
     }
-    async fn seed_into(&self, project: &ProjectView, tar: Vec<u8>, deps: &LandingDeps) -> Option<Result<(), HostError>> {
+    async fn seed_into(&self, _project: &ProjectView, _tar: Vec<u8>, _deps: &LandingDeps) -> Option<Result<(), HostError>> {
         None
     }
-    async fn unsaved(&self, project: &ProjectView, deps: &LandingDeps) -> Option<Option<String>> {
+    async fn unsaved(&self, _project: &ProjectView, _deps: &LandingDeps) -> Option<Option<String>> {
         None
     }
     fn workspace_binds(&self, project: &ProjectView) -> Vec<MachineBind>;
@@ -168,7 +170,9 @@ async fn run_on(machine: &dyn Machine, cmd: &str, timeout_ms: u64) -> Result<Exe
 }
 
 fn computer_of(deps: &LandingDeps) -> Result<&LandingComputer, HostError> {
-    deps.computer.as_ref().ok_or_else(|| HostError::new(format!("{} answered no login to run the add as, so nothing can be cloned there", deps.computer_name)))
+    deps.computer.as_ref().ok_or_else(|| {
+        HostError::new(format!("{} answered no login to run the add as, so nothing can be cloned there", deps.computer_name))
+    })
 }
 
 fn failed_with(out: &ExecResult, fallback: String) -> String {
@@ -193,7 +197,13 @@ struct SeedPatched {
 }
 
 /// The clone, the seed and the install on one machine, the half both roads that clone share. project-landing.ts:354.
-async fn clone_seed_install(o: &LandRequest, deps: &LandingDeps, machine: &Arc<dyn Machine>, places: &Places, owned_env: Option<IndexMap<String, String>>) -> Result<Landed, HostError> {
+async fn clone_seed_install(
+    o: &LandRequest,
+    deps: &LandingDeps,
+    machine: &Arc<dyn Machine>,
+    places: &Places,
+    owned_env: Option<IndexMap<String, String>>,
+) -> Result<Landed, HostError> {
     let project = &o.project;
     let seed_tar = o.seed.as_ref().map(|_| format!("{}/seed-{}.tgz", (deps.scratch)(machine.as_ref()), project.id));
     if let (Some(seed), Some(tar)) = (&o.seed, &seed_tar) {
@@ -269,7 +279,10 @@ async fn clone_seed_install(o: &LandRequest, deps: &LandingDeps, machine: &Arc<d
         let ok = machine.exec(&script, ExecOptions { timeout_ms: Some(INSTALL_MS), ..ExecOptions::default() }).await.map_err(engine_err)?;
         if ok.exit_code.get() != 0 {
             let said = failed_with(&ok, format!("exit {}", ok.exit_code.get()));
-            return Err(HostError::new(format!("{} in {}: {said}; its whole output is {} on {}", install.command, places.checkout, places.log, project.computer)));
+            return Err(HostError::new(format!(
+                "{} in {}: {said}; its whole output is {} on {}",
+                install.command, places.checkout, places.log, project.computer
+            )));
         }
     }
     let seconds = (((deps.now)() - began) as f64 / 1000.0).round();
@@ -285,7 +298,13 @@ async fn clone_seed_install(o: &LandRequest, deps: &LandingDeps, machine: &Arc<d
 }
 
 /// The seed's commits put on the checkout, as its own step. A refusal is not the add's failure. project-landing.ts:444.
-async fn patch_seed(seed: &LandSeed, o: &LandRequest, deps: &LandingDeps, machine: &dyn Machine, checkout: &str) -> Result<SeedPatched, HostError> {
+async fn patch_seed(
+    seed: &LandSeed,
+    o: &LandRequest,
+    deps: &LandingDeps,
+    machine: &dyn Machine,
+    checkout: &str,
+) -> Result<SeedPatched, HostError> {
     let unpushed = match &seed.plan.unpushed {
         Some(unpushed) if seed.choice.commits => unpushed,
         _ => return Ok(SeedPatched { commits: 0, notice: None }),
@@ -354,7 +373,12 @@ impl ProjectLanding for BoxLanding {
         let memory_key = claude_project_key(&path);
         let memory_dir = claude_memory_dir(&under_login_home(&home, CLAUDE_CONFIG_DIR), &memory_key);
         let put_dir = place_daemon_paths(&home).put_dir;
-        let places = Places { checkout: path.clone(), holds: path.clone(), memory_dir: memory_dir.clone(), log: place_install_log(&home, &o.project.id) };
+        let places = Places {
+            checkout: path.clone(),
+            holds: path.clone(),
+            memory_dir: memory_dir.clone(),
+            log: place_install_log(&home, &o.project.id),
+        };
         let owned_env = Some(deps.clone_env.as_ref().map(|env| env()).unwrap_or_default());
         let mut req = o.clone();
         req.project.path = path.clone();
@@ -363,10 +387,19 @@ impl ProjectLanding for BoxLanding {
         let mut scratch_deps = deps.clone();
         scratch_deps.scratch = Rc::new(move |_| put_dir.clone());
         match clone_seed_install(&req, &scratch_deps, &machine, &places, owned_env).await {
-            Ok(landed) => Ok(Landed { path: Some(path.clone()), memory_key: Some(memory_key), memory_dir: Some(memory_dir), git: Some(ProjectViewGit { top: path }), ..landed }),
+            Ok(landed) => Ok(Landed {
+                path: Some(path.clone()),
+                memory_key: Some(memory_key),
+                memory_dir: Some(memory_dir),
+                git: Some(ProjectViewGit { top: path }),
+                ..landed
+            }),
             Err(e) => {
                 if let Err(why) = run_on(machine.as_ref(), &format!("rm -rf -- {}", shell_quote(&path)), STEP_MS).await {
-                    console::warn(&format!("{path} on {} was not swept after the add of {} failed: {}", deps.computer_name, o.project.name, why.message));
+                    console::warn(&format!(
+                        "{path} on {} was not swept after the add of {} failed: {}",
+                        deps.computer_name, o.project.name, why.message
+                    ));
                 }
                 Err(e)
             }
@@ -440,7 +473,10 @@ async fn seed_into_on_box(project: &ProjectView, tar: Vec<u8>, deps: &LandingDep
     (deps.land)(computer.machine.clone(), seed_tar.clone(), tar).await?;
     let ran = run_on(computer.machine.as_ref(), &seed_into_script(&project.path, &seed_tar), STEP_MS).await?;
     if ran.exit_code.get() != 0 {
-        return Err(HostError::new(failed_with(&ran, format!("putting the kept files into {} exited {}", project.path, ran.exit_code.get()))));
+        return Err(HostError::new(failed_with(
+            &ran,
+            format!("putting the kept files into {} exited {}", project.path, ran.exit_code.get()),
+        )));
     }
     Ok(())
 }
@@ -535,7 +571,7 @@ impl ProjectLanding for MacLanding {
 
 /// box, provider, mac, in that order. project-landing.ts:613.
 pub fn project_landings() -> IndexMap<&'static str, Rc<dyn ProjectLanding>> {
-        let mut roads: IndexMap<&'static str, Rc<dyn ProjectLanding>> = IndexMap::new();
+    let mut roads: IndexMap<&'static str, Rc<dyn ProjectLanding>> = IndexMap::new();
     roads.insert("box", Rc::new(BoxLanding));
     roads.insert("provider", Rc::new(ProviderLanding));
     roads.insert("mac", Rc::new(MacLanding));
@@ -544,12 +580,12 @@ pub fn project_landings() -> IndexMap<&'static str, Rc<dyn ProjectLanding>> {
 
 /// The road for one kind, or `no project landing road for <kind>`. project-landing.ts:620.
 pub fn project_landing(kind: &str) -> Result<Rc<dyn ProjectLanding>, HostError> {
-        project_landings().get(kind).cloned().ok_or_else(|| HostError::new(format!("no project landing road for {kind}")))
+    project_landings().get(kind).cloned().ok_or_else(|| HostError::new(format!("no project landing road for {kind}")))
 }
 
 /// `claudeMemoryDir(CLAUDE_CONFIG_DIR, memory_key)`. project-landing.ts:628.
 pub fn guest_memory_dir(memory_key: &str) -> String {
-        claude_memory_dir(CLAUDE_CONFIG_DIR, memory_key)
+    claude_memory_dir(CLAUDE_CONFIG_DIR, memory_key)
 }
 
 /// A clone where the host keeps the machine's credentials. project-landing.ts:125 `brokered`.
@@ -576,17 +612,13 @@ pub struct CloneAsk {
 
 /// project-landing.ts:125.
 pub fn clone_lines(o: &CloneAsk) -> Vec<String> {
-        if let Some(brokered) = &o.brokered {
+    if let Some(brokered) = &o.brokered {
         let mut branch: Vec<&str> = vec!["git", "clone", "--depth", "1"];
         if let Some(b) = o.branch.as_deref() {
             branch.extend(["--branch", b]);
         }
         branch.extend(["--", o.remote.as_str(), o.checkout.as_str()]);
-        let mut lines = vec![
-            "set -e".to_string(),
-            format!("mkdir -p {}", shell_quote(parent_of(&o.checkout))),
-            shell_line(&branch),
-        ];
+        let mut lines = vec!["set -e".to_string(), format!("mkdir -p {}", shell_quote(parent_of(&o.checkout))), shell_line(&branch)];
         lines.extend(on_record_lines(&o.checkout, &brokered.of_record, &brokered.origin, brokered.held));
         return lines;
     }
@@ -662,13 +694,14 @@ pub struct GitEnvRepo {
 
 /// GIT_CONFIG_COUNT, the numbered pairs and GIT_TERMINAL_PROMPT, in that key order. project-landing.ts:181.
 pub fn brokered_git_env(token: &str, repo: Option<&GitEnvRepo>, direct: &[String]) -> IndexMap<String, String> {
-        let mut repos: IndexSet<String> = IndexSet::new();
+    let mut repos: IndexSet<String> = IndexSet::new();
     if let Some(repo) = repo.filter(|r| r.public) {
         repos.insert(format!("{}/{}", repo.owner, repo.name));
     }
     repos.extend(direct.iter().cloned());
     let repos: Vec<String> = repos.into_iter().map(|r| format!("{r}.git")).collect();
-    let mut pairs: Vec<(String, String)> = GITHUB_REMOTES.iter().map(|from| ("url.http://github.com/.insteadOf".to_string(), from.to_string())).collect();
+    let mut pairs: Vec<(String, String)> =
+        GITHUB_REMOTES.iter().map(|from| ("url.http://github.com/.insteadOf".to_string(), from.to_string())).collect();
     for own in &repos {
         for from in GITHUB_REMOTES {
             pairs.push((format!("url.https://github.com/{own}.insteadOf"), format!("{from}{own}")));
@@ -690,7 +723,7 @@ pub fn brokered_git_env(token: &str, repo: Option<&GitEnvRepo>, direct: &[String
 
 /// The clone lines with the seed unpacked on top, joined by newlines. `o.brokered` is not read. project-landing.ts:200.
 pub fn clone_script(o: &CloneAsk, seed_tar: Option<&str>) -> String {
-        let plain = CloneAsk { brokered: None, ..o.clone() };
+    let plain = CloneAsk { brokered: None, ..o.clone() };
     let mut lines = plain_clone_lines(&plain);
     if let Some(seed) = seed_tar {
         lines.push(format!("tar -xzf {} -C {}", shell_quote(seed), shell_quote(&o.checkout)));
@@ -708,7 +741,7 @@ pub struct PatchStep {
 
 /// project-landing.ts:221.
 pub fn patch_script(step: &PatchStep, checkout: &str) -> String {
-        let mut at: Vec<&str> = vec!["git", "-C", checkout];
+    let mut at: Vec<&str> = vec!["git", "-C", checkout];
     at.extend(AS_WSP);
     let with = |tail: &[&str]| {
         let mut words = at.clone();
@@ -731,7 +764,7 @@ pub fn patch_script(step: &PatchStep, checkout: &str) -> String {
 
 /// project-landing.ts:239.
 pub fn patch_cleanup_script(step: &PatchStep, checkout: &str) -> String {
-        let mut at: Vec<&str> = vec!["git", "-C", checkout];
+    let mut at: Vec<&str> = vec!["git", "-C", checkout];
     at.extend(AS_WSP);
     let with = |tail: &[&str]| {
         let mut words = at.clone();
@@ -739,11 +772,7 @@ pub fn patch_cleanup_script(step: &PatchStep, checkout: &str) -> String {
         shell_line(&words)
     };
     let origin_back = format!("origin/{}", step.back);
-    let mut lines = vec![
-        with(&["am", "--abort"]),
-        with(&["checkout", "-f", &step.back]),
-        with(&["reset", "--hard", &origin_back]),
-    ];
+    let mut lines = vec![with(&["am", "--abort"]), with(&["checkout", "-f", &step.back]), with(&["reset", "--hard", &origin_back])];
     if step.branch != step.back {
         lines.push(with(&["branch", "-D", &step.branch]));
     }
@@ -752,7 +781,7 @@ pub fn patch_cleanup_script(step: &PatchStep, checkout: &str) -> String {
 
 /// project-landing.ts:262.
 pub fn unsaved_script(checkout: &str) -> String {
-        let git = "git -c safe.directory='*' -c core.fsmonitor=false --no-optional-locks -C";
+    let git = "git -c safe.directory='*' -c core.fsmonitor=false --no-optional-locks -C";
     let at = shell_quote(checkout);
     let excluded: Vec<String> = INSTALL_STORES.iter().map(|dir| shell_quote(&format!(":(top,exclude){dir}"))).collect();
     let glob = shell_quote(&format!("--glob={SEEDED_REFS}/*"));
@@ -792,7 +821,7 @@ pub fn unsaved_script(checkout: &str) -> String {
 
 /// project-landing.ts:301.
 pub fn unsaved_of(name: &str, ran: &ExecResult) -> Option<String> {
-        let said = if ran.exit_code.get() == 0 { last_line(&ran.stdout) } else { None };
+    let said = if ran.exit_code.get() == 0 { last_line(&ran.stdout) } else { None };
     if said.as_deref() == Some(NO_CHECKOUT_MARK) {
         return None;
     }
@@ -827,7 +856,7 @@ pub type RunHere = Rc<dyn Fn(String, u64) -> LocalBoxFuture<'static, Result<Exec
 
 /// project-landing.ts:314.
 pub async fn read_unsaved(name: &str, checkout: &str, run: RunHere) -> Option<String> {
-        match run(unsaved_script(checkout), STEP_MS).await {
+    match run(unsaved_script(checkout), STEP_MS).await {
         Ok(ran) => unsaved_of(name, &ran),
         Err(e) => Some(unpushed_unread_line(name, &e.message)),
     }
@@ -835,7 +864,7 @@ pub async fn read_unsaved(name: &str, checkout: &str, run: RunHere) -> Option<St
 
 /// project-landing.ts:336.
 pub fn seed_rest_script(checkout: &str, memory_dir: &str, seed_tar: &str, memory: bool) -> String {
-        let mut lines = vec!["set -e".to_string()];
+    let mut lines = vec!["set -e".to_string()];
     if memory {
         let memory_path = shell_quote(memory_dir);
         lines.push(format!("rmdir {memory_path} 2>/dev/null || true"));
@@ -852,9 +881,13 @@ pub fn seed_rest_script(checkout: &str, memory_dir: &str, seed_tar: &str, memory
 
 /// project-landing.ts:485.
 pub fn seed_into_script(checkout: &str, seed_tar: &str) -> String {
-        let tar = shell_quote(seed_tar);
+    let tar = shell_quote(seed_tar);
     [
-        format!("tar -xzf {tar} -C {} --skip-old-files --exclude={} || {{ rc=$?; rm -f {tar}; exit $rc; }}", shell_quote(checkout), shell_quote(SEED_DIR)),
+        format!(
+            "tar -xzf {tar} -C {} --skip-old-files --exclude={} || {{ rc=$?; rm -f {tar}; exit $rc; }}",
+            shell_quote(checkout),
+            shell_quote(SEED_DIR)
+        ),
         format!("rm -f {tar}"),
     ]
     .join("\n")
@@ -862,7 +895,7 @@ pub fn seed_into_script(checkout: &str, seed_tar: &str) -> String {
 
 /// project-landing.ts:492.
 pub fn under_login_home(home: &str, path: &str) -> String {
-        match path.strip_prefix(GUEST_HOME) {
+    match path.strip_prefix(GUEST_HOME) {
         Some(rest) if rest.is_empty() || rest.starts_with('/') => format!("{}{rest}", home.trim_end_matches('/')),
         _ => path.to_string(),
     }
@@ -870,7 +903,7 @@ pub fn under_login_home(home: &str, path: &str) -> String {
 
 /// project-landing.ts:500.
 pub fn free_folder_script(home: &str, name: &str) -> String {
-        let at = shell_quote(&format!("{}/{name}", home.trim_end_matches('/')));
+    let at = shell_quote(&format!("{}/{name}", home.trim_end_matches('/')));
     let tails: Vec<String> = std::iter::once("''".to_string()).chain((0..NAMES_TRIED - 1).map(|i| format!("-{}", i + 2))).collect();
     let taken = shell_quote(&format!("every name from {name} to {name}-{NAMES_TRIED} is taken in {home}"));
     format!(
@@ -881,5 +914,5 @@ pub fn free_folder_script(home: &str, name: &str) -> String {
 
 /// The last line of `out` trimmed, `None` where it is empty. project-landing.ts:636.
 pub fn last_line(out: &str) -> Option<String> {
-        wsp_words::words::base::last_line(out)
+    wsp_words::words::base::last_line(out)
 }

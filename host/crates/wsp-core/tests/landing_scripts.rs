@@ -26,15 +26,15 @@ use indexmap::IndexMap;
 use regex::Regex;
 use serde_json::{json, Value};
 use wsp_core::project_landing::{
-    brokered_git_env, clone_lines, clone_script, free_folder_script, guest_memory_dir, last_line, on_record_lines, patch_cleanup_script, patch_script,
-    read_unsaved, seed_into_script, seed_rest_script, under_login_home, unsaved_of, unsaved_script, BrokeredClone, CloneAsk, GitEnvRepo, PatchStep,
-    RunHere, MEMORY_KEPT_MARK, STEP_MS,
+    brokered_git_env, clone_lines, clone_script, free_folder_script, guest_memory_dir, last_line, on_record_lines, patch_cleanup_script,
+    patch_script, read_unsaved, seed_into_script, seed_rest_script, under_login_home, unsaved_of, unsaved_script, BrokeredClone, CloneAsk,
+    GitEnvRepo, PatchStep, RunHere, MEMORY_KEPT_MARK, STEP_MS,
 };
 use wsp_core::project_sources::project_source;
-use wsp_words::exit::HostError;
 use wsp_wire::types::daemon_contract::BROKER_PORT;
 use wsp_wire::views::workspace::BranchOfRecord;
 use wsp_wire::wire::machine_link::ExecResult;
+use wsp_words::exit::HostError;
 
 const SHA: &str = "1d2c3b4a5f6e7d8c9b0a1d2c3b4a5f6e7d8c9b0a";
 
@@ -104,7 +104,12 @@ fn lab_own(branch: &str, start_sha: Option<&str>) -> BrokeredClone {
 }
 
 fn github_ask(brokered: Option<BrokeredClone>) -> CloneAsk {
-    CloneAsk { source: github(), branch: Some("main".into()), brokered, ..ask("github", "https://github.com/acme/lab", "/root/lab", "Boat") }
+    CloneAsk {
+        source: github(),
+        branch: Some("main".into()),
+        brokered,
+        ..ask("github", "https://github.com/acme/lab", "/root/lab", "Boat")
+    }
 }
 
 fn step() -> PatchStep {
@@ -147,7 +152,7 @@ fn ok(r: &ExecResult) {
 }
 
 fn last_of(out: &str) -> String {
-    out.trim().split('\n').last().unwrap().to_string()
+    out.trim().split('\n').next_back().unwrap().to_string()
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -226,7 +231,8 @@ fn brokered_git_env_answers_every_row_the_ts_did_in_the_same_key_order() {
 fn clone_script_answers_every_row_the_ts_did() {
     let want = rows("cloneScript");
     let git_seed = clone_script(&ask("git", "/srv/origin.git", "/srv/checkout", "spoo"), Some("/tmp/seed it.tgz"));
-    let github_plain = clone_script(&CloneAsk { branch: Some("main".into()), ..ask("github", "https://github.com/acme/lab", "/root/lab", "Boat") }, None);
+    let github_plain =
+        clone_script(&CloneAsk { branch: Some("main".into()), ..ask("github", "https://github.com/acme/lab", "/root/lab", "Boat") }, None);
     assert_eq!(names(&want), ["git with seed", "github no seed"]);
     assert_eq!(git_seed, text(&want[0][1]));
     assert_eq!(github_plain, text(&want[1][1]));
@@ -454,9 +460,19 @@ impl Landing {
 fn landing(root: &Path, remote: &Path, checkout: &Path, memory_dir: &Path, plan: &Plan, seed_tar: String, choice: Choice) -> Landing {
     let clone_ask = ask("git", s(remote), s(checkout), "spoo");
     let clone = run(&clone_script(&clone_ask, Some(&seed_tar)), root);
-    let step = PatchStep { branch: plan.branch.into(), base: if plan.unpushed { plan.base.clone() } else { String::new() }, back: "main".into() };
+    let step =
+        PatchStep { branch: plan.branch.into(), base: if plan.unpushed { plan.base.clone() } else { String::new() }, back: "main".into() };
     let patch = if choice.commits && plan.unpushed { run(&patch_script(&step, s(checkout)), root) } else { result(0, "", "") };
-    Landing { root: root.to_path_buf(), checkout: checkout.to_path_buf(), memory_dir: memory_dir.to_path_buf(), seed_tar, memory: choice.memory, clone, patch, step }
+    Landing {
+        root: root.to_path_buf(),
+        checkout: checkout.to_path_buf(),
+        memory_dir: memory_dir.to_path_buf(),
+        seed_tar,
+        memory: choice.memory,
+        clone,
+        patch,
+        step,
+    }
 }
 
 fn plan(branch: &'static str, base: &str) -> Plan {
@@ -475,13 +491,24 @@ fn lands_the_commits_of_a_branch_the_remote_has_never_seen_as_a_branch_of_its_ow
     let patch = patch_of(&f.folder, &base);
     let checkout = f.root.join("checkout");
     let memory_dir = f.root.join("memory");
-    let ran = landing(&f.root, &f.origin, &checkout, &memory_dir, &plan("refactor/dashboard-polish", &base), seed_tar(&f.root, &patch, "- one thing\n"), CHOICE);
+    let ran = landing(
+        &f.root,
+        &f.origin,
+        &checkout,
+        &memory_dir,
+        &plan("refactor/dashboard-polish", &base),
+        seed_tar(&f.root, &patch, "- one thing\n"),
+        CHOICE,
+    );
     ok(&ran.clone);
     ok(&ran.patch);
     assert_eq!(last_of(&ran.patch.stdout), "2");
     ok(&ran.rest());
     assert_eq!(git(&checkout, &["rev-parse", "--abbrev-ref", "HEAD"]).trim(), "main");
-    assert_eq!(git(&checkout, &["log", "--format=%s", "refactor/dashboard-polish", "-3"]).trim().split('\n').collect::<Vec<_>>(), ["three", "two", "first"]);
+    assert_eq!(
+        git(&checkout, &["log", "--format=%s", "refactor/dashboard-polish", "-3"]).trim().split('\n').collect::<Vec<_>>(),
+        ["three", "two", "first"]
+    );
     assert_eq!(fs::read_to_string(checkout.join(".env.local")).unwrap(), "TOKEN=abc\n");
     assert_eq!(fs::read_to_string(memory_dir.join("MEMORY.md")).unwrap(), "- one thing\n");
     assert!(!checkout.join(".wsp-seed").exists());
@@ -493,15 +520,31 @@ fn signs_them_as_wsp_and_leaves_the_person_as_their_author_since_the_computer_ha
     let f = origin_and_clone();
     fs::write(f.folder.join("two.md"), "two\n").unwrap();
     git(&f.folder, &["add", "-A"]);
-    let dev = env_pairs(&[("GIT_AUTHOR_NAME", "Dev"), ("GIT_AUTHOR_EMAIL", "dev@example.com"), ("GIT_COMMITTER_NAME", "Dev"), ("GIT_COMMITTER_EMAIL", "dev@example.com")]);
+    let dev = env_pairs(&[
+        ("GIT_AUTHOR_NAME", "Dev"),
+        ("GIT_AUTHOR_EMAIL", "dev@example.com"),
+        ("GIT_COMMITTER_NAME", "Dev"),
+        ("GIT_COMMITTER_EMAIL", "dev@example.com"),
+    ]);
     git_with(&f.folder, &["commit", "-qm", "two"], &dev);
     let base = merge_base(&f.folder);
     let patch = patch_of(&f.folder, &base);
     let checkout = f.root.join("checkout");
-    let ran = landing(&f.root, &f.origin, &checkout, &f.root.join("memory"), &plan("main", &base), seed_tar(&f.root, &patch, "- one thing\n"), CHOICE);
+    let ran = landing(
+        &f.root,
+        &f.origin,
+        &checkout,
+        &f.root.join("memory"),
+        &plan("main", &base),
+        seed_tar(&f.root, &patch, "- one thing\n"),
+        CHOICE,
+    );
     ok(&ran.patch);
     assert_eq!(last_of(&ran.patch.stdout), "1");
-    assert_eq!(git(&checkout, &["log", "--format=%an <%ae> committed by %cn <%ce>", "-1"]).trim(), "Dev <dev@example.com> committed by wsp <wsp@localhost>");
+    assert_eq!(
+        git(&checkout, &["log", "--format=%an <%ae> committed by %cn <%ce>", "-1"]).trim(),
+        "Dev <dev@example.com> committed by wsp <wsp@localhost>"
+    );
     assert_eq!(git(&checkout, &["log", "--format=%s", "-2"]).trim().split('\n').collect::<Vec<_>>(), ["two", "first"]);
 }
 
@@ -533,7 +576,15 @@ fn leaves_the_memory_already_standing_at_the_agents_path_alone_and_says_so_on_it
     let memory_dir = f.root.join("state").join("projects").join("-srv-spoo-landing").join("memory");
     fs::create_dir_all(&memory_dir).unwrap();
     fs::write(memory_dir.join("MEMORY.md"), "- what the agent learned here\n").unwrap();
-    let ran = landing(&f.root, &f.origin, &checkout, &memory_dir, &plan("main", &base), seed_tar(&f.root, "", "- what the folder carried\n"), NO_COMMITS);
+    let ran = landing(
+        &f.root,
+        &f.origin,
+        &checkout,
+        &memory_dir,
+        &plan("main", &base),
+        seed_tar(&f.root, "", "- what the folder carried\n"),
+        NO_COMMITS,
+    );
     ok(&ran.clone);
     let rest = ran.rest();
     ok(&rest);
@@ -551,7 +602,15 @@ fn takes_an_empty_folder_at_the_agents_path_as_nothing_kept_so_the_seeds_memory_
     let checkout = f.root.join("checkout");
     let memory_dir = f.root.join("state").join("projects").join("-srv-spoo-landing").join("memory");
     fs::create_dir_all(&memory_dir).unwrap();
-    let ran = landing(&f.root, &f.origin, &checkout, &memory_dir, &plan("main", &base), seed_tar(&f.root, "", "- what the folder carried\n"), NO_COMMITS);
+    let ran = landing(
+        &f.root,
+        &f.origin,
+        &checkout,
+        &memory_dir,
+        &plan("main", &base),
+        seed_tar(&f.root, "", "- what the folder carried\n"),
+        NO_COMMITS,
+    );
     ok(&ran.clone);
     let rest = ran.rest();
     ok(&rest);
@@ -568,7 +627,15 @@ fn is_one_command_per_line_so_a_step_that_cannot_make_the_folder_ends_before_the
     let parent = f.root.join("state");
     fs::write(&parent, "not a folder\n").unwrap();
     let memory_dir = parent.join("projects").join("-srv-spoo-landing").join("memory");
-    let ran = landing(&f.root, &f.origin, &checkout, &memory_dir, &plan("main", &base), seed_tar(&f.root, "", "- what the folder carried\n"), NO_COMMITS);
+    let ran = landing(
+        &f.root,
+        &f.origin,
+        &checkout,
+        &memory_dir,
+        &plan("main", &base),
+        seed_tar(&f.root, "", "- what the folder carried\n"),
+        NO_COMMITS,
+    );
     ok(&ran.clone);
     let rest = ran.rest();
     assert_ne!(exited(&rest), 0);
@@ -583,7 +650,15 @@ fn lands_the_seeds_memory_where_nothing_stands_at_all_making_the_folder_above_it
     let base = merge_base(&f.folder);
     let checkout = f.root.join("checkout");
     let memory_dir = f.root.join("state").join("projects").join("-srv-spoo-landing").join("memory");
-    let ran = landing(&f.root, &f.origin, &checkout, &memory_dir, &plan("main", &base), seed_tar(&f.root, "", "- what the folder carried\n"), NO_COMMITS);
+    let ran = landing(
+        &f.root,
+        &f.origin,
+        &checkout,
+        &memory_dir,
+        &plan("main", &base),
+        seed_tar(&f.root, "", "- what the folder carried\n"),
+        NO_COMMITS,
+    );
     ok(&ran.clone);
     let rest = ran.rest();
     ok(&rest);
@@ -633,7 +708,8 @@ fn fails_its_own_step_and_leaves_the_remotes_default_branch_back_at_the_remotes_
     let tip = git(&f.folder, &["rev-parse", "origin/main"]).trim().to_string();
     let checkout = f.root.join("checkout");
     let memory_dir = f.root.join("memory");
-    let ran = landing(&f.root, &f.origin, &checkout, &memory_dir, &plan("main", &tip), seed_tar(&f.root, UNAPPLIABLE, "- one thing\n"), CHOICE);
+    let ran =
+        landing(&f.root, &f.origin, &checkout, &memory_dir, &plan("main", &tip), seed_tar(&f.root, UNAPPLIABLE, "- one thing\n"), CHOICE);
     ok(&ran.clone);
     assert_ne!(exited(&ran.patch), 0);
     run(&patch_cleanup_script(&ran.step, s(&checkout)), &f.root);
@@ -651,7 +727,15 @@ fn drops_the_branch_of_the_persons_own_that_the_step_made_so_the_checkout_carrie
     let f = origin_and_clone();
     let tip = git(&f.folder, &["rev-parse", "origin/main"]).trim().to_string();
     let checkout = f.root.join("checkout");
-    let ran = landing(&f.root, &f.origin, &checkout, &f.root.join("memory"), &plan("refactor/dashboard-polish", &tip), seed_tar(&f.root, UNAPPLIABLE, "- one thing\n"), CHOICE);
+    let ran = landing(
+        &f.root,
+        &f.origin,
+        &checkout,
+        &f.root.join("memory"),
+        &plan("refactor/dashboard-polish", &tip),
+        seed_tar(&f.root, UNAPPLIABLE, "- one thing\n"),
+        CHOICE,
+    );
     assert_ne!(exited(&ran.patch), 0);
     run(&patch_cleanup_script(&ran.step, s(&checkout)), &f.root);
     assert_eq!(git(&checkout, &["branch", "--format=%(refname:short)"]).trim().split('\n').collect::<Vec<_>>(), ["main"]);
@@ -665,7 +749,15 @@ fn a_base_the_remote_no_longer_has_fails_the_step_at_its_first_line_and_the_clea
     let tip = git(&f.folder, &["rev-parse", "origin/main"]).trim().to_string();
     let checkout = f.root.join("checkout");
     let gone = "1111111111111111111111111111111111111111";
-    let ran = landing(&f.root, &f.origin, &checkout, &f.root.join("memory"), &plan("main", gone), seed_tar(&f.root, UNAPPLIABLE, "- one thing\n"), CHOICE);
+    let ran = landing(
+        &f.root,
+        &f.origin,
+        &checkout,
+        &f.root.join("memory"),
+        &plan("main", gone),
+        seed_tar(&f.root, UNAPPLIABLE, "- one thing\n"),
+        CHOICE,
+    );
     assert_ne!(exited(&ran.patch), 0);
     run(&patch_cleanup_script(&ran.step, s(&checkout)), &f.root);
     assert_eq!(git(&checkout, &["rev-parse", "HEAD"]).trim(), tip);
@@ -761,7 +853,15 @@ fn does_not_count_the_commits_a_seed_carried_over_from_the_persons_own_folder_an
     let base = merge_base(&f.folder);
     let patch = patch_of(&f.folder, &base);
     let checkout = f.root.join("checkout");
-    let ran = landing(&f.root, &f.origin, &checkout, &f.root.join("memory"), &plan("mine", &base), seed_tar(&f.root, &patch, "- one thing\n"), CHOICE);
+    let ran = landing(
+        &f.root,
+        &f.origin,
+        &checkout,
+        &f.root.join("memory"),
+        &plan("mine", &base),
+        seed_tar(&f.root, &patch, "- one thing\n"),
+        CHOICE,
+    );
     ok(&ran.patch);
     ok(&ran.rest());
     assert_eq!(counted(&checkout, &f.root), "0 1 0");
@@ -907,7 +1007,8 @@ fn rev(at: &Path, name: &str) -> String {
 
 // TS: branch-of-record.test.ts:164
 #[test]
-fn clones_one_commit_deep_at_the_base_adds_one_refspec_for_the_branch_of_record_and_checks_it_out_at_its_start_commit_with_no_broker_todays_lines() {
+fn clones_one_commit_deep_at_the_base_adds_one_refspec_for_the_branch_of_record_and_checks_it_out_at_its_start_commit_with_no_broker_todays_lines(
+) {
     let o = github_ask(None);
     let brokered = CloneAsk { brokered: Some(lab_own("wsp/pricing-page", Some(SHA))), ..o.clone() };
     assert_eq!(
@@ -916,7 +1017,8 @@ fn clones_one_commit_deep_at_the_base_adds_one_refspec_for_the_branch_of_record_
             "set -e".to_string(),
             "mkdir -p '/root'".to_string(),
             "git clone --depth 1 --branch main -- https://github.com/acme/lab /root/lab".to_string(),
-            "git -C /root/lab config --add remote.origin.fetch '+refs/heads/wsp/pricing-page*:refs/remotes/origin/wsp/pricing-page*'".to_string(),
+            "git -C /root/lab config --add remote.origin.fetch '+refs/heads/wsp/pricing-page*:refs/remotes/origin/wsp/pricing-page*'"
+                .to_string(),
             format!("git -C /root/lab cat-file -e '{SHA}^{{commit}}' 2>/dev/null || git -C /root/lab fetch -q --depth 1 origin {SHA}"),
             format!("git -C /root/lab checkout -q -B wsp/pricing-page {SHA}"),
             "git -C /root/lab rev-parse HEAD".to_string(),
@@ -957,7 +1059,11 @@ fn leaves_a_real_checkout_one_commit_deep_on_the_branch_of_record_whose_lease_ho
     assert_eq!(run_lines(&lines, &[]), tip);
     assert_eq!(git(&checkout, &["rev-list", "--count", "HEAD"]).trim(), "1");
     assert_eq!(git(&checkout, &["branch", "--show-current"]).trim(), "wsp/pricing-page");
-    let tracking = Command::new("git").args(["-C", s(&checkout), "rev-parse", "--verify", "-q", "refs/remotes/origin/wsp/pricing-page"]).stdout(Stdio::null()).status().unwrap();
+    let tracking = Command::new("git")
+        .args(["-C", s(&checkout), "rev-parse", "--verify", "-q", "refs/remotes/origin/wsp/pricing-page"])
+        .stdout(Stdio::null())
+        .status()
+        .unwrap();
     assert!(!tracking.success());
     assert_eq!(
         git(&checkout, &["config", "--get-all", "remote.origin.fetch"]).trim().split('\n').collect::<Vec<_>>(),
@@ -980,7 +1086,8 @@ fn leaves_a_real_checkout_one_commit_deep_on_the_branch_of_record_whose_lease_ho
 
 // TS: branch-of-record.test.ts:236
 #[test]
-fn puts_a_pull_request_thread_on_the_head_itself_its_own_repos_or_a_forks_tracking_it_so_a_plain_push_and_a_first_lease_land_where_the_head_lives() {
+fn puts_a_pull_request_thread_on_the_head_itself_its_own_repos_or_a_forks_tracking_it_so_a_plain_push_and_a_first_lease_land_where_the_head_lives(
+) {
     let l = lab_repo();
     git(&l.seed, &["checkout", "-q", "-b", "fix-typo"]);
     let head = commit_file(&l.seed, "typo");
@@ -1123,7 +1230,12 @@ fn proxy_auth() -> String {
     format!("Proxy-Authorization: Basic {}", base64::engine::general_purpose::STANDARD.encode("wsp:wsp-op-token"))
 }
 
-const REMOTE_FORMS: [&str; 4] = ["https://github.com/acme/web.git", "git@github.com:acme/web.git", "ssh://git@github.com/acme/web.git", "ssh://git@ssh.github.com:443/acme/web.git"];
+const REMOTE_FORMS: [&str; 4] = [
+    "https://github.com/acme/web.git",
+    "git@github.com:acme/web.git",
+    "ssh://git@github.com/acme/web.git",
+    "ssh://git@ssh.github.com:443/acme/web.git",
+];
 
 // TS: branch-of-record.test.ts:281
 #[test]
@@ -1151,7 +1263,10 @@ fn sends_every_github_remote_form_to_the_daemons_door_as_gits_proxy_the_token_it
 fn fetches_a_public_repo_of_records_dot_git_remote_from_github_itself_with_no_credential_and_still_pushes_it_through_the_door() {
     let repo = |public: bool| GitEnvRepo { owner: "acme".into(), name: "web".into(), public };
     let env = brokered_git_env("wsp-op-token", Some(&repo(true)), &[]);
-    assert_eq!(pairs_of(&brokered_git_env("wsp-op-token", Some(&repo(false)), &[])), pairs_of(&brokered_git_env("wsp-op-token", None, &[])));
+    assert_eq!(
+        pairs_of(&brokered_git_env("wsp-op-token", Some(&repo(false)), &[])),
+        pairs_of(&brokered_git_env("wsp-op-token", None, &[]))
+    );
     let prefixes: &'static [&'static str] = &["GET", "CONNECT", "Proxy-Authorization", "Authorization"];
     let door = Door::start(prefixes, false);
     let github = Door::start(prefixes, false);
@@ -1161,7 +1276,8 @@ fn fetches_a_public_repo_of_records_dot_git_remote_from_github_itself_with_no_cr
     let via = format!("http://127.0.0.1:{}", github.port);
     run_env.push(("HTTPS_PROXY".into(), via.clone()));
     run_env.push(("https_proxy".into(), via));
-    let outer: Vec<String> = std::env::vars().map(|(k, _)| k).filter(|k| matches!(k.to_lowercase().as_str(), "no_proxy" | "all_proxy")).collect();
+    let outer: Vec<String> =
+        std::env::vars().map(|(k, _)| k).filter(|k| matches!(k.to_lowercase().as_str(), "no_proxy" | "all_proxy")).collect();
     let dir = tempfile::tempdir().unwrap();
     git(dir.path(), &["init", "-q", "-b", "main"]);
     git(dir.path(), &["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "one"]);

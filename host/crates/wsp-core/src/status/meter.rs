@@ -16,7 +16,7 @@ use wsp_words::cost_history::{accrued_past, append_cost_point, day_start, month_
 use wsp_words::date_parse::date_parse;
 use wsp_words::place_state::{place_spend_limit, workspace_place_id};
 
-use super::{iso, CostHistoryRecord, Meter, Stood, StatusTracker, TrackerState, COST_HISTORIES};
+use super::{iso, CostHistoryRecord, Meter, StatusTracker, Stood, TrackerState, COST_HISTORIES};
 use crate::console::warn;
 
 // The meter's listeners, the load, the writes, the series' end and the cost tick, as the TS has them. Private helpers
@@ -228,54 +228,66 @@ use crate::console::warn;
 //   }
 
 impl StatusTracker {
-//   // A deleted workspace's series is held for the month's total and for nothing else: it has no pane to draw in and
-//   // no record to read its caller's right to it off, so this read answers for the workspaces that are still here.
-//   const history: StatusApi["history"] = async id => {
-//     await loading;
-//     return ended.has(id) ? [] : (histories.get(id) ?? []);
-//   };
+    //   // A deleted workspace's series is held for the month's total and for nothing else: it has no pane to draw in and
+    //   // no record to read its caller's right to it off, so this read answers for the workspaces that are still here.
+    //   const history: StatusApi["history"] = async id => {
+    //     await loading;
+    //     return ended.has(id) ? [] : (histories.get(id) ?? []);
+    //   };
     /// The workspace's cost ticks since metering began, across host restarts; `[]` for a deleted one.
     pub async fn history(&self, workspace_id: &str) -> Vec<WorkspaceCostEvent> {
         self.loaded().await;
         self.st(|s| if s.ended.contains(workspace_id) { Vec::new() } else { s.histories.get(workspace_id).cloned().unwrap_or_default() })
     }
 
-//   const spend: StatusApi["spend"] = async (places, at = clock.now()) => {
-//     await loading;
-//     const day = dayStart(at);
-//     const month = monthStart(at);
-//     const zero = (place: string): PlaceSpend => ({ place, todayUsd: 0, monthUsd: 0, rateUsdPerHour: 0 });
-//     const running = new Set((await o.records()).filter(r => r.phase === "running" || r.phase === "pausing").map(r => r.id));
-//     const rows = new Map(places.filter(place => placeSpendLimit(place) !== undefined).map(place => [place.id, zero(place.id)]));
-//     for (const [id, points] of histories) {
-//       const where = stood.get(id);
-//       const place = where === undefined ? undefined : workspacePlaceId(where, places);
-//       if (place === undefined) continue;
-//       const row = rows.get(place) ?? zero(place);
-//       // Only a machine whose record says running or pausing goes on past its newest tick: a deleted one's series ends
-//       // where it went, and a napping record whose stored newest tick still runs (the host died before the nap's tick
-//       // was written) reads nothing past that tick.
-//       const until = running.has(id) ? at : undefined;
-//       row.todayUsd += spentSince(points, day, until);
-//       row.monthUsd += spentSince(points, month, until);
-//       if (until !== undefined) row.rateUsdPerHour += points[points.length - 1]?.rateUsdPerHour ?? 0;
-//       rows.set(place, row);
-//     }
-//     return places.flatMap(place => {
-//       const row = rows.get(place.id);
-//       return row === undefined ? [] : [row];
-//     });
-//   };
+    //   const spend: StatusApi["spend"] = async (places, at = clock.now()) => {
+    //     await loading;
+    //     const day = dayStart(at);
+    //     const month = monthStart(at);
+    //     const zero = (place: string): PlaceSpend => ({ place, todayUsd: 0, monthUsd: 0, rateUsdPerHour: 0 });
+    //     const running = new Set((await o.records()).filter(r => r.phase === "running" || r.phase === "pausing").map(r => r.id));
+    //     const rows = new Map(places.filter(place => placeSpendLimit(place) !== undefined).map(place => [place.id, zero(place.id)]));
+    //     for (const [id, points] of histories) {
+    //       const where = stood.get(id);
+    //       const place = where === undefined ? undefined : workspacePlaceId(where, places);
+    //       if (place === undefined) continue;
+    //       const row = rows.get(place) ?? zero(place);
+    //       // Only a machine whose record says running or pausing goes on past its newest tick: a deleted one's series ends
+    //       // where it went, and a napping record whose stored newest tick still runs (the host died before the nap's tick
+    //       // was written) reads nothing past that tick.
+    //       const until = running.has(id) ? at : undefined;
+    //       row.todayUsd += spentSince(points, day, until);
+    //       row.monthUsd += spentSince(points, month, until);
+    //       if (until !== undefined) row.rateUsdPerHour += points[points.length - 1]?.rateUsdPerHour ?? 0;
+    //       rows.set(place, row);
+    //     }
+    //     return places.flatMap(place => {
+    //       const row = rows.get(place.id);
+    //       return row === undefined ? [] : [row];
+    //     });
+    //   };
     /// What each place has cost since midnight and the first of the month, and burns now; `at` defaults to now.
     pub async fn spend(&self, places: &[PlaceView], at: Option<i64>) -> Result<Vec<PlaceSpend>, String> {
         let at = at.unwrap_or_else(|| self.clock.now());
         self.loaded().await;
         let day = day_start(at as f64, &self.zone);
         let month = month_start(at as f64, &self.zone);
-        let running: HashSet<String> = self.records().await?.into_iter().filter(|r| matches!(r.view.phase, WorkspacePhase::Running | WorkspacePhase::Pausing)).map(|r| r.view.id).collect();
+        let running: HashSet<String> = self
+            .records()
+            .await?
+            .into_iter()
+            .filter(|r| matches!(r.view.phase, WorkspacePhase::Running | WorkspacePhase::Pausing))
+            .map(|r| r.view.id)
+            .collect();
         Ok(self.st(|s| {
-            let zero = |place: &str| PlaceSpend { place: place.to_string(), today_usd: JsNumber(0.0), month_usd: JsNumber(0.0), rate_usd_per_hour: JsNumber(0.0) };
-            let mut rows: IndexMap<String, PlaceSpend> = places.iter().filter(|p| place_spend_limit(p).is_some()).map(|p| (p.id.clone(), zero(&p.id))).collect();
+            let zero = |place: &str| PlaceSpend {
+                place: place.to_string(),
+                today_usd: JsNumber(0.0),
+                month_usd: JsNumber(0.0),
+                rate_usd_per_hour: JsNumber(0.0),
+            };
+            let mut rows: IndexMap<String, PlaceSpend> =
+                places.iter().filter(|p| place_spend_limit(p).is_some()).map(|p| (p.id.clone(), zero(&p.id))).collect();
             for (id, points) in &s.histories {
                 let Some(place) = s.stood.get(id).and_then(|w| stood_place_id(w, places)) else { continue };
                 let until = running.contains(id).then_some(at as f64);
@@ -339,7 +351,9 @@ fn figures_of(tick: &WorkspaceCostEvent) -> String {
 /// Whether a tick continues the rate of the two points before it, so it replaces the newest instead of adding one.
 fn collinear(points: &[WorkspaceCostEvent], tick: &WorkspaceCostEvent) -> bool {
     let n = points.len();
-    n >= 2 && points[n - 2].rate_usd_per_hour.0 == points[n - 1].rate_usd_per_hour.0 && points[n - 1].rate_usd_per_hour.0 == tick.rate_usd_per_hour.0
+    n >= 2
+        && points[n - 2].rate_usd_per_hour.0 == points[n - 1].rate_usd_per_hour.0
+        && points[n - 1].rate_usd_per_hour.0 == tick.rate_usd_per_hour.0
 }
 
 /// A write of the document chain, built when it runs.
@@ -589,7 +603,12 @@ impl StatusTracker {
                 s.histories.insert(id.clone(), next);
                 s.stood.insert(
                     id.clone(),
-                    Stood { kind: r.view.kind.clone(), machine_id: r.view.machine_id.clone(), place: r.view.place.clone(), provider: r.view.provider.clone() },
+                    Stood {
+                        kind: r.view.kind,
+                        machine_id: r.view.machine_id.clone(),
+                        place: r.view.place.clone(),
+                        provider: r.view.provider.clone(),
+                    },
                 );
                 (tick, added, last.map(|l| l.rate_usd_per_hour.0))
             });

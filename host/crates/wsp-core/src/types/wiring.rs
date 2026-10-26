@@ -57,13 +57,13 @@ use wsp_words::js::{js_trim, js_trim_end};
 use wsp_words::words::base::plural;
 
 use super::harness::HarnessAdapterFactory;
-use crate::console;
-use wsp_catalog::plugins::join_path;
 use super::pending::{
     AgentsActs, AgentsReader, BuildGoldenOptions, CacheRule, Clock, Copier, DaemonChannel, DaemonChannelOptions, GitHubCache, GoldenImport,
     KillConfirm, MachineExecOptions, PlaceWiring, PluginsActs, ServerIcons, ServersActs, Sighting, SkillsActs, StatusApi,
     StatusListOptions, StatusWatchOptions, Store, TurnWaiting,
 };
+use crate::console;
+use wsp_catalog::plugins::join_path;
 
 /// A future the one owner thread awaits.
 pub type Local<'a, T> = LocalBoxFuture<'a, Result<T, HostError>>;
@@ -1022,7 +1022,8 @@ pub async fn merge_on_machine(machine: &dyn Machine, script: &str, agent: Projec
             dir
         }
     };
-    let run = machine.run(&format!("python3 {}", shell_quote(script)), RunOptions { deadline_ms: MERGE_DEADLINE_MS, ..Default::default() }).await;
+    let run =
+        machine.run(&format!("python3 {}", shell_quote(script)), RunOptions { deadline_ms: MERGE_DEADLINE_MS, ..Default::default() }).await;
     let cleanup = format!("rm -f {}; rmdir {} 2>/dev/null", shell_quote(script), shell_quote(&dir));
     let _ = machine.exec(&cleanup, ExecOptions::default()).await;
     let run = run?;
@@ -1036,7 +1037,7 @@ pub async fn merge_on_machine(machine: &dyn Machine, script: &str, agent: Projec
     match parse_merge_output(&run.stdout) {
         Ok(MergeOutput::Waiting { waiting }) => Ok(ProjectAgentResult { note: Some(waiting), ..agent }),
         Ok(MergeOutput::Merged { merged, note, .. }) => {
-            let mut out = ProjectAgentResult { outcome: ProjectAgentOutcome::Moved, rows: Some(JsNumber(merged as f64)), ..agent };
+            let mut out = ProjectAgentResult { outcome: ProjectAgentOutcome::Moved, rows: Some(JsNumber(merged)), ..agent };
             if let Some(note) = note {
                 out.note = Some(note);
             }
@@ -1103,9 +1104,12 @@ pub async fn until<T, E>(
 ) -> Result<T, UntilError<E>> {
     let ms = (deadline - clock.now()).max(0);
     let (fire, timer) = futures::channel::oneshot::channel::<()>();
-    let cancel = clock.schedule(Box::new(move || {
-        let _ = fire.send(());
-    }), ms);
+    let cancel = clock.schedule(
+        Box::new(move || {
+            let _ = fire.send(());
+        }),
+        ms,
+    );
     match select(work, timer).await {
         Either::Left((done, _)) => {
             cancel();

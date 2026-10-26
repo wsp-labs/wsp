@@ -752,7 +752,12 @@ fn holds_the_folded_ticks_since_metering_began_and_hands_them_out() {
         let four = 4.0 * TICK_MS as f64;
         assert_eq!(
             shape,
-            vec![(WorkspacePhase::Running, 0.5, 0.0), (WorkspacePhase::Running, 0.5, four), (WorkspacePhase::Napping, 0.0, four), (WorkspacePhase::Napping, 0.0, four)]
+            vec![
+                (WorkspacePhase::Running, 0.5, 0.0),
+                (WorkspacePhase::Running, 0.5, four),
+                (WorkspacePhase::Napping, 0.0, four),
+                (WorkspacePhase::Napping, 0.0, four)
+            ]
         );
         assert_matches(&r.bus.costs()[5], &history[2]);
         assert_matches(r.bus.passed_costs().last().unwrap(), &history[3]);
@@ -1136,7 +1141,9 @@ fn only_an_added_point_writes_the_document_and_the_write_carries_the_state_when_
         let text = r.store.text(COST_HISTORIES, "ws_1").unwrap();
         assert_eq!(serde_json::from_str::<Value>(&text).unwrap(), second);
         assert!(text.starts_with("{\"workspaceId\":\"ws_1\",\"points\":["));
-        assert!(text.ends_with("],\"where\":{\"kind\":\"cloud\",\"machineId\":\"m_1\",\"place\":\"default\",\"provider\":\"default\"},\"ended\":true}"));
+        assert!(text.ends_with(
+            "],\"where\":{\"kind\":\"cloud\",\"machineId\":\"m_1\",\"place\":\"default\",\"provider\":\"default\"},\"ended\":true}"
+        ));
     });
 }
 

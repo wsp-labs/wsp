@@ -10,7 +10,9 @@ use std::sync::Arc;
 use futures::future::LocalBoxFuture;
 use futures::stream::LocalBoxStream;
 use futures::{FutureExt, StreamExt};
-use wsp_adapters::port::{keep_run, AttachRunOptions, Attached, ExecFailure, ExecOptions as Launch, ExecStream, ExecStreamFactory, WriteOutcome};
+use wsp_adapters::port::{
+    keep_run, AttachRunOptions, Attached, ExecFailure, ExecOptions as Launch, ExecStream, ExecStreamFactory, WriteOutcome,
+};
 use wsp_core::machine_exec::{machine_exec_stream, MachineExecOptions, SleepFn};
 use wsp_engine::Machine;
 
@@ -56,7 +58,10 @@ fn now_ms() -> f64 {
 /// An agent that answers every line it reads with `got <line>` and its own pid, and on "leave" first starts a sleep
 /// whose parent exits, so it stays behind in the run's group as a command a turn left going does.
 fn agent(left: &str) -> String {
-    format!(r#"while IFS= read -r l; do if [ "$l" = leave ]; then ( sleep 300 & echo $! > {} ); fi; echo "got $l $$"; done"#, support::sq(left))
+    format!(
+        r#"while IFS= read -r l; do if [ "$l" = leave ]; then ( sleep 300 & echo $! > {} ); fi; echo "got $l $$"; done"#,
+        support::sq(left)
+    )
 }
 
 /// Lines off a turn's view until one matches.
@@ -84,7 +89,11 @@ async fn record_leader(stream: &Arc<dyn ExecStream>) -> i32 {
 
 /// Ends every run on the machine with the sweep, as the TS teardown does.
 async fn end_guests(machine: &Arc<dyn Machine>, run_dir: &str) {
-    machine_exec_stream(machine.clone(), MachineExecOptions { run_dir: Some(run_dir.to_string()), ..Default::default() }, None).sweep(&[]).expect("a sweep").await.expect("the sweep answered");
+    machine_exec_stream(machine.clone(), MachineExecOptions { run_dir: Some(run_dir.to_string()), ..Default::default() }, None)
+        .sweep(&[])
+        .expect("a sweep")
+        .await
+        .expect("the sweep answered");
 }
 
 mod a_process_kept_between_turns_on_a_joined_computer_s_road {
@@ -94,7 +103,11 @@ mod a_process_kept_between_turns_on_a_joined_computer_s_road {
         let _ends = Ends;
         let (machine, run_dir, root, _dir) = guest();
         // Every wait short, the resting one too, so the idle limit is read many times while no turn is open.
-        let opts = MachineExecOptions { idle_ms: Some(400.0), sleep: Some(sleep_fn(|ms| support::sleep_ms(ms.min(50)).boxed())), ..options(20, &run_dir) };
+        let opts = MachineExecOptions {
+            idle_ms: Some(400.0),
+            sleep: Some(sleep_fn(|ms| support::sleep_ms(ms.min(50)).boxed())),
+            ..options(20, &run_dir)
+        };
         let stream = machine_exec_stream(machine, opts, None).launch(&agent(&format!("{root}/left")), seeded(&["one"]));
         let keeper = keep_run(stream.clone(), None);
         let (first, first_from) = keeper.turn();
@@ -112,7 +125,7 @@ mod a_process_kept_between_turns_on_a_joined_computer_s_road {
         assert_eq!(second.write("two".to_string()).await.unwrap(), WriteOutcome::Written);
         let mut second_lines = second.lines();
         let two = until(&mut second_lines, |line| line.starts_with("got two")).await;
-        assert_eq!(two, vec![format!("got two {}", one.last().unwrap().split(' ').last().unwrap())]);
+        assert_eq!(two, vec![format!("got two {}", one.last().unwrap().split(' ').next_back().unwrap())]);
 
         keeper.close(1_000, 500).await;
         support::wait_for("the run folder to empty", 5_000, || support::names(&run_dir).is_empty()).await;
@@ -184,7 +197,13 @@ mod a_process_kept_between_turns_on_a_joined_computer_s_road {
         until(&mut second_lines, |line| line.starts_with("got two")).await;
 
         // A host that restarts in the second turn re-opens it from its own first byte.
-        let attached = factory.attach(&stream.run().expect("a handle"), AttachRunOptions { input: true, started_at: now_ms(), from: Some(second_from.expect("where the second turn starts")) }).expect("an attach").await;
+        let attached = factory
+            .attach(
+                &stream.run().expect("a handle"),
+                AttachRunOptions { input: true, started_at: now_ms(), from: Some(second_from.expect("where the second turn starts")) },
+            )
+            .expect("an attach")
+            .await;
         let Attached::Stream(reopened) = attached.expect("an attach that answers") else { panic!("the run was gone") };
         let mut read = reopened.lines();
         let line = read.next().await.expect("a line").expect("a line, not a failure");
@@ -197,7 +216,8 @@ mod a_process_kept_between_turns_on_a_joined_computer_s_road {
     own_group_test!(a_run_a_case_never_closed_is_ended_with_its_input_pump_by_the_teardown_every_cas, 20_000, {
         let _ends = Ends;
         let (machine, run_dir, root, _dir) = guest();
-        let stream = machine_exec_stream(machine.clone(), options(20, &run_dir), None).launch(&agent(&format!("{root}/left")), seeded(&["one"]));
+        let stream =
+            machine_exec_stream(machine.clone(), options(20, &run_dir), None).launch(&agent(&format!("{root}/left")), seeded(&["one"]));
         let keeper = keep_run(stream.clone(), None);
         let (turn, _) = keeper.turn();
         let mut lines = turn.lines();

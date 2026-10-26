@@ -167,10 +167,7 @@ const ADDED_AND_CHANGED: &[&str] = &["agent added", "cli needs", "cli no needs",
 fn rows_named(names: &[&str]) -> Vec<Value> {
     let all = fixture("recipe_sync");
     let cases = all["cases"].as_array().expect("cases are a list");
-    names
-        .iter()
-        .map(|n| cases.iter().find(|c| c["name"] == *n).unwrap_or_else(|| panic!("no fixture row named {n}")).clone())
-        .collect()
+    names.iter().map(|n| cases.iter().find(|c| c["name"] == *n).unwrap_or_else(|| panic!("no fixture row named {n}")).clone()).collect()
 }
 
 fn read_opt<T: serde::de::DeserializeOwned>(v: &Value) -> Option<T> {
@@ -188,7 +185,8 @@ fn check_row(row: &Value) {
     let after: RecipeFile = wire(&row["after"]);
     let after_items: Items = wire(&row["afterItems"]);
     let changes = recipe_changes(before_file.as_ref(), before_items.as_ref(), &after, &after_items);
-    let got: Vec<Value> = changes.iter().map(|c| json!({ "key": c.key, "kind": json(&c.kind), "name": c.name, "how": how_word(c.how) })).collect();
+    let got: Vec<Value> =
+        changes.iter().map(|c| json!({ "key": c.key, "kind": json(&c.kind), "name": c.name, "how": how_word(c.how) })).collect();
     assert_eq!(Value::Array(got), row["changes"], "row {name}: changes");
     let steps: Vec<Value> = steps_for(&changes, &after).into_iter().map(|s| json(&s)).collect();
     assert_eq!(Value::Array(steps), row["steps"], "row {name}: steps");

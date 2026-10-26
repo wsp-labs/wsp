@@ -227,7 +227,11 @@ pub async fn ask_daemon(answers: &DaemonAnswers, o: ProbeOptions, clock: &Rc<dyn
 // }
 /// The future is spawned and left to finish on its own; past `ms` on the clock the answer is
 /// `EngineError::Other { message: "timed out after <ms> ms", code: None }`.
-pub async fn bounded<T: 'static>(work: LocalBoxFuture<'static, Result<T, EngineError>>, ms: i64, clock: &Rc<dyn Clock>) -> Result<T, EngineError> {
+pub async fn bounded<T: 'static>(
+    work: LocalBoxFuture<'static, Result<T, EngineError>>,
+    ms: i64,
+    clock: &Rc<dyn Clock>,
+) -> Result<T, EngineError> {
     let expired_words = || EngineError::Other { message: format!("timed out after {ms} ms"), code: None };
     let (answer_tx, answer) = tokio::sync::oneshot::channel();
     let (expired_tx, expired) = tokio::sync::oneshot::channel::<()>();
