@@ -6,10 +6,13 @@
 
 use std::sync::{Arc, Mutex};
 
-use futures::future::{LocalBoxFuture, FutureExt};
+use futures::future::{FutureExt, LocalBoxFuture};
 use futures::stream::{LocalBoxStream, StreamExt};
 use tokio::sync::watch;
-use wsp_adapters::port::{AdapterEvent, AttachRunOptions, Attached, Env, ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, OnEvent, SharedFuture, WriteOutcome};
+use wsp_adapters::port::{
+    AdapterEvent, AttachRunOptions, Attached, Env, ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, OnEvent, SharedFuture,
+    WriteOutcome,
+};
 
 #[derive(Clone, Default)]
 pub struct ScriptOpts {
@@ -127,7 +130,15 @@ pub struct ScriptedExec {
 }
 
 pub fn scripted_exec(lines: Vec<String>, opts: ScriptOpts, run: &str) -> ScriptedExec {
-    ScriptedExec { lines, opts, run: run.to_string(), calls: Arc::default(), order: Arc::default(), attached: Arc::default(), attach_ok: Arc::default() }
+    ScriptedExec {
+        lines,
+        opts,
+        run: run.to_string(),
+        calls: Arc::default(),
+        order: Arc::default(),
+        attached: Arc::default(),
+        attach_ok: Arc::default(),
+    }
 }
 
 impl ScriptedExec {
@@ -149,7 +160,13 @@ impl ScriptedExec {
         self
     }
     fn stream(&self) -> Arc<dyn ExecStream> {
-        Arc::new(Scripted { lines: Mutex::new(Some(self.lines.clone())), opts: self.opts.clone(), exit: Exit::new(), order: self.order.clone(), run: self.run.clone() })
+        Arc::new(Scripted {
+            lines: Mutex::new(Some(self.lines.clone())),
+            opts: self.opts.clone(),
+            exit: Exit::new(),
+            order: self.order.clone(),
+            run: self.run.clone(),
+        })
     }
 }
 
@@ -189,7 +206,9 @@ pub fn no_events() -> OnEvent {
 /// `delta:<kind>` for a delta, else the TS event type.
 pub fn kind_of(e: &AdapterEvent) -> String {
     match e {
-        AdapterEvent::TurnDelta(d) => format!("delta:{}", serde_json::to_value(d.kind).ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_default()),
+        AdapterEvent::TurnDelta(d) => {
+            format!("delta:{}", serde_json::to_value(d.kind).ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_default())
+        }
         AdapterEvent::SessionStart { .. } => "session.start".into(),
         AdapterEvent::TurnDone { .. } => "turn.done".into(),
         AdapterEvent::SessionEnd { .. } => "session.end".into(),
@@ -211,5 +230,10 @@ pub async fn wait_for(check: impl Fn() -> bool) {
 /// A fixture's non-blank lines, under tests/fixtures/<dir>/<name>.
 pub fn fixture(dir: &str, name: &str) -> Vec<String> {
     let path = format!("{}/tests/fixtures/{}/{}", env!("CARGO_MANIFEST_DIR"), dir, name);
-    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}")).lines().filter(|l| !l.trim().is_empty()).map(String::from).collect()
+    std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("{path}: {e}"))
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(String::from)
+        .collect()
 }
