@@ -545,7 +545,6 @@ impl BuildersArea {
                 hash: image_hash.clone(),
                 recipe_hash: digest,
                 recipe: recipe.source.clone(),
-                pins: None,
                 logins: result.version.logins.clone().unwrap_or_default(),
                 sealed_at: result.version.created_at.clone(),
                 sealed_from: self.ctx.host_id(),

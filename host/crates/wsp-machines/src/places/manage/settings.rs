@@ -252,7 +252,6 @@ impl ManageDoor {
                     if let Some(sp) = switch {
                         let old = held.spawn.clone();
                         next.spawn = Some(PlaceSettingsSpawn {
-                            spawn: sp.spawn.or(old.as_ref().and_then(|o| o.spawn)),
                             max_machines: sp.max_machines.or(old.as_ref().and_then(|o| o.max_machines)),
                             max_depth: sp.max_depth.or(old.as_ref().and_then(|o| o.max_depth)),
                         });

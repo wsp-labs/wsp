@@ -182,7 +182,7 @@ impl ImageArea {
         let key = name.unwrap_or("default");
         let image = self.ctx.record_of(key).await?;
         let copies = self.copies_of(key).await?;
-        Ok(SealedImageView { image, copies, projects: Vec::new() })
+        Ok(SealedImageView { image, copies })
     }
 
     /// image.ts:81-90 (I5): the record and the vault's bytes.

@@ -50,7 +50,7 @@ pub struct AgentsRead {
 
 /// agents-read.ts:19.
 pub fn guest_wsp_mcp() -> McpServerSpec {
-    todo!()
+    McpServerSpec { command: "wsp".to_string(), args: vec!["mcp".to_string()], no_slate: None }
 }
 
 /// A machine's `exec` as a box target hands it: through the place door.
@@ -94,12 +94,26 @@ pub struct BoxLogin {
 
 /// agents-read.ts:39: the one project an act works in.
 pub fn project_of(on: &AgentsOn) -> Option<String> {
-    todo!()
+    match projects_of(on) {
+        Some(projects) if projects.len() == 1 => Some(projects[0].path.clone()),
+        _ => None,
+    }
+}
+
+/// The projects an `AgentsOn` covers, where it names any.
+fn projects_of(on: &AgentsOn) -> Option<&Vec<AgentsProject>> {
+    match on {
+        AgentsOn::Here { projects, .. } | AgentsOn::Box { projects, .. } | AgentsOn::Machine { projects, .. } => projects.as_ref(),
+    }
 }
 
 /// agents-read.ts:44 (A6).
 pub fn page_reach_of(on: &AgentsOn, run_as: Option<&str>) -> PageReach {
-    todo!()
+    match on {
+        AgentsOn::Here { .. } => PageReach::Here,
+        AgentsOn::Box { relayed, .. } | AgentsOn::Machine { relayed, .. } if *relayed == Some(true) && run_as.is_none() => PageReach::Relay,
+        _ => PageReach::None,
+    }
 }
 
 /// agents-read.ts:48.
@@ -122,12 +136,12 @@ pub const SKILLS_SEARCH_LIMIT: u32 = 20;
 
 /// agents-read.ts:57: an error carrying `code: "server-not-set-up"`.
 pub fn is_server_not_set_up(e: &HostError) -> bool {
-    todo!()
+    e.code.as_deref() == Some(SERVER_NOT_SET_UP)
 }
 
 /// agents-read.ts:60: an error carrying `code: "server-off"`.
 pub fn is_server_off(e: &HostError) -> bool {
-    todo!()
+    e.code.as_deref() == Some(SERVER_OFF)
 }
 
 /// One server resolved for a client, with the login a command there runs as.
@@ -387,6 +401,13 @@ pub struct AgentsReads {
 
 impl AgentsReads {
     pub fn new(o: AgentsReadOptions) -> Rc<AgentsReads> {
-        todo!()
+        Rc::new(AgentsReads {
+            o,
+            last: RefCell::default(),
+            relays: RefCell::default(),
+            running: RefCell::default(),
+            ended: RefCell::default(),
+            starting: RefCell::default(),
+        })
     }
 }

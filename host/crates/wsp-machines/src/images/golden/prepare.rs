@@ -241,7 +241,7 @@ impl GoldenArea {
             return Err(HostError::new(format!("no such builder: {builder_id}")).into());
         };
         ctx.refuse_untouchable(&entry)?;
-        let keep = keep_builder != Some(false) && entry.borrow().record.import.as_ref().and_then(|i| i.recipe.as_ref()).is_some();
+        let keep = keep_builder != Some(false) && entry.borrow().builder.import.as_ref().and_then(|i| i.recipe.as_ref()).is_some();
         let sealed = ctx.seal_entry(&entry, keep, logins, None).await?;
         Ok(Sealed { manifest: sealed.manifest, version: sealed.version })
     }
@@ -276,7 +276,7 @@ fn find_same(run: &Run, mark: &ImportMark) -> Option<BuilderRef> {
             && x.record.sealed.is_none()
             && x.record.name == run.name
             && x.record.place.as_deref().unwrap_or(run.wired.as_str()) == run.place.as_str()
-            && x.record.import.as_ref().is_some_and(|i| i.recipe_hash == mark.recipe_hash)
+            && x.builder.import.as_ref().is_some_and(|i| i.recipe_hash == mark.recipe_hash)
     })
 }
 
@@ -437,7 +437,7 @@ async fn attach_steps(held: &Held, run: &Run, imp: &GoldenImport, entry: &Builde
     let stage = run.stage.clone();
     stage(GoldenStage::Creating, Some(ALREADY_APPLIED.to_string()), None, None);
     stage(GoldenStage::DeployingDaemon, Some(ALREADY_APPLIED.to_string()), None, None);
-    let ledger = entry.borrow().record.import.clone();
+    let ledger = entry.borrow().builder.import.clone();
     let applied = held
         .ctx
         .roads()
@@ -453,7 +453,7 @@ async fn attach_steps(held: &Held, run: &Run, imp: &GoldenImport, entry: &Builde
     }
     {
         let mut x = entry.borrow_mut();
-        x.record.import = Some(applied.ledger);
+        x.builder.import = Some(applied.ledger);
         x.life = BuilderLife::Own;
         x.recipe = Some(run.recipe.clone());
     }
