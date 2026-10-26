@@ -1,0 +1,33 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/home/maya/acme[39m
+
+ [31m❯[39m [32m|node|[39m src/checkout.test.ts [2m([22m[2m3 tests[22m[2m | [22m[31m1 failed[39m[2m | [22m[33m1 skipped[39m[2m)[22m[90m 9[2mms[22m[39m
+[31m   [31m×[31m checkout[2m > [22mrounds a refund[90m 7[2mms[22m[31m[39m
+[31m     → expected 0.30000000000000004 to be 0.3 // Object.is equality[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 1 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m[32m|node|[39m  src/checkout.test.ts[2m > [22mcheckout[2m > [22mrounds a refund
+[31m[1mAssertionError[22m: expected 0.30000000000000004 to be 0.3 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 0.3[39m
+[31m+ 0.30000000000000004[39m
+
+[36m [2m❯[22m src/checkout.test.ts:[2m4:51[22m[39m
+    [90m  2| [39m[34mdescribe[39m([32m"checkout"[39m[33m,[39m () [33m=>[39m {
+    [90m  3| [39m  [34mit[39m([32m"adds tax"[39m[33m,[39m () [33m=>[39m { [34mexpect[39m([34m1[39m [33m+[39m [34m1[39m)[33m.[39m[34mtoBe[39m([34m2[39m)[33m;[39m })[33m;[39m
+    [90m  4| [39m  [34mit[39m([32m"rounds a refund"[39m[33m,[39m () [33m=>[39m { [34mexpect[39m([34m0.1[39m [33m+[39m [34m0.2[39m)[33m.[39m[34mtoBe[39m([34m0.3[39m)[33m;[39m })[33m;[39m
+    [90m   | [39m                                                  [31m^[39m
+    [90m  5| [39m  it[33m.[39m[34mskip[39m([32m"waits on the bank"[39m[33m,[39m () [33m=>[39m {})[33m;[39m
+    [90m  6| [39m})[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[2m | [22m[33m1 skipped[39m[90m (3)[39m
+[2m   Start at [22m 20:01:35
+[2m   Duration [22m 336ms[2m (transform 14ms, setup 19ms, collect 6ms, tests 9ms, environment 0ms, prepare 58ms)[22m
+

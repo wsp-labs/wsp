@@ -19,7 +19,8 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use wsp_daemon::{Daemon, Options};
 use wsp_frames::numbers::{
-    FS_HASH_PATHS_MAX, FS_IMAGE_CAP_BYTES, FS_READ_CAP_BYTES, FS_SEARCH_CAP_FILES, FS_SEARCH_CAP_HITS, GIT_DIFF_CAP_BYTES,
+    FS_HASH_PATHS_MAX, FS_IMAGE_CAP_BYTES, FS_PAGE_CAP_BYTES, FS_READ_CAP_BYTES, FS_SEARCH_CAP_FILES, FS_SEARCH_CAP_HITS,
+    GIT_DIFF_CAP_BYTES,
 };
 
 const TOKEN: &str = "fs-token";
@@ -1018,6 +1019,21 @@ async fn fs_image_reads_an_image_from_any_whole_path_and_hands_back_no_other_fil
     refused(&c.request("fs.image", json!({ "path": at("pipe.png") })).await, "not-a-file");
     refused(&c.request("fs.image", json!({ "path": at("gone.png") })).await, "not-found");
     refused(&c.request("fs.image", json!({ "path": "repo/home.png" })).await, "bad-request");
+
+    // A frame's page takes the same road, and only a text file named as HTML leaves through it.
+    fs::write(at("dial.html"), "<!doctype html><p>dial</p>").unwrap();
+    fs::write(at("bytes.html"), [0xff, 0xfe, 0x00]).unwrap();
+    let page = c.request("fs.page", json!({ "path": at("dial.html") })).await;
+    assert_eq!((page["ok"].as_bool(), page["mediaType"].as_str()), (Some(true), Some("text/html")), "{page}");
+    assert_eq!(b64(page["content"].as_str().unwrap()), b"<!doctype html><p>dial</p>");
+    let bytes = c.request("fs.page", json!({ "path": at("bytes.html") })).await;
+    assert_eq!((bytes.get("mediaType"), bytes.get("content"), bytes["size"].as_u64()), (None, None, Some(3)), "{bytes}");
+    // Past a page's own cap only its size crosses, for the host to refuse, never the bytes.
+    fs::write(at("big.html"), vec![b'x'; FS_PAGE_CAP_BYTES as usize + 1]).unwrap();
+    let big = c.request("fs.page", json!({ "path": at("big.html") })).await;
+    assert_eq!((big["size"].as_u64(), big.get("content")), (Some(FS_PAGE_CAP_BYTES + 1), None), "{big}");
+    refused(&c.request("fs.page", json!({ "path": at("home.png") })).await, "bad-request");
+    refused(&c.request("fs.page", json!({ "path": at("gone.html") })).await, "not-found");
 }
 
 #[tokio::test]

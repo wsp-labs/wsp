@@ -264,3 +264,63 @@ fn a_picture_the_slate_stops_drawing_is_let_go(cx: &mut TestAppContext) {
     fixture::write(host, &thread, &slate(&section(false)));
     holds(cx, "the picture its section shut let go", |b| b == one);
 }
+
+/// Hovers `at` until the tooltip under it shows.
+fn hover(cx: &mut VisualTestContext, at: gpui_kit::Point<gpui_kit::Pixels>) {
+    cx.simulate_mouse_move(at, None, Modifiers::none());
+    for _ in 0..2 {
+        cx.run_until_parked();
+        cx.executor().advance_clock(Duration::from_millis(600));
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+    }
+    cx.run_until_parked();
+}
+
+/// A thread whose slate is one picture, opened at the window's size, and the point on its expand button.
+fn expand_button<'a>(cx: &'a mut TestAppContext, name: &'static str) -> (&'a mut VisualTestContext, gpui_kit::Point<gpui_kit::Pixels>) {
+    let (host, folder) = bench();
+    let thread = fixture::staged(host, folder, &fixture::State { name, file: None });
+    let src = bench().1.join("shots/gallery/0.png");
+    fixture::write(
+        host,
+        &thread,
+        &format!("<slate title=\"Expand\">\n  <column>\n    <image src=\"{}\" />\n  </column>\n</slate>\n", src.display()),
+    );
+    let (_, cx) = open(cx, &thread);
+    holds(cx, "the picture decoded", |b| b > 0);
+    let image = cx.debug_bounds("slate-image").expect("the image piece is drawn");
+    (cx, point(image.right() - px(15.), image.bottom() - px(12.)))
+}
+
+/// Lets `seconds` of the window's time pass, a frame every half second.
+fn pass(cx: &mut VisualTestContext, seconds: u64) {
+    for _ in 0..seconds * 2 {
+        cx.executor().advance_clock(Duration::from_millis(500));
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+    }
+}
+
+#[gpui_kit::test]
+fn the_expand_buttons_tooltip_goes_when_a_click_after_a_rest_opens_the_viewer(cx: &mut TestAppContext) {
+    let (cx, at) = expand_button(cx, "expand-tip-rest");
+    hover(cx, at);
+    assert!(cx.debug_bounds("tooltip").is_some(), "the expand button says Expand while the pointer rests on it");
+    cx.simulate_click(at, Modifiers::none());
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("slate-image-expanded").is_some(), "the click opened the viewer");
+    pass(cx, 5);
+    assert!(cx.debug_bounds("tooltip").is_none(), "Expand stays drawn beside the viewer its button opened");
+}
+
+#[gpui_kit::test]
+fn the_expand_buttons_tooltip_never_shows_when_a_quick_click_opens_the_viewer(cx: &mut TestAppContext) {
+    let (cx, at) = expand_button(cx, "expand-tip-quick");
+    cx.simulate_mouse_move(at, None, Modifiers::none());
+    cx.executor().advance_clock(Duration::from_millis(100));
+    cx.simulate_click(at, Modifiers::none());
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("slate-image-expanded").is_some(), "the click opened the viewer");
+    pass(cx, 5);
+    assert!(cx.debug_bounds("tooltip").is_none(), "Expand shows beside the viewer a click faster than its delay opened");
+}

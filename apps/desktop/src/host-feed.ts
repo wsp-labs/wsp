@@ -5,8 +5,9 @@
 // turn starts, asks or ends, rather than folded here a second way. A host that
 // does not answer, or goes, reads as lost and is dialled again until it answers.
 import type { dialHost } from "@wsp/host";
-import { ANSWER_WORDS, DEFAULT_PREFERENCES, SessionAnswerResult, type AppProc, type NotifyChoice, type OnQuit, type PlaceView, type Preferences, type SessionView, type WorkspaceView } from "@wsp/protocol";
+import { ANSWER_WORDS, DEFAULT_PREFERENCES, SessionAnswerResult, type AppProc, type NotifyChoice, type OnQuit, type PlaceView, type Preferences, type SessionView, type SlatesLookAnswer, type WorkspaceView } from "@wsp/protocol";
 import { offerAppProcs } from "./app-procs.js";
+import { offerSlateLooks } from "./slate-look.js";
 import type { OpenAsk } from "./tray.js";
 
 type HostClient = Awaited<ReturnType<typeof dialHost>>;
@@ -40,6 +41,8 @@ export interface FeedDeps {
   log?(line: string): void;
   /** Reads the app's own processes, given only where the host runs on this computer, which is where they are. */
   appProcs?(): AppProc[];
+  /** Draws a thread's slate for wsp slate look, given only where the host runs on this computer, as appProcs. */
+  slateLook?(threadId: string, width?: number): Promise<SlatesLookAnswer>;
 }
 
 export interface HostFeed {
@@ -147,6 +150,7 @@ export function hostFeed(deps: FeedDeps): HostFeed {
     if (closed) return on.close();
     client = on;
     if (deps.appProcs !== undefined) offerAppProcs(on, { read: deps.appProcs, ...(deps.log !== undefined ? { log: deps.log } : {}) });
+    if (deps.slateLook !== undefined) offerSlateLooks(on, deps.slateLook, deps.log);
     // Frames the host replays from before this socket listened update the prompts and the rows, and are said to
     // nobody: a finish from an hour ago is not news.
     let live = false;

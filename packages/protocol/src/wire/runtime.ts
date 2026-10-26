@@ -8,7 +8,7 @@ import { InitRoad, InitScreenId, SIGN_IN_CODE_MAX } from "../init-job.js";
 import { ReadingsRange, UsageRange, UsageSplit } from "../usage.js";
 import { ResumeAsk } from "../conversations.js";
 import { AccessChoice, AgentSetupSet } from "../thread-defaults.js";
-import { SLATE_OPS } from "../slate/wire.js";
+import { SLATE_OPS, SlatesLookAnswer } from "../slate/wire.js";
 import { RecipeFile } from "../recipe-file.js";
 import { MergeMethod, PullRequestItem, PR_REPLY_BODY_MAX, ReactionContent } from "../pull-request.js";
 import { WorkspaceLook } from "../workspace-look.js";
@@ -45,6 +45,8 @@ function slateOps() {
     op("slates.unsubscribe"),
     op("slates.resolve"),
     op("slates.image"),
+    op("slates.page"),
+    op("slates.look"),
   ] as const;
 }
 
@@ -455,6 +457,11 @@ const RuntimeOp = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("appProcs.offer") }),
   /** The app's processes as it read them just now, from a socket that offered; pushed to every socket that watches. */
   z.object({ id: reqId, op: z.literal("appProcs.set"), procs: AppProcList }),
+  /** The app on this computer offers to draw slates on this socket, for slates.look: the host pushes a
+   * SlateLookWantedEvent here for each look and waits for its answer. The host's own road alone; replies `{}`. */
+  z.object({ id: reqId, op: z.literal("slateLook.offer") }),
+  /** One look drawn, by the id its event carried: the slate's picture, or the sentence that says why there is none. */
+  z.object({ id: reqId, op: z.literal("slateLook.answer"), lookId: z.string(), look: SlatesLookAnswer.optional(), problem: z.string().max(2000).optional() }),
   /** A computer's processes by the thread that started them, replied as { activity: ActivityView }: this computer's,
    * the one a computer named must be, or one thread's alone, refused for a thread on a box. A thread reads itself and
    * the threads under it alone. */
@@ -1134,6 +1141,7 @@ export const THREAD_OPS: readonly string[] = [
   "slates.state",
   "slates.read",
   "slates.catalog",
+  "slates.look",
 ];
 
 /** The ops a computer the person paired may send with no role of its own, and the whole of them, for the reason
@@ -1244,6 +1252,7 @@ export const DEVICE_OPS: readonly string[] = [
   "slates.unsubscribe",
   "slates.resolve",
   "slates.image",
+  "slates.page",
 ];
 
 /** The one sentence a thread's own token is refused an op with. It names the op rather than guessing why a caller
