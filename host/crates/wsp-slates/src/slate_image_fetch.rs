@@ -17,6 +17,8 @@ use futures::FutureExt;
 use serde_json::json;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
+
+use crate::tls::{self, Socket};
 use url::Url;
 
 use wsp_words::attachments::{image_type_of, IMAGE_TYPES};
@@ -212,7 +214,7 @@ async fn vetted(url: &Url, road: &dyn FetchRoad) -> Result<LookedUp, String> {
 struct Response {
     status: u16,
     headers: Vec<(String, String)>,
-    reader: BufReader<TcpStream>,
+    reader: BufReader<Socket>,
 }
 
 impl Response {
@@ -223,12 +225,10 @@ impl Response {
 
 /// Sends one GET to the address the hop checked, on the socket it opens, and reads the status and the headers.
 async fn send_get(url: &Url, to: &LookedUp) -> Result<Response, String> {
-    if url.scheme() == "https" {
-        return Err("https is not linked into this build".to_string());
-    }
     let ip = IpAddr::from_str(&to.address).map_err(|e| e.to_string())?;
     let port = url.port_or_known_default().unwrap_or(80);
-    let mut stream = TcpStream::connect(SocketAddr::new(ip, port)).await.map_err(|e| e.to_string())?;
+    let tcp = TcpStream::connect(SocketAddr::new(ip, port)).await.map_err(|e| e.to_string())?;
+    let mut stream = tls::over(url, tcp).await.map_err(|e| e.to_string())?;
     let host = url.host_str().unwrap_or("");
     let host_header = match url.port() {
         Some(p) => format!("{host}:{p}"),
