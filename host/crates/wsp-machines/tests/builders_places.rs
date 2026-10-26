@@ -88,7 +88,7 @@ fn builder_view_carries_every_fact_in_the_ts_key_order() {
     let b = entry_of(
         record(json!({
             "streamUrl": "wss://screen.example/1", "building": true, "place": "boat",
-            "import": {"recipeHash": "h1", "recipe": {"ticks": [], "files": []}},
+            "import": {"recipeHash": "h1", "recipe": {"ticks": [], "files": []}, "applied": [], "smoke": ""},
             "sealed": {"at": "2026-10-25T10:30:00.000Z", "version": 3}
         })),
         BuilderLife::Own,

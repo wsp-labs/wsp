@@ -894,7 +894,10 @@ impl RecordsCtx for World {
         Some("/root".into())
     }
     fn project_ref(&self, project: &str) -> ProjectView {
-        serde_json::from_value(json!({"id": project, "name": "spoo", "path": "/root/spoo", "computer": "here", "createdAt": "2026-10-01T00:00:00.000Z"}))
+        serde_json::from_value(json!({
+            "id": project, "name": "spoo", "path": "/root/spoo", "computer": "here", "source": {"kind": "folder", "path": "/root/spoo"}, "remote": "", "defaultBranch": "main",
+            "memoryKey": "-root-spoo", "memoryDir": "/root/.claude-cfg/projects/-root-spoo", "createdAt": "2026-10-01T00:00:00.000Z"
+        }))
             .unwrap_or_else(|e| panic!("a project view: {e}"))
     }
     fn daemon_note(&self, workspace_id: &str) -> Option<String> {
