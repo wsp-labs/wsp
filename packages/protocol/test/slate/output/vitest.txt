@@ -1,0 +1,33 @@
+
+ RUN  v2.1.9 /home/maya/acme
+
+ ❯ |node| src/checkout.test.ts (3 tests | 1 failed | 1 skipped) 9ms
+   × checkout > rounds a refund 7ms
+     → expected 0.30000000000000004 to be 0.3 // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |node|  src/checkout.test.ts > checkout > rounds a refund
+AssertionError: expected 0.30000000000000004 to be 0.3 // Object.is equality
+
+- Expected
++ Received
+
+- 0.3
++ 0.30000000000000004
+
+ ❯ src/checkout.test.ts:4:51
+      2| describe("checkout", () => {
+      3|   it("adds tax", () => { expect(1 + 1).toBe(2); });
+      4|   it("rounds a refund", () => { expect(0.1 + 0.2).toBe(0.3); });
+       |                                                   ^
+      5|   it.skip("waits on the bank", () => {});
+      6| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 1 skipped (3)
+   Start at  20:01:37
+   Duration  336ms (transform 15ms, setup 20ms, collect 6ms, tests 9ms, environment 0ms, prepare 59ms)
+

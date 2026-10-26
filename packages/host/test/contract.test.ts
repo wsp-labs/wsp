@@ -30,8 +30,9 @@ import { placeWiring } from "../src/places.js";
 import { hostSeed } from "../src/cli/wiring.js";
 import { hostTokenPath, lockPathFor } from "../src/host-lock.js";
 import { mcpServer } from "../src/mcp.js";
+import { SLATE_LOOK_NO_APP } from "@wsp/runtime";
 import type { HostHandle } from "../src/server.js";
-import { AFTER_WORKTREE_BLANK_FIX, afterWorktreeBlankLine, CLI_VERBS, hasTool, noHostServingLine, type DialOpts, type HostClient } from "../src/verbs.js";
+import { AFTER_WORKTREE_BLANK_FIX, afterWorktreeBlankLine, CLI_VERBS, dialHost, hasTool, noHostServingLine, type DialOpts, type HostClient } from "../src/verbs.js";
 import { SEALED_GOLDEN } from "./sealed-golden.js";
 import { stubBackend, type StubBackend } from "./stub-backend.js";
 import { ASKS, STARTS_THEN_DIES, EXPORT_SOURCE, PAGE, SCRIPTED_ASK, bornDeadAgent, captured, execGuest, exportGuest, scriptedAgent, type Captured } from "./verbs-fixture.js";
@@ -551,6 +552,29 @@ describe("the agent contract on the command line and the tool door", () => {
     // A rehearsal with no file: the sketch as it would read, the live slate left as it was.
     expect(await last("slate write", "slate", "write", opened.threadId, "--check", "--set", "done=1")).toMatchObject({ version: 2, problems: [] });
     expect(await last("slate read", "slate", "read", opened.threadId, "--values", "$done", "--document")).toMatchObject({ version: 2, values: { $done: 2 }, document: { schema: 2 } });
+    // A look with no app open is one sentence; with one, the app's picture lands in the file, and the tool answers it.
+    const noApp = await run("slate", "look", opened.threadId, "--json");
+    expect(noApp.code).toBe(EXIT_CODES.provider);
+    expect(failure(noApp.io).error).toBe(SLATE_LOOK_NO_APP);
+    const app = await dialHost(statePath, { env: ownEnv() });
+    const drawnPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    app.onFrame(frame => {
+      if (frame["type"] === "slate.look.wanted") void app.request("slateLook.answer", { lookId: frame["lookId"], look: { png: drawnPng, width: 400, height: 120, scale: 2, theme: "graphite" } });
+    });
+    await app.request("slateLook.offer");
+    const lookFile = join(dir, "look.png");
+    expect(await last("slate look", "slate", "look", opened.threadId, "--out", lookFile)).toEqual({ width: 400, height: 120, scale: 2, theme: "graphite", path: lookFile });
+    expect(readFileSync(lookFile).toString("base64")).toBe(drawnPng);
+    const tools = new Client({ name: "contract", version: "0" });
+    const [toClient, toServer] = InMemoryTransport.createLinkedPair();
+    await mcpServer(statePath, { env: ownEnv() }).connect(toServer);
+    await tools.connect(toClient);
+    expect(await tools.callTool({ name: "slate_look", arguments: { thread: opened.threadId } })).toMatchObject({
+      content: [{ type: "image", data: drawnPng, mimeType: "image/png" }, { type: "text", text: "The slate as the window draws it: 400 by 120 px at 2x, graphite." }],
+      structuredContent: { width: 400, height: 120, scale: 2, theme: "graphite" },
+    });
+    await tools.close();
+    app.close();
     // A project on this computer: its worktree for a branch, the worktree taken away, and a thread in its folder
     // deleted by its id, the folder left as it stands.
     const here = join(dir, "here-proj");

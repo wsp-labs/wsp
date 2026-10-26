@@ -4,7 +4,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
 import { mcpServer } from "../src/mcp.js";
 
-async function toolNames(over: { scoped?: boolean; noSlate?: boolean }): Promise<string[]> {
+async function toolNames(over: { scoped?: boolean; noSlate?: boolean; noLook?: boolean }): Promise<string[]> {
   const server = mcpServer("/nonexistent/state.json", { env: {}, ...over });
   const [toClient, toServer] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test", version: "0" });
@@ -21,5 +21,12 @@ describe("a server for a thread with no slate", () => {
     const slate = ["slate_catalog", "slate_write", "slate_state", "slate_read"];
     expect(await toolNames({ scoped: true })).toEqual(expect.arrayContaining(slate));
     expect((await toolNames({ scoped: true, noSlate: true })).filter(n => n.startsWith("slate_"))).toEqual([]);
+  });
+});
+
+describe("a server for a turn launched while no app draws looks", () => {
+  it("lists every slate tool but slate_look, which could only refuse", async () => {
+    expect((await toolNames({ scoped: true })).filter(n => n.startsWith("slate_")).sort()).toEqual(["slate_catalog", "slate_look", "slate_read", "slate_state", "slate_write"]);
+    expect((await toolNames({ scoped: true, noLook: true })).filter(n => n.startsWith("slate_")).sort()).toEqual(["slate_catalog", "slate_read", "slate_state", "slate_write"]);
   });
 });

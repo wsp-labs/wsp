@@ -22,7 +22,7 @@ export const spawnsThread = (toolName: string): boolean => {
 /** The slate's tools, and the name a launch serves them under again for a harness that keeps a server's tools behind
  * a search until asked: Codex lists tools up front only per server (omit_tools_from, codex-rs/core/src/tools/
  * spec_plan.rs at rust-v0.155.1), and an agent that never searched never found the slate. */
-export const SLATE_TOOLS = ["slate_catalog", "slate_write", "slate_state", "slate_read"] as const;
+export const SLATE_TOOLS = ["slate_catalog", "slate_write", "slate_state", "slate_read", "slate_look"] as const;
 export const SLATE_SERVER_NAME = "wsp_slate";
 
 /** Whether a launch gives its thread a slate: its wsp server is there, scoped on this computer or the guest one a box
@@ -35,6 +35,10 @@ export function launchHasSlate(servers: Readonly<Record<string, Pick<McpServerSp
 /** Where a slate's own script goes, said wherever an agent first learns the slate: told nothing, a Codex thread wrote
  * its sampler into the project, where Changes listed it. The file is written 0600, so it runs through python3. */
 export const SLATE_SCRIPT_WORDS = 'A run\'s script goes in a <file name="x.py">, run as python3 "$SLATE_DIR/x.py", never in the project.';
+
+/** What a slate is for, said the same in the catalog's index, the server's instructions, the slate tools' descriptions
+ * and the skill: agents wrote slates that restated the chat, and replies that restated the slate. */
+export const SLATE_PURPOSE = "The slate is the person's visual companion while you work: words stay in the chat, and your reply never restates it.";
 
 /** The slate's rules where a small model weighs them, at the end of the system prompt, for a thread whose launch
  * has a slate: in the server's instructions alone, behind the person's own CLAUDE.md and skills,
@@ -50,6 +54,8 @@ export const SLATE_BRIEF = [
   SLATE_SCRIPT_WORDS,
   "A token or key the person keeps in a file stays there: the run's command reads it from the file. Never read that file or put its value in a tool call.",
   "A one-off answer, a comparison or an explanation stays in chat.",
+  SLATE_PURPOSE,
+  "It is read at a glance: figures, counts with their exceptions and decisions, never a second copy of the chat.",
 ].join("\n");
 
 /** How long an agent that holds its own limit on a tool call lets a wsp call run, which Codex reads as the server

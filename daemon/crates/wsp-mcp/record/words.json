@@ -176,6 +176,8 @@
   "unclosedQuote": "The command has a quote it never closes, so nothing was written. {usage}",
   "projectScope": "--project names a project, which only the project and local scopes take, not {scope}; give one of the two. {usage}",
   "noSkillHits": "no skills on skills.sh match",
+  "slateLook": "The slate as the window draws it: {width} by {height} px at {scale}x, {theme}.",
+  "slateLookCut": "Cut at {height} of its {whole} px, as the panel scrolls it.",
   "skillHitColumns": [
     "SKILL",
     "INSTALLS",
@@ -374,6 +376,7 @@
     "slate_write": "wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]",
     "slate_state": "wsp slate state [<thread>] [<path>=<json>...] [--start <run>]... [--if-version <n>]",
     "slate_read": "wsp slate read [<thread>] [--values <path>]... [--no-text] [--no-sketch] [--document]",
+    "slate_look": "wsp slate look [<thread>] [--width <px>] [--out <file>]",
     "send": "wsp send <thread> [--model, --effort <value>] [--fast] [--file <path>] [--detach] \"<message>\"",
     "restart": "wsp restart",
     "stop": "wsp stop <thread> [--subagent <id>]",

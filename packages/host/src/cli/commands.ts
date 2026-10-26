@@ -466,11 +466,12 @@ export const MCP_OPTIONS: Options = {
   state: { type: "string" },
   scoped: { type: "boolean" },
   "no-slate": { type: "boolean" },
+  "no-look": { type: "boolean" },
   help: { type: "boolean", short: "h" },
 };
 
 export const mcpInstallUsage = (): string => `wsp ${MCP_COMMAND} install --agent <id> [--agent <id>] [--host <alias>] [--json] [--remove]   (${MCP_AGENT_IDS})`;
-export const mcpUsage = (): string => `usage: wsp ${MCP_COMMAND} [--host <alias>] [${SCOPED_MCP_ARG} [--no-slate]]\n       ${mcpInstallUsage()}`;
+export const mcpUsage = (): string => `usage: wsp ${MCP_COMMAND} [--host <alias>] [${SCOPED_MCP_ARG} [--no-slate] [--no-look]]\n       ${mcpInstallUsage()}`;
 
 const without = (options: Options, names: readonly string[]): Options => Object.fromEntries(Object.entries(options).filter(([name]) => !names.includes(name)));
 

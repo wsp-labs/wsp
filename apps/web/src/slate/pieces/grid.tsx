@@ -6,7 +6,8 @@ import { cn } from "../../lib/utils.js";
 import { CARD_SURFACE } from "../../settings/rows.js";
 import type { SlateEngine } from "../engine.js";
 import { PieceHost, useShown, type PieceView } from "../SlateView.js";
-import { figure, str } from "./look.js";
+import { figure, num, str } from "./look.js";
+import { meterFigure } from "./meter.js";
 import { isStrip, stripCells } from "./riders.js";
 import { BarSwitch } from "./barswitch.js";
 import { isBarHolder, placeOf } from "./runs.js";
@@ -18,9 +19,10 @@ const PLACE: Record<string, string> = { start: "justify-items-start", center: "j
 /** The card's inner width a strip can count on: the 400 px panel's, and the least a widened panel's (34rem). */
 const NARROW = 366;
 const WIDE = 542;
-/** One character of the 26 px mono figure, and a 12 px unit with its 4 px gap per character. */
+/** One character of the 26 px mono figure, a 12 px unit with its 4 px gap per character, and a ring with its gap. */
 const FIGURE_CH = 15.6;
 const UNIT_CH = 7.2;
+const RING = 30;
 /** One character of the 13 px sans label, which keeps to one line so the figures under it share theirs. */
 const LABEL_CH = 6.4;
 
@@ -59,10 +61,16 @@ export function Strip({ id, slate }: { id: string; slate: SlateEngine }) {
   // The panel decides how many cells stand across, never the agent's columns: at most three in the narrow panel.
   const cells = useShown(slate, stripCells(slate, id) ?? []);
   const widest = Math.max(0, ...cells.map(child => {
-    const p = slate.piece(child)?.props ?? {};
+    const piece = slate.piece(child);
+    const p = piece?.props ?? {};
     const unit = str(slate.resolve(p["unit"]));
     const label = str(slate.resolve(p["label"]));
-    const figureWidth = (figure(slate.resolve(p["value"]), slate.resolve(p["format"]))?.length ?? 0) * FIGURE_CH + (unit === undefined ? 0 : unit.length * UNIT_CH + 4);
+    const value = slate.resolve(p["value"]);
+    // A ring's or a meter's figure is the one its tile draws, 209/214 rather than 209, with the ring beside it.
+    const gauged = piece?.type === "ring" || piece?.type === "meter";
+    const format = slate.resolve(p["format"]);
+    const shown = gauged && typeof value === "number" ? meterFigure(value, num(slate.resolve(p["max"])) ?? 100, typeof format === "string" ? format : "percent") : figure(value, format);
+    const figureWidth = (shown?.length ?? 0) * FIGURE_CH + (unit === undefined ? 0 : unit.length * UNIT_CH + 4) + (gauged ? RING : 0);
     return Math.max(figureWidth, (label?.length ?? 0) * LABEL_CH);
   }));
   const narrow = across(cells.length, widest, NARROW, 3);
@@ -80,6 +88,8 @@ export function Strip({ id, slate }: { id: string; slate: SlateEngine }) {
 
 export const grid: PieceView = {
   type: "grid",
+  // A strip is a card of its own, never a row of the card the pieces after it gather into.
+  card: (slate, id) => !isStrip(slate, id),
   fills: isStrip,
   component: ({ id, props, slate, children }) =>
     isBarHolder(slate, id) ? (

@@ -49,6 +49,10 @@ export const SCOPED_MCP_ARG = "--scoped";
  * instructions and the launch say nothing of one, and the slate tools refuse it. */
 export const NO_SLATE_MCP_ARG = "--no-slate";
 
+/** The word beside it on the server of a turn launched while no app on the host's computer draws looks: slate_look
+ * would only refuse, so the server does not list it. */
+export const NO_LOOK_MCP_ARG = "--no-look";
+
 /** The fingerprint of the key that host proves, beside the two above: the turn pins it before it sends the token,
  * so a relay that carries the bytes or names another host at that address gets nothing. A launch that carries the
  * address and the token without it is refused rather than dialled, since nothing there says which host it is. */
