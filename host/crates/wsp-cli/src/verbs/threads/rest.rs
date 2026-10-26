@@ -450,7 +450,7 @@ pub(super) fn run_exec(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError
         };
         let given = absolute_folder(flag(&ctx.flags, "cwd"))?;
         let client = ctx.client(None).await?;
-        let (thread, workspace) = thread_at_in(&*client, &reference, "wsp exec", false, cloud_on_in(&ctx.env)).await?;
+        let (thread, workspace) = thread_at_in(&*client, &reference, "wsp exec", false, cloud_of(&ctx.env)).await?;
         let say = |line: &str| ctx.io.error(line);
         let woken = awake(&*client, &view_of(&workspace)?, "exec", &say).await?;
         let folder = given.or_else(|| thread_cwd(thread.cwd.as_deref(), workspace.worktree.as_ref()));
@@ -479,7 +479,7 @@ pub(super) fn call_exec(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<Ca
         let given = absolute_folder(frame_str(&args, "cwd").as_deref())?;
         let client = deps.client(None).await?;
         let (thread, workspace) =
-            thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp exec", false, cloud_on_in(&deps.env)).await?;
+            thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp exec", false, cloud_of(&deps.env)).await?;
         let asked = given.or_else(|| thread_cwd(thread.cwd.as_deref(), workspace.worktree.as_ref()));
         let quiet = |_: &str| {};
         let woken = awake(&*client, &view_of(&workspace)?, "exec", &quiet).await?;

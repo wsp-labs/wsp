@@ -211,8 +211,7 @@ pub(super) fn run_fork(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError
 pub(super) fn call_commit(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
         let client = deps.client(None).await?;
-        let at =
-            thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp commit", false, cloud_on_in(&deps.env)).await?;
+        let at = thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp commit", false, cloud_of(&deps.env)).await?;
         let woke = awake(&*client, &view_of(&at.1)?, "commit", &quiet_tell).await?;
         let message = frame_str(&args, "message");
         let made = committed(
@@ -238,7 +237,7 @@ pub(super) fn run_commit(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErr
             _ => return Err(usage_refusal("wsp commit takes one thread.", &usage_is(ctx))),
         };
         let client = ctx.client(None).await?;
-        let at = thread_at_in(&*client, &reference, "wsp commit", false, cloud_on_in(&ctx.env)).await?;
+        let at = thread_at_in(&*client, &reference, "wsp commit", false, cloud_of(&ctx.env)).await?;
         let say = stderr_of(ctx);
         let woke = awake(&*client, &view_of(&at.1)?, "commit", &say).await?;
         let message = flag(&ctx.flags, "message");
@@ -255,8 +254,7 @@ pub(super) fn run_commit(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErr
 pub(super) fn call_discard(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
         let client = deps.client(None).await?;
-        let at =
-            thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp discard", false, cloud_on_in(&deps.env)).await?;
+        let at = thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp discard", false, cloud_of(&deps.env)).await?;
         let woke = awake(&*client, &view_of(&at.1)?, "discard", &quiet_tell).await?;
         let path = frame_str(&args, "path").unwrap_or_default();
         let put: GitDiscardReply = parsed(
@@ -286,7 +284,7 @@ pub(super) fn run_discard(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostEr
             _ => return Err(usage_refusal("wsp discard takes one thread and one file.", &usage_is(ctx))),
         };
         let client = ctx.client(None).await?;
-        let at = thread_at_in(&*client, &reference, "wsp discard", false, cloud_on_in(&ctx.env)).await?;
+        let at = thread_at_in(&*client, &reference, "wsp discard", false, cloud_of(&ctx.env)).await?;
         let say = stderr_of(ctx);
         let woke = awake(&*client, &view_of(&at.1)?, "discard", &say).await?;
         let thread_id = thread_id_of(&at.0);
@@ -335,9 +333,9 @@ pub(super) fn call_fix(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<Cal
             return Err(HostError::new(FIX_CHECK_OR_CHILD));
         }
         let client = deps.client(None).await?;
-        let at = thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp fix", false, cloud_on_in(&deps.env)).await?;
+        let at = thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp fix", false, cloud_of(&deps.env)).await?;
         let kid = match &child {
-            Some(child) => Some(child_of(&*client, &at, child, "wsp fix", cloud_on_in(&deps.env)).await?),
+            Some(child) => Some(child_of(&*client, &at, child, "wsp fix", cloud_of(&deps.env)).await?),
             None => None,
         };
         let woke_id = match &check {
@@ -364,9 +362,9 @@ pub(super) fn run_fix(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>
             return Err(usage_refusal(FIX_CHECK_OR_CHILD, &usage_is(ctx)));
         }
         let client = ctx.client(None).await?;
-        let at = thread_at_in(&*client, &reference, "wsp fix", false, cloud_on_in(&ctx.env)).await?;
+        let at = thread_at_in(&*client, &reference, "wsp fix", false, cloud_of(&ctx.env)).await?;
         let kid = match &child {
-            Some(child) => Some(child_of(&*client, &at, child, "wsp fix", cloud_on_in(&ctx.env)).await?),
+            Some(child) => Some(child_of(&*client, &at, child, "wsp fix", cloud_of(&ctx.env)).await?),
             None => None,
         };
         let say = stderr_of(ctx);
@@ -386,9 +384,8 @@ pub(super) fn run_fix(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>
 pub(super) fn call_merge_in(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
         let client = deps.client(None).await?;
-        let at =
-            thread_at_in(&*client, &frame_str(&args, "lead").unwrap_or_default(), "wsp merge in", false, cloud_on_in(&deps.env)).await?;
-        let kid = child_of(&*client, &at, &frame_str(&args, "child").unwrap_or_default(), "wsp merge in", cloud_on_in(&deps.env)).await?;
+        let at = thread_at_in(&*client, &frame_str(&args, "lead").unwrap_or_default(), "wsp merge in", false, cloud_of(&deps.env)).await?;
+        let kid = child_of(&*client, &at, &frame_str(&args, "child").unwrap_or_default(), "wsp merge in", cloud_of(&deps.env)).await?;
         let lead = MergeLead { workspace: at.1.clone(), thread_id: thread_id_of(&at.0) };
         let child = ChildRef { workspace_id: kid.1.id.clone(), thread_id: thread_id_of(&kid.0) };
         let done = merged_in(&*client, &lead, &child, &quiet_tell).await?;
@@ -405,8 +402,8 @@ pub(super) fn run_merge_in(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostE
             _ => return Err(usage_refusal("wsp merge in takes a lead thread and one of its children.", &usage_is(ctx))),
         };
         let client = ctx.client(None).await?;
-        let at = thread_at_in(&*client, &lead, "wsp merge in", false, cloud_on_in(&ctx.env)).await?;
-        let kid = child_of(&*client, &at, &child, "wsp merge in", cloud_on_in(&ctx.env)).await?;
+        let at = thread_at_in(&*client, &lead, "wsp merge in", false, cloud_of(&ctx.env)).await?;
+        let kid = child_of(&*client, &at, &child, "wsp merge in", cloud_of(&ctx.env)).await?;
         let lead_ask = MergeLead { workspace: at.1.clone(), thread_id: thread_id_of(&at.0) };
         let child_ask = ChildRef { workspace_id: kid.1.id.clone(), thread_id: thread_id_of(&kid.0) };
         let say = stderr_of(ctx);
@@ -426,8 +423,7 @@ pub(super) fn call_merge(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<C
             return Ok(off_the_list("merge", "method", &["merge", "squash", "rebase"], word));
         }
         let client = deps.client(None).await?;
-        let at =
-            thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp merge", false, cloud_on_in(&deps.env)).await?;
+        let at = thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp merge", false, cloud_of(&deps.env)).await?;
         let merged = merged_pr(&*client, &at.1.id, method, frame_true(&args, "when_checks_pass"), &thread_id_of(&at.0)).await?;
         Ok(as_text(&merged_line(&thread_label(&at.0), &merged), json_of(&merged)))
     })
@@ -448,7 +444,7 @@ pub(super) fn run_merge(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErro
             ),
         };
         let client = ctx.client(None).await?;
-        let at = thread_at_in(&*client, &reference, "wsp merge", false, cloud_on_in(&ctx.env)).await?;
+        let at = thread_at_in(&*client, &reference, "wsp merge", false, cloud_of(&ctx.env)).await?;
         let merged = merged_pr(&*client, &at.1.id, method, flag_set(&ctx.flags, "when-checks-pass"), &thread_id_of(&at.0)).await?;
         ctx.out.emit(&json_of(&merged), Some(&merged_line(&thread_label(&at.0), &merged)));
         Ok(0)
@@ -459,8 +455,7 @@ pub(super) fn run_merge(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErro
 pub(super) fn call_update(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
         let client = deps.client(None).await?;
-        let at =
-            thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp update", false, cloud_on_in(&deps.env)).await?;
+        let at = thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp update", false, cloud_of(&deps.env)).await?;
         let woke = awake(&*client, &view_of(&at.1)?, "update", &quiet_tell).await?;
         let done: GitUpdateReply = parsed(
             client
@@ -485,7 +480,7 @@ pub(super) fn run_update(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErr
             _ => return Err(usage_refusal("wsp update takes one thread.", &usage_is(ctx))),
         };
         let client = ctx.client(None).await?;
-        let at = thread_at_in(&*client, &reference, "wsp update", false, cloud_on_in(&ctx.env)).await?;
+        let at = thread_at_in(&*client, &reference, "wsp update", false, cloud_of(&ctx.env)).await?;
         let say = stderr_of(ctx);
         let woke = awake(&*client, &view_of(&at.1)?, "update", &say).await?;
         let done: GitUpdateReply = parsed(
