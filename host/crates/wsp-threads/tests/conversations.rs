@@ -814,7 +814,7 @@ fn opening_answers_the_earlier_rows() {
         first.at = Some(1_000.0);
         let mut last = line("agent", "ALPHA");
         last.at = Some(3_000.0);
-        h.claude.earlier_answers(vec![Ok(EarlierRead::Read(earlier(Some("/repo/p1-wt"), Some("lab codewords"), vec![first, last], 3)))]).live_answers(vec![Some(set_of(&[]))]);
+        h.claude.earlier_answers(vec![Ok(EarlierRead::Read(earlier(Some("/repo/p1-wt"), Some("lab codewords"), vec![first, last], 3))), Ok(EarlierRead::Read(earlier(Some("/repo/p1-wt"), None, vec![], 0)))]).live_answers(vec![Some(set_of(&[]))]);
         let got = h.area.opening("ws1", Some("claude".into()), resume(ID, false), None).await.expect("an opening");
         assert_eq!((got.harness.as_str(), got.id.as_str(), got.copy, got.project.as_str()), ("claude", ID, false, "p1"));
         assert_eq!(got.cwd, Some("/repo/p1-wt".to_string()));

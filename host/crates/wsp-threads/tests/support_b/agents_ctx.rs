@@ -144,7 +144,6 @@ pub struct FakeAdapter {
     pub session_title: Option<Ability<Option<String>>>,
     pub rename_session: Option<Ability<SessionRenameWrite>>,
     pub title_for: Option<Ability<Option<String>>>,
-    /// `adapter.accountModels`: the Rust `HarnessAdapter` trait has no such method, so the area cannot reach this.
     pub account_models: Option<Ability<Option<Vec<HarnessCatalogModelProbe>>>>,
     pub attachments: Option<AttachmentRoad>,
     pub mcp_servers: bool,
@@ -227,12 +226,6 @@ impl FakeAdapter {
     fn log(&self, line: String) {
         self.calls.lock().expect("calls").push(line);
     }
-    /// `adapter.accountModels(version)` as the TS adapter has it; not on the Rust trait.
-    pub fn account_models(&self, version: Option<String>, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<Vec<HarnessCatalogModelProbe>>, ExecFailure>>> {
-        let ability = self.account_models.as_ref()?;
-        self.log(format!("accountModels {}", version.unwrap_or_default()));
-        Some(ability.run(exec))
-    }
 }
 
 impl Default for FakeAdapter {
@@ -247,6 +240,26 @@ impl HarnessAdapter for FakeAdapter {
     }
     fn steers(&self) -> bool {
         self.steers
+    }
+    fn renames(&self) -> bool {
+        self.rename_session.is_some()
+    }
+    fn asides(&self) -> bool {
+        self.aside
+    }
+    fn account_models(&self, version: Option<String>) -> Option<LocalBoxFuture<'static, Result<Option<Vec<HarnessCatalogModelProbe>>, String>>> {
+        let ability = self.account_models.as_ref()?;
+        self.log(format!("accountModels {}", version.unwrap_or_default()));
+        let step = ability.next();
+        Some(
+            async move {
+                if let Some(gate) = step.gate {
+                    gate.wait().await;
+                }
+                step.result.map_err(|e| e.message)
+            }
+            .boxed_local(),
+        )
     }
     fn revert(&self, _ask: RevertAsk) -> Option<LocalBoxFuture<'static, Result<Reverted, String>>> {
         self.reverts.then(|| async { Err("the fake adapter reverts nothing".to_string()) }.boxed_local())
