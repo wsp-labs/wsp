@@ -27,7 +27,10 @@ fn world() -> HashMap<String, Value> {
         ("usage.week.resetsAt", json!(NOW + (3 * 24 + 7) * 3_600_000)),
         ("pr.checks", checks),
         ("pr.word", Value::Null),
-        ("$check", json!({ "state": "done", "exit": 0, "out": "{\"id\":1234,\"title\":\"Round once\"}", "json": { "id": 1234, "title": "Round once" }, "runs": 1 })),
+        (
+            "$check",
+            json!({ "state": "done", "exit": 0, "out": "{\"id\":1234,\"title\":\"Round once\"}", "json": { "id": 1234, "title": "Round once" }, "runs": 1 }),
+        ),
         ("$steps", json!([{ "title": "a", "done": true }, { "title": "b", "done": false }, { "title": "c", "done": true }])),
         (
             "processes.list",
@@ -99,8 +102,21 @@ fn source_shape(head: &str) -> Option<Shape> {
             ("unread", Shape::Text),
         ]),
         "usage" => Shape::Rec(vec![
-            ("account", Shape::Rec(vec![("key", Shape::Text), ("label", Shape::Text), ("agent", Shape::Text), ("plan", Shape::Text), ("address", Shape::Text), ("computers", Shape::List(Box::new(Shape::Text)))])),
-            ("windows", Shape::List(Box::new(Shape::Rec(vec![("kind", Shape::Text), ("usedPercent", Shape::Num), ("resetsAt", Shape::Any)])))),
+            (
+                "account",
+                Shape::Rec(vec![
+                    ("key", Shape::Text),
+                    ("label", Shape::Text),
+                    ("agent", Shape::Text),
+                    ("plan", Shape::Text),
+                    ("address", Shape::Text),
+                    ("computers", Shape::List(Box::new(Shape::Text))),
+                ]),
+            ),
+            (
+                "windows",
+                Shape::List(Box::new(Shape::Rec(vec![("kind", Shape::Text), ("usedPercent", Shape::Num), ("resetsAt", Shape::Any)]))),
+            ),
             ("session", Shape::Rec(vec![("percent", Shape::Num), ("resetsAt", Shape::Any)])),
             ("week", Shape::Rec(vec![("percent", Shape::Num), ("resetsAt", Shape::Any)])),
             ("status", Shape::Text),
@@ -213,10 +229,7 @@ fn evaluates_the_examples_of_spec_04_to_the_values_its_table_gives() {
     assert_eq!(ev("orElse(pr.word, 'no pull request')"), Some(json!("no pull request")));
     assert_eq!(ev("$steps | where(item.done) | count"), Some(json!(2)));
     let lint = json!({ "name": "lint", "state": "pass", "startedAt": "2026-10-04T11:50:00Z", "completedAt": "2026-10-04T11:51:04Z" });
-    assert_eq!(
-        ev_item("item.completedAt ? duration(num(item.completedAt) - num(item.startedAt)) : 'running'", lint),
-        Some(json!("1m 4s"))
-    );
+    assert_eq!(ev_item("item.completedAt ? duration(num(item.completedAt) - num(item.startedAt)) : 'running'", lint), Some(json!("1m 4s")));
     assert_eq!(
         ev("processes.list | sortBy(item.cpu, 'desc') | take(2) | pick(name, cpu)"),
         Some(json!([{ "name": "b", "cpu": 9 }, { "name": "d", "cpu": 5 }]))
@@ -386,10 +399,8 @@ fn takes_first_list_n_as_spec_04_writes_it() {
 
 #[test]
 fn joins_on_item_id_as_on_id_and_refuses_a_key_that_is_not_a_field() {
-    let rows: HashMap<String, Value> = HashMap::from([
-        ("$a".to_string(), json!([{ "id": 1 }])),
-        ("$b".to_string(), json!([{ "id": 1, "n": 5 }])),
-    ]);
+    let rows: HashMap<String, Value> =
+        HashMap::from([("$a".to_string(), json!([{ "id": 1 }])), ("$b".to_string(), json!([{ "id": 1, "n": 5 }]))]);
     let got = evaluate_slate_expression("$a | join($b, item.id)", &ctx_over(rows, None, None, NOW));
     assert_eq!(got, Some(json!([{ "id": 1, "b": { "id": 1, "n": 5 } }])));
     assert!(check_ctx("[{ id: 1 }] | join([{ id: 1 }], item.id + 1)", true).contains(&"Q425".to_string()));

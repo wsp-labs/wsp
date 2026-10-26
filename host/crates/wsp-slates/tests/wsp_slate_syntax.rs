@@ -105,10 +105,19 @@ fn attributes_compile_to_literals_bindings_formats_and_steps() {
     <button label="Go" onPress={[set($n, $n + 1), send("Went.", $n, pr.url)]} />
   </column>
 </slate>"#);
-    assert_eq!(value_of(&d.pieces["week"].props), json!({"label": "Weekly", "value": {"bind": "usage.week.percent"}, "max": 100, "note": {"format": "resets ${until(usage.week.resetsAt)}"}}));
+    assert_eq!(
+        value_of(&d.pieces["week"].props),
+        json!({"label": "Weekly", "value": {"bind": "usage.week.percent"}, "max": 100, "note": {"format": "resets ${until(usage.week.resetsAt)}"}})
+    );
     assert_eq!(value_of(&d.pieces["text-1"].props.as_ref().unwrap()["value"]), json!({"format": "${len(pr.checks)} checks, {literal}"}));
-    assert_eq!(value_of(&d.pieces["button-1"].on.as_ref().unwrap()["press"]), json!([{"do": "set", "path": "$n", "value": {"bind": "$n + 1"}}, {"do": "send", "text": "Went.", "with": ["$n", "pr.url"]}]));
-    assert_eq!(value_of(&d.runs["check"]), json!({"kind": "cmd", "cmd": "gh api \"$URL\"", "env": {"URL": {"bind": "$url"}, "MODE": "x"}, "timeout": 20, "every": 30}));
+    assert_eq!(
+        value_of(&d.pieces["button-1"].on.as_ref().unwrap()["press"]),
+        json!([{"do": "set", "path": "$n", "value": {"bind": "$n + 1"}}, {"do": "send", "text": "Went.", "with": ["$n", "pr.url"]}])
+    );
+    assert_eq!(
+        value_of(&d.runs["check"]),
+        json!({"kind": "cmd", "cmd": "gh api \"$URL\"", "env": {"URL": {"bind": "$url"}, "MODE": "x"}, "timeout": 20, "every": 30})
+    );
     assert_eq!(value_of(&d.reactions), json!([{"on": {"change": ["$url"]}, "do": [{"do": "start", "run": "check"}]}]));
 }
 
@@ -127,14 +136,29 @@ fn common_mistakes_name_their_codes_and_lines() {
     assert_eq!(codes(&wrap(r#"<meter label="W" value={1}>"#, "")), vec!["P100"]);
     assert_eq!(codes("<slate><text>a</text><text>b</text></slate>"), vec!["D202"]);
     assert_eq!(codes(&wrap(r#"<button label="Go" onPress={() => set($x, 1)} />"#, "  <value name=\"x\" start={0} />\n")), vec!["A600"]);
-    assert_eq!(codes(&wrap("<text>x</text>", "  <value name=\"url\" start=\"\" />\n  <run name=\"r\" cmd={`gh api ${$url}`} />\n")), vec!["K700"]);
-    assert_eq!(codes(&wrap("<text>x</text>", "  <value name=\"id\" start=\"\" />\n  <run name=\"check\" cmd=\"true\" />\n  <when change={$id}>start($check)</when>\n")), vec!["A601"]);
+    assert_eq!(
+        codes(&wrap("<text>x</text>", "  <value name=\"url\" start=\"\" />\n  <run name=\"r\" cmd={`gh api ${$url}`} />\n")),
+        vec!["K700"]
+    );
+    assert_eq!(
+        codes(&wrap(
+            "<text>x</text>",
+            "  <value name=\"id\" start=\"\" />\n  <run name=\"check\" cmd=\"true\" />\n  <when change={$id}>start($check)</when>\n"
+        )),
+        vec!["A601"]
+    );
     assert_eq!(codes(&wrap("<text>Hello {name}</text>", "  <value name=\"name\" start=\"\" />\n")), vec!["X401"]);
-    assert_eq!(parse_slate(&wrap("<text>Hello {name}</text>", "  <value name=\"name\" start=\"\" />\n")).errors[0].fix.as_deref(), Some("$name"));
+    assert_eq!(
+        parse_slate(&wrap("<text>Hello {name}</text>", "  <value name=\"name\" start=\"\" />\n")).errors[0].fix.as_deref(),
+        Some("$name")
+    );
     assert_eq!(codes(&wrap("<text tone={good}>x</text>", "")), vec!["X401"]);
     assert_eq!(codes(&wrap(r#"<meter label="W" value={usage.weekley.percent} colour="red" />"#, "")), vec!["X401", "T312"]);
     let e = &parse_slate(&wrap(r#"<meter label="W" value={usage.weekley.percent} />"#, "")).errors[0];
-    assert_eq!((e.code.as_str(), e.piece.as_deref(), e.prop.as_deref(), e.line, e.fix.as_deref()), ("X401", Some("meter-1"), Some("value"), Some(3), Some("usage.week.percent")));
+    assert_eq!(
+        (e.code.as_str(), e.piece.as_deref(), e.prop.as_deref(), e.line, e.fix.as_deref()),
+        ("X401", Some("meter-1"), Some("value"), Some(3), Some("usage.week.percent"))
+    );
 }
 
 #[test]
@@ -150,7 +174,10 @@ fn a_patch_sets_a_piece_text_from_a_props_text_child_and_refuses_one_on_a_piece_
     let r = apply(&base, "<props id=\"eta\">Due in {$steps | count} steps</props>");
     assert!(r.errors.is_empty(), "{:?}", r.errors);
     assert_eq!(value_of(&applied_doc(&r).pieces["eta"].props), json!({"value": {"format": "Due in ${$steps | count} steps"}}));
-    assert_eq!(value_of(&applied_doc(&apply(&base, "<props id=\"eta\" tone=\"muted\">Later</props>")).pieces["eta"].props), json!({"value": "Later", "tone": "muted"}));
+    assert_eq!(
+        value_of(&applied_doc(&apply(&base, "<props id=\"eta\" tone=\"muted\">Later</props>")).pieces["eta"].props),
+        json!({"value": "Later", "tone": "muted"})
+    );
     let codes_of = |text: &str| parse_slate_patch(text, Some(&base)).errors.into_iter().map(|e| e.code).collect::<Vec<_>>();
     assert_eq!(codes_of("<props id=\"week\">Hi</props>"), vec!["P105"]);
     assert_eq!(codes_of("<props id=\"eta\" value=\"a\">b</props>"), vec!["T303"]);
@@ -169,7 +196,10 @@ fn a_patch_targets_a_piece_whose_id_is_also_a_runs_name() {
 fn a_patch_merges_props_and_removes_one_with_null() {
     let r = apply(&base_doc(), "<props id=\"week\" tone=\"warning\" note={null} />");
     assert!(r.errors.is_empty());
-    assert_eq!(value_of(&applied_doc(&r).pieces["week"].props), json!({"label": "Weekly", "value": {"bind": "usage.week.percent"}, "tone": "warning"}));
+    assert_eq!(
+        value_of(&applied_doc(&r).pieces["week"].props),
+        json!({"label": "Weekly", "value": {"bind": "usage.week.percent"}, "tone": "warning"})
+    );
 }
 
 #[test]
@@ -191,15 +221,26 @@ fn a_col_inside_props_merges_into_the_column_with_its_title() {
     let untoned = apply_slate_patch(
         Some(&toned),
         &slate_start_values(&toned),
-        &parse_slate_patch("<props id=\"ps\"><col title=\"CPU\" tone={null} /><col title=\"Mem\" value={item.mem} mono /></props>", Some(&toned)).ops.expect("ops"),
-        &parse_slate_patch("<props id=\"ps\"><col title=\"CPU\" tone={null} /><col title=\"Mem\" value={item.mem} mono /></props>", Some(&toned)).lines,
+        &parse_slate_patch(
+            "<props id=\"ps\"><col title=\"CPU\" tone={null} /><col title=\"Mem\" value={item.mem} mono /></props>",
+            Some(&toned),
+        )
+        .ops
+        .expect("ops"),
+        &parse_slate_patch(
+            "<props id=\"ps\"><col title=\"CPU\" tone={null} /><col title=\"Mem\" value={item.mem} mono /></props>",
+            Some(&toned),
+        )
+        .lines,
     );
     assert_eq!(
         value_of(&applied_doc(&untoned).pieces["ps"].props.as_ref().unwrap()["columns"]),
         json!([{"title": "Name", "value": {"bind": "item.name"}}, {"title": "CPU", "value": {"bind": "item.cpu"}}, {"title": "Mem", "value": {"bind": "item.mem"}, "mono": true}])
     );
     assert_eq!(codes_for_patch(&table, "<props id=\"ps\"><text>x</text></props>"), vec!["P105"]);
-    assert!(parse_slate_patch("<col title=\"CPU\" tone=\"bad\" />", Some(&table)).errors[0].message.contains("<props id=\"...\"><col ... /></props>"));
+    assert!(parse_slate_patch("<col title=\"CPU\" tone=\"bad\" />", Some(&table)).errors[0]
+        .message
+        .contains("<props id=\"...\"><col ... /></props>"));
 }
 
 fn codes_for_patch(base: &SlateDoc, text: &str) -> Vec<String> {
@@ -211,7 +252,10 @@ fn a_patch_adds_moves_removes_and_replaces_pieces_by_id() {
     let base = base_doc();
     let added = apply(&base, "<add under=\"root\" at={1}><text id=\"new\">New</text></add>");
     assert_eq!(value_of(&applied_doc(&added).pieces["column-1"].children), json!(["week", "new", "eta", "more"]));
-    assert_eq!(value_of(&applied_doc(&apply(&base, "<move id=\"eta\" under=\"more\" at={0} />")).pieces["more"].children), json!(["eta", "inner"]));
+    assert_eq!(
+        value_of(&applied_doc(&apply(&base, "<move id=\"eta\" under=\"more\" at={0} />")).pieces["more"].children),
+        json!(["eta", "inner"])
+    );
     let removed = apply(&base, "<remove id=\"more\" />");
     assert!(applied_doc(&removed).pieces.get("more").is_none());
     assert!(applied_doc(&removed).pieces.get("inner").is_none());
@@ -225,12 +269,19 @@ fn a_patch_adds_declarations_and_keeps_the_live_values_both_documents_declare() 
     let base = base_doc();
     let mut live = slate_start_values(&base);
     live.insert("steps".to_string(), json!([{"title": "a", "done": true}]));
-    let text = "<value name=\"note\" start=\"\" />\n<run name=\"check\" cmd=\"true\" />\n<when id=\"w\" change={$note} do={start($check)} />";
+    let text =
+        "<value name=\"note\" start=\"\" />\n<run name=\"check\" cmd=\"true\" />\n<when id=\"w\" change={$note} do={start($check)} />";
     let p = parse_slate_patch(text, Some(&base));
     let r = apply_slate_patch(Some(&base), &live, &p.ops.expect("ops"), &p.lines);
     assert!(r.errors.is_empty(), "{:?}", r.errors);
-    assert_eq!(value_of(&r.values.clone().expect("values")), json!({"steps": [{"title": "a", "done": true}], "note": "", "check": {"state": "idle", "runs": 0}}));
-    assert_eq!(value_of(&applied_doc(&r).reactions), json!([{"id": "w", "on": {"change": ["$note"]}, "do": [{"do": "start", "run": "check"}]}]));
+    assert_eq!(
+        value_of(&r.values.clone().expect("values")),
+        json!({"steps": [{"title": "a", "done": true}], "note": "", "check": {"state": "idle", "runs": 0}})
+    );
+    assert_eq!(
+        value_of(&applied_doc(&r).reactions),
+        json!([{"id": "w", "on": {"change": ["$note"]}, "do": [{"do": "start", "run": "check"}]}])
+    );
 }
 
 #[test]
@@ -255,7 +306,10 @@ fn json_sent_as_text_or_as_a_document_says_a_slate_is_jsx_like_text_and_shows_on
     assert_eq!(e.fix.as_deref(), Some("<slate title=\"Gold\"><number label=\"Spot\" value={$spot.json.usd} unit=\"USD\" /></slate>"));
     let as_doc = validate_slate(&json!({"title": "Gold", "sections": []}));
     assert_eq!(as_doc.errors[0].code, "D200");
-    assert_eq!(as_doc.errors[0].message, "this JSON is not a slate: a slate is the JSX-like text slate_catalog shows, sent as text, never JSON of your own");
+    assert_eq!(
+        as_doc.errors[0].message,
+        "this JSON is not a slate: a slate is the JSX-like text slate_catalog shows, sent as text, never JSON of your own"
+    );
     let version = validate_slate(&json!({"schema": 3}));
     assert_eq!((version.errors[0].code.as_str(), version.errors[0].fix.as_deref()), ("D200", Some("update wsp")));
     let wrapped = validate_slate(&json!({"slate": "<slate><text>x</text></slate>"}));
@@ -273,7 +327,10 @@ fn an_escaped_quote_in_an_attribute_string_shows_the_quoting_that_works() {
     assert!(parse_slate("<slate><run name=\"p\" cmd='python3 -c \"print(1)\"' /><text>x</text></slate>").errors.is_empty());
     let entity = parse_slate("<slate><run name=\"p\" cmd=\"python3 &quot;$SLATE_DIR/x.py&quot;\" /><text>x</text></slate>");
     assert_eq!(entity.errors[0].code, "P100");
-    assert_eq!(entity.errors[0].message, "attribute strings take no HTML entities (cmd at line 1): &quot; stays as written, nothing decodes it");
+    assert_eq!(
+        entity.errors[0].message,
+        "attribute strings take no HTML entities (cmd at line 1): &quot; stays as written, nothing decodes it"
+    );
     assert_eq!(entity.errors[0].fix.as_deref(), Some("cmd='python3 \"$SLATE_DIR/x.py\"', single quotes outside the double ones"));
     let amp = parse_slate("<slate><text value=\"Q&amp;A\" /></slate>");
     assert_eq!(amp.errors[0].code, "P100");
@@ -292,8 +349,20 @@ fn a_printed_slate_prints_a_run_a_piece_names_as_a_formula_and_reads_it_back() {
 #[test]
 fn a_dollar_written_before_a_hole_stays_a_dollar_sign() {
     let written = doc("<slate><value name=\"price\" start={12} /><text>Price: ${$price}</text></slate>");
-    let text = written.pieces.values().find(|p| p.kind == "text").and_then(|p| p.props.as_ref()).and_then(|p| p.get("value")).expect("a text value").clone();
-    let ctx = SlateEvalContext { now: 0, item: None, index: None, resolve: Rc::new(|p: &str| if p == "$price" { Some(json!(12)) } else { None }) };
+    let text = written
+        .pieces
+        .values()
+        .find(|p| p.kind == "text")
+        .and_then(|p| p.props.as_ref())
+        .and_then(|p| p.get("value"))
+        .expect("a text value")
+        .clone();
+    let ctx = SlateEvalContext {
+        now: 0,
+        item: None,
+        index: None,
+        resolve: Rc::new(|p: &str| if p == "$price" { Some(json!(12)) } else { None }),
+    };
     assert_eq!(resolve_slate_prop(&text, &ctx), Some(json!("Price: $12")));
     assert_eq!(doc(&print_slate(&written)), written);
 }
@@ -308,9 +377,18 @@ fn a_run_description_is_one_literal_line_on_a_tool_or_resource_run_and_trimmed()
     let r = value_of(&resource.document.expect("a document").runs["r"]);
     assert_eq!((r["kind"].clone(), r["description"].clone()), (json!("resource"), json!("Reads the zones")));
     let cmd = run("cmd=\"true\" description=\"Does nothing\"");
-    assert_eq!(cmd.errors.iter().map(|e| (e.code.clone(), e.message.clone())).collect::<Vec<_>>(), vec![("K701".to_string(), "a cmd run takes no description: its sheet shows the command itself".to_string())]);
-    assert_eq!(run("tool=\"cf.execute\" description={$x}").errors.iter().map(|e| e.code.clone()).collect::<Vec<_>>(), vec!["T303".to_string()]);
-    assert_eq!(run("tool=\"cf.execute\" description=\" \"").errors.iter().map(|e| e.code.clone()).collect::<Vec<_>>(), vec!["T303".to_string()]);
+    assert_eq!(
+        cmd.errors.iter().map(|e| (e.code.clone(), e.message.clone())).collect::<Vec<_>>(),
+        vec![("K701".to_string(), "a cmd run takes no description: its sheet shows the command itself".to_string())]
+    );
+    assert_eq!(
+        run("tool=\"cf.execute\" description={$x}").errors.iter().map(|e| e.code.clone()).collect::<Vec<_>>(),
+        vec!["T303".to_string()]
+    );
+    assert_eq!(
+        run("tool=\"cf.execute\" description=\" \"").errors.iter().map(|e| e.code.clone()).collect::<Vec<_>>(),
+        vec!["T303".to_string()]
+    );
 }
 
 fn json_doc(pieces: Value, extra: Value) -> SlateDoc {
@@ -329,10 +407,16 @@ fn json_doc(pieces: Value, extra: Value) -> SlateDoc {
 fn printing_and_parsing_again_gives_back_the_same_document_for_quotes_control_characters_entities_and_backticks() {
     let docs = vec![
         json_doc(json!({"t": {"type": "text", "props": {"value": "x"}}}), json!({"title": "He said \"hi\" and 'bye'"})),
-        json_doc(json!({"b": {"type": "button", "props": {"label": "Go"}, "on": {"press": [{"do": "send", "text": "a\rb\u{1}c"}]}}}), json!({})),
+        json_doc(
+            json!({"b": {"type": "button", "props": {"label": "Go"}, "on": {"press": [{"do": "send", "text": "a\rb\u{1}c"}]}}}),
+            json!({}),
+        ),
         json_doc(json!({"s": {"type": "section", "props": {"title": "Q&amp;A"}}}), json!({"values": {"v": {"start": "a &amp; b"}}})),
         json_doc(json!({"s": {"type": "section", "props": {"title": "x", "note": {"format": "a `b` ${$v} $${c}"}}}}), json!({})),
-        json_doc(json!({"o": {"type": "output", "props": {"run": "$r"}}}), json!({"runs": {"r": {"kind": "cmd", "cmd": "echo '&amp;' \"x\""}}})),
+        json_doc(
+            json!({"o": {"type": "output", "props": {"run": "$r"}}}),
+            json!({"runs": {"r": {"kind": "cmd", "cmd": "echo '&amp;' \"x\""}}}),
+        ),
         json_doc(
             json!({"o": {"type": "output", "props": {"run": "$r"}}}),
             json!({"runs": {"r": {"kind": "tool", "server": "cf", "tool": "execute", "args": {"code": "1"}, "description": "Reads the \"last\" hour"}, "s": {"kind": "resource", "server": "cf", "uri": "cf://z", "description": "Reads the zones"}}}),
@@ -431,17 +515,28 @@ fn a_literal_that_does_not_read_names_the_text_it_stopped_at_in_utf16_units() {
     let r = parse_slate("<slate><value name=\"v\" start={😀😀😀😀😀😀😀😀😀😀} /><column><text>x</text></column></slate>");
     let e = &r.errors[0];
     assert_eq!(e.code, "S503");
-    assert_eq!(e.message, format!("start takes a literal (a string, a number, true, false, null, a list or a record of literals): not a literal: \"{}\"", "😀".repeat(8)));
+    assert_eq!(
+        e.message,
+        format!(
+            "start takes a literal (a string, a number, true, false, null, a list or a record of literals): not a literal: \"{}\"",
+            "😀".repeat(8)
+        )
+    );
 }
 
 #[test]
 fn a_record_literal_keeps_javascript_key_order_with_index_keys_first() {
-    let d = doc("<slate><value name=\"v\" start={{ \"2\": 1, b: 2, \"10\": 3, \"01\": 4, \"1\": 5 }} /><column><text>x</text></column></slate>");
+    let d = doc(
+        "<slate><value name=\"v\" start={{ \"2\": 1, b: 2, \"10\": 3, \"01\": 4, \"1\": 5 }} /><column><text>x</text></column></slate>",
+    );
     let keys: Vec<&str> = d.values["v"].start.as_object().expect("a record").keys().map(String::as_str).collect();
     assert_eq!(keys, vec!["1", "2", "10", "b", "01"]);
     let bare = parse_slate("<slate><value name=\"v\" start={{ 10: 3 }} /><column><text>x</text></column></slate>");
     assert_eq!(bare.errors[0].code, "S503");
-    assert_eq!(bare.errors[0].message, "start takes a literal (a string, a number, true, false, null, a list or a record of literals): a key at \"10: 3 }\"");
+    assert_eq!(
+        bare.errors[0].message,
+        "start takes a literal (a string, a number, true, false, null, a list or a record of literals): a key at \"10: 3 }\""
+    );
 }
 
 #[test]

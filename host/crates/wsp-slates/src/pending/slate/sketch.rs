@@ -34,13 +34,18 @@ pub fn sketch_slate(doc: Option<&SlateDoc>, values: &SlateValues, o: SketchOptio
     let pieces = doc.pieces.len();
     let bound: usize = doc.pieces.values().map(|p| p.props.iter().flatten().map(|(_, v)| bound_count(Some(v))).sum::<usize>()).sum();
     let plotted = if unbound { Vec::new() } else { plot_problems(&doc, &reader) };
-    let (warn_plot, err_plot): (Vec<SlateProblem>, Vec<SlateProblem>) = plotted.into_iter().partition(|p| SLATE_WARNINGS.contains(&p.code.as_str()));
+    let (warn_plot, err_plot): (Vec<SlateProblem>, Vec<SlateProblem>) =
+        plotted.into_iter().partition(|p| SLATE_WARNINGS.contains(&p.code.as_str()));
     let problems: Vec<SlateProblem> = o.problems.iter().cloned().chain(err_plot).collect();
     let warned: Vec<SlateProblem> = o.warnings.iter().cloned().chain(warn_plot).collect();
 
     let title = doc.title.as_ref().map(|t| format!(" {}", json_stringify(&Value::String(t.clone())))).unwrap_or_default();
     let warning_word = if warned.is_empty() { String::new() } else { format!(", {}", plural(warned.len() as f64, "warning")) };
-    let head = format!("slate{version}{title}, {}, {bound} bound, {}{warning_word}", plural(pieces as f64, "piece"), plural(problems.len() as f64, "problem"));
+    let head = format!(
+        "slate{version}{title}, {}, {bound} bound, {}{warning_word}",
+        plural(pieces as f64, "piece"),
+        plural(problems.len() as f64, "problem")
+    );
 
     let mut sketch = Sketch {
         doc: Rc::clone(&doc),
@@ -339,15 +344,29 @@ fn plot_problems(doc: &SlateDoc, reader: &OwnReader) -> Vec<SlateProblem> {
                 if let Some(list) = resolve_slate_prop(raw, &read).as_ref().and_then(Value::as_array) {
                     let bad: Vec<Value> = list.iter().filter(|v| wrong(v)).cloned().collect();
                     if let Some(first) = bad.first() {
-                        let said = format!("holds {} in {} of {} places, like {}, so it draws no point for them", kind_of(first), bad.len(), list.len(), shown_value(Some(first)));
+                        let said = format!(
+                            "holds {} in {} of {} places, like {}, so it draws no point for them",
+                            kind_of(first),
+                            bad.len(),
+                            list.len(),
+                            shown_value(Some(first))
+                        );
                         add(&mut out, said, "a plotted list holds numbers", first, true);
                     }
                 }
             } else if spec.time {
-                let items = if spec.binds == SlateBinds::Item { Some(resolve_slate_prop(&items_or_null, &read).unwrap_or(Value::Null)) } else { None };
+                let items = if spec.binds == SlateBinds::Item {
+                    Some(resolve_slate_prop(&items_or_null, &read).unwrap_or(Value::Null))
+                } else {
+                    None
+                };
                 let rows = items.as_ref().and_then(Value::as_array);
                 let got: Vec<Option<Value>> = match rows {
-                    Some(rows) => rows.iter().enumerate().map(|(index, row)| resolve_slate_prop(raw, &reader.context(Some(row.clone()), Some(index as i64)))).collect(),
+                    Some(rows) => rows
+                        .iter()
+                        .enumerate()
+                        .map(|(index, row)| resolve_slate_prop(raw, &reader.context(Some(row.clone()), Some(index as i64))))
+                        .collect(),
                     None => vec![resolve_slate_prop(raw, &read)],
                 };
                 let bad: Vec<Value> = got.iter().flatten().filter(|v| !v.is_null() && slate_time(Some(*v)).is_none()).cloned().collect();
@@ -384,7 +403,13 @@ fn plot_problems(doc: &SlateDoc, reader: &OwnReader) -> Vec<SlateProblem> {
                         .filter(wrong)
                         .collect();
                     if let Some(first) = bad.first() {
-                        let said = format!("read {} on {} of {} rows, like {}, so it draws no point for them", kind_of(first), bad.len(), rows.len(), shown_value(Some(first)));
+                        let said = format!(
+                            "read {} on {} of {} rows, like {}, so it draws no point for them",
+                            kind_of(first),
+                            bad.len(),
+                            rows.len(),
+                            shown_value(Some(first))
+                        );
                         add(&mut out, said, "a plotted value is a number", first, false);
                     }
                 }
@@ -556,11 +581,12 @@ impl Sketch {
         self.lines.push(line);
     }
 
-        fn look_words(&self, piece: &SlatePiece, props: &IndexMap<&str, SlatePropSpec>, reads: &IndexSet<String>) -> Vec<String> {
+    fn look_words(&self, piece: &SlatePiece, props: &IndexMap<&str, SlatePropSpec>, reads: &IndexSet<String>) -> Vec<String> {
         let ctx = self.reader.context(None, None);
         let mut words = Vec::new();
         for (name, spec) in props {
-            if spec.unseen.is_some() || spec.binds == SlateBinds::Item || reads.contains(*name) || TAG_PROPS.iter().any(|(t, _)| t == name) {
+            if spec.unseen.is_some() || spec.binds == SlateBinds::Item || reads.contains(*name) || TAG_PROPS.iter().any(|(t, _)| t == name)
+            {
                 continue;
             }
             let Some(raw) = piece.props.as_ref().and_then(|p| p.get(*name)) else { continue };

@@ -166,10 +166,8 @@ impl<C: SlatesAreaCtx + 'static> SlatesWiring<C> {
     /// spec rule 7: the thread's server, read on its box or from this computer.
     async fn mcp_spec(&self, thread_id: &str, name: &str) -> Result<McpServerSpec, HostError> {
         let ctx = &*self.ctx;
-        let workspace_id = ctx
-            .latest_on(thread_id)
-            .map(|row| row.workspace_id)
-            .or_else(|| ctx.thread_record(thread_id).map(|record| record.workspace_id));
+        let workspace_id =
+            ctx.latest_on(thread_id).map(|row| row.workspace_id).or_else(|| ctx.thread_record(thread_id).map(|record| record.workspace_id));
         let harness = harness_of(ctx, thread_id);
         let entry = workspace_id.as_deref().and_then(|workspace| ctx.live(workspace));
         let (Some(entry), Some(harness), Some(workspace_id)) = (entry, harness, workspace_id) else {
@@ -182,10 +180,7 @@ impl<C: SlatesAreaCtx + 'static> SlatesWiring<C> {
                 let machine = box_entry.borrow().record.borrow().name.clone();
                 return Err(HostError::new(machine_on_box_line(name, &machine, &computer)));
             }
-            let read = ctx
-                .agents_server(servers_target(&box_entry), &harness, name)
-                .await
-                .map_err(|e| HostError::new(read_message(&e)))?;
+            let read = ctx.agents_server(servers_target(&box_entry), &harness, name).await.map_err(|e| HostError::new(read_message(&e)))?;
             let ReadServer { spec, login } = read;
             let Some(login) = login else {
                 return Err(HostError::new(format!("{computer} did not say who its lines run as")));
@@ -368,10 +363,8 @@ impl<C: SlatesAreaCtx + 'static> SlatesDeps for SlatesWiring<C> {
         let ctx = &*self.ctx;
         let latest = ctx.latest_on(thread_id);
         let record = ctx.thread_record(thread_id);
-        let workspace_id = latest
-            .as_ref()
-            .map(|row| row.workspace_id.clone())
-            .or_else(|| record.as_ref().map(|record| record.workspace_id.clone()))?;
+        let workspace_id =
+            latest.as_ref().map(|row| row.workspace_id.clone()).or_else(|| record.as_ref().map(|record| record.workspace_id.clone()))?;
         let turn_id = ctx.running_turn(thread_id);
         let ran_in = latest.as_ref().and_then(|row| row.cwd.clone()).or_else(|| {
             let session = latest.as_ref()?.claude_session_id.as_ref()?;

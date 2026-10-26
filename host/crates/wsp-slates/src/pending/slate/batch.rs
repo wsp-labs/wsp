@@ -148,7 +148,8 @@ impl Batch {
     }
 
     fn reader_over(&self, values: &Rc<SlateValues>, row: &Row) -> SlateEvalContext {
-        OwnReader::new(self.doc.clone(), values.clone(), self.ctx.eval.resolve.clone(), self.ctx.eval.now).context(row.item.clone(), row.index)
+        OwnReader::new(self.doc.clone(), values.clone(), self.ctx.eval.resolve.clone(), self.ctx.eval.now)
+            .context(row.item.clone(), row.index)
     }
 
     fn kind(&self, name: &str) -> Option<OwnKind> {
@@ -210,10 +211,7 @@ impl Batch {
         };
         let bytes = slate_bytes(&wsp_wire::text::json_stringify(&serde_json::to_value(&next).unwrap_or(Value::Null)));
         if bytes > SLATE_LIMITS.values_bytes {
-            return Some(Refusal {
-                code: "S500",
-                why: format!("the values would pass {}", fmt_bytes(SLATE_LIMITS.values_bytes as f64)),
-            });
+            return Some(Refusal { code: "S500", why: format!("the values would pass {}", fmt_bytes(SLATE_LIMITS.values_bytes as f64)) });
         }
         if !slate_equal(get_slate_value(&self.values, path).as_ref(), Some(&value)) {
             self.values = Rc::new(next);
@@ -281,7 +279,11 @@ impl Batch {
                 }
                 let why = match &from.reaction {
                     Some(reaction) => format!("reaction {reaction}"),
-                    None => format!("a {} on {}", self.ctx.event.as_ref().map_or("press", |e| e.kind.as_str()), from.piece.as_deref().unwrap_or_default()),
+                    None => format!(
+                        "a {} on {}",
+                        self.ctx.event.as_ref().map_or("press", |e| e.kind.as_str()),
+                        from.piece.as_deref().unwrap_or_default()
+                    ),
                 };
                 self.out.starts.push(BatchStart { run: run.clone(), by: from.by.to_string(), why });
                 let record = self.ctx.start.as_ref().map(|start| start(&run, from.by))?;
@@ -299,7 +301,10 @@ impl Batch {
                 if from.by == "reaction" && !self.ctx.reaction_sends {
                     return Some("the person has not let this slate message the agent from a reaction".to_string());
                 }
-                let with: Option<Vec<String>> = s.get("with").and_then(Value::as_array).map(|paths| paths.iter().map(|p| p.as_str().unwrap_or_default().to_string()).collect());
+                let with: Option<Vec<String>> = s
+                    .get("with")
+                    .and_then(Value::as_array)
+                    .map(|paths| paths.iter().map(|p| p.as_str().unwrap_or_default().to_string()).collect());
                 let reader = self.reader_over(&self.values, &from.row);
                 let mut values = IndexMap::new();
                 for path in with.iter().flatten() {
@@ -324,8 +329,13 @@ impl Batch {
                 let reader = self.reader_over(&self.values, &from.row);
                 let mut out = SlateBatchWindowStep { step: s.clone(), piece, value: None, values: None };
                 match kind {
-                    "open" => out.value = Some(resolve_slate_prop(&s.get("target").cloned().unwrap_or(Value::Null), &reader).unwrap_or(Value::Null)),
-                    "copy" => out.value = Some(resolve_slate_prop(&s.get("text").cloned().unwrap_or(Value::Null), &reader).unwrap_or(Value::Null)),
+                    "open" => {
+                        out.value =
+                            Some(resolve_slate_prop(&s.get("target").cloned().unwrap_or(Value::Null), &reader).unwrap_or(Value::Null))
+                    }
+                    "copy" => {
+                        out.value = Some(resolve_slate_prop(&s.get("text").cloned().unwrap_or(Value::Null), &reader).unwrap_or(Value::Null))
+                    }
                     "fill" => {
                         let mut values = IndexMap::new();
                         for path in s.get("with").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str) {
@@ -366,7 +376,8 @@ impl Batch {
         let items = piece.props.as_ref().and_then(|p| p.get("items"));
         if let (true, Some(index), Some(items)) = (item.is_none(), e.index, items) {
             let listed = resolve_slate_prop(items, &self.reader_over(&self.values, &Row::default()));
-            item = listed.as_ref().and_then(Value::as_array).and_then(|list| usize::try_from(index).ok().and_then(|at| list.get(at)).cloned());
+            item =
+                listed.as_ref().and_then(Value::as_array).and_then(|list| usize::try_from(index).ok().and_then(|at| list.get(at)).cloned());
         }
         let by = if self.ctx.by == "agent" { "reaction" } else { "person" };
         let from = Origin { by, piece: Some(e.piece.clone()), reaction: None, row: Row { item, index: e.index } };
@@ -395,7 +406,8 @@ impl Batch {
             let done = on.get("done").and_then(Value::as_str).unwrap_or_default();
             let was = before.get(done);
             let now = after.get(done);
-            let terminal = now.and_then(|n| n.get("state")).and_then(Value::as_str).is_some_and(|s| matches!(s, "done" | "failed" | "cancelled"));
+            let terminal =
+                now.and_then(|n| n.get("state")).and_then(Value::as_str).is_some_and(|s| matches!(s, "done" | "failed" | "cancelled"));
             if terminal && !slate_equal(was, now) {
                 out.push((i, key));
             }
@@ -422,7 +434,15 @@ pub fn run_slate_batch(doc: &SlateDoc, values: &SlateValues, input: Vec<SlateWri
         }
         if round > SLATE_LIMITS.rounds {
             let keys: Vec<&str> = fired.iter().map(|(_, key)| key.as_str()).collect();
-            b.problem("R910", &format!("reactions ran {} rounds in one batch and stopped: {} would have fired again", SLATE_LIMITS.rounds, keys.join(", ")), None);
+            b.problem(
+                "R910",
+                &format!(
+                    "reactions ran {} rounds in one batch and stopped: {} would have fired again",
+                    SLATE_LIMITS.rounds,
+                    keys.join(", ")
+                ),
+                None,
+            );
             break;
         }
         before = Rc::clone(&b.values);

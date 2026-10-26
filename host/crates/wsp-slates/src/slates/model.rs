@@ -194,10 +194,7 @@ const SOURCE_NAMES: [&str; 6] = ["thread", "usage", "cost", "time", "git", "pr"]
 fn source_patterns() -> &'static [(&'static str, Regex)] {
     static PATTERNS: OnceLock<Vec<(&'static str, Regex)>> = OnceLock::new();
     PATTERNS.get_or_init(|| {
-        SOURCE_NAMES
-            .iter()
-            .map(|name| (*name, Regex::new(&format!(r"(?-u:\b){name}\.")).expect("a source name pattern")))
-            .collect()
+        SOURCE_NAMES.iter().map(|name| (*name, Regex::new(&format!(r"(?-u:\b){name}\.")).expect("a source name pattern"))).collect()
     })
 }
 

@@ -12,8 +12,11 @@ use wsp_wire::text::json_stringify;
 use wsp_words::js::{is_js_whitespace, js_trim, js_trim_start, number_string, JS_WS};
 use wsp_words::words::units::fmt_bytes;
 
-use super::expr::{check_slate_expression, parse_slate_expression, parse_slate_format, slate_dependencies, SlateCheckScope, SlateExpr, SlateFormatPart, SlateType, SlateTypeName};
-use super::kit::{SlateItemSpec, SlatePieceCheck, SlatePieceModule, SlatePropSpec, SlatePropType, SlateBinds};
+use super::expr::{
+    check_slate_expression, parse_slate_expression, parse_slate_format, slate_dependencies, SlateCheckScope, SlateExpr, SlateFormatPart,
+    SlateType, SlateTypeName,
+};
+use super::kit::{SlateBinds, SlateItemSpec, SlatePieceCheck, SlatePieceModule, SlatePropSpec, SlatePropType};
 use super::paths::{parse_slate_own_path, slate_own_name};
 use super::*;
 
@@ -25,7 +28,8 @@ pub struct SlateValidated {
     pub warnings: Vec<SlateProblem>,
 }
 
-const RUN_FIELDS: [&str; 15] = ["state", "why", "exit", "out", "err", "json", "lines", "startedAt", "endedAt", "ms", "runs", "cut", "stale", "refreshing", "text"];
+const RUN_FIELDS: [&str; 15] =
+    ["state", "why", "exit", "out", "err", "json", "lines", "startedAt", "endedAt", "ms", "runs", "cut", "stale", "refreshing", "text"];
 const SECRET_FIELDS: [&str; 3] = ["set", "len", "at"];
 const PANE_KINDS: [&str; 9] = ["preview", "terminal", "diff", "pr", "files", "machine", "processes", "agents", "slate"];
 const STEP_KINDS: [&str; 11] = ["set", "toggle", "start", "cancel", "send", "steer", "queue", "fill", "open", "copy", "pane"];
@@ -470,7 +474,8 @@ fn quoted(expr: &str) -> Vec<String> {
 }
 
 fn joining_mark(v: &Value) -> Option<String> {
-    let parts = if is_slate_format(v) { parse_slate_format(v.get("format").and_then(Value::as_str).unwrap_or("")).parts } else { Vec::new() };
+    let parts =
+        if is_slate_format(v) { parse_slate_format(v.get("format").and_then(Value::as_str).unwrap_or("")).parts } else { Vec::new() };
     let texts: Vec<String> = if let Some(s) = v.as_str() {
         vec![s.to_string()]
     } else if is_slate_binding(v) {
@@ -616,7 +621,12 @@ impl Validator {
         let d = &ctx.doc;
         let schema = d.get("schema");
         if schema.and_then(Value::as_f64) != Some(2.0) {
-            self.add("D200", &format!("schema {} is not a version this host knows; this host reads schema 2", js_opt(schema)), &Where::default(), Some("update wsp"));
+            self.add(
+                "D200",
+                &format!("schema {} is not a version this host knows; this host reads schema 2", js_opt(schema)),
+                &Where::default(),
+                Some("update wsp"),
+            );
         }
         if let Some(kit) = d.get("kit") {
             if kit.as_str() != Some("wsp/2") {
@@ -668,7 +678,8 @@ impl Validator {
                 );
             }
         }
-        let files: Vec<(String, String)> = d.get("files").and_then(Value::as_object).into_iter().flatten().map(|(n, t)| (n.clone(), js_str(t))).collect();
+        let files: Vec<(String, String)> =
+            d.get("files").and_then(Value::as_object).into_iter().flatten().map(|(n, t)| (n.clone(), js_str(t))).collect();
         for (file, text) in &files {
             if let Some(token) = token_in(text) {
                 self.add(
@@ -724,7 +735,12 @@ impl Validator {
         let ctx = Rc::clone(&self.ctx);
         for name in ctx.kinds.keys() {
             if !SLATE_NAME_RE.is_match(name) {
-                self.add("P103", &format!("\"{name}\" is not a name: a lowercase letter or _, then letters, digits and _"), &Where::piece(&format!("${name}")), None);
+                self.add(
+                    "P103",
+                    &format!("\"{name}\" is not a name: a lowercase letter or _, then letters, digits and _"),
+                    &Where::piece(&format!("${name}")),
+                    None,
+                );
             }
         }
         let d = &ctx.doc;
@@ -741,10 +757,21 @@ impl Validator {
         }
         for (id, _) in d.get("pieces").and_then(Value::as_object).into_iter().flatten() {
             if !SLATE_ID_RE.is_match(id) {
-                self.add("P103", &format!("\"{id}\" is not a piece id: letters, digits, dashes and _, starting with a letter"), &Where::piece(id), None);
+                self.add(
+                    "P103",
+                    &format!("\"{id}\" is not a piece id: letters, digits, dashes and _, starting with a letter"),
+                    &Where::piece(id),
+                    None,
+                );
             }
         }
-        let reaction_ids: Vec<String> = d.get("reactions").and_then(Value::as_array).into_iter().flatten().filter_map(|r| r.get("id").and_then(Value::as_str).map(str::to_string)).collect();
+        let reaction_ids: Vec<String> = d
+            .get("reactions")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|r| r.get("id").and_then(Value::as_str).map(str::to_string))
+            .collect();
         let mut unique: IndexMap<&str, ()> = IndexMap::new();
         for id in &reaction_ids {
             unique.insert(id.as_str(), ());
@@ -770,10 +797,28 @@ impl Validator {
         over(self, count("runs"), SLATE_LIMITS.runs, "K707", "runs", None);
         let reactions = d.get("reactions").and_then(Value::as_array).map_or(0, Vec::len);
         over(self, reactions, SLATE_LIMITS.reactions, "A611", "reactions", None);
-        over(self, count("pieces"), SLATE_LIMITS.pieces, "D207", "pieces", Some("bind a list to a table or a list instead of writing rows"));
-        let starts: Vec<Value> = d.get("values").and_then(Value::as_object).into_iter().flatten().map(|(_, v)| v.get("start").cloned().unwrap_or(Value::Null)).collect();
+        over(
+            self,
+            count("pieces"),
+            SLATE_LIMITS.pieces,
+            "D207",
+            "pieces",
+            Some("bind a list to a table or a list instead of writing rows"),
+        );
+        let starts: Vec<Value> = d
+            .get("values")
+            .and_then(Value::as_object)
+            .into_iter()
+            .flatten()
+            .map(|(_, v)| v.get("start").cloned().unwrap_or(Value::Null))
+            .collect();
         if json_stringify(&Value::Array(starts)).len() > SLATE_LIMITS.values_bytes {
-            self.add("S500", &format!("the values' starts are over {}", fmt_bytes(SLATE_LIMITS.values_bytes as f64)), &Where::default(), None);
+            self.add(
+                "S500",
+                &format!("the values' starts are over {}", fmt_bytes(SLATE_LIMITS.values_bytes as f64)),
+                &Where::default(),
+                None,
+            );
         }
     }
 
@@ -834,7 +879,8 @@ impl Validator {
 
     fn derived_cycles(&mut self) {
         let ctx = Rc::clone(&self.ctx);
-        let derived: Vec<(String, String)> = ctx.doc.get("derived").and_then(Value::as_object).into_iter().flatten().map(|(n, e)| (n.clone(), js_str(e))).collect();
+        let derived: Vec<(String, String)> =
+            ctx.doc.get("derived").and_then(Value::as_object).into_iter().flatten().map(|(n, e)| (n.clone(), js_str(e))).collect();
         let mut deps: IndexMap<String, Vec<String>> = IndexMap::new();
         for (name, expr) in &derived {
             let roots_of: Vec<String> = roots(&slate_dependencies(expr)).into_iter().filter(|n| ctx.derived_expr(n).is_some()).collect();
@@ -847,7 +893,14 @@ impl Validator {
         }
     }
 
-    fn derived_visit(&mut self, n: &str, stack: &mut Vec<String>, deps: &IndexMap<String, Vec<String>>, state: &mut IndexMap<String, bool>, reported: &mut HashSet<String>) {
+    fn derived_visit(
+        &mut self,
+        n: &str,
+        stack: &mut Vec<String>,
+        deps: &IndexMap<String, Vec<String>>,
+        state: &mut IndexMap<String, bool>,
+        reported: &mut HashSet<String>,
+    ) {
         match state.get(n) {
             Some(&true) => return,
             Some(&false) => {
@@ -885,7 +938,12 @@ impl Validator {
         let w = |prop: &str| Where::at(&piece, prop);
         if let Some(every) = r.get("every") {
             if !every.as_f64().is_some_and(|x| x.is_finite() && x >= SLATE_LIMITS.timer_floor_s as f64) {
-                self.add("K703", &format!("every is at least {} s", SLATE_LIMITS.timer_floor_s), &w("every"), Some(format!("every={{{}}}", SLATE_LIMITS.timer_floor_s).as_str()));
+                self.add(
+                    "K703",
+                    &format!("every is at least {} s", SLATE_LIMITS.timer_floor_s),
+                    &w("every"),
+                    Some(format!("every={{{}}}", SLATE_LIMITS.timer_floor_s).as_str()),
+                );
             }
         }
         if let Some(confirm) = nn(r.get("confirm")).or_else(|| r.get("confirm").filter(|c| !c.is_null())) {
@@ -897,7 +955,12 @@ impl Validator {
             }
         }
         if is_true(r.get("always")) && r.get("every").is_none() {
-            self.add("K703", "always keeps a timer running while the slate is not shown, so it needs every", &w("always"), Some("every={60} always"));
+            self.add(
+                "K703",
+                "always keeps a timer running while the slate is not shown, so it needs every",
+                &w("always"),
+                Some("every={60} always"),
+            );
         }
         let kind = r.get("kind").and_then(Value::as_str);
         if kind == Some("cmd") {
@@ -917,7 +980,12 @@ impl Validator {
             }
             if let Some(timeout) = r.get("timeout") {
                 if !timeout.as_f64().is_some_and(|t| t.is_finite() && t > 0.0 && t <= SLATE_LIMITS.timeout_max_s as f64) {
-                    self.add("K704", &format!("timeout is seconds up to {}", SLATE_LIMITS.timeout_max_s), &w("timeout"), Some(format!("timeout={{{}}}", SLATE_LIMITS.timeout_default_s).as_str()));
+                    self.add(
+                        "K704",
+                        &format!("timeout is seconds up to {}", SLATE_LIMITS.timeout_max_s),
+                        &w("timeout"),
+                        Some(format!("timeout={{{}}}", SLATE_LIMITS.timeout_default_s).as_str()),
+                    );
                 }
             }
             if let Some(on) = r.get("on") {
@@ -928,7 +996,18 @@ impl Validator {
             let mut secret_env: Vec<(String, String)> = Vec::new();
             for (k, v) in r.get("env").and_then(Value::as_object).into_iter().flatten() {
                 if !ENV_NAME_RE.is_match(k) {
-                    self.add("K702", &format!("{k} is not an environment variable name: {ENV_NAME_FIX}"), &w("env"), Some(k.to_uppercase().chars().map(|c| if c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_' { c } else { '_' }).collect::<String>().as_str()));
+                    self.add(
+                        "K702",
+                        &format!("{k} is not an environment variable name: {ENV_NAME_FIX}"),
+                        &w("env"),
+                        Some(
+                            k.to_uppercase()
+                                .chars()
+                                .map(|c| if c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_' { c } else { '_' })
+                                .collect::<String>()
+                                .as_str(),
+                        ),
+                    );
                 }
                 self.prop_value(v, &w(&format!("env.{k}")), &ExprOpts { secret_ok: true, ..ExprOpts::default() });
                 for s in self.secrets_in(v) {
@@ -989,7 +1068,8 @@ impl Validator {
 
     fn files(&mut self) {
         let ctx = Rc::clone(&self.ctx);
-        let files: Vec<(String, String)> = ctx.doc.get("files").and_then(Value::as_object).into_iter().flatten().map(|(n, t)| (n.clone(), js_str(t))).collect();
+        let files: Vec<(String, String)> =
+            ctx.doc.get("files").and_then(Value::as_object).into_iter().flatten().map(|(n, t)| (n.clone(), js_str(t))).collect();
         let names: Vec<String> = files.iter().map(|(n, _)| n.clone()).collect();
         if files.len() > SLATE_LIMITS.files {
             self.add("K709", &format!("{} files; the most is {}", files.len(), SLATE_LIMITS.files), &Where::default(), None);
@@ -1155,7 +1235,12 @@ impl Validator {
             };
             if module.runs == "window" && trigger != "press" {
                 let on = if trigger == "reaction" { "reaction".to_string() } else { format!("{trigger} handler") };
-                self.add("A608", &format!("{do_text} runs in the window and goes on a press, not on a {on}"), w, Some(format!("onPress={{{do_text}(...)}}").as_str()));
+                self.add(
+                    "A608",
+                    &format!("{do_text} runs in the window and goes on a press, not on a {on}"),
+                    w,
+                    Some(format!("onPress={{{do_text}(...)}}").as_str()),
+                );
             }
             match do_text.as_str() {
                 "set" | "toggle" => {
@@ -1167,10 +1252,20 @@ impl Validator {
                     match self.ctx.kinds.get(&p.name).copied() {
                         None => {
                             let names: Vec<String> = self.ctx.kinds.keys().cloned().collect();
-                            self.add("S501", &format!("${} is not declared; add <value name=\"{}\" start=... />", p.name, p.name), w, slate_nearest(&p.name, &names).as_deref());
+                            self.add(
+                                "S501",
+                                &format!("${} is not declared; add <value name=\"{}\" start=... />", p.name, p.name),
+                                w,
+                                slate_nearest(&p.name, &names).as_deref(),
+                            );
                         }
                         Some(Kind::Derived) => {
-                            self.add("A607", &format!("${} is derived and cannot be written; write the value it reads, or make it a value", p.name), w, None);
+                            self.add(
+                                "A607",
+                                &format!("${} is derived and cannot be written; write the value it reads, or make it a value", p.name),
+                                w,
+                                None,
+                            );
                         }
                         Some(Kind::Run) => {
                             self.add("A607", &format!("${} is a run; its result is the host's to write", p.name), w, None);
@@ -1192,12 +1287,7 @@ impl Validator {
                     if self.ctx.kinds.get(&run) != Some(&Kind::Run) {
                         let word = kind_word_of(self.ctx.kinds.get(&run).copied()).unwrap_or("not declared");
                         let runs = self.run_names();
-                        self.add(
-                            "K702",
-                            &format!("{do_text} names a run: ${run} is {word}"),
-                            w,
-                            slate_nearest(&run, &runs).as_deref(),
-                        );
+                        self.add("K702", &format!("{do_text} names a run: ${run} is {word}"), w, slate_nearest(&run, &runs).as_deref());
                     }
                 }
                 "send" | "steer" | "queue" | "fill" => {
@@ -1272,7 +1362,14 @@ impl Validator {
         }
     }
 
-    fn cycle_visit(&mut self, n: &str, stack: &mut Vec<(String, String)>, edges: &[(String, String, String)], state: &mut IndexMap<String, bool>, reported: &mut bool) {
+    fn cycle_visit(
+        &mut self,
+        n: &str,
+        stack: &mut Vec<(String, String)>,
+        edges: &[(String, String, String)],
+        state: &mut IndexMap<String, bool>,
+        reported: &mut bool,
+    ) {
         if *reported || state.get(n) == Some(&true) {
             return;
         }
@@ -1281,7 +1378,12 @@ impl Validator {
             let said: Vec<String> = stack[idx..].iter().map(|(_, why)| why.clone()).collect();
             if said.iter().any(|s| s.starts_with("when")) {
                 *reported = true;
-                self.add("A610", &format!("reactions and derived values form a cycle: {}", said.join("; ")), &Where::default(), Some("compute it as a <derived> value instead of setting it back"));
+                self.add(
+                    "A610",
+                    &format!("reactions and derived values form a cycle: {}", said.join("; ")),
+                    &Where::default(),
+                    Some("compute it as a <derived> value instead of setting it back"),
+                );
             }
             return;
         }
@@ -1341,7 +1443,12 @@ impl Validator {
         if let Some(fallback) = p.get("fallback").and_then(Value::as_str) {
             if fallback != "drop" {
                 if pieces.and_then(|m| m.get(fallback)).is_none() {
-                    self.add("D203", &format!("fallback names {fallback}, which is not a piece"), &Where::at(id, "fallback"), slate_nearest(fallback, &piece_ids).as_deref());
+                    self.add(
+                        "D203",
+                        &format!("fallback names {fallback}, which is not a piece"),
+                        &Where::at(id, "fallback"),
+                        slate_nearest(fallback, &piece_ids).as_deref(),
+                    );
                 } else {
                     self.walk(fallback, depth + 1, &sub_path, row.clone(), placed);
                 }
@@ -1349,11 +1456,21 @@ impl Validator {
         }
         let children: Vec<String> = p.get("children").and_then(Value::as_array).into_iter().flatten().map(js_str).collect();
         if children.len() > SLATE_LIMITS.children {
-            self.add("D207", &format!("{id} has {} children; the most is {}", children.len(), SLATE_LIMITS.children), &Where::piece(id), Some("bind a list instead"));
+            self.add(
+                "D207",
+                &format!("{id} has {} children; the most is {}", children.len(), SLATE_LIMITS.children),
+                &Where::piece(id),
+                Some("bind a list instead"),
+            );
         }
         for c in &children {
             if pieces.and_then(|m| m.get(c)).is_none() {
-                self.add("D203", &format!("{id} holds {c}, which is not a piece"), &Where::piece(id), slate_nearest(c, &piece_ids).as_deref());
+                self.add(
+                    "D203",
+                    &format!("{id} holds {c}, which is not a piece"),
+                    &Where::piece(id),
+                    slate_nearest(c, &piece_ids).as_deref(),
+                );
                 continue;
             }
             self.walk(c, depth + 1, &sub_path, child_row.clone(), placed);
@@ -1391,7 +1508,12 @@ impl Validator {
             }
             let Some(ps) = spec.props.get(name.as_str()) else {
                 if let Some(reserved) = slate_reserved_prop(name) {
-                    self.add("T312", &format!("{name} is not a prop a slate can set; wsp draws the style. Use {reserved}."), &Where::at(id, name), Some(reserved));
+                    self.add(
+                        "T312",
+                        &format!("{name} is not a prop a slate can set; wsp draws the style. Use {reserved}."),
+                        &Where::at(id, name),
+                        Some(reserved),
+                    );
                 } else if RUN_ATTRS.contains(&name.as_str()) {
                     let example = if name == "every" { "every={60}".to_string() } else { format!("{name}=...") };
                     self.add(
@@ -1420,7 +1542,12 @@ impl Validator {
                 continue;
             }
             if spec.interactive && *name == "label" {
-                self.add("T307", &format!("a {ty_name} needs a label for people using a screen reader"), &Where::at(id, name), Some("label=\"...\""));
+                self.add(
+                    "T307",
+                    &format!("a {ty_name} needs a label for people using a screen reader"),
+                    &Where::at(id, name),
+                    Some("label=\"...\""),
+                );
             } else {
                 self.add("T304", &format!("{ty_name} \"{id}\" needs {name}"), &Where::at(id, name), None);
             }
@@ -1471,7 +1598,12 @@ impl Validator {
                     let t = ctx.doc.get("pieces").and_then(|m| m.get(c)).and_then(|x| x.get("type")).and_then(Value::as_str);
                     if let Some(t) = t {
                         if !limit.types.contains(&t) {
-                            self.add("T309", &format!("{ty_name} takes {} children, not {t}", or_list(limit.types)), &Where::piece(id), None);
+                            self.add(
+                                "T309",
+                                &format!("{ty_name} takes {} children, not {t}", or_list(limit.types)),
+                                &Where::piece(id),
+                                None,
+                            );
                         }
                     }
                 }
@@ -1511,7 +1643,16 @@ impl Validator {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn items(&mut self, id: &str, prop: &str, v: &Value, tag: &str, spec: &SlateItemSpec, row: Option<SlateType>, outer: Option<SlateType>) {
+    fn items(
+        &mut self,
+        id: &str,
+        prop: &str,
+        v: &Value,
+        tag: &str,
+        spec: &SlateItemSpec,
+        row: Option<SlateType>,
+        outer: Option<SlateType>,
+    ) {
         let Some(list) = v.as_array() else {
             self.add("T303", &format!("{prop} is a list of <{tag}> items"), &Where::at(id, prop), None);
             return;
@@ -1551,11 +1692,21 @@ impl Validator {
                 }
                 let Some(fs) = spec.fields.get(k.as_str()) else {
                     if let Some(reserved) = slate_reserved_prop(k) {
-                        self.add("T312", &format!("{k} is not a prop a slate can set; use {reserved}"), &Where::at(id, &format!("{wh}.{k}")), Some(reserved));
+                        self.add(
+                            "T312",
+                            &format!("{k} is not a prop a slate can set; use {reserved}"),
+                            &Where::at(id, &format!("{wh}.{k}")),
+                            Some(reserved),
+                        );
                     } else {
                         let keys: Vec<String> = spec.fields.keys().map(|f| f.to_string()).collect();
                         let fix = slate_nearest(k, &keys);
-                        self.add("T302", &format!("<{tag}> has no {k}; it takes {}", keys.join(", ")), &Where::at(id, &format!("{wh}.{k}")), fix.as_deref());
+                        self.add(
+                            "T302",
+                            &format!("<{tag}> has no {k}; it takes {}", keys.join(", ")),
+                            &Where::at(id, &format!("{wh}.{k}")),
+                            fix.as_deref(),
+                        );
                     }
                     continue;
                 };
@@ -1612,7 +1763,12 @@ impl Validator {
                 let kind = self.ctx.kinds.get(&m).copied();
                 let Some(kind) = kind else {
                     let names: Vec<String> = self.ctx.kinds.keys().cloned().collect();
-                    self.add("S501", &format!("${m} is not declared; add <value name=\"{m}\" start=... />"), w, slate_nearest(&m, &names).as_deref());
+                    self.add(
+                        "S501",
+                        &format!("${m} is not declared; add <value name=\"{m}\" start=... />"),
+                        w,
+                        slate_nearest(&m, &names).as_deref(),
+                    );
                     return;
                 };
                 if kind == Kind::Secret && ty != "input" {
@@ -1628,7 +1784,9 @@ impl Validator {
             let t = self.prop_value(v, w, &opts);
             if let Some(t) = t {
                 let wants_number = matches!(ps.prop_type, SlatePropType::Number | SlatePropType::Integer);
-                if wants_number && matches!(t.t, SlateTypeName::String | SlateTypeName::List | SlateTypeName::Record | SlateTypeName::Boolean) {
+                if wants_number
+                    && matches!(t.t, SlateTypeName::String | SlateTypeName::List | SlateTypeName::Record | SlateTypeName::Boolean)
+                {
                     let (text, fix) = match t.t {
                         SlateTypeName::String => ("text".to_string(), Some("num(...)")),
                         SlateTypeName::List => ("a list".to_string(), Some("len(...)")),
@@ -1637,7 +1795,9 @@ impl Validator {
                     };
                     self.add("X408", &format!("{name} takes a number; this formula gives {text}"), w, fix);
                 }
-                if matches!(ps.prop_type, SlatePropType::List) && matches!(t.t, SlateTypeName::String | SlateTypeName::Number | SlateTypeName::Boolean) {
+                if matches!(ps.prop_type, SlatePropType::List)
+                    && matches!(t.t, SlateTypeName::String | SlateTypeName::Number | SlateTypeName::Boolean)
+                {
                     let text = match t.t {
                         SlateTypeName::String => "text".to_string(),
                         SlateTypeName::Number => "a number".to_string(),
@@ -1656,7 +1816,12 @@ impl Validator {
                 Some(s) if LOCAL_NAME_RE.is_match(s) => s.to_string(),
                 _ => "name".to_string(),
             };
-            self.add("X410", &format!("{name} on {ty} is two-way and binds a value: {name}={{$name}}"), w, Some(format!("{name}={{${fix_name}}}").as_str()));
+            self.add(
+                "X410",
+                &format!("{name} on {ty} is two-way and binds a value: {name}={{$name}}"),
+                w,
+                Some(format!("{name}={{${fix_name}}}").as_str()),
+            );
             return;
         }
         if ps.prop_type == SlatePropType::Path {
@@ -1690,7 +1855,10 @@ impl Validator {
             };
             self.add(
                 "T303",
-                &format!("{name} is read per row, a formula over item: {name}={{item.{field}}}; {} would be the same on every row", json_stringify(v)),
+                &format!(
+                    "{name} is read per row, a formula over item: {name}={{item.{field}}}; {} would be the same on every row",
+                    json_stringify(v)
+                ),
                 w,
                 Some(format!("{name}={{item.{field}}}").as_str()),
             );
@@ -1709,7 +1877,9 @@ impl Validator {
                     };
                     self.add(
                         "T303",
-                        &format!("{name} takes a number in braces, like {name}={{5}}, or a formula, like {name}={{$count}}; \"{text}\" is text"),
+                        &format!(
+                            "{name} takes a number in braces, like {name}={{5}}, or a formula, like {name}={{$count}}; \"{text}\" is text"
+                        ),
                         w,
                         fix.as_deref(),
                     );
@@ -1743,7 +1913,12 @@ impl Validator {
             SlatePropType::String | SlatePropType::Text => {
                 if let Some(s) = v.as_str() {
                     if looks_like_path(s) {
-                        self.add("W001", &format!("{name} is the literal text \"{s}\", which reads like a path"), w, Some(format!("{name}={{{s}}}").as_str()));
+                        self.add(
+                            "W001",
+                            &format!("{name} is the literal text \"{s}\", which reads like a path"),
+                            w,
+                            Some(format!("{name}={{{s}}}").as_str()),
+                        );
                     } else if parse_slate_own_path(s).is_some() || MUSTACHE_RE.is_match(s) {
                         let inner = unbrace(s);
                         self.add(
@@ -1760,7 +1935,12 @@ impl Validator {
                         self.add("W017", &format!("{name} has an emoji; the slate's words carry none, so say it in words"), w, None);
                     }
                     if (name == "title" || ps.head) && title_cased(s) {
-                        self.add("W018", &format!("{name} \"{s}\" is in Title Case; heads take sentence case"), w, Some(format!("{name}=\"{}\"", sentence_case(s)).as_str()));
+                        self.add(
+                            "W018",
+                            &format!("{name} \"{s}\" is in Title Case; heads take sentence case"),
+                            w,
+                            Some(format!("{name}=\"{}\"", sentence_case(s)).as_str()),
+                        );
                     }
                     return;
                 }
@@ -1775,8 +1955,10 @@ impl Validator {
 
     fn loud(&mut self) {
         let ctx = Rc::clone(&self.ctx);
-        let pieces: Vec<(String, Value)> = ctx.doc.get("pieces").and_then(Value::as_object).into_iter().flatten().map(|(k, v)| (k.clone(), v.clone())).collect();
-        let tally = |pred: &dyn Fn(&Value) -> bool| -> Vec<String> { pieces.iter().filter(|(_, p)| pred(p)).map(|(id, _)| id.clone()).collect() };
+        let pieces: Vec<(String, Value)> =
+            ctx.doc.get("pieces").and_then(Value::as_object).into_iter().flatten().map(|(k, v)| (k.clone(), v.clone())).collect();
+        let tally =
+            |pred: &dyn Fn(&Value) -> bool| -> Vec<String> { pieces.iter().filter(|(_, p)| pred(p)).map(|(id, _)| id.clone()).collect() };
         let check = |this: &mut Validator, ids: Vec<String>, what: &str| {
             if ids.len() > 1 {
                 this.add(
@@ -1856,7 +2038,14 @@ pub fn validate_slate(document: &Value) -> SlateChecked {
         );
     }
     if schema.and_then(Value::as_f64) != Some(2.0) {
-        return refused("D200", &format!("schema {} is not a version this host knows; this host reads schema 2", json_stringify(schema.unwrap_or(&Value::Null))), Some("update wsp"));
+        return refused(
+            "D200",
+            &format!(
+                "schema {} is not a version this host knows; this host reads schema 2",
+                json_stringify(schema.unwrap_or(&Value::Null))
+            ),
+            Some("update wsp"),
+        );
     }
     let mut filled = Map::new();
     for key in ["values", "derived", "runs"] {
@@ -1958,7 +2147,11 @@ fn zod_parse(s: &S, v: Option<&Value>, path: &[String], out: &mut Vec<Iss>) -> S
                     St::Ok
                 } else {
                     let options: Vec<String> = words.iter().map(|w| format!("'{w}'")).collect();
-                    out.push(issue("invalid_enum_value", path, format!("Invalid enum value. Expected {}, received '{text}'", options.join(" | "))));
+                    out.push(issue(
+                        "invalid_enum_value",
+                        path,
+                        format!("Invalid enum value. Expected {}, received '{text}'", options.join(" | ")),
+                    ));
                     St::Bad
                 }
             }
@@ -2032,7 +2225,12 @@ fn zod_parse(s: &S, v: Option<&Value>, path: &[String], out: &mut Vec<Iss>) -> S
             let extra: Vec<String> = m.keys().filter(|k| !fields.iter().any(|(f, _, _)| *f == k.as_str())).cloned().collect();
             if *strict && !extra.is_empty() {
                 let shown: Vec<String> = extra.iter().map(|k| format!("'{k}'")).collect();
-                out.push(Iss { code: "unrecognized_keys", path: path.to_vec(), message: format!("Unrecognized key(s) in object: {}", shown.join(", ")), keys: extra });
+                out.push(Iss {
+                    code: "unrecognized_keys",
+                    path: path.to_vec(),
+                    message: format!("Unrecognized key(s) in object: {}", shown.join(", ")),
+                    keys: extra,
+                });
                 status = St::Dirty;
             }
             if bad {
@@ -2074,7 +2272,11 @@ fn zod_parse(s: &S, v: Option<&Value>, path: &[String], out: &mut Vec<Iss>) -> S
             match opts.iter().find(|(t, _)| Some(*t) == tag) {
                 None => {
                     let tags: Vec<String> = opts.iter().map(|(t, _)| format!("'{t}'")).collect();
-                    out.push(issue("invalid_union_discriminator", &child_path(path, key), format!("Invalid discriminator value. Expected {}", tags.join(" | "))));
+                    out.push(issue(
+                        "invalid_union_discriminator",
+                        &child_path(path, key),
+                        format!("Invalid discriminator value. Expected {}", tags.join(" | ")),
+                    ));
                     St::Bad
                 }
                 Some((_, option)) => zod_parse(option, v, path, out),
@@ -2152,7 +2354,12 @@ fn run_schema() -> S {
         ("stream", opt(S::Lit(json!(true)))),
     ];
     cmd.extend(common());
-    let mut tool = vec![("kind", req(S::Lit(json!("tool")))), ("server", req(S::Str)), ("tool", req(S::Str)), ("args", opt(S::Rec(Box::new(S::Json))))];
+    let mut tool = vec![
+        ("kind", req(S::Lit(json!("tool")))),
+        ("server", req(S::Str)),
+        ("tool", req(S::Str)),
+        ("args", opt(S::Rec(Box::new(S::Json)))),
+    ];
     tool.push(("description", opt(S::Str)));
     tool.extend(common());
     let resource = vec![
@@ -2223,7 +2430,8 @@ fn shape_problems(issue: &Iss, doc: &Value) -> Vec<SlateProblem> {
                 return keys
                     .iter()
                     .map(|k| {
-                        let known = spec.is_some_and(|s| s.props.get(k.as_str()).is_some()) || spec.is_some_and(|s| s.items.values().any(|i| i.prop == k.as_str()));
+                        let known = spec.is_some_and(|s| s.props.get(k.as_str()).is_some())
+                            || spec.is_some_and(|s| s.items.values().any(|i| i.prop == k.as_str()));
                         let tail_text = if known {
                             format!(", and {k} goes inside props")
                         } else if spec.is_some() {
@@ -2332,11 +2540,8 @@ fn shape_problems(issue: &Iss, doc: &Value) -> Vec<SlateProblem> {
             .iter()
             .map(|k| {
                 let fix = slate_nearest(k, &DOC_KEYS.iter().map(|s| s.to_string()).collect::<Vec<_>>());
-                let extra = if area.is_none() && slate_reserved_prop(k).is_some() {
-                    "; a piece's props go under pieces.<id>.props"
-                } else {
-                    ""
-                };
+                let extra =
+                    if area.is_none() && slate_reserved_prop(k).is_some() { "; a piece's props go under pieces.<id>.props" } else { "" };
                 slate_problem("D202", &format!("the document has no {k}; it holds {}{extra}", DOC_KEYS.join(", ")), fix.as_deref())
             })
             .collect();
