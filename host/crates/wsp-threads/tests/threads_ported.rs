@@ -1303,7 +1303,7 @@ fn a_held_send_of_three_thousand_characters_keeps_them_all_in_its_record_and_its
     local(async {
         let (ctx, area, record) = cap_host(1, 1);
         let long: String = format!("two {}", "wait for a slot and keep every word. ".repeat(80)).chars().take(3000).collect();
-        assert_eq!(long.chars().count(), 2964, "node: `two ${...repeat(80)}`.slice(0, 3000).length is 2964");
+        assert_eq!(long.chars().count(), 2964, "node gives 2964 for the 3000-slice of this string");
         start_row(&ctx, "n1", "tn");
         area.cap_hold(&record, "n1", None);
         let _waiting = area.cap_wait(CapAt { prompt: long.clone(), ..at("n1", "tn") }, cap_wait_of(1, 1));
@@ -1465,17 +1465,19 @@ fn wc_reads(machine: &support::FakeMachine) -> usize {
 // TS: thread-keeps-process.test.ts:92, 106
 #[test]
 fn a_kept_process_holds_its_turn_token_between_turns_and_the_next_turn_runs_under_the_same_one() {
-    let (_ctx, area, _) = kept_host(&["t1"]);
-    let (h, _agent) = kept_hand("ws1", None, "tok-one");
-    assert!(area.hold_kept("t1", h).is_none());
-    assert_eq!(area.thread_of_token("tok-one").expect("a slate write between turns lands on its own thread"), "t1");
-    let process = area.take_kept("t1", Some(&same_launch()), Some("s1"), None).expect("the second send runs on it");
-    assert_eq!(process.borrow().turn_token, "tok-one", "the process goes on holding the token its first turn was launched with");
-    let refused = area.thread_of_token("tok-one").expect_err("while its turn runs the row carries the token, not the keep");
-    assert_eq!(refused.message, NO_SUCH_TURN);
-    let (again, _agent) = kept_hand("ws1", None, "tok-one");
-    assert!(area.hold_kept("t1", again).is_none());
-    assert_eq!(area.thread_of_token("tok-one").expect("put back after the turn"), "t1");
+    local(async {
+        let (_ctx, area, _) = kept_host(&["t1"]);
+        let (h, _agent) = kept_hand("ws1", None, "tok-one");
+        assert!(area.hold_kept("t1", h).is_none());
+        assert_eq!(area.thread_of_token("tok-one").expect("a slate write between turns lands on its own thread"), "t1");
+        let process = area.take_kept("t1", Some(&same_launch()), Some("s1"), None).expect("the second send runs on it");
+        assert_eq!(process.borrow().turn_token, "tok-one", "the process goes on holding the token its first turn was launched with");
+        let refused = area.thread_of_token("tok-one").expect_err("while its turn runs the row carries the token, not the keep");
+        assert_eq!(refused.message, NO_SUCH_TURN);
+        let (again, _agent) = kept_hand("ws1", None, "tok-one");
+        assert!(area.hold_kept("t1", again).is_none());
+        assert_eq!(area.thread_of_token("tok-one").expect("put back after the turn"), "t1");
+    });
 }
 
 // TS: thread-keeps-process.test.ts:161

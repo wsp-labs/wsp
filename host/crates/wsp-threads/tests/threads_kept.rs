@@ -475,16 +475,18 @@ fn hold_warm_keeps_two_unclaimed_and_reaps_the_oldest() {
 
 #[test]
 fn claim_warm_takes_one_once() {
-    let (ctx, area, _) = host(&[]);
-    let (h, _a) = warm_hand("ws1");
-    area.hold_warm("w1", h);
-    assert_eq!(area.warm_on("ws1", "claude").map(|(t, _)| t), Some("w1".to_string()));
-    assert_eq!(area.warm_on("ws1", "codex").map(|(t, _)| t), None);
-    assert_eq!(area.warm_on("wsb", "claude").map(|(t, _)| t), None);
-    assert_eq!(area.claim_warm("ws1", "claude"), Some("w1".to_string()));
-    assert_eq!(area.claim_warm("ws1", "claude"), None, "taken once, by one send");
-    assert_eq!(area.kept_agents.borrow().get("w1").and_then(|k| k.borrow().warm.clone()).map(|w| w.claimed), Some(true));
-    assert_eq!(ctx.called().iter().filter(|c| *c == "procScopesMoved").count(), 2);
+    local(async {
+        let (ctx, area, _) = host(&[]);
+        let (h, _a) = warm_hand("ws1");
+        area.hold_warm("w1", h);
+        assert_eq!(area.warm_on("ws1", "claude").map(|(t, _)| t), Some("w1".to_string()));
+        assert_eq!(area.warm_on("ws1", "codex").map(|(t, _)| t), None);
+        assert_eq!(area.warm_on("wsb", "claude").map(|(t, _)| t), None);
+        assert_eq!(area.claim_warm("ws1", "claude"), Some("w1".to_string()));
+        assert_eq!(area.claim_warm("ws1", "claude"), None, "taken once, by one send");
+        assert_eq!(area.kept_agents.borrow().get("w1").and_then(|k| k.borrow().warm.clone()).map(|w| w.claimed), Some(true));
+        assert_eq!(ctx.called().iter().filter(|c| *c == "procScopesMoved").count(), 2);
+    });
 }
 
 #[test]

@@ -122,13 +122,15 @@ fn invariant_3_a_token_no_running_row_or_kept_process_holds_is_refused() {
 
 #[test]
 fn thread_of_token_reads_a_kept_process_after_the_rows() {
-    let ctx = FakeThreadsCtx::new();
-    ctx.thread_records.with(|r| *r = record_map(vec![("t5", record("ws1", json!({})))]));
-    let area = ctx.area();
-    let (e, _) = entry(json!({}));
-    ctx.add_entry(e);
-    area.hold_kept("t5", support_hand("ws1", "tok-kept"));
-    assert_eq!(area.thread_of_token("tok-kept").expect("a kept process answers"), "t5");
+    local(async {
+        let ctx = FakeThreadsCtx::new();
+        ctx.thread_records.with(|r| *r = record_map(vec![("t5", record("ws1", json!({})))]));
+        let area = ctx.area();
+        let (e, _) = entry(json!({}));
+        ctx.add_entry(e);
+        area.hold_kept("t5", support_hand("ws1", "tok-kept"));
+        assert_eq!(area.thread_of_token("tok-kept").expect("a kept process answers"), "t5");
+    });
 }
 
 fn support_hand(workspace: &str, token: &str) -> wsp_threads::threads::threads::KeptHand {
