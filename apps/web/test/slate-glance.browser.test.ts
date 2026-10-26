@@ -142,7 +142,12 @@ describe.skipIf(renderSkipped !== undefined)("the glance pieces in Chromium", ()
     const page = await open("glance-facts-row", w, theme);
     const read = await page.evaluate(() => {
       const facts = document.querySelector<HTMLElement>("[data-slate-piece=facts]")!;
-      const lines = [...facts.querySelectorAll<HTMLElement>("[data-settings-label], [data-settings-word]")].map(el => new Set([...el.getClientRects()].map(r => Math.round(r.top))).size);
+      // Lines of a text are the distinct tops of a range over it; an element's own rects are one box however it wraps.
+      const lines = [...facts.querySelectorAll<HTMLElement>("[data-settings-label], [data-settings-word]")].map(el => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        return new Set([...range.getClientRects()].filter(r => r.width > 0).map(r => Math.round(r.top))).size;
+      });
       return { lines, height: facts.getBoundingClientRect().height, width: facts.getBoundingClientRect().width };
     });
     await shoot(page, "glance-facts-row", w, theme);
