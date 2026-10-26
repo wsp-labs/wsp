@@ -213,17 +213,17 @@ pub struct MachinesArea {
 impl MachinesArea {
     /// `machinesArea(ctx)` (machines.ts:15): the area over its runtime, with nothing held.
     pub fn new(rt: Rc<dyn MachinesRuntime>, config: MachinesConfig) -> Rc<Self> {
-        todo!()
+        Rc::new(MachinesArea { rt, config, holding: RefCell::default(), inflight: RefCell::default(), rereading: RefCell::default() })
     }
 
     /// The ids this process created and has not recorded, which the sweep must not read as lost.
     pub fn inflight(&self) -> Vec<String> {
-        todo!()
+        self.inflight.borrow().iter().cloned().collect()
     }
 
     /// The records whose gone verdict is being read again now.
     pub fn rereading(&self) -> Vec<String> {
-        todo!()
+        self.rereading.borrow().iter().cloned().collect()
     }
 
     /// The area's bus listeners, called by the wiring for every event in emit order: the `workspace.status` adoption
