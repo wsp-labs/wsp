@@ -29,7 +29,7 @@ minted; a ticket's socket is `me = host` but never its own road).
   `places.choose` (`pending`) (serve.ts:923-975, 1085-1089).
 - P6. `places.set`: gated; the frame less `id`, `op`, `placeId`, `reset`, `name`, `ssh` and `recipe` is the set;
   `recipe` is passed as sent when absent or `NO_RECIPE` ("none"), else as the saved recipe's slug read by name
-  (`recipes.read(word)`, whose refusal names the saved ones). Reply spreads the door's answer (serve.ts:943-948).
+  (`recipes.read(word)`, whose refusal names the saved ones). Reply is `{"id","ok":true,"place"}` on the request's own id: the door's answer is `{ place }` (serve.ts:943-948, places/manage.ts:481).
 - P7. `places.follow`: gated; `NO_RECIPE` stays, any other word becomes its slug; reply `{"id","ok":true,"place"}`.
 - P8. `places.doctor` (serve.ts:976-1007): gated; no doctor door sends `DOCTOR_UNSERVED` (no kind); a place id not
   in `list(now)` sends `no_such_place_refusal(id, rows' table names)` kind `usage`; a row that is not a joined
