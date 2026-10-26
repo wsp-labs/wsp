@@ -1109,6 +1109,12 @@ pub struct Fake {
     pub on_sub_read: RefCell<Option<Box<dyn Fn()>>>,
     /// How many `pass` calls still fail (`bus down`) before one succeeds.
     pub fail_pass: Cell<usize>,
+    /// When set, `backend_for` answers this error (the TS `backendFor` throws for a kind with no module).
+    pub backend_for_failure: RefCell<Option<HostError>>,
+    /// When set, `module_of` answers this error (the TS `moduleOf` throws for a kind it does not wire).
+    pub module_of_failure: RefCell<Option<HostError>>,
+    /// When set, `talks_to_its_tree` answers this error (the TS `boxOf` reads `projectHeld` of the caller's workspace).
+    pub talks_to_tree_failure: RefCell<Option<HostError>>,
 }
 
 pub struct World {
@@ -1291,6 +1297,9 @@ impl World {
             resume_fails: RefCell::default(),
             on_sub_read: RefCell::default(),
             fail_pass: Cell::new(0),
+            backend_for_failure: RefCell::new(None),
+            module_of_failure: RefCell::new(None),
+            talks_to_tree_failure: RefCell::new(None),
         });
         if mode == Mode::Rows {
             rt.projects_held
@@ -1590,14 +1599,20 @@ impl BootRuntime for Fake {
     fn sync_daemon(&self, entry: &Entry) {
         self.gen("syncDaemon", vec![json!(entry_id(entry))]);
     }
-    fn backend_for(&self, _record: &WorkspaceRecord) -> Arc<dyn MachineBackend> {
-        Arc::new(FakeBackend {
+    fn backend_for(&self, _record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError> {
+        if let Some(e) = self.backend_for_failure.borrow().clone() {
+            return Err(e);
+        }
+        Ok(Arc::new(FakeBackend {
             place: "solari".into(),
             shared: self.shared.clone(),
-        })
+        }))
     }
-    fn module_of(&self, kind: &str) -> Rc<dyn KindModule> {
-        self.module_for(kind)
+    fn module_of(&self, kind: &str) -> Result<Rc<dyn KindModule>, HostError> {
+        if let Some(e) = self.module_of_failure.borrow().clone() {
+            return Err(e);
+        }
+        Ok(self.module_for(kind))
     }
     async fn persist(&self, record: &WorkspaceRecord) -> Result<(), HostError> {
         tick().await;
@@ -1837,8 +1852,11 @@ impl BootRuntime for Fake {
         self.gen("actsOn", vec![json!(record.id), caller_json(caller)]);
         true
     }
-    fn talks_to_its_tree(&self, _caller: Option<&Caller>) -> bool {
-        self.talks_to_tree.get()
+    fn talks_to_its_tree(&self, _caller: Option<&Caller>) -> Result<bool, HostError> {
+        if let Some(e) = self.talks_to_tree_failure.borrow().clone() {
+            return Err(e);
+        }
+        Ok(self.talks_to_tree.get())
     }
     fn refuse_relayed(
         &self,

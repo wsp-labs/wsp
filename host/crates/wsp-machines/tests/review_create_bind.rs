@@ -80,7 +80,7 @@ impl CreateRuntime for AfterBind {
     async fn remember_project(&self, project: ProjectView) -> Result<(), HostError> {
         self.0.remember_project(project).await
     }
-    fn project_held(&self, project_id: &str) -> ProjectView {
+    fn project_held(&self, project_id: &str) -> Result<ProjectView, HostError> {
         self.0.project_held(project_id)
     }
     fn keeps_images(&self, at: &Arc<dyn MachineBackend>) -> bool {
@@ -156,7 +156,7 @@ impl CreateRuntime for AfterBind {
     fn served_by_its_computer(&self, entry: &Entry) -> Option<String> {
         self.0.served_by_its_computer(entry)
     }
-    fn daemon_answers_ms(&self, entry: &Entry) -> u64 {
+    fn daemon_answers_ms(&self, entry: &Entry) -> Result<u64, HostError> {
         self.0.daemon_answers_ms(entry)
     }
     async fn daemon_reach(&self, entry: &Entry) -> Result<(), HostError> {
@@ -176,7 +176,7 @@ impl CreateRuntime for AfterBind {
     ) -> bool {
         self.0.read_memory(record, machine, sizes).await
     }
-    fn module_of(&self, kind: &str) -> Rc<dyn KindModule> {
+    fn module_of(&self, kind: &str) -> Result<Rc<dyn KindModule>, HostError> {
         self.0.module_of(kind)
     }
     async fn write_daemon_roots(&self, entry: &Entry) -> Result<(), HostError> {

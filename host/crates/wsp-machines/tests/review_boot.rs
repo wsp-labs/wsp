@@ -267,8 +267,8 @@ impl BootRuntime for Wrap {
     async fn mark_gone(&self, entry: &Entry, machine_id: &str, reason: &str) -> Result<GoneOutcome, HostError> { let out = self.inner.mark_gone(entry, machine_id, reason).await; if self.fails("mark_gone") { return Err(HostError::new("markGone failed")); } out }
     fn idle_touch(&self, workspace_id: &str) { self.inner.idle_touch(workspace_id) }
     fn sync_daemon(&self, entry: &Entry) { self.inner.sync_daemon(entry) }
-    fn backend_for(&self, record: &WorkspaceRecord) -> Arc<dyn MachineBackend> { if let Some(b) = self.backend.borrow().clone() { return b; } self.inner.backend_for(record) }
-    fn module_of(&self, kind: &str) -> Rc<dyn KindModule> { self.inner.module_of(kind) }
+    fn backend_for(&self, record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError> { if let Some(b) = self.backend.borrow().clone() { return Ok(b); } self.inner.backend_for(record) }
+    fn module_of(&self, kind: &str) -> Result<Rc<dyn KindModule>, HostError> { self.inner.module_of(kind) }
     async fn persist(&self, record: &WorkspaceRecord) -> Result<(), HostError> { let out = self.inner.persist(record).await; if self.fails("persist") { return Err(HostError::new("persist failed")); } out }
     async fn shape_of(&self, machine: &Arc<dyn Machine>) -> Option<MachineShape> { self.inner.shape_of(machine).await }
     fn size_built(&self, shape: Option<&MachineShape>, asked: WorkspaceSize) -> WorkspaceSize { self.inner.size_built(shape, asked) }
@@ -308,7 +308,7 @@ impl BootRuntime for Wrap {
     async fn slates_ready(&self) -> Result<(), HostError> { let out = self.inner.slates_ready().await; if self.fails("slates_ready") { return Err(HostError::new("slatesReady failed")); } out }
     fn drives_thread(&self, thread_id: Option<&str>, caller: Option<&Caller>) -> bool { self.inner.drives_thread(thread_id, caller) }
     fn acts_on(&self, record: &WorkspaceRecord, caller: Option<&Caller>) -> bool { self.inner.acts_on(record, caller) }
-    fn talks_to_its_tree(&self, caller: Option<&Caller>) -> bool { self.inner.talks_to_its_tree(caller) }
+    fn talks_to_its_tree(&self, caller: Option<&Caller>) -> Result<bool, HostError> { self.inner.talks_to_its_tree(caller) }
     fn refuse_relayed(&self, record: &WorkspaceRecord, origin: Option<&Caller>, act: Option<&str>, thread: Option<&str>) -> Result<(), HostError> { self.inner.refuse_relayed(record, origin, act, thread) }
     async fn resolve_workspace(&self, reference: &str, origin: Option<&Caller>) -> Result<String, HostError> { let out = self.inner.resolve_workspace(reference, origin).await; if self.fails("resolve_workspace") { return Err(HostError::new("resolveWorkspace failed")); } out }
     async fn place_rows(&self) -> Option<Vec<ComputerRow>> { self.inner.place_rows().await }

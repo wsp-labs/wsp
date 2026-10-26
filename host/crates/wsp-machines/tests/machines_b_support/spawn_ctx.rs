@@ -633,10 +633,13 @@ impl SubSpawnCtx for FakeHost {
         held.set(held.get() + 1);
         Ok(Box::new(move || held.set(held.get() - 1)))
     }
-    fn project_held(&self, id: &str) -> ProjectView {
+    fn project_held(&self, id: &str) -> Result<ProjectView, HostError> {
         self.call("project_held", &[id]);
-        serde_json::from_value(w().borrow().project.clone())
-            .expect("the project reads as the TS writes it")
+        if let Some(e) = self.project_held_failure.borrow().clone() {
+            return Err(e);
+        }
+        Ok(serde_json::from_value(w().borrow().project.clone())
+            .expect("the project reads as the TS writes it"))
     }
     async fn copy_blocked(&self, lead: &Entry) -> AreaResult<()> {
         self.call("copy_blocked", &[&entry_id(lead)]);
@@ -679,11 +682,14 @@ impl SubSpawnCtx for FakeHost {
         }
         Ok(reply)
     }
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String {
-        match &record.sub {
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError> {
+        if let Some(e) = self.checkout_failure.borrow().clone() {
+            return Err(e);
+        }
+        Ok(match &record.sub {
             Some(sub) => sub.folder.clone(),
             None => w().borrow().lead_folder.clone(),
-        }
+        })
     }
     fn brokered(&self, kind: &str, place: Option<&str>) -> bool {
         self.call("brokered", &[kind, place.unwrap_or("")]);

@@ -32,6 +32,7 @@ use wsp_engine::machine::{
 use wsp_machines::machines::area_error::AreaError;
 use wsp_machines::machines::machines::Entry;
 use wsp_wire::views::session::SessionView;
+use wsp_words::exit::HostError;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Running a test on one thread, as the host runs.
@@ -751,6 +752,10 @@ pub struct FakeHost {
     pub stand_up_gate: RefCell<Option<Arc<Semaphore>>>,
     /// `--machines` per place, as the place door keeps it.
     pub machines_at: RefCell<IndexMap<String, f64>>,
+    /// When set, `project_held` answers this error (the TS `projectHeld` throws on an unknown project).
+    pub project_held_failure: RefCell<Option<HostError>>,
+    /// When set, `checkout_of` answers this error (the TS `checkoutOf` reaches `projectHeld`).
+    pub checkout_failure: RefCell<Option<HostError>>,
 }
 
 impl FakeHost {
@@ -775,6 +780,8 @@ impl FakeHost {
             closing: Cell::new(false),
             stand_up_gate: RefCell::new(None),
             machines_at: RefCell::new(IndexMap::new()),
+            project_held_failure: RefCell::new(None),
+            checkout_failure: RefCell::new(None),
         })
     }
 

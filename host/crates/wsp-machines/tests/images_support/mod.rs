@@ -983,6 +983,10 @@ pub struct World {
     pub import_hash: RefCell<String>,
     /// The `made` callback the golden area handed `recording_creates` last.
     pub made: RefCell<Option<Rc<dyn Fn(BuilderRef)>>>,
+    /// When set, `backend_of_kind_cloud` answers this error (the TS `backendOfKind("cloud")` throws with no backend).
+    pub backend_of_kind_failure: RefCell<Option<HostError>>,
+    /// When set, `project_ref` answers this error (the TS `refOf(projectHeld(...))` throws on an unknown project).
+    pub project_ref_failure: RefCell<Option<HostError>>,
 }
 
 impl World {
@@ -1040,6 +1044,8 @@ impl World {
             seal_hook: RefCell::new(None),
             import_hash: RefCell::new("h1".into()),
             made: RefCell::new(None),
+            backend_of_kind_failure: RefCell::new(None),
+            project_ref_failure: RefCell::new(None),
         })
     }
     pub fn with_door(&self) -> Rc<FakeDoor> {
@@ -1120,12 +1126,15 @@ impl RecordsCtx for World {
     fn home_of(&self, _r: &WorkspaceRecord) -> Option<String> {
         Some("/root".into())
     }
-    fn project_ref(&self, project: &str) -> ProjectView {
-        serde_json::from_value(json!({
+    fn project_ref(&self, project: &str) -> Result<ProjectView, HostError> {
+        if let Some(e) = self.project_ref_failure.borrow().clone() {
+            return Err(e);
+        }
+        Ok(serde_json::from_value(json!({
             "id": project, "name": "spoo", "path": "/root/spoo", "computer": "here", "source": {"kind": "folder", "path": "/root/spoo"}, "remote": "", "defaultBranch": "main",
             "memoryKey": "-root-spoo", "memoryDir": "/root/.claude-cfg/projects/-root-spoo", "createdAt": "2026-10-01T00:00:00.000Z"
         }))
-            .unwrap_or_else(|e| panic!("a project view: {e}"))
+            .unwrap_or_else(|e| panic!("a project view: {e}")))
     }
     fn daemon_note(&self, workspace_id: &str) -> Option<String> {
         self.daemon_notes.borrow().get(workspace_id).cloned()
@@ -1218,11 +1227,17 @@ impl BuildersCtx for World {
     fn backend(&self) -> Arc<dyn MachineBackend> {
         self.runtime_backend.clone()
     }
-    fn backend_of_kind_cloud(&self, place_id: Option<&str>) -> Arc<dyn MachineBackend> {
+    fn backend_of_kind_cloud(
+        &self,
+        place_id: Option<&str>,
+    ) -> Result<Arc<dyn MachineBackend>, HostError> {
         self.note(format!("backend_of_kind cloud {}", place_id.unwrap_or("-")));
-        place_id
+        if let Some(e) = self.backend_of_kind_failure.borrow().clone() {
+            return Err(e);
+        }
+        Ok(place_id
             .and_then(|p| self.backend_by_place(p))
-            .unwrap_or_else(|| self.runtime_backend.clone())
+            .unwrap_or_else(|| self.runtime_backend.clone()))
     }
     fn broker_ready(&self) -> bool {
         self.broker.get()
