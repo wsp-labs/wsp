@@ -212,3 +212,33 @@ fn real_clock_clamps_a_negative_delay_to_one_ms() {
         assert!(*hit.borrow());
     });
 }
+
+/// The engine's retries (`kill_until_gone`, `until_reached`) wait on a `RetryClock`; the runtime hands them its own
+/// clock through `RetryOnClock`, so a test clock moves their time and a sleep ends only when it is moved.
+#[test]
+fn retry_on_clock_reads_now_and_sleeps_on_the_clocks_own_timers() {
+    use wsp_core::clock::RetryOnClock;
+    use wsp_engine::errors::RetryClock;
+    run_local(async {
+        let fc = FakeClock::new(5_000);
+        let retry = RetryOnClock(fc.clock());
+        assert_eq!(retry.now(), 5_000);
+        let done = Rc::new(RefCell::new(false));
+        let seen = done.clone();
+        let sleeping = tokio::task::spawn_local(async move {
+            retry.sleep(300).await;
+            *seen.borrow_mut() = true;
+        });
+        support::settle().await;
+        assert!(!*done.borrow(), "the sleep waits for the clock");
+        assert_eq!(fc.pending(), 1);
+        fc.advance(299);
+        support::settle().await;
+        assert!(!*done.borrow());
+        fc.advance(1);
+        sleeping.await.expect("the sleep ends");
+        assert!(*done.borrow());
+        let r = RetryOnClock(fc.clock()).random();
+        assert!((0.0..1.0).contains(&r));
+    });
+}

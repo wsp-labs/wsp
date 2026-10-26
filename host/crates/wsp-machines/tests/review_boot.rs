@@ -24,7 +24,7 @@ use serde_json::{json, Value};
 use common::{flush, run_local, MemStore, T0};
 use support::{FakeMachine, Opts, Sight, World};
 use wsp_core::ids::Ids;
-use wsp_core::types::internal::{KindModule, Reopened};
+use wsp_core::types::internal::{KindModule, Reopened, ThreadRecord};
 use wsp_core::types::pending::{Clock, Store};
 use wsp_core::types::wiring::{FoundMachine, GoneOutcome, PlaceBackends, WorkspaceRecord};
 use wsp_engine::machine::{Machine, MachineBackend};
@@ -32,7 +32,7 @@ use wsp_machines::machines::boot::entries::{EntryAsk, RowAt};
 use wsp_machines::machines::boot::{
     BootArea, BootConfig, BootRuntime, CardAsk, ComputerRow, HeldEnd, LimitRow, ScopedDevice,
 };
-use wsp_machines::machines::machines::{Entry, Row, ThreadOn};
+use wsp_machines::machines::machines::{Entry, Row};
 use wsp_wire::views::place_kind::PlaceKind;
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::sub_row::SubRow;
@@ -253,7 +253,7 @@ impl BootRuntime for Wrap {
     fn local_wired(&self) -> bool { self.inner.local_wired() }
     fn live(&self) -> Rc<RefCell<IndexMap<String, Entry>>> { self.inner.live() }
     fn sessions(&self) -> Rc<RefCell<IndexMap<String, Row>>> { self.inner.sessions() }
-    fn thread_records(&self) -> Rc<RefCell<IndexMap<String, ThreadOn>>> { self.inner.thread_records() }
+    fn thread_records(&self) -> Rc<RefCell<IndexMap<String, ThreadRecord>>> { self.inner.thread_records() }
     fn builders(&self) -> wsp_machines::images::Builders { self.inner.builders() }
     fn projects_held(&self) -> Rc<RefCell<IndexMap<String, ProjectView>>> { self.inner.projects_held() }
     fn boot_work(&self) -> Rc< RefCell< IndexMap<String, futures::future::Shared<futures::future::LocalBoxFuture<'static, ()>>>, >, > { self.inner.boot_work() }
