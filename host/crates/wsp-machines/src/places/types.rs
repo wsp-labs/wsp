@@ -19,8 +19,8 @@ use wsp_store::keys::{PlaceKeyPair, Seal};
 use wsp_wire::types::agents_report::{AgentSignInState, AgentsSignInEvent, SignInLine};
 use wsp_wire::types::recipe_file::{RecipeFile, RecipeFileFoldersValue};
 use wsp_wire::views::place::{
-    PendingComputer, PlaceAddStep, PlaceApplied, PlaceBack, PlaceDialled, PlaceProvisionRow, PlaceRoad, PlaceSetAlso,
-    PlaceSetup, PlaceSetupStep, PlaceStageEvent, PlaceSync, PlaceAddJob,
+    PendingComputer, PlaceAddJob, PlaceAddStep, PlaceApplied, PlaceBack, PlaceDialled, PlaceProvisionRow, PlaceProvisionRowOutcome, PlaceRoad,
+    PlaceSetAlso, PlaceSetup, PlaceSetupStep, PlaceStageEvent, PlaceSync, PLACE_LOGIN_REFUSED_KIND,
 };
 use wsp_wire::views::place_more::{
     MacKind, PlaceDial, PlaceHolds, PlaceRemoved, PlaceRemovedTook, PlaceSettingWord, PlaceSettings, PlaceSettingsAsk,
@@ -33,7 +33,8 @@ use wsp_wire::wire::machine_link::{BackendFacts, SysSample};
 use wsp_wire::wire::place_link::{
     PlaceAuthRefusal, PlaceAuthReply, PlaceAuthRequest, PlaceJoinReply, PlaceJoinRequest, PlaceProveRequest, PlaceReport,
 };
-use wsp_words::exit::HostError;
+use wsp_words::exit::{HostError, Kind};
+use wsp_words::words::base::marked;
 
 use wsp_core::types::pending::{Clock, DaemonChannel, DaemonReach, DeviceDoor, Store};
 use wsp_core::types::wiring::{HereDaemon, PlaceBackends};
@@ -103,7 +104,7 @@ pub struct PlaceRecordRoad {
 impl PlaceRecordRoad {
     /// The road as a client may read it: `ssh`, `from` and `back` alone, field by field (views.ts:297-299).
     pub fn view(&self) -> PlaceRoad {
-        todo!()
+        PlaceRoad { ssh: self.ssh.clone(), from: self.from.clone(), back: self.back.clone() }
     }
 }
 
@@ -150,28 +151,49 @@ pub enum MadeKind {
 /// `madeBySetup(held, kind)` (types.ts:113-114): the keys of `held.picks[kind]`, in the picks' order, whose applied
 /// row `<kind>/<key>` reads `installed`. A row found already there (`present`) is never one.
 pub fn made_by_setup(held: &PlaceRecord, kind: MadeKind) -> Vec<String> {
-    todo!()
+    let MadeKind::Plugins = kind;
+    let (Some(picks), Some(applied)) = (held.picks.as_ref(), held.applied.as_ref()) else {
+        return Vec::new();
+    };
+    picks
+        .plugins
+        .keys()
+        .filter(|key| {
+            let id = format!("plugins/{}", key.0);
+            applied.rows.iter().any(|r| r.row.id == id && r.row.outcome == PlaceProvisionRowOutcome::Installed)
+        })
+        .map(|key| key.0.clone())
+        .collect()
 }
 
 /// `appliedView(applied)` (types.ts:126): each row less `pick` and `createdAt`.
 pub fn applied_view(applied: &HeldApplied) -> PlaceApplied {
-    todo!()
+    PlaceApplied {
+        hash: applied.hash.clone(),
+        at: applied.at.clone(),
+        rows: applied.rows.iter().map(|r| r.row.clone()).collect(),
+        items: applied.items.clone(),
+    }
 }
 
 /// `projectsMade(held)` (types.ts:131): the ids of `row.project` over the applied rows that name one, in row order.
 pub fn projects_made(held: &PlaceRecord) -> IndexSet<String> {
-    todo!()
+    held.applied.iter().flat_map(|applied| applied.rows.iter()).filter_map(|r| r.row.project.as_ref().map(|p| p.id.clone())).collect()
 }
 
 /// `isPlaceRecord(v)` (types.ts:133-136): an object whose `id`, `publicKey` and `name` are strings. Nothing else is
 /// checked; `place_record_of` reads such a value as a record, `None` where it is not one or does not deserialize.
 pub fn is_place_record(v: &serde_json::Value) -> bool {
-    todo!()
+    let Some(obj) = v.as_object() else { return false };
+    ["id", "publicKey", "name"].iter().all(|key| obj.get(*key).is_some_and(serde_json::Value::is_string))
 }
 
 /// The value a store document reads as, where `is_place_record` holds and the rest deserializes.
 pub fn place_record_of(v: &serde_json::Value) -> Option<PlaceRecord> {
-    todo!()
+    if !is_place_record(v) {
+        return None;
+    }
+    serde_json::from_value(v.clone()).ok()
 }
 
 /// What this computer is, as a row of the same list (types.ts:144-153).
@@ -807,27 +829,30 @@ pub const NO_PLACE_UPDATER: &str = "this runtime carries no daemon to put on a c
 
 /// `placeUpdateSlowLine(name, seconds)` (types.ts:736-737).
 pub fn place_update_slow_line(name: &str, seconds: u64) -> String {
-    todo!()
+    format!("{name} took the daemon and had not dialled back on it within {seconds}s; its row reads the new version once it does")
 }
 
 /// `placeSweptOverSshLine(name)` (types.ts:741).
 pub fn place_swept_over_ssh_line(name: &str) -> String {
-    todo!()
+    format!("wsp and the service that kept it running are removed from {name}")
 }
 
 /// `placeLoginRoadLine(name, at, said)` (types.ts:747-748).
 pub fn place_login_road_line(name: &str, at: &str, said: Option<&str>) -> String {
-    todo!()
+    match said {
+        None => format!("{name} did not answer the login at {at}"),
+        Some(said) => format!("{name} ran the leave over the login at {at} and did not finish it ({said})"),
+    }
 }
 
 /// `placeSweptOverLinkLine(name, at, said)` (types.ts:753-754).
 pub fn place_swept_over_link_line(name: &str, at: &str, said: Option<&str>) -> String {
-    todo!()
+    format!("{}, so it swept itself over the link: its files came off and the service that starts the agent there did not", place_login_road_line(name, at, said))
 }
 
 /// `placeElsewhereSweptOverLinkLine(name, away)` (types.ts:758-759).
 pub fn place_elsewhere_swept_over_link_line(name: &str, away: &str) -> String {
-    todo!()
+    format!("{away}, so nothing was changed on the machine it reaches; {name} swept itself over the link: its files came off and the service that starts the agent there did not")
 }
 
 /// The marks the TS error classes become (types.ts:764-787): a `HostError` carrying the mark is an instance of the
@@ -840,40 +865,40 @@ pub const PLACE_PROVISIONING_MARK: &str = "placeProvisioning";
 
 /// `new PlaceHostKeyChangedError(message)` (types.ts:764): no kind.
 pub fn place_host_key_changed(message: &str) -> HostError {
-    todo!()
+    HostError { marks: vec![PLACE_HOST_KEY_CHANGED_MARK.to_string()], ..HostError::new(message) }
 }
 pub fn is_place_host_key_changed(e: &HostError) -> bool {
-    todo!()
+    marked(e, PLACE_HOST_KEY_CHANGED_MARK)
 }
 
 /// `new PlaceLoginRefusedError(message)` (types.ts:769-771): kind `PLACE_LOGIN_REFUSED_KIND`.
 pub fn place_login_refused(message: &str) -> HostError {
-    todo!()
+    HostError { marks: vec![PLACE_LOGIN_REFUSED_MARK.to_string()], ..HostError::with_kind(message, Kind::parse(PLACE_LOGIN_REFUSED_KIND)) }
 }
 pub fn is_place_login_refused(e: &HostError) -> bool {
-    todo!()
+    marked(e, PLACE_LOGIN_REFUSED_MARK)
 }
 
 /// `new PlaceForksNowhereError(message)` (types.ts:775): no kind.
 pub fn place_forks_nowhere(message: &str) -> HostError {
-    todo!()
+    HostError { marks: vec![PLACE_FORKS_NOWHERE_MARK.to_string()], ..HostError::new(message) }
 }
 pub fn is_place_forks_nowhere(e: &HostError) -> bool {
-    todo!()
+    marked(e, PLACE_FORKS_NOWHERE_MARK)
 }
 
 /// `new PlaceAddTakenBackError(message)` (types.ts:779): no kind.
 pub fn place_add_taken_back(message: &str) -> HostError {
-    todo!()
+    HostError { marks: vec![PLACE_ADD_TAKEN_BACK_MARK.to_string()], ..HostError::new(message) }
 }
 pub fn is_place_add_taken_back(e: &HostError) -> bool {
-    todo!()
+    marked(e, PLACE_ADD_TAKEN_BACK_MARK)
 }
 
 /// `new PlaceProvisioningError(message)` (types.ts:785-787): kind conflict.
 pub fn place_provisioning(message: &str) -> HostError {
-    todo!()
+    HostError { marks: vec![PLACE_PROVISIONING_MARK.to_string()], ..HostError::with_kind(message, Kind::Conflict) }
 }
 pub fn is_place_provisioning(e: &HostError) -> bool {
-    todo!()
+    marked(e, PLACE_PROVISIONING_MARK)
 }
