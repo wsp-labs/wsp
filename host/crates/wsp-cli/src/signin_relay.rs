@@ -2,8 +2,9 @@
 //! A pty on a builder or a box shown in this terminal the way ssh would, the same pty watched with nobody at the
 //! terminal, and one command run quietly. Only a printed URL is read from the stream. Port of
 //! `packages/host/src/signin-relay.ts` at 65f6b89c7; the spec is `spec/signin_relay.md`.
-use std::io::IsTerminal;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::io::{IsTerminal, Write};
+use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::{Arc, Mutex, Once, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
@@ -74,6 +75,169 @@ pub struct RelayTerminal {
     pub raw: Option<Box<dyn RawMode>>,
     pub output: Arc<dyn RelayOutput>,
     pub resized: tokio::sync::mpsc::UnboundedReceiver<()>,
+}
+
+/// This process's stdin and stdout as a `RelayTerminal`: keystrokes from a thread, raw mode where stdin is a terminal,
+/// the window size where stdout is one, and one `()` per SIGWINCH only while stdout is a terminal.
+pub fn process_terminal() -> RelayTerminal {
+    let (keys, input) = tokio::sync::mpsc::unbounded_channel();
+    std::thread::spawn(move || read_keys(keys));
+    let raw: Option<Box<dyn RawMode>> =
+        std::io::stdin().is_terminal().then(|| Box::new(TtyRaw { saved: None, on: false }) as Box<dyn RawMode>);
+    let (resize_to, resized) = tokio::sync::mpsc::unbounded_channel();
+    if std::io::stdout().is_terminal() {
+        watch_resizes();
+        *RESIZE_TO.lock().unwrap() = Some(resize_to);
+    }
+    RelayTerminal { input, raw, output: Arc::new(StdoutOutput), resized }
+}
+
+fn interrupted() -> bool {
+    std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted
+}
+
+/// Polls stdin so that a relay which has gone drops its receiver stops the read without taking one more keystroke.
+fn read_keys(keys: tokio::sync::mpsc::UnboundedSender<String>) {
+    let mut buf = [0u8; 4096];
+    while !keys.is_closed() {
+        let mut fd = libc::pollfd { fd: 0, events: libc::POLLIN, revents: 0 };
+        match unsafe { libc::poll(&mut fd, 1, 100) } {
+            0 => continue,
+            n if n < 0 && interrupted() => continue,
+            n if n < 0 => return,
+            _ => {}
+        }
+        let n = unsafe { libc::read(0, buf.as_mut_ptr().cast(), buf.len()) };
+        if n < 0 && interrupted() {
+            continue;
+        }
+        if n <= 0 {
+            return;
+        }
+        let text = String::from_utf8_lossy(&buf[..n as usize]).into_owned();
+        if keys.send(text).is_err() {
+            return;
+        }
+    }
+}
+
+/// Raw mode on this process's stdin; turning it off restores the modes it had when turned on.
+struct TtyRaw {
+    saved: Option<libc::termios>,
+    on: bool,
+}
+
+impl RawMode for TtyRaw {
+    fn is_raw(&self) -> bool {
+        self.on
+    }
+
+    fn set_raw_mode(&mut self, on: bool) {
+        if on == self.on {
+            return;
+        }
+        if !on {
+            if let Some(saved) = self.saved.take() {
+                unsafe { libc::tcsetattr(0, libc::TCSANOW, &saved) };
+            }
+            self.on = false;
+            return;
+        }
+        let mut before: libc::termios = unsafe { std::mem::zeroed() };
+        if unsafe { libc::tcgetattr(0, &mut before) } != 0 {
+            return;
+        }
+        let mut raw = before;
+        unsafe { libc::cfmakeraw(&mut raw) };
+        // Output processing stays as it was: libuv's raw mode, which the TS relay runs on, leaves OPOST and ONLCR on.
+        raw.c_oflag = before.c_oflag;
+        if unsafe { libc::tcsetattr(0, libc::TCSANOW, &raw) } == 0 {
+            self.saved = Some(before);
+            self.on = true;
+        }
+    }
+}
+
+/// This process's stdout: each write is flushed, and the size is read off the terminal when stdout is one.
+struct StdoutOutput;
+
+impl RelayOutput for StdoutOutput {
+    fn write(&self, text: &str) {
+        let mut out = std::io::stdout().lock();
+        let _ = out.write_all(text.as_bytes());
+        let _ = out.flush();
+    }
+
+    fn columns(&self) -> Option<u16> {
+        window_size().map(|ws| ws.ws_col)
+    }
+
+    fn rows(&self) -> Option<u16> {
+        window_size().map(|ws| ws.ws_row)
+    }
+}
+
+fn window_size() -> Option<libc::winsize> {
+    if !std::io::stdout().is_terminal() {
+        return None;
+    }
+    let mut ws: libc::winsize = unsafe { std::mem::zeroed() };
+    (unsafe { libc::ioctl(1, libc::TIOCGWINSZ, &mut ws) } == 0).then_some(ws)
+}
+
+/// The relay channel that SIGWINCH sends to; one relay watches the window at a time.
+static RESIZE_TO: Mutex<Option<tokio::sync::mpsc::UnboundedSender<()>>> = Mutex::new(None);
+/// The write end of the self-pipe the SIGWINCH handler writes one byte to, -1 until the watch is set up.
+static RESIZE_PIPE: AtomicI32 = AtomicI32::new(-1);
+static WATCH_RESIZES: Once = Once::new();
+
+extern "C" fn on_sigwinch(_signal: libc::c_int) {
+    let fd = RESIZE_PIPE.load(Ordering::Relaxed);
+    if fd >= 0 {
+        unsafe { libc::write(fd, [0u8].as_ptr().cast(), 1) };
+    }
+}
+
+/// Installs the SIGWINCH handler and the thread that turns its bytes into `()`s, once per process.
+fn watch_resizes() {
+    WATCH_RESIZES.call_once(|| {
+        let mut fds = [0; 2];
+        if unsafe { libc::pipe(fds.as_mut_ptr()) } != 0 {
+            return;
+        }
+        let (read_end, write_end) = (fds[0], fds[1]);
+        unsafe {
+            let flags = libc::fcntl(write_end, libc::F_GETFL);
+            libc::fcntl(write_end, libc::F_SETFL, flags | libc::O_NONBLOCK);
+        }
+        RESIZE_PIPE.store(write_end, Ordering::Relaxed);
+        let mut action: libc::sigaction = unsafe { std::mem::zeroed() };
+        action.sa_sigaction = on_sigwinch as extern "C" fn(libc::c_int) as usize;
+        action.sa_flags = libc::SA_RESTART;
+        unsafe {
+            libc::sigemptyset(&mut action.sa_mask);
+            libc::sigaction(libc::SIGWINCH, &action, std::ptr::null_mut());
+        }
+        std::thread::spawn(move || relay_resizes(read_end));
+    });
+}
+
+fn relay_resizes(read_end: libc::c_int) {
+    let mut buf = [0u8; 64];
+    loop {
+        let n = unsafe { libc::read(read_end, buf.as_mut_ptr().cast(), buf.len()) };
+        if n < 0 && interrupted() {
+            continue;
+        }
+        if n <= 0 {
+            return;
+        }
+        if let Some(to) = RESIZE_TO.lock().unwrap().as_ref() {
+            for _ in 0..n {
+                let _ = to.send(());
+            }
+        }
+    }
 }
 
 /// signin-relay.ts:28-48.
