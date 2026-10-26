@@ -4,9 +4,10 @@
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use indexmap::IndexMap;
+use wsp_wire::types::js_number::JsInt;
 use wsp_wire::wire::events_union::EventUnion;
 use wsp_words::exit::HostError;
 
@@ -80,12 +81,17 @@ pub struct BusState {
 /// The bus `eventBus()` makes: the read side plus `emit` and `pass`. events.ts:59-98.
 pub struct Bus {
     pub state: RefCell<BusState>,
+    /// The bus's own handle, so `on`, which takes `&self`, can hand an unlisten a way back to the state.
+    me: Weak<Bus>,
 }
 
 /// A fresh bus with `head` 0 and an empty ring. `stream` is the id minted once for it, through the ids seam
 /// (chapter 03, rule 3.16), where the TS calls `randomUUID()` (events.ts:62).
 pub fn event_bus(stream: String) -> Rc<Bus> {
-    todo!()
+    Rc::new_cyclic(|me| Bus {
+        state: RefCell::new(BusState { listeners: IndexMap::new(), ring: VecDeque::new(), stream, head: 0 }),
+        me: me.clone(),
+    })
 }
 
 impl Bus {
@@ -94,37 +100,566 @@ impl Bus {
     /// borrow of the state held across a call (rule 3.3). The first listener `Err` stops delivery and is returned; the
     /// event stays in the ring. Answers the stamped `seq`. events.ts:81-88.
     pub fn emit(&self, event: EventUnion) -> Result<u64, HostError> {
-        todo!()
+        let (stamped, seq) = {
+            let mut st = self.state.borrow_mut();
+            st.head += 1;
+            let stamped = with_seq(event, st.head);
+            st.ring.push_back(stamped.clone());
+            while st.ring.len() > EVENT_RING_CAP {
+                st.ring.pop_front();
+            }
+            (stamped, st.head)
+        };
+        self.deliver(event_type(&stamped), &stamped)?;
+        Ok(seq)
+    }
+
+    /// Calls the `ty` listeners then the `ANY_EVENT` ones, by index, with no borrow held (rule 3.7).
+    fn deliver(&self, ty: &str, event: &EventUnion) -> Result<(), HostError> {
+        for key in [ty, ANY_EVENT] {
+            let mut i = 0;
+            loop {
+                let next = {
+                    let st = self.state.borrow();
+                    match st.listeners.get(key) {
+                        Some(list) if i < list.len() => list[i].clone(),
+                        _ => break,
+                    }
+                };
+                i += 1;
+                if let Some(listener) = next {
+                    listener(event)?;
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Delivers to every listener as `emit` does and puts nothing in the ring: `seq` is the current head where
     /// `head > 0`, and the event goes as given, its own `seq` untouched, before any emit. events.ts:91-96.
     pub fn pass(&self, event: EventUnion) -> Result<(), HostError> {
-        todo!()
+        let head = self.state.borrow().head;
+        let stamped = if head > 0 { with_seq(event, head) } else { event };
+        self.deliver(event_type(&stamped), &stamped)
     }
 }
 
 impl EventBus for Bus {
     fn on(&self, event_type: &str, listener: EventListener) -> Unlisten {
-        todo!()
+        {
+            let mut st = self.state.borrow_mut();
+            let list = st.listeners.entry(event_type.to_owned()).or_default();
+            if !list.iter().flatten().any(|l| Rc::ptr_eq(l, &listener)) {
+                list.push(Some(listener.clone()));
+            }
+        }
+        let bus = self.me.clone();
+        let key = event_type.to_owned();
+        Box::new(move || {
+            let Some(bus) = bus.upgrade() else { return };
+            let removed = {
+                let mut st = bus.state.borrow_mut();
+                let Some(list) = st.listeners.get_mut(&key) else { return };
+                list.iter_mut().find(|slot| slot.as_ref().is_some_and(|l| Rc::ptr_eq(l, &listener))).and_then(|slot| slot.take())
+            };
+            drop(removed);
+        })
     }
 
     fn since(&self, after: Option<u64>, stream: Option<&str>) -> Since {
-        todo!()
+        let st = self.state.borrow();
+        let head = st.head;
+        let own = st.stream.clone();
+        let Some(after) = after else {
+            return Since { stream: own, head, events: Vec::new(), gap: false };
+        };
+        let floor = head - st.ring.len() as u64;
+        let foreign = stream.is_some_and(|s| s != st.stream.as_str());
+        if foreign || after > head || after < floor {
+            return Since { stream: own, head, events: Vec::new(), gap: true };
+        }
+        let events = st.ring.iter().skip((after - floor) as usize).cloned().collect();
+        Since { stream: own, head, events, gap: false }
     }
 }
 
 /// The `type` key an event carries, the key `on` files its listeners under.
 pub fn event_type(event: &EventUnion) -> &'static str {
-    todo!()
+    match event {
+        EventUnion::WorkspaceCreating(_) => "workspace.creating",
+        EventUnion::WorkspaceCreated(_) => "workspace.created",
+        EventUnion::WorkspaceNapped(_) => "workspace.napped",
+        EventUnion::WorkspaceWoken(_) => "workspace.woken",
+        EventUnion::WorkspaceUpgraded(_) => "workspace.upgraded",
+        EventUnion::WorkspaceRenamed(_) => "workspace.renamed",
+        EventUnion::WorkspaceLook(_) => "workspace.look",
+        EventUnion::WorkspaceDeleted(_) => "workspace.deleted",
+        EventUnion::WorkspaceGone(_) => "workspace.gone",
+        EventUnion::WorkspaceReleased(_) => "workspace.released",
+        EventUnion::WorkspaceStatus(_) => "workspace.status",
+        EventUnion::WorkspaceReview(_) => "workspace.review",
+        EventUnion::WorkspaceViewed(_) => "workspace.viewed",
+        EventUnion::WorkspaceCost(_) => "workspace.cost",
+        EventUnion::SessionStart(_) => "session.start",
+        EventUnion::SessionDelta(_) => "session.delta",
+        EventUnion::SessionDone(_) => "session.done",
+        EventUnion::SessionEnd(_) => "session.end",
+        EventUnion::SessionSteer(_) => "session.steer",
+        EventUnion::SessionNotify(_) => "session.notify",
+        EventUnion::SessionPermission(_) => "session.permission",
+        EventUnion::SessionPermissionClosed(_) => "session.permission.closed",
+        EventUnion::SessionCheckpoint(_) => "session.checkpoint",
+        EventUnion::SessionChanges(_) => "session.changes",
+        EventUnion::SessionPlan(_) => "session.plan",
+        EventUnion::SessionCompacted(_) => "session.compacted",
+        EventUnion::SessionRetry(_) => "session.retry",
+        EventUnion::SessionContext(_) => "session.context",
+        EventUnion::SessionRun(_) => "session.run",
+        EventUnion::SessionMoved(_) => "session.moved",
+        EventUnion::SessionBehind(_) => "session.behind",
+        EventUnion::SessionNotice(_) => "session.notice",
+        EventUnion::SessionEarlier(_) => "session.earlier",
+        EventUnion::SessionCapped(_) => "session.capped",
+        EventUnion::SessionUncapped(_) => "session.uncapped",
+        EventUnion::SessionSubagent(_) => "session.subagent",
+        EventUnion::SessionSlate(_) => "session.slate",
+        EventUnion::ThreadWaited(_) => "thread.waited",
+        EventUnion::SlateValues(_) => "slate.values",
+        EventUnion::SlateRun(_) => "slate.run",
+        EventUnion::UsageAccount(_) => "usage.account",
+        EventUnion::SessionQueued(_) => "session.queued",
+        EventUnion::SessionHeld(_) => "session.held",
+        EventUnion::SessionRow(_) => "session.row",
+        EventUnion::SessionStarting(_) => "session.starting",
+        EventUnion::ThreadMarked(_) => "thread.marked",
+        EventUnion::ThreadHead(_) => "thread.head",
+        EventUnion::ThreadRewound(_) => "thread.rewound",
+        EventUnion::PortOpen(_) => "port.open",
+        EventUnion::PortClose(_) => "port.close",
+        EventUnion::InboxFile(_) => "inbox.file",
+        EventUnion::GoldenStage(_) => "golden.stage",
+        EventUnion::ForwardOpen(_) => "forward.open",
+        EventUnion::ForwardClose(_) => "forward.close",
+        EventUnion::ProjectAdded(_) => "project.added",
+        EventUnion::ProjectAdd(_) => "project.add",
+        EventUnion::ProjectRemoved(_) => "project.removed",
+        EventUnion::ProjectImport(_) => "project.import",
+        EventUnion::ProjectExport(_) => "project.export",
+        EventUnion::PreferencesChanged(_) => "preferences.changed",
+        EventUnion::ReleaseChanged(_) => "release.changed",
+        EventUnion::InitJob(_) => "init.job",
+        EventUnion::JobNeedsYou(_) => "job.needs-you",
+        EventUnion::PlaceStage(_) => "place.stage",
+        EventUnion::PlaceSetup(_) => "place.setup",
+        EventUnion::PlaceSync(_) => "place.sync",
+        EventUnion::RecipesChanged(_) => "recipes.changed",
+        EventUnion::PlacePending(_) => "place.pending",
+        EventUnion::PlaceJoined(_) => "place.joined",
+        EventUnion::PlacePresent(_) => "place.present",
+        EventUnion::PlaceAbsent(_) => "place.absent",
+        EventUnion::PlaceRemoved(_) => "place.removed",
+        EventUnion::PlaceChanged(_) => "place.changed",
+        EventUnion::AgentsChanged(_) => "agents.changed",
+        EventUnion::UsageAlert(_) => "usage.alert",
+        EventUnion::HostNotice(_) => "host.notice",
+        EventUnion::AsideText(_) => "aside.text",
+    }
 }
 
 /// The `seq` an event carries, where it carries one.
 pub fn event_seq(event: &EventUnion) -> Option<u64> {
-    todo!()
+    let seq = match event {
+        EventUnion::WorkspaceCreating(v) => v.seq,
+        EventUnion::WorkspaceCreated(v) => v.seq,
+        EventUnion::WorkspaceNapped(v) => v.seq,
+        EventUnion::WorkspaceWoken(v) => v.seq,
+        EventUnion::WorkspaceUpgraded(v) => v.seq,
+        EventUnion::WorkspaceRenamed(v) => v.seq,
+        EventUnion::WorkspaceLook(v) => v.seq,
+        EventUnion::WorkspaceDeleted(v) => v.seq,
+        EventUnion::WorkspaceGone(v) => v.seq,
+        EventUnion::WorkspaceReleased(v) => v.seq,
+        EventUnion::WorkspaceStatus(v) => v.seq,
+        EventUnion::WorkspaceReview(v) => v.seq,
+        EventUnion::WorkspaceViewed(v) => v.seq,
+        EventUnion::WorkspaceCost(v) => v.seq,
+        EventUnion::SessionStart(v) => v.seq,
+        EventUnion::SessionDelta(v) => v.seq,
+        EventUnion::SessionDone(v) => v.seq,
+        EventUnion::SessionEnd(v) => v.seq,
+        EventUnion::SessionSteer(v) => v.seq,
+        EventUnion::SessionNotify(v) => v.seq,
+        EventUnion::SessionPermission(v) => v.seq,
+        EventUnion::SessionPermissionClosed(v) => v.seq,
+        EventUnion::SessionCheckpoint(v) => v.seq,
+        EventUnion::SessionChanges(v) => v.seq,
+        EventUnion::SessionPlan(v) => v.seq,
+        EventUnion::SessionCompacted(v) => v.seq,
+        EventUnion::SessionRetry(v) => v.seq,
+        EventUnion::SessionContext(v) => v.seq,
+        EventUnion::SessionRun(v) => v.seq,
+        EventUnion::SessionMoved(v) => v.seq,
+        EventUnion::SessionBehind(v) => v.seq,
+        EventUnion::SessionNotice(v) => v.seq,
+        EventUnion::SessionEarlier(v) => v.seq,
+        EventUnion::SessionCapped(v) => v.seq,
+        EventUnion::SessionUncapped(v) => v.seq,
+        EventUnion::SessionSubagent(v) => v.seq,
+        EventUnion::SessionSlate(v) => v.seq,
+        EventUnion::ThreadWaited(v) => v.seq,
+        EventUnion::SlateValues(v) => v.seq,
+        EventUnion::SlateRun(v) => v.seq,
+        EventUnion::UsageAccount(v) => v.seq,
+        EventUnion::SessionQueued(v) => v.seq,
+        EventUnion::SessionHeld(v) => v.seq,
+        EventUnion::SessionRow(v) => v.seq,
+        EventUnion::SessionStarting(v) => v.seq,
+        EventUnion::ThreadMarked(v) => v.seq,
+        EventUnion::ThreadHead(v) => v.seq,
+        EventUnion::ThreadRewound(v) => v.seq,
+        EventUnion::PortOpen(v) => v.seq,
+        EventUnion::PortClose(v) => v.seq,
+        EventUnion::InboxFile(v) => v.seq,
+        EventUnion::GoldenStage(v) => v.seq,
+        EventUnion::ForwardOpen(v) => v.seq,
+        EventUnion::ForwardClose(v) => v.seq,
+        EventUnion::ProjectAdded(v) => v.seq,
+        EventUnion::ProjectAdd(v) => v.seq,
+        EventUnion::ProjectRemoved(v) => v.seq,
+        EventUnion::ProjectImport(v) => v.seq,
+        EventUnion::ProjectExport(v) => v.seq,
+        EventUnion::PreferencesChanged(v) => v.seq,
+        EventUnion::ReleaseChanged(v) => v.seq,
+        EventUnion::InitJob(v) => v.seq,
+        EventUnion::JobNeedsYou(v) => v.seq,
+        EventUnion::PlaceStage(v) => v.seq,
+        EventUnion::PlaceSetup(v) => v.seq,
+        EventUnion::PlaceSync(v) => v.seq,
+        EventUnion::RecipesChanged(v) => v.seq,
+        EventUnion::PlacePending(v) => v.seq,
+        EventUnion::PlaceJoined(v) => v.seq,
+        EventUnion::PlacePresent(v) => v.seq,
+        EventUnion::PlaceAbsent(v) => v.seq,
+        EventUnion::PlaceRemoved(v) => v.seq,
+        EventUnion::PlaceChanged(v) => v.seq,
+        EventUnion::AgentsChanged(v) => v.seq,
+        EventUnion::UsageAlert(v) => v.seq,
+        EventUnion::HostNotice(v) => v.seq,
+        EventUnion::AsideText(v) => v.seq,
+    };
+    seq.map(|n| n.get() as u64)
 }
 
 /// The event with `seq` set, every other key as it was.
 pub fn with_seq(event: EventUnion, seq: u64) -> EventUnion {
-    todo!()
+    match event {
+        EventUnion::WorkspaceCreating(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::WorkspaceCreating(v)
+        }
+        EventUnion::WorkspaceCreated(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::WorkspaceCreated(v)
+        }
+        EventUnion::WorkspaceNapped(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::WorkspaceNapped(v)
+        }
+        EventUnion::WorkspaceWoken(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::WorkspaceWoken(v)
+        }
+        EventUnion::WorkspaceUpgraded(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::WorkspaceUpgraded(v)
+        }
+        EventUnion::WorkspaceRenamed(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::WorkspaceRenamed(v)
+        }
+        EventUnion::WorkspaceLook(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::WorkspaceLook(v)
+        }
+        EventUnion::WorkspaceDeleted(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::WorkspaceDeleted(v)
+        }
+        EventUnion::WorkspaceGone(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::WorkspaceGone(v)
+        }
+        EventUnion::WorkspaceReleased(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::WorkspaceReleased(v)
+        }
+        EventUnion::WorkspaceStatus(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::WorkspaceStatus(v)
+        }
+        EventUnion::WorkspaceReview(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::WorkspaceReview(v)
+        }
+        EventUnion::WorkspaceViewed(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::WorkspaceViewed(v)
+        }
+        EventUnion::WorkspaceCost(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::WorkspaceCost(v)
+        }
+        EventUnion::SessionStart(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionStart(v)
+        }
+        EventUnion::SessionDelta(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionDelta(v)
+        }
+        EventUnion::SessionDone(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionDone(v)
+        }
+        EventUnion::SessionEnd(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionEnd(v)
+        }
+        EventUnion::SessionSteer(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionSteer(v)
+        }
+        EventUnion::SessionNotify(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionNotify(v)
+        }
+        EventUnion::SessionPermission(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionPermission(v)
+        }
+        EventUnion::SessionPermissionClosed(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionPermissionClosed(v)
+        }
+        EventUnion::SessionCheckpoint(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionCheckpoint(v)
+        }
+        EventUnion::SessionChanges(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionChanges(v)
+        }
+        EventUnion::SessionPlan(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionPlan(v)
+        }
+        EventUnion::SessionCompacted(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionCompacted(v)
+        }
+        EventUnion::SessionRetry(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionRetry(v)
+        }
+        EventUnion::SessionContext(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionContext(v)
+        }
+        EventUnion::SessionRun(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionRun(v)
+        }
+        EventUnion::SessionMoved(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionMoved(v)
+        }
+        EventUnion::SessionBehind(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionBehind(v)
+        }
+        EventUnion::SessionNotice(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionNotice(v)
+        }
+        EventUnion::SessionEarlier(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionEarlier(v)
+        }
+        EventUnion::SessionCapped(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionCapped(v)
+        }
+        EventUnion::SessionUncapped(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionUncapped(v)
+        }
+        EventUnion::SessionSubagent(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionSubagent(v)
+        }
+        EventUnion::SessionSlate(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionSlate(v)
+        }
+        EventUnion::ThreadWaited(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::ThreadWaited(v)
+        }
+        EventUnion::SlateValues(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SlateValues(v)
+        }
+        EventUnion::SlateRun(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SlateRun(v)
+        }
+        EventUnion::UsageAccount(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::UsageAccount(v)
+        }
+        EventUnion::SessionQueued(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionQueued(v)
+        }
+        EventUnion::SessionHeld(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionHeld(v)
+        }
+        EventUnion::SessionRow(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionRow(v)
+        }
+        EventUnion::SessionStarting(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::SessionStarting(v)
+        }
+        EventUnion::ThreadMarked(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::ThreadMarked(v)
+        }
+        EventUnion::ThreadHead(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::ThreadHead(v)
+        }
+        EventUnion::ThreadRewound(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::ThreadRewound(v)
+        }
+        EventUnion::PortOpen(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::PortOpen(v)
+        }
+        EventUnion::PortClose(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::PortClose(v)
+        }
+        EventUnion::InboxFile(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::InboxFile(v)
+        }
+        EventUnion::GoldenStage(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::GoldenStage(v)
+        }
+        EventUnion::ForwardOpen(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::ForwardOpen(v)
+        }
+        EventUnion::ForwardClose(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::ForwardClose(v)
+        }
+        EventUnion::ProjectAdded(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::ProjectAdded(v)
+        }
+        EventUnion::ProjectAdd(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::ProjectAdd(v)
+        }
+        EventUnion::ProjectRemoved(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::ProjectRemoved(v)
+        }
+        EventUnion::ProjectImport(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::ProjectImport(v)
+        }
+        EventUnion::ProjectExport(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::ProjectExport(v)
+        }
+        EventUnion::PreferencesChanged(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::PreferencesChanged(v)
+        }
+        EventUnion::ReleaseChanged(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::ReleaseChanged(v)
+        }
+        EventUnion::InitJob(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::InitJob(v)
+        }
+        EventUnion::JobNeedsYou(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::JobNeedsYou(v)
+        }
+        EventUnion::PlaceStage(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::PlaceStage(v)
+        }
+        EventUnion::PlaceSetup(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::PlaceSetup(v)
+        }
+        EventUnion::PlaceSync(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::PlaceSync(v)
+        }
+        EventUnion::RecipesChanged(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::RecipesChanged(v)
+        }
+        EventUnion::PlacePending(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::PlacePending(v)
+        }
+        EventUnion::PlaceJoined(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::PlaceJoined(v)
+        }
+        EventUnion::PlacePresent(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::PlacePresent(v)
+        }
+        EventUnion::PlaceAbsent(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::PlaceAbsent(v)
+        }
+        EventUnion::PlaceRemoved(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::PlaceRemoved(v)
+        }
+        EventUnion::PlaceChanged(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::PlaceChanged(v)
+        }
+        EventUnion::AgentsChanged(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::AgentsChanged(v)
+        }
+        EventUnion::UsageAlert(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::UsageAlert(v)
+        }
+        EventUnion::HostNotice(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::HostNotice(v)
+        }
+        EventUnion::AsideText(mut v) => {
+            v.seq = Some(JsInt::from(seq as i64));
+            EventUnion::AsideText(v)
+        }
+    }
 }
