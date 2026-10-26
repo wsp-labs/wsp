@@ -27,8 +27,13 @@ use wsp_wire::views::workspace_more::{WorkspaceStatus, WorkspaceStatusWakeAsk, W
 use wsp_wire::wire::capabilities::WorkspaceSize;
 use wsp_wire::wire::events_union::EventUnion;
 
-use crate::clock::{Cancel, Clock};
+use crate::clock::{real_clock, Cancel, Clock};
 use crate::types::pending::Store;
+use futures::FutureExt;
+use std::time::Duration;
+use wsp_engine::errors::road_failed;
+use wsp_engine::fetch::{platform_fetch, Abort, FetchRequest};
+use wsp_words::js_date::iso_string;
 
 mod meter;
 mod poll;
@@ -55,7 +60,12 @@ mod poll;
 //   }
 // }
 pub fn machine_state_of(phase: WorkspacePhase) -> MachineState {
-    todo!()
+    match phase {
+        WorkspacePhase::Running | WorkspacePhase::Pausing => MachineState::Running,
+        WorkspacePhase::Napping => MachineState::Paused,
+        WorkspacePhase::Waking | WorkspacePhase::Queued => MachineState::Starting,
+        WorkspacePhase::Gone | WorkspacePhase::Released => MachineState::Gone,
+    }
 }
 
 // /** What a state read makes of a record marked gone: a machine the provider still holds unmakes the verdict, running
@@ -66,7 +76,11 @@ pub fn machine_state_of(phase: WorkspacePhase) -> MachineState {
 // }
 /// `Running` or `Napping`, the phase a record leaves gone for; `None` leaves it gone.
 pub fn phase_leaving_gone(read: MachineState) -> Option<WorkspacePhase> {
-    todo!()
+    match read {
+        MachineState::Running => Some(WorkspacePhase::Running),
+        MachineState::Paused => Some(WorkspacePhase::Napping),
+        _ => None,
+    }
 }
 
 // /** The provider's answer as a row or a log line quotes it: its status and message when the call answered with both.
@@ -77,7 +91,14 @@ pub fn phase_leaving_gone(read: MachineState) -> Option<WorkspacePhase> {
 //   return typeof status === "number" ? `${status} ${message}` : message;
 // }
 pub fn provider_said(e: &EngineError) -> String {
-    todo!()
+    let message = match e {
+        EngineError::MachineUnreachable { said, .. } => said.clone(),
+        other => other.to_string(),
+    };
+    match e.status() {
+        Some(status) => format!("{status} {message}"),
+        None => message,
+    }
 }
 
 // export interface ProbeOptions {
@@ -121,7 +142,7 @@ pub struct Probed {
 //   return { state: "unreachable", fromDaemon: false, ...(roadFailed(e) ? { offline: true } : {}) };
 // }
 pub fn missed(e: &EngineError) -> Probed {
-    todo!()
+    Probed { state: ReachState::Unreachable, from_daemon: false, offline: road_failed(e) }
 }
 
 // /** One HTTP round trip against the minted URL. A prompt 502 means the edge
@@ -143,7 +164,20 @@ pub fn missed(e: &EngineError) -> Probed {
 // }
 /// One GET through `wsp_engine::fetch::platform_fetch`, capped at `o.timeout_ms`.
 pub async fn probe_reach(url: &str, o: ProbeOptions, now: &dyn Fn() -> i64) -> Probed {
-    todo!()
+    let started = now();
+    let abort = Abort::new(Some(Duration::from_millis(o.timeout_ms.max(0) as u64)), None);
+    let req = FetchRequest { method: "GET".into(), url: url.into(), headers: Vec::new(), body: None, abort: Some(abort) };
+    match platform_fetch().fetch_stream(req).await {
+        Ok(res) => {
+            let from_daemon = res.status == DAEMON_ANSWER;
+            if now() - started > o.prompt_ms {
+                return Probed { state: ReachState::Slow, from_daemon, offline: false };
+            }
+            let state = if res.status == 502 { ReachState::NoDaemon } else { ReachState::Reachable };
+            Probed { state, from_daemon, offline: false }
+        }
+        Err(e) => missed(&EngineError::Road(e)),
+    }
 }
 
 /// A machine's own answer for its daemon: `answers(Some(timeout_ms))`.
@@ -168,7 +202,17 @@ pub type DaemonAnswers = Rc<dyn Fn(Option<i64>) -> LocalBoxFuture<'static, Resul
 // }
 /// The bound and the elapsed read run on `clock` (rule 3.15).
 pub async fn ask_daemon(answers: &DaemonAnswers, o: ProbeOptions, clock: &Rc<dyn Clock>) -> Probed {
-    todo!()
+    let started = clock.now();
+    match bounded(answers(Some(o.timeout_ms)), o.timeout_ms, clock).await {
+        Ok(up) => {
+            if clock.now() - started > o.prompt_ms {
+                return Probed { state: ReachState::Slow, from_daemon: up, offline: false };
+            }
+            let state = if up { ReachState::Reachable } else { ReachState::NoDaemon };
+            Probed { state, from_daemon: up, offline: false }
+        }
+        Err(e) => missed(&e),
+    }
 }
 
 // /** Rejects once ms pass; the underlying promise is left to settle on its own. */
@@ -184,7 +228,25 @@ pub async fn ask_daemon(answers: &DaemonAnswers, o: ProbeOptions, clock: &Rc<dyn
 /// The future is spawned and left to finish on its own; past `ms` on the clock the answer is
 /// `EngineError::Other { message: "timed out after <ms> ms", code: None }`.
 pub async fn bounded<T: 'static>(work: LocalBoxFuture<'static, Result<T, EngineError>>, ms: i64, clock: &Rc<dyn Clock>) -> Result<T, EngineError> {
-    todo!()
+    let expired_words = || EngineError::Other { message: format!("timed out after {ms} ms"), code: None };
+    let (answer_tx, answer) = tokio::sync::oneshot::channel();
+    let (expired_tx, expired) = tokio::sync::oneshot::channel::<()>();
+    let cancel = clock.schedule(
+        Box::new(move || {
+            let _ = expired_tx.send(());
+        }),
+        ms,
+    );
+    tokio::task::spawn_local(async move {
+        let _ = answer_tx.send(work.await);
+    });
+    let outcome = tokio::select! {
+        biased;
+        r = answer => r.unwrap_or_else(|_| Err(expired_words())),
+        _ = expired => Err(expired_words()),
+    };
+    cancel();
+    outcome
 }
 
 // /** Whose run of probes a status read joins. The dampening rule wants two silences in a row before a row's word
@@ -457,7 +519,8 @@ pub const COST_INTERVAL_MS: i64 = 5_000;
 //   return Math.min(FACTS_BACKOFF_MAX_MS, POLL_INTERVAL_MS * 2 ** Math.max(0, misses - 1));
 // }
 pub fn facts_backoff_ms(misses: i64) -> i64 {
-    todo!()
+    let exp = (misses - 1).clamp(0, 40);
+    (POLL_INTERVAL_MS << exp).min(FACTS_BACKOFF_MAX_MS)
 }
 
 // /** A running machine whose reach has been slow or unreachable: when the spell
@@ -515,12 +578,28 @@ pub struct CostMoved {
 impl CostMoved {
     /// Whether the event goes out on this socket.
     pub fn admit(&mut self, e: &EventUnion) -> bool {
-        todo!()
+        match e {
+            EventUnion::WorkspaceDeleted(d) => {
+                self.sent.shift_remove(&d.event.workspace_id);
+                true
+            }
+            EventUnion::WorkspaceCost(c) => {
+                let cost = &c.event;
+                let phase = serde_json::to_value(cost.phase).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
+                let figures = format!("{} {} {}", phase, cost.rate_usd_per_hour.js_string(), cost.accrued_usd.js_string());
+                if self.sent.get(&cost.workspace_id) == Some(&figures) {
+                    return false;
+                }
+                self.sent.insert(cost.workspace_id.clone(), figures);
+                true
+            }
+            _ => true,
+        }
     }
 }
 
 pub fn cost_moved() -> CostMoved {
-    todo!()
+    CostMoved::default()
 }
 
 /// Everything the tracker holds between calls (status.ts:343-363, :770-775). The implementer may add private fields.
@@ -565,6 +644,8 @@ pub struct StatusTracker {
     loading: RefCell<Option<Shared<LocalBoxFuture<'static, ()>>>>,
     /// The tail of the document writes (one chain, failures swallowed).
     writes: RefCell<Option<Shared<LocalBoxFuture<'static, ()>>>>,
+    clock: Rc<dyn Clock>,
+    zone: jiff::tz::TimeZone,
 }
 
 // status.ts:154
@@ -613,6 +694,80 @@ impl StatusApi for StatusTracker {
 impl StatusTracker {
     /// `createStatusTracker(o)`: the listeners of spec status_meter Behaviour 3, in that order, and the load started.
     pub fn new(o: StatusTrackerOptions) -> Rc<StatusTracker> {
-        todo!()
+        let clock = o.clock.clone().unwrap_or_else(real_clock);
+        let zone = o.zone.clone().unwrap_or_else(jiff::tz::TimeZone::system);
+        let t = Rc::new_cyclic(|me: &Weak<StatusTracker>| StatusTracker {
+            me: me.clone(),
+            options: o,
+            state: RefCell::new(TrackerState::default()),
+            loading: RefCell::new(None),
+            writes: RefCell::new(None),
+            clock,
+            zone,
+        });
+        t.register();
+        t
     }
+
+    fn register(self: &Rc<Self>) {
+        self.listen("workspace.created", StatusTracker::meter_created);
+        self.listen("workspace.woken", StatusTracker::meter_woken);
+        self.listen("workspace.upgraded", StatusTracker::meter_upgraded);
+        self.listen("workspace.napped", StatusTracker::meter_stopped);
+        self.listen("workspace.gone", StatusTracker::meter_stopped);
+        self.listen("workspace.deleted", StatusTracker::drop_workspace);
+        self.listen("workspace.status", StatusTracker::note_pushed);
+        self.listen("workspace.created", StatusTracker::tick_created);
+        self.listen("workspace.woken", StatusTracker::tick_moved);
+        self.listen("workspace.upgraded", StatusTracker::tick_moved);
+        self.listen("workspace.napped", StatusTracker::tick_moved);
+        self.listen("workspace.gone", StatusTracker::tick_moved);
+        self.start_load();
+    }
+
+    /// The tracker's bus listener for `ty`: a weak handle, so the bus holds no tracker alive.
+    fn listen(&self, ty: &'static str, handle: fn(&StatusTracker, &EventUnion)) {
+        let me = self.me.clone();
+        let listener: Listener = Rc::new(move |e: &EventUnion| {
+            if let Some(t) = me.upgrade() {
+                handle(&t, e);
+            }
+        });
+        let _ = (self.options.on)(ty, listener);
+    }
+
+    fn start_load(&self) {
+        let me = self.me.clone();
+        let load: Shared<LocalBoxFuture<'static, ()>> = (async move {
+            if let Some(t) = me.upgrade() {
+                t.load_stored().await;
+            }
+        })
+        .boxed_local()
+        .shared();
+        *self.loading.borrow_mut() = Some(load.clone());
+        *self.writes.borrow_mut() = Some(load.clone());
+        tokio::task::spawn_local(load);
+    }
+
+    /// Runs `f` on the state with the borrow held for `f` alone: no call out of the tracker goes inside it.
+    fn st<R>(&self, f: impl FnOnce(&mut TrackerState) -> R) -> R {
+        f(&mut self.state.borrow_mut())
+    }
+
+    async fn loaded(&self) {
+        let load = self.loading.borrow().clone();
+        if let Some(load) = load {
+            load.await;
+        }
+    }
+
+    async fn records(&self) -> Result<Vec<StatusRecord>, String> {
+        (self.options.records)().await
+    }
+}
+
+/// `new Date(ms).toISOString()`.
+fn iso(ms: i64) -> String {
+    iso_string(ms as f64).unwrap_or_default()
 }

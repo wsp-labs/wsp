@@ -1,9 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The awake meter and the cost series of packages/runtime/src/status.ts at 65f6b89c7. Spec: spec/status_meter.md.
-use wsp_wire::views::place_more::{PlaceSpend, PlaceView};
-use wsp_wire::views::workspace_events::WorkspaceCostEvent;
+use std::collections::HashSet;
 
-use super::StatusTracker;
+use futures::future::{LocalBoxFuture, Shared};
+use futures::FutureExt;
+use indexmap::IndexMap;
+use serde_json::{json, Value};
+use wsp_wire::types::js_number::JsNumber;
+use wsp_wire::views::place_more::{PlaceSpend, PlaceView};
+use wsp_wire::views::workspace::WorkspacePhase;
+use wsp_wire::views::workspace_events::WorkspaceCostEvent;
+use wsp_wire::views::workspace_more::WorkspaceView;
+use wsp_wire::wire::events_union::{EventUnion, Sequenced};
+use wsp_words::cost_history::{accrued_past, append_cost_point, day_start, month_start, spent_since};
+use wsp_words::date_parse::date_parse;
+use wsp_words::place_state::{place_spend_limit, workspace_place_id};
+
+use super::{iso, CostHistoryRecord, Meter, Stood, StatusTracker, TrackerState, COST_HISTORIES};
+use crate::console::warn;
 
 // The meter's listeners, the load, the writes, the series' end and the cost tick, as the TS has them. Private helpers
 // for each go in this file.
@@ -222,7 +236,8 @@ impl StatusTracker {
 //   };
     /// The workspace's cost ticks since metering began, across host restarts; `[]` for a deleted one.
     pub async fn history(&self, workspace_id: &str) -> Vec<WorkspaceCostEvent> {
-        todo!()
+        self.loaded().await;
+        self.st(|s| if s.ended.contains(workspace_id) { Vec::new() } else { s.histories.get(workspace_id).cloned().unwrap_or_default() })
     }
 
 //   const spend: StatusApi["spend"] = async (places, at = clock.now()) => {
@@ -253,6 +268,371 @@ impl StatusTracker {
 //   };
     /// What each place has cost since midnight and the first of the month, and burns now; `at` defaults to now.
     pub async fn spend(&self, places: &[PlaceView], at: Option<i64>) -> Result<Vec<PlaceSpend>, String> {
-        todo!()
+        let at = at.unwrap_or_else(|| self.clock.now());
+        self.loaded().await;
+        let day = day_start(at as f64, &self.zone);
+        let month = month_start(at as f64, &self.zone);
+        let running: HashSet<String> = self.records().await?.into_iter().filter(|r| matches!(r.view.phase, WorkspacePhase::Running | WorkspacePhase::Pausing)).map(|r| r.view.id).collect();
+        Ok(self.st(|s| {
+            let zero = |place: &str| PlaceSpend { place: place.to_string(), today_usd: JsNumber(0.0), month_usd: JsNumber(0.0), rate_usd_per_hour: JsNumber(0.0) };
+            let mut rows: IndexMap<String, PlaceSpend> = places.iter().filter(|p| place_spend_limit(p).is_some()).map(|p| (p.id.clone(), zero(&p.id))).collect();
+            for (id, points) in &s.histories {
+                let Some(place) = s.stood.get(id).and_then(|w| stood_place_id(w, places)) else { continue };
+                let until = running.contains(id).then_some(at as f64);
+                let row = rows.entry(place.clone()).or_insert_with(|| zero(&place));
+                row.today_usd.0 += spent_since(points, day, until);
+                row.month_usd.0 += spent_since(points, month, until);
+                if until.is_some() {
+                    row.rate_usd_per_hour.0 += points.last().map_or(0.0, |p| p.rate_usd_per_hour.0);
+                }
+            }
+            places.iter().filter_map(|p| rows.get(&p.id).cloned()).collect()
+        }))
+    }
+}
+
+/// The meter of a workspace, made at zero on first use.
+pub(super) fn meter_of<'a>(s: &'a mut TrackerState, id: &str) -> &'a mut Meter {
+    s.meters.entry(id.to_string()).or_default()
+}
+
+/// Where a workspace's record would stand, read through `workspace_place_id`, which takes the whole view: the four
+/// fields it reads are the stored `Stood`, and the other fields are left empty.
+fn stood_place_id(w: &Stood, places: &[PlaceView]) -> Option<String> {
+    let mut view = json!({
+        "id": "", "name": "", "machineId": w.machine_id, "phase": "gone", "golden": "", "createdAt": "",
+        "project": {"id": "", "name": "", "path": "", "computer": ""},
+    });
+    let fields = view.as_object_mut()?;
+    if let Some(kind) = &w.kind {
+        fields.insert("kind".into(), serde_json::to_value(kind).ok()?);
+    }
+    if let Some(place) = &w.place {
+        fields.insert("place".into(), json!(place));
+    }
+    if let Some(provider) = &w.provider {
+        fields.insert("provider".into(), json!(provider));
+    }
+    let view: WorkspaceView = serde_json::from_value(view).ok()?;
+    workspace_place_id(&view, places)
+}
+
+/// `accrue(last, awakeMs, rateNow)`: the total at a tick, the last tick's total plus the awake time since it.
+fn accrue(last: Option<&WorkspaceCostEvent>, awake_ms: f64, rate_now: f64) -> f64 {
+    let base = WorkspaceCostEvent {
+        workspace_id: String::new(),
+        phase: WorkspacePhase::Running,
+        rate_usd_per_hour: JsNumber(last.map_or(rate_now, |l| l.rate_usd_per_hour.0)),
+        awake_ms: JsNumber(0.0),
+        accrued_usd: JsNumber(last.map_or(0.0, |l| l.accrued_usd.0)),
+        at: String::new(),
+    };
+    accrued_past(&base, awake_ms - last.map_or(0.0, |l| l.awake_ms.0))
+}
+
+/// `figuresOf(tick)`: the phase, rate and total a cost frame carries, the words a repeat is judged by.
+fn figures_of(tick: &WorkspaceCostEvent) -> String {
+    let phase = serde_json::to_value(tick.phase).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
+    format!("{} {} {}", phase, tick.rate_usd_per_hour.js_string(), tick.accrued_usd.js_string())
+}
+
+/// Whether a tick continues the rate of the two points before it, so it replaces the newest instead of adding one.
+fn collinear(points: &[WorkspaceCostEvent], tick: &WorkspaceCostEvent) -> bool {
+    let n = points.len();
+    n >= 2 && points[n - 2].rate_usd_per_hour.0 == points[n - 1].rate_usd_per_hour.0 && points[n - 1].rate_usd_per_hour.0 == tick.rate_usd_per_hour.0
+}
+
+/// A write of the document chain, built when it runs.
+enum Persist {
+    Put(String),
+    Delete(String),
+}
+
+impl StatusTracker {
+    /// `o.on("workspace.created")`: a create opens a stretch.
+    pub(super) fn meter_created(&self, e: &EventUnion) {
+        if let EventUnion::WorkspaceCreated(c) = e {
+            self.began_awake(&c.event.workspace.id);
+        }
+    }
+
+    /// `beganAwake(id)`: a stretch starts now, and proves the machine awake.
+    fn began_awake(&self, id: &str) {
+        let now = self.clock.now();
+        self.st(|s| {
+            let m = meter_of(s, id);
+            m.mark = Some(now);
+            m.awake_until = Some(now);
+        });
+    }
+
+    /// `o.on("workspace.woken")`: a stretch a gone verdict closed reopens where it began; otherwise a new one starts.
+    pub(super) fn meter_woken(&self, e: &EventUnion) {
+        let EventUnion::WorkspaceWoken(w) = e else { return };
+        let id = w.event.workspace_id.clone();
+        let now = self.clock.now();
+        let reopened = self.st(|s| s.closed_by_gone.shift_remove(&id));
+        match reopened {
+            None => self.began_awake(&id),
+            Some((mark, awake_ms)) => self.st(|s| {
+                let m = meter_of(s, &id);
+                m.mark = Some(mark);
+                m.awake_ms = awake_ms;
+                m.awake_until = Some(now);
+            }),
+        }
+    }
+
+    /// `o.on("workspace.upgraded")`: a rebuild put another machine under the record.
+    pub(super) fn meter_upgraded(&self, e: &EventUnion) {
+        if let EventUnion::WorkspaceUpgraded(u) = e {
+            self.st(|s| {
+                s.closed_by_gone.shift_remove(&u.event.workspace_id);
+            });
+        }
+    }
+
+    /// `o.on("workspace.napped")` and `o.on("workspace.gone")`: the awake stretch ends where the machine did.
+    pub(super) fn meter_stopped(&self, e: &EventUnion) {
+        let (id, found, napped) = match e {
+            EventUnion::WorkspaceNapped(n) => (n.event.workspace_id.clone(), n.event.found == Some(true), true),
+            EventUnion::WorkspaceGone(g) => (g.event.workspace_id.clone(), true, false),
+            _ => return,
+        };
+        let now = self.clock.now();
+        self.st(|s| {
+            let m = meter_of(s, &id).clone();
+            let ended = if found { m.awake_until.unwrap_or(now) } else { now };
+            if napped {
+                s.closed_by_gone.shift_remove(&id);
+            } else if let Some(mark) = m.mark {
+                s.closed_by_gone.insert(id.clone(), (mark, m.awake_ms));
+            }
+            let m = meter_of(s, &id);
+            if let Some(mark) = m.mark {
+                m.awake_ms += (ended - mark).max(0) as f64;
+            }
+            m.mark = None;
+        });
+    }
+
+    /// `o.on("workspace.deleted")`: the series ends, and every per-workspace entry the tracker holds is dropped.
+    pub(super) fn drop_workspace(&self, e: &EventUnion) {
+        let EventUnion::WorkspaceDeleted(d) = e else { return };
+        let id = d.event.workspace_id.clone();
+        self.close_series(&id);
+        self.st(|s| {
+            s.meters.shift_remove(&id);
+            s.closed_by_gone.shift_remove(&id);
+        });
+        self.forget(&id);
+        self.st(|s| {
+            s.last_emitted.shift_remove(&id);
+            s.sent_figures.shift_remove(&id);
+            s.reconciled.shift_remove(&id);
+            s.gone_reasons.shift_remove(&id);
+            s.suspects.shift_remove(&id);
+            for book in s.probes.values_mut() {
+                book.shift_remove(&id);
+            }
+            s.doubted.shift_remove(&id);
+            s.facts_dials.shift_remove(&id);
+        });
+    }
+
+    /// `closeSeries(id)`: a deleted workspace's series gets a closing point at the instant it went.
+    fn close_series(&self, id: &str) {
+        let now = self.clock.now();
+        self.st(|s| {
+            let (Some(before), Some(m)) = (s.histories.get(id).cloned(), s.meters.get(id).cloned()) else { return };
+            let Some(last) = before.last().cloned() else { return };
+            let awake_ms = m.awake_ms + m.mark.map_or(0.0, |mark| (now - mark).max(0) as f64);
+            let tick = WorkspaceCostEvent {
+                workspace_id: last.workspace_id.clone(),
+                phase: WorkspacePhase::Gone,
+                rate_usd_per_hour: JsNumber(0.0),
+                awake_ms: JsNumber(awake_ms),
+                accrued_usd: JsNumber(accrue(Some(&last), awake_ms, last.rate_usd_per_hour.0)),
+                at: iso(now),
+            };
+            s.histories.insert(id.to_string(), append_cost_point(&before, &tick));
+        });
+    }
+
+    /// `forgetSeries(id)`: a workspace with no series loses its document; one with a series is marked ended.
+    fn forget(&self, id: &str) {
+        let write = self.st(|s| {
+            if s.histories.contains_key(id) {
+                s.ended.insert(id.to_string());
+                Persist::Put(id.to_string())
+            } else {
+                s.stood.shift_remove(id);
+                Persist::Delete(id.to_string())
+            }
+        });
+        self.persist(write);
+    }
+
+    /// Queues one document write behind the ones before it. Failures are swallowed.
+    fn persist(&self, step: Persist) {
+        let prev = self.writes.borrow().clone();
+        let me = self.me.clone();
+        let write: Shared<LocalBoxFuture<'static, ()>> = (async move {
+            if let Some(prev) = prev {
+                prev.await;
+            }
+            let Some(t) = me.upgrade() else { return };
+            match step {
+                Persist::Put(id) => {
+                    let doc = t.document(&id);
+                    if let Ok(value) = serde_json::to_value(&doc) {
+                        let _ = t.options.store.put(COST_HISTORIES, &id, value).await;
+                    }
+                }
+                Persist::Delete(id) => {
+                    let _ = t.options.store.delete(COST_HISTORIES, &id).await;
+                }
+            }
+        })
+        .boxed_local()
+        .shared();
+        *self.writes.borrow_mut() = Some(write.clone());
+        tokio::task::spawn_local(write);
+    }
+
+    /// The document of a workspace as it stands in memory now.
+    fn document(&self, id: &str) -> CostHistoryRecord {
+        self.st(|s| CostHistoryRecord {
+            workspace_id: id.to_string(),
+            points: s.histories.get(id).cloned().unwrap_or_default(),
+            where_: s.stood.get(id).cloned(),
+            ended: s.ended.contains(id).then_some(true),
+        })
+    }
+
+    /// The load of the stored series (status_meter Behaviour 7).
+    pub(super) async fn load_stored(&self) {
+        let month = month_start(self.clock.now() as f64, &self.zone);
+        let docs = match self.options.store.list(COST_HISTORIES).await {
+            Ok(docs) => docs,
+            Err(e) => {
+                warn(&format!("cost histories not loaded; the series begins at the first tick {}", e.message));
+                return;
+            }
+        };
+        for raw in docs {
+            let Some(last_raw) = raw.get("points").and_then(Value::as_array).and_then(|points| points.last()).cloned() else { continue };
+            let Ok(last) = serde_json::from_value::<WorkspaceCostEvent>(last_raw) else { continue };
+            let Ok(doc) = serde_json::from_value::<CostHistoryRecord>(raw) else { continue };
+            if doc.ended == Some(true) && date_parse(&last.at) < month {
+                if let Err(e) = self.options.store.delete(COST_HISTORIES, &doc.workspace_id).await {
+                    warn(&format!("the cost history of the deleted workspace {} could not be dropped {}", doc.workspace_id, e.message));
+                }
+                continue;
+            }
+            self.st(|s| {
+                let id = doc.workspace_id.clone();
+                s.histories.insert(id.clone(), doc.points.clone());
+                if let Some(where_) = &doc.where_ {
+                    s.stood.insert(id.clone(), where_.clone());
+                }
+                if doc.ended == Some(true) {
+                    s.ended.insert(id);
+                    return;
+                }
+                let m = meter_of(s, &id);
+                m.awake_ms = last.awake_ms.0;
+                if last.phase == WorkspacePhase::Running {
+                    let at = date_parse(&last.at) as i64;
+                    m.mark = Some(at);
+                    m.awake_until = Some(at);
+                }
+            });
+        }
+    }
+
+    /// `costTick(only)` (status_meter Behaviour 10 and 11): one point per workspace, and the bus told of it when its
+    /// figures moved, or passed quietly when they did not.
+    pub(super) async fn cost_tick(&self, only: Option<&str>) -> Result<(), String> {
+        self.loaded().await;
+        let now = self.clock.now();
+        for r in self.records().await? {
+            let id = r.view.id.clone();
+            if only.is_some_and(|only| only != id) {
+                continue;
+            }
+            let (tick, added, last_rate) = self.st(|s| {
+                let m = meter_of(s, &id);
+                if r.view.phase == WorkspacePhase::Running && m.mark.is_none() {
+                    m.mark = Some(now);
+                } else if matches!(r.view.phase, WorkspacePhase::Gone | WorkspacePhase::Released) {
+                    m.mark = None;
+                }
+                let running = matches!(r.view.phase, WorkspacePhase::Running | WorkspacePhase::Pausing) && m.mark.is_some();
+                let awake_ms = match (running, m.mark) {
+                    (true, Some(mark)) => m.awake_ms + (now - mark) as f64,
+                    _ => m.awake_ms,
+                };
+                let rate = r.rate_usd_per_hour;
+                let before = s.histories.get(&id).cloned().unwrap_or_default();
+                let last = before.last().cloned();
+                let tick = WorkspaceCostEvent {
+                    workspace_id: id.clone(),
+                    phase: r.view.phase,
+                    rate_usd_per_hour: JsNumber(if running { rate } else { 0.0 }),
+                    awake_ms: JsNumber(awake_ms),
+                    accrued_usd: JsNumber(accrue(last.as_ref(), awake_ms, rate)),
+                    at: iso(now),
+                };
+                let next = append_cost_point(&before, &tick);
+                let added = before.is_empty() || !collinear(&before, &tick);
+                s.histories.insert(id.clone(), next);
+                s.stood.insert(
+                    id.clone(),
+                    Stood { kind: r.view.kind.clone(), machine_id: r.view.machine_id.clone(), place: r.view.place.clone(), provider: r.view.provider.clone() },
+                );
+                (tick, added, last.map(|l| l.rate_usd_per_hour.0))
+            });
+            if added {
+                self.persist(Persist::Put(id.clone()));
+            }
+            let figures = figures_of(&tick);
+            let unbilled = tick.rate_usd_per_hour.0 == 0.0 && tick.accrued_usd.0 == 0.0;
+            let (due, moved) = self.st(|s| {
+                let moved = s.sent_figures.get(&id) != Some(&figures);
+                let due = if only.is_none() { !unbilled || moved } else { last_rate != Some(tick.rate_usd_per_hour.0) };
+                if due {
+                    s.sent_figures.insert(id.clone(), figures);
+                }
+                (due, moved)
+            });
+            if due {
+                let event = EventUnion::WorkspaceCost(Sequenced { event: tick, seq: None });
+                if moved {
+                    (self.options.emit)(event);
+                } else {
+                    (self.options.pass)(event);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// The bus listeners that tick the cost of one workspace at the event that opens or re-prices its stretch.
+    pub(super) fn tick_created(&self, e: &EventUnion) {
+        if let EventUnion::WorkspaceCreated(c) = e {
+            self.guard_cost(Some(c.event.workspace.id.clone()));
+        }
+    }
+
+    pub(super) fn tick_moved(&self, e: &EventUnion) {
+        let id = match e {
+            EventUnion::WorkspaceWoken(w) => w.event.workspace_id.clone(),
+            EventUnion::WorkspaceUpgraded(u) => u.event.workspace_id.clone(),
+            EventUnion::WorkspaceNapped(n) => n.event.workspace_id.clone(),
+            EventUnion::WorkspaceGone(g) => g.event.workspace_id.clone(),
+            _ => return,
+        };
+        self.guard_cost(Some(id));
     }
 }
