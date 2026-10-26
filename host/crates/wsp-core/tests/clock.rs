@@ -278,3 +278,17 @@ fn retry_clock_random_draws_from_zero_up_to_one() {
     assert!(draws.iter().all(|r| (0.0..1.0).contains(r)));
     assert!(draws.windows(2).any(|w| w[0] != w[1]));
 }
+
+// fake-clock.ts:25 `at: now + ms` is a JS number: a delay past the end of time is an `at` that never comes due.
+#[test]
+fn fake_clock_a_delay_past_the_end_of_time_saturates_and_never_fires() {
+    let fc = FakeClock::new(1_000);
+    let clock = fc.clock();
+    let seen = log();
+    clock.schedule(mark(&clock, &seen, "never"), i64::MAX);
+    assert_eq!(fc.pending(), 1);
+    assert!(fc.due_for(i64::MAX));
+    fc.advance(1_000_000);
+    assert!(seen.borrow().is_empty());
+    assert_eq!(fc.pending(), 1);
+}
