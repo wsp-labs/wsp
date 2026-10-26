@@ -508,13 +508,12 @@ fn the_log_goes_up_in_batches_every_line_stamped() {
         scene.provisioner.hold(wsp_engine::provision::EngineStep::Agents);
         scene.setup.start_setup("p_spoo", "a1", Some(GivenPicks { picks: laptop(), recipe: None }), None).await.unwrap();
         until("the agents step started", || scene.provisioner.ran_words().contains(&"agents")).await;
-        let appends = || socket.reach.cmds().into_iter().filter(|c| c.contains("/.wsp/provision/") && c.contains(".log")).count();
+        let appends = || socket.reach.cmds().into_iter().filter(|c| c.contains("/.wsp/provision/log") && c.contains("printf")).count();
         assert_eq!(appends(), 0, "nothing goes up before the batch's two seconds");
         scene.clock.pass(2_000).await;
         assert_eq!(appends(), 1, "one append carries the header and every line so far");
         let stamped = wsp_words::views::place_setup_words::provision_log_line(T0 as f64, &format!("wsp zingzys-mac set up spoo from laptop at {}", iso(T0)));
-        let sent: String = socket.reach.frames.borrow().iter().filter_map(|(_, p)| p.get("stdin").and_then(Value::as_str).map(str::to_string)).collect::<Vec<_>>().join("");
-        let text = String::from_utf8(base64_decode(&sent)).unwrap_or_default();
+        let text: String = socket.reach.cmds().iter().filter(|c| c.contains("/.wsp/provision/log") && c.contains("printf")).map(|c| common::places::written(c)).collect();
         assert!(text.starts_with(&stamped), "the header goes first, stamped when it was written: {text}");
         scene.provisioner.let_go(wsp_engine::provision::EngineStep::Agents);
         until("the run ended", || !scene.setup.setting.borrow().contains("p_spoo")).await;
@@ -555,9 +554,3 @@ fn a_log_the_computer_will_not_take_fails_nothing() {
         assert_eq!(serde_json::to_value(&r.setup.unwrap().state).unwrap(), json!("done"));
     });
 }
-
-fn base64_decode(s: &str) -> Vec<u8> {
-    use base64::Engine;
-    base64::engine::general_purpose::STANDARD.decode(s).unwrap_or_default()
-}
-

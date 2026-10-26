@@ -446,8 +446,7 @@ fn each_log_line_names_its_step() {
         start(&scene, claude_only()).await;
         ended(&scene).await;
         scene.clock.pass(2_000).await;
-        use base64::Engine;
-        let text: String = socket.reach.frames.borrow().iter().filter(|(op, p)| op == "exec" && p.get("cmd").and_then(Value::as_str).is_some_and(|c| c.contains(".log"))).filter_map(|(_, p)| p.get("stdin").and_then(Value::as_str).map(|s| String::from_utf8(base64::engine::general_purpose::STANDARD.decode(s).unwrap()).unwrap())).collect();
+        let text: String = socket.reach.cmds().iter().filter(|c| c.contains("/.wsp/provision/log") && c.contains("printf")).map(|c| common::places::written(c)).collect();
         assert!(text.contains("[clis] clis under way"), "a step's own lines carry its step: {text}");
         assert!(text.contains("[agents] "), "{text}");
     });
@@ -575,7 +574,7 @@ fn a_sync_cut_partway_holds_the_hash_it_started_from() {
         until("a row write landed", || scene.records.writes.borrow().len() >= 2).await;
         assert_eq!(scene.records.get("p_spoo").applied.unwrap().hash, "h1", "a sync holds the recipe it started from until its last step ended");
         scene.away("p_spoo", &socket);
-        *scene.provisioner.throws.borrow_mut() = None;
+        *scene.provisioner.throws.borrow_mut() = Some((EngineStep::Skills, absent("spoo is not connected")));
         scene.provisioner.let_go(EngineStep::Skills);
         let _ = syncing.await;
         settle().await;
