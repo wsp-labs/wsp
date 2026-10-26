@@ -4,12 +4,16 @@
 
 use std::sync::Arc;
 
-use wsp_wire::views::session::ThreadView;
-use wsp_wire::views::session_events::SessionQueuedEvent;
+use wsp_wire::views::session::{ThreadView, TurnRefusal};
+use wsp_wire::views::session_events::{SessionQueuedEvent, TurnStatus};
 use wsp_wire::views::session_events_more::SessionPermissionEvent;
 use wsp_wire::wire::helpers::{PermissionEffect, PermissionOption};
 use wsp_wire::wire::runtime::SessionStartOutcome;
-use wsp_words::exit::HostError;
+use wsp_words::exit::{auth_refusal, HostError};
+use wsp_words::thread_state::{thread_state_word, ThreadState};
+use wsp_words::words::base::lower_first;
+use wsp_words::words::computer::{send_waited_for_line, send_waits_for_line, thread_word};
+use wsp_words::words::tools::asking_line;
 
 use super::follow::SharedTurn;
 use super::{Picks, Turn};
@@ -20,8 +24,23 @@ use crate::verbs::io::TurnOut;
 /// where there is one (an empty string is one), else the turn's `reason`, else `turn <status>` or, with no result,
 /// `turn ended without a result`.
 pub fn turn_failure(turn: &Turn) -> Option<String> {
-    let _ = turn;
-    todo!("turns-help.ts:832")
+    if turn.result.as_ref().is_some_and(|r| r.status == TurnStatus::Completed) {
+        return None;
+    }
+    let named = turn.result.as_ref().and_then(|r| r.error.clone()).or_else(|| turn.reason.clone());
+    match (named, &turn.result) {
+        (Some(words), _) => Some(words),
+        (None, Some(result)) => Some(format!("turn {}", status_word(result.status))),
+        (None, None) => Some("turn ended without a result".to_owned()),
+    }
+}
+
+fn status_word(status: TurnStatus) -> &'static str {
+    match status {
+        TurnStatus::Completed => "completed",
+        TurnStatus::Interrupted => "interrupted",
+        TurnStatus::Failed => "failed",
+    }
 }
 
 /// `REFUSAL_THROWS` and `turnRefusal(turn)` (turns-help.ts:844): the failure as the error every door throws for
@@ -29,8 +48,11 @@ pub fn turn_failure(turn: &Turn) -> Option<String> {
 /// (kind auth, no fix); a cause with no row, or none, is a plain error of the failure's words (provider class). Nothing
 /// when the turn completed. The class is read off the stamp, never off the agent's words.
 pub fn turn_refusal(turn: &Turn) -> Option<HostError> {
-    let _ = turn;
-    todo!("turns-help.ts:844")
+    let failure = turn_failure(turn)?;
+    match turn.result.as_ref().and_then(|r| r.refusal) {
+        Some(TurnRefusal::SignIn) => Some(auth_refusal(&failure)),
+        None => Some(HostError::new(failure)),
+    }
 }
 
 /// `WAITING` (turns-help.ts:855).
@@ -38,8 +60,10 @@ pub const WAITING: &str = "waiting behind the running turn";
 
 /// `waitingLine(e)` (turns-help.ts:857): `send_waits_for_line(waitsFor)` where the wait names a computer, else `WAITING`.
 pub fn waiting_line(e: &SessionQueuedEvent) -> String {
-    let _ = e;
-    todo!("turns-help.ts:857")
+    match &e.waits_for {
+        Some(name) => send_waits_for_line(name),
+        None => WAITING.to_owned(),
+    }
 }
 
 /// `JOINED[outcome](picks, waitedFor)` (turns-help.ts:859) for the two outcomes that joined: `steered` says
@@ -48,13 +72,38 @@ pub fn waiting_line(e: &SessionQueuedEvent) -> String {
 /// named adds nothing); `queued` says `send_waited_for_line(waitedFor)` where the last wait was on a computer, else
 /// `queued behind the running turn; it has ended and this turn started`. `started` and `held` have no row.
 pub fn joined_line(outcome: SessionStartOutcome, picks: &Picks, waited_for: Option<&str>) -> Option<String> {
-    let _ = (outcome, picks, waited_for);
-    todo!("turns-help.ts:859")
+    match outcome {
+        SessionStartOutcome::Steered => {
+            let mut dropped: Vec<&str> = Vec::new();
+            if picks.model.is_some() {
+                dropped.push("--model");
+            }
+            if picks.effort.is_some() {
+                dropped.push("--effort");
+            }
+            if picks.access.is_some() {
+                dropped.push("--access");
+            }
+            if picks.fast {
+                dropped.push("--fast");
+            }
+            if dropped.is_empty() {
+                Some("joined the running turn".to_owned())
+            } else {
+                Some(format!("joined the running turn; {} dropped, it keeps its own model, effort and access", dropped.join(", ")))
+            }
+        }
+        SessionStartOutcome::Queued => Some(match waited_for {
+            Some(name) => send_waited_for_line(name),
+            None => "queued behind the running turn; it has ended and this turn started".to_owned(),
+        }),
+        SessionStartOutcome::Started | SessionStartOutcome::Held => None,
+    }
 }
 
 /// `WAITING_ON_A_PERSON` (turns-help.ts:870): `the turn is waiting on a permission; wsp threads shows it as <thread_state_word(waiting)>`.
 pub fn waiting_on_a_person() -> String {
-    todo!("turns-help.ts:870")
+    format!("the turn is waiting on a permission; wsp threads shows it as {}", thread_state_word(ThreadState::Waiting))
 }
 
 /// What `turnStream(ctx)` (turns-help.ts:878) keeps and does, one per followed turn; every method writes through
@@ -118,28 +167,59 @@ pub struct AnswerRoad {
 /// `ANSWER_ROADS` (turns-help.ts:929): `y` allow (`run it`; verb `allow`, said `allowed`), `n` deny (`refuse
 /// it`; verb `deny`, said `denied`, reasons), `a` mode (no words of its own, no verb), in that order.
 pub fn answer_roads() -> &'static [AnswerRoad] {
-    todo!("turns-help.ts:929")
+    &ANSWER_ROAD_ROWS
 }
+
+static ANSWER_ROAD_ROWS: [AnswerRoad; 3] = [
+    AnswerRoad {
+        key: "y",
+        effect: PermissionEffect::Allow,
+        does: Some("run it"),
+        answer: Some(AnswerVerb {
+            verb: "allow",
+            about: "answers the prompt the thread is stopped on and lets the call run",
+            said: "allowed",
+            reasons: false,
+        }),
+    },
+    AnswerRoad {
+        key: "n",
+        effect: PermissionEffect::Deny,
+        does: Some("refuse it"),
+        answer: Some(AnswerVerb {
+            verb: "deny",
+            about: "answers the prompt the thread is stopped on and refuses the call",
+            said: "denied",
+            reasons: true,
+        }),
+    },
+    AnswerRoad { key: "a", effect: PermissionEffect::Mode, does: None, answer: None },
+];
 
 /// `answerRoads(options)` (turns-help.ts:937): the roads this prompt's own options carry, in the roads' order,
 /// each beside the first option of its effect; a road whose effect no option has is left out.
 pub fn roads_of<'a>(options: &'a [PermissionOption]) -> Vec<(&'static AnswerRoad, &'a PermissionOption)> {
-    let _ = options;
-    todo!("turns-help.ts:937")
+    answer_roads().iter().filter_map(|road| options.iter().find(|o| o.effect == road.effect).map(|option| (road, option))).collect()
 }
 
 /// `answerKeysLine(options)` (turns-help.ts:946): `answer here: type ` then each road as `<key> to <does>` (or
 /// the option's label with its first letter lowered), joined by `, `. With no road the line ends after `type `.
 pub fn answer_keys_line(options: &[PermissionOption]) -> String {
-    let _ = options;
-    todo!("turns-help.ts:946")
+    let typed: Vec<String> = roads_of(options)
+        .into_iter()
+        .map(|(road, option)| format!("{} to {}", road.key, road.does.map_or_else(|| lower_first(&option.label), str::to_owned)))
+        .collect();
+    format!("answer here: type {}", typed.join(", "))
 }
 
 /// `answerVerbsLine(threadId)` (turns-help.ts:878): `answer from another terminal: ` then `wsp thread <verb>
 /// <thread_word(id)>` for each road with a verb, joined by `, or `.
 pub fn answer_verbs_line(thread_id: &str) -> String {
-    let _ = thread_id;
-    todo!("turns-help.ts:878")
+    let verbs: Vec<String> = answer_roads()
+        .iter()
+        .filter_map(|road| road.answer.as_ref().map(|answer| format!("wsp thread {} {}", answer.verb, thread_word(thread_id))))
+        .collect();
+    format!("answer from another terminal: {}", verbs.join(", or "))
 }
 
 /// `ANSWER_IN_THE_APP` (turns-help.ts:962).
@@ -147,25 +227,28 @@ pub const ANSWER_IN_THE_APP: &str = "answer it in the app: this prompt carries i
 
 /// `answeredLine(threadId, ask, said)` (turns-help.ts:966): `<said> on thread <thread_word(id)>: <asking_line(ask)>`.
 pub fn answered_line(thread_id: &str, ask: &SessionPermissionEvent, said: &str) -> String {
-    let _ = (thread_id, ask, said);
-    todo!("turns-help.ts:966")
+    format!("{said} on thread {}: {}", thread_word(thread_id), asking_line(ask))
 }
 
 /// `noOpenAskLine(threadId)` (turns-help.ts:971).
 pub fn no_open_ask_line(thread_id: &str) -> String {
-    let _ = thread_id;
-    todo!("turns-help.ts:971")
+    format!("thread {} is waiting on no prompt; wsp threads says which threads need you", thread_word(thread_id))
 }
 
 /// `noSuchAnswerLine(threadId, verb)` (turns-help.ts:976).
 pub fn no_such_answer_line(thread_id: &str, verb: &str) -> String {
-    let _ = (thread_id, verb);
-    todo!("turns-help.ts:976")
+    format!("the prompt thread {} is stopped on takes no {verb}; wsp thread read shows what it asks", thread_word(thread_id))
 }
 
 /// `answerAsk(client, sessionId, askId, optionId, reason?)` (turns-help.ts:982): `sessions.answer {sessionId,
 /// askId, optionId, reason?}` (`reason` left out where none); any outcome but `answered` fails with `ANSWER_WORDS[outcome]`.
-pub async fn answer_ask(client: &dyn HostClient, session_id: &str, ask_id: &str, option_id: &str, reason: Option<&str>) -> Result<(), HostError> {
+pub async fn answer_ask(
+    client: &dyn HostClient,
+    session_id: &str,
+    ask_id: &str,
+    option_id: &str,
+    reason: Option<&str>,
+) -> Result<(), HostError> {
     let _ = (client, session_id, ask_id, option_id, reason);
     todo!("turns-help.ts:982")
 }
@@ -183,7 +266,12 @@ pub struct AnsweredAsk {
 /// transcript (`sessions.history`) read for its open prompt (`open_ask`); none fails `no_open_ask_line`; the first
 /// option whose effect is the road's, none failing `no_such_answer_line(threadId, road verb)`; then `answer_ask`
 /// (`sessions.answer`); the line is `answered_line(threadId, ask, road.said)`. `road` is one with a verb.
-pub async fn answer_open_ask(client: &dyn HostClient, r#ref: &str, road: &AnswerRoad, reason: Option<&str>) -> Result<AnsweredAsk, HostError> {
+pub async fn answer_open_ask(
+    client: &dyn HostClient,
+    r#ref: &str,
+    road: &AnswerRoad,
+    reason: Option<&str>,
+) -> Result<AnsweredAsk, HostError> {
     let _ = (client, r#ref, road, reason);
     todo!("turns-help.ts:989")
 }
@@ -289,8 +377,20 @@ pub async fn detach_verb(
 /// `turnView(turn)` (turns-help.ts:1165): `threadId`, `workspaceId`, `harness`, `text` (the result's text or `""`,
 /// present only where the turn has a result), `outcome`, `capped` (only a held turn's), `afterCut: true` (only where set).
 pub fn turn_view(turn: &Turn) -> TurnOut {
-    let _ = turn;
-    todo!("turns-help.ts:1165")
+    let capped = match turn.outcome {
+        SessionStartOutcome::Held => turn.session.capped.clone(),
+        _ => None,
+    };
+    TurnOut {
+        thread_id: turn.thread_id.clone(),
+        workspace_id: turn.session.workspace_id.clone(),
+        harness: turn.session.harness.clone(),
+        text: turn.result.as_ref().map(|result| result.text.clone().unwrap_or_default()),
+        outcome: turn.outcome,
+        capped,
+        after_cut: turn.after_cut.then_some(true),
+        notice: None,
+    }
 }
 
 /// Threads a refusal needs: `thread_of` is `workspaces_help::thread_of`; a stale view is `ThreadView`.
