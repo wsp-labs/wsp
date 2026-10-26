@@ -68,17 +68,17 @@ pub struct StateCell<S> {
 
 impl<S> Clone for StateCell<S> {
     fn clone(&self) -> Self {
-        todo!()
+        StateCell { cell: self.cell.clone() }
     }
 }
 
 impl<S> StateCell<S> {
     pub fn new(state: S) -> Self {
-        todo!()
+        StateCell { cell: Rc::new(RefCell::new(state)) }
     }
     /// Lends the state to `f` and hands back its answer. A `with` inside a `with` on the same cell panics.
     pub fn with<R>(&self, f: impl FnOnce(&mut S) -> R) -> R {
-        todo!()
+        f(&mut self.cell.borrow_mut())
     }
 }
 
@@ -90,18 +90,23 @@ pub struct Late<T> {
 
 impl<T: Clone> Late<T> {
     pub fn named(name: &'static str) -> Self {
-        todo!()
+        Late { name, cell: OnceCell::new() }
     }
     /// Panics `<name> was built twice` on a second fill.
     pub fn fill(&self, value: T) {
-        todo!()
+        if self.cell.set(value).is_err() {
+            panic!("{} was built twice", self.name);
+        }
     }
     /// Panics `the runtime read <name> before it was built` before the fill.
     pub fn get(&self) -> T {
-        todo!()
+        match self.cell.get() {
+            Some(v) => v.clone(),
+            None => panic!("the runtime read {} before it was built", self.name),
+        }
     }
     pub fn is_filled(&self) -> bool {
-        todo!()
+        self.cell.get().is_some()
     }
 }
 
