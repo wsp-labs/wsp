@@ -328,7 +328,7 @@ fn a_restart_while_a_let_through_spawns_machine_was_made_puts_it_back_in_line() 
 fn resume_queue_drops_rows_whose_record_is_not_queued_and_records_with_no_row() {
     run(async {
         let host = FakeHost::new();
-        let stale = json!({ "workspaceId": "ws_gone", "threadId": "t", "turnId": "u", "at": "2026-10-12T06:00:00.000Z", "opts": {}, "tree": {} });
+        let stale = json!({ "workspaceId": "ws_gone", "threadId": "t", "turnId": "u", "at": "2026-10-12T06:00:00.000Z", "opts": { "prompt": "go" }, "tree": {} });
         host.store.borrow_mut().entry(SUB_STARTS.to_string()).or_default().insert("ws_gone".into(), stale);
         let mut orphan = sub_record("ws_orphan", "queued");
         orphan["queue"] = json!({ "since": "2026-10-12T06:00:00.000Z", "why": "slot" });

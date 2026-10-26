@@ -357,7 +357,7 @@ fn recover_gone_gone_unknown_or_failed_reads_move_nothing() {
         let w = World::new(Opts { reads: Some(vec![]), gone_confirm_ms: 0, ..Default::default() });
         let e = w.entry_in(EntryOpts { phase: "gone", state: Some(Ok(MachineState::Gone)), ..Default::default() });
         let a = w.area.recover_gone(&e.entry).await.expect("a read");
-        e.machine.set_state(Err(support::plain("x")));
+        e.machine.reject_state(support::plain("x"));
         let b = w.area.recover_gone(&e.entry).await.expect("a read");
         let answer = w.after_with(&e.entry, json!({ "a": a.map(support::phase_name), "b": b.map(support::phase_name) }));
         common::flush().await;

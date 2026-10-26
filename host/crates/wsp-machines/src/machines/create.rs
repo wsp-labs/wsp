@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use futures::future::{LocalBoxFuture, Shared};
 use futures::FutureExt;
 use indexmap::{IndexMap, IndexSet};
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 
 use wsp_core::types::internal::{BuilderLife, KindModule};
 use wsp_core::types::pending::Clock;
@@ -19,7 +19,7 @@ use wsp_core::types::wiring::{until, CreateWorkspaceOptions, CreatedWorkspace, I
 use wsp_engine::machine::{Machine, MachineBackend};
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::views::place::{MachineBind, WorkspaceCopy};
-use wsp_wire::views::workspace::{agents_from, BranchOfRecord, ProjectView, WorkspacePhase};
+use wsp_wire::views::workspace::{agents_from, BranchOfRecord, ProjectView};
 use wsp_wire::views::workspace_events::{WorkspaceCreateStage, WorkspaceCreatingEvent};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::views::workspace::WorkspaceAgentsPatch;
@@ -143,12 +143,15 @@ pub struct CreateArea {
     pub shown_creates: RefCell<IndexMap<String, ShownCreate>>,
     /// `createStages`: each create in flight's last stage, without its `seq`.
     pub create_stages: RefCell<IndexMap<String, WorkspaceCreatingEvent>>,
-    pub(crate) folder_making: RefCell<IndexMap<String, futures::future::Shared<futures::future::LocalBoxFuture<'static, Result<Entry, HostError>>>>>,
+    pub(crate) folder_making: RefCell<IndexMap<String, FolderJoin>>,
 }
+
+/// A folder record being made, shared by every ask for its key.
+pub(crate) type FolderJoin = Shared<LocalBoxFuture<'static, Result<Entry, HostError>>>;
 
 /// `size`'s cpu and memory as the offers name them, for the read of the machine's memory.
 fn sizes_of(offers: &[wsp_wire::wire::capabilities::MachineSizeOffer]) -> Vec<WorkspaceSize> {
-    offers.iter().map(|o| WorkspaceSize { cpu: o.cpu.clone(), mem_mb: o.mem_mb.clone() }).collect()
+    offers.iter().map(|o| WorkspaceSize { cpu: o.cpu, mem_mb: o.mem_mb }).collect()
 }
 
 /// `s.charAt(0).toLowerCase() + s.slice(1, -1)`: the first letter lowered and the last character dropped.
@@ -253,8 +256,8 @@ impl CreateArea {
         let opens_thread = o.opens_thread.clone().or_else(|| if brokered && spawned.is_none() { Some(rt.ids().uuid()) } else { None });
         let default = at.pricing().default_size();
         let size = WorkspaceSize {
-            cpu: o.spec.cpu.clone().or_else(|| inherited.as_ref().map(|s| s.cpu.clone())).unwrap_or(JsNumber(default.cpu)),
-            mem_mb: o.spec.mem_mb.clone().or_else(|| inherited.as_ref().map(|s| s.mem_mb.clone())).unwrap_or(JsNumber(default.mem_mb)),
+            cpu: o.spec.cpu.or_else(|| inherited.as_ref().map(|s| s.cpu)).unwrap_or(JsNumber(default.cpu)),
+            mem_mb: o.spec.mem_mb.or_else(|| inherited.as_ref().map(|s| s.mem_mb)).unwrap_or(JsNumber(default.mem_mb)),
         };
         let mut record: WorkspaceRecord = serde_json::from_value(json!({
             "id": id,
@@ -422,8 +425,8 @@ impl CreateArea {
                 }
             }
         }
-        let kind = record_cell.borrow().kind.clone();
-        let kind_name = serde_json::to_value(&kind).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
+        let kind = record_cell.borrow().kind;
+        let kind_name = serde_json::to_value(kind).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
         let landing = rt.module_of(&kind_name).land_project(&entry.borrow(), project.clone(), report.clone());
         landing.await?;
         rt.write_daemon_roots(&entry).await?;
@@ -461,6 +464,7 @@ impl CreateArea {
     }
 
     /// `failedView` (create.ts:229), spec rule 4. `began` is epoch ms.
+    #[allow(clippy::too_many_arguments)]
     pub fn failed_view(&self, id: &str, name: &str, kind: WorkspaceKind, golden: &str, began: i64, project: &ProjectView, said: &str) -> ShownCreate {
         let view = json!({
             "id": id,

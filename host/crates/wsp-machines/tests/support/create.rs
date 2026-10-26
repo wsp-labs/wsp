@@ -995,7 +995,7 @@ pub fn logging_report(log: &Log) -> StageReport {
 pub fn rustify_record(rec: &mut Value) {
     let Some(m) = rec.as_object_mut() else { return };
     if let Some(a) = m.get("agents").cloned() {
-        m.insert("agents".into(), json!({"spawn": true, "maxMachines": a["machines"], "maxDepth": a["threads"]}));
+        m.insert("agents".into(), json!({"maxMachines": a["machines"], "maxDepth": a["threads"]}));
     }
     if let Some(t) = m.remove("threadId") {
         m.insert("parentThreadId".into(), t);

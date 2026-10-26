@@ -31,7 +31,7 @@ use wsp_words::sub_thread::{
 use wsp_words::views::session::fold_threads;
 use wsp_words::words::units::fmt_bytes;
 
-use super::{disk_kept_until, sub_result_command, sub_result_of, sub_session_pack_command, BackendFor, SessionFile, SubLifeCtx, DONE_NAP, PUSH_READ_BYTES, PUSH_READ_EVENTS, SUB_DELETE_RETRY_MS, SUB_LINE_WAIT_MS, SUB_SESSIONS, SUB_SESSION_MAX_BYTES, SUB_STOP_AFTER_DELETE_MS};
+use super::{disk_kept_until, sub_result_command, sub_result_of, sub_session_pack_command, SessionFile, SubLifeCtx, DONE_NAP, PUSH_READ_BYTES, PUSH_READ_EVENTS, SUB_DELETE_RETRY_MS, SUB_LINE_WAIT_MS, SUB_SESSIONS, SUB_SESSION_MAX_BYTES, SUB_STOP_AFTER_DELETE_MS};
 use crate::machines::area_error::{AreaError, AreaResult};
 use crate::machines::machines::Entry;
 use wsp_core::clock::Cancel;
@@ -348,7 +348,7 @@ impl SubLifeArea {
             Box::new(move || {
                 let Some(area) = me.upgrade() else { return };
                 area.timers.borrow_mut().shift_remove(&timer_id);
-                area.serial(&timer_id, step_work(area.me.clone(), timer_id.clone(), Step::Expire));
+                drop(area.serial(&timer_id, step_work(area.me.clone(), timer_id.clone(), Step::Expire)));
             }),
         );
         self.timers.borrow_mut().insert(id, cancel);
@@ -594,7 +594,7 @@ impl SubLifeArea {
             if delete_at {
                 self.arm(&entry);
             } else if !held {
-                self.serial(&id, step_work(self.me.clone(), id.clone(), Step::Done));
+                drop(self.serial(&id, step_work(self.me.clone(), id.clone(), Step::Done)));
             }
         }
     }
@@ -739,7 +739,7 @@ impl SubLifeArea {
             async move {
                 tokio::task::yield_now().await;
                 if let Some(area) = me.upgrade() {
-                    area.serial(&id, step_work(area.me.clone(), id.clone(), Step::Done));
+                    drop(area.serial(&id, step_work(area.me.clone(), id.clone(), Step::Done)));
                 }
             }
             .boxed_local(),

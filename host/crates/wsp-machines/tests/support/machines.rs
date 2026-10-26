@@ -203,6 +203,7 @@ pub struct FakeMachine {
     log: Log,
     log_state_id: bool,
     log_nap: bool,
+    silent_state: std::cell::Cell<bool>,
     replayed: bool,
     labels: Option<IndexMap<String, String>>,
     seen: Option<Seen>,
@@ -218,6 +219,7 @@ impl FakeMachine {
             log: log.clone(),
             log_state_id: true,
             log_nap: false,
+            silent_state: std::cell::Cell::new(false),
             replayed: def.replayed,
             labels: def.labels.clone(),
             seen: def.seen.map(|state| Seen { state, created_at: None, paused_at: None }),
@@ -235,6 +237,7 @@ impl FakeMachine {
             log: log.clone(),
             log_state_id: false,
             log_nap: true,
+            silent_state: std::cell::Cell::new(false),
             replayed: false,
             labels: None,
             seen: None,
@@ -250,6 +253,7 @@ impl FakeMachine {
             log: Log::default(),
             log_state_id: false,
             log_nap: false,
+            silent_state: std::cell::Cell::new(false),
             replayed: false,
             labels: None,
             seen: None,
@@ -260,6 +264,12 @@ impl FakeMachine {
 
     pub fn set_state(&self, state: Result<MachineState, EngineError>) {
         self.s.borrow_mut().state = Some(state);
+    }
+
+    /// The oracle swaps `state` for a function that rejects and logs nothing (machines.oracle.ts:406).
+    pub fn reject_state(&self, e: EngineError) {
+        self.silent_state.set(true);
+        self.set_state(Err(e));
     }
 
     pub fn execs(&self) -> Vec<String> {
@@ -356,6 +366,11 @@ impl Machine for FakeMachine {
     }
 
     async fn state(&self) -> Result<MachineState, EngineError> {
+        if self.silent_state.get() {
+            if let Some(Err(e)) = &self.s.borrow().state {
+                return Err(e.clone());
+            }
+        }
         if self.log_state_id {
             self.log.push(json!(["machine.state", self.id]));
         } else {

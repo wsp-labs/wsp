@@ -413,7 +413,12 @@
        "kind": "cloud",
        "machineId": "m-a",
        "phase": "running",
-       "project": "p"
+       "project": "p",
+       "daemonRefusedAt": {
+        "machineId": "m-a",
+        "at": "2026-09-21T13:13:20.000Z",
+        "why": "gcc"
+       }
       },
       "mod": {
        "version": 1
@@ -492,7 +497,12 @@
        "kind": "cloud",
        "machineId": "m-a",
        "phase": "running",
-       "project": "p"
+       "project": "p",
+       "daemonRefusedAt": {
+        "machineId": "m-old",
+        "at": "2026-09-21T14:13:19.999Z",
+        "why": "gcc"
+       }
       },
       "mod": {
        "version": 1
@@ -571,12 +581,7 @@
        "kind": "cloud",
        "machineId": "m-a",
        "phase": "running",
-       "project": "p",
-       "daemonRefusedAt": {
-        "machineId": "m-a",
-        "at": "2026-09-21T14:13:20.000Z",
-        "why": "gcc is missing on this machine, so the daemon cannot build"
-       }
+       "project": "p"
       },
       "mod": {
        "version": 1,
@@ -747,7 +752,12 @@
        "kind": "cloud",
        "machineId": "m-a",
        "phase": "running",
-       "project": "p"
+       "project": "p",
+       "daemonRefusedAt": {
+        "machineId": "m-a",
+        "at": "2026-09-21T13:13:19.995Z",
+        "why": "gcc"
+       }
       },
       "mod": {
        "version": 1,
@@ -1227,7 +1237,7 @@
        "id": "a",
        "kind": "cloud",
        "machineId": "m-a",
-       "phase": "napping",
+       "phase": "running",
        "project": "p"
       },
       "mod": {
@@ -1869,7 +1879,12 @@
        "kind": "cloud",
        "machineId": "m-a",
        "phase": "running",
-       "project": "p"
+       "project": "p",
+       "daemonRefusedAt": {
+        "machineId": "m-a",
+        "at": "2026-09-21T13:13:20.000Z",
+        "why": "gcc"
+       }
       },
       "mod": {
        "version": 1
@@ -2242,7 +2257,7 @@
      "emit",
      {
       "type": "session.queued",
-      "requestId": "7a4eb245-17ea-4972-8efa-4f9bc05d2d33",
+      "requestId": "b4b0e564-904e-46e1-b170-2348e60c8708",
       "harness": "codex"
      }
     ],

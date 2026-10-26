@@ -80,7 +80,7 @@ fn reads_the_result_off_local_refs_keeps_the_session_arms_the_delete_and_naps() 
         assert_eq!(session.kept, Some(JsNumber(h.host.clock.now())));
         assert_eq!(h.host.blob(SUB_SESSIONS, THREAD).as_deref(), Some(&b"gzipped session bytes"[..]));
         // Stored with all of it, the row told, then the nap asked with the done's reason.
-        assert_eq!(stored_sub(&h)["deleteAt"], json!(h.host.clock.now() + 30.0 * MIN));
+        assert_eq!(stored_sub(&h)["deleteAt"], json!((h.host.clock.now() + 30.0 * MIN) as i64));
         assert_eq!(h.host.calls_of("push_head"), vec![vec![THREAD.to_string()]]);
         assert_eq!(h.host.calls_of("nap_with"), vec![vec![WS.to_string(), "its sub-thread is done".to_string()]]);
         assert_eq!(phase(&h), "napping");
@@ -108,7 +108,7 @@ fn holds_the_machine_over_work_not_pushed_arms_no_delete_and_naps_all_the_same()
         assert_eq!(s.delete_at, None);
         let r = s.result.unwrap();
         assert_eq!((r.pushed_sha, r.unpushed.get(), r.changed.get()), (None, 2, 3));
-        assert_eq!(stored_sub(&h)["held"], json!({ "files": 3.0, "commits": 2.0, "at": h.host.clock.now() }));
+        assert_eq!(stored_sub(&h)["held"], json!({ "files": 3, "commits": 2, "at": h.host.clock.now() as i64 }));
         assert_eq!(h.host.calls_of("nap_with").len(), 1);
         assert_eq!(phase(&h), "napping");
         // No timer stands for a held machine.

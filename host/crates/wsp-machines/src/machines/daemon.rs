@@ -80,13 +80,15 @@ pub trait DaemonRuntime {
     fn backend_for(&self, record: &WorkspaceRecord) -> Arc<dyn MachineBackend>;
 }
 
+/// A bus wait: told each event, and it answers true once it is done and should go.
+type Listener = Box<dyn Fn(&EventUnion) -> bool>;
+
 /// A keyed run's shared future and the sequence number it was started under, so a run ends only its own key.
 type Join<T> = (u64, Shared<LocalBoxFuture<'static, T>>);
 
 /// The daemon area: the maps and joins daemon.ts keeps in its closure.
 pub struct DaemonArea {
     pub(crate) rt: Rc<dyn DaemonRuntime>,
-    pub(crate) me: Weak<DaemonArea>,
     /// `rootsWrites`: the tail of each machine's roots chain.
     pub(crate) roots_writes: RefCell<IndexMap<String, Join<()>>>,
     /// `daemonSyncs`: the sync each machine has in flight.
@@ -97,7 +99,7 @@ pub struct DaemonArea {
     pub(crate) unread_at: Rc<RefCell<IndexMap<String, MachineMoment>>>,
     pub(crate) unreached: Rc<RefCell<IndexMap<String, Unreached>>>,
     /// The waits on a turn's end and on a queued start's event, woken from `on_event`.
-    pub(crate) listeners: RefCell<Vec<Box<dyn Fn(&EventUnion) -> bool>>>,
+    pub(crate) listeners: RefCell<Vec<Listener>>,
     pub(crate) seq: Cell<u64>,
 }
 
@@ -156,9 +158,8 @@ fn turn_on_sessions(sessions: &RefCell<IndexMap<String, Row>>, workspace_id: &st
 impl DaemonArea {
     /// `daemonArea(ctx)` (daemon.ts:9).
     pub fn new(rt: Rc<dyn DaemonRuntime>) -> Rc<Self> {
-        Rc::new_cyclic(|me: &Weak<DaemonArea>| DaemonArea {
+        Rc::new_cyclic(|_: &Weak<DaemonArea>| DaemonArea {
             rt,
-            me: me.clone(),
             roots_writes: RefCell::default(),
             daemon_syncs: RefCell::default(),
             daemon_revivals: RefCell::default(),
@@ -331,15 +332,21 @@ impl DaemonArea {
         self.roots_writes.borrow_mut().insert(machine_id.to_string(), (seq, tail.clone()));
         let me = Rc::downgrade(self);
         let key = machine_id.to_string();
-        start(
+        drop(start(
             tail,
             Box::new(move || {
                 if let Some(area) = me.upgrade() {
                     forget_join(&area.roots_writes, &key, seq);
                 }
             }),
-        );
-        async move { rx.await.unwrap_or_else(|_| Err(HostError::new("the roots write was dropped"))) }.boxed_local()
+        ));
+        async move {
+            match rx.await {
+                Ok(answer) => answer,
+                Err(_) => Err(HostError::new("the roots write was dropped")),
+            }
+        }
+        .boxed_local()
     }
 
     /// The roots file's content for one write (daemon.ts:88-110), each step a return point.
@@ -531,7 +538,8 @@ impl DaemonArea {
         if !self.can_deploy(entry) {
             return Ok(());
         }
-        let version = module.daemon_version(&entry.borrow()).await?;
+        let version_read = module.daemon_version(&entry.borrow());
+        let version = version_read.await?;
         let Some(version) = version else {
             let now = self.rt.clock().now() as f64;
             self.unread_at.borrow_mut().insert(id.clone(), MachineMoment { machine_id: key.clone(), at: JsNumber(now) });
@@ -651,14 +659,14 @@ impl DaemonArea {
         self.daemon_revivals.borrow_mut().insert(key.clone(), (seq, join.clone()));
         let me = Rc::downgrade(self);
         let forget_key = key.clone();
-        start(
+        drop(start(
             join,
             Box::new(move || {
                 if let Some(area) = me.upgrade() {
                     forget_join(&area.daemon_revivals, &forget_key, seq);
                 }
             }),
-        );
+        ));
     }
 
     /// The work of a revive (daemon.ts:309-330).

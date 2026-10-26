@@ -89,6 +89,8 @@ impl FakeClock {
     }
     /// Moves time on by `ms`, firing every timer it passes at its own time, letting tasks run after each.
     pub async fn advance(&self, ms: f64) {
+        // Tasks spawned before the call arm their timers at this time, as vitest's advanceTimersByTimeAsync runs pending jobs first.
+        settle().await;
         let end = self.now.get() + ms;
         loop {
             let next = {
@@ -673,7 +675,7 @@ impl FakeHost {
     pub fn put_row(&self, turn_id: &str, workspace_id: &str, thread_id: &str, started_at: f64, claude_session_id: Option<&str>) {
         let view: SessionView = serde_json::from_value(json!({
             "id": turn_id, "workspaceId": workspace_id, "harness": "claude", "status": "completed", "threadId": thread_id,
-            "startedAt": started_at, "claudeSessionId": claude_session_id,
+            "startedAt": started_at, "claudeSessionId": claude_session_id, "prompt": "Fix the flaky upload test",
         }))
         .unwrap();
         self.sessions.borrow_mut().insert(turn_id.to_string(), queue_ctx::session_entry(view, turn_id.to_string()));
