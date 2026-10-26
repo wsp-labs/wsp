@@ -1,0 +1,419 @@
+{
+ "found": [
+  {
+   "argv": [],
+   "verb": null,
+   "cloudLine": null
+  },
+  {
+   "argv": [
+    "threads"
+   ],
+   "verb": "threads",
+   "cloudLine": null
+  },
+  {
+   "argv": [
+    "thread",
+    "read",
+    "x"
+   ],
+   "verb": "thread read",
+   "cloudLine": null
+  },
+  {
+   "argv": [
+    "thread"
+   ],
+   "verb": null,
+   "cloudLine": null
+  },
+  {
+   "argv": [
+    "thread",
+    "nope"
+   ],
+   "verb": null,
+   "cloudLine": null
+  },
+  {
+   "argv": [
+    "--json",
+    "threads"
+   ],
+   "verb": null,
+   "cloudLine": null
+  },
+  {
+   "argv": [
+    "projects",
+    "add"
+   ],
+   "verb": "projects",
+   "cloudLine": null
+  },
+  {
+   "argv": [
+    "projects",
+    "remove",
+    "x"
+   ],
+   "verb": "projects remove",
+   "cloudLine": null
+  },
+  {
+   "argv": [
+    "nope"
+   ],
+   "verb": null,
+   "cloudLine": null
+  },
+  {
+   "argv": [
+    "run",
+    "say hi"
+   ],
+   "verb": "run",
+   "cloudLine": null
+  },
+  {
+   "argv": [
+    "agents",
+    "set",
+    "claude"
+   ],
+   "verb": "agents set",
+   "cloudLine": null
+  },
+  {
+   "argv": [
+    "exec",
+    "t",
+    "--",
+    "ls"
+   ],
+   "verb": "exec",
+   "cloudLine": null
+  },
+  {
+   "argv": [
+    "Threads"
+   ],
+   "verb": null,
+   "cloudLine": null
+  },
+  {
+   "argv": [
+    "image",
+    "build"
+   ],
+   "verb": "image build",
+   "cloudLine": null
+  },
+  {
+   "argv": [
+    "fork",
+    "x"
+   ],
+   "verb": null,
+   "cloudLine": "wsp fork"
+  }
+ ],
+ "commons": [
+  {
+   "argv": [
+    "threads",
+    "--json"
+   ],
+   "common": [
+    "--json"
+   ],
+   "rest": [
+    "threads"
+   ],
+   "jsonAsked": true
+  },
+  {
+   "argv": [
+    "--json",
+    "threads"
+   ],
+   "common": [
+    "--json"
+   ],
+   "rest": [
+    "threads"
+   ],
+   "jsonAsked": true
+  },
+  {
+   "argv": [
+    "--host",
+    "mini",
+    "threads"
+   ],
+   "common": [
+    "--host",
+    "mini"
+   ],
+   "rest": [
+    "threads"
+   ],
+   "jsonAsked": false
+  },
+  {
+   "argv": [
+    "threads",
+    "--host"
+   ],
+   "common": [],
+   "rest": [
+    "threads",
+    "--host"
+   ],
+   "jsonAsked": false
+  },
+  {
+   "argv": [
+    "threads",
+    "--host=mini",
+    "--state",
+    "/s.json"
+   ],
+   "common": [
+    "--host=mini",
+    "--state",
+    "/s.json"
+   ],
+   "rest": [
+    "threads"
+   ],
+   "jsonAsked": false
+  },
+  {
+   "argv": [
+    "-h",
+    "run"
+   ],
+   "common": [
+    "-h"
+   ],
+   "rest": [
+    "run"
+   ],
+   "jsonAsked": false
+  },
+  {
+   "argv": [
+    "run",
+    "--",
+    "--json",
+    "x"
+   ],
+   "common": [],
+   "rest": [
+    "run",
+    "--",
+    "--json",
+    "x"
+   ],
+   "jsonAsked": false
+  },
+  {
+   "argv": [
+    "exec",
+    "t",
+    "--state",
+    "--",
+    "ls"
+   ],
+   "common": [
+    "--state",
+    "--"
+   ],
+   "rest": [
+    "exec",
+    "t",
+    "ls"
+   ],
+   "jsonAsked": false
+  },
+  {
+   "argv": [
+    "--hostx",
+    "threads"
+   ],
+   "common": [],
+   "rest": [
+    "--hostx",
+    "threads"
+   ],
+   "jsonAsked": false
+  },
+  {
+   "argv": [
+    "--json=1",
+    "threads"
+   ],
+   "common": [
+    "--json=1"
+   ],
+   "rest": [
+    "threads"
+   ],
+   "jsonAsked": false
+  },
+  {
+   "argv": [
+    "-hx"
+   ],
+   "common": [],
+   "rest": [
+    "-hx"
+   ],
+   "jsonAsked": false
+  },
+  {
+   "argv": [
+    "--state",
+    "a",
+    "--state",
+    "b"
+   ],
+   "common": [
+    "--state",
+    "a",
+    "--state",
+    "b"
+   ],
+   "rest": [],
+   "jsonAsked": false
+  }
+ ],
+ "optional": [
+  {
+   "argv": [
+    "skills",
+    "--project"
+   ],
+   "out": [
+    "skills",
+    "--project="
+   ]
+  },
+  {
+   "argv": [
+    "skills",
+    "--project",
+    "x"
+   ],
+   "out": [
+    "skills",
+    "--project=",
+    "x"
+   ]
+  },
+  {
+   "argv": [
+    "skills",
+    "--on",
+    "mini",
+    "--project",
+    "x"
+   ],
+   "out": [
+    "skills",
+    "--on",
+    "mini",
+    "--project",
+    "x"
+   ]
+  },
+  {
+   "argv": [
+    "skills",
+    "--on=mini",
+    "--project"
+   ],
+   "out": [
+    "skills",
+    "--on=mini",
+    "--project="
+   ]
+  },
+  {
+   "argv": [
+    "skills",
+    "--on",
+    "mini",
+    "--project",
+    "--agent",
+    "a"
+   ],
+   "out": [
+    "skills",
+    "--on",
+    "mini",
+    "--project=",
+    "--agent",
+    "a"
+   ]
+  },
+  {
+   "argv": [
+    "skills",
+    "--project",
+    "--on",
+    "mini"
+   ],
+   "out": [
+    "skills",
+    "--project=",
+    "--on",
+    "mini"
+   ]
+  },
+  {
+   "argv": [
+    "skills",
+    "--on",
+    "mini",
+    "--",
+    "--project",
+    "x"
+   ],
+   "out": [
+    "skills",
+    "--on",
+    "mini",
+    "--",
+    "--project",
+    "x"
+   ]
+  },
+  {
+   "argv": [
+    "skills",
+    "--project=x"
+   ],
+   "out": [
+    "skills",
+    "--project=x"
+   ]
+  }
+ ],
+ "toolNames": [
+  [
+   "thread read",
+   "thread_read"
+  ],
+  [
+   "projects",
+   "projects"
+  ],
+  [
+   "a b c",
+   "a_b_c"
+  ]
+ ]
+}

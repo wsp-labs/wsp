@@ -1,0 +1,3435 @@
+{
+ "source": "TS command line at 65f6b89c7 against daemon/crates/wsp-mcp/tests/answers; recorded by the cli-b recorder",
+ "cases": [
+  {
+   "tool": "projects",
+   "case": "rows",
+   "argv": [
+    "projects"
+   ],
+   "replies": {
+    "projects.list": "{\"id\":1,\"ok\":true,\"projects\":[{\"10\":1,\"id\":\"proj-1\",\"name\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"computer\":\"here\",\"source\":{\"kind\":\"folder\",\"path\":\"/w\"},\"path\":\"/w\",\"remote\":\"\",\"defaultBranch\":\"main\",\"memoryKey\":\"-w\",\"memoryDir\":\"/m/-w\",\"createdAt\":\"2026-09-27T00:00:00.000Z\"}]}",
+    "projects.defaults": "{\"id\":1,\"ok\":true,\"defaults\":{\"proj-1\":{\"agent\":{\"value\":\"codex\",\"from\":\"project\"},\"model\":{\"value\":\"gpt \",\"from\":\"default\"},\"access\":{\"value\":\"auto-edit\",\"mode\":\"acceptEdits\",\"from\":\"catalog\"}}}}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "projects.list"
+    },
+    {
+     "op": "projects.defaults"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"projects\": [\n    {\n      \"10\": 1,\n      \"id\": \"proj-1\",\n      \"name\": \"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\n      \"computer\": \"here\",\n      \"source\": {\n        \"kind\": \"folder\",\n        \"path\": \"/w\"\n      },\n      \"path\": \"/w\",\n      \"remote\": \"\",\n      \"defaultBranch\": \"main\",\n      \"memoryKey\": \"-w\",\n      \"memoryDir\": \"/m/-w\",\n      \"createdAt\": \"2026-09-27T00:00:00.000Z\"\n    }\n  ],\n  \"defaults\": {\n    \"proj-1\": {\n      \"agent\": {\n        \"value\": \"codex\",\n        \"from\": \"project\"\n      },\n      \"model\": {\n        \"value\": \"gpt \\u0085\",\n        \"from\": \"default\"\n      },\n      \"access\": {\n        \"value\": \"auto-edit\",\n        \"mode\": \"acceptEdits\",\n        \"from\": \"catalog\"\n      }\n    }\n  }\n}"
+     }
+    ],
+    "structuredContent": {
+     "projects": [
+      {
+       "10": 1,
+       "id": "proj-1",
+       "name": "zingzy's box \"one\" \\ two\nthree 🧪",
+       "computer": "here",
+       "source": {
+        "kind": "folder",
+        "path": "/w"
+       },
+       "path": "/w",
+       "remote": "",
+       "defaultBranch": "main",
+       "memoryKey": "-w",
+       "memoryDir": "/m/-w",
+       "createdAt": "2026-09-27T00:00:00.000Z"
+      }
+     ],
+     "defaults": {
+      "proj-1": {
+       "agent": {
+        "value": "codex",
+        "from": "project"
+       },
+       "model": {
+        "value": "gpt ",
+        "from": "default"
+       },
+       "access": {
+        "value": "auto-edit",
+        "mode": "acceptEdits",
+        "from": "catalog"
+       }
+      }
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"projects.list\"}",
+     "{\"id\":3,\"op\":\"workspaces.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp projects: workspaces.list is not in this record"
+    ],
+    "exit": 1
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"projects.list\"}",
+     "{\"id\":3,\"op\":\"workspaces.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"workspaces.list is not in this record\",\"class\":\"provider\",\"exit\":1}"
+    ],
+    "exit": 1
+   }
+  },
+  {
+   "tool": "projects",
+   "case": "defaults refused",
+   "argv": [
+    "projects"
+   ],
+   "replies": {
+    "projects.list": "{\"id\":1,\"ok\":true,\"projects\":[]}",
+    "projects.defaults": "{\"id\":1,\"ok\":false,\"error\":\"projects.defaults failed\"}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "projects.list"
+    },
+    {
+     "op": "projects.defaults"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "projects.defaults failed"
+     }
+    ],
+    "structuredContent": {
+     "error": "projects.defaults failed",
+     "class": "provider",
+     "exit": 1
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"projects.list\"}"
+    ],
+    "stdout": [
+     "no projects yet; wsp add <folder> records one here, and wsp add <url> --on <computer> records one there"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"projects.list\"}"
+    ],
+    "stdout": [
+     "{\"projects\":[],\"defaults\":{}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "projects",
+   "case": "refused",
+   "argv": [
+    "projects"
+   ],
+   "replies": {
+    "projects.list": "{\"id\":1,\"ok\":false,\"error\":\"projects.list failed\"}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "projects.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "projects.list failed"
+     }
+    ],
+    "structuredContent": {
+     "error": "projects.list failed",
+     "class": "provider",
+     "exit": 1
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"projects.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp projects: projects.list failed"
+    ],
+    "exit": 1
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"projects.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"projects.list failed\",\"class\":\"provider\",\"exit\":1}"
+    ],
+    "exit": 1
+   }
+  },
+  {
+   "tool": "projects_remove",
+   "case": "removed",
+   "argv": [
+    "projects",
+    "remove",
+    "alpha",
+    "--yes"
+   ],
+   "replies": {
+    "projects.resolve": "{\"id\":1,\"ok\":true,\"project\":{\"id\":\"proj-1\",\"name\":\"alpha 'quoted'\",\"computer\":\"place-9\",\"source\":{\"kind\":\"github\",\"repo\":\"dev/alpha\"},\"path\":\"/root/alpha\",\"remote\":\"https://github.com/dev/alpha.git\",\"defaultBranch\":\"main\",\"memoryKey\":\"-root-alpha\",\"memoryDir\":\"/root/.claude/projects/-root-alpha \",\"createdAt\":\"2026-09-01T00:00:00.000Z\",\"base\":\"main\"}}",
+    "projects.remove": "{\"id\":1,\"ok\":true,\"said\":\"alpha 'quoted' is no longer a project here \"}"
+   },
+   "tool_arguments": {
+    "project": "alpha"
+   },
+   "tool_asked": [
+    {
+     "op": "projects.resolve",
+     "ref": "alpha"
+    },
+    {
+     "op": "projects.remove",
+     "projectId": "proj-1"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "alpha 'quoted' is no longer a project here "
+     }
+    ],
+    "structuredContent": {
+     "project": {
+      "id": "proj-1",
+      "name": "alpha 'quoted'",
+      "computer": "place-9",
+      "source": {
+       "kind": "github",
+       "repo": "dev/alpha"
+      },
+      "path": "/root/alpha",
+      "remote": "https://github.com/dev/alpha.git",
+      "defaultBranch": "main",
+      "memoryKey": "-root-alpha",
+      "memoryDir": "/root/.claude/projects/-root-alpha ",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "base": "main"
+     },
+     "said": "alpha 'quoted' is no longer a project here "
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"ref\":\"alpha\",\"id\":2,\"op\":\"projects.resolve\"}",
+     "{\"projectId\":\"proj-1\",\"check\":true,\"id\":3,\"op\":\"projects.remove\"}",
+     "{\"projectId\":\"proj-1\",\"id\":4,\"op\":\"projects.remove\"}"
+    ],
+    "stdout": [
+     "alpha 'quoted' is no longer a project here "
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"ref\":\"alpha\",\"id\":2,\"op\":\"projects.resolve\"}",
+     "{\"projectId\":\"proj-1\",\"check\":true,\"id\":3,\"op\":\"projects.remove\"}",
+     "{\"projectId\":\"proj-1\",\"id\":4,\"op\":\"projects.remove\"}"
+    ],
+    "stdout": [
+     "{\"project\":{\"id\":\"proj-1\",\"name\":\"alpha 'quoted'\",\"computer\":\"place-9\",\"source\":{\"kind\":\"github\",\"repo\":\"dev/alpha\"},\"path\":\"/root/alpha\",\"remote\":\"https://github.com/dev/alpha.git\",\"defaultBranch\":\"main\",\"memoryKey\":\"-root-alpha\",\"memoryDir\":\"/root/.claude/projects/-root-alpha \\u0085\",\"createdAt\":\"2026-09-01T00:00:00.000Z\",\"base\":\"main\"},\"said\":\"alpha 'quoted' is no longer a project here \\u0085\"}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "projects_set",
+   "case": "set",
+   "argv": [
+    "projects",
+    "set",
+    "wsp",
+    "--agent=codex",
+    "--access=full"
+   ],
+   "replies": {
+    "projects.resolve": "{\"id\":1,\"ok\":true,\"project\":{\"id\":\"proj-1\",\"name\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"computer\":\"here\",\"source\":{\"kind\":\"folder\",\"path\":\"/w\"},\"path\":\"/w\",\"remote\":\"\",\"defaultBranch\":\"main\",\"memoryKey\":\"-w\",\"memoryDir\":\"/m/-w\",\"createdAt\":\"2026-09-27T00:00:00.000Z\"}}",
+    "preferences.set": "{\"id\":1,\"ok\":true,\"preferences\":{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{},\"access\":{},\"projectLook\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"ask\",\"labs\":false,\"unknownTop\":1}}",
+    "projects.defaults": "{\"id\":1,\"ok\":true,\"defaults\":{\"proj-1\":{\"access\":{\"from\":\"project\",\"mode\":\"bypass\",\"value\":\"full\"},\"agent\":{\"from\":\"project\",\"value\":\"codex\",\"extra\":1},\"model\":{\"value\":\"gpt \",\"from\":\"default\"},\"effort\":{\"value\":\"low\",\"from\":\"catalog\"}}}}"
+   },
+   "tool_arguments": {
+    "project": "wsp",
+    "agent": "codex",
+    "access": "full"
+   },
+   "tool_asked": [
+    {
+     "op": "projects.resolve",
+     "ref": "wsp"
+    },
+    {
+     "op": "preferences.set",
+     "patch": {
+      "projectDefaults": {
+       "proj-1": {
+        "agent": "codex",
+        "access": "full"
+       }
+      }
+     }
+    },
+    {
+     "op": "projects.defaults"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "A new thread on zingzy's box \"one\" \\ two\nthree 🧪 starts on:\nagent Codex: this project's\nmodel gpt : your default\neffort low: the catalog's\naccess full: this project's"
+     }
+    ],
+    "structuredContent": {
+     "project": {
+      "id": "proj-1",
+      "name": "zingzy's box \"one\" \\ two\nthree 🧪",
+      "computer": "here",
+      "source": {
+       "kind": "folder",
+       "path": "/w"
+      },
+      "path": "/w",
+      "remote": "",
+      "defaultBranch": "main",
+      "memoryKey": "-w",
+      "memoryDir": "/m/-w",
+      "createdAt": "2026-09-27T00:00:00.000Z"
+     },
+     "defaults": {
+      "agent": {
+       "value": "codex",
+       "from": "project"
+      },
+      "model": {
+       "value": "gpt ",
+       "from": "default"
+      },
+      "effort": {
+       "value": "low",
+       "from": "catalog"
+      },
+      "access": {
+       "value": "full",
+       "mode": "bypass",
+       "from": "project"
+      }
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"ref\":\"wsp\",\"id\":2,\"op\":\"projects.resolve\"}",
+     "{\"patch\":{\"projectDefaults\":{\"proj-1\":{\"agent\":\"codex\",\"access\":\"full\"}}},\"id\":3,\"op\":\"preferences.set\"}",
+     "{\"id\":4,\"op\":\"projects.defaults\"}"
+    ],
+    "stdout": [
+     "A new thread on zingzy's box \"one\" \\ two\nthree 🧪 starts on:\nagent Codex: this project's\nmodel gpt : your default\neffort low: the catalog's\naccess full: this project's"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"ref\":\"wsp\",\"id\":2,\"op\":\"projects.resolve\"}",
+     "{\"patch\":{\"projectDefaults\":{\"proj-1\":{\"agent\":\"codex\",\"access\":\"full\"}}},\"id\":3,\"op\":\"preferences.set\"}",
+     "{\"id\":4,\"op\":\"projects.defaults\"}"
+    ],
+    "stdout": [
+     "{\"project\":{\"id\":\"proj-1\",\"name\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"computer\":\"here\",\"source\":{\"kind\":\"folder\",\"path\":\"/w\"},\"path\":\"/w\",\"remote\":\"\",\"defaultBranch\":\"main\",\"memoryKey\":\"-w\",\"memoryDir\":\"/m/-w\",\"createdAt\":\"2026-09-27T00:00:00.000Z\"},\"defaults\":{\"agent\":{\"value\":\"codex\",\"from\":\"project\"},\"model\":{\"value\":\"gpt \\u0085\",\"from\":\"default\"},\"effort\":{\"value\":\"low\",\"from\":\"catalog\"},\"access\":{\"value\":\"full\",\"mode\":\"bypass\",\"from\":\"project\"}}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "projects_set",
+   "case": "put back",
+   "argv": [
+    "projects",
+    "set",
+    "wsp",
+    "--reset=agent",
+    "--reset=access"
+   ],
+   "replies": {
+    "projects.resolve": "{\"id\":1,\"ok\":true,\"project\":{\"id\":\"proj-1\",\"name\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"computer\":\"here\",\"source\":{\"kind\":\"folder\",\"path\":\"/w\"},\"path\":\"/w\",\"remote\":\"\",\"defaultBranch\":\"main\",\"memoryKey\":\"-w\",\"memoryDir\":\"/m/-w\",\"createdAt\":\"2026-09-27T00:00:00.000Z\"}}",
+    "preferences.set": "{\"id\":1,\"ok\":true,\"preferences\":{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{},\"access\":{},\"projectLook\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"ask\",\"labs\":false,\"unknownTop\":1}}",
+    "projects.defaults": "{\"id\":1,\"ok\":true,\"defaults\":{\"proj-1\":{\"agent\":{\"value\":\"claude\",\"from\":\"catalog\"}}}}"
+   },
+   "tool_arguments": {
+    "project": "wsp",
+    "reset": [
+     "agent",
+     "access"
+    ]
+   },
+   "tool_asked": [
+    {
+     "op": "projects.resolve",
+     "ref": "wsp"
+    },
+    {
+     "op": "preferences.set",
+     "patch": {
+      "projectDefaults": {
+       "proj-1": {
+        "agent": null,
+        "access": null
+       }
+      }
+     }
+    },
+    {
+     "op": "projects.defaults"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "A new thread on zingzy's box \"one\" \\ two\nthree 🧪 starts on:\nagent Claude Code: the catalog's"
+     }
+    ],
+    "structuredContent": {
+     "project": {
+      "id": "proj-1",
+      "name": "zingzy's box \"one\" \\ two\nthree 🧪",
+      "computer": "here",
+      "source": {
+       "kind": "folder",
+       "path": "/w"
+      },
+      "path": "/w",
+      "remote": "",
+      "defaultBranch": "main",
+      "memoryKey": "-w",
+      "memoryDir": "/m/-w",
+      "createdAt": "2026-09-27T00:00:00.000Z"
+     },
+     "defaults": {
+      "agent": {
+       "value": "claude",
+       "from": "catalog"
+      }
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"ref\":\"wsp\",\"id\":2,\"op\":\"projects.resolve\"}",
+     "{\"patch\":{\"projectDefaults\":{\"proj-1\":{\"agent\":null,\"access\":null}}},\"id\":3,\"op\":\"preferences.set\"}",
+     "{\"id\":4,\"op\":\"projects.defaults\"}"
+    ],
+    "stdout": [
+     "A new thread on zingzy's box \"one\" \\ two\nthree 🧪 starts on:\nagent Claude Code: the catalog's"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"ref\":\"wsp\",\"id\":2,\"op\":\"projects.resolve\"}",
+     "{\"patch\":{\"projectDefaults\":{\"proj-1\":{\"agent\":null,\"access\":null}}},\"id\":3,\"op\":\"preferences.set\"}",
+     "{\"id\":4,\"op\":\"projects.defaults\"}"
+    ],
+    "stdout": [
+     "{\"project\":{\"id\":\"proj-1\",\"name\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"computer\":\"here\",\"source\":{\"kind\":\"folder\",\"path\":\"/w\"},\"path\":\"/w\",\"remote\":\"\",\"defaultBranch\":\"main\",\"memoryKey\":\"-w\",\"memoryDir\":\"/m/-w\",\"createdAt\":\"2026-09-27T00:00:00.000Z\"},\"defaults\":{\"agent\":{\"value\":\"claude\",\"from\":\"catalog\"}}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "projects_set",
+   "case": "no defaults answered",
+   "argv": [
+    "projects",
+    "set",
+    "wsp",
+    "--effort=low"
+   ],
+   "replies": {
+    "projects.resolve": "{\"id\":1,\"ok\":true,\"project\":{\"id\":\"proj-1\",\"name\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"computer\":\"here\",\"source\":{\"kind\":\"folder\",\"path\":\"/w\"},\"path\":\"/w\",\"remote\":\"\",\"defaultBranch\":\"main\",\"memoryKey\":\"-w\",\"memoryDir\":\"/m/-w\",\"createdAt\":\"2026-09-27T00:00:00.000Z\"}}",
+    "preferences.set": "{\"id\":1,\"ok\":true,\"preferences\":{\"theme\":\"system\",\"lightTheme\":\"paper\",\"darkTheme\":\"graphite\",\"sidebarMode\":\"list\",\"terminalSize\":\"app\",\"terminalZoom\":{},\"access\":{},\"projectLook\":{},\"computerLook\":{},\"serverIcons\":true,\"agentVersions\":true,\"usageLogs\":true,\"productUsage\":true,\"keepAwake\":true,\"transparency\":true,\"projectOrder\":[],\"keybindings\":{},\"appFont\":\"\",\"codeFont\":\"\",\"agentDefaults\":{},\"projectDefaults\":{},\"sendWith\":\"enter\",\"midTurn\":\"queue\",\"notifyNeeds\":\"notify-sound\",\"notifyDone\":\"notify\",\"planAlerts\":true,\"settleAfter\":\"2h\",\"askDelete\":true,\"onQuit\":\"ask\",\"newThreadIn\":\"ask\",\"labs\":false,\"unknownTop\":1}}",
+    "projects.defaults": "{\"id\":1,\"ok\":true,\"defaults\":{}}"
+   },
+   "tool_arguments": {
+    "project": "wsp",
+    "effort": "low"
+   },
+   "tool_asked": [
+    {
+     "op": "projects.resolve",
+     "ref": "wsp"
+    },
+    {
+     "op": "preferences.set",
+     "patch": {
+      "projectDefaults": {
+       "proj-1": {
+        "effort": "low"
+       }
+      }
+     }
+    },
+    {
+     "op": "projects.defaults"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "the host answered no defaults for zingzy's box \"one\" \\ two\nthree 🧪"
+     }
+    ],
+    "structuredContent": {
+     "error": "the host answered no defaults for zingzy's box \"one\" \\ two\nthree 🧪",
+     "class": "provider",
+     "exit": 1
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"ref\":\"wsp\",\"id\":2,\"op\":\"projects.resolve\"}",
+     "{\"patch\":{\"projectDefaults\":{\"proj-1\":{\"effort\":\"low\"}}},\"id\":3,\"op\":\"preferences.set\"}",
+     "{\"id\":4,\"op\":\"projects.defaults\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp projects set: the host answered no defaults for zingzy's box \"one\" \\ two\nthree 🧪"
+    ],
+    "exit": 1
+   },
+   "json": {
+    "frames": [
+     "{\"ref\":\"wsp\",\"id\":2,\"op\":\"projects.resolve\"}",
+     "{\"patch\":{\"projectDefaults\":{\"proj-1\":{\"effort\":\"low\"}}},\"id\":3,\"op\":\"preferences.set\"}",
+     "{\"id\":4,\"op\":\"projects.defaults\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"the host answered no defaults for zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"class\":\"provider\",\"exit\":1}"
+    ],
+    "exit": 1
+   }
+  },
+  {
+   "tool": "projects_set",
+   "case": "nothing to change",
+   "argv": [
+    "projects",
+    "set",
+    "wsp"
+   ],
+   "replies": {},
+   "tool_arguments": {
+    "project": "wsp"
+   },
+   "tool_asked": [],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "wsp projects set takes --agent, --model, --effort, --access, --after-worktree, --tracker or --reset. Name at least one; with none of them there is nothing to change."
+     }
+    ],
+    "structuredContent": {
+     "error": "wsp projects set takes --agent, --model, --effort, --access, --after-worktree, --tracker or --reset. Name at least one; with none of them there is nothing to change.",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp projects set takes --agent, --model, --effort, --access, --after-worktree, --tracker or --reset. Name at least one; with none of them there is nothing to change."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp projects set takes --agent, --model, --effort, --access, --after-worktree, --tracker or --reset. Name at least one; with none of them there is nothing to change.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "projects_set",
+   "case": "a blank after-worktree command",
+   "argv": [
+    "projects",
+    "set",
+    "wsp",
+    "--after-worktree= "
+   ],
+   "replies": {},
+   "tool_arguments": {
+    "project": "wsp",
+    "after_worktree": " "
+   },
+   "tool_asked": [],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "--after-worktree was given a blank command, which a new worktree cannot run. Name the shell line a new worktree runs, or take the command away with --reset after-worktree."
+     }
+    ],
+    "structuredContent": {
+     "error": "--after-worktree was given a blank command, which a new worktree cannot run. Name the shell line a new worktree runs, or take the command away with --reset after-worktree.",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp projects set: --after-worktree was given a blank command, which a new worktree cannot run. Name the shell line a new worktree runs, or take the command away with --reset after-worktree."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--after-worktree was given a blank command, which a new worktree cannot run. Name the shell line a new worktree runs, or take the command away with --reset after-worktree.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "projects_set",
+   "case": "no such project",
+   "argv": [
+    "projects",
+    "set",
+    "nope",
+    "--model=m"
+   ],
+   "replies": {
+    "projects.resolve": "{\"id\":1,\"ok\":false,\"error\":\"no project \\\"nope\\\"; you have wsp\",\"kind\":\"usage\"}"
+   },
+   "tool_arguments": {
+    "project": "nope",
+    "model": "m"
+   },
+   "tool_asked": [
+    {
+     "op": "projects.resolve",
+     "ref": "nope"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "no project \"nope\"; you have wsp"
+     }
+    ],
+    "structuredContent": {
+     "error": "no project \"nope\"; you have wsp",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"ref\":\"nope\",\"id\":2,\"op\":\"projects.resolve\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp projects set: no project \"nope\"; you have wsp"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"ref\":\"nope\",\"id\":2,\"op\":\"projects.resolve\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"no project \\\"nope\\\"; you have wsp\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "projects_seed",
+   "case": "the menu with nothing picked yet, nothing saved",
+   "argv": [
+    "projects",
+    "seed",
+    "lab"
+   ],
+   "replies": {
+    "projects.seed": "{\"id\":1,\"ok\":true,\"project\":\"lab\",\"folder\":\"/work/acme/lab\",\"rows\":[{\"path\":\".env\",\"dir\":false,\"bytes\":1126,\"kind\":\"config\",\"why\":\"environment file\",\"picked\":false},{\"path\":\"node_modules\",\"dir\":true,\"bytes\":831520768,\"kind\":\"rebuilt\",\"why\":\"rebuilt on the box\",\"picked\":false,\"extra\":\"dropped\"}],\"picked\":{\"paths\":[],\"bytes\":0,\"missing\":[]},\"saved\":false}"
+   },
+   "tool_arguments": {
+    "project": "lab"
+   },
+   "tool_asked": [
+    {
+     "op": "projects.seed",
+     "project": "lab"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"project\": \"lab\",\n  \"folder\": \"/work/acme/lab\",\n  \"rows\": [\n    {\n      \"path\": \".env\",\n      \"dir\": false,\n      \"bytes\": 1126,\n      \"kind\": \"config\",\n      \"why\": \"environment file\",\n      \"picked\": false\n    },\n    {\n      \"path\": \"node_modules\",\n      \"dir\": true,\n      \"bytes\": 831520768,\n      \"kind\": \"rebuilt\",\n      \"why\": \"rebuilt on the box\",\n      \"picked\": false\n    }\n  ],\n  \"picked\": {\n    \"paths\": [],\n    \"bytes\": 0,\n    \"missing\": []\n  },\n  \"saved\": false\n}"
+     }
+    ],
+    "structuredContent": {
+     "project": "lab",
+     "folder": "/work/acme/lab",
+     "rows": [
+      {
+       "path": ".env",
+       "dir": false,
+       "bytes": 1126,
+       "kind": "config",
+       "why": "environment file",
+       "picked": false
+      },
+      {
+       "path": "node_modules",
+       "dir": true,
+       "bytes": 831520768,
+       "kind": "rebuilt",
+       "why": "rebuilt on the box",
+       "picked": false
+      }
+     ],
+     "picked": {
+      "paths": [],
+      "bytes": 0,
+      "missing": []
+     },
+     "saved": false
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"project\":\"lab\",\"id\":2,\"op\":\"projects.seed\"}"
+    ],
+    "stdout": [
+     "lab, /work/acme/lab: what git ignores, and what goes to a sub-thread's machine.\n\n     PATH           SIZE    WHY\n     node_modules/  793 MB  rebuilt on the box\n     .env           1 KB    environment file\n\n0 picked. Nothing was saved; add --yes to save these picks."
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"project\":\"lab\",\"id\":2,\"op\":\"projects.seed\"}"
+    ],
+    "stdout": [
+     "{\"project\":\"lab\",\"folder\":\"/work/acme/lab\",\"rows\":[{\"path\":\".env\",\"dir\":false,\"bytes\":1126,\"kind\":\"config\",\"why\":\"environment file\",\"picked\":false},{\"path\":\"node_modules\",\"dir\":true,\"bytes\":831520768,\"kind\":\"rebuilt\",\"why\":\"rebuilt on the box\",\"picked\":false}],\"picked\":{\"paths\":[],\"bytes\":0,\"missing\":[]},\"saved\":false}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "projects_seed",
+   "case": "a path kept, one cut and the picks saved, one saved path gone from the folder",
+   "argv": [
+    "projects",
+    "seed",
+    "lab",
+    "--keep=.env",
+    "--cut=node_modules",
+    "--none",
+    "--yes"
+   ],
+   "replies": {
+    "projects.seed": "{\"id\":1,\"ok\":true,\"project\":\"lab\",\"folder\":\"/work/acme/lab\",\"rows\":[{\"path\":\".env\",\"dir\":false,\"bytes\":1126,\"kind\":\"config\",\"why\":\"environment file\",\"picked\":true},{\"path\":\"node_modules\",\"dir\":true,\"bytes\":831520768,\"kind\":\"rebuilt\",\"why\":\"rebuilt on the box\",\"picked\":false}],\"picked\":{\"paths\":[\".env\"],\"bytes\":1126,\"missing\":[\".env.old\"]},\"saved\":true}"
+   },
+   "tool_arguments": {
+    "project": "lab",
+    "keep": [
+     ".env"
+    ],
+    "cut": [
+     "node_modules"
+    ],
+    "none": true,
+    "confirm": true
+   },
+   "tool_asked": [
+    {
+     "op": "projects.seed",
+     "project": "lab",
+     "keep": [
+      ".env"
+     ],
+     "cut": [
+      "node_modules"
+     ],
+     "none": true,
+     "save": true
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"project\": \"lab\",\n  \"folder\": \"/work/acme/lab\",\n  \"rows\": [\n    {\n      \"path\": \".env\",\n      \"dir\": false,\n      \"bytes\": 1126,\n      \"kind\": \"config\",\n      \"why\": \"environment file\",\n      \"picked\": true\n    },\n    {\n      \"path\": \"node_modules\",\n      \"dir\": true,\n      \"bytes\": 831520768,\n      \"kind\": \"rebuilt\",\n      \"why\": \"rebuilt on the box\",\n      \"picked\": false\n    }\n  ],\n  \"picked\": {\n    \"paths\": [\n      \".env\"\n    ],\n    \"bytes\": 1126,\n    \"missing\": [\n      \".env.old\"\n    ]\n  },\n  \"saved\": true\n}"
+     }
+    ],
+    "structuredContent": {
+     "project": "lab",
+     "folder": "/work/acme/lab",
+     "rows": [
+      {
+       "path": ".env",
+       "dir": false,
+       "bytes": 1126,
+       "kind": "config",
+       "why": "environment file",
+       "picked": true
+      },
+      {
+       "path": "node_modules",
+       "dir": true,
+       "bytes": 831520768,
+       "kind": "rebuilt",
+       "why": "rebuilt on the box",
+       "picked": false
+      }
+     ],
+     "picked": {
+      "paths": [
+       ".env"
+      ],
+      "bytes": 1126,
+      "missing": [
+       ".env.old"
+      ]
+     },
+     "saved": true
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"project\":\"lab\",\"keep\":[\".env\"],\"cut\":[\"node_modules\"],\"none\":true,\"save\":true,\"id\":2,\"op\":\"projects.seed\"}"
+    ],
+    "stdout": [
+     "lab, /work/acme/lab: what git ignores, and what goes to a sub-thread's machine.\n\n     PATH           SIZE    WHY\n  x  .env           1 KB    environment file\n     node_modules/  793 MB  rebuilt on the box\n\nPicked but not in the folder now, so a sub-thread starts without: .env.old.\n1 picked, 1 KB. Saved: every later sub-thread of lab gets these."
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"project\":\"lab\",\"keep\":[\".env\"],\"cut\":[\"node_modules\"],\"none\":true,\"save\":true,\"id\":2,\"op\":\"projects.seed\"}"
+    ],
+    "stdout": [
+     "{\"project\":\"lab\",\"folder\":\"/work/acme/lab\",\"rows\":[{\"path\":\".env\",\"dir\":false,\"bytes\":1126,\"kind\":\"config\",\"why\":\"environment file\",\"picked\":true},{\"path\":\"node_modules\",\"dir\":true,\"bytes\":831520768,\"kind\":\"rebuilt\",\"why\":\"rebuilt on the box\",\"picked\":false}],\"picked\":{\"paths\":[\".env\"],\"bytes\":1126,\"missing\":[\".env.old\"]},\"saved\":true}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "projects_seed",
+   "case": "a thread's own token asking for the save",
+   "argv": [
+    "projects",
+    "seed",
+    "lab",
+    "--keep=.env",
+    "--yes"
+   ],
+   "replies": {
+    "projects.seed": "{\"id\":1,\"ok\":false,\"error\":\"picking the files that leave this computer is the person's act. Hand them the line wsp projects seed lab --keep .env --yes\",\"kind\":\"usage\",\"fix\":\"Hand them the line wsp projects seed lab --keep .env --yes\"}"
+   },
+   "tool_arguments": {
+    "project": "lab",
+    "keep": [
+     ".env"
+    ],
+    "confirm": true
+   },
+   "tool_asked": [
+    {
+     "op": "projects.seed",
+     "project": "lab",
+     "keep": [
+      ".env"
+     ],
+     "save": true
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "picking the files that leave this computer is the person's act. Hand them the line wsp projects seed lab --keep .env --yes"
+     }
+    ],
+    "structuredContent": {
+     "error": "picking the files that leave this computer is the person's act. Hand them the line wsp projects seed lab --keep .env --yes",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"project\":\"lab\",\"keep\":[\".env\"],\"save\":true,\"id\":2,\"op\":\"projects.seed\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp projects seed: picking the files that leave this computer is the person's act. Hand them the line wsp projects seed lab --keep .env --yes"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"project\":\"lab\",\"keep\":[\".env\"],\"save\":true,\"id\":2,\"op\":\"projects.seed\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"picking the files that leave this computer is the person's act. Hand them the line wsp projects seed lab --keep .env --yes\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "projects_seed",
+   "case": "a project on another computer",
+   "argv": [
+    "projects",
+    "seed",
+    "lab"
+   ],
+   "replies": {
+    "projects.seed": "{\"id\":1,\"ok\":false,\"error\":\"lab lives on attic, and picks are read from folders on this computer only. A sub-thread of lab starts with no git-ignored files.\",\"kind\":\"usage\",\"fix\":\"A sub-thread of lab starts with no git-ignored files.\"}"
+   },
+   "tool_arguments": {
+    "project": "lab"
+   },
+   "tool_asked": [
+    {
+     "op": "projects.seed",
+     "project": "lab"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "lab lives on attic, and picks are read from folders on this computer only. A sub-thread of lab starts with no git-ignored files."
+     }
+    ],
+    "structuredContent": {
+     "error": "lab lives on attic, and picks are read from folders on this computer only. A sub-thread of lab starts with no git-ignored files.",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"project\":\"lab\",\"id\":2,\"op\":\"projects.seed\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp projects seed: lab lives on attic, and picks are read from folders on this computer only. A sub-thread of lab starts with no git-ignored files."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"project\":\"lab\",\"id\":2,\"op\":\"projects.seed\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"lab lives on attic, and picks are read from folders on this computer only. A sub-thread of lab starts with no git-ignored files.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "threads",
+   "case": "rows",
+   "argv": [
+    "threads"
+   ],
+   "replies": {
+    "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"parser\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"}},{\"id\":\"ws-2\",\"name\":\"look\",\"project\":{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}},{\"id\":\"ws-3\",\"name\":\"wsp@feat\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"made\":true},\"folder\":\"/nowhere/worktrees/proj-1/feat\"},{\"id\":\"ws-4\",\"name\":\"wsp\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"}},{\"id\":\"ws-5\",\"name\":\"wsp@old\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/old\",\"branch\":\"old\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp\"},{\"id\":\"ws-6\",\"name\":\"wsp@gone\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp-two\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/gone\",\"branch\":\"gone\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp-two\"}]}",
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-1111aaaa\",\"prompt\":\"Fix the flaky test in the parser module and then tidy the imports around it. Then ship.\",\"startedAt\":1727431200000,\"endedAt\":1727431260000,\"claudeSessionId\":\"c-1\",\"costUsd\":0.1,\"startedBy\":\"agent\",\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-2\",\"workspaceId\":\"ws-2\",\"harness\":\"codex\",\"status\":\"running\",\"prompt\":\"look\",\"startedAt\":1727431300000.25,\"pid\":4242,\"project\":{\"id\":\"proj-2\",\"name\":\"site\"},\"computerName\":\"place-unnamed\"},{\"id\":\"s-3\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"threadId\":\"t-1111aaaa\",\"harnessTitle\":\"  Parser\\n fix  🧪\",\"costUsd\":0.2,\"asking\":\"ask-1\",\"readAt\":1727431270000,\"settledAt\":1727431265000,\"cwd\":\"/w/é\",\"waitingOn\":{\"title\":\"other\",\"threadId\":\"t-2\",\"workspaceId\":\"ws-1\",\"sessionId\":\"s-9\",\"prompt\":{\"askId\":\"a\",\"toolName\":\"Bash\",\"input\":\"{}\",\"options\":[]}},\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-4\",\"workspaceId\":\"ws-gone\",\"harness\":\"claude\",\"status\":\"failed\",\"threadId\":\"t-4\",\"refusal\":\"sign-in\",\"claudeSessionId\":\"c-4\"},{\"id\":\"s-5\",\"workspaceId\":\"ws-3\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-5\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-6\",\"workspaceId\":\"ws-3\",\"harness\":\"codex\",\"status\":\"completed\",\"threadId\":\"t-6\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-7\",\"workspaceId\":\"ws-4\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-7\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-8\",\"workspaceId\":\"ws-5\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-8\",\"cwd\":\"/nowhere/worktrees/proj-1/old/src\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-9\",\"workspaceId\":\"ws-6\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-9\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"}]}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "workspaces.list"
+    },
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"threads\": [\n    {\n      \"id\": \"t-1111aaaa\",\n      \"threadId\": \"t-1111aaaa\",\n      \"workspaceId\": \"ws-1\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"agent\",\n      \"status\": \"running\",\n      \"title\": \"Parser\",\n      \"sessionId\": \"s-3\",\n      \"cwd\": \"/w/é\",\n      \"asking\": \"ask-1\",\n      \"waitingOn\": {\n        \"title\": \"other\",\n        \"threadId\": \"t-2\",\n        \"workspaceId\": \"ws-1\",\n        \"sessionId\": \"s-9\",\n        \"prompt\": {\n          \"askId\": \"a\",\n          \"toolName\": \"Bash\",\n          \"input\": \"{}\",\n          \"options\": []\n        }\n      },\n      \"readAt\": 1727431270000,\n      \"settledAt\": 1727431265000,\n      \"turns\": 2,\n      \"ran\": true,\n      \"parentThreadId\": \"t-0\",\n      \"rootThreadId\": \"t-0\",\n      \"costUsd\": 0.30000000000000004,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/w/é\",\n      \"branch\": \"\",\n      \"computerName\": \"attic\"\n    },\n    {\n      \"id\": \"s-2\",\n      \"workspaceId\": \"ws-2\",\n      \"harness\": \"codex\",\n      \"startedBy\": \"person\",\n      \"status\": \"running\",\n      \"title\": \"look\",\n      \"sessionId\": \"s-2\",\n      \"startedAt\": 1727431300000.25,\n      \"pid\": 4242,\n      \"turns\": 1,\n      \"ran\": true,\n      \"projectName\": \"site\",\n      \"folder\": \"\",\n      \"branch\": \"\",\n      \"computerName\": \"place-unnamed\"\n    },\n    {\n      \"id\": \"t-4\",\n      \"threadId\": \"t-4\",\n      \"workspaceId\": \"ws-gone\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"person\",\n      \"status\": \"failed\",\n      \"title\": \"c-4\",\n      \"sessionId\": \"s-4\",\n      \"claudeSessionId\": \"c-4\",\n      \"turns\": 1,\n      \"ran\": false,\n      \"projectName\": \"\",\n      \"folder\": \"\",\n      \"branch\": \"\",\n      \"computerName\": \"\"\n    },\n    {\n      \"id\": \"t-5\",\n      \"threadId\": \"t-5\",\n      \"workspaceId\": \"ws-3\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"person\",\n      \"status\": \"completed\",\n      \"title\": \"s-5\",\n      \"sessionId\": \"s-5\",\n      \"turns\": 1,\n      \"ran\": false,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/nowhere/worktrees/proj-1/feat\",\n      \"branch\": \"feat/é\",\n      \"computerName\": \"this mac\"\n    },\n    {\n      \"id\": \"t-6\",\n      \"threadId\": \"t-6\",\n      \"workspaceId\": \"ws-3\",\n      \"harness\": \"codex\",\n      \"startedBy\": \"person\",\n      \"status\": \"completed\",\n      \"title\": \"s-6\",\n      \"sessionId\": \"s-6\",\n      \"turns\": 1,\n      \"ran\": false,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/nowhere/worktrees/proj-1/feat\",\n      \"branch\": \"feat/é\",\n      \"computerName\": \"this mac\"\n    },\n    {\n      \"id\": \"t-7\",\n      \"threadId\": \"t-7\",\n      \"workspaceId\": \"ws-4\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"person\",\n      \"status\": \"completed\",\n      \"title\": \"s-7\",\n      \"sessionId\": \"s-7\",\n      \"turns\": 1,\n      \"ran\": false,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/nowhere/wsp\",\n      \"branch\": \"\",\n      \"computerName\": \"this mac\"\n    },\n    {\n      \"id\": \"t-8\",\n      \"threadId\": \"t-8\",\n      \"workspaceId\": \"ws-5\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"person\",\n      \"status\": \"completed\",\n      \"title\": \"s-8\",\n      \"sessionId\": \"s-8\",\n      \"cwd\": \"/nowhere/worktrees/proj-1/old/src\",\n      \"turns\": 1,\n      \"ran\": false,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/nowhere/wsp\",\n      \"branch\": \"\",\n      \"computerName\": \"this mac\"\n    },\n    {\n      \"id\": \"t-9\",\n      \"threadId\": \"t-9\",\n      \"workspaceId\": \"ws-6\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"person\",\n      \"status\": \"completed\",\n      \"title\": \"s-9\",\n      \"sessionId\": \"s-9\",\n      \"turns\": 1,\n      \"ran\": false,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/nowhere/wsp-two\",\n      \"branch\": \"\",\n      \"computerName\": \"this mac\"\n    }\n  ]\n}"
+     }
+    ],
+    "structuredContent": {
+     "threads": [
+      {
+       "id": "t-1111aaaa",
+       "threadId": "t-1111aaaa",
+       "workspaceId": "ws-1",
+       "harness": "claude",
+       "startedBy": "agent",
+       "status": "running",
+       "title": "Parser",
+       "sessionId": "s-3",
+       "cwd": "/w/é",
+       "asking": "ask-1",
+       "waitingOn": {
+        "title": "other",
+        "threadId": "t-2",
+        "workspaceId": "ws-1",
+        "sessionId": "s-9",
+        "prompt": {
+         "askId": "a",
+         "toolName": "Bash",
+         "input": "{}",
+         "options": []
+        }
+       },
+       "readAt": 1727431270000,
+       "settledAt": 1727431265000,
+       "turns": 2,
+       "ran": true,
+       "parentThreadId": "t-0",
+       "rootThreadId": "t-0",
+       "costUsd": 0.30000000000000004,
+       "projectName": "wsp",
+       "folder": "/w/é",
+       "branch": "",
+       "computerName": "attic"
+      },
+      {
+       "id": "s-2",
+       "workspaceId": "ws-2",
+       "harness": "codex",
+       "startedBy": "person",
+       "status": "running",
+       "title": "look",
+       "sessionId": "s-2",
+       "startedAt": 1727431300000.25,
+       "pid": 4242,
+       "turns": 1,
+       "ran": true,
+       "projectName": "site",
+       "folder": "",
+       "branch": "",
+       "computerName": "place-unnamed"
+      },
+      {
+       "id": "t-4",
+       "threadId": "t-4",
+       "workspaceId": "ws-gone",
+       "harness": "claude",
+       "startedBy": "person",
+       "status": "failed",
+       "title": "c-4",
+       "sessionId": "s-4",
+       "claudeSessionId": "c-4",
+       "turns": 1,
+       "ran": false,
+       "projectName": "",
+       "folder": "",
+       "branch": "",
+       "computerName": ""
+      },
+      {
+       "id": "t-5",
+       "threadId": "t-5",
+       "workspaceId": "ws-3",
+       "harness": "claude",
+       "startedBy": "person",
+       "status": "completed",
+       "title": "s-5",
+       "sessionId": "s-5",
+       "turns": 1,
+       "ran": false,
+       "projectName": "wsp",
+       "folder": "/nowhere/worktrees/proj-1/feat",
+       "branch": "feat/é",
+       "computerName": "this mac"
+      },
+      {
+       "id": "t-6",
+       "threadId": "t-6",
+       "workspaceId": "ws-3",
+       "harness": "codex",
+       "startedBy": "person",
+       "status": "completed",
+       "title": "s-6",
+       "sessionId": "s-6",
+       "turns": 1,
+       "ran": false,
+       "projectName": "wsp",
+       "folder": "/nowhere/worktrees/proj-1/feat",
+       "branch": "feat/é",
+       "computerName": "this mac"
+      },
+      {
+       "id": "t-7",
+       "threadId": "t-7",
+       "workspaceId": "ws-4",
+       "harness": "claude",
+       "startedBy": "person",
+       "status": "completed",
+       "title": "s-7",
+       "sessionId": "s-7",
+       "turns": 1,
+       "ran": false,
+       "projectName": "wsp",
+       "folder": "/nowhere/wsp",
+       "branch": "",
+       "computerName": "this mac"
+      },
+      {
+       "id": "t-8",
+       "threadId": "t-8",
+       "workspaceId": "ws-5",
+       "harness": "claude",
+       "startedBy": "person",
+       "status": "completed",
+       "title": "s-8",
+       "sessionId": "s-8",
+       "cwd": "/nowhere/worktrees/proj-1/old/src",
+       "turns": 1,
+       "ran": false,
+       "projectName": "wsp",
+       "folder": "/nowhere/wsp",
+       "branch": "",
+       "computerName": "this mac"
+      },
+      {
+       "id": "t-9",
+       "threadId": "t-9",
+       "workspaceId": "ws-6",
+       "harness": "claude",
+       "startedBy": "person",
+       "status": "completed",
+       "title": "s-9",
+       "sessionId": "s-9",
+       "turns": 1,
+       "ran": false,
+       "projectName": "wsp",
+       "folder": "/nowhere/wsp-two",
+       "branch": "",
+       "computerName": "this mac"
+      }
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "PROJECT  FOLDER                          BRANCH  THREAD      SUBAGENT  AGENT   STATE      BY      COMPUTER       TITLE\nwsp      /w/é                                    t-1111aaaa            claude  Needs you  agent   attic          Parser\nsite                                             s-2                   codex   Working    person  place-unnamed  look\n                                                 t-4                   claude  Failed     person                 c-4\nwsp      /nowhere/worktrees/proj-1/feat  feat/é  t-5                   claude  Idle       person  this mac       s-5\nwsp      /nowhere/worktrees/proj-1/feat  feat/é  t-6                   codex   Idle       person  this mac       s-6\nwsp      /nowhere/wsp                            t-7                   claude  Idle       person  this mac       s-7\nwsp      /nowhere/wsp                            t-8                   claude  Idle       person  this mac       s-8\nwsp      /nowhere/wsp-two                        t-9                   claude  Idle       person  this mac       s-9"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "{\"threads\":[{\"id\":\"t-1111aaaa\",\"threadId\":\"t-1111aaaa\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"startedBy\":\"agent\",\"status\":\"running\",\"title\":\"Parser\",\"sessionId\":\"s-3\",\"cwd\":\"/w/é\",\"asking\":\"ask-1\",\"waitingOn\":{\"title\":\"other\",\"threadId\":\"t-2\",\"workspaceId\":\"ws-1\",\"sessionId\":\"s-9\",\"prompt\":{\"askId\":\"a\",\"toolName\":\"Bash\",\"input\":\"{}\",\"options\":[]}},\"readAt\":1727431270000,\"settledAt\":1727431265000,\"turns\":2,\"ran\":true,\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"costUsd\":0.30000000000000004,\"projectName\":\"wsp\",\"folder\":\"/w/é\",\"branch\":\"\",\"computerName\":\"attic\"},{\"id\":\"s-2\",\"workspaceId\":\"ws-2\",\"harness\":\"codex\",\"startedBy\":\"person\",\"status\":\"running\",\"title\":\"look\",\"sessionId\":\"s-2\",\"startedAt\":1727431300000.25,\"pid\":4242,\"turns\":1,\"ran\":true,\"projectName\":\"site\",\"folder\":\"\",\"branch\":\"\",\"computerName\":\"place-unnamed\"},{\"id\":\"t-4\",\"threadId\":\"t-4\",\"workspaceId\":\"ws-gone\",\"harness\":\"claude\",\"startedBy\":\"person\",\"status\":\"failed\",\"title\":\"c-4\",\"sessionId\":\"s-4\",\"claudeSessionId\":\"c-4\",\"turns\":1,\"ran\":false,\"projectName\":\"\",\"folder\":\"\",\"branch\":\"\",\"computerName\":\"\"},{\"id\":\"t-5\",\"threadId\":\"t-5\",\"workspaceId\":\"ws-3\",\"harness\":\"claude\",\"startedBy\":\"person\",\"status\":\"completed\",\"title\":\"s-5\",\"sessionId\":\"s-5\",\"turns\":1,\"ran\":false,\"projectName\":\"wsp\",\"folder\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"computerName\":\"this mac\"},{\"id\":\"t-6\",\"threadId\":\"t-6\",\"workspaceId\":\"ws-3\",\"harness\":\"codex\",\"startedBy\":\"person\",\"status\":\"completed\",\"title\":\"s-6\",\"sessionId\":\"s-6\",\"turns\":1,\"ran\":false,\"projectName\":\"wsp\",\"folder\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"computerName\":\"this mac\"},{\"id\":\"t-7\",\"threadId\":\"t-7\",\"workspaceId\":\"ws-4\",\"harness\":\"claude\",\"startedBy\":\"person\",\"status\":\"completed\",\"title\":\"s-7\",\"sessionId\":\"s-7\",\"turns\":1,\"ran\":false,\"projectName\":\"wsp\",\"folder\":\"/nowhere/wsp\",\"branch\":\"\",\"computerName\":\"this mac\"},{\"id\":\"t-8\",\"threadId\":\"t-8\",\"workspaceId\":\"ws-5\",\"harness\":\"claude\",\"startedBy\":\"person\",\"status\":\"completed\",\"title\":\"s-8\",\"sessionId\":\"s-8\",\"cwd\":\"/nowhere/worktrees/proj-1/old/src\",\"turns\":1,\"ran\":false,\"projectName\":\"wsp\",\"folder\":\"/nowhere/wsp\",\"branch\":\"\",\"computerName\":\"this mac\"},{\"id\":\"t-9\",\"threadId\":\"t-9\",\"workspaceId\":\"ws-6\",\"harness\":\"claude\",\"startedBy\":\"person\",\"status\":\"completed\",\"title\":\"s-9\",\"sessionId\":\"s-9\",\"turns\":1,\"ran\":false,\"projectName\":\"wsp\",\"folder\":\"/nowhere/wsp-two\",\"branch\":\"\",\"computerName\":\"this mac\"}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads",
+   "case": "within a project",
+   "argv": [
+    "threads",
+    "wsp"
+   ],
+   "replies": {
+    "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"parser\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"}},{\"id\":\"ws-2\",\"name\":\"look\",\"project\":{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}},{\"id\":\"ws-3\",\"name\":\"wsp@feat\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"made\":true},\"folder\":\"/nowhere/worktrees/proj-1/feat\"},{\"id\":\"ws-4\",\"name\":\"wsp\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"}},{\"id\":\"ws-5\",\"name\":\"wsp@old\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/old\",\"branch\":\"old\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp\"},{\"id\":\"ws-6\",\"name\":\"wsp@gone\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp-two\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/gone\",\"branch\":\"gone\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp-two\"}]}",
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-1111aaaa\",\"prompt\":\"Fix the flaky test in the parser module and then tidy the imports around it. Then ship.\",\"startedAt\":1727431200000,\"endedAt\":1727431260000,\"claudeSessionId\":\"c-1\",\"costUsd\":0.1,\"startedBy\":\"agent\",\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-2\",\"workspaceId\":\"ws-2\",\"harness\":\"codex\",\"status\":\"running\",\"prompt\":\"look\",\"startedAt\":1727431300000.25,\"pid\":4242,\"project\":{\"id\":\"proj-2\",\"name\":\"site\"},\"computerName\":\"place-unnamed\"},{\"id\":\"s-3\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"threadId\":\"t-1111aaaa\",\"harnessTitle\":\"  Parser\\n fix  🧪\",\"costUsd\":0.2,\"asking\":\"ask-1\",\"readAt\":1727431270000,\"settledAt\":1727431265000,\"cwd\":\"/w/é\",\"waitingOn\":{\"title\":\"other\",\"threadId\":\"t-2\",\"workspaceId\":\"ws-1\",\"sessionId\":\"s-9\",\"prompt\":{\"askId\":\"a\",\"toolName\":\"Bash\",\"input\":\"{}\",\"options\":[]}},\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-4\",\"workspaceId\":\"ws-gone\",\"harness\":\"claude\",\"status\":\"failed\",\"threadId\":\"t-4\",\"refusal\":\"sign-in\",\"claudeSessionId\":\"c-4\"},{\"id\":\"s-5\",\"workspaceId\":\"ws-3\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-5\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-6\",\"workspaceId\":\"ws-3\",\"harness\":\"codex\",\"status\":\"completed\",\"threadId\":\"t-6\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-7\",\"workspaceId\":\"ws-4\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-7\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-8\",\"workspaceId\":\"ws-5\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-8\",\"cwd\":\"/nowhere/worktrees/proj-1/old/src\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-9\",\"workspaceId\":\"ws-6\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-9\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"}]}"
+   },
+   "tool_arguments": {
+    "project": "wsp"
+   },
+   "tool_asked": [
+    {
+     "op": "workspaces.list"
+    },
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"threads\": [\n    {\n      \"id\": \"t-1111aaaa\",\n      \"threadId\": \"t-1111aaaa\",\n      \"workspaceId\": \"ws-1\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"agent\",\n      \"status\": \"running\",\n      \"title\": \"Parser\",\n      \"sessionId\": \"s-3\",\n      \"cwd\": \"/w/é\",\n      \"asking\": \"ask-1\",\n      \"waitingOn\": {\n        \"title\": \"other\",\n        \"threadId\": \"t-2\",\n        \"workspaceId\": \"ws-1\",\n        \"sessionId\": \"s-9\",\n        \"prompt\": {\n          \"askId\": \"a\",\n          \"toolName\": \"Bash\",\n          \"input\": \"{}\",\n          \"options\": []\n        }\n      },\n      \"readAt\": 1727431270000,\n      \"settledAt\": 1727431265000,\n      \"turns\": 2,\n      \"ran\": true,\n      \"parentThreadId\": \"t-0\",\n      \"rootThreadId\": \"t-0\",\n      \"costUsd\": 0.30000000000000004,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/w/é\",\n      \"branch\": \"\",\n      \"computerName\": \"attic\"\n    },\n    {\n      \"id\": \"t-5\",\n      \"threadId\": \"t-5\",\n      \"workspaceId\": \"ws-3\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"person\",\n      \"status\": \"completed\",\n      \"title\": \"s-5\",\n      \"sessionId\": \"s-5\",\n      \"turns\": 1,\n      \"ran\": false,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/nowhere/worktrees/proj-1/feat\",\n      \"branch\": \"feat/é\",\n      \"computerName\": \"this mac\"\n    },\n    {\n      \"id\": \"t-6\",\n      \"threadId\": \"t-6\",\n      \"workspaceId\": \"ws-3\",\n      \"harness\": \"codex\",\n      \"startedBy\": \"person\",\n      \"status\": \"completed\",\n      \"title\": \"s-6\",\n      \"sessionId\": \"s-6\",\n      \"turns\": 1,\n      \"ran\": false,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/nowhere/worktrees/proj-1/feat\",\n      \"branch\": \"feat/é\",\n      \"computerName\": \"this mac\"\n    },\n    {\n      \"id\": \"t-7\",\n      \"threadId\": \"t-7\",\n      \"workspaceId\": \"ws-4\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"person\",\n      \"status\": \"completed\",\n      \"title\": \"s-7\",\n      \"sessionId\": \"s-7\",\n      \"turns\": 1,\n      \"ran\": false,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/nowhere/wsp\",\n      \"branch\": \"\",\n      \"computerName\": \"this mac\"\n    },\n    {\n      \"id\": \"t-8\",\n      \"threadId\": \"t-8\",\n      \"workspaceId\": \"ws-5\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"person\",\n      \"status\": \"completed\",\n      \"title\": \"s-8\",\n      \"sessionId\": \"s-8\",\n      \"cwd\": \"/nowhere/worktrees/proj-1/old/src\",\n      \"turns\": 1,\n      \"ran\": false,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/nowhere/wsp\",\n      \"branch\": \"\",\n      \"computerName\": \"this mac\"\n    },\n    {\n      \"id\": \"t-9\",\n      \"threadId\": \"t-9\",\n      \"workspaceId\": \"ws-6\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"person\",\n      \"status\": \"completed\",\n      \"title\": \"s-9\",\n      \"sessionId\": \"s-9\",\n      \"turns\": 1,\n      \"ran\": false,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/nowhere/wsp-two\",\n      \"branch\": \"\",\n      \"computerName\": \"this mac\"\n    }\n  ]\n}"
+     }
+    ],
+    "structuredContent": {
+     "threads": [
+      {
+       "id": "t-1111aaaa",
+       "threadId": "t-1111aaaa",
+       "workspaceId": "ws-1",
+       "harness": "claude",
+       "startedBy": "agent",
+       "status": "running",
+       "title": "Parser",
+       "sessionId": "s-3",
+       "cwd": "/w/é",
+       "asking": "ask-1",
+       "waitingOn": {
+        "title": "other",
+        "threadId": "t-2",
+        "workspaceId": "ws-1",
+        "sessionId": "s-9",
+        "prompt": {
+         "askId": "a",
+         "toolName": "Bash",
+         "input": "{}",
+         "options": []
+        }
+       },
+       "readAt": 1727431270000,
+       "settledAt": 1727431265000,
+       "turns": 2,
+       "ran": true,
+       "parentThreadId": "t-0",
+       "rootThreadId": "t-0",
+       "costUsd": 0.30000000000000004,
+       "projectName": "wsp",
+       "folder": "/w/é",
+       "branch": "",
+       "computerName": "attic"
+      },
+      {
+       "id": "t-5",
+       "threadId": "t-5",
+       "workspaceId": "ws-3",
+       "harness": "claude",
+       "startedBy": "person",
+       "status": "completed",
+       "title": "s-5",
+       "sessionId": "s-5",
+       "turns": 1,
+       "ran": false,
+       "projectName": "wsp",
+       "folder": "/nowhere/worktrees/proj-1/feat",
+       "branch": "feat/é",
+       "computerName": "this mac"
+      },
+      {
+       "id": "t-6",
+       "threadId": "t-6",
+       "workspaceId": "ws-3",
+       "harness": "codex",
+       "startedBy": "person",
+       "status": "completed",
+       "title": "s-6",
+       "sessionId": "s-6",
+       "turns": 1,
+       "ran": false,
+       "projectName": "wsp",
+       "folder": "/nowhere/worktrees/proj-1/feat",
+       "branch": "feat/é",
+       "computerName": "this mac"
+      },
+      {
+       "id": "t-7",
+       "threadId": "t-7",
+       "workspaceId": "ws-4",
+       "harness": "claude",
+       "startedBy": "person",
+       "status": "completed",
+       "title": "s-7",
+       "sessionId": "s-7",
+       "turns": 1,
+       "ran": false,
+       "projectName": "wsp",
+       "folder": "/nowhere/wsp",
+       "branch": "",
+       "computerName": "this mac"
+      },
+      {
+       "id": "t-8",
+       "threadId": "t-8",
+       "workspaceId": "ws-5",
+       "harness": "claude",
+       "startedBy": "person",
+       "status": "completed",
+       "title": "s-8",
+       "sessionId": "s-8",
+       "cwd": "/nowhere/worktrees/proj-1/old/src",
+       "turns": 1,
+       "ran": false,
+       "projectName": "wsp",
+       "folder": "/nowhere/wsp",
+       "branch": "",
+       "computerName": "this mac"
+      },
+      {
+       "id": "t-9",
+       "threadId": "t-9",
+       "workspaceId": "ws-6",
+       "harness": "claude",
+       "startedBy": "person",
+       "status": "completed",
+       "title": "s-9",
+       "sessionId": "s-9",
+       "turns": 1,
+       "ran": false,
+       "projectName": "wsp",
+       "folder": "/nowhere/wsp-two",
+       "branch": "",
+       "computerName": "this mac"
+      }
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "PROJECT  FOLDER                          BRANCH  THREAD      SUBAGENT  AGENT   STATE      BY      COMPUTER  TITLE\nwsp      /w/é                                    t-1111aaaa            claude  Needs you  agent   attic     Parser\nwsp      /nowhere/worktrees/proj-1/feat  feat/é  t-5                   claude  Idle       person  this mac  s-5\nwsp      /nowhere/worktrees/proj-1/feat  feat/é  t-6                   codex   Idle       person  this mac  s-6\nwsp      /nowhere/wsp                            t-7                   claude  Idle       person  this mac  s-7\nwsp      /nowhere/wsp                            t-8                   claude  Idle       person  this mac  s-8\nwsp      /nowhere/wsp-two                        t-9                   claude  Idle       person  this mac  s-9"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "{\"threads\":[{\"id\":\"t-1111aaaa\",\"threadId\":\"t-1111aaaa\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"startedBy\":\"agent\",\"status\":\"running\",\"title\":\"Parser\",\"sessionId\":\"s-3\",\"cwd\":\"/w/é\",\"asking\":\"ask-1\",\"waitingOn\":{\"title\":\"other\",\"threadId\":\"t-2\",\"workspaceId\":\"ws-1\",\"sessionId\":\"s-9\",\"prompt\":{\"askId\":\"a\",\"toolName\":\"Bash\",\"input\":\"{}\",\"options\":[]}},\"readAt\":1727431270000,\"settledAt\":1727431265000,\"turns\":2,\"ran\":true,\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"costUsd\":0.30000000000000004,\"projectName\":\"wsp\",\"folder\":\"/w/é\",\"branch\":\"\",\"computerName\":\"attic\"},{\"id\":\"t-5\",\"threadId\":\"t-5\",\"workspaceId\":\"ws-3\",\"harness\":\"claude\",\"startedBy\":\"person\",\"status\":\"completed\",\"title\":\"s-5\",\"sessionId\":\"s-5\",\"turns\":1,\"ran\":false,\"projectName\":\"wsp\",\"folder\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"computerName\":\"this mac\"},{\"id\":\"t-6\",\"threadId\":\"t-6\",\"workspaceId\":\"ws-3\",\"harness\":\"codex\",\"startedBy\":\"person\",\"status\":\"completed\",\"title\":\"s-6\",\"sessionId\":\"s-6\",\"turns\":1,\"ran\":false,\"projectName\":\"wsp\",\"folder\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"computerName\":\"this mac\"},{\"id\":\"t-7\",\"threadId\":\"t-7\",\"workspaceId\":\"ws-4\",\"harness\":\"claude\",\"startedBy\":\"person\",\"status\":\"completed\",\"title\":\"s-7\",\"sessionId\":\"s-7\",\"turns\":1,\"ran\":false,\"projectName\":\"wsp\",\"folder\":\"/nowhere/wsp\",\"branch\":\"\",\"computerName\":\"this mac\"},{\"id\":\"t-8\",\"threadId\":\"t-8\",\"workspaceId\":\"ws-5\",\"harness\":\"claude\",\"startedBy\":\"person\",\"status\":\"completed\",\"title\":\"s-8\",\"sessionId\":\"s-8\",\"cwd\":\"/nowhere/worktrees/proj-1/old/src\",\"turns\":1,\"ran\":false,\"projectName\":\"wsp\",\"folder\":\"/nowhere/wsp\",\"branch\":\"\",\"computerName\":\"this mac\"},{\"id\":\"t-9\",\"threadId\":\"t-9\",\"workspaceId\":\"ws-6\",\"harness\":\"claude\",\"startedBy\":\"person\",\"status\":\"completed\",\"title\":\"s-9\",\"sessionId\":\"s-9\",\"turns\":1,\"ran\":false,\"projectName\":\"wsp\",\"folder\":\"/nowhere/wsp-two\",\"branch\":\"\",\"computerName\":\"this mac\"}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads",
+   "case": "within a project by id",
+   "argv": [
+    "threads",
+    "proj-2"
+   ],
+   "replies": {
+    "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"parser\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"}},{\"id\":\"ws-2\",\"name\":\"look\",\"project\":{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}},{\"id\":\"ws-3\",\"name\":\"wsp@feat\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"made\":true},\"folder\":\"/nowhere/worktrees/proj-1/feat\"},{\"id\":\"ws-4\",\"name\":\"wsp\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"}},{\"id\":\"ws-5\",\"name\":\"wsp@old\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/old\",\"branch\":\"old\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp\"},{\"id\":\"ws-6\",\"name\":\"wsp@gone\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp-two\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/gone\",\"branch\":\"gone\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp-two\"}]}",
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-1111aaaa\",\"prompt\":\"Fix the flaky test in the parser module and then tidy the imports around it. Then ship.\",\"startedAt\":1727431200000,\"endedAt\":1727431260000,\"claudeSessionId\":\"c-1\",\"costUsd\":0.1,\"startedBy\":\"agent\",\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-2\",\"workspaceId\":\"ws-2\",\"harness\":\"codex\",\"status\":\"running\",\"prompt\":\"look\",\"startedAt\":1727431300000.25,\"pid\":4242,\"project\":{\"id\":\"proj-2\",\"name\":\"site\"},\"computerName\":\"place-unnamed\"},{\"id\":\"s-3\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"threadId\":\"t-1111aaaa\",\"harnessTitle\":\"  Parser\\n fix  🧪\",\"costUsd\":0.2,\"asking\":\"ask-1\",\"readAt\":1727431270000,\"settledAt\":1727431265000,\"cwd\":\"/w/é\",\"waitingOn\":{\"title\":\"other\",\"threadId\":\"t-2\",\"workspaceId\":\"ws-1\",\"sessionId\":\"s-9\",\"prompt\":{\"askId\":\"a\",\"toolName\":\"Bash\",\"input\":\"{}\",\"options\":[]}},\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-4\",\"workspaceId\":\"ws-gone\",\"harness\":\"claude\",\"status\":\"failed\",\"threadId\":\"t-4\",\"refusal\":\"sign-in\",\"claudeSessionId\":\"c-4\"},{\"id\":\"s-5\",\"workspaceId\":\"ws-3\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-5\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-6\",\"workspaceId\":\"ws-3\",\"harness\":\"codex\",\"status\":\"completed\",\"threadId\":\"t-6\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-7\",\"workspaceId\":\"ws-4\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-7\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-8\",\"workspaceId\":\"ws-5\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-8\",\"cwd\":\"/nowhere/worktrees/proj-1/old/src\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-9\",\"workspaceId\":\"ws-6\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-9\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"}]}"
+   },
+   "tool_arguments": {
+    "project": "proj-2"
+   },
+   "tool_asked": [
+    {
+     "op": "workspaces.list"
+    },
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"threads\": [\n    {\n      \"id\": \"s-2\",\n      \"workspaceId\": \"ws-2\",\n      \"harness\": \"codex\",\n      \"startedBy\": \"person\",\n      \"status\": \"running\",\n      \"title\": \"look\",\n      \"sessionId\": \"s-2\",\n      \"startedAt\": 1727431300000.25,\n      \"pid\": 4242,\n      \"turns\": 1,\n      \"ran\": true,\n      \"projectName\": \"site\",\n      \"folder\": \"\",\n      \"branch\": \"\",\n      \"computerName\": \"place-unnamed\"\n    }\n  ]\n}"
+     }
+    ],
+    "structuredContent": {
+     "threads": [
+      {
+       "id": "s-2",
+       "workspaceId": "ws-2",
+       "harness": "codex",
+       "startedBy": "person",
+       "status": "running",
+       "title": "look",
+       "sessionId": "s-2",
+       "startedAt": 1727431300000.25,
+       "pid": 4242,
+       "turns": 1,
+       "ran": true,
+       "projectName": "site",
+       "folder": "",
+       "branch": "",
+       "computerName": "place-unnamed"
+      }
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "PROJECT  FOLDER  BRANCH  THREAD  SUBAGENT  AGENT  STATE    BY      COMPUTER       TITLE\nsite                     s-2               codex  Working  person  place-unnamed  look"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "{\"threads\":[{\"id\":\"s-2\",\"workspaceId\":\"ws-2\",\"harness\":\"codex\",\"startedBy\":\"person\",\"status\":\"running\",\"title\":\"look\",\"sessionId\":\"s-2\",\"startedAt\":1727431300000.25,\"pid\":4242,\"turns\":1,\"ran\":true,\"projectName\":\"site\",\"folder\":\"\",\"branch\":\"\",\"computerName\":\"place-unnamed\"}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads",
+   "case": "a word naming no project",
+   "argv": [
+    "threads",
+    "wsp@feat"
+   ],
+   "replies": {
+    "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"parser\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"}},{\"id\":\"ws-2\",\"name\":\"look\",\"project\":{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}},{\"id\":\"ws-3\",\"name\":\"wsp@feat\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"made\":true},\"folder\":\"/nowhere/worktrees/proj-1/feat\"},{\"id\":\"ws-4\",\"name\":\"wsp\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"}},{\"id\":\"ws-5\",\"name\":\"wsp@old\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/old\",\"branch\":\"old\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp\"},{\"id\":\"ws-6\",\"name\":\"wsp@gone\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp-two\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/gone\",\"branch\":\"gone\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp-two\"}]}",
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-1111aaaa\",\"prompt\":\"Fix the flaky test in the parser module and then tidy the imports around it. Then ship.\",\"startedAt\":1727431200000,\"endedAt\":1727431260000,\"claudeSessionId\":\"c-1\",\"costUsd\":0.1,\"startedBy\":\"agent\",\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-2\",\"workspaceId\":\"ws-2\",\"harness\":\"codex\",\"status\":\"running\",\"prompt\":\"look\",\"startedAt\":1727431300000.25,\"pid\":4242,\"project\":{\"id\":\"proj-2\",\"name\":\"site\"},\"computerName\":\"place-unnamed\"},{\"id\":\"s-3\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"threadId\":\"t-1111aaaa\",\"harnessTitle\":\"  Parser\\n fix  🧪\",\"costUsd\":0.2,\"asking\":\"ask-1\",\"readAt\":1727431270000,\"settledAt\":1727431265000,\"cwd\":\"/w/é\",\"waitingOn\":{\"title\":\"other\",\"threadId\":\"t-2\",\"workspaceId\":\"ws-1\",\"sessionId\":\"s-9\",\"prompt\":{\"askId\":\"a\",\"toolName\":\"Bash\",\"input\":\"{}\",\"options\":[]}},\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-4\",\"workspaceId\":\"ws-gone\",\"harness\":\"claude\",\"status\":\"failed\",\"threadId\":\"t-4\",\"refusal\":\"sign-in\",\"claudeSessionId\":\"c-4\"},{\"id\":\"s-5\",\"workspaceId\":\"ws-3\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-5\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-6\",\"workspaceId\":\"ws-3\",\"harness\":\"codex\",\"status\":\"completed\",\"threadId\":\"t-6\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-7\",\"workspaceId\":\"ws-4\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-7\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-8\",\"workspaceId\":\"ws-5\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-8\",\"cwd\":\"/nowhere/worktrees/proj-1/old/src\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-9\",\"workspaceId\":\"ws-6\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-9\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"}]}",
+    "projects.list": "{\"id\":1,\"ok\":true,\"projects\":[{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"},{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}]}"
+   },
+   "tool_arguments": {
+    "project": "wsp@feat"
+   },
+   "tool_asked": [
+    {
+     "op": "workspaces.list"
+    },
+    {
+     "op": "sessions.list"
+    },
+    {
+     "op": "projects.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "no project wsp@feat. Run wsp projects to read the names."
+     }
+    ],
+    "structuredContent": {
+     "error": "no project wsp@feat. Run wsp projects to read the names.",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}",
+     "{\"id\":4,\"op\":\"projects.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp threads: no project wsp@feat. Run wsp projects to read the names."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}",
+     "{\"id\":4,\"op\":\"projects.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"no project wsp@feat. Run wsp projects to read the names.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "threads",
+   "case": "a lead's child in a box folder",
+   "argv": [
+    "threads"
+   ],
+   "replies": {
+    "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"parser\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"}},{\"id\":\"ws-2\",\"name\":\"look\",\"project\":{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}},{\"id\":\"ws-3\",\"name\":\"wsp@feat\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"made\":true},\"folder\":\"/nowhere/worktrees/proj-1/feat\"},{\"id\":\"ws-4\",\"name\":\"wsp\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"}},{\"id\":\"ws-5\",\"name\":\"wsp@old\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/old\",\"branch\":\"old\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp\"},{\"id\":\"ws-6\",\"name\":\"wsp@gone\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp-two\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/gone\",\"branch\":\"gone\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp-two\"}]}",
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-1111aaaa\",\"prompt\":\"Fix the flaky test in the parser module and then tidy the imports around it. Then ship.\",\"startedAt\":1727431200000,\"endedAt\":1727431260000,\"claudeSessionId\":\"c-1\",\"costUsd\":0.1,\"startedBy\":\"agent\",\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-10\",\"workspaceId\":\"ws-box\",\"harness\":\"claude\",\"status\":\"running\",\"threadId\":\"t-10\",\"prompt\":\"build it\",\"startedBy\":\"agent\",\"parentThreadId\":\"t-1111aaaa\",\"rootThreadId\":\"t-0\",\"cwd\":\"/root/lab-box\",\"project\":{\"id\":\"proj-3\",\"name\":\"lab-box\"},\"computerName\":\"hetzner\"}]}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "workspaces.list"
+    },
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"threads\": [\n    {\n      \"id\": \"t-1111aaaa\",\n      \"threadId\": \"t-1111aaaa\",\n      \"workspaceId\": \"ws-1\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"agent\",\n      \"status\": \"completed\",\n      \"title\": \"Fix the flaky \\u0085test in the parser module and…\",\n      \"sessionId\": \"s-1\",\n      \"claudeSessionId\": \"c-1\",\n      \"startedAt\": 1727431200000,\n      \"endedAt\": 1727431260000,\n      \"turns\": 1,\n      \"ran\": true,\n      \"parentThreadId\": \"t-0\",\n      \"rootThreadId\": \"t-0\",\n      \"costUsd\": 0.1,\n      \"projectName\": \"wsp\",\n      \"folder\": \"\",\n      \"branch\": \"\",\n      \"computerName\": \"attic\"\n    },\n    {\n      \"id\": \"t-10\",\n      \"threadId\": \"t-10\",\n      \"workspaceId\": \"ws-box\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"agent\",\n      \"status\": \"running\",\n      \"title\": \"build it\",\n      \"sessionId\": \"s-10\",\n      \"cwd\": \"/root/lab-box\",\n      \"turns\": 1,\n      \"ran\": true,\n      \"parentThreadId\": \"t-1111aaaa\",\n      \"rootThreadId\": \"t-0\",\n      \"projectName\": \"lab-box\",\n      \"folder\": \"/root/lab-box\",\n      \"branch\": \"\",\n      \"computerName\": \"hetzner\"\n    }\n  ]\n}"
+     }
+    ],
+    "structuredContent": {
+     "threads": [
+      {
+       "id": "t-1111aaaa",
+       "threadId": "t-1111aaaa",
+       "workspaceId": "ws-1",
+       "harness": "claude",
+       "startedBy": "agent",
+       "status": "completed",
+       "title": "Fix the flaky test in the parser module and…",
+       "sessionId": "s-1",
+       "claudeSessionId": "c-1",
+       "startedAt": 1727431200000,
+       "endedAt": 1727431260000,
+       "turns": 1,
+       "ran": true,
+       "parentThreadId": "t-0",
+       "rootThreadId": "t-0",
+       "costUsd": 0.1,
+       "projectName": "wsp",
+       "folder": "",
+       "branch": "",
+       "computerName": "attic"
+      },
+      {
+       "id": "t-10",
+       "threadId": "t-10",
+       "workspaceId": "ws-box",
+       "harness": "claude",
+       "startedBy": "agent",
+       "status": "running",
+       "title": "build it",
+       "sessionId": "s-10",
+       "cwd": "/root/lab-box",
+       "turns": 1,
+       "ran": true,
+       "parentThreadId": "t-1111aaaa",
+       "rootThreadId": "t-0",
+       "projectName": "lab-box",
+       "folder": "/root/lab-box",
+       "branch": "",
+       "computerName": "hetzner"
+      }
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "PROJECT  FOLDER     BRANCH  THREAD      SUBAGENT  AGENT   STATE    BY     COMPUTER  TITLE\nwsp                         t-1111aaaa            claude  Done     agent  attic     Fix the flaky test in the parser module and…\nlab-box  ~/lab-box          t-10                  claude  Working  agent  hetzner   build it"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "{\"threads\":[{\"id\":\"t-1111aaaa\",\"threadId\":\"t-1111aaaa\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"startedBy\":\"agent\",\"status\":\"completed\",\"title\":\"Fix the flaky \\u0085test in the parser module and…\",\"sessionId\":\"s-1\",\"claudeSessionId\":\"c-1\",\"startedAt\":1727431200000,\"endedAt\":1727431260000,\"turns\":1,\"ran\":true,\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"costUsd\":0.1,\"projectName\":\"wsp\",\"folder\":\"\",\"branch\":\"\",\"computerName\":\"attic\"},{\"id\":\"t-10\",\"threadId\":\"t-10\",\"workspaceId\":\"ws-box\",\"harness\":\"claude\",\"startedBy\":\"agent\",\"status\":\"running\",\"title\":\"build it\",\"sessionId\":\"s-10\",\"cwd\":\"/root/lab-box\",\"turns\":1,\"ran\":true,\"parentThreadId\":\"t-1111aaaa\",\"rootThreadId\":\"t-0\",\"projectName\":\"lab-box\",\"folder\":\"/root/lab-box\",\"branch\":\"\",\"computerName\":\"hetzner\"}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads",
+   "case": "a thread on a cloud project",
+   "argv": [
+    "threads"
+   ],
+   "replies": {
+    "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-cloud\",\"name\":\"cloudwork\",\"kind\":\"cloud\",\"project\":{\"id\":\"proj-4\",\"name\":\"cloud-api\",\"computer\":\"solari\"}}]}",
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-11\",\"workspaceId\":\"ws-cloud\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-11\",\"prompt\":\"look\",\"project\":{\"id\":\"proj-4\",\"name\":\"cloud-api\"},\"computerName\":\"Solari\"}]}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "workspaces.list"
+    },
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"threads\": [\n    {\n      \"id\": \"t-11\",\n      \"threadId\": \"t-11\",\n      \"workspaceId\": \"ws-cloud\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"person\",\n      \"status\": \"completed\",\n      \"title\": \"look\",\n      \"sessionId\": \"s-11\",\n      \"turns\": 1,\n      \"ran\": false,\n      \"projectName\": \"cloud-api\",\n      \"folder\": \"\",\n      \"branch\": \"\",\n      \"computerName\": \"Solari\"\n    }\n  ]\n}"
+     }
+    ],
+    "structuredContent": {
+     "threads": [
+      {
+       "id": "t-11",
+       "threadId": "t-11",
+       "workspaceId": "ws-cloud",
+       "harness": "claude",
+       "startedBy": "person",
+       "status": "completed",
+       "title": "look",
+       "sessionId": "s-11",
+       "turns": 1,
+       "ran": false,
+       "projectName": "cloud-api",
+       "folder": "",
+       "branch": "",
+       "computerName": "Solari"
+      }
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "PROJECT    FOLDER  BRANCH  THREAD  SUBAGENT  AGENT   STATE  BY      COMPUTER  TITLE\ncloud-api                  t-11              claude  Idle   person  Solari    look"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "{\"threads\":[{\"id\":\"t-11\",\"threadId\":\"t-11\",\"workspaceId\":\"ws-cloud\",\"harness\":\"claude\",\"startedBy\":\"person\",\"status\":\"completed\",\"title\":\"look\",\"sessionId\":\"s-11\",\"turns\":1,\"ran\":false,\"projectName\":\"cloud-api\",\"folder\":\"\",\"branch\":\"\",\"computerName\":\"Solari\"}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads",
+   "case": "a sub-thread on Boat",
+   "argv": [
+    "threads"
+   ],
+   "replies": {
+    "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"parser\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"}},{\"id\":\"ws-2\",\"name\":\"look\",\"project\":{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}},{\"id\":\"ws-3\",\"name\":\"wsp@feat\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"made\":true},\"folder\":\"/nowhere/worktrees/proj-1/feat\"},{\"id\":\"ws-4\",\"name\":\"wsp\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"}},{\"id\":\"ws-5\",\"name\":\"wsp@old\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/old\",\"branch\":\"old\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp\"},{\"id\":\"ws-6\",\"name\":\"wsp@gone\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp-two\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/gone\",\"branch\":\"gone\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp-two\"}]}",
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-12\",\"workspaceId\":\"ws-sub\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-12\",\"prompt\":\"fix it\",\"startedBy\":\"agent\",\"parentThreadId\":\"t-1111aaaa\",\"rootThreadId\":\"t-0\",\"cwd\":\"/root/wsp\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"Boat\",\"sub\":{\"state\":\"napping\",\"on\":\"boat\",\"machine\":\"Fix it \",\"size\":{\"cpu\":2,\"memMb\":4096},\"rateUsdPerHour\":0.018,\"branch\":\"wsp/fix-it\",\"deleteAt\":1790000000000,\"result\":{\"branch\":\"wsp/fix-it\",\"pushedSha\":\"9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e\",\"commits\":3,\"unpushed\":0,\"changed\":0,\"onBranch\":\"wsp/fix-it\",\"readAt\":\"2026-10-12T09:44:10.512Z\"}}}]}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "workspaces.list"
+    },
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"threads\": [\n    {\n      \"id\": \"t-12\",\n      \"threadId\": \"t-12\",\n      \"workspaceId\": \"ws-sub\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"agent\",\n      \"status\": \"completed\",\n      \"title\": \"fix it\",\n      \"sessionId\": \"s-12\",\n      \"cwd\": \"/root/wsp\",\n      \"sub\": {\n        \"state\": \"napping\",\n        \"on\": \"boat\",\n        \"machine\": \"Fix it \\u0085\",\n        \"size\": {\n          \"cpu\": 2,\n          \"memMb\": 4096\n        },\n        \"rateUsdPerHour\": 0.018,\n        \"branch\": \"wsp/fix-it\",\n        \"deleteAt\": 1790000000000,\n        \"result\": {\n          \"branch\": \"wsp/fix-it\",\n          \"pushedSha\": \"9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e\",\n          \"commits\": 3,\n          \"unpushed\": 0,\n          \"changed\": 0,\n          \"onBranch\": \"wsp/fix-it\",\n          \"readAt\": \"2026-10-12T09:44:10.512Z\"\n        }\n      },\n      \"turns\": 1,\n      \"ran\": false,\n      \"parentThreadId\": \"t-1111aaaa\",\n      \"rootThreadId\": \"t-0\",\n      \"projectName\": \"wsp\",\n      \"folder\": \"/root/wsp\",\n      \"branch\": \"\",\n      \"computerName\": \"Boat\"\n    }\n  ]\n}"
+     }
+    ],
+    "structuredContent": {
+     "threads": [
+      {
+       "id": "t-12",
+       "threadId": "t-12",
+       "workspaceId": "ws-sub",
+       "harness": "claude",
+       "startedBy": "agent",
+       "status": "completed",
+       "title": "fix it",
+       "sessionId": "s-12",
+       "cwd": "/root/wsp",
+       "sub": {
+        "state": "napping",
+        "on": "boat",
+        "machine": "Fix it ",
+        "size": {
+         "cpu": 2,
+         "memMb": 4096
+        },
+        "rateUsdPerHour": 0.018,
+        "branch": "wsp/fix-it",
+        "deleteAt": 1790000000000,
+        "result": {
+         "branch": "wsp/fix-it",
+         "pushedSha": "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e",
+         "commits": 3,
+         "unpushed": 0,
+         "changed": 0,
+         "onBranch": "wsp/fix-it",
+         "readAt": "2026-10-12T09:44:10.512Z"
+        }
+       },
+       "turns": 1,
+       "ran": false,
+       "parentThreadId": "t-1111aaaa",
+       "rootThreadId": "t-0",
+       "projectName": "wsp",
+       "folder": "/root/wsp",
+       "branch": "",
+       "computerName": "Boat"
+      }
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "PROJECT  FOLDER  BRANCH  THREAD  SUBAGENT  AGENT   STATE  BY     COMPUTER  TITLE\nwsp      ~/wsp           t-12              claude  Idle   agent  Boat      fix it"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "{\"threads\":[{\"id\":\"t-12\",\"threadId\":\"t-12\",\"workspaceId\":\"ws-sub\",\"harness\":\"claude\",\"startedBy\":\"agent\",\"status\":\"completed\",\"title\":\"fix it\",\"sessionId\":\"s-12\",\"cwd\":\"/root/wsp\",\"sub\":{\"state\":\"napping\",\"on\":\"boat\",\"machine\":\"Fix it \\u0085\",\"size\":{\"cpu\":2,\"memMb\":4096},\"rateUsdPerHour\":0.018,\"branch\":\"wsp/fix-it\",\"deleteAt\":1790000000000,\"result\":{\"branch\":\"wsp/fix-it\",\"pushedSha\":\"9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e\",\"commits\":3,\"unpushed\":0,\"changed\":0,\"onBranch\":\"wsp/fix-it\",\"readAt\":\"2026-10-12T09:44:10.512Z\"}},\"turns\":1,\"ran\":false,\"parentThreadId\":\"t-1111aaaa\",\"rootThreadId\":\"t-0\",\"projectName\":\"wsp\",\"folder\":\"/root/wsp\",\"branch\":\"\",\"computerName\":\"Boat\"}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads",
+   "case": "within a box folder's project",
+   "argv": [
+    "threads",
+    "lab-box"
+   ],
+   "replies": {
+    "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"parser\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"}},{\"id\":\"ws-2\",\"name\":\"look\",\"project\":{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}},{\"id\":\"ws-3\",\"name\":\"wsp@feat\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"made\":true},\"folder\":\"/nowhere/worktrees/proj-1/feat\"},{\"id\":\"ws-4\",\"name\":\"wsp\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"}},{\"id\":\"ws-5\",\"name\":\"wsp@old\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/old\",\"branch\":\"old\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp\"},{\"id\":\"ws-6\",\"name\":\"wsp@gone\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp-two\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/gone\",\"branch\":\"gone\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp-two\"}]}",
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-1111aaaa\",\"prompt\":\"Fix the flaky test in the parser module and then tidy the imports around it. Then ship.\",\"startedAt\":1727431200000,\"endedAt\":1727431260000,\"claudeSessionId\":\"c-1\",\"costUsd\":0.1,\"startedBy\":\"agent\",\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-10\",\"workspaceId\":\"ws-box\",\"harness\":\"claude\",\"status\":\"running\",\"threadId\":\"t-10\",\"prompt\":\"build it\",\"startedBy\":\"agent\",\"parentThreadId\":\"t-1111aaaa\",\"rootThreadId\":\"t-0\",\"cwd\":\"/root/lab-box\",\"project\":{\"id\":\"proj-3\",\"name\":\"lab-box\"},\"computerName\":\"hetzner\"}]}"
+   },
+   "tool_arguments": {
+    "project": "lab-box"
+   },
+   "tool_asked": [
+    {
+     "op": "workspaces.list"
+    },
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"threads\": [\n    {\n      \"id\": \"t-10\",\n      \"threadId\": \"t-10\",\n      \"workspaceId\": \"ws-box\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"agent\",\n      \"status\": \"running\",\n      \"title\": \"build it\",\n      \"sessionId\": \"s-10\",\n      \"cwd\": \"/root/lab-box\",\n      \"turns\": 1,\n      \"ran\": true,\n      \"parentThreadId\": \"t-1111aaaa\",\n      \"rootThreadId\": \"t-0\",\n      \"projectName\": \"lab-box\",\n      \"folder\": \"/root/lab-box\",\n      \"branch\": \"\",\n      \"computerName\": \"hetzner\"\n    }\n  ]\n}"
+     }
+    ],
+    "structuredContent": {
+     "threads": [
+      {
+       "id": "t-10",
+       "threadId": "t-10",
+       "workspaceId": "ws-box",
+       "harness": "claude",
+       "startedBy": "agent",
+       "status": "running",
+       "title": "build it",
+       "sessionId": "s-10",
+       "cwd": "/root/lab-box",
+       "turns": 1,
+       "ran": true,
+       "parentThreadId": "t-1111aaaa",
+       "rootThreadId": "t-0",
+       "projectName": "lab-box",
+       "folder": "/root/lab-box",
+       "branch": "",
+       "computerName": "hetzner"
+      }
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "PROJECT  FOLDER     BRANCH  THREAD  SUBAGENT  AGENT   STATE    BY     COMPUTER  TITLE\nlab-box  ~/lab-box          t-10              claude  Working  agent  hetzner   build it"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "{\"threads\":[{\"id\":\"t-10\",\"threadId\":\"t-10\",\"workspaceId\":\"ws-box\",\"harness\":\"claude\",\"startedBy\":\"agent\",\"status\":\"running\",\"title\":\"build it\",\"sessionId\":\"s-10\",\"cwd\":\"/root/lab-box\",\"turns\":1,\"ran\":true,\"parentThreadId\":\"t-1111aaaa\",\"rootThreadId\":\"t-0\",\"projectName\":\"lab-box\",\"folder\":\"/root/lab-box\",\"branch\":\"\",\"computerName\":\"hetzner\"}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads",
+   "case": "empty",
+   "argv": [
+    "threads"
+   ],
+   "replies": {
+    "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"parser\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"}},{\"id\":\"ws-2\",\"name\":\"look\",\"project\":{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}},{\"id\":\"ws-3\",\"name\":\"wsp@feat\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"made\":true},\"folder\":\"/nowhere/worktrees/proj-1/feat\"},{\"id\":\"ws-4\",\"name\":\"wsp\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"}},{\"id\":\"ws-5\",\"name\":\"wsp@old\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/old\",\"branch\":\"old\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp\"},{\"id\":\"ws-6\",\"name\":\"wsp@gone\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp-two\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/gone\",\"branch\":\"gone\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp-two\"}]}",
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[]}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "workspaces.list"
+    },
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"threads\": []\n}"
+     }
+    ],
+    "structuredContent": {
+     "threads": []
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "PROJECT  FOLDER  BRANCH  THREAD  SUBAGENT  AGENT  STATE  BY  COMPUTER  TITLE"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "{\"threads\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads",
+   "case": "pinned, snoozed and in a section",
+   "argv": [
+    "threads"
+   ],
+   "replies": {
+    "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"parser\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"}},{\"id\":\"ws-2\",\"name\":\"look\",\"project\":{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}},{\"id\":\"ws-3\",\"name\":\"wsp@feat\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"made\":true},\"folder\":\"/nowhere/worktrees/proj-1/feat\"},{\"id\":\"ws-4\",\"name\":\"wsp\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"}},{\"id\":\"ws-5\",\"name\":\"wsp@old\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/old\",\"branch\":\"old\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp\"},{\"id\":\"ws-6\",\"name\":\"wsp@gone\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp-two\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/gone\",\"branch\":\"gone\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp-two\"}]}",
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-1111aaaa\",\"prompt\":\"Fix the flaky test in the parser module and then tidy the imports around it. Then ship.\",\"startedAt\":1727431200000,\"endedAt\":1727431260000,\"claudeSessionId\":\"c-1\",\"costUsd\":0.1,\"startedBy\":\"agent\",\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\",\"pinnedAt\":1727431000000,\"section\":{\"name\":\"working\",\"whileState\":\"running\"},\"attempt\":\"att-1\",\"permissionMode\":\"acceptEdits\",\"fast\":false},{\"id\":\"s-3\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"threadId\":\"t-1111aaaa\",\"harnessTitle\":\"  Parser\\n fix  🧪\",\"costUsd\":0.2,\"asking\":\"ask-1\",\"readAt\":1727431270000,\"settledAt\":1727431265000,\"cwd\":\"/w/é\",\"waitingOn\":{\"title\":\"other\",\"threadId\":\"t-2\",\"workspaceId\":\"ws-1\",\"sessionId\":\"s-9\",\"prompt\":{\"askId\":\"a\",\"toolName\":\"Bash\",\"input\":\"{}\",\"options\":[]}},\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\",\"pinnedAt\":1727431280000.5,\"order\":1727431199999.75,\"snoozedUntil\":1727434800000,\"wokeAt\":1727431290000,\"section\":{\"name\":\"needs-you\",\"whileState\":\"asking \\\"é\\\"\"},\"attempt\":\"att-2\",\"permissionMode\":\"bypass \",\"fast\":true}]}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "workspaces.list"
+    },
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"threads\": [\n    {\n      \"id\": \"t-1111aaaa\",\n      \"threadId\": \"t-1111aaaa\",\n      \"workspaceId\": \"ws-1\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"agent\",\n      \"status\": \"running\",\n      \"title\": \"Parser\",\n      \"sessionId\": \"s-3\",\n      \"cwd\": \"/w/é\",\n      \"asking\": \"ask-1\",\n      \"waitingOn\": {\n        \"title\": \"other\",\n        \"threadId\": \"t-2\",\n        \"workspaceId\": \"ws-1\",\n        \"sessionId\": \"s-9\",\n        \"prompt\": {\n          \"askId\": \"a\",\n          \"toolName\": \"Bash\",\n          \"input\": \"{}\",\n          \"options\": []\n        }\n      },\n      \"readAt\": 1727431270000,\n      \"settledAt\": 1727431265000,\n      \"pinnedAt\": 1727431280000.5,\n      \"order\": 1727431199999.75,\n      \"snoozedUntil\": 1727434800000,\n      \"wokeAt\": 1727431290000,\n      \"section\": {\n        \"name\": \"needs-you\",\n        \"whileState\": \"asking \\\"é\\\"\"\n      },\n      \"permissionMode\": \"bypass \\u0085\",\n      \"fast\": true,\n      \"turns\": 2,\n      \"ran\": true,\n      \"parentThreadId\": \"t-0\",\n      \"rootThreadId\": \"t-0\",\n      \"attempt\": \"att-1\",\n      \"costUsd\": 0.30000000000000004,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/w/é\",\n      \"branch\": \"\",\n      \"computerName\": \"attic\"\n    }\n  ]\n}"
+     }
+    ],
+    "structuredContent": {
+     "threads": [
+      {
+       "id": "t-1111aaaa",
+       "threadId": "t-1111aaaa",
+       "workspaceId": "ws-1",
+       "harness": "claude",
+       "startedBy": "agent",
+       "status": "running",
+       "title": "Parser",
+       "sessionId": "s-3",
+       "cwd": "/w/é",
+       "asking": "ask-1",
+       "waitingOn": {
+        "title": "other",
+        "threadId": "t-2",
+        "workspaceId": "ws-1",
+        "sessionId": "s-9",
+        "prompt": {
+         "askId": "a",
+         "toolName": "Bash",
+         "input": "{}",
+         "options": []
+        }
+       },
+       "readAt": 1727431270000,
+       "settledAt": 1727431265000,
+       "pinnedAt": 1727431280000.5,
+       "order": 1727431199999.75,
+       "snoozedUntil": 1727434800000,
+       "wokeAt": 1727431290000,
+       "section": {
+        "name": "needs-you",
+        "whileState": "asking \"é\""
+       },
+       "permissionMode": "bypass ",
+       "fast": true,
+       "turns": 2,
+       "ran": true,
+       "parentThreadId": "t-0",
+       "rootThreadId": "t-0",
+       "attempt": "att-1",
+       "costUsd": 0.30000000000000004,
+       "projectName": "wsp",
+       "folder": "/w/é",
+       "branch": "",
+       "computerName": "attic"
+      }
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "PROJECT  FOLDER  BRANCH  THREAD      SUBAGENT  AGENT   STATE      BY     COMPUTER  TITLE\nwsp      /w/é            t-1111aaaa            claude  Needs you  agent  attic     Parser"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "{\"threads\":[{\"id\":\"t-1111aaaa\",\"threadId\":\"t-1111aaaa\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"startedBy\":\"agent\",\"status\":\"running\",\"title\":\"Parser\",\"sessionId\":\"s-3\",\"cwd\":\"/w/é\",\"asking\":\"ask-1\",\"waitingOn\":{\"title\":\"other\",\"threadId\":\"t-2\",\"workspaceId\":\"ws-1\",\"sessionId\":\"s-9\",\"prompt\":{\"askId\":\"a\",\"toolName\":\"Bash\",\"input\":\"{}\",\"options\":[]}},\"readAt\":1727431270000,\"settledAt\":1727431265000,\"pinnedAt\":1727431280000.5,\"order\":1727431199999.75,\"snoozedUntil\":1727434800000,\"wokeAt\":1727431290000,\"section\":{\"name\":\"needs-you\",\"whileState\":\"asking \\\"é\\\"\"},\"permissionMode\":\"bypass \\u0085\",\"fast\":true,\"turns\":2,\"ran\":true,\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"attempt\":\"att-1\",\"costUsd\":0.30000000000000004,\"projectName\":\"wsp\",\"folder\":\"/w/é\",\"branch\":\"\",\"computerName\":\"attic\"}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads",
+   "case": "a last line, a failure, a fold and subagents",
+   "argv": [
+    "threads"
+   ],
+   "replies": {
+    "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"parser\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"}},{\"id\":\"ws-2\",\"name\":\"look\",\"project\":{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}},{\"id\":\"ws-3\",\"name\":\"wsp@feat\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"made\":true},\"folder\":\"/nowhere/worktrees/proj-1/feat\"},{\"id\":\"ws-4\",\"name\":\"wsp\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"}},{\"id\":\"ws-5\",\"name\":\"wsp@old\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/old\",\"branch\":\"old\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp\"},{\"id\":\"ws-6\",\"name\":\"wsp@gone\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp-two\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/gone\",\"branch\":\"gone\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp-two\"}]}",
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"failed\",\"threadId\":\"t-1111aaaa\",\"prompt\":\"Fix the flaky test in the parser module and then tidy the imports around it. Then ship.\",\"startedAt\":1727431200000,\"endedAt\":1727431260000,\"claudeSessionId\":\"c-1\",\"costUsd\":0.1,\"startedBy\":\"agent\",\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\",\"failure\":\"API Error: 529 overloaded\",\"lastLine\":\"half way\"},{\"id\":\"s-5\",\"workspaceId\":\"ws-3\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-5\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\",\"lastLine\":\"Pushed feat/é and opened the pull request.\",\"foldedAt\":1727431300000.5,\"subagents\":[{\"id\":\"a1\",\"title\":\"count\",\"state\":\"done\",\"parentToolUseId\":\"call-a1\",\"depth\":1,\"model\":\"claude-haiku-4-5\",\"asked\":\"Count the files under /etc.\\nSay how many.\",\"startedAt\":1727431200000,\"endedAt\":1727431210000,\"lastLine\":\"There are 212.\"},{\"id\":\"b2\",\"title\":\"read\",\"state\":\"failed\",\"parentToolUseId\":\"call-b2\",\"depth\":1,\"asked\":\"Read the hosts file.\",\"startedAt\":1727431200000,\"endedAt\":1727431220000,\"failure\":\"API Error: 529 overloaded\"}]},{\"id\":\"s-6\",\"workspaceId\":\"ws-3\",\"harness\":\"codex\",\"status\":\"failed\",\"threadId\":\"t-6\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\",\"lastLine\":\"完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成…\",\"failure\":\"完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成…\"}]}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "workspaces.list"
+    },
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"threads\": [\n    {\n      \"id\": \"t-1111aaaa\",\n      \"threadId\": \"t-1111aaaa\",\n      \"workspaceId\": \"ws-1\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"agent\",\n      \"status\": \"failed\",\n      \"title\": \"Fix the flaky \\u0085test in the parser module and…\",\n      \"sessionId\": \"s-1\",\n      \"claudeSessionId\": \"c-1\",\n      \"startedAt\": 1727431200000,\n      \"endedAt\": 1727431260000,\n      \"lastLine\": \"half way\",\n      \"failure\": \"API Error: 529 \\u0085overloaded\",\n      \"turns\": 1,\n      \"ran\": true,\n      \"parentThreadId\": \"t-0\",\n      \"rootThreadId\": \"t-0\",\n      \"costUsd\": 0.1,\n      \"projectName\": \"wsp\",\n      \"folder\": \"\",\n      \"branch\": \"\",\n      \"computerName\": \"attic\"\n    },\n    {\n      \"id\": \"t-5\",\n      \"threadId\": \"t-5\",\n      \"workspaceId\": \"ws-3\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"person\",\n      \"status\": \"completed\",\n      \"title\": \"s-5\",\n      \"sessionId\": \"s-5\",\n      \"lastLine\": \"Pushed feat/é and opened the pull request.\",\n      \"foldedAt\": 1727431300000.5,\n      \"subagents\": [\n        {\n          \"id\": \"a1\",\n          \"title\": \"count\",\n          \"state\": \"done\",\n          \"parentToolUseId\": \"call-a1\",\n          \"depth\": 1,\n          \"model\": \"claude-haiku-4-5\",\n          \"asked\": \"Count the files under /etc.\\nSay how many.\",\n          \"startedAt\": 1727431200000,\n          \"endedAt\": 1727431210000,\n          \"lastLine\": \"There are 212.\"\n        },\n        {\n          \"id\": \"b2\",\n          \"title\": \"read\",\n          \"state\": \"failed\",\n          \"parentToolUseId\": \"call-b2\",\n          \"depth\": 1,\n          \"asked\": \"Read the hosts file.\",\n          \"startedAt\": 1727431200000,\n          \"endedAt\": 1727431220000,\n          \"failure\": \"API Error: 529 overloaded\"\n        }\n      ],\n      \"turns\": 1,\n      \"ran\": false,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/nowhere/worktrees/proj-1/feat\",\n      \"branch\": \"feat/é\",\n      \"computerName\": \"this mac\"\n    },\n    {\n      \"id\": \"t-6\",\n      \"threadId\": \"t-6\",\n      \"workspaceId\": \"ws-3\",\n      \"harness\": \"codex\",\n      \"startedBy\": \"person\",\n      \"status\": \"failed\",\n      \"title\": \"s-6\",\n      \"sessionId\": \"s-6\",\n      \"lastLine\": \"完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成…\",\n      \"failure\": \"完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成…\",\n      \"turns\": 1,\n      \"ran\": false,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/nowhere/worktrees/proj-1/feat\",\n      \"branch\": \"feat/é\",\n      \"computerName\": \"this mac\"\n    }\n  ]\n}"
+     }
+    ],
+    "structuredContent": {
+     "threads": [
+      {
+       "id": "t-1111aaaa",
+       "threadId": "t-1111aaaa",
+       "workspaceId": "ws-1",
+       "harness": "claude",
+       "startedBy": "agent",
+       "status": "failed",
+       "title": "Fix the flaky test in the parser module and…",
+       "sessionId": "s-1",
+       "claudeSessionId": "c-1",
+       "startedAt": 1727431200000,
+       "endedAt": 1727431260000,
+       "lastLine": "half way",
+       "failure": "API Error: 529 overloaded",
+       "turns": 1,
+       "ran": true,
+       "parentThreadId": "t-0",
+       "rootThreadId": "t-0",
+       "costUsd": 0.1,
+       "projectName": "wsp",
+       "folder": "",
+       "branch": "",
+       "computerName": "attic"
+      },
+      {
+       "id": "t-5",
+       "threadId": "t-5",
+       "workspaceId": "ws-3",
+       "harness": "claude",
+       "startedBy": "person",
+       "status": "completed",
+       "title": "s-5",
+       "sessionId": "s-5",
+       "lastLine": "Pushed feat/é and opened the pull request.",
+       "foldedAt": 1727431300000.5,
+       "subagents": [
+        {
+         "id": "a1",
+         "title": "count",
+         "state": "done",
+         "parentToolUseId": "call-a1",
+         "depth": 1,
+         "model": "claude-haiku-4-5",
+         "asked": "Count the files under /etc.\nSay how many.",
+         "startedAt": 1727431200000,
+         "endedAt": 1727431210000,
+         "lastLine": "There are 212."
+        },
+        {
+         "id": "b2",
+         "title": "read",
+         "state": "failed",
+         "parentToolUseId": "call-b2",
+         "depth": 1,
+         "asked": "Read the hosts file.",
+         "startedAt": 1727431200000,
+         "endedAt": 1727431220000,
+         "failure": "API Error: 529 overloaded"
+        }
+       ],
+       "turns": 1,
+       "ran": false,
+       "projectName": "wsp",
+       "folder": "/nowhere/worktrees/proj-1/feat",
+       "branch": "feat/é",
+       "computerName": "this mac"
+      },
+      {
+       "id": "t-6",
+       "threadId": "t-6",
+       "workspaceId": "ws-3",
+       "harness": "codex",
+       "startedBy": "person",
+       "status": "failed",
+       "title": "s-6",
+       "sessionId": "s-6",
+       "lastLine": "完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成…",
+       "failure": "完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成…",
+       "turns": 1,
+       "ran": false,
+       "projectName": "wsp",
+       "folder": "/nowhere/worktrees/proj-1/feat",
+       "branch": "feat/é",
+       "computerName": "this mac"
+      }
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "PROJECT  FOLDER                          BRANCH  THREAD      SUBAGENT  AGENT   STATE   BY      COMPUTER  TITLE\nwsp                                              t-1111aaaa            claude  Failed  agent   attic     Fix the flaky test in the parser module and…\nwsp      /nowhere/worktrees/proj-1/feat  feat/é  t-5                   claude  Idle    person  this mac  s-5\nwsp      /nowhere/worktrees/proj-1/feat  feat/é    t-5       a1        claude  Done    agent   this mac  count\nwsp      /nowhere/worktrees/proj-1/feat  feat/é    t-5       b2        claude  Failed  agent   this mac  read\nwsp      /nowhere/worktrees/proj-1/feat  feat/é  t-6                   codex   Failed  person  this mac  s-6"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "{\"threads\":[{\"id\":\"t-1111aaaa\",\"threadId\":\"t-1111aaaa\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"startedBy\":\"agent\",\"status\":\"failed\",\"title\":\"Fix the flaky \\u0085test in the parser module and…\",\"sessionId\":\"s-1\",\"claudeSessionId\":\"c-1\",\"startedAt\":1727431200000,\"endedAt\":1727431260000,\"lastLine\":\"half way\",\"failure\":\"API Error: 529 \\u0085overloaded\",\"turns\":1,\"ran\":true,\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"costUsd\":0.1,\"projectName\":\"wsp\",\"folder\":\"\",\"branch\":\"\",\"computerName\":\"attic\"},{\"id\":\"t-5\",\"threadId\":\"t-5\",\"workspaceId\":\"ws-3\",\"harness\":\"claude\",\"startedBy\":\"person\",\"status\":\"completed\",\"title\":\"s-5\",\"sessionId\":\"s-5\",\"lastLine\":\"Pushed feat/é and opened the pull request.\",\"foldedAt\":1727431300000.5,\"subagents\":[{\"id\":\"a1\",\"title\":\"count\",\"state\":\"done\",\"parentToolUseId\":\"call-a1\",\"depth\":1,\"model\":\"claude-haiku-4-5\",\"asked\":\"Count the files under /etc.\\nSay how many.\",\"startedAt\":1727431200000,\"endedAt\":1727431210000,\"lastLine\":\"There are 212.\"},{\"id\":\"b2\",\"title\":\"read\",\"state\":\"failed\",\"parentToolUseId\":\"call-b2\",\"depth\":1,\"asked\":\"Read the hosts file.\",\"startedAt\":1727431200000,\"endedAt\":1727431220000,\"failure\":\"API Error: 529 overloaded\"}],\"turns\":1,\"ran\":false,\"projectName\":\"wsp\",\"folder\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"computerName\":\"this mac\"},{\"id\":\"t-6\",\"threadId\":\"t-6\",\"workspaceId\":\"ws-3\",\"harness\":\"codex\",\"startedBy\":\"person\",\"status\":\"failed\",\"title\":\"s-6\",\"sessionId\":\"s-6\",\"lastLine\":\"完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成…\",\"failure\":\"完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成完成…\",\"turns\":1,\"ran\":false,\"projectName\":\"wsp\",\"folder\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"computerName\":\"this mac\"}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads",
+   "case": "a restart and the thread it replaced",
+   "argv": [
+    "threads"
+   ],
+   "replies": {
+    "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"parser\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"}},{\"id\":\"ws-2\",\"name\":\"look\",\"project\":{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}},{\"id\":\"ws-3\",\"name\":\"wsp@feat\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"made\":true},\"folder\":\"/nowhere/worktrees/proj-1/feat\"},{\"id\":\"ws-4\",\"name\":\"wsp\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"}},{\"id\":\"ws-5\",\"name\":\"wsp@old\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/old\",\"branch\":\"old\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp\"},{\"id\":\"ws-6\",\"name\":\"wsp@gone\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp-two\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/gone\",\"branch\":\"gone\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp-two\"}]}",
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-5\",\"workspaceId\":\"ws-3\",\"harness\":\"claude\",\"status\":\"interrupted\",\"threadId\":\"t-5\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\",\"settledAt\":1727431300000,\"replacedBy\":\"t-6\"},{\"id\":\"s-6\",\"workspaceId\":\"ws-3\",\"harness\":\"codex\",\"status\":\"running\",\"threadId\":\"t-6\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\",\"replaces\":\"t-5\"}]}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "workspaces.list"
+    },
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"threads\": [\n    {\n      \"id\": \"t-5\",\n      \"threadId\": \"t-5\",\n      \"workspaceId\": \"ws-3\",\n      \"harness\": \"claude\",\n      \"startedBy\": \"person\",\n      \"status\": \"interrupted\",\n      \"title\": \"s-5\",\n      \"sessionId\": \"s-5\",\n      \"settledAt\": 1727431300000,\n      \"replacedBy\": \"t-6\",\n      \"turns\": 1,\n      \"ran\": false,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/nowhere/worktrees/proj-1/feat\",\n      \"branch\": \"feat/é\",\n      \"computerName\": \"this mac\"\n    },\n    {\n      \"id\": \"t-6\",\n      \"threadId\": \"t-6\",\n      \"workspaceId\": \"ws-3\",\n      \"harness\": \"codex\",\n      \"startedBy\": \"person\",\n      \"status\": \"running\",\n      \"title\": \"s-6\",\n      \"sessionId\": \"s-6\",\n      \"replaces\": \"t-5\",\n      \"turns\": 1,\n      \"ran\": true,\n      \"projectName\": \"wsp\",\n      \"folder\": \"/nowhere/worktrees/proj-1/feat\",\n      \"branch\": \"feat/é\",\n      \"computerName\": \"this mac\"\n    }\n  ]\n}"
+     }
+    ],
+    "structuredContent": {
+     "threads": [
+      {
+       "id": "t-5",
+       "threadId": "t-5",
+       "workspaceId": "ws-3",
+       "harness": "claude",
+       "startedBy": "person",
+       "status": "interrupted",
+       "title": "s-5",
+       "sessionId": "s-5",
+       "settledAt": 1727431300000,
+       "replacedBy": "t-6",
+       "turns": 1,
+       "ran": false,
+       "projectName": "wsp",
+       "folder": "/nowhere/worktrees/proj-1/feat",
+       "branch": "feat/é",
+       "computerName": "this mac"
+      },
+      {
+       "id": "t-6",
+       "threadId": "t-6",
+       "workspaceId": "ws-3",
+       "harness": "codex",
+       "startedBy": "person",
+       "status": "running",
+       "title": "s-6",
+       "sessionId": "s-6",
+       "replaces": "t-5",
+       "turns": 1,
+       "ran": true,
+       "projectName": "wsp",
+       "folder": "/nowhere/worktrees/proj-1/feat",
+       "branch": "feat/é",
+       "computerName": "this mac"
+      }
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "PROJECT  FOLDER                          BRANCH  THREAD  SUBAGENT  AGENT   STATE    BY      COMPUTER  TITLE\nwsp      /nowhere/worktrees/proj-1/feat  feat/é  t-5               claude  Idle     person  this mac  s-5\nwsp      /nowhere/worktrees/proj-1/feat  feat/é  t-6               codex   Working  person  this mac  s-6"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "{\"threads\":[{\"id\":\"t-5\",\"threadId\":\"t-5\",\"workspaceId\":\"ws-3\",\"harness\":\"claude\",\"startedBy\":\"person\",\"status\":\"interrupted\",\"title\":\"s-5\",\"sessionId\":\"s-5\",\"settledAt\":1727431300000,\"replacedBy\":\"t-6\",\"turns\":1,\"ran\":false,\"projectName\":\"wsp\",\"folder\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"computerName\":\"this mac\"},{\"id\":\"t-6\",\"threadId\":\"t-6\",\"workspaceId\":\"ws-3\",\"harness\":\"codex\",\"startedBy\":\"person\",\"status\":\"running\",\"title\":\"s-6\",\"sessionId\":\"s-6\",\"replaces\":\"t-5\",\"turns\":1,\"ran\":true,\"projectName\":\"wsp\",\"folder\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"computerName\":\"this mac\"}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads",
+   "case": "no such project",
+   "argv": [
+    "threads",
+    "nope"
+   ],
+   "replies": {
+    "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"parser\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"}},{\"id\":\"ws-2\",\"name\":\"look\",\"project\":{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}},{\"id\":\"ws-3\",\"name\":\"wsp@feat\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"made\":true},\"folder\":\"/nowhere/worktrees/proj-1/feat\"},{\"id\":\"ws-4\",\"name\":\"wsp\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"}},{\"id\":\"ws-5\",\"name\":\"wsp@old\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/old\",\"branch\":\"old\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp\"},{\"id\":\"ws-6\",\"name\":\"wsp@gone\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp-two\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/gone\",\"branch\":\"gone\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp-two\"}]}",
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-1111aaaa\",\"prompt\":\"Fix the flaky test in the parser module and then tidy the imports around it. Then ship.\",\"startedAt\":1727431200000,\"endedAt\":1727431260000,\"claudeSessionId\":\"c-1\",\"costUsd\":0.1,\"startedBy\":\"agent\",\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-2\",\"workspaceId\":\"ws-2\",\"harness\":\"codex\",\"status\":\"running\",\"prompt\":\"look\",\"startedAt\":1727431300000.25,\"pid\":4242,\"project\":{\"id\":\"proj-2\",\"name\":\"site\"},\"computerName\":\"place-unnamed\"},{\"id\":\"s-3\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"threadId\":\"t-1111aaaa\",\"harnessTitle\":\"  Parser\\n fix  🧪\",\"costUsd\":0.2,\"asking\":\"ask-1\",\"readAt\":1727431270000,\"settledAt\":1727431265000,\"cwd\":\"/w/é\",\"waitingOn\":{\"title\":\"other\",\"threadId\":\"t-2\",\"workspaceId\":\"ws-1\",\"sessionId\":\"s-9\",\"prompt\":{\"askId\":\"a\",\"toolName\":\"Bash\",\"input\":\"{}\",\"options\":[]}},\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-4\",\"workspaceId\":\"ws-gone\",\"harness\":\"claude\",\"status\":\"failed\",\"threadId\":\"t-4\",\"refusal\":\"sign-in\",\"claudeSessionId\":\"c-4\"},{\"id\":\"s-5\",\"workspaceId\":\"ws-3\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-5\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-6\",\"workspaceId\":\"ws-3\",\"harness\":\"codex\",\"status\":\"completed\",\"threadId\":\"t-6\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-7\",\"workspaceId\":\"ws-4\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-7\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-8\",\"workspaceId\":\"ws-5\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-8\",\"cwd\":\"/nowhere/worktrees/proj-1/old/src\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-9\",\"workspaceId\":\"ws-6\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-9\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"}]}",
+    "projects.list": "{\"id\":1,\"ok\":true,\"projects\":[{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"},{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}]}"
+   },
+   "tool_arguments": {
+    "project": "nope"
+   },
+   "tool_asked": [
+    {
+     "op": "workspaces.list"
+    },
+    {
+     "op": "sessions.list"
+    },
+    {
+     "op": "projects.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "no project nope. Run wsp projects to read the names."
+     }
+    ],
+    "structuredContent": {
+     "error": "no project nope. Run wsp projects to read the names.",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}",
+     "{\"id\":4,\"op\":\"projects.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp threads: no project nope. Run wsp projects to read the names."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}",
+     "{\"id\":4,\"op\":\"projects.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"no project nope. Run wsp projects to read the names.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "threads_wait",
+   "case": "already over",
+   "argv": [
+    "threads",
+    "wait",
+    "thread-b0"
+   ],
+   "replies": {
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"id\":\"sess-1\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"prompt\":\"fix the  build\",\"costUsd\":0.1},{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2},{\"workspaceId\":\"ws-1\",\"harness\":\"codex\",\"status\":\"completed\",\"id\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\"}]}",
+    "sessions.history": "{\"id\":1,\"ok\":true,\"events\":[{\"type\":\"session.start\",\"workspaceId\":\"ws-1\",\"sessionId\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\",\"turnId\":\"t3\"},{\"type\":\"session.done\",\"workspaceId\":\"ws-1\",\"sessionId\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\",\"turnId\":\"t3\",\"result\":{\"status\":\"completed\",\"durationMs\":83456,\"waitedMs\":2000,\"costUsd\":0.30000000000000004,\"text\":\"Fixed \\\"it\\\"  é\\n\\nlast   line of the reply  \\n\"}}]}"
+   },
+   "tool_arguments": {
+    "threads": [
+     "thread-b0"
+    ]
+   },
+   "tool_asked": [
+    {
+     "op": "sessions.list"
+    },
+    {
+     "op": "sessions.list"
+    },
+    {
+     "op": "sessions.history",
+     "workspaceId": "ws-1",
+     "threadId": "thread-b0b0b0b0c1c1",
+     "whole": true
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "thread thread-b finished (completed, 1m 21s, $0.30): last line of the reply"
+     }
+    ],
+    "structuredContent": {
+     "finished": {
+      "threadId": "thread-b0b0b0b0c1c1",
+      "status": "completed",
+      "durationMs": 83456,
+      "costUsd": 0.30000000000000004,
+      "reply": "last line of the reply"
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"id\":3,\"op\":\"events.subscribe\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}",
+     "{\"workspaceId\":\"ws-1\",\"threadId\":\"thread-b0b0b0b0c1c1\",\"whole\":true,\"id\":5,\"op\":\"sessions.history\"}"
+    ],
+    "stdout": [
+     "thread thread-b finished (completed, 1m 21s, $0.30): Fixed \"it\"  é\n\nlast   line of the reply"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"id\":3,\"op\":\"events.subscribe\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}",
+     "{\"workspaceId\":\"ws-1\",\"threadId\":\"thread-b0b0b0b0c1c1\",\"whole\":true,\"id\":5,\"op\":\"sessions.history\"}"
+    ],
+    "stdout": [
+     "{\"finished\":{\"threadId\":\"thread-b0b0b0b0c1c1\",\"status\":\"completed\",\"durationMs\":83456,\"costUsd\":0.30000000000000004,\"reply\":\"last line of the reply\"}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads_wait",
+   "case": "over with nothing in the transcript",
+   "argv": [
+    "threads",
+    "wait",
+    "thread-b0b0b0b0c1c1"
+   ],
+   "replies": {
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"id\":\"sess-1\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"prompt\":\"fix the  build\",\"costUsd\":0.1},{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2},{\"workspaceId\":\"ws-1\",\"harness\":\"codex\",\"status\":\"completed\",\"id\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\"}]}",
+    "sessions.history": "{\"id\":1,\"ok\":true,\"events\":[]}"
+   },
+   "tool_arguments": {
+    "threads": [
+     "thread-b0b0b0b0c1c1"
+    ]
+   },
+   "tool_asked": [
+    {
+     "op": "sessions.list"
+    },
+    {
+     "op": "sessions.list"
+    },
+    {
+     "op": "sessions.history",
+     "workspaceId": "ws-1",
+     "threadId": "thread-b0b0b0b0c1c1",
+     "whole": true
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "thread thread-b finished (completed)"
+     }
+    ],
+    "structuredContent": {
+     "finished": {
+      "threadId": "thread-b0b0b0b0c1c1",
+      "status": "completed"
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"id\":3,\"op\":\"events.subscribe\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}",
+     "{\"workspaceId\":\"ws-1\",\"threadId\":\"thread-b0b0b0b0c1c1\",\"whole\":true,\"id\":5,\"op\":\"sessions.history\"}"
+    ],
+    "stdout": [
+     "thread thread-b finished (completed)"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"id\":3,\"op\":\"events.subscribe\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}",
+     "{\"workspaceId\":\"ws-1\",\"threadId\":\"thread-b0b0b0b0c1c1\",\"whole\":true,\"id\":5,\"op\":\"sessions.history\"}"
+    ],
+    "stdout": [
+     "{\"finished\":{\"threadId\":\"thread-b0b0b0b0c1c1\",\"status\":\"completed\"}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads_wait",
+   "case": "a done pushed",
+   "argv": [
+    "threads",
+    "wait",
+    "thread-7f3a9c21e4b5",
+    "thread-b0",
+    "--timeout=30"
+   ],
+   "replies": {
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2},{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\"}]}"
+   },
+   "pushed": {
+    "sessions.list": [
+     "{\"type\":\"session.done\",\"workspaceId\":\"ws-1\",\"sessionId\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"turnId\":\"t2\",\"result\":{\"status\":\"interrupted\",\"durationMs\":61000,\"error\":\"stopped by the person\"}}"
+    ]
+   },
+   "tool_arguments": {
+    "threads": [
+     "thread-7f3a9c21e4b5",
+     "thread-b0"
+    ],
+    "timeout": 30
+   },
+   "tool_asked": [
+    {
+     "op": "sessions.list"
+    },
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "thread thread-7 finished (interrupted, 1m 1s): stopped by the person"
+     }
+    ],
+    "structuredContent": {
+     "finished": {
+      "threadId": "thread-7f3a9c21e4b5",
+      "status": "interrupted",
+      "durationMs": 61000,
+      "reply": "stopped by the person"
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"id\":3,\"op\":\"events.subscribe\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "thread thread-7 finished (interrupted, 1m 1s): stopped by the person"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"id\":3,\"op\":\"events.subscribe\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "{\"finished\":{\"threadId\":\"thread-7f3a9c21e4b5\",\"status\":\"interrupted\",\"durationMs\":61000,\"reply\":\"stopped by the person\"}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads_wait",
+   "case": "an end pushed",
+   "argv": [
+    "threads",
+    "wait",
+    "thread-7f3a9c21e4b5"
+   ],
+   "replies": {
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2}]}",
+    "sessions.history": "{\"id\":1,\"ok\":true,\"events\":[{\"type\":\"session.start\",\"workspaceId\":\"ws-1\",\"sessionId\":\"sess-9\",\"threadId\":\"thread-7f3a9c21e4b5\",\"turnId\":\"t2\"},{\"type\":\"session.end\",\"workspaceId\":\"ws-1\",\"sessionId\":\"sess-9\",\"threadId\":\"thread-7f3a9c21e4b5\",\"turnId\":\"t2\",\"reason\":\"the harness exited \"}]}"
+   },
+   "pushed": {
+    "sessions.list": [
+     "{\"type\":\"session.end\",\"workspaceId\":\"ws-1\",\"sessionId\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"turnId\":\"t2\",\"reason\":\"cut\"}"
+    ]
+   },
+   "tool_arguments": {
+    "threads": [
+     "thread-7f3a9c21e4b5"
+    ]
+   },
+   "tool_asked": [
+    {
+     "op": "sessions.list"
+    },
+    {
+     "op": "sessions.list"
+    },
+    {
+     "op": "sessions.history",
+     "workspaceId": "ws-1",
+     "threadId": "thread-7f3a9c21e4b5",
+     "whole": true
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "thread thread-7 finished (failed): the harness exited "
+     }
+    ],
+    "structuredContent": {
+     "finished": {
+      "threadId": "thread-7f3a9c21e4b5",
+      "status": "failed",
+      "reply": "the harness exited "
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"id\":3,\"op\":\"events.subscribe\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}",
+     "{\"workspaceId\":\"ws-1\",\"threadId\":\"thread-7f3a9c21e4b5\",\"whole\":true,\"id\":5,\"op\":\"sessions.history\"}"
+    ],
+    "stdout": [
+     "thread thread-7 finished (failed): the harness exited "
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"id\":3,\"op\":\"events.subscribe\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}",
+     "{\"workspaceId\":\"ws-1\",\"threadId\":\"thread-7f3a9c21e4b5\",\"whole\":true,\"id\":5,\"op\":\"sessions.history\"}"
+    ],
+    "stdout": [
+     "{\"finished\":{\"threadId\":\"thread-7f3a9c21e4b5\",\"status\":\"failed\",\"reply\":\"the harness exited \\u0085\"}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads_wait",
+   "case": "timed out on one",
+   "argv": [
+    "threads",
+    "wait",
+    "thread-7f3a9c21e4b5",
+    "--timeout=0.05"
+   ],
+   "replies": {
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2}]}"
+   },
+   "tool_arguments": {
+    "threads": [
+     "thread-7f3a9c21e4b5"
+    ],
+    "timeout": 0.05
+   },
+   "tool_asked": [
+    {
+     "op": "sessions.list"
+    },
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "thread thread-7 still running after 50ms"
+     }
+    ],
+    "structuredContent": {
+     "timedOut": true
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"id\":3,\"op\":\"events.subscribe\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "thread thread-7 still running after 50ms"
+    ],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"id\":3,\"op\":\"events.subscribe\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "{\"timedOut\":true}"
+    ],
+    "stderr": [
+     "thread thread-7 still running after 50ms"
+    ],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads_wait",
+   "case": "timed out on two",
+   "argv": [
+    "threads",
+    "wait",
+    "thread-7f3a9c21e4b5",
+    "thread-b0b0b0b0c1c1",
+    "--timeout=0.25"
+   ],
+   "replies": {
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2},{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\"}]}"
+   },
+   "tool_arguments": {
+    "threads": [
+     "thread-7f3a9c21e4b5",
+     "thread-b0b0b0b0c1c1"
+    ],
+    "timeout": 0.25
+   },
+   "tool_asked": [
+    {
+     "op": "sessions.list"
+    },
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "2 threads still running after 250ms"
+     }
+    ],
+    "structuredContent": {
+     "timedOut": true
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"id\":3,\"op\":\"events.subscribe\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "2 threads still running after 250ms"
+    ],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"id\":3,\"op\":\"events.subscribe\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "{\"timedOut\":true}"
+    ],
+    "stderr": [
+     "2 threads still running after 250ms"
+    ],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads_wait",
+   "case": "a sub-thread over, with what its machine was read to hold",
+   "argv": [
+    "threads",
+    "wait",
+    "thread-e17a90c34f2b"
+   ],
+   "replies": {
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"id\":\"sess-5\",\"threadId\":\"thread-e17a90c34f2b\",\"sub\":{\"state\":\"napping\",\"on\":\"boat\",\"machine\":\"Fix it \",\"size\":{\"cpu\":2,\"memMb\":4096},\"rateUsdPerHour\":0.018,\"branch\":\"wsp/fix-it\",\"deleteAt\":1790000000000}}]}",
+    "sessions.history": "{\"id\":1,\"ok\":true,\"events\":[{\"type\":\"session.start\",\"workspaceId\":\"ws-1\",\"sessionId\":\"sess-5\",\"threadId\":\"thread-e17a90c34f2b\",\"turnId\":\"t5\"},{\"type\":\"session.done\",\"workspaceId\":\"ws-1\",\"sessionId\":\"sess-5\",\"threadId\":\"thread-e17a90c34f2b\",\"turnId\":\"t5\",\"result\":{\"status\":\"completed\",\"durationMs\":83456,\"waitedMs\":2000,\"costUsd\":0.30000000000000004,\"text\":\"Fixed \\\"it\\\"  é\\n\\nlast   line of the reply  \\n\"}}]}",
+    "sessions.head": "{\"id\":1,\"ok\":true,\"facts\":{\"id\":\"thread-e17a90c34f2b\",\"threadId\":\"thread-e17a90c34f2b\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"startedBy\":\"agent\",\"status\":\"completed\",\"turns\":1,\"ran\":true,\"sub\":{\"state\":\"napping\",\"on\":\"boat\",\"machine\":\"Fix it \",\"size\":{\"cpu\":2,\"memMb\":4096},\"rateUsdPerHour\":0.018,\"branch\":\"wsp/fix-it\",\"deleteAt\":1790000000000,\"result\":{\"branch\":\"wsp/fix-it\",\"pushedSha\":\"9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e\",\"commits\":3,\"unpushed\":0,\"changed\":0,\"onBranch\":\"wsp/fix-it\",\"readAt\":\"2026-10-12T09:44:10.512Z\"}}},\"events\":[],\"pos\":0,\"total\":0}"
+   },
+   "tool_arguments": {
+    "threads": [
+     "thread-e17a90c34f2b"
+    ]
+   },
+   "tool_asked": [
+    {
+     "op": "sessions.list"
+    },
+    {
+     "op": "sessions.list"
+    },
+    {
+     "op": "sessions.history",
+     "workspaceId": "ws-1",
+     "threadId": "thread-e17a90c34f2b",
+     "whole": true
+    },
+    {
+     "op": "sessions.head",
+     "threadId": "thread-e17a90c34f2b",
+     "afterRead": true
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "thread thread-e finished (completed, 1m 21s, $0.30): last line of the reply"
+     }
+    ],
+    "structuredContent": {
+     "finished": {
+      "threadId": "thread-e17a90c34f2b",
+      "status": "completed",
+      "durationMs": 83456,
+      "costUsd": 0.30000000000000004,
+      "reply": "last line of the reply",
+      "result": {
+       "branch": "wsp/fix-it",
+       "pushedSha": "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e",
+       "commits": 3,
+       "unpushed": 0,
+       "changed": 0,
+       "onBranch": "wsp/fix-it",
+       "readAt": "2026-10-12T09:44:10.512Z"
+      }
+     }
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"id\":3,\"op\":\"events.subscribe\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}",
+     "{\"workspaceId\":\"ws-1\",\"threadId\":\"thread-e17a90c34f2b\",\"whole\":true,\"id\":5,\"op\":\"sessions.history\"}",
+     "{\"threadId\":\"thread-e17a90c34f2b\",\"afterRead\":true,\"id\":6,\"op\":\"sessions.head\"}"
+    ],
+    "stdout": [
+     "thread thread-e finished (completed, 1m 21s, $0.30): Fixed \"it\"  é\n\nlast   line of the reply"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"id\":3,\"op\":\"events.subscribe\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}",
+     "{\"workspaceId\":\"ws-1\",\"threadId\":\"thread-e17a90c34f2b\",\"whole\":true,\"id\":5,\"op\":\"sessions.history\"}",
+     "{\"threadId\":\"thread-e17a90c34f2b\",\"afterRead\":true,\"id\":6,\"op\":\"sessions.head\"}"
+    ],
+    "stdout": [
+     "{\"finished\":{\"threadId\":\"thread-e17a90c34f2b\",\"status\":\"completed\",\"durationMs\":83456,\"costUsd\":0.30000000000000004,\"reply\":\"last line of the reply\",\"result\":{\"branch\":\"wsp/fix-it\",\"pushedSha\":\"9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e\",\"commits\":3,\"unpushed\":0,\"changed\":0,\"onBranch\":\"wsp/fix-it\",\"readAt\":\"2026-10-12T09:44:10.512Z\"}}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "threads_wait",
+   "case": "no such thread",
+   "argv": [
+    "threads",
+    "wait",
+    "nope"
+   ],
+   "replies": {
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"id\":\"sess-1\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"prompt\":\"fix the  build\",\"costUsd\":0.1},{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2},{\"workspaceId\":\"ws-1\",\"harness\":\"codex\",\"status\":\"completed\",\"id\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\"}]}"
+   },
+   "tool_arguments": {
+    "threads": [
+     "nope"
+    ]
+   },
+   "tool_asked": [
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "no thread nope"
+     }
+    ],
+    "structuredContent": {
+     "error": "no thread nope",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp threads wait: no thread nope"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"no thread nope\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "remove at a terminal answered yes",
+   "argv": [
+    "projects",
+    "remove",
+    "alpha"
+   ],
+   "tty": {
+    "secrets": [],
+    "answers": [
+     "yes"
+    ]
+   },
+   "replies": {
+    "projects.resolve": "{\"id\":1,\"ok\":true,\"project\":{\"id\":\"proj-1\",\"name\":\"alpha 'quoted'\",\"computer\":\"place-9\",\"source\":{\"kind\":\"github\",\"repo\":\"dev/alpha\"},\"path\":\"/root/alpha\",\"remote\":\"https://github.com/dev/alpha.git\",\"defaultBranch\":\"main\",\"memoryKey\":\"-root-alpha\",\"memoryDir\":\"/root/.claude/projects/-root-alpha \",\"createdAt\":\"2026-09-01T00:00:00.000Z\",\"base\":\"main\"}}",
+    "projects.remove": "{\"id\":1,\"ok\":true,\"said\":\"alpha 'quoted' is no longer a project here \"}"
+   },
+   "text": {
+    "frames": [
+     "{\"ref\":\"alpha\",\"id\":2,\"op\":\"projects.resolve\"}",
+     "{\"projectId\":\"proj-1\",\"check\":true,\"id\":3,\"op\":\"projects.remove\"}",
+     "{\"projectId\":\"proj-1\",\"id\":4,\"op\":\"projects.remove\"}"
+    ],
+    "stdout": [
+     "alpha 'quoted' is no longer a project here "
+    ],
+    "stderr": [],
+    "exit": 0,
+    "asked": [
+     "Remove alpha 'quoted'?\nIts record leaves this wsp, with the folder wsp made for it on the computer holding it; a folder of yours stays where it is."
+    ]
+   },
+   "json": {
+    "frames": [
+     "{\"ref\":\"alpha\",\"id\":2,\"op\":\"projects.resolve\"}",
+     "{\"projectId\":\"proj-1\",\"check\":true,\"id\":3,\"op\":\"projects.remove\"}",
+     "{\"projectId\":\"proj-1\",\"id\":4,\"op\":\"projects.remove\"}"
+    ],
+    "stdout": [
+     "{\"project\":{\"id\":\"proj-1\",\"name\":\"alpha 'quoted'\",\"computer\":\"place-9\",\"source\":{\"kind\":\"github\",\"repo\":\"dev/alpha\"},\"path\":\"/root/alpha\",\"remote\":\"https://github.com/dev/alpha.git\",\"defaultBranch\":\"main\",\"memoryKey\":\"-root-alpha\",\"memoryDir\":\"/root/.claude/projects/-root-alpha \\u0085\",\"createdAt\":\"2026-09-01T00:00:00.000Z\",\"base\":\"main\"},\"said\":\"alpha 'quoted' is no longer a project here \\u0085\"}"
+    ],
+    "stderr": [],
+    "exit": 0,
+    "asked": [
+     "Remove alpha 'quoted'?\nIts record leaves this wsp, with the folder wsp made for it on the computer holding it; a folder of yours stays where it is."
+    ]
+   }
+  },
+  {
+   "hand": true,
+   "case": "remove off a terminal asks after the host's check",
+   "argv": [
+    "projects",
+    "remove",
+    "alpha"
+   ],
+   "replies": {
+    "projects.resolve": "{\"id\":1,\"ok\":true,\"project\":{\"id\":\"proj-1\",\"name\":\"alpha 'quoted'\",\"computer\":\"place-9\",\"source\":{\"kind\":\"github\",\"repo\":\"dev/alpha\"},\"path\":\"/root/alpha\",\"remote\":\"https://github.com/dev/alpha.git\",\"defaultBranch\":\"main\",\"memoryKey\":\"-root-alpha\",\"memoryDir\":\"/root/.claude/projects/-root-alpha \",\"createdAt\":\"2026-09-01T00:00:00.000Z\",\"base\":\"main\"}}",
+    "projects.remove": "{\"id\":1,\"ok\":true,\"said\":\"alpha 'quoted' is no longer a project here \"}"
+   },
+   "text": {
+    "frames": [
+     "{\"ref\":\"alpha\",\"id\":2,\"op\":\"projects.resolve\"}",
+     "{\"projectId\":\"proj-1\",\"check\":true,\"id\":3,\"op\":\"projects.remove\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp projects remove: Remove alpha 'quoted'? There is no terminal to answer on. Pass --yes to say yes."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"ref\":\"alpha\",\"id\":2,\"op\":\"projects.resolve\"}",
+     "{\"projectId\":\"proj-1\",\"check\":true,\"id\":3,\"op\":\"projects.remove\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"Remove alpha 'quoted'? There is no terminal to answer on. Pass --yes to say yes.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "remove with unsaved work, off a terminal",
+   "argv": [
+    "projects",
+    "remove",
+    "alpha"
+   ],
+   "replies": {
+    "projects.resolve": "{\"id\":1,\"ok\":true,\"project\":{\"id\":\"proj-1\",\"name\":\"alpha 'quoted'\",\"computer\":\"place-9\",\"source\":{\"kind\":\"github\",\"repo\":\"dev/alpha\"},\"path\":\"/root/alpha\",\"remote\":\"https://github.com/dev/alpha.git\",\"defaultBranch\":\"main\",\"memoryKey\":\"-root-alpha\",\"memoryDir\":\"/root/.claude/projects/-root-alpha \",\"createdAt\":\"2026-09-01T00:00:00.000Z\",\"base\":\"main\"}}",
+    "projects.remove": "{\"id\":1,\"ok\":true,\"said\":\"alpha 'quoted' is no longer a project here \"}",
+    "projects.remove #1": "{\"id\":1,\"ok\":true,\"unsaved\":\"/root/alpha on attic\"}"
+   },
+   "text": {
+    "frames": [
+     "{\"ref\":\"alpha\",\"id\":2,\"op\":\"projects.resolve\"}",
+     "{\"projectId\":\"proj-1\",\"check\":true,\"id\":3,\"op\":\"projects.remove\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp projects remove: Remove alpha 'quoted'? There is no terminal to answer on. Pass --yes to say yes."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"ref\":\"alpha\",\"id\":2,\"op\":\"projects.resolve\"}",
+     "{\"projectId\":\"proj-1\",\"check\":true,\"id\":3,\"op\":\"projects.remove\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"Remove alpha 'quoted'? There is no terminal to answer on. Pass --yes to say yes.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "seed with an empty menu",
+   "argv": [
+    "projects",
+    "seed",
+    "lab"
+   ],
+   "replies": {
+    "projects.seed": "{\"id\":1,\"ok\":true,\"project\":\"lab\",\"folder\":\"/work/acme/lab\",\"rows\":[],\"picked\":{\"paths\":[],\"bytes\":0,\"missing\":[]},\"saved\":false}"
+   },
+   "text": {
+    "frames": [
+     "{\"project\":\"lab\",\"id\":2,\"op\":\"projects.seed\"}"
+    ],
+    "stdout": [
+     "lab, /work/acme/lab: what git ignores, and what goes to a sub-thread's machine.\n\n0 picked. Nothing was saved; add --yes to save these picks."
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"project\":\"lab\",\"id\":2,\"op\":\"projects.seed\"}"
+    ],
+    "stdout": [
+     "{\"project\":\"lab\",\"folder\":\"/work/acme/lab\",\"rows\":[],\"picked\":{\"paths\":[],\"bytes\":0,\"missing\":[]},\"saved\":false}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "projects with rows, threads, computers and defaults",
+   "argv": [
+    "projects"
+   ],
+   "replies": {
+    "projects.list": "{\"id\":1,\"ok\":true,\"projects\":[{\"10\":1,\"id\":\"proj-1\",\"name\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"computer\":\"here\",\"source\":{\"kind\":\"folder\",\"path\":\"/w\"},\"path\":\"/w\",\"remote\":\"\",\"defaultBranch\":\"main\",\"memoryKey\":\"-w\",\"memoryDir\":\"/m/-w\",\"createdAt\":\"2026-09-27T00:00:00.000Z\"}]}",
+    "projects.defaults": "{\"id\":1,\"ok\":true,\"defaults\":{\"proj-1\":{\"agent\":{\"value\":\"codex\",\"from\":\"project\"},\"model\":{\"value\":\"gpt \",\"from\":\"default\"},\"access\":{\"value\":\"auto-edit\",\"mode\":\"acceptEdits\",\"from\":\"catalog\"}}}}",
+    "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"parser\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"}},{\"id\":\"ws-2\",\"name\":\"look\",\"project\":{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}},{\"id\":\"ws-3\",\"name\":\"wsp@feat\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"made\":true},\"folder\":\"/nowhere/worktrees/proj-1/feat\"},{\"id\":\"ws-4\",\"name\":\"wsp\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"}},{\"id\":\"ws-5\",\"name\":\"wsp@old\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/old\",\"branch\":\"old\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp\"},{\"id\":\"ws-6\",\"name\":\"wsp@gone\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp-two\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/gone\",\"branch\":\"gone\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp-two\"}]}",
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-1111aaaa\",\"prompt\":\"Fix the flaky test in the parser module and then tidy the imports around it. Then ship.\",\"startedAt\":1727431200000,\"endedAt\":1727431260000,\"claudeSessionId\":\"c-1\",\"costUsd\":0.1,\"startedBy\":\"agent\",\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-2\",\"workspaceId\":\"ws-2\",\"harness\":\"codex\",\"status\":\"running\",\"prompt\":\"look\",\"startedAt\":1727431300000.25,\"pid\":4242,\"project\":{\"id\":\"proj-2\",\"name\":\"site\"},\"computerName\":\"place-unnamed\"},{\"id\":\"s-3\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"threadId\":\"t-1111aaaa\",\"harnessTitle\":\"  Parser\\n fix  🧪\",\"costUsd\":0.2,\"asking\":\"ask-1\",\"readAt\":1727431270000,\"settledAt\":1727431265000,\"cwd\":\"/w/é\",\"waitingOn\":{\"title\":\"other\",\"threadId\":\"t-2\",\"workspaceId\":\"ws-1\",\"sessionId\":\"s-9\",\"prompt\":{\"askId\":\"a\",\"toolName\":\"Bash\",\"input\":\"{}\",\"options\":[]}},\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-4\",\"workspaceId\":\"ws-gone\",\"harness\":\"claude\",\"status\":\"failed\",\"threadId\":\"t-4\",\"refusal\":\"sign-in\",\"claudeSessionId\":\"c-4\"},{\"id\":\"s-5\",\"workspaceId\":\"ws-3\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-5\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-6\",\"workspaceId\":\"ws-3\",\"harness\":\"codex\",\"status\":\"completed\",\"threadId\":\"t-6\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-7\",\"workspaceId\":\"ws-4\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-7\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-8\",\"workspaceId\":\"ws-5\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-8\",\"cwd\":\"/nowhere/worktrees/proj-1/old/src\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-9\",\"workspaceId\":\"ws-6\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-9\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"}]}",
+    "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"here\",\"kind\":\"computer\",\"name\":\"this mac\",\"default\":true},{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"default\":false}]}"
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"projects.list\"}",
+     "{\"id\":3,\"op\":\"workspaces.list\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}",
+     "{\"id\":5,\"op\":\"places.list\"}",
+     "{\"id\":6,\"op\":\"projects.defaults\"}"
+    ],
+    "stdout": [
+     "PROJECT                              ID      COMPUTER       SOURCE  PATH  BASE  THREADS  NEW THREADS\nzingzy's box \"one\" \\ two\nthree 🧪  proj-1  this computer  /w      /w          6        codex (project) gpt  auto-edit"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"projects.list\"}",
+     "{\"id\":3,\"op\":\"workspaces.list\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}",
+     "{\"id\":5,\"op\":\"places.list\"}",
+     "{\"id\":6,\"op\":\"projects.defaults\"}"
+    ],
+    "stdout": [
+     "{\"projects\":[{\"10\":1,\"id\":\"proj-1\",\"name\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"computer\":\"here\",\"source\":{\"kind\":\"folder\",\"path\":\"/w\"},\"path\":\"/w\",\"remote\":\"\",\"defaultBranch\":\"main\",\"memoryKey\":\"-w\",\"memoryDir\":\"/m/-w\",\"createdAt\":\"2026-09-27T00:00:00.000Z\"}],\"defaults\":{\"proj-1\":{\"agent\":{\"value\":\"codex\",\"from\":\"project\"},\"model\":{\"value\":\"gpt \\u0085\",\"from\":\"default\"},\"access\":{\"value\":\"auto-edit\",\"mode\":\"acceptEdits\",\"from\":\"catalog\"}}}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "projects with rows when the places read is refused",
+   "argv": [
+    "projects"
+   ],
+   "replies": {
+    "projects.list": "{\"id\":1,\"ok\":true,\"projects\":[{\"10\":1,\"id\":\"proj-1\",\"name\":\"zingzy's box \\\"one\\\" \\\\ two\\nthree 🧪\",\"computer\":\"here\",\"source\":{\"kind\":\"folder\",\"path\":\"/w\"},\"path\":\"/w\",\"remote\":\"\",\"defaultBranch\":\"main\",\"memoryKey\":\"-w\",\"memoryDir\":\"/m/-w\",\"createdAt\":\"2026-09-27T00:00:00.000Z\"}]}",
+    "projects.defaults": "{\"id\":1,\"ok\":true,\"defaults\":{\"proj-1\":{\"agent\":{\"value\":\"codex\",\"from\":\"project\"},\"model\":{\"value\":\"gpt \",\"from\":\"default\"},\"access\":{\"value\":\"auto-edit\",\"mode\":\"acceptEdits\",\"from\":\"catalog\"}}}}",
+    "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"parser\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"}},{\"id\":\"ws-2\",\"name\":\"look\",\"project\":{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}},{\"id\":\"ws-3\",\"name\":\"wsp@feat\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"made\":true},\"folder\":\"/nowhere/worktrees/proj-1/feat\"},{\"id\":\"ws-4\",\"name\":\"wsp\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"}},{\"id\":\"ws-5\",\"name\":\"wsp@old\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/old\",\"branch\":\"old\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp\"},{\"id\":\"ws-6\",\"name\":\"wsp@gone\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp-two\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/gone\",\"branch\":\"gone\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp-two\"}]}",
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-1111aaaa\",\"prompt\":\"Fix the flaky test in the parser module and then tidy the imports around it. Then ship.\",\"startedAt\":1727431200000,\"endedAt\":1727431260000,\"claudeSessionId\":\"c-1\",\"costUsd\":0.1,\"startedBy\":\"agent\",\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-2\",\"workspaceId\":\"ws-2\",\"harness\":\"codex\",\"status\":\"running\",\"prompt\":\"look\",\"startedAt\":1727431300000.25,\"pid\":4242,\"project\":{\"id\":\"proj-2\",\"name\":\"site\"},\"computerName\":\"place-unnamed\"},{\"id\":\"s-3\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"threadId\":\"t-1111aaaa\",\"harnessTitle\":\"  Parser\\n fix  🧪\",\"costUsd\":0.2,\"asking\":\"ask-1\",\"readAt\":1727431270000,\"settledAt\":1727431265000,\"cwd\":\"/w/é\",\"waitingOn\":{\"title\":\"other\",\"threadId\":\"t-2\",\"workspaceId\":\"ws-1\",\"sessionId\":\"s-9\",\"prompt\":{\"askId\":\"a\",\"toolName\":\"Bash\",\"input\":\"{}\",\"options\":[]}},\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-4\",\"workspaceId\":\"ws-gone\",\"harness\":\"claude\",\"status\":\"failed\",\"threadId\":\"t-4\",\"refusal\":\"sign-in\",\"claudeSessionId\":\"c-4\"},{\"id\":\"s-5\",\"workspaceId\":\"ws-3\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-5\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-6\",\"workspaceId\":\"ws-3\",\"harness\":\"codex\",\"status\":\"completed\",\"threadId\":\"t-6\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-7\",\"workspaceId\":\"ws-4\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-7\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-8\",\"workspaceId\":\"ws-5\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-8\",\"cwd\":\"/nowhere/worktrees/proj-1/old/src\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"},{\"id\":\"s-9\",\"workspaceId\":\"ws-6\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-9\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"this mac\"}]}"
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"projects.list\"}",
+     "{\"id\":3,\"op\":\"workspaces.list\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}",
+     "{\"id\":5,\"op\":\"places.list\"}",
+     "{\"id\":6,\"op\":\"projects.defaults\"}"
+    ],
+    "stdout": [
+     "PROJECT                              ID      COMPUTER       SOURCE  PATH  BASE  THREADS  NEW THREADS\nzingzy's box \"one\" \\ two\nthree 🧪  proj-1  this computer  /w      /w          6        codex (project) gpt  auto-edit"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"projects.list\"}",
+     "{\"id\":3,\"op\":\"workspaces.list\"}",
+     "{\"id\":4,\"op\":\"sessions.list\"}",
+     "{\"id\":5,\"op\":\"places.list\"}",
+     "{\"id\":6,\"op\":\"projects.defaults\"}"
+    ],
+    "stdout": [
+     "{\"projects\":[{\"10\":1,\"id\":\"proj-1\",\"name\":\"zingzy's \\u0085box\\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"computer\":\"here\",\"source\":{\"kind\":\"folder\",\"path\":\"/w\"},\"path\":\"/w\",\"remote\":\"\",\"defaultBranch\":\"main\",\"memoryKey\":\"-w\",\"memoryDir\":\"/m/-w\",\"createdAt\":\"2026-09-27T00:00:00.000Z\"}],\"defaults\":{\"proj-1\":{\"agent\":{\"value\":\"codex\",\"from\":\"project\"},\"model\":{\"value\":\"gpt \\u0085\",\"from\":\"default\"},\"access\":{\"value\":\"auto-edit\",\"mode\":\"acceptEdits\",\"from\":\"catalog\"}}}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "threads as a tree",
+   "argv": [
+    "threads",
+    "--tree"
+   ],
+   "replies": {
+    "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"parser\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"computer\":\"place-9\"}},{\"id\":\"ws-2\",\"name\":\"look\",\"project\":{\"id\":\"proj-2\",\"name\":\"site\",\"computer\":\"place-unnamed\"}},{\"id\":\"ws-3\",\"name\":\"wsp@feat\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/feat\",\"branch\":\"feat/é\",\"made\":true},\"folder\":\"/nowhere/worktrees/proj-1/feat\"},{\"id\":\"ws-4\",\"name\":\"wsp\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"}},{\"id\":\"ws-5\",\"name\":\"wsp@old\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/old\",\"branch\":\"old\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp\"},{\"id\":\"ws-6\",\"name\":\"wsp@gone\",\"kind\":\"local\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\",\"path\":\"/nowhere/wsp-two\",\"computer\":\"here\"},\"worktree\":{\"path\":\"/nowhere/worktrees/proj-1/gone\",\"branch\":\"gone\",\"made\":true,\"gone\":true},\"folder\":\"/nowhere/wsp-two\"}]}",
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-1111aaaa\",\"prompt\":\"Fix the flaky test in the parser module and then tidy the imports around it. Then ship.\",\"startedAt\":1727431200000,\"endedAt\":1727431260000,\"claudeSessionId\":\"c-1\",\"costUsd\":0.1,\"startedBy\":\"agent\",\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"project\":{\"id\":\"proj-1\",\"name\":\"wsp\"},\"computerName\":\"attic\"},{\"id\":\"s-10\",\"workspaceId\":\"ws-box\",\"harness\":\"claude\",\"status\":\"running\",\"threadId\":\"t-10\",\"prompt\":\"build it\",\"startedBy\":\"agent\",\"parentThreadId\":\"t-1111aaaa\",\"rootThreadId\":\"t-0\",\"cwd\":\"/root/lab-box\",\"project\":{\"id\":\"proj-3\",\"name\":\"lab-box\"},\"computerName\":\"hetzner\"}]}"
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "PROJECT  FOLDER     BRANCH  THREAD      SUBAGENT  AGENT   STATE    BY     COMPUTER  TITLE\nwsp                         t-1111aaaa            claude  Done     agent  attic     Fix the flaky test in the parser module and…\nlab-box  ~/lab-box            t-10                claude  Working  agent  hetzner   build it"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"workspaces.list\"}",
+     "{\"id\":3,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [
+     "{\"threads\":[{\"id\":\"t-1111aaaa\",\"threadId\":\"t-1111aaaa\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"startedBy\":\"agent\",\"status\":\"completed\",\"title\":\"Fix the flaky \\u0085test in the parser module and…\",\"sessionId\":\"s-1\",\"claudeSessionId\":\"c-1\",\"startedAt\":1727431200000,\"endedAt\":1727431260000,\"turns\":1,\"ran\":true,\"parentThreadId\":\"t-0\",\"rootThreadId\":\"t-0\",\"costUsd\":0.1,\"projectName\":\"wsp\",\"folder\":\"\",\"branch\":\"\",\"computerName\":\"attic\"},{\"id\":\"t-10\",\"threadId\":\"t-10\",\"workspaceId\":\"ws-box\",\"harness\":\"claude\",\"startedBy\":\"agent\",\"status\":\"running\",\"title\":\"build it\",\"sessionId\":\"s-10\",\"cwd\":\"/root/lab-box\",\"turns\":1,\"ran\":true,\"parentThreadId\":\"t-1111aaaa\",\"rootThreadId\":\"t-0\",\"projectName\":\"lab-box\",\"folder\":\"/root/lab-box\",\"branch\":\"\",\"computerName\":\"hetzner\"}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "projects with a word",
+   "argv": [
+    "projects",
+    "x"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp projects takes no positional arguments. usage: wsp projects"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp projects takes no positional arguments. usage: wsp projects\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "projects with none",
+   "argv": [
+    "projects"
+   ],
+   "replies": {
+    "projects.list": "{\"id\":1,\"ok\":true,\"projects\":[]}"
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"projects.list\"}"
+    ],
+    "stdout": [
+     "no projects yet; wsp add <folder> records one here, and wsp add <url> --on <computer> records one there"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"projects.list\"}"
+    ],
+    "stdout": [
+     "{\"projects\":[],\"defaults\":{}}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "remove with none",
+   "argv": [
+    "projects",
+    "remove"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp projects remove takes one project. usage: wsp projects remove <project> [--yes] [--force]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp projects remove takes one project. usage: wsp projects remove <project> [--yes] [--force]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "remove with two",
+   "argv": [
+    "projects",
+    "remove",
+    "a",
+    "b"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp projects remove takes one project. usage: wsp projects remove <project> [--yes] [--force]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp projects remove takes one project. usage: wsp projects remove <project> [--yes] [--force]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "set with none",
+   "argv": [
+    "projects",
+    "set"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp projects set takes one project. usage: wsp projects set <project> [--agent <id>] [--model <slug>] [--effort <word>] [--access <word>] [--after-worktree <command>] [--tracker <owner/name>]... [--reset <field>]..."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp projects set takes one project. usage: wsp projects set <project> [--agent <id>] [--model <slug>] [--effort <word>] [--access <word>] [--after-worktree <command>] [--tracker <owner/name>]... [--reset <field>]...\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "set with two",
+   "argv": [
+    "projects",
+    "set",
+    "a",
+    "b"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp projects set takes one project. usage: wsp projects set <project> [--agent <id>] [--model <slug>] [--effort <word>] [--access <word>] [--after-worktree <command>] [--tracker <owner/name>]... [--reset <field>]..."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp projects set takes one project. usage: wsp projects set <project> [--agent <id>] [--model <slug>] [--effort <word>] [--access <word>] [--after-worktree <command>] [--tracker <owner/name>]... [--reset <field>]...\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "seed with none",
+   "argv": [
+    "projects",
+    "seed"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp projects seed takes one project. usage: wsp projects seed <project> [--keep <path>]... [--cut <path>]... [--none] [--yes]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp projects seed takes one project. usage: wsp projects seed <project> [--keep <path>]... [--cut <path>]... [--none] [--yes]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "seed with two",
+   "argv": [
+    "projects",
+    "seed",
+    "a",
+    "b"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp projects seed takes one project. usage: wsp projects seed <project> [--keep <path>]... [--cut <path>]... [--none] [--yes]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp projects seed takes one project. usage: wsp projects seed <project> [--keep <path>]... [--cut <path>]... [--none] [--yes]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "threads with two",
+   "argv": [
+    "threads",
+    "a",
+    "b"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp threads takes at most one project; wsp threads wait is its one subcommand, and wsp thread read <thread> prints what one said. usage: wsp threads [<project>] [--tree] [--watch]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp threads takes at most one project; wsp threads wait is its one subcommand, and wsp thread read <thread> prints what one said. usage: wsp threads [<project>] [--tree] [--watch]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "wait with none",
+   "argv": [
+    "threads",
+    "wait"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp threads wait takes one thread or more. usage: wsp threads wait <thread>... [--timeout <s>] [--tail]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp threads wait takes one thread or more. usage: wsp threads wait <thread>... [--timeout <s>] [--tail]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "wait with a word for a timeout",
+   "argv": [
+    "threads",
+    "wait",
+    "t",
+    "--timeout",
+    "soon"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp threads wait: --timeout takes seconds, a number above zero, and got \"soon\". Write it as --timeout <seconds>."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"--timeout takes seconds, a number above zero, and got \\\"soon\\\". Write it as --timeout <seconds>.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  }
+ ]
+}
