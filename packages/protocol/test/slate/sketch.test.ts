@@ -99,13 +99,10 @@ describe("the sketch", () => {
 
 describe("the catalog", () => {
   it("keeps the index under its budget and its example valid", () => {
-    // With the frame's look step as rule 13 and its clause on the pick line, worded as feat/2065-slate-frame has them
-    // at 696b2d003 (SLATE_LOOK_RULE), the index still fits.
-    const look = "If slate_look is offered, look once after writing a frame or a large change, never after each patch.";
-    const tokens = slateTokens(slateCatalog());
-    const withFrame = tokens + slateTokens(`\n13. ${look}`) + slateTokens("; what no piece draws, a frame: an .html file you wrote");
-    console.log(`catalog index: ${tokens} tokens; with the frame's look rule and clause: ${withFrame}; budget ${SLATE_LIMITS.catalogIndexTokens}`);
-    expect(withFrame).toBeLessThan(SLATE_LIMITS.catalogIndexTokens);
+    // The index as the frame's branch words it at 696b2d003, with its look rule and its clause on the pick line.
+    const tokens = slateTokens(slateCatalog(undefined, { look: true }));
+    console.log(`catalog index with the frame's look rule and clause: ${tokens} tokens; budget ${SLATE_LIMITS.catalogIndexTokens}`);
+    expect(tokens).toBeLessThan(SLATE_LIMITS.catalogIndexTokens);
     expect(slateCatalog().startsWith(SLATE_PURPOSE)).toBe(true);
     for (const said of ["short labels, no emoji.", "in sentence case, never bold text.", "Show a run's json fields, never its raw out or error lines, which its <output> leads with; times through date(), time() or ago()."]) expect(slateCatalog(), said).toContain(said);
     expect(slateCatalog()).toContain("One in a file stays there for the run to read, never you.");
