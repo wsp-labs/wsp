@@ -26,9 +26,26 @@ use wsp_core::sign_in_socket::SignInOp;
 use wsp_core::sys_socket::{Send, SocketSide, SysAsk};
 use wsp_words::exit::HostError;
 
+use wsp_words::v8_json::KEPT_DEPTH;
+
 use super::served::Payload;
 use super::{Authed, UpgradeHead};
 use crate::serve_slates::SlateHolds;
+
+tokio::task_local! {
+    /// Set while a frame whose `id` was a number past the double's range is answered: JavaScript read it as Infinity,
+    /// which a reply writes as null.
+    pub(crate) static INFINITE_ID: ();
+}
+
+/// Whether a value nests past what the frame reader keeps: node cannot write such an id back (`JSON.stringify` throws).
+fn too_deep(value: &serde_json::Value, level: usize) -> bool {
+    match value {
+        serde_json::Value::Array(items) => level >= KEPT_DEPTH || items.iter().any(|item| too_deep(item, level + 1)),
+        serde_json::Value::Object(fields) => level >= KEPT_DEPTH || fields.values().any(|field| too_deep(field, level + 1)),
+        _ => false,
+    }
+}
 
 /// The socket's transport. The websocket implements it; tests record what it is told.
 pub trait FrameSink {
@@ -167,6 +184,7 @@ impl Socket {
                     road.me = Some(Authed::Host);
                     drop(road);
                     socket.authed.set(true);
+                    socket.through.set(true);
                 }
                 _ => {
                     // A refused ticket's socket reads nothing, as the TS returns before it listens.
@@ -212,9 +230,17 @@ impl Socket {
         self.authed.get()
     }
     /// `ws.send`: dropped when not open, sealed where a seal stands (serve.ts:616-620, spec W10).
-    pub fn send(&self, payload: Payload) {
+    pub fn send(&self, mut payload: Payload) {
         if !self.sink.is_open() {
             return;
+        }
+        if let Some(id) = payload.get("id") {
+            if too_deep(id, 1) {
+                return;
+            }
+            if INFINITE_ID.try_with(|_| ()).is_ok() && id.as_f64().is_some_and(|number| number.abs() == 0.5) {
+                payload.insert("id".into(), serde_json::Value::Null);
+            }
         }
         let text = serde_json::Value::Object(payload).to_string();
         match self.seal.borrow_mut().as_mut() {

@@ -1,8 +1,9 @@
 # serve_wire: the listener, the upgrades, the socket's transport and the server's own calls
 
 serve.ts:135-347, 375-492, 1899-1934 at `65f6b89c7`. Rust: `src/serve.rs` (`serve_runtime`, `ServeOptions`,
-`RuntimeServer`, the host door traits) and `src/serve/socket.rs` (`FrameSink`). Tests: `tests/serve_wire.rs`, the
-only tests in this crate that open a real websocket (tokio-tungstenite on loopback).
+`RuntimeServer`, the host door traits) and `src/serve/socket.rs` (`FrameSink`), `src/serve/listener.rs` and `src/serve/wsframe.rs` (the websocket as the `ws`
+library speaks it). Tests: `tests/serve_wire.rs` and `tests/review_door.rs`, the tests in this crate that open a real
+websocket (tokio-tungstenite and raw sockets on loopback).
 
 ## Options and doors
 
@@ -20,16 +21,46 @@ only tests in this crate that open a real websocket (tokio-tungstenite on loopba
 
 - W4. With `port` set, the runtime binds `host:port` itself (port 0 picks one) and answers every path there; an
   upgrade `origin_allowed` refuses is answered `401` before any frame (the ws library's refusal; the client reads
-  an unexpected server response). `RuntimeServer.port` is the bound port; with no `port`, `opts.port` or 0.
+  an unexpected server response, with ws's body `Unauthorized`). `RuntimeServer.port` is the bound port; with no
+  `port`, `opts.port` or 0. The head is read here as ws's own HTTP server reads it: a request that is no upgrade is
+  answered `426 Upgrade Required`; a method other than GET is refused 405 `Invalid HTTP method`, and a missing or
+  wrong Upgrade header, key, version or subprotocol list 400 with ws's sentence (W11); the bytes the client sent
+  after the head are its first frames.
 - W5. An attached upgrade `origin_allowed` refuses is answered `HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n`
   and the socket ends; a path whose pathname is not `WS_PATH` (`/ws`; the query is ignored) is answered
-  `HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n`. Both write after an error listener is on, so a peer that
-  resets cannot end the process (serve.ts:473-490).
-- W6. A frame wrong at the wire (an unmasked client frame, a bad opcode) warns one line through wsp-core's
-  `console::warn`: `socket from <peer> dropped on a wire fault: <the ws library's sentence>`, and the socket is
-  cut with no close handshake. The host goes on answering the next socket (serve.ts:500-503). The ws sentence for
-  an unmasked frame is `Invalid WebSocket frame: MASK must be set`; the Rust maps its library's error to that text
-  for this case (the test pins it) and keeps the library's own words for the rest.
+  `HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n`; then ws's `handleUpgrade` checks (W11). The method is the
+  host's to refuse, since `UpgradeHead` carries none. Both write after an error listener is on, so a peer that resets
+  cannot end the process (serve.ts:473-490).
+- W6. A frame wrong at the wire (an unmasked client frame, a bad opcode, invalid UTF-8) warns one line through
+  wsp-core's `console::warn`: `socket from <peer> dropped on a wire fault: <the ws library's sentence>`. The socket is
+  closed with the fault's own code (1002, 1007 for invalid UTF-8, 1009 past the ceiling) and an empty reason, then
+  cut without waiting for the peer's answer. The host goes on answering the next socket (serve.ts:500-503). The
+  sentences are ws's (`Invalid WebSocket frame: MASK must be set`, `invalid opcode 3`, `invalid status code 1005`,
+  `Max payload size exceeded`).
+
+## The websocket (ws 8.21.3, `src/serve/wsframe.rs`)
+
+- W11. The upgrade is checked in ws's order (`handleUpgrade`): a method other than GET 405 `Invalid HTTP method`; an
+  Upgrade header that is not `websocket` 400 `Invalid Upgrade header`; a key that is not 22 base64 characters and
+  `==` 400 `Missing or invalid Sec-WebSocket-Key header`; a version other than 13 or 8 400 `Missing or invalid
+  Sec-WebSocket-Version header` (with `Sec-WebSocket-Version: 13, 8`); a subprotocol list that is not distinct tokens
+  400 `Invalid Sec-WebSocket-Protocol header`. Each refusal carries its sentence as the body. The 101 names the first
+  subprotocol offered.
+- W12. The largest frame, and the largest message of fragments, is 100 MiB (ws's `maxPayload`), checked when a frame's
+  length is read: past it the socket is closed 1009 `Max payload size exceeded`. A frame of 16 MiB is read.
+- W13. Frames are read as ws's receiver reads them: RSV bits, opcodes, FIN on control frames, control payloads of at
+  most 125 bytes, the mask, close codes (1000-1014 but 1004-1006, and 3000-4999), UTF-8 of text and of a close reason.
+  The peer's close is echoed with its code and reason (a close with no code, with none); a receiver that has read a
+  close or a fault reads nothing more. A ping is answered with a pong while the socket is open.
+- W14. Every message of one read reaches the door in order before the door counts the bytes of that read toward the
+  4,096 of the pre-auth cap (serve.ts:579-603), and each frame's handler runs as far as its first wait before the next
+  frame is read, as ws emits its messages synchronously. So a second frame that arrives with an `auth` frame finds
+  the door deciding (`unauthorized`, 4401), and a reply a handler gives without waiting goes out before the close
+  that follows it in the same read.
+- W15. A socket that redeemed a ticket is through the door at once: neither the 4,096 bytes nor the auth deadline
+  apply to it (serve.ts:526, 594-599).
+- W16. After the host's own close frame (a deadline, a refusal, a stop) a peer that never answers is cut 30 s later
+  (ws's `closeTimeout`). A stop cuts a client that stopped reading even while frames are queued for it.
 
 ## The server's own calls (serve.ts:1913-1933)
 
@@ -46,7 +77,8 @@ only tests in this crate that open a real websocket (tokio-tungstenite on loopba
 
 ## Rules against tests (`tests/serve_wire.rs`)
 
-Generated from the rule each test names in its first comment; 11 tests.
+Generated from the rule each test names in its first comment; 11 tests, and the review's (`tests/review_door.rs`,
+`tests/review_panics.rs`) for W6 and W11-W16.
 
 | Rule | Tests | TS case |
 |---|---|---|
