@@ -187,3 +187,80 @@ fn box_view_body(depth: usize) {
 fn box_view_reads_an_answer_whose_id_is_nested_870_deep() {
     in_child("box_view_reads_an_answer_whose_id_is_nested_870_deep", 870, box_view_body);
 }
+
+/// `depth` arrays inside one another around a 7: `[[[7]]]`.
+fn arrays_around_seven(depth: usize) -> String {
+    format!("{}7{}", "[".repeat(depth - 1), "]".repeat(depth - 1))
+}
+
+// ---- box_backend: the views a provider's answer fills, at the deepest answer the JSON.parse port reads ----
+//
+// The port reads 1,000 levels. The answer `{"sandbox":{"id":<tree>}}` holds the tree at depth 2, so a tree of 998 levels
+// is the deepest read (`name` is read as absent: it is not a string). Node: `String(id)` joins the nested arrays, so the id reads "7".
+fn box_view_cap_body(depth: usize) {
+    use common::{reply_text, FakeFetch};
+    use std::sync::Arc;
+    use wsp_engine::box_backend::request::{BoxBackend, BoxBackendOptions};
+    use wsp_engine::fetch::Fetch;
+    let f = FakeFetch::fixed(vec![(
+        "GET /api/v1/sandboxes/x",
+        reply_text(
+            200,
+            &format!(
+                r#"{{"sandbox":{{"id":{},"name":{},"state":{}}}}}"#,
+                arrays_around_seven(depth),
+                arrays(depth),
+                arrays_around_seven(depth)
+            ),
+        ),
+    )]);
+    let fetch: Arc<dyn Fetch> = f.clone();
+    let boat = BoxBackend::new(BoxBackendOptions { api_key: "box_x".into(), fetch: Some(fetch), ..Default::default() });
+    let view = block_on(boat.view("x")).expect("node answers with the object");
+    assert_eq!((view.id.as_str(), view.state.as_str(), view.name), ("7", "7", None));
+}
+
+#[test]
+fn box_view_reads_fields_nested_to_the_parse_cap() {
+    in_child("box_view_reads_fields_nested_to_the_parse_cap", 998, box_view_cap_body);
+}
+
+// The listing of named snapshots reads each row through the same views: `name` and `status` are text, `error` and
+// `createdAt` are read as absent when they are not a string.
+fn named_snapshots_body(depth: usize) {
+    use common::{reply_text, FakeFetch};
+    use std::sync::Arc;
+    use wsp_engine::box_backend::request::{BoxBackend, BoxBackendOptions};
+    use wsp_engine::fetch::Fetch;
+    let row =
+        format!(r#"{{"name":{},"status":"ready","error":{},"createdAt":{}}}"#, arrays_around_seven(depth), arrays(depth), arrays(depth));
+    let f = FakeFetch::fixed(vec![("GET /api/v1/named-snapshots", reply_text(200, &format!(r#"{{"snapshots":[{row}]}}"#)))]);
+    let fetch: Arc<dyn Fetch> = f.clone();
+    let boat = BoxBackend::new(BoxBackendOptions { api_key: "box_x".into(), fetch: Some(fetch), ..Default::default() });
+    let rows = block_on(boat.named_snapshots()).expect("node answers with the rows");
+    assert_eq!((rows[0].name.as_str(), rows[0].status.as_str(), rows[0].error.clone()), ("7", "ready", None));
+}
+
+#[test]
+fn named_snapshots_read_fields_nested_to_the_parse_cap() {
+    in_child("named_snapshots_read_fields_nested_to_the_parse_cap", 997, named_snapshots_body);
+}
+
+// One level past the port's cap, the answer is refused whole: that one call fails with the words the port gives for text
+// it cannot read, and the host lives.
+fn box_view_past_the_cap_body(depth: usize) {
+    use common::{reply_text, FakeFetch};
+    use std::sync::Arc;
+    use wsp_engine::box_backend::request::{BoxBackend, BoxBackendOptions};
+    use wsp_engine::fetch::Fetch;
+    let f = FakeFetch::fixed(vec![("GET /api/v1/sandboxes/x", reply_text(200, &format!(r#"{{"sandbox":{{"id":{}}}}}"#, arrays(depth))))]);
+    let fetch: Arc<dyn Fetch> = f.clone();
+    let boat = BoxBackend::new(BoxBackendOptions { api_key: "box_x".into(), fetch: Some(fetch), ..Default::default() });
+    let err = block_on(boat.view("x")).expect_err("past the cap the answer is refused");
+    assert_eq!(err.to_string(), "Maximum call stack size exceeded");
+}
+
+#[test]
+fn box_view_refuses_an_answer_nested_past_the_parse_cap() {
+    in_child("box_view_refuses_an_answer_nested_past_the_parse_cap", 999, box_view_past_the_cap_body);
+}
