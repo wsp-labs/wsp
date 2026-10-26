@@ -119,10 +119,6 @@ impl TranscriptRows for StoreRows {
 }
 
 impl Ctx {
-    fn door(&self) -> Option<Rc<dyn PlaceDoor>> {
-        self.place_door.get()
-    }
-
     fn in_index<R>(&self, workspace_id: &str, read: impl FnOnce(&wsp_core::types::internal::TranscriptIndex) -> Option<R>) -> Option<R> {
         self.transcript_state.with(|s| s.index.get(workspace_id).and_then(read))
     }
@@ -285,38 +281,38 @@ impl wsp_account::account::channels::ChannelsCtx for Ctx {
         self.module_of(kind).map(|module| module.turn_road())
     }
     fn has_door(&self) -> bool {
-        self.door().is_some()
+        self.wired_door().is_some()
     }
     fn offer_of(&self, place_id: &str) -> Option<String> {
-        self.door().and_then(|door| door.offer_of(place_id))
+        self.wired_door().and_then(|door| door.offer_of(place_id))
     }
     fn wired(&self) -> String {
         self.places.wired()
     }
     fn settings_at(&self, place_id: &str) -> Option<wsp_wire::views::place_more::PlaceSettings> {
-        self.door().map(|door| door.settings_at(place_id))
+        self.wired_door().map(|door| door.settings_at(place_id))
     }
     fn turn_limit_at(&self, place_id: &str) -> Option<Option<i64>> {
-        self.door().and_then(|door| door.turn_limit_at(place_id)).map(|limit| limit.map(|n| n as i64))
+        self.wired_door().and_then(|door| door.turn_limit_at(place_id)).map(|limit| limit.map(|n| n as i64))
     }
     fn name_of(&self, place_id: &str) -> String {
-        self.door().map_or_else(|| place_id.to_string(), |door| door.name_of(place_id))
+        self.wired_door().map_or_else(|| place_id.to_string(), |door| door.name_of(place_id))
     }
     fn joined(&self, place_id: &str) -> bool {
-        self.door().is_some_and(|door| door.joined(place_id))
+        self.wired_door().is_some_and(|door| door.joined(place_id))
     }
     async fn report_of(&self, place_id: &str) -> Option<wsp_wire::wire::place_link::PlaceReport> {
-        let door = self.door()?;
+        let door = self.wired_door()?;
         door.report_of(place_id).await.ok().flatten()
     }
     async fn rows(&self) -> Vec<PlaceView> {
-        match self.door() {
+        match self.wired_door() {
             Some(door) => door.rows().await.unwrap_or_default(),
             None => Vec::new(),
         }
     }
     fn link_channel(&self, place_id: &str, on_event: Rc<dyn Fn(Value)>) -> Option<Rc<dyn DaemonChannel>> {
-        self.door()?.channel(place_id, Rc::new(move |event| on_event(Value::Object(event))))
+        self.wired_door()?.channel(place_id, Rc::new(move |event| on_event(Value::Object(event))))
     }
     async fn spend_today(&self, rows: &[PlaceView], now: i64) -> Vec<(String, Option<f64>)> {
         let tracker = self.status_tracker.get();
@@ -623,7 +619,7 @@ impl wsp_account::account::box_panels::BoxPanelsCtx for Ctx {
         self.thread_pairs()
     }
     fn link(&self, place_id: &str) -> Option<Rc<()>> {
-        let link = self.door()?.link(place_id)?;
+        let link = self.wired_door()?.link(place_id)?;
         let address = Rc::as_ptr(&link) as *const () as usize;
         LINKS.with(|held| {
             let mut held = held.borrow_mut();
@@ -636,11 +632,11 @@ impl wsp_account::account::box_panels::BoxPanelsCtx for Ctx {
         wsp_account::account::channels::ChannelsCtx::name_of(self, place_id)
     }
     async fn daemon_version(&self, place_id: &str) -> Option<i64> {
-        let door = self.door()?;
+        let door = self.wired_door()?;
         door.report_of(place_id).await.ok().flatten().map(|report| report.daemon_version.get())
     }
     async fn watch_sys(&self, place_id: &str) -> Result<Release, String> {
-        let door = self.door().ok_or_else(|| "this runtime holds no computers".to_string())?;
+        let door = self.wired_door().ok_or_else(|| "this runtime holds no computers".to_string())?;
         let release = door.watch_sys(place_id, Rc::new(|_| {})).await.map_err(|e| e.message)?;
         let held = RefCell::new(Some(release));
         Ok(Rc::new(move || {

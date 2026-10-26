@@ -81,16 +81,11 @@ fn read_failure(e: &std::io::Error, path: &str) -> HostError {
 }
 
 impl Ctx {
-    /// `placeDoor`, where the host wired one.
-    fn door(&self) -> Option<Rc<dyn PlaceDoor>> {
-        self.place_door.get()
-    }
-
     /// `ctx.placeName` (builders.ts:242): the door's name for the place, else this computer's hostname or the
     /// provider's own name. Read here and not through the builders area, whose context is a later packet's and which
     /// every create reads.
     fn place_name_of(&self, place: &str) -> String {
-        match self.door() {
+        match self.wired_door() {
             Some(door) => door.name_of(place),
             None if place == HERE_PLACE_ID => hostname(),
             None => provider_key_name(place),
@@ -98,7 +93,7 @@ impl Ctx {
     }
 
     fn door_or(&self, call: &str) -> Result<Rc<dyn PlaceDoor>, HostError> {
-        self.door().ok_or_else(|| no_door(call))
+        self.wired_door().ok_or_else(|| no_door(call))
     }
 
     fn local_wiring(&self) -> Result<&wsp_core::types::wiring::LocalWiring, HostError> {
@@ -163,7 +158,7 @@ impl KindsCtx for Ctx {
     }
     fn computer_of(&self, entry: &LiveWorkspace) -> String {
         let record = entry.record.borrow();
-        match (&record.place, self.door()) {
+        match (&record.place, self.wired_door()) {
             (Some(place), Some(door)) => door.name_of(place),
             (Some(place), None) => place.clone(),
             (None, _) => machine_word(&record.kind),
@@ -176,28 +171,28 @@ impl KindsCtx for Ctx {
         self.place_door.get().is_some()
     }
     fn door_backend_of(&self, place: &str) -> Option<Arc<dyn MachineBackend>> {
-        self.door()?.backend_of(place)
+        self.wired_door()?.backend_of(place)
     }
     fn door_name_of(&self, place: &str) -> String {
-        self.door().map_or_else(|| place.to_string(), |door| door.name_of(place))
+        self.wired_door().map_or_else(|| place.to_string(), |door| door.name_of(place))
     }
     fn door_folder_computer(&self, place: &str) -> Option<FolderComputer> {
-        self.door()?.folder_computer(place)
+        self.wired_door()?.folder_computer(place)
     }
     fn door_joined(&self, place: &str) -> bool {
-        self.door().is_some_and(|door| door.joined(place))
+        self.wired_door().is_some_and(|door| door.joined(place))
     }
     fn door_logins_of(&self, place: &str) -> Option<String> {
-        self.door()?.backend_of(place)?.logins()
+        self.wired_door()?.backend_of(place)?.logins()
     }
     fn door_vault_at(&self, place: &str, vault: &IndexMap<String, String>) -> Option<IndexMap<String, String>> {
-        Some(self.door()?.vault_at(place, vault))
+        Some(self.wired_door()?.vault_at(place, vault))
     }
     fn door_sign_ins_at(&self, place: &str) -> Option<IndexMap<String, AgentSignInState>> {
-        self.door()?.sign_ins_at(place, None)
+        self.wired_door()?.sign_ins_at(place, None)
     }
     fn door_github_from_vault(&self, place: &str) -> bool {
-        self.door().is_some_and(|door| door.github_from_vault(place))
+        self.wired_door().is_some_and(|door| door.github_from_vault(place))
     }
     async fn door_exec(&self, place: &str, cmd: &str, timeout_ms: u64) -> AreaResult<ExecResult> {
         let door = self.door_or("exec")?;
@@ -208,7 +203,7 @@ impl KindsCtx for Ctx {
         Ok(door.forward(place, port, ForwardAsk { pane, standing }).await?)
     }
     async fn door_report_daemon_version(&self, place: &str) -> Option<u32> {
-        let report: PlaceReport = self.door()?.report_of(place).await.ok()??;
+        let report: PlaceReport = self.wired_door()?.report_of(place).await.ok()??;
         u32::try_from(report.daemon_version.get()).ok()
     }
     fn vault(&self) -> IndexMap<String, String> {
@@ -464,10 +459,10 @@ impl ThreadEndsDoor for Ctx {
         door.exec(place_id, script, PlaceExecOpts { timeout_ms: Some(timeout_ms), stdin: None }).await
     }
     fn link(&self, place_id: &str) -> bool {
-        self.door().is_some_and(|door| door.link(place_id).is_some())
+        self.wired_door().is_some_and(|door| door.link(place_id).is_some())
     }
     fn name_of(&self, place_id: &str) -> String {
-        self.door().map_or_else(|| place_id.to_string(), |door| door.name_of(place_id))
+        self.wired_door().map_or_else(|| place_id.to_string(), |door| door.name_of(place_id))
     }
 }
 
@@ -481,7 +476,7 @@ impl RulesCtx for Ctx {
         self.store.put(wsp_core::types::internal::PROJECTS, &project.id, value).await
     }
     fn door_name_of(&self, place_id: &str) -> Option<String> {
-        Some(self.door()?.name_of(place_id))
+        Some(self.wired_door()?.name_of(place_id))
     }
     fn landing(&self) -> Rc<RefCell<IndexMap<String, i64>>> {
         self.landing.clone()
@@ -788,13 +783,13 @@ impl BranchCtx for BranchOver {
 #[async_trait(?Send)]
 impl ImageDoor for Ctx {
     fn backend_of(&self, place_id: &str) -> Option<Arc<dyn MachineBackend>> {
-        self.door()?.backend_of(place_id)
+        self.wired_door()?.backend_of(place_id)
     }
     async fn forking_backend(&self, place_id: &str) -> Result<Arc<dyn MachineBackend>, HostError> {
         self.door_or("forkingBackend")?.forking_backend(place_id).await
     }
     fn name_of(&self, place_id: &str) -> Option<String> {
-        Some(self.door()?.name_of(place_id))
+        Some(self.wired_door()?.name_of(place_id))
     }
     async fn place_for(&self, word: &str) -> Result<Option<String>, HostError> {
         Ok(self.door_or("placeFor")?.place_for(word).await?.place_id)
@@ -822,7 +817,7 @@ impl AgentsPlaces for Ctx {
         self.door_or("loginsAgain")?.logins_again(place_id).await
     }
     fn sign_ins_at(&self, place_id: &str, agents: &[String]) -> Option<IndexMap<String, AgentSignInState>> {
-        self.door()?.sign_ins_at(place_id, Some(agents))
+        self.wired_door()?.sign_ins_at(place_id, Some(agents))
     }
     async fn exec(&self, place_id: &str, cmd: &str, timeout_ms: Option<u64>, stdin: Option<Vec<u8>>) -> Result<WireExecResult, HostError> {
         self.door_or("exec")?.exec(place_id, cmd, PlaceExecOpts { timeout_ms, stdin }).await
