@@ -123,7 +123,7 @@ impl SubSpawnArea {
         })?;
         let _free = FreePlace(Some(free));
         let providers: Vec<ProviderRow> = self.ctx.computer_rows().await?.into_iter().filter(|r| r.kind == "provider").collect();
-        let row = providers.iter().find(|r| names_place(&PlaceRef { id: r.id.clone(), name: r.name.clone(), kind: None }, &ask.on)).cloned();
+        let row = providers.iter().find(|r| names_place(&PlaceRef { id: r.id.clone(), name: r.name.clone(), kind: Some(r.kind.clone()) }, &ask.on)).cloned();
         let at = row.as_ref().and_then(|row| self.provider_at(&row.id));
         let (row, at) = match (row, at) {
             (Some(row), Some(at)) => (row, at),
@@ -536,7 +536,8 @@ impl SubSpawnArea {
             return Ok(Seed { why: Some(sub_nothing_picked_why(&project.name)), ..none });
         };
         let homes = self.ctx.homes_here().await?;
-        let plan = self.ctx.seed_plan(&folder, &homes).await?;
+        let mut plan = self.ctx.seed_plan(&folder, &homes).await?;
+        plan.provider = Some(true);
         let travelling: IndexMap<String, u64> = plan.files.iter().filter(|f| wsp_words::project_seed::seed_travels(&plan, f)).map(|f| (f.path.clone(), f.bytes.0 .0 as u64)).collect();
         let paths: Vec<String> = choice.files.iter().filter(|p| travelling.contains_key(*p)).cloned().collect();
         let missing: Vec<String> = choice.files.iter().filter(|p| !plan.files.iter().any(|f| f.path == **p)).cloned().collect();

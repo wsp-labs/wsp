@@ -33,7 +33,7 @@ fn s(x: &str) -> String {
 }
 
 fn limit(extra: Value) -> AccountLimit {
-    let mut base = json!({ "windows": [], "readAt": NOON, "computers": ["here"] });
+    let mut base = json!({ "key": "codex:acct_1", "agent": "codex", "label": "dev@example.com", "windows": [], "readAt": NOON, "computers": ["here"] });
     for (k, v) in extra.as_object().unwrap() {
         base[k] = v.clone();
     }
@@ -290,7 +290,8 @@ fn burn_json(b: &Burn, account: &str) -> Value {
 }
 
 fn rate(tokens_per_minute: f64, threads: i64) -> Value {
-    json!({ "tokensPerMinute": tokens_per_minute, "threads": threads })
+    let per_minute = if tokens_per_minute.fract() == 0.0 { json!(tokens_per_minute as i64) } else { json!(tokens_per_minute) };
+    json!({ "tokensPerMinute": per_minute, "threads": threads })
 }
 
 // C7: usage-ledger.test.ts:498. What a thread drew in fifteen minutes, per minute, and how many threads drew it.

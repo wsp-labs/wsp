@@ -1002,7 +1002,7 @@ fn a_new_ledger_over_the_same_store_reads_every_day_back() {
     run(async {
         let r = ledger();
         r.usage.add(turn(NOON)).await.unwrap();
-        r.usage.add(UsageEntry { agent: s("claude"), model: m("claude-opus-5"), cost_usd: Some(0.3), session: m("s1"), ..turn(NOON - DAY) }).await.unwrap();
+        r.usage.add(UsageEntry { agent: s("claude"), account: s("claude:acct_2"), account_label: s("me@example.com"), model: m("claude-opus-5"), cost_usd: Some(0.3), session: m("s1"), ..turn(NOON - DAY) }).await.unwrap();
         r.usage.limit(lr(credits_reading(Some(full()), None), "here")).await.unwrap();
         let again = make(r.store.clone(), &r.clock, prices_of(table()), None);
         assert_eq!(again.days().await.unwrap(), vec!["2026-09-28", "2026-09-29"]);

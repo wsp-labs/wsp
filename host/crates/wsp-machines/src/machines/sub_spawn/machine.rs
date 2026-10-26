@@ -391,7 +391,7 @@ impl SubSpawnArea {
         let record_rc = Rc::clone(&asked.borrow().record);
         let sub = record_rc.borrow().sub.clone().expect("a released sub-thread carries its sub record");
         let rows = self.ctx.computer_rows().await?;
-        let row = rows.into_iter().find(|r| r.kind == "provider" && names_place(&PlaceRef { id: r.id.clone(), name: r.name.clone(), kind: None }, &sub.on));
+        let row = rows.into_iter().find(|r| r.kind == "provider" && names_place(&PlaceRef { id: r.id.clone(), name: r.name.clone(), kind: Some(r.kind.clone()) }, &sub.on));
         let at = row.as_ref().and_then(|row| self.provider_at(&row.id));
         let (row, at) = match (row, at) {
             (Some(row), Some(at)) => (row, at),
@@ -428,13 +428,14 @@ impl SubSpawnArea {
         });
         let tried = sub.opening.clone().or_else(|| prompt.map(str::to_string));
         let now = self.ctx.now();
-        let spawn: SubSpawn = serde_json::from_value(json!({
-            "startedAt": now,
-            "asked": tried,
-            "notSent": seed.why,
-            "log": [],
-        }))
-        .map_err(|e| AreaError::Host(HostError::new(e.to_string())))?;
+        let mut spawn_json = json!({ "startedAt": now, "log": [] });
+        if let Some(asked) = tried {
+            spawn_json["asked"] = json!(asked);
+        }
+        if let Some(why) = &seed.why {
+            spawn_json["notSent"] = json!(why);
+        }
+        let spawn: SubSpawn = serde_json::from_value(spawn_json).map_err(|e| AreaError::Host(HostError::new(e.to_string())))?;
         {
             let mut held = record_rc.borrow_mut();
             held.golden = head.snapshot_id.clone();
@@ -588,7 +589,7 @@ impl SubSpawnArea {
             rate_usd_per_hour: 0.0,
         });
         let bigger = sub_next_size(record.size.mem_mb.0, &sold);
-        let row = self.ctx.computer_rows().await.unwrap_or_default().into_iter().find(|r| r.kind == "provider" && names_place(&PlaceRef { id: r.id.clone(), name: r.name.clone(), kind: None }, &sub.on));
+        let row = self.ctx.computer_rows().await.unwrap_or_default().into_iter().find(|r| r.kind == "provider" && names_place(&PlaceRef { id: r.id.clone(), name: r.name.clone(), kind: Some(r.kind.clone()) }, &sub.on));
         let on = match row {
             Some(row) => provider_key_name(&row.name),
             None => sub.on.clone(),

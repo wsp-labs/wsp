@@ -679,7 +679,7 @@ fn a_base_tip_that_is_no_commit_is_refused_before_the_heads_are_read() {
         rig.ctx.script(&tip_cmd("acme/web", "main"), ok("garbage\n"));
         let got = rig.area.named_of_record(&named("pricing page", OLD, Some("main"), false)).await;
         assert_eq!(got, Err(unread("acme/web", "no commit in \"garbage\"")));
-        assert_eq!(rig.ctx.commands(), vec![repo_cmd("acme/old"), tip_cmd("acme/web", "main")]);
+        assert_eq!(rig.ctx.commands(), vec![repo_cmd("acme/old"), tip_cmd("acme/web", "main"), heads_cmd(OLD)]);
     });
 }
 

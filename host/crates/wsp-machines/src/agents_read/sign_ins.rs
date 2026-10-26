@@ -45,9 +45,9 @@ fn listed_run(sign_in_id: &str, run: &Running) -> AgentsSignInRun {
         target: run.target.clone(),
         agent: run.ask.agent.clone(),
         server: run.ask.server.clone(),
-        scope: run.ask.scope.clone(),
+        scope: run.ask.scope,
         project: run.ask.project.clone(),
-        last: run.last.borrow().clone().map(|event| AgentsSignInRunLast { kind: AgentsSignInEventType::default(), event }),
+        last: run.last.borrow().clone().map(|event| AgentsSignInRunLast { kind: AgentsSignInEventType, event }),
         ended: None,
     }
 }
@@ -141,6 +141,7 @@ impl AgentsReads {
             async move { me.begin(&key, target, ask, origin, first).await }.boxed_local().shared()
         };
         self.starting.borrow_mut().insert(key.clone(), begun.clone());
+        tokio::task::yield_now().await;
         match begun.await {
             Ok((sign_in_id, run)) => Ok(self.follow(&sign_in_id, &run, emit)),
             Err(e) => {
