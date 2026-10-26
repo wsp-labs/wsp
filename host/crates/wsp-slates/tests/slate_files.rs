@@ -650,7 +650,10 @@ fn pin_here_with_no_folder_or_a_missing_folder_pins_nothing() {
     let nothing = json!({"unpinned": []});
     assert_eq!(pv(&pin_here(None, &decl(c("bash stats.sh")))), nothing);
     assert_eq!(pv(&pin_here(Some("/nonexistent/x"), &decl(c("bash stats.sh")))), nothing);
-    assert_eq!(pv(&pin_here(Some("/nonexistent/x"), &decl(c("bash ../away.sh ./x.sh")))), nothing);
+    assert_eq!(
+        pv(&pin_here(Some("/nonexistent/x"), &decl(c("bash ../away.sh ./x.sh")))),
+        json!({"unpinned": [{"path": "../away.sh", "why": "outside"}]})
+    );
     let fx = Fx::new();
     fx.stats();
     let folder = fx.folder.to_str().unwrap();
