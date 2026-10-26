@@ -153,7 +153,7 @@ impl ReachArea {
             &token,
             on_event,
             heartbeat_ms,
-        )))
+        )?))
     }
 
     /// reach.ts:222 (rule 3). `None` is the daemon answering; `Some` the row's words for why not.
