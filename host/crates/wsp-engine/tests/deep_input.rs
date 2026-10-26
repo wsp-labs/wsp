@@ -364,3 +364,28 @@ fn vault_header_past_the_cap_body(depth: usize) {
 fn vault_header_nested_past_the_cap_is_refused() {
     in_child("vault_header_nested_past_the_cap_is_refused", 1_000, vault_header_past_the_cap_body);
 }
+
+// ---- solari_backend.rs: the template listing, whose `status` is read as a word where the TS never checks its type ----
+//
+// Recursion: `known_status` read the field as a serde `Value`, one stack level per level of the tree the provider's answer
+// holds there (it died near 500 in a debug build on 1 MiB). Node: the status is not a known word, so the row is `building`.
+// The deepest answer the port reads is the page, the array and the row (3 levels) and a tree of 997.
+fn solari_templates_body(depth: usize) {
+    use common::{reply_text, FakeFetch};
+    use std::sync::Arc;
+    use wsp_engine::fetch::Fetch;
+    use wsp_engine::machine::MachineBackend;
+    use wsp_engine::solari_backend::{SolariBackend, SolariBackendOptions};
+    let row = format!(r#"{{"templateId":"t","name":"n","status":{},"createdAt":"c"}}"#, arrays(depth));
+    let f = FakeFetch::fixed(vec![("GET /templates", reply_text(200, &format!(r#"{{"templates":[{row}]}}"#)))]);
+    let fetch: Arc<dyn Fetch> = f.clone();
+    let solari = SolariBackend::new(SolariBackendOptions { api_key: "k".into(), fetch: Some(fetch), ..Default::default() });
+    let rows = block_on(solari.list_templates()).expect("node answers with the rows");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(format!("{:?}", rows[0].status), "Building");
+}
+
+#[test]
+fn solari_templates_read_a_status_nested_to_the_parse_cap() {
+    in_child("solari_templates_read_a_status_nested_to_the_parse_cap", 997, solari_templates_body);
+}
