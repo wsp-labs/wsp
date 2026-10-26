@@ -6,27 +6,47 @@ use std::collections::HashSet;
 use std::rc::{Rc, Weak};
 
 use futures::future::{LocalBoxFuture, Shared};
+use futures::FutureExt;
 use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use wsp_wire::wire::devices::TicketPurpose;
 use wsp_words::exit::HostError;
 
 use wsp_core::forwards::{ForwardEvent, ForwardsSource};
 use wsp_core::types::wiring::Detach;
-use wsp_machines::places::pane_ports::PanePorts;
-use wsp_wire::wire::limits::PortForward;
+use wsp_machines::places::pane_ports::{ForwardEvent as PaneEvent, PaneForwards, PanePorts};
+use wsp_machines::places::types::{AuthAnswer, Proved, NO_PLACE_DOOR};
+use wsp_store::keys::{key_fingerprint, open_frame, verify_place_bytes, Frame};
+use wsp_wire::types::js_number::JsInt;
+use wsp_wire::views::place::{ForwardCloseEvent, ForwardOpenEvent};
+use wsp_wire::wire::limits::{PortForward, RelayPort};
+use wsp_wire::wire::place_link::{
+    DeviceAuthRequest, PlaceAuthRequest, PlaceJoinRequest, PlaceProveRequest, SealOpenRequest, PLACE_CODE_REFUSAL, SEAL_CLIENT,
+    SEAL_UNSERVED,
+};
+use wsp_wire::wire::runtime_ops::{parse_runtime_request, RuntimeOp, RuntimeRequest};
 
-use wsp_core::devices::{safe_equal, DeviceDoor, NO_DEVICE_DOOR};
+use wsp_core::devices::{safe_equal, thread_of, DeviceDoor, HeldDevice, NO_DEVICE_DOOR};
 use wsp_wire::types::daemon_contract::AUTH_DEADLINE_MS;
-use wsp_wire::wire::devices::PAIR_CODE_TTL_MS;
-use wsp_wire::wire::runtime::{request_secrets, RUNTIME_OPS};
+use wsp_wire::wire::devices::{
+    device_admission_transcript, AccountDevice, DeviceVia, DEVICE_ACCOUNT_UNSERVED, DEVICE_AUTH_REFUSAL, DEVICE_REVOKED_REFUSAL,
+    PAIR_CODE_REFUSAL, PAIR_CODE_TTL_MS,
+};
+use wsp_wire::wire::runtime::{request_secrets, DEVICE_OPS, RUNTIME_OPS, THREAD_OPS};
 use wsp_words::exit::marked_cut;
-use wsp_words::words::computer::{is_object_frame, UNAUTHORIZED};
-use wsp_words::words::thread::redacted;
+use wsp_words::wire::runtime::thread_op_refusal;
+use wsp_words::words::computer::{device_held_refusal, is_object_frame, REQUEST_NOT_AN_OBJECT, SCOPED_TOKEN_ROAD_REFUSAL, UNAUTHORIZED};
+use wsp_words::words::thread::{issues_line, redacted, Issue, PathPart};
 
 use super::served::{DynRuntime, Payload};
 use super::socket::{Incoming, Socket};
-use super::{Authed, NowFn, Released, ServeOptions, NO_AUTH_TOKEN, SCANNED_SECRETS, TICKET_TTL_MS};
+use super::{Authed, NowFn, Released, ServeOptions, Signer, INVALID_JSON, NO_AUTH_TOKEN, SCANNED_SECRETS, TICKET_TTL_MS};
+use crate::serve::answer::answer_frame;
 use crate::serve_app_procs::{app_procs_hub_for, AppProcsHub};
+
+/// The close code a socket refused at the door is closed with (socket.rs keeps the same one).
+const UNAUTHORIZED_CLOSE: u16 = 4401;
 
 /// A ticket minted over an authed socket, redeemed once as `?ticket=` on the next connect. serve.ts:319-325.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -67,13 +87,23 @@ pub(crate) struct PaneSource(pub Rc<PanePorts>);
 
 impl ForwardsSource for PaneSource {
     fn list(&self) -> Vec<PortForward> {
-        todo!()
+        self.0.list()
     }
     fn stop(&self, workspace_id: &str, port: i64) -> bool {
-        todo!()
+        u16::try_from(port).is_ok_and(|port| self.0.stop(workspace_id, port))
     }
     fn on(&self, listener: Rc<dyn Fn(&ForwardEvent)>) -> Detach {
-        todo!()
+        self.0.on(Rc::new(move |event: &PaneEvent| listener(&pane_event(event))))
+    }
+}
+
+/// The pane's event as the core's stream carries it: the same open and close, in the core's view types.
+fn pane_event(event: &PaneEvent) -> ForwardEvent {
+    match event {
+        PaneEvent::Open { forward } => ForwardEvent::Open(ForwardOpenEvent { forward: forward.clone() }),
+        PaneEvent::Close { workspace_id, port } => {
+            ForwardEvent::Close(ForwardCloseEvent { workspace_id: workspace_id.clone(), port: RelayPort(JsInt::from(i64::from(*port))) })
+        }
     }
 }
 
@@ -159,7 +189,350 @@ impl Socket {
     /// One frame off the socket (serve.ts:628-848): the checks every frame passes (spec D6-D11), then the door while
     /// the socket is not let in (D12-D19), else the switch (`answer_frame`).
     pub fn on_message(self: &Rc<Self>, raw: Incoming) -> LocalBoxFuture<'static, ()> {
-        todo!()
+        let socket = self.clone();
+        async move { socket.decide(raw).await }.boxed_local()
+    }
+
+    async fn decide(self: &Rc<Self>, raw: Incoming) {
+        if self.handed_over.get() {
+            return;
+        }
+        let Some(frame) = self.read(&raw) else {
+            self.answer(None, failure(Value::Null, INVALID_JSON), None);
+            self.close_unauthed();
+            return;
+        };
+        if !is_object_frame(&frame) {
+            self.answer(Some(&frame), failure(Value::Null, REQUEST_NOT_AN_OBJECT), None);
+            self.close_unauthed();
+            return;
+        }
+        let asked = frame.get("op").and_then(Value::as_str);
+        let asked_id = frame.get("id").cloned().unwrap_or(Value::Null);
+        let by = self.road.borrow().by.clone();
+        if let Some(by) = by {
+            if !asked.is_some_and(|op| THREAD_OPS.contains(&op)) {
+                let place = self.served.rt.workspaces().thread_place(&by);
+                let line = thread_op_refusal(asked.unwrap_or("that frame"), &by.thread_id, place.as_deref());
+                self.answer(Some(&frame), failure(asked_id, &line), None);
+                return;
+            }
+        }
+        let paired = self.road.borrow().as_paired();
+        if paired && !asked.is_some_and(|op| DEVICE_OPS.contains(&op)) {
+            let line = device_held_refusal(asked.unwrap_or("that frame"));
+            self.answer(Some(&frame), failure(asked_id, &line), None);
+            return;
+        }
+        let msg = match parse_runtime_request(&frame) {
+            Ok(msg) => msg,
+            Err(error) => {
+                let issue = Issue { path: error.path.iter().map(path_part).collect(), message: error.message.clone() };
+                self.answer(Some(&frame), failure(asked_id, &error.issue_text()), Some(&issues_line(&[issue])));
+                self.close_unauthed();
+                return;
+            }
+        };
+        if self.authed() {
+            return answer_frame(self, frame, msg).await;
+        }
+        self.at_door(&frame, msg).await;
+    }
+
+    /// The frames a socket not let in may send, one at a time (serve.ts:677-848, spec D12-D19).
+    async fn at_door(self: &Rc<Self>, frame: &Value, msg: RuntimeRequest) {
+        let id = serde_json::to_value(msg.op.id()).unwrap_or(Value::Null);
+        let pending = self.proving.borrow_mut().take();
+        if let Some((place_id, expect)) = pending {
+            let RuntimeOp::PlaceProve(prove) = msg.op else {
+                return self.refuse(frame, &id, UNAUTHORIZED);
+            };
+            return self.prove_place(frame, &id, &place_id, prove, &expect).await;
+        }
+        if self.deciding.get() {
+            return self.refuse(frame, &id, UNAUTHORIZED);
+        }
+        self.deciding.set(true);
+        match msg.op {
+            RuntimeOp::SealOpen(open) => self.seal_open(frame, &id, open),
+            RuntimeOp::PlaceJoin(join) => self.place_join(frame, &id, join).await,
+            RuntimeOp::PlaceAuth(auth) => self.place_auth(frame, &id, auth).await,
+            RuntimeOp::PairRedeem { code, name, .. } => self.pair_redeem(frame, &id, &code, &name).await,
+            RuntimeOp::DeviceAuth(auth) => self.device_auth(frame, &id, auth).await,
+            RuntimeOp::Auth { token, .. } => self.auth(frame, &id, &token).await,
+            _ => self.refuse(frame, &id, UNAUTHORIZED),
+        }
+    }
+
+    /// `seal.open`: agrees the key, answers the challenge in the clear, then seals every frame after it.
+    fn seal_open(&self, frame: &Value, id: &Value, open: SealOpenRequest) {
+        if self.seal.borrow().is_some() {
+            return self.refuse(frame, id, UNAUTHORIZED);
+        }
+        let Some(places) = self.served.rt.places() else {
+            return self.refuse(frame, id, SEAL_UNSERVED);
+        };
+        let Some(opened) = places.answer_challenge(SEAL_CLIENT, open.nonce.as_str(), Some(open.ephemeral.as_str())) else {
+            return self.refuse(frame, id, UNAUTHORIZED);
+        };
+        self.deciding.set(false);
+        self.send(object(json!({
+            "id": id,
+            "ok": true,
+            "nonce": opened.nonce,
+            "hostPublicKey": opened.host_public_key,
+            "signature": opened.signature,
+            "ephemeral": opened.ephemeral,
+        })));
+        *self.seal.borrow_mut() = Some(opened.seal);
+        *self.seal_expect.borrow_mut() = Some(opened.expect);
+    }
+
+    /// `place.join`: a computer's first frame; the next one it sends is its prove.
+    async fn place_join(self: &Rc<Self>, frame: &Value, id: &Value, join: PlaceJoinRequest) {
+        if self.seal.borrow().is_some() {
+            return self.refuse(frame, id, UNAUTHORIZED);
+        }
+        let Some(places) = self.served.rt.places() else {
+            return self.refuse(frame, id, NO_PLACE_DOOR);
+        };
+        let opened = match places.join(join, &self.from, self.served.now() as u64).await {
+            Ok(Some(opened)) => opened,
+            Ok(None) => return self.refuse(frame, id, PLACE_CODE_REFUSAL),
+            Err(error) => return self.refuse(frame, id, &error.message),
+        };
+        *self.proving.borrow_mut() = Some((opened.reply.place_id.clone(), opened.expect));
+        self.deciding.set(false);
+        self.through_door();
+        let mut payload = object(json!({ "id": id, "ok": true }));
+        payload.extend(object(&opened.reply));
+        if let Some(notice) = opened.notice {
+            payload.insert("notice".into(), Value::from(notice));
+        }
+        self.send(payload);
+        *self.seal.borrow_mut() = Some(opened.seal);
+    }
+
+    /// `place.auth`: a place dialling back in; a refusal carries the door's own signed fields.
+    async fn place_auth(self: &Rc<Self>, frame: &Value, id: &Value, auth: PlaceAuthRequest) {
+        if self.seal.borrow().is_some() {
+            return self.refuse(frame, id, UNAUTHORIZED);
+        }
+        let Some(places) = self.served.rt.places() else {
+            return self.refuse(frame, id, NO_PLACE_DOOR);
+        };
+        let place_id = auth.place_id.clone();
+        match places.auth(auth, self.served.now() as u64).await {
+            Err(error) => self.refuse(frame, id, &error.message),
+            Ok(AuthAnswer::Refusal { refusal, signed }) => self.refuse_signed(frame, id, &refusal, object(&signed)),
+            Ok(AuthAnswer::Reply { reply, expect, seal }) => {
+                *self.proving.borrow_mut() = Some((place_id, expect));
+                self.deciding.set(false);
+                self.through_door();
+                let mut payload = object(json!({ "id": id, "ok": true }));
+                payload.extend(object(&reply));
+                self.send(payload);
+                *self.seal.borrow_mut() = Some(seal);
+            }
+        }
+    }
+
+    /// `place.prove`: the place's signature and report. A refusal closes; otherwise the socket becomes the place's
+    /// link and reads nothing more (D12).
+    async fn prove_place(self: &Rc<Self>, frame: &Value, id: &Value, place_id: &str, prove: PlaceProveRequest, expect: &[u8]) {
+        let Some(places) = self.served.rt.places() else {
+            return self.refuse(frame, id, NO_PLACE_DOOR);
+        };
+        let now = self.served.now() as u64;
+        let proved = match places.prove(place_id, prove, expect, &self.from, now).await {
+            Ok(proved) => proved,
+            Err(error) => Proved::Refusal { refusal: error.message },
+        };
+        let (report, device) = match proved {
+            Proved::Refusal { refusal } => return self.refuse(frame, id, &refusal),
+            Proved::Report { report, device } => (report, device),
+        };
+        self.handed_over.set(true);
+        self.sink.pause();
+        let mut payload = object(json!({ "id": id, "ok": true }));
+        if let Some(device) = device {
+            payload.insert("device".into(), json!({ "deviceId": device.device_id, "deviceToken": device.device_token }));
+        }
+        self.send(payload);
+        let seal = self.seal.borrow_mut().take();
+        if places.attach(place_id, self.sink.clone().link(), report, &self.from, now, seal).await.is_err() {
+            self.sink.terminate();
+        }
+    }
+
+    /// `pair.redeem`: a code this host holds lets the computer in and binds its device token.
+    async fn pair_redeem(self: &Rc<Self>, frame: &Value, id: &Value, code: &str, name: &str) {
+        let paired = match self.served.devices() {
+            Ok(devices) => devices.redeem(code, name, self.served.now()).await.ok().flatten(),
+            Err(_) => None,
+        };
+        let Some(paired) = paired else {
+            return self.refuse(frame, id, PAIR_CODE_REFUSAL);
+        };
+        self.authed.set(true);
+        self.through_door();
+        let reply = object(json!({ "id": id, "ok": true, "deviceId": paired.device_id, "deviceToken": paired.device_token }));
+        self.bind(HeldDevice { view: paired.device, road: None });
+        self.send(reply);
+    }
+
+    /// `device.auth`: a computer on the account signs in with no code, over the seal this socket agreed.
+    async fn device_auth(self: &Rc<Self>, frame: &Value, id: &Value, auth: DeviceAuthRequest) {
+        let account = match (self.served.opts.admitted.clone(), self.served.opts.devices.is_some()) {
+            (Some(account), true) => account,
+            _ => return self.refuse(frame, id, DEVICE_ACCOUNT_UNSERVED),
+        };
+        let Some(signer) = account.signer() else {
+            return self.refuse(frame, id, DEVICE_ACCOUNT_UNSERVED);
+        };
+        let expect = self.seal_expect.borrow().clone();
+        let Some(expect) = expect else {
+            return self.refuse(frame, id, UNAUTHORIZED);
+        };
+        let fingerprint = key_fingerprint(auth.public_key.as_str());
+        let listed = || account.list().and_then(|rows| rows.into_iter().find(|row| row.fingerprint == fingerprint));
+        let mut row = listed();
+        if row.is_none() {
+            let _ = account.refresh().await;
+            row = listed();
+        }
+        let Some(row) = row else {
+            return self.refuse(frame, id, DEVICE_AUTH_REFUSAL);
+        };
+        let Some(admitted) = self.admitted_by(&signer, &row, &fingerprint).await else {
+            return self.refuse(frame, id, DEVICE_AUTH_REFUSAL);
+        };
+        if !verify_place_bytes(auth.public_key.as_str(), &expect, auth.signature.as_str()) {
+            return self.refuse(frame, id, DEVICE_AUTH_REFUSAL);
+        }
+        let refused = match self.served.devices() {
+            Ok(devices) => devices.refuses(&fingerprint).await.unwrap_or(true),
+            Err(_) => true,
+        };
+        if refused {
+            return self.refuse(frame, id, DEVICE_REVOKED_REFUSAL);
+        }
+        let via = DeviceVia {
+            kind: "account".into(),
+            relay_device_id: row.id.clone(),
+            fingerprint: fingerprint.clone(),
+            public_key: auth.public_key.as_str().to_string(),
+            admitted_by: admitted,
+        };
+        let admitted_device = match self.served.devices() {
+            Ok(devices) => devices.admit_account(&auth.name, via, self.served.now()).await.ok(),
+            Err(_) => None,
+        };
+        let Some(paired) = admitted_device else {
+            return self.refuse(frame, id, DEVICE_AUTH_REFUSAL);
+        };
+        self.authed.set(true);
+        self.through_door();
+        let mut reply = object(json!({ "id": id, "ok": true, "deviceId": paired.device_id, "deviceToken": paired.device_token }));
+        reply.extend(released_fields(&self.served.released));
+        self.bind(HeldDevice { view: paired.device, road: None });
+        self.send(reply);
+    }
+
+    /// The key of the one admission of `row` that a key this host trusts signed, by the admitting key's fingerprint.
+    async fn admitted_by(&self, signer: &Signer, row: &AccountDevice, fingerprint: &str) -> Option<String> {
+        let here = self.served.devices().ok()?.list().await.ok()?;
+        for admission in &row.admissions {
+            let key = if admission.by == signer.fingerprint {
+                Some(signer.public_key.clone())
+            } else {
+                here.iter()
+                    .filter_map(|device| device.via.as_ref())
+                    .find(|via| via.kind == "account" && via.fingerprint == admission.by)
+                    .map(|via| via.public_key.clone())
+            };
+            let Some(key) = key else { continue };
+            let transcript = device_admission_transcript(fingerprint, &admission.by, &admission.issued_at);
+            if verify_place_bytes(&key, &transcript, &admission.signature) {
+                return Some(admission.by.clone());
+            }
+        }
+        None
+    }
+
+    /// `auth`: the host's own token, or a device's. A thread's token takes its road and its thread.
+    async fn auth(self: &Rc<Self>, frame: &Value, id: &Value, token: &str) {
+        let Ok(Some(who)) = self.served.who_is(token).await else {
+            return self.refuse(frame, id, UNAUTHORIZED);
+        };
+        if let Authed::Device(device) = &who {
+            if device.view.scope.is_some() && !self.dialled_here() {
+                return self.refuse(frame, id, SCOPED_TOKEN_ROAD_REFUSAL);
+            }
+        }
+        self.authed.set(true);
+        self.through_door();
+        match who {
+            Authed::Device(device) => {
+                let thread = thread_of(&device);
+                let device_id = device.view.id.clone();
+                self.bind(device);
+                if let Some(thread) = thread {
+                    let mut road = self.road.borrow_mut();
+                    road.stamped = Some(thread.road);
+                    road.by = Some(thread.by);
+                }
+                let devices = self.served.opts.devices.clone();
+                let now = self.served.now();
+                tokio::task::spawn_local(async move {
+                    if let Some(devices) = devices {
+                        let _ = devices.seen(&device_id, now).await;
+                    }
+                });
+            }
+            host => self.road.borrow_mut().me = Some(host),
+        }
+        let mut reply = object(json!({ "id": id, "ok": true }));
+        reply.extend(released_fields(&self.served.released));
+        self.send(reply);
+    }
+
+    /// Reads one frame off the socket under its seal, then as JSON (D7). Nothing when either fails.
+    fn read(&self, raw: &Incoming) -> Option<Value> {
+        let frame = match raw {
+            Incoming::Text(text) => Frame::Text(text.as_str()),
+            Incoming::Binary(bytes) => Frame::Binary(bytes.as_slice()),
+        };
+        let text = open_frame(self.seal.borrow_mut().as_mut(), frame).ok()?;
+        let mut de = serde_json::Deserializer::from_str(&text);
+        de.disable_recursion_limit();
+        let value = Value::deserialize(&mut de).ok()?;
+        de.end().ok()?;
+        Some(value)
+    }
+
+    fn close_unauthed(&self) {
+        if !self.authed() {
+            self.sink.close(UNAUTHORIZED_CLOSE, UNAUTHORIZED);
+        }
+    }
+
+    /// `refuse` (serve.ts:678-681): one `auth` refusal, then the close.
+    fn refuse(&self, frame: &Value, id: &Value, error: &str) {
+        self.refuse_signed(frame, id, error, Payload::new());
+    }
+
+    fn refuse_signed(&self, frame: &Value, id: &Value, error: &str, signed: Payload) {
+        let mut payload = failure(id.clone(), error);
+        payload.insert("kind".into(), Value::from("auth"));
+        payload.extend(signed);
+        self.answer(Some(frame), payload, None);
+        self.sink.close(UNAUTHORIZED_CLOSE, UNAUTHORIZED);
+    }
+
+    /// `own_road(upgrade)`: the host's reading of the road the upgrade came by (`ownRoad`, serve.ts:153-163).
+    fn dialled_here(&self) -> bool {
+        self.served.opts.own_road.as_ref().is_none_or(|rule| rule(&self.upgrade))
     }
     /// Takes both limits off: the auth frame passed, a code paid, a device admitted, a place answered, the deadline,
     /// the cap, the close (serve.ts:594-599, spec D5).
@@ -193,12 +566,9 @@ pub fn refused_line(frame: Option<&serde_json::Value>, payload: &Payload, said: 
         _ => "frame",
     };
     let kind = payload.get("kind").and_then(|kind| kind.as_str()).unwrap_or("none");
-    let mut secrets: Vec<String> = Vec::new();
-    for secret in frame.map(request_secrets).unwrap_or_default() {
-        if !secrets.contains(&secret) {
-            secrets.push(secret);
-        }
-    }
+    let mut seen: HashSet<String> = HashSet::new();
+    let secrets: Vec<String> =
+        frame.map(request_secrets).unwrap_or_default().into_iter().filter(|secret| seen.insert(secret.clone())).collect();
     if secrets.len() > SCANNED_SECRETS {
         return format!("refused {op} kind={kind}: (sentence withheld, {} secret values)", secrets.len());
     }
@@ -216,5 +586,42 @@ fn js_string(value: Option<&serde_json::Value>) -> String {
         None => "undefined".to_string(),
         Some(serde_json::Value::String(text)) => text.clone(),
         Some(other) => other.to_string(),
+    }
+}
+
+/// `{id, ok: false, error}`: the one reply a refusal of the door is, under the id the frame asked with.
+fn failure(id: Value, error: &str) -> Payload {
+    let mut payload = Payload::new();
+    payload.insert("id".into(), id);
+    payload.insert("ok".into(), Value::Bool(false));
+    payload.insert("error".into(), Value::from(error));
+    payload
+}
+
+/// The keys of a value that serializes as a JSON object, in the order its fields are written.
+fn object(value: impl Serialize) -> Payload {
+    match serde_json::to_value(value) {
+        Ok(Value::Object(map)) => map,
+        _ => Payload::new(),
+    }
+}
+
+/// `...released`: `version`, then `road`, each only where given (serve.ts:825-847).
+fn released_fields(released: &Released) -> Payload {
+    let mut fields = Payload::new();
+    if let Some(version) = &released.version {
+        fields.insert("version".into(), Value::from(version.as_str()));
+    }
+    if let Some(road) = &released.road {
+        fields.insert("road".into(), Value::from(road.as_str()));
+    }
+    fields
+}
+
+/// One step of a schema error's path, as the issues line writes it.
+fn path_part(part: &Value) -> PathPart {
+    match part {
+        Value::String(key) => PathPart::Key(key.clone()),
+        other => PathPart::Index(other.as_f64().unwrap_or_default()),
     }
 }
