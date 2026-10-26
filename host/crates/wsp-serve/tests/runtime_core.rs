@@ -13,16 +13,17 @@ use support::{block, FakeBus, FakeDevices, Script};
 use wsp_core::clock::{Cancel, Clock, Timer};
 use wsp_core::devices::{DeviceDoor, PairedDevice};
 use wsp_core::types::events::EventBus;
-use wsp_engine::machine::MachineState;
-use wsp_serve::runtime::core::{
-    core_defaults, reads_state, took_the_resume, vault_paths_of, Core, CoreCtx, CoreDefaults, DefaultsAsked, LaunchReach, NamedCount, StandingEntry, StandingRows,
-};
 use wsp_core::types::internal::StageFrame;
+use wsp_engine::machine::MachineState;
 use wsp_machines::images::builders::StageAt;
+use wsp_serve::runtime::core::{
+    core_defaults, reads_state, took_the_resume, vault_paths_of, Core, CoreCtx, CoreDefaults, DefaultsAsked, LaunchReach, NamedCount,
+    StandingEntry, StandingRows,
+};
 use wsp_wire::types::project_look::{ProjectHue, ProjectIcon, ProjectIconHash};
 use wsp_wire::types::recipe_file::RecipeFileFoldersValue;
-use wsp_wire::views::preferences::ProjectLook;
 use wsp_wire::views::harness::McpServerSpec;
+use wsp_wire::views::preferences::ProjectLook;
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::workspace::ProjectView;
 use wsp_wire::views::workspace_kind::WorkspaceKind;
@@ -313,7 +314,16 @@ fn project(id: &str, name: &str, computer: &str) -> ProjectView {
 }
 
 fn standing(id: &str, kind: WorkspaceKind, place: &str, project: &str) -> StandingEntry {
-    StandingEntry { id: id.into(), name: format!("name-{id}"), kind, place: Some(place.into()), project: project.into(), running: true, machine_id: format!("m-{id}"), sub: false }
+    StandingEntry {
+        id: id.into(),
+        name: format!("name-{id}"),
+        kind,
+        place: Some(place.into()),
+        project: project.into(),
+        running: true,
+        machine_id: format!("m-{id}"),
+        sub: false,
+    }
 }
 
 fn session(workspace: &str, thread: &str, title: &str) -> SessionView {
@@ -329,10 +339,13 @@ fn marked(workspace: &str, thread: &str) -> Value {
 fn emitted(ctx: &Rc<Ctx>) -> Rc<RefCell<Vec<Value>>> {
     let seen = Rc::new(RefCell::new(Vec::new()));
     let keep = seen.clone();
-    let _ = ctx.bus.on("*", Rc::new(move |e| {
-        keep.borrow_mut().push(serde_json::to_value(e).unwrap());
-        Ok(())
-    }));
+    let _ = ctx.bus.on(
+        "*",
+        Rc::new(move |e| {
+            keep.borrow_mut().push(serde_json::to_value(e).unwrap());
+            Ok(())
+        }),
+    );
     seen
 }
 
@@ -353,10 +366,26 @@ fn the_defaults_are_the_wiring_constants() {
             host_id: "the-mac".into(),
         }
     );
-    let asked = DefaultsAsked { provider_read_ms: Some(1), gone_confirm_ms: Some(2), late_read_ms: Some(3), daemon_hello_timeout_ms: Some(4), vault_cap_bytes: Some(5), idle_default_window_ms: Some(6), host_id: Some("named".into()) };
+    let asked = DefaultsAsked {
+        provider_read_ms: Some(1),
+        gone_confirm_ms: Some(2),
+        late_read_ms: Some(3),
+        daemon_hello_timeout_ms: Some(4),
+        vault_cap_bytes: Some(5),
+        idle_default_window_ms: Some(6),
+        host_id: Some("named".into()),
+    };
     assert_eq!(
         core_defaults(&asked, "the-mac"),
-        CoreDefaults { provider_read_ms: 1, gone_confirm_ms: 2, late_read_ms: 3, daemon_hello_timeout_ms: 4, vault_cap_bytes: 5, default_idle_window_ms: 6, host_id: "named".into() }
+        CoreDefaults {
+            provider_read_ms: 1,
+            gone_confirm_ms: 2,
+            late_read_ms: 3,
+            daemon_hello_timeout_ms: 4,
+            vault_cap_bytes: 5,
+            default_idle_window_ms: 6,
+            host_id: "named".into()
+        }
     );
 }
 
@@ -387,12 +416,21 @@ impl wsp_engine::machine::Machine for Guest {
     }
     async fn exec(&self, cmd: &str, _opts: wsp_engine::machine::ExecOptions) -> wsp_engine::errors::Result<ExecResult> {
         let call = self.script.record("machine.exec", json!({ "cmd": cmd }));
-        Ok(self.script.answer::<ExecResult>(&call).unwrap_or(ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() }))
+        Ok(self.script.answer::<ExecResult>(&call).unwrap_or(ExecResult {
+            exit_code: 0.into(),
+            stdout: String::new(),
+            stderr: String::new(),
+        }))
     }
     async fn run(&self, _s: &str, _o: wsp_engine::machine::RunOptions) -> wsp_engine::errors::Result<ExecResult> {
         panic!("not read")
     }
-    async fn snapshot(&self, _n: &str, _l: wsp_engine::machine::MachineLife, _o: wsp_engine::machine::SnapshotOptions) -> wsp_engine::errors::Result<String> {
+    async fn snapshot(
+        &self,
+        _n: &str,
+        _l: wsp_engine::machine::MachineLife,
+        _o: wsp_engine::machine::SnapshotOptions,
+    ) -> wsp_engine::errors::Result<String> {
         panic!("not read")
     }
     async fn pause(&self, _w: Option<u64>) -> wsp_engine::errors::Result<()> {
@@ -427,7 +465,10 @@ fn reads_state_answers_the_providers_state() {
         let clock: Rc<dyn Clock> = FakeClock::at(0);
         let guest = Guest { script: Script::new(), state_hangs: false };
         assert_eq!(reads_state(&guest, &clock, 30_000).await, Some(MachineState::Running));
-        guest.script.once::<wsp_engine::errors::Result<MachineState>>("machine.stateAnswer", Err(wsp_engine::errors::EngineError::Other { message: "boom".into(), code: None }));
+        guest.script.once::<wsp_engine::errors::Result<MachineState>>(
+            "machine.stateAnswer",
+            Err(wsp_engine::errors::EngineError::Other { message: "boom".into(), code: None }),
+        );
         assert_eq!(reads_state(&guest, &clock, 30_000).await, None, "a read that failed is none");
     })
 }
@@ -455,7 +496,10 @@ fn vault_paths_drop_the_skipped_and_the_empty() {
     block(async {
         let guest = Guest { script: Script::new(), state_hangs: false };
         guest.script.once::<ExecResult>("machine.exec", ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() });
-        guest.script.once::<ExecResult>("machine.exec", ExecResult { exit_code: 0.into(), stdout: ".cache\nprojects\n  \n.npm\n .claude \n.local\n".into(), stderr: String::new() });
+        guest.script.once::<ExecResult>(
+            "machine.exec",
+            ExecResult { exit_code: 0.into(), stdout: ".cache\nprojects\n  \n.npm\n .claude \n.local\n".into(), stderr: String::new() },
+        );
         let paths = vault_paths_of(&guest, None).await.unwrap();
         assert_eq!(paths, vec!["/root/projects".to_string(), "/root/.claude".to_string()]);
         assert_eq!(
@@ -492,7 +536,11 @@ fn vault_enumeration_failing_names_stderrs_tail() {
 // ---- A thread's launch ----
 
 fn minted() -> PairedDevice {
-    PairedDevice { device_id: "d-thread".into(), device_token: "tok-thread".into(), device: serde_json::from_value(json!({ "id": "d-thread", "name": "thread", "createdAt": "x", "lastSeenAt": "x" })).unwrap() }
+    PairedDevice {
+        device_id: "d-thread".into(),
+        device_token: "tok-thread".into(),
+        device: serde_json::from_value(json!({ "id": "d-thread", "name": "thread", "createdAt": "x", "lastSeenAt": "x" })).unwrap(),
+    }
 }
 
 #[test]
@@ -524,7 +572,11 @@ fn the_mint_is_scoped_to_the_thread_and_its_road() {
         assert_eq!(mint["road"], json!("relayed"));
         assert_eq!(mint["aside"], json!(true));
         assert_eq!(launch.scoped, Some(minted()));
-        assert_eq!(launch.env.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>(), vec![(wsp_wire::types::env::HOST_TOKEN_ENV.to_string(), "tok-thread".to_string())], "no url, no key");
+        assert_eq!(
+            launch.env.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>(),
+            vec![(wsp_wire::types::env::HOST_TOKEN_ENV.to_string(), "tok-thread".to_string())],
+            "no url, no key"
+        );
     })
 }
 
@@ -533,7 +585,8 @@ fn a_launch_names_the_url_and_key_only_where_they_stand() {
     // C9. runtime.ts:556-563
     block(async {
         let mut ctx = Ctx::new();
-        let wsp: McpServerSpec = serde_json::from_value(json!({ "command": "wsp", "args": ["mcp"] })).unwrap_or_else(|e| panic!("build an McpServerSpec: {e}"));
+        let wsp: McpServerSpec =
+            serde_json::from_value(json!({ "command": "wsp", "args": ["mcp"] })).unwrap_or_else(|e| panic!("build an McpServerSpec: {e}"));
         {
             let c = Rc::get_mut(&mut ctx).unwrap();
             c.reach = Some(LaunchReach { url: Some("https://host:7420".into()), wsp: Some(wsp.clone()) });
@@ -546,7 +599,11 @@ fn a_launch_names_the_url_and_key_only_where_they_stand() {
         use wsp_wire::types::env::{HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV};
         assert_eq!(
             env,
-            vec![(HOST_TOKEN_ENV.into(), "tok-thread".into()), (HOST_URL_ENV.into(), "https://host:7420".into()), (HOST_KEY_ENV.into(), "SHA256:hk".into())]
+            vec![
+                (HOST_TOKEN_ENV.into(), "tok-thread".into()),
+                (HOST_URL_ENV.into(), "https://host:7420".into()),
+                (HOST_KEY_ENV.into(), "SHA256:hk".into())
+            ]
         );
         assert_eq!(launch.wsp, Some(wsp));
         assert_eq!(ctx.script.calls_to("devices.mint")[0].args["road"], json!("here"), "a turn beside the host is stamped here");
@@ -555,7 +612,11 @@ fn a_launch_names_the_url_and_key_only_where_they_stand() {
         Rc::get_mut(&mut no_door).unwrap().reach = Some(LaunchReach { url: Some("https://host:7420".into()), wsp: None });
         no_door.script.on("devices.mint", |_| Ok::<PairedDevice, HostError>(minted()));
         let launch = Core::new(no_door.clone()).thread_launch("ws-1", WorkspaceKind::Cloud, "t-1", "t-1", false).await.unwrap();
-        assert_eq!(launch.env.keys().cloned().collect::<Vec<_>>(), vec![HOST_TOKEN_ENV.to_string(), HOST_URL_ENV.to_string()], "no place door, no key");
+        assert_eq!(
+            launch.env.keys().cloned().collect::<Vec<_>>(),
+            vec![HOST_TOKEN_ENV.to_string(), HOST_URL_ENV.to_string()],
+            "no place door, no key"
+        );
     })
 }
 
@@ -709,7 +770,13 @@ fn a_failed_resume_warns() {
         for _ in 0..3 {
             tokio::task::yield_now().await;
         }
-        assert_eq!(warned.lines(), vec![format!("thread {} did not resume at its reset: resumeAfterLimit refused", wsp_words::words::computer::thread_word("t-1"))]);
+        assert_eq!(
+            warned.lines(),
+            vec![format!(
+                "thread {} did not resume at its reset: resumeAfterLimit refused",
+                wsp_words::words::computer::thread_word("t-1")
+            )]
+        );
     })
 }
 
@@ -743,8 +810,17 @@ fn standing_on_splits_forks_folders_and_projects() {
         assert_eq!(on.folders.iter().map(|e| e.id.clone()).collect::<Vec<_>>(), vec!["ws-folder"]);
         assert_eq!(on.projects.iter().map(|p| p.id.clone()).collect::<Vec<_>>(), vec!["p-1"]);
         // The fork's one thread; the project counts its folder here (t-b and t-b2) and the one elsewhere (t-c).
-        assert_eq!(on.rows, StandingRows { forks: vec![NamedCount { name: "fix login".into(), threads: 1 }], projects: vec![NamedCount { name: "app".into(), threads: 3 }] });
-        assert_eq!(serde_json::to_string(&on.rows).unwrap(), r#"{"forks":[{"name":"fix login","threads":1}],"projects":[{"name":"app","threads":3}]}"#);
+        assert_eq!(
+            on.rows,
+            StandingRows {
+                forks: vec![NamedCount { name: "fix login".into(), threads: 1 }],
+                projects: vec![NamedCount { name: "app".into(), threads: 3 }]
+            }
+        );
+        assert_eq!(
+            serde_json::to_string(&on.rows).unwrap(),
+            r#"{"forks":[{"name":"fix login","threads":1}],"projects":[{"name":"app","threads":3}]}"#
+        );
     })
 }
 
@@ -752,7 +828,8 @@ fn standing_on_splits_forks_folders_and_projects() {
 fn fork_name_is_its_one_threads_title_else_its_name() {
     // C13. runtime.ts:936-939
     let mut ctx = Ctx::new();
-    Rc::get_mut(&mut ctx).unwrap().sessions = vec![session("ws-1", "t-1", "one"), session("ws-2", "t-2", "two"), session("ws-2", "t-3", "three")];
+    Rc::get_mut(&mut ctx).unwrap().sessions =
+        vec![session("ws-1", "t-1", "one"), session("ws-2", "t-2", "two"), session("ws-2", "t-3", "three")];
     let core = Core::new(ctx.clone());
     assert_eq!(core.fork_name(&standing("ws-1", WorkspaceKind::Cloud, "b", "p")), "one");
     assert_eq!(core.fork_name(&standing("ws-2", WorkspaceKind::Cloud, "b", "p")), "name-ws-2", "two threads: its own name");
@@ -796,8 +873,14 @@ fn drop_on_stops_at_the_first_refusal_naming_those_gone() {
         ctx.fails.borrow_mut().push("delete ws-folder".into());
         let core = Core::new(ctx.clone());
         let refused = core.drop_on("box-1").await.err().unwrap();
-        assert_eq!(refused.message, wsp_wire::wire::machine_link::place_drop_stopped_line("delete ws-folder refused", &["fix login".to_string()]));
-        assert_eq!(ctx.script.calls_to("deleteWorkspace").iter().map(|c| c.args["id"].clone()).collect::<Vec<_>>(), vec![json!("ws-fork"), json!("ws-folder")]);
+        assert_eq!(
+            refused.message,
+            wsp_wire::wire::machine_link::place_drop_stopped_line("delete ws-folder refused", &["fix login".to_string()])
+        );
+        assert_eq!(
+            ctx.script.calls_to("deleteWorkspace").iter().map(|c| c.args["id"].clone()).collect::<Vec<_>>(),
+            vec![json!("ws-fork"), json!("ws-folder")]
+        );
         assert!(ctx.script.calls_to("removeProject").is_empty(), "the rest stop");
     })
 }
@@ -809,7 +892,13 @@ fn drop_on_takes_forks_then_folders_then_projects_with_force() {
         let ctx = box_ctx();
         let core = Core::new(ctx.clone());
         let rows = core.drop_on("box-1").await.unwrap();
-        let order: Vec<String> = ctx.script.calls().into_iter().filter(|c| c.name == "deleteWorkspace" || c.name == "removeProject").map(|c| format!("{} {}", c.name, c.args["id"])).collect();
+        let order: Vec<String> = ctx
+            .script
+            .calls()
+            .into_iter()
+            .filter(|c| c.name == "deleteWorkspace" || c.name == "removeProject")
+            .map(|c| format!("{} {}", c.name, c.args["id"]))
+            .collect();
         assert_eq!(order, vec![r#"deleteWorkspace "ws-fork""#, r#"deleteWorkspace "ws-folder""#, r#"removeProject "p-1""#]);
         assert_eq!(ctx.script.calls_to("removeProject")[0].args, json!({ "id": "p-1", "force": true, "keepLook": false }));
         assert_eq!(rows.projects, vec![NamedCount { name: "app".into(), threads: 3 }]);
@@ -823,8 +912,23 @@ fn forget_on_ends_and_drops_then_forgets() {
         let ctx = box_ctx();
         let core = Core::new(ctx.clone());
         core.forget_on("box-1").await.unwrap();
-        let order: Vec<String> = ctx.script.calls().into_iter().filter(|c| ["endSessions", "dropRecord", "storeDeleteProject"].contains(&c.name.as_str())).map(|c| format!("{} {}", c.name, c.args["id"])).collect();
-        assert_eq!(order, vec![r#"endSessions "ws-fork""#, r#"dropRecord "ws-fork""#, r#"endSessions "ws-folder""#, r#"dropRecord "ws-folder""#, r#"storeDeleteProject "p-1""#]);
+        let order: Vec<String> = ctx
+            .script
+            .calls()
+            .into_iter()
+            .filter(|c| ["endSessions", "dropRecord", "storeDeleteProject"].contains(&c.name.as_str()))
+            .map(|c| format!("{} {}", c.name, c.args["id"]))
+            .collect();
+        assert_eq!(
+            order,
+            vec![
+                r#"endSessions "ws-fork""#,
+                r#"dropRecord "ws-fork""#,
+                r#"endSessions "ws-folder""#,
+                r#"dropRecord "ws-folder""#,
+                r#"storeDeleteProject "p-1""#
+            ]
+        );
         assert_eq!(ctx.script.calls_to("endSessions")[0].args["reason"], json!(wsp_core::types::internal::DELETED_REASON));
     })
 }
@@ -849,7 +953,13 @@ fn remove_folder_refuses_while_records_stand() {
         core.remove_folder("box-9", "p-1").await.unwrap();
         assert!(ctx.script.calls_to("storeDeleteProject").is_empty(), "a project not on that computer does nothing");
         let refused = core.remove_folder("box-1", "p-1").await.err().unwrap();
-        assert_eq!(refused.message, wsp_words::projects::project_in_use_refusal("app", &["name-ws-fork".to_string(), "name-ws-folder".to_string(), "name-ws-elsewhere".to_string()]));
+        assert_eq!(
+            refused.message,
+            wsp_words::projects::project_in_use_refusal(
+                "app",
+                &["name-ws-fork".to_string(), "name-ws-folder".to_string(), "name-ws-elsewhere".to_string()]
+            )
+        );
         ctx.live.borrow_mut().clear();
         core.remove_folder("box-1", "p-1").await.unwrap();
         assert_eq!(ctx.script.calls_to("storeDeleteProject")[0].args, json!({ "id": "p-1" }));
@@ -874,11 +984,17 @@ fn folder_look_keeps_what_the_person_set() {
     // C21. runtime.ts:583-589
     block(async {
         let ctx = Ctx::new();
-        ctx.script.once::<Option<ProjectLook>>("projectLook", Some(ProjectLook { icon: Some(ProjectIcon::Star), hue: Some(ProjectHue::Red) }));
+        ctx.script
+            .once::<Option<ProjectLook>>("projectLook", Some(ProjectLook { icon: Some(ProjectIcon::Star), hue: Some(ProjectHue::Red) }));
         let core = Core::new(ctx.clone());
         // The icon moved, the hue did not: the recipe's new icon, the person's own hue; the image stayed.
-        core.folder_look("p-1", &pick(Some("code"), Some("blue"), Some("h1")), &pick(Some("rocket"), Some("blue"), Some("h1"))).await.unwrap();
-        assert_eq!(ctx.script.calls_to("setProjectLook")[0].args.to_string(), json!({ "id": "p-1", "look": { "icon": "rocket", "hue": "red" } }).to_string());
+        core.folder_look("p-1", &pick(Some("code"), Some("blue"), Some("h1")), &pick(Some("rocket"), Some("blue"), Some("h1")))
+            .await
+            .unwrap();
+        assert_eq!(
+            ctx.script.calls_to("setProjectLook")[0].args.to_string(),
+            json!({ "id": "p-1", "look": { "icon": "rocket", "hue": "red" } }).to_string()
+        );
         assert!(ctx.script.calls_to("setIcon").is_empty(), "an image that did not move is not worn again");
     })
 }
@@ -916,7 +1032,10 @@ fn place_setup_with_an_end_keeps_the_copy_current() {
         core.on_bus_event(&json!({ "type": "place.setup", "placeId": "box-1" }));
         assert!(ctx.script.calls_to("keepCurrent").is_empty(), "a setup still running asks nothing");
         core.on_bus_event(&json!({ "type": "place.setup", "placeId": "box-1", "end": "done" }));
-        assert_eq!(ctx.script.calls_to("keepCurrent").iter().map(|c| c.args.clone()).collect::<Vec<_>>(), vec![json!({ "place": "box-1" })]);
+        assert_eq!(
+            ctx.script.calls_to("keepCurrent").iter().map(|c| c.args.clone()).collect::<Vec<_>>(),
+            vec![json!({ "place": "box-1" })]
+        );
     })
 }
 
@@ -956,15 +1075,25 @@ fn place_absent_and_present_re_emit_the_stage() {
         let ctx = Ctx::new();
         let seen = emitted(&ctx);
         let core = Core::new(ctx.clone());
-        let frame: StageFrame = serde_json::from_value(json!({ "name": "default", "stage": "installing-tools", "detail": "apt-get install", "step": 3 })).expect("a stage frame");
+        let frame: StageFrame =
+            serde_json::from_value(json!({ "name": "default", "stage": "installing-tools", "detail": "apt-get install", "step": 3 }))
+                .expect("a stage frame");
         core.note_stage(StageAt { place: "box-1".into(), name: "default".into(), named: true, frame: frame.clone() });
         core.note_stage(StageAt { place: "box-2".into(), name: "default".into(), named: false, frame: frame.clone() });
         core.on_place_event(&json!({ "type": "place.absent", "placeId": "box-1" }));
         let dial_back = wsp_wire::wire::place_link::place_dial_back_line("box-1-name");
-        assert_eq!(seen.borrow().clone(), vec![json!({ "type": "golden.stage", "name": "default", "stage": "installing-tools", "detail": dial_back, "step": 3, "place": "box-1" })]);
+        assert_eq!(
+            seen.borrow().clone(),
+            vec![
+                json!({ "type": "golden.stage", "name": "default", "stage": "installing-tools", "detail": dial_back, "step": 3, "place": "box-1" })
+            ]
+        );
         core.on_place_event(&json!({ "type": "place.present", "placeId": "box-1" }));
         tokio::task::yield_now().await;
-        assert_eq!(seen.borrow()[1], json!({ "type": "golden.stage", "name": "default", "stage": "installing-tools", "detail": "apt-get install", "step": 3, "place": "box-1" }));
+        assert_eq!(
+            seen.borrow()[1],
+            json!({ "type": "golden.stage", "name": "default", "stage": "installing-tools", "detail": "apt-get install", "step": 3, "place": "box-1" })
+        );
         // A stage that did not name its place is re-said without one.
         core.on_place_event(&json!({ "type": "place.absent", "placeId": "box-2" }));
         assert!(seen.borrow().last().unwrap().get("place").is_none());

@@ -27,7 +27,8 @@ impl FakeBus {
     }
     pub fn emit(&self, e: &EventUnion) {
         let ty = serde_json::to_value(e).unwrap()["type"].as_str().unwrap_or_default().to_string();
-        let now: Vec<EventListener> = self.listeners.borrow().iter().filter(|(_, t, _)| t == ANY_EVENT || *t == ty).map(|(_, _, l)| l.clone()).collect();
+        let now: Vec<EventListener> =
+            self.listeners.borrow().iter().filter(|(_, t, _)| t == ANY_EVENT || *t == ty).map(|(_, _, l)| l.clone()).collect();
         for l in now {
             let _ = l(e);
         }
@@ -51,6 +52,11 @@ impl EventBus for FakeBus {
         Box::new(move || listeners.borrow_mut().retain(|(i, _, _)| *i != id))
     }
     fn since(&self, after: Option<u64>, stream: Option<&str>) -> Since {
-        self.script.call_or("events.since", json!({ "after": after, "stream": stream }), || Since { stream: "stream-a".into(), head: 0, events: vec![], gap: false })
+        self.script.call_or("events.since", json!({ "after": after, "stream": stream }), || Since {
+            stream: "stream-a".into(),
+            head: 0,
+            events: vec![],
+            gap: false,
+        })
     }
 }

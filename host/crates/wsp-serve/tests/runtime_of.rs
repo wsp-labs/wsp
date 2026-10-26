@@ -10,12 +10,12 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 use support::{block, Script};
 use wsp_core::types::api::CatalogAt;
-use wsp_core::types::wiring::AdoptedMachine;
 use wsp_core::types::internal::BuilderLife;
+use wsp_core::types::wiring::AdoptedMachine;
 use wsp_engine::orphans::{ListedMachine, ReapFailure, ReapReason, ReapResult, ReapedMachine};
 use wsp_serve::runtime::public::{
-    close, harnesses_list, reap, status_history, status_list, CloseStep, HarnessesCtx, MachineRead, PublicCtx, StatusCtx,
-    SweepAnswer, SweptBuilder, SweptEntry, KEPT_CLOSE_WAIT_MS,
+    close, harnesses_list, reap, status_history, status_list, CloseStep, HarnessesCtx, MachineRead, PublicCtx, StatusCtx, SweepAnswer,
+    SweptBuilder, SweptEntry, KEPT_CLOSE_WAIT_MS,
 };
 use wsp_wire::views::harness::HarnessCatalog;
 use wsp_wire::views::workspace::{Caller, WorkspacePhase};
@@ -40,7 +40,14 @@ struct Sweep {
 
 impl Sweep {
     fn new() -> Sweep {
-        Sweep { script: Script::new(), now: 1_000_000_000, builders: vec![], entries: vec![], places: vec![("default".into(), true)], stop_fails: vec![] }
+        Sweep {
+            script: Script::new(),
+            now: 1_000_000_000,
+            builders: vec![],
+            entries: vec![],
+            places: vec![("default".into(), true)],
+            stop_fails: vec![],
+        }
     }
 }
 
@@ -124,15 +131,32 @@ impl PublicCtx for Sweep {
         self.script.record("knownIds", json!({}));
         vec!["m-known".into()]
     }
-    async fn adopt_lost(&self, place: &str, _rows: &[ListedMachine], _claimed: &mut Vec<String>, _failed: &mut Vec<ReapFailure>) -> Result<(Vec<AdoptedMachine>, Vec<ReapedMachine>), HostError> {
+    async fn adopt_lost(
+        &self,
+        place: &str,
+        _rows: &[ListedMachine],
+        _claimed: &mut Vec<String>,
+        _failed: &mut Vec<ReapFailure>,
+    ) -> Result<(Vec<AdoptedMachine>, Vec<ReapedMachine>), HostError> {
         let call = self.script.record("adoptLost", json!({ "place": place }));
         self.script.answer(&call).unwrap_or(Ok((vec![], vec![])))
     }
-    async fn engine_reap(&self, place: &str, _rows: Vec<ListedMachine>, known: Vec<String>, older_than_ms: Option<i64>) -> Result<ReapResult, HostError> {
+    async fn engine_reap(
+        &self,
+        place: &str,
+        _rows: Vec<ListedMachine>,
+        known: Vec<String>,
+        older_than_ms: Option<i64>,
+    ) -> Result<ReapResult, HostError> {
         let call = self.script.record("engineReap", json!({ "place": place, "known": known, "olderThanMs": older_than_ms }));
         self.script.answer(&call).unwrap_or(Ok(ReapResult { reaped: vec![], spared: vec![], failed: None }))
     }
-    async fn sweep_strays(&self, known: Vec<String>, _failed: &mut Vec<ReapFailure>, places: &[String]) -> Result<Vec<ReapedMachine>, HostError> {
+    async fn sweep_strays(
+        &self,
+        known: Vec<String>,
+        _failed: &mut Vec<ReapFailure>,
+        places: &[String],
+    ) -> Result<Vec<ReapedMachine>, HostError> {
         let call = self.script.record("sweepStrays", json!({ "known": known, "places": places }));
         self.script.answer(&call).unwrap_or(Ok(vec![]))
     }
@@ -156,11 +180,29 @@ impl PublicCtx for Sweep {
 }
 
 fn builder(id: &str, life: BuilderLife, created_label: Option<String>) -> SweptBuilder {
-    SweptBuilder { id: id.into(), life, created_label, created_at: "not a date".into(), building: false, place: None, heartbeat_held: false }
+    SweptBuilder {
+        id: id.into(),
+        life,
+        created_label,
+        created_at: "not a date".into(),
+        building: false,
+        place: None,
+        heartbeat_held: false,
+    }
 }
 
 fn entry(id: &str, machine: &str, phase: WorkspacePhase) -> SweptEntry {
-    SweptEntry { id: id.into(), machine_id: machine.into(), entry_machine_id: machine.into(), creating: false, napping: false, waking: false, deleting: false, absent_machine: false, phase }
+    SweptEntry {
+        id: id.into(),
+        machine_id: machine.into(),
+        entry_machine_id: machine.into(),
+        creating: false,
+        napping: false,
+        waking: false,
+        deleting: false,
+        absent_machine: false,
+        phase,
+    }
 }
 
 fn iso(ms: i64) -> String {
@@ -174,16 +216,37 @@ fn reap_order_grace_builders_replays_listings() {
         let mut world = Sweep::new();
         world.builders = vec![builder("b-own", BuilderLife::Own, Some(iso(1_000_000_000 - 1_000)))];
         world.places = vec![("default".into(), true), ("hetzner".into(), true), ("away".into(), false)];
-        world.script.once::<Result<(Vec<ReapedMachine>, Vec<ReapFailure>), HostError>>("expireGrace", Ok((vec![reaped("m-grace", ReapReason::Grace)], vec![])));
+        world.script.once::<Result<(Vec<ReapedMachine>, Vec<ReapFailure>), HostError>>(
+            "expireGrace",
+            Ok((vec![reaped("m-grace", ReapReason::Grace)], vec![])),
+        );
         world.script.once::<Result<Vec<ReapedMachine>, HostError>>("replayCreates", Ok(vec![reaped("m-replay", ReapReason::Lost)]));
         let said = Rc::new(|_: &str| {});
         let answer = reap(&world, Some(5_000), Some(said)).await.unwrap();
         let names: Vec<String> = world.script.names().into_iter().filter(|n| n != "knownIds").collect();
         assert_eq!(
             names,
-            vec!["setSayStops", "ready", "refreshBuilders", "expireGrace", "hold", "replayCreates", "listAt", "listAt", "adoptLost", "adoptLost", "engineReap", "engineReap", "sweepStrays"]
+            vec![
+                "setSayStops",
+                "ready",
+                "refreshBuilders",
+                "expireGrace",
+                "hold",
+                "replayCreates",
+                "listAt",
+                "listAt",
+                "adoptLost",
+                "adoptLost",
+                "engineReap",
+                "engineReap",
+                "sweepStrays"
+            ]
         );
-        assert_eq!(world.script.calls_to("listAt").iter().map(|c| c.args["place"].clone()).collect::<Vec<_>>(), vec![json!("default"), json!("hetzner")], "a place with no backend is not listed");
+        assert_eq!(
+            world.script.calls_to("listAt").iter().map(|c| c.args["place"].clone()).collect::<Vec<_>>(),
+            vec![json!("default"), json!("hetzner")],
+            "a place with no backend is not listed"
+        );
         assert_eq!(world.script.calls_to("engineReap")[0].args["olderThanMs"], json!(5_000));
         assert_eq!(answer.reaped.iter().map(|r| r.id.clone()).collect::<Vec<_>>(), vec!["m-grace", "m-replay"]);
         assert_eq!(answer.failed, None, "failed only when not empty");
@@ -216,11 +279,28 @@ fn reap_a_stale_builder_reasons() {
         assert_eq!(
             answer.reaped,
             vec![
-                ReapedMachine { id: "b-unfinished".into(), labels: None, builder: true, reason: ReapReason::Unfinished, age_ms: None, name: None },
-                ReapedMachine { id: "b-recorded".into(), labels: None, builder: true, reason: ReapReason::Recorded, age_ms: None, name: None },
+                ReapedMachine {
+                    id: "b-unfinished".into(),
+                    labels: None,
+                    builder: true,
+                    reason: ReapReason::Unfinished,
+                    age_ms: None,
+                    name: None
+                },
+                ReapedMachine {
+                    id: "b-recorded".into(),
+                    labels: None,
+                    builder: true,
+                    reason: ReapReason::Recorded,
+                    age_ms: None,
+                    name: None
+                },
             ]
         );
-        assert_eq!(world.script.calls_to("stopBuilder").iter().map(|c| c.args.clone()).collect::<Vec<_>>(), vec![json!({ "id": "b-unfinished", "place": "default" }), json!({ "id": "b-recorded", "place": "default" })]);
+        assert_eq!(
+            world.script.calls_to("stopBuilder").iter().map(|c| c.args.clone()).collect::<Vec<_>>(),
+            vec![json!({ "id": "b-unfinished", "place": "default" }), json!({ "id": "b-recorded", "place": "default" })]
+        );
         assert_eq!(world.script.calls_to("forgetBuilder").len(), 2);
         assert!(world.script.calls_to("hold").is_empty(), "only an own builder gets its heartbeat");
     })
@@ -242,8 +322,22 @@ fn reap_a_reusable_builder_expires_at_six_hours() {
         assert_eq!(
             answer.reaped,
             vec![
-                ReapedMachine { id: "b-six".into(), labels: None, builder: true, reason: ReapReason::Expired, age_ms: Some(SIX_HOURS), name: None },
-                ReapedMachine { id: "b-ageless".into(), labels: None, builder: true, reason: ReapReason::Expired, age_ms: None, name: None },
+                ReapedMachine {
+                    id: "b-six".into(),
+                    labels: None,
+                    builder: true,
+                    reason: ReapReason::Expired,
+                    age_ms: Some(SIX_HOURS),
+                    name: None
+                },
+                ReapedMachine {
+                    id: "b-ageless".into(),
+                    labels: None,
+                    builder: true,
+                    reason: ReapReason::Expired,
+                    age_ms: None,
+                    name: None
+                },
             ]
         );
         assert!(world.script.calls_to("stopBuilder").iter().all(|c| c.args["id"] != json!("b-young")));
@@ -261,10 +355,20 @@ fn reap_a_builder_stop_that_fails_stays_recorded() {
         world.builders = vec![b];
         world.stop_fails = vec!["b-stuck".into()];
         let answer = reap(&world, None, None).await.unwrap();
-        assert_eq!(world.script.calls_to("stopBuilder")[0].args, json!({ "id": "b-stuck", "place": "hetzner" }), "a builder is stopped at its own place");
+        assert_eq!(
+            world.script.calls_to("stopBuilder")[0].args,
+            json!({ "id": "b-stuck", "place": "hetzner" }),
+            "a builder is stopped at its own place"
+        );
         assert!(world.script.calls_to("forgetBuilder").is_empty());
         assert!(answer.reaped.is_empty());
-        assert_eq!(answer.failed, Some(vec![ReapFailure { id: Some("b-stuck".into()), message: "could not stop: provider said 500; stays recorded, retried next sweep".into() }]));
+        assert_eq!(
+            answer.failed,
+            Some(vec![ReapFailure {
+                id: Some("b-stuck".into()),
+                message: "could not stop: provider said 500; stays recorded, retried next sweep".into()
+            }])
+        );
     })
 }
 
@@ -273,11 +377,17 @@ fn reap_the_wired_listing_failing_answers_at_once() {
     // U12. runtime.ts:1161-1164
     block(async {
         let mut world = Sweep::new();
-        world.script.on("expireGrace", |_| Ok::<(Vec<ReapedMachine>, Vec<ReapFailure>), HostError>((vec![reaped("m-grace", ReapReason::Grace)], vec![])));
+        world.script.on("expireGrace", |_| {
+            Ok::<(Vec<ReapedMachine>, Vec<ReapFailure>), HostError>((vec![reaped("m-grace", ReapReason::Grace)], vec![]))
+        });
         world.places = vec![("default".into(), true), ("hetzner".into(), true)];
         world.script.once::<Result<Vec<ListedMachine>, HostError>>("listAt", Err(HostError::new("401 from the provider")));
         let answer = reap(&world, None, None).await.unwrap();
-        assert_eq!(answer.reaped.iter().map(|r| r.id.clone()).collect::<Vec<_>>(), vec!["m-grace"], "what was reaped before the listing stays");
+        assert_eq!(
+            answer.reaped.iter().map(|r| r.id.clone()).collect::<Vec<_>>(),
+            vec!["m-grace"],
+            "what was reaped before the listing stays"
+        );
         assert!(answer.spared.is_empty());
         assert_eq!(answer.failed, Some(vec![ReapFailure { id: None, message: "401 from the provider".into() }]));
         assert_eq!(world.script.calls_to("listAt").len(), 1, "no other place is listed");
@@ -318,18 +428,26 @@ fn reap_reads_each_record_by_its_state() {
             entry("ws-missing", "m-missing", WorkspacePhase::Running),
             entry("ws-failed", "m-failed", WorkspacePhase::Running),
         ];
-        let listed: ListedMachine = serde_json::from_value(json!({ "id": "m-listed", "state": "running", "labels": {} })).expect("a listing row");
+        let listed: ListedMachine =
+            serde_json::from_value(json!({ "id": "m-listed", "state": "running", "labels": {} })).expect("a listing row");
         world.script.once::<Result<Vec<ListedMachine>, HostError>>("listAt", Ok(vec![listed]));
         world.script.once::<MachineRead>("readMachine", MachineRead::Missing { answer: Some("404 not found".into()) });
         world.script.once::<MachineRead>("readMachine", MachineRead::Failed);
         let _ = reap(&world, None, None).await.unwrap();
         assert_eq!(world.script.calls_to("rereadHeld")[0].args, json!({ "id": "ws-absent", "why": "sweep" }));
         assert_eq!(world.script.calls_to("recoverGone")[0].args, json!({ "id": "ws-listed-gone" }));
-        assert_eq!(world.script.calls_to("readMachine").iter().map(|c| c.args["id"].clone()).collect::<Vec<_>>(), vec![json!("ws-missing"), json!("ws-failed")]);
+        assert_eq!(
+            world.script.calls_to("readMachine").iter().map(|c| c.args["id"].clone()).collect::<Vec<_>>(),
+            vec![json!("ws-missing"), json!("ws-failed")]
+        );
         let adopted = world.script.calls_to("adoptGone");
         assert_eq!(adopted.len(), 1);
         assert_eq!(adopted[0].args["id"], json!("ws-missing"));
-        let seen = wsp_words::words::thread::GoneSighting { by: wsp_words::words::thread::GoneSeenBy::Sweep, at: world.now as f64, answer: Some("404 not found".into()) };
+        let seen = wsp_words::words::thread::GoneSighting {
+            by: wsp_words::words::thread::GoneSeenBy::Sweep,
+            at: world.now as f64,
+            answer: Some("404 not found".into()),
+        };
         assert_eq!(adopted[0].args["words"], json!(wsp_words::words::thread::gone_words("m-missing", Some(&seen))));
     })
 }
@@ -349,7 +467,8 @@ fn reap_a_failure_in_the_engine_stretch_keeps_the_adopted() {
     block(async {
         let world = Sweep::new();
         world.script.on("expireGrace", |_| Ok::<(Vec<ReapedMachine>, Vec<ReapFailure>), HostError>((vec![], vec![])));
-        let adopted = AdoptedMachine { id: "m-lost".into(), workspace_id: "ws-lost".into(), name: "lost".into(), phase: WorkspacePhase::Running };
+        let adopted =
+            AdoptedMachine { id: "m-lost".into(), workspace_id: "ws-lost".into(), name: "lost".into(), phase: WorkspacePhase::Running };
         world.script.once::<Result<(Vec<AdoptedMachine>, Vec<ReapedMachine>), HostError>>("adoptLost", Ok((vec![adopted.clone()], vec![])));
         world.script.once::<Result<ReapResult, HostError>>("engineReap", Err(HostError::new("engine broke")));
         let answer = reap(&world, None, None).await.unwrap();
@@ -366,18 +485,50 @@ fn close_runs_its_steps_in_order() {
         let world = Sweep::new();
         world.script.once::<Vec<String>>("keptAgents", vec!["t-kept".into()]);
         close(&world).await.unwrap();
-        let steps: Vec<Value> = world.script.calls().into_iter().filter(|c| c.name == "close" || c.name == "reapKept").map(|c| if c.name == "close" { c.args } else { json!("reapKept") }).collect();
+        let steps: Vec<Value> = world
+            .script
+            .calls()
+            .into_iter()
+            .filter(|c| c.name == "close" || c.name == "reapKept")
+            .map(|c| if c.name == "close" { c.args } else { json!("reapKept") })
+            .collect();
         let expected: Vec<Value> = [
-            "MarkClosing", "ClearRootsRecheck", "RunHeldAtClose", "AwaitCopiesMoving", "StopSweep", "AwaitSweeping", "StopDiskWatch", "CloseIdle", "CloseAlerts", "CloseSlates",
-            "CloseAgentsReader", "SettleDaemonSyncs", "SettleKeptWrites", "SettleAgentAsks",
+            "MarkClosing",
+            "ClearRootsRecheck",
+            "RunHeldAtClose",
+            "AwaitCopiesMoving",
+            "StopSweep",
+            "AwaitSweeping",
+            "StopDiskWatch",
+            "CloseIdle",
+            "CloseAlerts",
+            "CloseSlates",
+            "CloseAgentsReader",
+            "SettleDaemonSyncs",
+            "SettleKeptWrites",
+            "SettleAgentAsks",
         ]
         .iter()
         .map(|s| json!(s))
         .chain(std::iter::once(json!("reapKept")))
         .chain(
-            ["StopMachineReadings", "ClosePipes", "CloseLocal", "ClosePlaceDoor", "MarkClosed", "CancelBeat", "CancelTimers", "StopPrPolls", "CloseGoneWatch", "AwaitTicking", "FreeOwnBuilders", "FlushTranscripts", "AwaitTranscriptWrites"]
-                .iter()
-                .map(|s| json!(s)),
+            [
+                "StopMachineReadings",
+                "ClosePipes",
+                "CloseLocal",
+                "ClosePlaceDoor",
+                "MarkClosed",
+                "CancelBeat",
+                "CancelTimers",
+                "StopPrPolls",
+                "CloseGoneWatch",
+                "AwaitTicking",
+                "FreeOwnBuilders",
+                "FlushTranscripts",
+                "AwaitTranscriptWrites",
+            ]
+            .iter()
+            .map(|s| json!(s)),
         )
         .collect();
         assert_eq!(steps, expected);
@@ -396,7 +547,11 @@ fn close_waits_at_most_the_kept_wait_for_a_kept_agent() {
         close(&world).await.unwrap();
         let took = started.elapsed();
         assert!(took >= std::time::Duration::from_millis(1_900) && took < std::time::Duration::from_millis(3_500), "{took:?}");
-        assert_eq!(world.script.calls_to("close").last().unwrap().args, json!("AwaitTranscriptWrites"), "the close goes on past a kept agent that never exits");
+        assert_eq!(
+            world.script.calls_to("close").last().unwrap().args,
+            json!("AwaitTranscriptWrites"),
+            "the close goes on past a kept agent that never exits"
+        );
     })
 }
 
@@ -470,7 +625,11 @@ fn status_row(id: &str) -> WorkspaceStatus {
 fn status_list_filters_after_the_probes() {
     // U5. runtime.ts:1066-1070
     block(async {
-        let ctx = Status { script: Script::new(), rows: vec![status_row("ws-b"), status_row("ws-a"), status_row("ws-hidden")], listed: RefCell::new(vec!["ws-a".into(), "ws-b".into()]) };
+        let ctx = Status {
+            script: Script::new(),
+            rows: vec![status_row("ws-b"), status_row("ws-a"), status_row("ws-hidden")],
+            listed: RefCell::new(vec!["ws-a".into(), "ws-b".into()]),
+        };
         let rows = status_list(&ctx, None, Some(Caller::Road(WorkspaceOrigin::Relayed))).await.unwrap();
         assert_eq!(rows.iter().map(|r| r.id.clone()).collect::<Vec<_>>(), vec!["ws-b", "ws-a"], "the probes' order, the caller's rows");
         assert_eq!(ctx.script.names(), vec!["probeList", "listedFor"]);
@@ -481,7 +640,11 @@ fn status_list_filters_after_the_probes() {
 fn a_record_dropped_mid_probe_leaves_the_list() {
     // U5. runtime.ts:1063-1065
     block(async {
-        let ctx = Status { script: Script::new(), rows: vec![status_row("ws-dropped"), status_row("ws-a")], listed: RefCell::new(vec!["ws-a".into(), "ws-dropped".into()]) };
+        let ctx = Status {
+            script: Script::new(),
+            rows: vec![status_row("ws-dropped"), status_row("ws-a")],
+            listed: RefCell::new(vec!["ws-a".into(), "ws-dropped".into()]),
+        };
         let rows = status_list(&ctx, None, None).await.unwrap();
         assert_eq!(rows.iter().map(|r| r.id.clone()).collect::<Vec<_>>(), vec!["ws-a"]);
     })
@@ -537,7 +700,12 @@ impl HarnessesCtx for Harnesses {
     fn default_agent_of(&self, _prefs: &wsp_wire::views::preferences::Preferences, _entry: Option<&(String, String)>) -> String {
         "codex".into()
     }
-    fn shaped(&self, catalog: &HarnessCatalog, _prefs: &wsp_wire::views::preferences::Preferences, project: Option<&str>) -> serde_json::Map<String, Value> {
+    fn shaped(
+        &self,
+        catalog: &HarnessCatalog,
+        _prefs: &wsp_wire::views::preferences::Preferences,
+        project: Option<&str>,
+    ) -> serde_json::Map<String, Value> {
         self.script.record("shaped", json!({ "harness": catalog.harness, "project": project }));
         json!({ "harness": catalog.harness, "shaped": true }).as_object().unwrap().clone()
     }
@@ -573,13 +741,21 @@ fn harnesses_list_reads_a_project_or_computer_home() {
         let prefs = json!({ "agentDefaults": {}, "projectDefaults": {}, "projectLook": {} });
         let ctx = Harnesses { script: Script::new(), prefs: prefs.clone(), lists: vec![], talks_to_tree: true };
         harnesses_list(&ctx, Some("ws-1".into()), Some(Caller::Road(WorkspaceOrigin::Relayed)), None).await.unwrap();
-        assert_eq!(ctx.script.calls_to("entryOf")[0].args, json!({ "id": "ws-1", "origin": null }), "a caller that talks to the tree reads the entry with no origin");
+        assert_eq!(
+            ctx.script.calls_to("entryOf")[0].args,
+            json!({ "id": "ws-1", "origin": null }),
+            "a caller that talks to the tree reads the entry with no origin"
+        );
         let ctx = Harnesses { script: Script::new(), prefs: prefs.clone(), lists: vec![], talks_to_tree: false };
         harnesses_list(&ctx, Some("ws-1".into()), Some(Caller::Road(WorkspaceOrigin::Relayed)), None).await.unwrap();
         assert_eq!(ctx.script.calls_to("entryOf")[0].args, json!({ "id": "ws-1", "origin": "relayed" }));
         let ctx = Harnesses { script: Script::new(), prefs: prefs.clone(), lists: vec![], talks_to_tree: false };
         harnesses_list(&ctx, None, None, Some(CatalogAt { project: Some("p-9".into()), computer: Some("c-1".into()) })).await.unwrap();
-        assert_eq!(ctx.script.names().iter().filter(|n| n.ends_with("Home")).cloned().collect::<Vec<_>>(), vec!["projectHome"], "a project wins over a computer");
+        assert_eq!(
+            ctx.script.names().iter().filter(|n| n.ends_with("Home")).cloned().collect::<Vec<_>>(),
+            vec!["projectHome"],
+            "a project wins over a computer"
+        );
         let ctx = Harnesses { script: Script::new(), prefs, lists: vec![], talks_to_tree: false };
         harnesses_list(&ctx, None, None, Some(CatalogAt { project: None, computer: Some("c-1".into()) })).await.unwrap();
         assert_eq!(ctx.script.calls_to("agentLists")[0].args, json!({ "entry": null }), "a computer with no home reads the lists for none");

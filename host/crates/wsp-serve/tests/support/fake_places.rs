@@ -14,6 +14,7 @@ use async_trait::async_trait;
 use indexmap::IndexMap;
 use serde::Serialize;
 use serde_json::{json, Value};
+use wsp_core::types::pending::{DaemonChannel, DaemonReach};
 use wsp_engine::machine::{ExecResult, MachineBackend};
 use wsp_engine::provision::ProvisionStage;
 use wsp_machines::places::helpers::LinkSocket;
@@ -23,9 +24,10 @@ use wsp_store::keys::Seal;
 use wsp_wire::types::agents_report::AgentSignInState;
 use wsp_wire::types::recipe_file::RecipeFile;
 use wsp_wire::views::place::{PendingComputer, PlaceAddJob, PlaceProvisionRow, PlaceSetAlso, PlaceSetupStep};
-use wsp_wire::views::place_more::{PlaceDial, PlaceHolds, PlaceRemoved, PlaceSettingWord, PlaceSettings, PlaceSettingsAsk, PlaceUpdateReply, PlaceView};
+use wsp_wire::views::place_more::{
+    PlaceDial, PlaceHolds, PlaceRemoved, PlaceSettingWord, PlaceSettings, PlaceSettingsAsk, PlaceUpdateReply, PlaceView,
+};
 use wsp_wire::views::place_setup_words::PlaceEstimate;
-use wsp_core::types::pending::{DaemonChannel, DaemonReach};
 use wsp_wire::wire::machine_link::SysSample;
 use wsp_wire::wire::place_link::{PlaceAuthRequest, PlaceJoinRequest, PlaceProveRequest, PlaceReport};
 
@@ -70,7 +72,15 @@ impl PlaceDoor for FakePlaceDoor {
     async fn prove(&self, place_id: &str, req: PlaceProveRequest, expect: &[u8], from: &str, now: u64) -> PlaceResult<Proved> {
         self.script.call("places.prove", json!({ "placeId": place_id, "req": sj(&req), "expect": expect, "from": from, "now": now }))
     }
-    async fn attach(&self, place_id: &str, _socket: Rc<dyn LinkSocket>, report: PlaceReport, from: &str, now: u64, seal: Option<Seal>) -> PlaceResult<()> {
+    async fn attach(
+        &self,
+        place_id: &str,
+        _socket: Rc<dyn LinkSocket>,
+        report: PlaceReport,
+        from: &str,
+        now: u64,
+        seal: Option<Seal>,
+    ) -> PlaceResult<()> {
         self.script.call("places.attach", json!({ "placeId": place_id, "socket": "_", "report": sj(&report), "from": from, "now": now, "seal": seal.as_ref().map(|_| "_") }))
     }
     fn link(&self, place_id: &str) -> Option<Rc<dyn DaemonReach>> {
@@ -102,7 +112,9 @@ impl PlaceDoor for FakePlaceDoor {
         self.script.call_or("places.nameOf", json!({ "placeId": place_id }), || place_id.to_string())
     }
     fn settings_at(&self, place_id: &str) -> PlaceSettings {
-        self.script.call_or("places.settingsAt", json!({ "placeId": place_id }), || serde_json::from_value(json!({})).expect("an empty PlaceSettings parses"))
+        self.script.call_or("places.settingsAt", json!({ "placeId": place_id }), || {
+            serde_json::from_value(json!({})).expect("an empty PlaceSettings parses")
+        })
     }
     fn turn_limit_at(&self, place_id: &str) -> Option<Option<u64>> {
         self.script.call_or("places.turnLimitAt", json!({ "placeId": place_id }), || None)

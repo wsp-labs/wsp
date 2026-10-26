@@ -24,13 +24,16 @@ use wsp_wire::wire::limits::AUTH_DEADLINE_CLOSE;
 use wsp_wire::wire::place_link::{PLACE_CODE_REFUSAL, SEAL_CLIENT, SEAL_UNSERVED};
 use wsp_wire::wire::runtime::{DEVICE_OPS, THREAD_OPS};
 use wsp_words::exit::HostError;
-use wsp_words::words::computer::{device_held_refusal, REQUEST_NOT_AN_OBJECT, SCOPED_TOKEN_ROAD_REFUSAL, UNAUTHORIZED};
 use wsp_words::wire::runtime::thread_op_refusal;
+use wsp_words::words::computer::{device_held_refusal, REQUEST_NOT_AN_OBJECT, SCOPED_TOKEN_ROAD_REFUSAL, UNAUTHORIZED};
 
 const UNAUTHORIZED_CLOSE: u16 = 4401;
 
 fn device(id: &str) -> DeviceView {
-    serde_json::from_value(json!({ "id": id, "name": "laptop", "createdAt": "2026-10-25T00:00:00.000Z", "lastSeenAt": "2026-10-25T00:00:00.000Z" })).unwrap()
+    serde_json::from_value(
+        json!({ "id": id, "name": "laptop", "createdAt": "2026-10-25T00:00:00.000Z", "lastSeenAt": "2026-10-25T00:00:00.000Z" }),
+    )
+    .unwrap()
 }
 
 fn scope(thread: &str, workspace: &str) -> ThreadScope {
@@ -58,7 +61,11 @@ fn report() -> Value {
 }
 
 /// A socket let in with a device token the fake door matches to `device`. The server must be built with `dopts`.
-async fn device_socket(rt: &Rc<FakeRuntime>, served: &Rc<Served>, device: HeldDevice) -> (Rc<wsp_serve::serve::socket::Socket>, Rc<RecordingSink>) {
+async fn device_socket(
+    rt: &Rc<FakeRuntime>,
+    served: &Rc<Served>,
+    device: HeldDevice,
+) -> (Rc<wsp_serve::serve::socket::Socket>, Rc<RecordingSink>) {
     rt.script.once::<Result<Option<HeldDevice>, HostError>>("devices.match", Ok(Some(device)));
     let (socket, sink) = open(served, "");
     let reply = request(&socket, &sink, 0, "auth", json!({ "token": "device-token" })).await;
@@ -305,7 +312,10 @@ fn a_threads_token_is_refused_an_op_outside_its_list_by_name() {
         assert_eq!(refused, json!({ "id": 3, "ok": false, "error": thread_op_refusal("places.remove", "t-1", Some("my-box")) }));
         // Refused by name before its shape is read: a frame with no op names "that frame", under the id it sent.
         send(&socket, json!({ "id": { "odd": true } })).await;
-        assert_eq!(sink.frames().last().unwrap(), &json!({ "id": { "odd": true }, "ok": false, "error": thread_op_refusal("that frame", "t-1", Some("my-box")) }));
+        assert_eq!(
+            sink.frames().last().unwrap(),
+            &json!({ "id": { "odd": true }, "ok": false, "error": thread_op_refusal("that frame", "t-1", Some("my-box")) })
+        );
         assert_eq!(sink.closed(), None);
         assert!(rt.script.calls_to("places.remove").is_empty());
     })
@@ -386,7 +396,11 @@ fn a_wrong_token_closes_4401() {
         assert_eq!(refused, json!({ "id": 1, "ok": false, "error": UNAUTHORIZED, "kind": "auth" }));
         assert_eq!(sink.last_text(), format!(r#"{{"id":1,"ok":false,"error":"{UNAUTHORIZED}","kind":"auth"}}"#));
         assert_eq!(sink.closed(), Some((UNAUTHORIZED_CLOSE, UNAUTHORIZED.to_string())));
-        assert_eq!(rt.script.calls_to("devices.match").iter().map(|c| c.args.clone()).collect::<Vec<_>>(), vec![json!({ "token": "wrong" })], "a token that is not the host's is asked of the device door once");
+        assert_eq!(
+            rt.script.calls_to("devices.match").iter().map(|c| c.args.clone()).collect::<Vec<_>>(),
+            vec![json!({ "token": "wrong" })],
+            "a token that is not the host's is asked of the device door once"
+        );
     })
 }
 
@@ -429,7 +443,10 @@ fn a_scoped_token_off_the_hosts_road_is_refused_before_seen() {
     block(async {
         let rt = FakeRuntime::new();
         let served = served_with(&rt, ServeOptions { own_road: Some(Rc::new(|_| false)), ..dopts(&rt) });
-        rt.script.once::<Result<Option<HeldDevice>, HostError>>("devices.match", Ok(Some(held("d-9", Some(scope("t-9", "ws-9")), Some(WorkspaceOrigin::Here)))));
+        rt.script.once::<Result<Option<HeldDevice>, HostError>>(
+            "devices.match",
+            Ok(Some(held("d-9", Some(scope("t-9", "ws-9")), Some(WorkspaceOrigin::Here)))),
+        );
         let (socket, sink) = open(&served, "");
         let refused = request(&socket, &sink, 1, "auth", json!({ "token": "scoped" })).await;
         assert_eq!(refused, json!({ "id": 1, "ok": false, "error": SCOPED_TOKEN_ROAD_REFUSAL, "kind": "auth" }));
@@ -450,7 +467,10 @@ fn a_device_auth_moves_its_last_seen_and_the_host_token_does_not() {
         assert!(rt.script.calls_to("devices.seen").is_empty());
         let _ = device_socket(&rt, &served, held("d-1", None, None)).await;
         tokio::task::yield_now().await;
-        assert_eq!(rt.script.calls_to("devices.seen").iter().map(|c| c.args.clone()).collect::<Vec<_>>(), vec![json!({ "id": "d-1", "now": 42 })]);
+        assert_eq!(
+            rt.script.calls_to("devices.seen").iter().map(|c| c.args.clone()).collect::<Vec<_>>(),
+            vec![json!({ "id": "d-1", "now": 42 })]
+        );
     })
 }
 
@@ -522,7 +542,14 @@ fn seal_pair() -> (Seal, Seal) {
 }
 
 fn challenge(seal: Seal, expect: &[u8]) -> PlaceChallenge {
-    PlaceChallenge { nonce: "host-nonce".into(), host_public_key: "host-public".into(), signature: "host-sig".into(), ephemeral: "host-half".into(), expect: expect.to_vec(), seal }
+    PlaceChallenge {
+        nonce: "host-nonce".into(),
+        host_public_key: "host-public".into(),
+        signature: "host-sig".into(),
+        ephemeral: "host-half".into(),
+        expect: expect.to_vec(),
+        seal,
+    }
 }
 
 async fn send_sealed(socket: &Rc<wsp_serve::serve::socket::Socket>, client: &mut Seal, frame: Value) {
@@ -545,9 +572,15 @@ fn seal_open_answers_in_the_clear_then_seals_every_frame() {
         let served = served_with(&rt, opts());
         let (socket, sink) = open(&served, "");
         let opened = request(&socket, &sink, 1, "seal.open", json!({ "nonce": b64(32, 1), "ephemeral": b64(32, 2) })).await;
-        assert_eq!(sink.last_text(), r#"{"id":1,"ok":true,"nonce":"host-nonce","hostPublicKey":"host-public","signature":"host-sig","ephemeral":"host-half"}"#);
+        assert_eq!(
+            sink.last_text(),
+            r#"{"id":1,"ok":true,"nonce":"host-nonce","hostPublicKey":"host-public","signature":"host-sig","ephemeral":"host-half"}"#
+        );
         assert_eq!(opened["ok"], json!(true));
-        assert_eq!(rt.script.calls_to("places.answerChallenge")[0].args, json!({ "subject": SEAL_CLIENT, "nonce": b64(32, 1), "ephemeral": b64(32, 2) }));
+        assert_eq!(
+            rt.script.calls_to("places.answerChallenge")[0].args,
+            json!({ "subject": SEAL_CLIENT, "nonce": b64(32, 1), "ephemeral": b64(32, 2) })
+        );
 
         send_sealed(&socket, &mut client, json!({ "id": 2, "op": "auth", "token": TOKEN })).await;
         send_sealed(&socket, &mut client, json!({ "id": 3, "op": "workspaces.list" })).await;
@@ -643,7 +676,12 @@ fn a_place_handshake_on_a_sealed_socket_closes() {
         let served = served_with(&rt, opts());
         let (socket, sink) = open(&served, "");
         request(&socket, &sink, 1, "seal.open", json!({ "nonce": b64(32, 1), "ephemeral": b64(32, 2) })).await;
-        send_sealed(&socket, &mut client, json!({ "id": 2, "op": "place.auth", "placeId": "p_1", "nonce": b64(32, 1), "ephemeral": b64(32, 2) })).await;
+        send_sealed(
+            &socket,
+            &mut client,
+            json!({ "id": 2, "op": "place.auth", "placeId": "p_1", "nonce": b64(32, 1), "ephemeral": b64(32, 2) }),
+        )
+        .await;
         assert_eq!(opened_replies(&sink, &mut client), vec![json!({ "id": 2, "ok": false, "error": UNAUTHORIZED, "kind": "auth" })]);
         assert_eq!(sink.closed(), Some((UNAUTHORIZED_CLOSE, UNAUTHORIZED.to_string())));
         assert!(rt.script.calls_to("places.auth").is_empty(), "the door is not asked");
@@ -658,7 +696,9 @@ fn a_join_code_not_held_says_the_code_refusal() {
         rt.script.once::<Result<Option<wsp_machines::places::types::JoinAnswer>, HostError>>("places.join", Ok(None));
         let served = served_with(&rt, opts());
         let (socket, sink) = open(&served, "");
-        let refused = request(&socket, &sink, 1, "place.join", json!({ "publicKey": b64(44, 5), "nonce": b64(32, 1), "ephemeral": b64(32, 2) })).await;
+        let refused =
+            request(&socket, &sink, 1, "place.join", json!({ "publicKey": b64(44, 5), "nonce": b64(32, 1), "ephemeral": b64(32, 2) }))
+                .await;
         assert_eq!(refused, json!({ "id": 1, "ok": false, "error": PLACE_CODE_REFUSAL, "kind": "auth" }));
         assert_eq!(sink.closed(), Some((UNAUTHORIZED_CLOSE, UNAUTHORIZED.to_string())));
     })
@@ -669,8 +709,12 @@ fn a_place_auth_refusal_carries_the_doors_signed_fields() {
     // D15. serve.ts:744
     block(async {
         let rt = FakeRuntime::with_places();
-        let signed: wsp_wire::wire::place_link::PlaceAuthRefusal = serde_json::from_value(json!({ "hostPublicKey": b64(44, 9), "signature": b64(64, 10) })).unwrap();
-        rt.script.once::<Result<AuthAnswer, HostError>>("places.auth", Ok(AuthAnswer::Refusal { refusal: "no such place".into(), signed: signed.clone() }));
+        let signed: wsp_wire::wire::place_link::PlaceAuthRefusal =
+            serde_json::from_value(json!({ "hostPublicKey": b64(44, 9), "signature": b64(64, 10) })).unwrap();
+        rt.script.once::<Result<AuthAnswer, HostError>>(
+            "places.auth",
+            Ok(AuthAnswer::Refusal { refusal: "no such place".into(), signed: signed.clone() }),
+        );
         let served = served_with(&rt, opts());
         let (socket, sink) = open(&served, "");
         request(&socket, &sink, 1, "place.auth", json!({ "placeId": "p_1", "nonce": b64(32, 1), "ephemeral": b64(32, 2) })).await;
@@ -690,7 +734,9 @@ fn a_place_join_with_no_place_door_refuses_in_the_doors_sentence() {
         let rt = FakeRuntime::new();
         let served = served_with(&rt, opts());
         let (socket, sink) = open(&served, "");
-        let refused = request(&socket, &sink, 1, "place.join", json!({ "publicKey": b64(44, 5), "nonce": b64(32, 1), "ephemeral": b64(32, 2) })).await;
+        let refused =
+            request(&socket, &sink, 1, "place.join", json!({ "publicKey": b64(44, 5), "nonce": b64(32, 1), "ephemeral": b64(32, 2) }))
+                .await;
         assert_eq!(refused, json!({ "id": 1, "ok": false, "error": wsp_machines::places::types::NO_PLACE_DOOR, "kind": "auth" }));
     })
 }
@@ -701,15 +747,21 @@ fn a_place_that_proved_is_handed_over_and_reads_nothing_more() {
     block(async {
         let rt = FakeRuntime::with_places();
         let (host_seal, mut client) = seal_pair();
-        let reply: wsp_wire::wire::place_link::PlaceAuthReply =
-            serde_json::from_value(json!({ "nonce": b64(32, 8), "hostPublicKey": b64(44, 9), "signature": b64(64, 10), "ephemeral": b64(32, 11) })).unwrap();
-        rt.script.once::<Result<AuthAnswer, HostError>>("places.auth", Ok(AuthAnswer::Reply { reply: reply.clone(), expect: b"to-sign".to_vec(), seal: host_seal }));
+        let reply: wsp_wire::wire::place_link::PlaceAuthReply = serde_json::from_value(
+            json!({ "nonce": b64(32, 8), "hostPublicKey": b64(44, 9), "signature": b64(64, 10), "ephemeral": b64(32, 11) }),
+        )
+        .unwrap();
+        rt.script.once::<Result<AuthAnswer, HostError>>(
+            "places.auth",
+            Ok(AuthAnswer::Reply { reply: reply.clone(), expect: b"to-sign".to_vec(), seal: host_seal }),
+        );
         let proved_report: wsp_wire::wire::place_link::PlaceReport = serde_json::from_value(report()).expect("a report the schema takes");
         rt.script.once::<Result<Proved, HostError>>("places.prove", Ok(Proved::Report { report: proved_report, device: None }));
         rt.script.once::<Result<(), HostError>>("places.attach", Ok(()));
         let served = served_with(&rt, ServeOptions { auth_deadline_ms: Some(60), ..opts() });
         let (socket, sink) = open(&served, "");
-        let answered = request(&socket, &sink, 1, "place.auth", json!({ "placeId": "p_1", "nonce": b64(32, 1), "ephemeral": b64(32, 2) })).await;
+        let answered =
+            request(&socket, &sink, 1, "place.auth", json!({ "placeId": "p_1", "nonce": b64(32, 1), "ephemeral": b64(32, 2) })).await;
         let mut expected = json!({ "id": 1, "ok": true });
         for (k, v) in serde_json::to_value(&reply).unwrap().as_object().unwrap() {
             expected[k] = v.clone();
@@ -722,7 +774,10 @@ fn a_place_that_proved_is_handed_over_and_reads_nothing_more() {
         let prove = &rt.script.calls_to("places.prove")[0];
         assert_eq!(prove.args["placeId"], json!("p_1"));
         assert_eq!(prove.args["from"], json!("127.0.0.1"));
-        assert_eq!(rt.script.names().iter().filter(|n| n.starts_with("places.")).cloned().collect::<Vec<_>>(), vec!["places.auth", "places.prove", "places.attach"]);
+        assert_eq!(
+            rt.script.names().iter().filter(|n| n.starts_with("places.")).cloned().collect::<Vec<_>>(),
+            vec!["places.auth", "places.prove", "places.attach"]
+        );
         // Nothing this socket sends after the handover reaches the door, and the deadline is off.
         send_sealed(&socket, &mut client, json!({ "id": 3, "op": "auth", "token": TOKEN })).await;
         tokio::time::sleep(std::time::Duration::from_millis(120)).await;
@@ -737,15 +792,21 @@ fn a_prove_refused_closes_4401() {
     block(async {
         let rt = FakeRuntime::with_places();
         let (host_seal, mut client) = seal_pair();
-        let reply: wsp_wire::wire::place_link::PlaceAuthReply =
-            serde_json::from_value(json!({ "nonce": b64(32, 8), "hostPublicKey": b64(44, 9), "signature": b64(64, 10), "ephemeral": b64(32, 11) })).unwrap();
-        rt.script.once::<Result<AuthAnswer, HostError>>("places.auth", Ok(AuthAnswer::Reply { reply, expect: b"x".to_vec(), seal: host_seal }));
+        let reply: wsp_wire::wire::place_link::PlaceAuthReply = serde_json::from_value(
+            json!({ "nonce": b64(32, 8), "hostPublicKey": b64(44, 9), "signature": b64(64, 10), "ephemeral": b64(32, 11) }),
+        )
+        .unwrap();
+        rt.script
+            .once::<Result<AuthAnswer, HostError>>("places.auth", Ok(AuthAnswer::Reply { reply, expect: b"x".to_vec(), seal: host_seal }));
         rt.script.once::<Result<Proved, HostError>>("places.prove", Err(HostError::new("the signature does not verify")));
         let served = served_with(&rt, opts());
         let (socket, sink) = open(&served, "");
         request(&socket, &sink, 1, "place.auth", json!({ "placeId": "p_1", "nonce": b64(32, 1), "ephemeral": b64(32, 2) })).await;
         send_sealed(&socket, &mut client, json!({ "id": 2, "op": "place.prove", "signature": b64(64, 7), "report": report() })).await;
-        assert_eq!(opened_replies(&sink, &mut client), vec![json!({ "id": 2, "ok": false, "error": "the signature does not verify", "kind": "auth" })]);
+        assert_eq!(
+            opened_replies(&sink, &mut client),
+            vec![json!({ "id": 2, "ok": false, "error": "the signature does not verify", "kind": "auth" })]
+        );
         assert_eq!(sink.closed(), Some((UNAUTHORIZED_CLOSE, UNAUTHORIZED.to_string())));
         assert!(rt.script.calls_to("places.attach").is_empty());
     })
@@ -757,9 +818,12 @@ fn while_proving_any_other_op_closes() {
     block(async {
         let rt = FakeRuntime::with_places();
         let (host_seal, mut client) = seal_pair();
-        let reply: wsp_wire::wire::place_link::PlaceAuthReply =
-            serde_json::from_value(json!({ "nonce": b64(32, 8), "hostPublicKey": b64(44, 9), "signature": b64(64, 10), "ephemeral": b64(32, 11) })).unwrap();
-        rt.script.once::<Result<AuthAnswer, HostError>>("places.auth", Ok(AuthAnswer::Reply { reply, expect: b"x".to_vec(), seal: host_seal }));
+        let reply: wsp_wire::wire::place_link::PlaceAuthReply = serde_json::from_value(
+            json!({ "nonce": b64(32, 8), "hostPublicKey": b64(44, 9), "signature": b64(64, 10), "ephemeral": b64(32, 11) }),
+        )
+        .unwrap();
+        rt.script
+            .once::<Result<AuthAnswer, HostError>>("places.auth", Ok(AuthAnswer::Reply { reply, expect: b"x".to_vec(), seal: host_seal }));
         let served = served_with(&rt, opts());
         let (socket, sink) = open(&served, "");
         request(&socket, &sink, 1, "place.auth", json!({ "placeId": "p_1", "nonce": b64(32, 1), "ephemeral": b64(32, 2) })).await;
@@ -873,25 +937,45 @@ fn device_auth_case() -> DeviceAuthCase {
     let signer = Signer { fingerprint: key_fingerprint(&signer_keys.public_key), public_key: signer_keys.public_key.clone() };
     let fp = key_fingerprint(&device_keys.public_key);
     let issued_at = "2026-10-25T00:00:00.000Z";
-    let signature = sign_place_bytes(&signer_keys.private_key_pem, &device_admission_transcript(&fp, &signer.fingerprint, issued_at)).unwrap();
+    let signature =
+        sign_place_bytes(&signer_keys.private_key_pem, &device_admission_transcript(&fp, &signer.fingerprint, issued_at)).unwrap();
     let row: AccountDevice = serde_json::from_value(json!({
         "id": "relay-d-1", "name": "laptop", "fingerprint": fp,
         "admissions": [{ "by": signer.fingerprint, "issuedAt": issued_at, "signature": signature }]
     }))
     .expect("an account row with one admission");
-    DeviceAuthCase { signer, device_public: device_keys.public_key, device_private: device_keys.private_key_pem, row, expect: b"socket-transcript".to_vec() }
+    DeviceAuthCase {
+        signer,
+        device_public: device_keys.public_key,
+        device_private: device_keys.private_key_pem,
+        row,
+        expect: b"socket-transcript".to_vec(),
+    }
 }
 
-async fn device_auth(rt: &Rc<FakeRuntime>, account: Option<Account>, case: &DeviceAuthCase, sign_this: &[u8]) -> (Rc<wsp_serve::serve::socket::Socket>, Rc<RecordingSink>, Value) {
+async fn device_auth(
+    rt: &Rc<FakeRuntime>,
+    account: Option<Account>,
+    case: &DeviceAuthCase,
+    sign_this: &[u8],
+) -> (Rc<wsp_serve::serve::socket::Socket>, Rc<RecordingSink>, Value) {
     let devices: Rc<dyn wsp_core::devices::DeviceDoor> = rt.devices.clone();
     let admitted = account.map(|a| Rc::new(a) as Rc<dyn AdmittedDevices>);
-    let served = served_with(rt, ServeOptions { devices: Some(devices), admitted, released: Some(Released { version: Some("0.4.2".into()), road: None }), ..opts() });
+    let served = served_with(
+        rt,
+        ServeOptions { devices: Some(devices), admitted, released: Some(Released { version: Some("0.4.2".into()), road: None }), ..opts() },
+    );
     let (host_seal, mut client) = seal_pair();
     rt.script.once::<Option<PlaceChallenge>>("places.answerChallenge", Some(challenge(host_seal, &case.expect)));
     let (socket, sink) = open(&served, "");
     request(&socket, &sink, 1, "seal.open", json!({ "nonce": b64(32, 1), "ephemeral": b64(32, 2) })).await;
     let signature = sign_place_bytes(&case.device_private, sign_this).unwrap();
-    send_sealed(&socket, &mut client, json!({ "id": 2, "op": "device.auth", "name": "laptop", "publicKey": case.device_public, "signature": signature })).await;
+    send_sealed(
+        &socket,
+        &mut client,
+        json!({ "id": 2, "op": "device.auth", "name": "laptop", "publicKey": case.device_public, "signature": signature }),
+    )
+    .await;
     let reply = opened_replies(&sink, &mut client).pop().expect("device.auth is answered");
     (socket, sink, reply)
 }
@@ -910,7 +994,13 @@ fn device_auth_refuses_each_check_in_order() {
 
         // No signer.
         let rt = FakeRuntime::with_places();
-        let (_, _, reply) = device_auth(&rt, Some(Account { signer: None, list: Some(vec![case.row.clone()]), refreshed: RefCell::new(0), after_refresh: None }), &case, &case.expect).await;
+        let (_, _, reply) = device_auth(
+            &rt,
+            Some(Account { signer: None, list: Some(vec![case.row.clone()]), refreshed: RefCell::new(0), after_refresh: None }),
+            &case,
+            &case.expect,
+        )
+        .await;
         assert_eq!(reply, refusal(DEVICE_ACCOUNT_UNSERVED));
 
         // A key the listing lacks, asked once more and still lacking.
@@ -922,7 +1012,12 @@ fn device_auth_refuses_each_check_in_order() {
         // A signature over other bytes than this socket's transcript.
         let rt = FakeRuntime::with_places();
         rt.script.on("devices.list", |_| Ok::<Vec<DeviceView>, HostError>(vec![]));
-        let account = Account { signer: Some(case.signer.clone()), list: Some(vec![case.row.clone()]), refreshed: RefCell::new(0), after_refresh: None };
+        let account = Account {
+            signer: Some(case.signer.clone()),
+            list: Some(vec![case.row.clone()]),
+            refreshed: RefCell::new(0),
+            after_refresh: None,
+        };
         let (_, _, reply) = device_auth(&rt, Some(account), &case, b"bytes the device chose").await;
         assert_eq!(reply, refusal(DEVICE_AUTH_REFUSAL));
         assert!(rt.script.calls_to("devices.admitAccount").is_empty());
@@ -931,7 +1026,12 @@ fn device_auth_refuses_each_check_in_order() {
         let rt = FakeRuntime::with_places();
         rt.script.on("devices.list", |_| Ok::<Vec<DeviceView>, HostError>(vec![]));
         rt.script.once::<Result<bool, HostError>>("devices.refuses", Ok(true));
-        let account = Account { signer: Some(case.signer.clone()), list: Some(vec![case.row.clone()]), refreshed: RefCell::new(0), after_refresh: None };
+        let account = Account {
+            signer: Some(case.signer.clone()),
+            list: Some(vec![case.row.clone()]),
+            refreshed: RefCell::new(0),
+            after_refresh: None,
+        };
         let (_, _, reply) = device_auth(&rt, Some(account), &case, &case.expect).await;
         assert_eq!(reply, refusal(DEVICE_REVOKED_REFUSAL));
         assert!(rt.script.calls_to("devices.admitAccount").is_empty());
@@ -945,10 +1045,22 @@ fn device_auth_with_no_seal_open_is_unauthorized() {
         let case = device_auth_case();
         let rt = FakeRuntime::with_places();
         let devices: Rc<dyn wsp_core::devices::DeviceDoor> = rt.devices.clone();
-        let account: Rc<dyn AdmittedDevices> = Rc::new(Account { signer: Some(case.signer.clone()), list: Some(vec![case.row.clone()]), refreshed: RefCell::new(0), after_refresh: None });
+        let account: Rc<dyn AdmittedDevices> = Rc::new(Account {
+            signer: Some(case.signer.clone()),
+            list: Some(vec![case.row.clone()]),
+            refreshed: RefCell::new(0),
+            after_refresh: None,
+        });
         let served = served_with(&rt, ServeOptions { devices: Some(devices), admitted: Some(account), ..opts() });
         let (socket, sink) = open(&served, "");
-        let reply = request(&socket, &sink, 1, "device.auth", json!({ "name": "laptop", "publicKey": case.device_public, "signature": b64(64, 12) })).await;
+        let reply = request(
+            &socket,
+            &sink,
+            1,
+            "device.auth",
+            json!({ "name": "laptop", "publicKey": case.device_public, "signature": b64(64, 12) }),
+        )
+        .await;
         assert_eq!(reply, json!({ "id": 1, "ok": false, "error": UNAUTHORIZED, "kind": "auth" }));
     })
 }
@@ -962,7 +1074,12 @@ fn device_auth_admits_and_names_the_release() {
         rt.script.on("devices.list", |_| Ok::<Vec<DeviceView>, HostError>(vec![]));
         rt.script.once::<Result<PairedDevice, HostError>>("devices.admitAccount", Ok(paired("d-acct")));
         // The listing lacks the key until one more beat, whose own failure is swallowed.
-        let account = Account { signer: Some(case.signer.clone()), list: None, refreshed: RefCell::new(0), after_refresh: Some(vec![case.row.clone()]) };
+        let account = Account {
+            signer: Some(case.signer.clone()),
+            list: None,
+            refreshed: RefCell::new(0),
+            after_refresh: Some(vec![case.row.clone()]),
+        };
         let (socket, _sink, reply) = device_auth(&rt, Some(account), &case, &case.expect).await;
         assert_eq!(reply.to_string(), r#"{"id":2,"ok":true,"deviceId":"d-acct","deviceToken":"token-d-acct","version":"0.4.2"}"#);
         let via = &rt.script.calls_to("devices.admitAccount")[0].args["via"];
@@ -989,7 +1106,11 @@ fn a_refusal_is_logged_once_as_op_kind_and_first_line() {
         let rt = FakeRuntime::new();
         rt.script.once::<Result<wsp_wire::views::workspace_more::WorkspaceView, HostError>>(
             "workspaces.get",
-            Err(wsp_words::exit::refusal("no workspace nope\nsecond line", "Pick one from the list.", Some(wsp_words::exit::Kind::NotFound))),
+            Err(wsp_words::exit::refusal(
+                "no workspace nope\nsecond line",
+                "Pick one from the list.",
+                Some(wsp_words::exit::Kind::NotFound),
+            )),
         );
         let (served, lines) = served_logging(&rt);
         let (socket, sink) = host_socket(&served).await;
@@ -1041,7 +1162,8 @@ fn a_padded_key_is_blanked_and_a_repeated_key_never_logs() {
     // D21, D23. serve-refusal.test.ts:70, 110
     const KEY: &str = "sk-ant-x-fake-refusal-key";
     const ROW: &str = "sk-ant-x-fake-row-login";
-    let payload = json!({ "id": 1, "ok": false, "error": format!("Box refused {KEY} and {ROW}. Check it and paste it again."), "kind": "auth" });
+    let payload =
+        json!({ "id": 1, "ok": false, "error": format!("Box refused {KEY} and {ROW}. Check it and paste it again."), "kind": "auth" });
     let frame = json!({ "id": 1, "op": "init.keys", "provider": "box", "key": format!("  {KEY}\n"), "rows": { "logins/claude": ROW } });
     let line = refused_line(Some(&frame), payload.as_object().unwrap(), None);
     assert_eq!(line, "refused init.keys kind=auth: Box refused <redacted> and <redacted>. Check it and paste it again.");
@@ -1062,10 +1184,14 @@ fn an_undeclared_op_logs_as_frame() {
 fn short_secret_values_stay_readable() {
     // D23. serve-refusal.test.ts:128
     let payload = json!({ "id": 1, "ok": false, "error": "Box refused. Check it and paste it again.", "kind": "auth" });
-    let line = refused_line(Some(&json!({ "id": 1, "op": "init.keys", "provider": "box", "key": " " })), payload.as_object().unwrap(), None);
+    let line =
+        refused_line(Some(&json!({ "id": 1, "op": "init.keys", "provider": "box", "key": " " })), payload.as_object().unwrap(), None);
     assert_eq!(line, "refused init.keys kind=auth: Box refused. Check it and paste it again.");
     let auth = json!({ "id": 1, "ok": false, "error": UNAUTHORIZED, "kind": "auth" });
-    assert_eq!(refused_line(Some(&json!({ "id": 1, "op": "auth", "token": "u" })), auth.as_object().unwrap(), None), "refused auth kind=auth: unauthorized");
+    assert_eq!(
+        refused_line(Some(&json!({ "id": 1, "op": "auth", "token": "u" })), auth.as_object().unwrap(), None),
+        "refused auth kind=auth: unauthorized"
+    );
 }
 
 #[test]
@@ -1122,9 +1248,15 @@ fn invariant_3_a_threads_frames_are_stamped_with_its_mint_road() {
         let served = served_with(&rt, dopts(&rt));
         let by = scope("t-1", "ws-1");
         let (on_machine, _) = device_socket(&rt, &served, held("d-1", Some(by.clone()), Some(WorkspaceOrigin::Relayed))).await;
-        assert_eq!(on_machine.road().origin(Some(WorkspaceOrigin::Here)), Some(Caller::Scoped { origin: WorkspaceOrigin::Relayed, by: by.clone() }));
+        assert_eq!(
+            on_machine.road().origin(Some(WorkspaceOrigin::Here)),
+            Some(Caller::Scoped { origin: WorkspaceOrigin::Relayed, by: by.clone() })
+        );
         let (beside, _) = device_socket(&rt, &served, held("d-2", Some(by.clone()), Some(WorkspaceOrigin::Here))).await;
-        assert_eq!(beside.road().origin(Some(WorkspaceOrigin::Relayed)), Some(Caller::Scoped { origin: WorkspaceOrigin::Here, by: by.clone() }));
+        assert_eq!(
+            beside.road().origin(Some(WorkspaceOrigin::Relayed)),
+            Some(Caller::Scoped { origin: WorkspaceOrigin::Here, by: by.clone() })
+        );
         // A scoped record with no road is an older host's machine token: relayed.
         let (old, _) = device_socket(&rt, &served, held("d-3", Some(by.clone()), None)).await;
         assert_eq!(old.road().origin(None), Some(Caller::Scoped { origin: WorkspaceOrigin::Relayed, by }));
@@ -1143,7 +1275,10 @@ fn invariant_3_a_threads_origin_reaches_the_verb_whatever_it_sends() {
         let by = scope("t-1", "ws-1");
         let (socket, sink) = device_socket(&rt, &served, held("d-1", Some(by.clone()), Some(WorkspaceOrigin::Relayed))).await;
         request(&socket, &sink, 1, "workspaces.list", json!({ "origin": "here" })).await;
-        assert_eq!(rt.script.calls_to("workspaces.list")[0].args["origin"], json!({ "origin": "relayed", "by": serde_json::to_value(&by).unwrap() }));
+        assert_eq!(
+            rt.script.calls_to("workspaces.list")[0].args["origin"],
+            json!({ "origin": "relayed", "by": serde_json::to_value(&by).unwrap() })
+        );
     })
 }
 

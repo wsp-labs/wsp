@@ -17,7 +17,8 @@ use wsp_core::types::api::{OutsideOpening, Placed, PlacedStart, ProjectAdded, Pr
 use wsp_core::types::wiring::{AccessMove, Local, SessionHandle, SteerTaken};
 use wsp_serve::serve::served::{DynRuntime, Payload};
 use wsp_serve::serve_app_procs::{
-    app_procs_hub_of, is_app_procs_request, AppProcsHub, AppProcsSocket, Push, APP_PROCS_OFF_ROAD, APP_PROCS_UNOFFERED, APP_PROCS_WATCH_OFF_ROAD,
+    app_procs_hub_of, is_app_procs_request, AppProcsHub, AppProcsSocket, Push, APP_PROCS_OFF_ROAD, APP_PROCS_UNOFFERED,
+    APP_PROCS_WATCH_OFF_ROAD,
 };
 use wsp_serve::serve_broker::{answer_broker, BrokerDoor, CloudSignIn, BROKER_UNSERVED};
 use wsp_serve::serve_conversations::answer_conversations;
@@ -25,8 +26,12 @@ use wsp_serve::serve_processes::answer_processes;
 use wsp_serve::serve_projects::{answer_project, thread_places};
 use wsp_serve::serve_slates::{answer_slate, hold_key, SlateHolds};
 use wsp_serve::serve_start::{serve_start, start_options_of, AnswerFn};
-use wsp_slates::pending::wire::{SlateEventAnswer, SlateEventOutcome, SlateReadAnswer, SlateStateAnswer, SlateView, SlateWriteAnswer, SlatesImageAnswer};
-use wsp_slates::slates::{ApprovalScope, ApproveParams, CatalogParams, EventParams, ReadParams, SlateTarget, Slates, StateParams, WriteParams};
+use wsp_slates::pending::wire::{
+    SlateEventAnswer, SlateEventOutcome, SlateReadAnswer, SlateStateAnswer, SlateView, SlateWriteAnswer, SlatesImageAnswer,
+};
+use wsp_slates::slates::{
+    ApprovalScope, ApproveParams, CatalogParams, EventParams, ReadParams, SlateTarget, Slates, StateParams, WriteParams,
+};
 use wsp_threads::threads::answered_start::{OnHeld, StartedAt};
 use wsp_wire::types::projects::BRANCH_ON_A_THREAD_LINE;
 use wsp_wire::types::thread_defaults::AccessChoice;
@@ -213,7 +218,11 @@ fn unwatching_the_last_page_empties_every_offer_and_says_so() {
     assert_eq!(page.ask(&hub, "appProcs.unwatch", json!({})).unwrap(), json!({}));
     assert_eq!(wanted(&app), vec![json!(true), json!(false)]);
     let next = sock(true);
-    assert_eq!(next.ask(&hub, "appProcs.watch", json!({})).unwrap(), json!({ "procs": [] }), "what was read for pages that have gone is not handed on");
+    assert_eq!(
+        next.ask(&hub, "appProcs.watch", json!({})).unwrap(),
+        json!({ "procs": [] }),
+        "what was read for pages that have gone is not handed on"
+    );
 }
 
 // H8. serve-app-procs.test.ts:77
@@ -472,7 +481,10 @@ fn slate_answers_split_params_and_origin() {
         assert_eq!(rig.ask("slates.cancel", json!({ "threadId": "t1", "run": "r1" })).await.unwrap(), json!({}));
         assert_eq!(rig.ask("slates.revoke", json!({ "threadId": "t1", "key": "k" })).await.unwrap(), json!({}));
         let event = rig
-            .ask("slates.event", json!({ "threadId": "t1", "version": 4, "piece": "p", "event": "press", "requestId": "q", "origin": "paired" }))
+            .ask(
+                "slates.event",
+                json!({ "threadId": "t1", "version": 4, "piece": "p", "event": "press", "requestId": "q", "origin": "paired" }),
+            )
             .await
             .unwrap();
         assert_eq!(event, json!({ "outcome": "done", "said": "pressed" }));
@@ -673,7 +685,8 @@ fn ids(rows: &Rows) -> Vec<String> {
 fn thread_places_on_a_machine_are_the_providers_alone() {
     block(async {
         let rt = FakeRuntime::with_places();
-        rt.script.once::<Result<wsp_wire::views::workspace_more::WorkspaceView, HostError>>("workspaces.get", Ok(workspace("ws_1", "cloud")));
+        rt.script
+            .once::<Result<wsp_wire::views::workspace_more::WorkspaceView, HostError>>("workspaces.get", Ok(workspace("ws_1", "cloud")));
         script_rows(&rt, vec![place("pl_1", "computer"), place("box", "provider")]);
         let rows = thread_places(&*rt, Some(scope("ws_1")), 5).await.unwrap();
         assert_eq!(ids(&rows), vec!["box".to_string()]);
@@ -688,8 +701,10 @@ fn thread_places_on_a_machine_are_the_providers_alone() {
 fn thread_places_in_a_folder_reach_its_projects_computers() {
     block(async {
         let rt = FakeRuntime::with_places();
-        rt.script.once::<Result<wsp_wire::views::workspace_more::WorkspaceView, HostError>>("workspaces.get", Ok(workspace("ws_1", "local")));
-        rt.script.once::<Result<Vec<wsp_wire::views::workspace::ProjectView>, HostError>>("projects.list", Ok(vec![project("pr_1", "pl_1")]));
+        rt.script
+            .once::<Result<wsp_wire::views::workspace_more::WorkspaceView, HostError>>("workspaces.get", Ok(workspace("ws_1", "local")));
+        rt.script
+            .once::<Result<Vec<wsp_wire::views::workspace::ProjectView>, HostError>>("projects.list", Ok(vec![project("pr_1", "pl_1")]));
         script_rows(&rt, vec![place("pl_1", "computer"), place("pl_2", "computer"), place("box", "provider")]);
         let rows = thread_places(&*rt, Some(scope("ws_1")), 5).await.unwrap();
         assert_eq!(ids(&rows), vec!["pl_1".to_string(), "box".to_string()], "the computer holding a project, and every provider");
@@ -702,7 +717,10 @@ fn thread_places_in_a_folder_reach_its_projects_computers() {
 fn thread_places_without_a_workspace_or_a_door_read_the_providers_or_nothing() {
     block(async {
         let rt = FakeRuntime::with_places();
-        rt.script.once::<Result<wsp_wire::views::workspace_more::WorkspaceView, HostError>>("workspaces.get", Err(HostError::new("no workspace ws_9")));
+        rt.script.once::<Result<wsp_wire::views::workspace_more::WorkspaceView, HostError>>(
+            "workspaces.get",
+            Err(HostError::new("no workspace ws_9")),
+        );
         script_rows(&rt, vec![place("pl_1", "computer"), place("box", "provider")]);
         let rows = thread_places(&*rt, Some(scope("ws_9")), 5).await.expect("a failed workspace read is no workspace, never a failure");
         assert_eq!(ids(&rows), vec!["box".to_string()]);
@@ -725,8 +743,10 @@ fn thread_places_without_a_workspace_or_a_door_read_the_providers_or_nothing() {
 fn thread_places_drop_the_road_and_label_providers() {
     block(async {
         let rt = FakeRuntime::with_places();
-        rt.script.once::<Result<wsp_wire::views::workspace_more::WorkspaceView, HostError>>("workspaces.get", Ok(workspace("ws_1", "local")));
-        rt.script.once::<Result<Vec<wsp_wire::views::workspace::ProjectView>, HostError>>("projects.list", Ok(vec![project("pr_1", "pl_1")]));
+        rt.script
+            .once::<Result<wsp_wire::views::workspace_more::WorkspaceView, HostError>>("workspaces.get", Ok(workspace("ws_1", "local")));
+        rt.script
+            .once::<Result<Vec<wsp_wire::views::workspace::ProjectView>, HostError>>("projects.list", Ok(vec![project("pr_1", "pl_1")]));
         let mut computer = place("pl_1", "computer");
         computer["road"] = json!({ "ssh": "me@box" });
         let mut provider = place("box", "provider");
@@ -735,7 +755,11 @@ fn thread_places_drop_the_road_and_label_providers() {
         let rows = thread_places(&*rt, Some(scope("ws_1")), 5).await.unwrap();
         let said = place_said(&PlaceRef { id: "box".into(), name: "box".into(), kind: Some("provider".into()) });
         let shown: Vec<Value> = rows.iter().map(|r| serde_json::to_value(r).unwrap()).collect();
-        assert_eq!(shown[0], json!({ "id": "pl_1", "kind": "computer", "name": "pl_1", "default": false }), "a computer's row loses its road and gains no label");
+        assert_eq!(
+            shown[0],
+            json!({ "id": "pl_1", "kind": "computer", "name": "pl_1", "default": false }),
+            "a computer's row loses its road and gains no label"
+        );
         assert_eq!(shown[1], json!({ "id": "box", "kind": "provider", "name": "box", "label": said, "default": false }));
         assert!(shown[1].get("road").is_none());
     })
@@ -750,29 +774,50 @@ fn project_answers_pass_only_the_fields_sent() {
     block(async {
         let rt = FakeRuntime::new();
         let view = project("pr_1", "pl_1");
-        rt.script.once::<Result<ProjectAdded, HostError>>("projects.add", Ok(ProjectAdded { project: view.clone(), notice: Some("kept".into()) }));
+        rt.script.once::<Result<ProjectAdded, HostError>>(
+            "projects.add",
+            Ok(ProjectAdded { project: view.clone(), notice: Some("kept".into()) }),
+        );
         let added = answer_project(rt.projects(), &req("projects.add", json!({ "source": "/app" })), here()).await.unwrap();
-        assert_eq!(Value::Object(added).to_string(), json!({ "project": serde_json::to_value(&view).unwrap(), "notice": "kept" }).to_string());
+        assert_eq!(
+            Value::Object(added).to_string(),
+            json!({ "project": serde_json::to_value(&view).unwrap(), "notice": "kept" }).to_string()
+        );
         rt.script.once::<Result<ProjectAdded, HostError>>("projects.add", Ok(ProjectAdded { project: view.clone(), notice: None }));
-        let added = answer_project(rt.projects(), &req("projects.add", json!({ "source": "/app", "on": "pl_1", "name": "n", "base": "main", "into": "/x" })), here()).await.unwrap();
+        let added = answer_project(
+            rt.projects(),
+            &req("projects.add", json!({ "source": "/app", "on": "pl_1", "name": "n", "base": "main", "into": "/x" })),
+            here(),
+        )
+        .await
+        .unwrap();
         assert_eq!(Value::Object(added), json!({ "project": serde_json::to_value(&view).unwrap() }), "no notice, no key");
         let ask = |n: usize| args_of(&rt, "projects.add", n)["ask"].clone();
         assert_eq!(ask(0), json!(format!("{:?}", wsp_core::types::api::ProjectAddAsk { source: "/app".into(), ..Default::default() })));
-        let second = format!("{:?}", wsp_core::types::api::ProjectAddAsk {
-            source: "/app".into(),
-            on: Some("pl_1".into()),
-            name: Some("n".into()),
-            base: Some("main".into()),
-            into: Some("/x".into()),
-            seed: None,
-        });
+        let second = format!(
+            "{:?}",
+            wsp_core::types::api::ProjectAddAsk {
+                source: "/app".into(),
+                on: Some("pl_1".into()),
+                name: Some("n".into()),
+                base: Some("main".into()),
+                into: Some("/x".into()),
+                seed: None,
+            }
+        );
         assert_eq!(ask(1), json!(second));
         assert_eq!(args_of(&rt, "projects.add", 0)["origin"], json!("here"));
 
         rt.script.once::<Result<_, HostError>>("projects.seed", Err::<wsp_wire::views::workspace::ProjectSeed, _>(HostError::new("stop")));
         rt.script.once::<Result<_, HostError>>("projects.seed", Err::<wsp_wire::views::workspace::ProjectSeed, _>(HostError::new("stop")));
         answer_project(rt.projects(), &req("projects.seed", json!({ "project": "pr_1" })), here()).await.unwrap_err();
-        answer_project(rt.projects(), &req("projects.seed", json!({ "project": "pr_1", "keep": ["a"], "cut": ["b"], "none": true, "save": false })), here()).await.unwrap_err();
+        answer_project(
+            rt.projects(),
+            &req("projects.seed", json!({ "project": "pr_1", "keep": ["a"], "cut": ["b"], "none": true, "save": false })),
+            here(),
+        )
+        .await
+        .unwrap_err();
         assert_eq!(args_of(&rt, "projects.seed", 0)["reference"], json!("pr_1"));
         assert_eq!(args_of(&rt, "projects.seed", 0)["ask"], json!(format!("{:?}", SeedAsk::default())));
         let second = SeedAsk { keep: Some(vec!["a".into()]), cut: Some(vec!["b".into()]), none: Some(true), save: None };
@@ -782,7 +827,10 @@ fn project_answers_pass_only_the_fields_sent() {
         let listed = answer_project(rt.projects(), &req("projects.list", json!({})), here()).await.unwrap();
         assert_eq!(Value::Object(listed), json!({ "projects": [] }));
 
-        rt.script.once::<Result<_, HostError>>("projects.defaults", Ok(indexmap::IndexMap::<String, wsp_wire::types::thread_defaults::ThreadDefaults>::new()));
+        rt.script.once::<Result<_, HostError>>(
+            "projects.defaults",
+            Ok(indexmap::IndexMap::<String, wsp_wire::types::thread_defaults::ThreadDefaults>::new()),
+        );
         let defaults = answer_project(rt.projects(), &req("projects.defaults", json!({})), here()).await.unwrap();
         assert_eq!(Value::Object(defaults), json!({ "defaults": {} }));
 
@@ -791,21 +839,39 @@ fn project_answers_pass_only_the_fields_sent() {
         assert_eq!(Value::Object(resolved), json!({ "project": serde_json::to_value(&view).unwrap() }));
         assert_eq!(args_of(&rt, "projects.resolve", 0)["reference"], json!("app"));
 
-        rt.script.once::<Result<_, HostError>>("projects.branch", Ok(wsp_wire::views::workspace_more::ProjectBranch { branch: None, folder: true }));
+        rt.script.once::<Result<_, HostError>>(
+            "projects.branch",
+            Ok(wsp_wire::views::workspace_more::ProjectBranch { branch: None, folder: true }),
+        );
         let branch = answer_project(rt.projects(), &req("projects.branch", json!({ "projectId": "pr_1" })), here()).await.unwrap();
         assert_eq!(Value::Object(branch), json!({ "branch": null, "folder": true }));
 
         rt.script.once::<Result<_, HostError>>("projects.remove", Ok(ProjectRemoved { said: "removed app".into(), unsaved: None }));
-        rt.script.once::<Result<_, HostError>>("projects.remove", Ok(ProjectRemoved { said: "removed app".into(), unsaved: Some("3 files".into()) }));
-        let plain = answer_project(rt.projects(), &req("projects.remove", json!({ "projectId": "pr_1", "force": false, "check": false })), here()).await.unwrap();
+        rt.script.once::<Result<_, HostError>>(
+            "projects.remove",
+            Ok(ProjectRemoved { said: "removed app".into(), unsaved: Some("3 files".into()) }),
+        );
+        let plain =
+            answer_project(rt.projects(), &req("projects.remove", json!({ "projectId": "pr_1", "force": false, "check": false })), here())
+                .await
+                .unwrap();
         assert!(plain.get("unsaved").is_none());
-        answer_project(rt.projects(), &req("projects.remove", json!({ "projectId": "pr_1", "force": true, "check": true })), here()).await.unwrap();
+        answer_project(rt.projects(), &req("projects.remove", json!({ "projectId": "pr_1", "force": true, "check": true })), here())
+            .await
+            .unwrap();
         let first = args_of(&rt, "projects.remove", 0);
-        assert_eq!((first["id"].clone(), first["force"].clone(), first["check"].clone()), (json!("pr_1"), Value::Null, Value::Null), "false is not sent");
+        assert_eq!(
+            (first["id"].clone(), first["force"].clone(), first["check"].clone()),
+            (json!("pr_1"), Value::Null, Value::Null),
+            "false is not sent"
+        );
         let second = args_of(&rt, "projects.remove", 1);
         assert_eq!((second["force"].clone(), second["check"].clone()), (json!(true), json!(true)));
 
-        rt.script.once::<Result<_, HostError>>("projects.icons", Ok(indexmap::IndexMap::<String, Option<String>>::from([("h1".to_string(), None::<String>)])));
+        rt.script.once::<Result<_, HostError>>(
+            "projects.icons",
+            Ok(indexmap::IndexMap::<String, Option<String>>::from([("h1".to_string(), None::<String>)])),
+        );
         let icons = answer_project(rt.projects(), &req("projects.icons", json!({ "hashes": ["h1"] })), here()).await.unwrap();
         assert_eq!(Value::Object(icons), json!({ "icons": { "h1": null } }));
     })
@@ -827,7 +893,8 @@ fn processes_and_conversations_pass_only_the_fields_sent() {
 
         let ending = json!({ "pid": 4200, "ended": [], "forced": [], "left": [] });
         rt.script.once::<Result<ActivityEnded, HostError>>("activity.end", Ok(from(ending.clone())));
-        let ended = answer_processes(door, &req("activity.end", json!({ "computer": "pl_1", "pid": 4200, "startedAt": 7 })), here()).await.unwrap();
+        let ended =
+            answer_processes(door, &req("activity.end", json!({ "computer": "pl_1", "pid": 4200, "startedAt": 7 })), here()).await.unwrap();
         assert_eq!(Value::Object(ended), ending);
         let a = args_of(&rt, "activity.end", 0);
         assert_eq!((a["computer"].clone(), a["pid"].clone(), a["startedAt"].clone()), (json!("pl_1"), json!(4200), json!(7.0)));
@@ -835,9 +902,16 @@ fn processes_and_conversations_pass_only_the_fields_sent() {
         let settled = json!({ "settled": [], "left": [] });
         rt.script.once::<Result<wsp_wire::wire::runtime::SessionSettleResult, HostError>>("sessions.settle", Ok(from(settled.clone())));
         rt.script.once::<Result<wsp_wire::wire::runtime::SessionSettleResult, HostError>>("sessions.settle", Ok(from(settled.clone())));
-        let plain = answer_processes(door, &req("sessions.settle", json!({ "threadIds": ["t1"], "finished": false })), here()).await.unwrap();
+        let plain =
+            answer_processes(door, &req("sessions.settle", json!({ "threadIds": ["t1"], "finished": false })), here()).await.unwrap();
         assert_eq!(Value::Object(plain), settled);
-        answer_processes(door, &req("sessions.settle", json!({ "threadIds": ["t1", "t2"], "finished": true, "processes": "stop" })), here()).await.unwrap();
+        answer_processes(
+            door,
+            &req("sessions.settle", json!({ "threadIds": ["t1", "t2"], "finished": true, "processes": "stop" })),
+            here(),
+        )
+        .await
+        .unwrap();
         let first = args_of(&rt, "sessions.settle", 0);
         assert_eq!(first["threadIds"], json!(["t1"]));
         assert_eq!(first["ask"], json!(format!("{:?}", SettleAsk::default())), "finished false is not sent");
@@ -854,18 +928,43 @@ fn processes_and_conversations_pass_only_the_fields_sent() {
         let ask = wsp_core::types::api::DeleteThreadAsk { processes: None, check: Some(true) };
         assert_eq!(delete["ask"], json!(format!("{ask:?}")));
 
-        rt.script.once::<Result<wsp_wire::types::conversations::ConversationsAnswer, HostError>>("conversations.list", Ok(from(json!({ "rows": [], "held": [] }))));
+        rt.script.once::<Result<wsp_wire::types::conversations::ConversationsAnswer, HostError>>(
+            "conversations.list",
+            Ok(from(json!({ "rows": [], "held": [] }))),
+        );
         let listed = answer_conversations(rt.conversations(), &req("conversations.list", json!({ "project": "p" })), here()).await.unwrap();
         assert_eq!(Value::Object(listed), json!({ "rows": [], "held": [] }));
         let a = args_of(&rt, "conversations.list", 0);
         assert_eq!((a["project"].clone(), a["agent"].clone()), (json!("p"), Value::Null));
 
-        rt.script.once::<Result<_, HostError>>("conversations.read", Err::<wsp_wire::types::conversations::ConversationRead, _>(HostError::new("stop")));
-        rt.script.once::<Result<_, HostError>>("conversations.read", Err::<wsp_wire::types::conversations::ConversationRead, _>(HostError::new("stop")));
-        answer_conversations(rt.conversations(), &req("conversations.read", json!({ "agent": "claude", "conversation": "c1", "preview": false })), here()).await.unwrap_err();
-        answer_conversations(rt.conversations(), &req("conversations.read", json!({ "project": "p", "agent": "claude", "conversation": "c1", "preview": true })), here()).await.unwrap_err();
+        rt.script.once::<Result<_, HostError>>(
+            "conversations.read",
+            Err::<wsp_wire::types::conversations::ConversationRead, _>(HostError::new("stop")),
+        );
+        rt.script.once::<Result<_, HostError>>(
+            "conversations.read",
+            Err::<wsp_wire::types::conversations::ConversationRead, _>(HostError::new("stop")),
+        );
+        answer_conversations(
+            rt.conversations(),
+            &req("conversations.read", json!({ "agent": "claude", "conversation": "c1", "preview": false })),
+            here(),
+        )
+        .await
+        .unwrap_err();
+        answer_conversations(
+            rt.conversations(),
+            &req("conversations.read", json!({ "project": "p", "agent": "claude", "conversation": "c1", "preview": true })),
+            here(),
+        )
+        .await
+        .unwrap_err();
         let plain = ConversationAsk { project: None, agent: "claude".into(), id: "c1".into(), preview: None };
-        assert_eq!(args_of(&rt, "conversations.read", 0)["ask"], json!(format!("{plain:?}")), "id is the frame's conversation; preview false is not sent");
+        assert_eq!(
+            args_of(&rt, "conversations.read", 0)["ask"],
+            json!(format!("{plain:?}")),
+            "id is the frame's conversation; preview false is not sent"
+        );
         let full = ConversationAsk { project: Some("p".into()), agent: "claude".into(), id: "c1".into(), preview: Some(true) };
         assert_eq!(args_of(&rt, "conversations.read", 1)["ask"], json!(format!("{full:?}")));
     })
@@ -921,9 +1020,16 @@ fn start_refusals_in_order() {
         assert_eq!(branch_first.message, BRANCH_ON_A_THREAD_LINE, "the branch is refused before the fork is looked at");
 
         let beside = usage_refusal(FORK_BESIDE_LINE, FORK_BESIDE_FIX);
-        for beside_field in [json!({ "workspaceId": "ws_1" }), json!({ "project": "p" }), json!({ "cwd": "/x" }), json!({ "thread": "t2" }), json!({ "replaces": "t3" })] {
+        for beside_field in [
+            json!({ "workspaceId": "ws_1" }),
+            json!({ "project": "p" }),
+            json!({ "cwd": "/x" }),
+            json!({ "thread": "t2" }),
+            json!({ "replaces": "t3" }),
+        ] {
             let mut fields = json!({ "fork": { "threadId": "t1" } });
-            fields[beside_field.as_object().unwrap().keys().next().unwrap().as_str()] = beside_field.as_object().unwrap().values().next().unwrap().clone();
+            fields[beside_field.as_object().unwrap().keys().next().unwrap().as_str()] =
+                beside_field.as_object().unwrap().values().next().unwrap().clone();
             assert_eq!(run(fields).await, beside, "a fork beside {beside_field}");
         }
         let resume = run(json!({ "fork": { "threadId": "t1" }, "resume": { "id": "c1" } })).await;
@@ -941,7 +1047,8 @@ fn a_fork_reads_nothing_else() {
     block(async {
         let rt = FakeRuntime::new();
         stopped::<Handle>(&rt, "sessions.fork", 1);
-        let msg = start_msg(json!({ "fork": { "threadId": "t1" }, "branch": "feature", "model": "opus", "answerHeld": true, "title": "T" }));
+        let msg =
+            start_msg(json!({ "fork": { "threadId": "t1" }, "branch": "feature", "model": "opus", "answerHeld": true, "title": "T" }));
         let e = serve_start(&*rt, &msg, here(), quiet_reply()).await.unwrap_err();
         assert_eq!(e.message, "stop", "the fork's own answer comes back");
         assert_eq!(rt.script.names(), vec!["sessions.fork"], "no conversation placed, no folder read, no start");
@@ -951,7 +1058,11 @@ fn a_fork_reads_nothing_else() {
         assert_eq!(a["opts"]["branch"], json!("feature"));
         let start = &a["opts"]["start"];
         assert_eq!((start["prompt"].clone(), start["model"].clone(), start["title"].clone()), (json!("go"), json!("opus"), json!("T")));
-        assert_eq!((start["cwd"].clone(), start["setup"].clone(), start["thread"].clone()), (Value::Null, Value::Null, Value::Null), "a fork has no folder of its own");
+        assert_eq!(
+            (start["cwd"].clone(), start["setup"].clone(), start["thread"].clone()),
+            (Value::Null, Value::Null, Value::Null),
+            "a fork has no folder of its own"
+        );
         assert_eq!(start["outside"], Value::Null);
         assert_eq!(start["onHeld"], json!(true), "answerHeld asks the start road to hear of a hold");
     })
@@ -962,14 +1073,32 @@ fn a_fork_reads_nothing_else() {
 fn a_resume_is_read_before_the_folder() {
     block(async {
         let rt = FakeRuntime::new();
-        let outside = OutsideOpening { harness: "claude".into(), id: "c9".into(), copy: true, project: "app".into(), cwd: Some("/w".into()), title: "old".into(), earlier: vec![] };
-        rt.script.once::<Result<Placed, HostError>>("conversations.placed", Ok(Placed { workspace_id: "ws_resumed".into(), cwd: Some("/w".into()), outside }));
+        let outside = OutsideOpening {
+            harness: "claude".into(),
+            id: "c9".into(),
+            copy: true,
+            project: "app".into(),
+            cwd: Some("/w".into()),
+            title: "old".into(),
+            earlier: vec![],
+        };
+        rt.script.once::<Result<Placed, HostError>>(
+            "conversations.placed",
+            Ok(Placed { workspace_id: "ws_resumed".into(), cwd: Some("/w".into()), outside }),
+        );
         stopped::<Handle>(&rt, "sessions.start", 1);
         let msg = start_msg(json!({ "resume": { "id": "c9", "copy": true }, "project": "app", "harness": "claude" }));
         serve_start(&*rt, &msg, here(), quiet_reply()).await.unwrap_err();
         assert_eq!(rt.script.names(), vec!["conversations.placed", "sessions.start"], "where the conversation answers it is the folder");
         let placed = args_of(&rt, "conversations.placed", 0);
-        let ask = PlacedStart { workspace_id: None, project: Some("app".into()), harness: Some("claude".into()), thread: None, branch: None, cwd: None };
+        let ask = PlacedStart {
+            workspace_id: None,
+            project: Some("app".into()),
+            harness: Some("claude".into()),
+            thread: None,
+            branch: None,
+            cwd: None,
+        };
         assert_eq!(placed["start"], json!(format!("{ask:?}")));
         assert_eq!(placed["resume"], json!({ "id": "c9", "copy": true }));
         let start = args_of(&rt, "sessions.start", 0);
@@ -988,7 +1117,12 @@ fn opens_only_without_a_thread() {
         script_folder(&rt);
         script_folder(&rt);
         rt.script.once::<Result<Option<String>, HostError>>("workspaces.takeSetupLine", Ok(Some("make".into())));
-        for fields in [json!({ "project": "app" }), json!({ "project": "app", "thread": "t1" }), json!({ "workspaceId": "ws_1" }), json!({ "thread": "t1", "workspaceId": "ws_1" })] {
+        for fields in [
+            json!({ "project": "app" }),
+            json!({ "project": "app", "thread": "t1" }),
+            json!({ "workspaceId": "ws_1" }),
+            json!({ "thread": "t1", "workspaceId": "ws_1" }),
+        ] {
             serve_start(&*rt, &start_msg(fields), here(), quiet_reply()).await.unwrap_err();
         }
         let asked = |n: usize| args_of(&rt, "workspaces.folderFor", n)["ask"].clone();
@@ -1073,14 +1207,25 @@ fn answers_reach_the_reply_each_in_turn() {
         assert_eq!(args_of(&rt, "sessions.start", 0)["opts"]["onHeld"], json!(true));
 
         let capped = json!({ "placeId": "here", "place": "this computer", "running": 1, "atOnce": 1 });
-        let held_view: SessionView = from(json!({ "id": "s2", "workspaceId": "ws_7", "harness": "claude", "status": "running", "capped": capped }));
+        let held_view: SessionView =
+            from(json!({ "id": "s2", "workspaceId": "ws_7", "harness": "claude", "status": "running", "capped": capped }));
         rt.script.once::<HeldStart>("sessions.start.held", HeldStart { view: held_view, turn_id: "tu_2".into(), wait: from(capped) });
-        rt.script.once::<Result<Handle, HostError>>("sessions.start", Ok(Rc::new(StartedHandle { view: from(json!({ "id": "s2", "workspaceId": "ws_7", "harness": "claude", "status": "running" })) })));
+        rt.script.once::<Result<Handle, HostError>>(
+            "sessions.start",
+            Ok(Rc::new(StartedHandle {
+                view: from(json!({ "id": "s2", "workspaceId": "ws_7", "harness": "claude", "status": "running" })),
+            })),
+        );
         seen.borrow_mut().clear();
-        serve_start(&*rt, &start_msg(json!({ "project": "app", "answerHeld": true })), here(), Rc::new({
-            let kept = seen.clone();
-            move |a| kept.borrow_mut().push(serde_json::to_value(&a).unwrap())
-        }))
+        serve_start(
+            &*rt,
+            &start_msg(json!({ "project": "app", "answerHeld": true })),
+            here(),
+            Rc::new({
+                let kept = seen.clone();
+                move |a| kept.borrow_mut().push(serde_json::to_value(&a).unwrap())
+            }),
+        )
         .await
         .unwrap();
         let outcomes: Vec<Value> = seen.borrow().iter().map(|a| a["outcome"].clone()).collect();
@@ -1107,7 +1252,10 @@ fn start_options_copy_only_the_named_fields_in_order() {
     assert_eq!(o.thread.as_deref(), Some("t1"));
     assert_eq!(o.cwd.as_deref(), Some("/work"), "the folder's cwd, never the frame's");
     assert_eq!(o.setup.as_deref(), Some("make"));
-    assert_eq!((o.model.as_deref(), o.effort.as_deref(), o.permission_mode.as_deref(), o.context_window.as_deref()), (Some("m"), Some("high"), Some("plan"), Some("1m")));
+    assert_eq!(
+        (o.model.as_deref(), o.effort.as_deref(), o.permission_mode.as_deref(), o.context_window.as_deref()),
+        (Some("m"), Some("high"), Some("plan"), Some("1m"))
+    );
     assert_eq!(o.access, Some(AccessChoice::Full));
     assert_eq!(o.fast, Some(true));
     assert_eq!(o.started_by, Some(SessionOrigin::Cli));

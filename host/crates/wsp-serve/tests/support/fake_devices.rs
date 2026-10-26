@@ -44,7 +44,10 @@ impl DeviceDoor for FakeDevices {
         self.script.answer(&call).unwrap_or(Ok(false))
     }
     async fn mint(&self, name: &str, scope: ThreadScope, now: i64, more: MintMore) -> Result<PairedDevice, HostError> {
-        self.script.call("devices.mint", json!({ "name": name, "scope": serde_json::to_value(&scope).unwrap(), "now": now, "road": more.road, "aside": more.aside }))
+        self.script.call(
+            "devices.mint",
+            json!({ "name": name, "scope": serde_json::to_value(&scope).unwrap(), "now": now, "road": more.road, "aside": more.aside }),
+        )
     }
     async fn revoke_asides(&self) -> Result<(), HostError> {
         self.script.call("devices.revokeAsides", json!({}))

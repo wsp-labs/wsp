@@ -34,9 +34,9 @@ use wsp_words::exit::HostError;
 use wsp_words::place_word::{place_said, PlaceRef};
 use wsp_words::recipe_file::{no_picks_refusal, recipe_from_here_refusal, recipe_summary};
 use wsp_words::words::computer::RELAY_TICKET_REFUSAL;
+use wsp_words::words::computer::UNAUTHORIZED;
 use wsp_words::words::places::join_roads;
 use wsp_words::words::units::{doctor_row_refusal, doctor_running_line, DOCTOR_UNSERVED};
-use wsp_words::words::computer::UNAUTHORIZED;
 
 // ---- helpers -------------------------------------------------------------------------------------------------
 
@@ -84,7 +84,12 @@ fn spread(id: u64, fields: &Value) -> String {
 }
 
 fn base(rt: &Rc<FakeRuntime>) -> ServeOptions {
-    ServeOptions { devices: Some(rt.devices.clone() as Rc<dyn DeviceDoor>), now: Some(Rc::new(|| 1_000_000)), pair_ttl_ms: Some(600_000), ..opts() }
+    ServeOptions {
+        devices: Some(rt.devices.clone() as Rc<dyn DeviceDoor>),
+        now: Some(Rc::new(|| 1_000_000)),
+        pair_ttl_ms: Some(600_000),
+        ..opts()
+    }
 }
 
 fn held(id: &str, scope: Option<Value>) -> HeldDevice {
@@ -309,7 +314,10 @@ fn host_only_ops_refuse_a_device_socket_in_their_own_sentence() {
 fn auth_again_names_the_release_again() {
     support::block(async {
         let rt = FakeRuntime::new();
-        let served = served_with(&rt, ServeOptions { released: Some(Released { version: Some("0.3.8".into()), road: Some("launchd".into()) }), ..base(&rt) });
+        let served = served_with(
+            &rt,
+            ServeOptions { released: Some(Released { version: Some("0.3.8".into()), road: Some("launchd".into()) }), ..base(&rt) },
+        );
         let (socket, sink) = host_socket(&served).await;
         let again = request(&socket, &sink, 7, "auth", json!({ "token": TOKEN })).await;
         assert_eq!(again.to_string(), json!({ "id": 7, "ok": true, "version": "0.3.8", "road": "launchd" }).to_string());
@@ -331,7 +339,10 @@ fn pair_issue_answers_the_code_and_the_host_key() {
         let served = served_with(&rt, base(&rt));
         let (socket, sink) = host_socket(&served).await;
         let reply = request(&socket, &sink, 1, "pair.issue", json!({})).await;
-        assert_eq!(reply.to_string(), json!({ "id": 1, "ok": true, "code": "ABCD2345", "expiresAt": 1_600_000, "hostKey": "SHA256:fake-host-key" }).to_string());
+        assert_eq!(
+            reply.to_string(),
+            json!({ "id": 1, "ok": true, "code": "ABCD2345", "expiresAt": 1_600_000, "hostKey": "SHA256:fake-host-key" }).to_string()
+        );
         let reply = request(&socket, &sink, 2, "pair.issue", json!({ "here": true })).await;
         assert_eq!(reply["code"], json!("WXYZ6789"));
         let asked = rt.script.calls_to("devices.issue");
@@ -362,7 +373,8 @@ fn pair_issue_without_a_device_door_refuses() {
         let (failed, told) = {
             let told = Rc::new(RefCell::new(Vec::<String>::new()));
             let kept = told.clone();
-            let f: wsp_serve::serve::FailedFn = Rc::new(move |op: &str, e: &HostError| kept.borrow_mut().push(format!("{op}: {}", e.message)));
+            let f: wsp_serve::serve::FailedFn =
+                Rc::new(move |op: &str, e: &HostError| kept.borrow_mut().push(format!("{op}: {}", e.message)));
             (f, told)
         };
         let served = served_with(&rt, ServeOptions { devices: None, failed: Some(failed), ..base(&rt) });
@@ -428,7 +440,9 @@ fn places_list_answers_rows_adds_and_pending() {
         let rows = vec![row("here", "computer", "zingzys-mac"), row("p_1", "computer", "spoo")];
         let rows_for = rows.clone();
         rt.script.on("places.list", move |_| -> Result<Vec<PlaceView>, HostError> { Ok(rows_for.clone()) });
-        let job = de::<wsp_wire::views::place::PlaceAddJob>(json!({ "addId": "a1", "address": "root@10.0.0.5", "startedAt": "2026-01-01T00:00:00.000Z", "state": "running", "steps": [] }));
+        let job = de::<wsp_wire::views::place::PlaceAddJob>(
+            json!({ "addId": "a1", "address": "root@10.0.0.5", "startedAt": "2026-01-01T00:00:00.000Z", "state": "running", "steps": [] }),
+        );
         let job_for = job.clone();
         rt.script.on("places.adds", move |_| vec![job_for.clone()]);
         let pending = de::<wsp_wire::views::place::PendingComputer>(json!({
@@ -453,7 +467,8 @@ fn places_list_for_a_thread_reads_its_places_and_no_adds() {
         script_devices(&rt, vec![("thread-token", held("d_t", Some(thread_scope())))]);
         let rows = vec![row("here", "computer", "zingzys-mac"), row("solari", "provider", "solari")];
         rt.script.on("places.list", move |_| -> Result<Vec<PlaceView>, HostError> { Ok(rows.clone()) });
-        rt.script.once::<Result<wsp_wire::views::workspace_more::WorkspaceView, HostError>>("workspaces.get", Err(err("no such workspace")));
+        rt.script
+            .once::<Result<wsp_wire::views::workspace_more::WorkspaceView, HostError>>("workspaces.get", Err(err("no such workspace")));
         let served = served_with(&rt, base(&rt));
         let (socket, sink) = device_socket(&served, "thread-token").await;
         let reply = request(&socket, &sink, 4, "places.list", json!({})).await;
@@ -464,7 +479,10 @@ fn places_list_for_a_thread_reads_its_places_and_no_adds() {
         assert_eq!(places.len(), 1, "a thread on a machine reads the providers alone: {reply}");
         assert_eq!(places[0]["id"], json!("solari"));
         assert!(places[0].get("road").is_none());
-        assert_eq!(places[0]["label"], json!(place_said(&PlaceRef { id: "solari".into(), name: "solari".into(), kind: Some("provider".into()) })));
+        assert_eq!(
+            places[0]["label"],
+            json!(place_said(&PlaceRef { id: "solari".into(), name: "solari".into(), kind: Some("provider".into()) }))
+        );
         assert_eq!(rt.script.calls_to("workspaces.get")[0].args["id"], json!("ws_1"));
         assert!(rt.script.calls_to("places.adds").is_empty());
         assert!(rt.script.calls_to("places.pending").is_empty());
@@ -502,8 +520,15 @@ fn places_remove_passes_only_the_flags_sent() {
         request(&socket, &sink, 3, "places.remove", json!({ "placeId": "p_1", "force": false, "forget": false })).await;
         let asked = rt.script.calls_to("places.remove");
         assert_eq!(asked[0].args, json!({ "placeId": "p_1", "ask": dbg(&RemoveAsk::default()) }));
-        assert_eq!(asked[1].args, json!({ "placeId": "p_1", "ask": dbg(&RemoveAsk { sudo_password: Some("pw".into()), force: Some(true), forget: Some(true) }) }));
-        assert_eq!(asked[2].args, json!({ "placeId": "p_1", "ask": dbg(&RemoveAsk::default()) }), "force and forget are passed only when true");
+        assert_eq!(
+            asked[1].args,
+            json!({ "placeId": "p_1", "ask": dbg(&RemoveAsk { sudo_password: Some("pw".into()), force: Some(true), forget: Some(true) }) })
+        );
+        assert_eq!(
+            asked[2].args,
+            json!({ "placeId": "p_1", "ask": dbg(&RemoveAsk::default()) }),
+            "force and forget are passed only when true"
+        );
     })
 }
 
@@ -535,7 +560,8 @@ fn places_asks_pass_their_fields_to_the_door_and_name_the_answer() {
         let dial = de::<wsp_wire::views::place_more::PlaceDial>(json!({
             "dialled": { "at": "2026-01-01T00:00:00.000Z", "answered": true }, "line": "spoo answered", "place": view
         }));
-        let estimate = de::<wsp_wire::views::place_setup_words::PlaceEstimate>(json!({ "neededBytes": 10, "keptBytes": 5, "unmeasured": 0 }));
+        let estimate =
+            de::<wsp_wire::views::place_setup_words::PlaceEstimate>(json!({ "neededBytes": 10, "keptBytes": 5, "unmeasured": 0 }));
         let pending = de::<wsp_wire::views::place::PendingComputer>(json!({
             "id": "a2", "address": "root@10.0.0.6", "step": "choosing", "choices": { "name": "web" }, "startedAt": "2026-01-01T00:00:00.000Z"
         }));
@@ -551,7 +577,10 @@ fn places_asks_pass_their_fields_to_the_door_and_name_the_answer() {
 
         let r = request(&socket, &sink, 1, "places.update", json!({ "placeId": "p_1", "sudoPassword": "pw" })).await;
         assert_eq!(r.to_string(), json!({ "id": 1, "ok": true, "name": "spoo" }).to_string());
-        assert_eq!(rt.script.calls_to("places.update")[0].args, json!({ "placeId": "p_1", "ask": dbg(&RemoveAsk { sudo_password: Some("pw".into()), ..RemoveAsk::default() }) }));
+        assert_eq!(
+            rt.script.calls_to("places.update")[0].args,
+            json!({ "placeId": "p_1", "ask": dbg(&RemoveAsk { sudo_password: Some("pw".into()), ..RemoveAsk::default() }) })
+        );
         let r = request(&socket, &sink, 2, "places.holds", json!({ "placeId": "p_1" })).await;
         assert_eq!(r.to_string(), json!({ "id": 2, "ok": true, "forks": [], "projects": [], "unsaved": [] }).to_string());
         let r = request(&socket, &sink, 3, "places.dial", json!({ "placeId": "p_1" })).await;
@@ -588,7 +617,14 @@ fn places_set_reads_a_recipe_word_as_its_slug_and_none_as_none() {
         let served = served_with(&rt, ServeOptions { recipes: Some(Rc::new(FakeShelf { script: rt.script.clone() })), ..base(&rt) });
         let (socket, sink) = host_socket(&served).await;
 
-        let named = request(&socket, &sink, 1, "places.set", json!({ "placeId": "p_1", "name": "spoo", "recipe": "Web Dev", "threads": 3, "reset": ["nap"] })).await;
+        let named = request(
+            &socket,
+            &sink,
+            1,
+            "places.set",
+            json!({ "placeId": "p_1", "name": "spoo", "recipe": "Web Dev", "threads": 3, "reset": ["nap"] }),
+        )
+        .await;
         assert_eq!(named.to_string(), spread(1, &serde_json::to_value(&view).unwrap()), "the door's answer is spread after ok");
         let none = request(&socket, &sink, 2, "places.set", json!({ "placeId": "p_1", "recipe": NO_RECIPE })).await;
         assert_eq!(none["ok"], json!(true));
@@ -596,7 +632,10 @@ fn places_set_reads_a_recipe_word_as_its_slug_and_none_as_none() {
         assert_eq!(absent["ok"], json!(true));
 
         let asked = rt.script.calls_to("places.set");
-        assert_eq!(asked[0].args, json!({ "placeId": "p_1", "set": { "threads": 3 }, "reset": ["nap"], "also": { "name": "spoo", "recipe": "web-dev" } }));
+        assert_eq!(
+            asked[0].args,
+            json!({ "placeId": "p_1", "set": { "threads": 3 }, "reset": ["nap"], "also": { "name": "spoo", "recipe": "web-dev" } })
+        );
         assert_eq!(asked[1].args, json!({ "placeId": "p_1", "set": {}, "reset": [], "also": { "recipe": "none" } }));
         assert_eq!(asked[2].args, json!({ "placeId": "p_1", "set": { "threads": 5 }, "reset": [], "also": {} }));
         assert_eq!(rt.script.calls_to("recipes.read").len(), 1, "none and an absent recipe read no shelf");
@@ -651,7 +690,9 @@ fn doctor_says_each_refusal_without_reaching_the_road() {
         assert_eq!(r.to_string(), refused(2, &doctor_row_refusal(&table(&rows[0])), Some("usage")));
         let r = request(&socket, &sink, 3, "places.doctor", json!({ "placeId": "solari", "doctorId": "d_1" })).await;
         assert_eq!(r.to_string(), refused(3, &doctor_row_refusal(&table(&rows[1])), Some("usage")));
-        assert!(!is_joined_computer("here", "computer") && !is_joined_computer("solari", "provider") && is_joined_computer("p_1", "computer"));
+        assert!(
+            !is_joined_computer("here", "computer") && !is_joined_computer("solari", "provider") && is_joined_computer("p_1", "computer")
+        );
         assert!(rt.script.calls_to("doctor.run").is_empty());
     })
 }
@@ -682,7 +723,9 @@ fn doctor_refuses_a_second_road_on_one_computer_until_the_first_answers() {
         let (socket, sink) = host_socket(&served).await;
 
         let first_socket = socket.clone();
-        let first = tokio::task::spawn_local(async move { send(&first_socket, frame(1, "places.doctor", json!({ "placeId": "p_1", "doctorId": "d_1", "project": "spoo-landing" }))).await });
+        let first = tokio::task::spawn_local(async move {
+            send(&first_socket, frame(1, "places.doctor", json!({ "placeId": "p_1", "doctorId": "d_1", "project": "spoo-landing" }))).await
+        });
         while rt.script.calls_to("doctor.run").is_empty() {
             tokio::task::yield_now().await;
         }
@@ -712,7 +755,8 @@ fn doctor_frees_the_computer_when_the_road_fails() {
         let doctor = FakeDoctor::new(rt.script.clone());
         let told = Rc::new(RefCell::new(Vec::<String>::new()));
         let kept = told.clone();
-        let failed: wsp_serve::serve::FailedFn = Rc::new(move |op: &str, e: &HostError| kept.borrow_mut().push(format!("{op}: {}", e.message)));
+        let failed: wsp_serve::serve::FailedFn =
+            Rc::new(move |op: &str, e: &HostError| kept.borrow_mut().push(format!("{op}: {}", e.message)));
         let served = served_with(&rt, ServeOptions { doctor: Some(doctor.clone()), failed: Some(failed), ..base(&rt) });
         let (socket, sink) = host_socket(&served).await;
         let broke = request(&socket, &sink, 1, "places.doctor", json!({ "placeId": "p_1", "doctorId": "d_1" })).await;
@@ -774,7 +818,10 @@ fn places_mint_opens_the_door_before_minting_a_code() {
         let rt = FakeRuntime::with_places();
         let relay = "https://relay.example/r1";
         rt.script.once::<Result<OpenedDoor, HostError>>("door.open", Ok(opened(Some(relay))));
-        rt.script.once::<Result<IssuedCode, HostError>>("devices.issue", Ok(IssuedCode { code: "ABCD2345".into(), expires_at: 1_700_000_000_000 }));
+        rt.script.once::<Result<IssuedCode, HostError>>(
+            "devices.issue",
+            Ok(IssuedCode { code: "ABCD2345".into(), expires_at: 1_700_000_000_000 }),
+        );
         let served = served_with(&rt, ServeOptions { door: Some(Rc::new(FakeDoor { script: rt.script.clone() })), ..base(&rt) });
         let (socket, sink) = host_socket(&served).await;
         let reply = request(&socket, &sink, 1, "places.mint", json!({})).await;
@@ -821,7 +868,8 @@ fn places_ssh_hosts_answers_none_without_a_door() {
 
         let seen = Rc::new(RefCell::new(Vec::<usize>::new()));
         let kept = seen.clone();
-        let suggestion = de::<wsp_wire::wire::place_link::SshHostSuggestion>(json!({ "alias": "spoo", "hostName": "10.0.0.5", "from": "config" }));
+        let suggestion =
+            de::<wsp_wire::wire::place_link::SshHostSuggestion>(json!({ "alias": "spoo", "hostName": "10.0.0.5", "from": "config" }));
         let said = suggestion.clone();
         let ssh_hosts: wsp_serve::serve::SshHostsFn = Rc::new(move |rows: Vec<PlaceView>| {
             kept.borrow_mut().push(rows.len());
@@ -860,7 +908,11 @@ fn places_add_reads_the_recipe_before_dialling_and_passes_fields_in_order() {
         rt.script.once::<Result<PlaceAdded, HostError>>("places.add", Ok(added(&view)));
         let served = served_with(
             &rt,
-            ServeOptions { door: Some(Rc::new(FakeDoor { script: rt.script.clone() })), recipes: Some(Rc::new(FakeShelf { script: rt.script.clone() })), ..base(&rt) },
+            ServeOptions {
+                door: Some(Rc::new(FakeDoor { script: rt.script.clone() })),
+                recipes: Some(Rc::new(FakeShelf { script: rt.script.clone() })),
+                ..base(&rt)
+            },
         );
         let (socket, sink) = host_socket(&served).await;
         let reply = request(
@@ -894,7 +946,12 @@ fn places_add_reads_the_recipe_before_dialling_and_passes_fields_in_order() {
         rt.script.once::<Result<OpenedDoor, HostError>>("door.open", Ok(opened(None)));
         rt.script.once::<Result<PlaceAdded, HostError>>("places.add", Ok(added(&view)));
         request(&socket, &sink, 2, "places.add", json!({ "address": "root@10.0.0.6" })).await;
-        let bare = AddAsk { address: "root@10.0.0.6".into(), host_urls: vec!["http://192.168.1.20:14621".into(), "http://10.0.0.5:14621".into()], door_port: Some(14622), ..AddAsk::default() };
+        let bare = AddAsk {
+            address: "root@10.0.0.6".into(),
+            host_urls: vec!["http://192.168.1.20:14621".into(), "http://10.0.0.5:14621".into()],
+            door_port: Some(14622),
+            ..AddAsk::default()
+        };
         assert_eq!(rt.script.calls_to("places.add")[1].args, json!({ "req": dbg(&bare), "now": 1_000_000 }), "absent fields are absent");
     })
 }
@@ -907,7 +964,11 @@ fn places_add_with_an_unsaved_recipe_dials_nothing() {
         rt.script.once::<Result<ShelvedRecipe, HostError>>("recipes.read", Err(err("no saved recipe named nope; you have web-dev")));
         let served = served_with(
             &rt,
-            ServeOptions { door: Some(Rc::new(FakeDoor { script: rt.script.clone() })), recipes: Some(Rc::new(FakeShelf { script: rt.script.clone() })), ..base(&rt) },
+            ServeOptions {
+                door: Some(Rc::new(FakeDoor { script: rt.script.clone() })),
+                recipes: Some(Rc::new(FakeShelf { script: rt.script.clone() })),
+                ..base(&rt)
+            },
         );
         let (socket, sink) = host_socket(&served).await;
         let reply = request(&socket, &sink, 1, "places.add", json!({ "address": "root@10.0.0.5", "recipe": "nope" })).await;
@@ -929,20 +990,35 @@ fn places_setup_prefers_the_named_recipe_over_choices() {
         let rt = FakeRuntime::with_places();
         let view = row("p_1", "computer", "spoo");
         for _ in 0..3 {
-            rt.script.once::<Result<PlaceSetUp, HostError>>("places.setUp", Ok(PlaceSetUp { add_id: "a1".into(), place: view.clone(), setup: None, said: None }));
+            rt.script.once::<Result<PlaceSetUp, HostError>>(
+                "places.setUp",
+                Ok(PlaceSetUp { add_id: "a1".into(), place: view.clone(), setup: None, said: None }),
+            );
         }
         rt.script.once::<Result<ShelvedRecipe, HostError>>("recipes.read", Ok(shelved("web-dev", "Web Dev")));
         let served = served_with(&rt, ServeOptions { recipes: Some(Rc::new(FakeShelf { script: rt.script.clone() })), ..base(&rt) });
         let (socket, sink) = host_socket(&served).await;
 
-        let named = request(&socket, &sink, 1, "places.setup", json!({ "ref": "spoo", "recipe": "Web Dev", "choices": { "name": "other" }, "addId": "a1", "row": "clis/git" })).await;
+        let named = request(
+            &socket,
+            &sink,
+            1,
+            "places.setup",
+            json!({ "ref": "spoo", "recipe": "Web Dev", "choices": { "name": "other" }, "addId": "a1", "row": "clis/git" }),
+        )
+        .await;
         assert_eq!(named["ok"], json!(true));
         assert_eq!(named["addId"], json!("a1"));
         request(&socket, &sink, 2, "places.setup", json!({ "ref": "spoo", "choices": { "name": "other" } })).await;
         request(&socket, &sink, 3, "places.setup", json!({ "ref": "spoo" })).await;
 
         let asked = rt.script.calls_to("places.setUp");
-        let named_ask = SetUpAsk { choices: Some(file("Web Dev")), recipe: Some("web-dev".into()), add_id: Some("a1".into()), row: Some("clis/git".into()) };
+        let named_ask = SetUpAsk {
+            choices: Some(file("Web Dev")),
+            recipe: Some("web-dev".into()),
+            add_id: Some("a1".into()),
+            row: Some("clis/git".into()),
+        };
         assert_eq!(asked[0].args, json!({ "reference": "spoo", "o": dbg(&named_ask) }));
         let choices_ask = SetUpAsk { choices: Some(file("other")), ..SetUpAsk::default() };
         assert_eq!(asked[1].args, json!({ "reference": "spoo", "o": dbg(&choices_ask) }));
@@ -983,7 +1059,10 @@ fn recipes_list_get_save_remove_options() {
         rt.script.once::<Result<IndexMap<String, Vec<String>>, HostError>>("places.followers", Ok(followers(&[("web-dev", &["spoo"])])));
         rt.script.once::<Result<Vec<ShelvedRecipe>, HostError>>("recipes.list", Ok(vec![web.clone(), empty.clone()]));
         let listed = request(&socket, &sink, 1, "recipes.list", json!({})).await;
-        assert_eq!(listed.to_string(), json!({ "id": 1, "ok": true, "recipes": [recipe_view(&web, &["spoo"]), recipe_view(&empty, &[])] }).to_string());
+        assert_eq!(
+            listed.to_string(),
+            json!({ "id": 1, "ok": true, "recipes": [recipe_view(&web, &["spoo"]), recipe_view(&empty, &[])] }).to_string()
+        );
         assert_eq!(rt.script.names(), vec!["places.followers", "recipes.list"]);
 
         // get
@@ -998,7 +1077,8 @@ fn recipes_list_get_save_remove_options() {
         rt.script.once::<Result<ShelvedRecipe, HostError>>("recipes.save", Ok(web.clone()));
         rt.script.once::<Result<Vec<String>, HostError>>("places.recipeChanged", Ok(vec!["spoo".into()]));
         rt.script.once::<Result<IndexMap<String, Vec<String>>, HostError>>("places.followers", Ok(followers(&[("web-dev", &["spoo"])])));
-        let saved = request(&socket, &sink, 3, "recipes.save", json!({ "name": "Web Dev", "file": { "name": "ignored", "copyKeys": true } })).await;
+        let saved =
+            request(&socket, &sink, 3, "recipes.save", json!({ "name": "Web Dev", "file": { "name": "ignored", "copyKeys": true } })).await;
         assert_eq!(saved.to_string(), json!({ "id": 3, "ok": true, "recipe": recipe_view(&web, &["spoo"]) }).to_string());
         let after: Vec<String> = rt.script.names()[before..].to_vec();
         assert_eq!(after, vec!["recipes.save", "places.recipeChanged", "places.followers"]);
@@ -1029,7 +1109,11 @@ fn recipes_list_get_save_remove_options() {
         rt.script.once::<Result<Value, HostError>>("recipes.options", Ok(json!({ "clis": ["git"] })));
         let options = request(&socket, &sink, 5, "recipes.options", json!({})).await;
         assert_eq!(options.to_string(), json!({ "id": 5, "ok": true, "options": { "clis": ["git"] } }).to_string());
-        assert_eq!(rt.script.calls_to("recipes.options")[0].args, json!({ "folders": [["lab", "/home/z/lab"]] }), "only this computer's projects are folders a box can take");
+        assert_eq!(
+            rt.script.calls_to("recipes.options")[0].args,
+            json!({ "folders": [["lab", "/home/z/lab"]] }),
+            "only this computer's projects are folders a box can take"
+        );
     })
 }
 
@@ -1071,7 +1155,10 @@ fn recipes_save_from_a_computer_saves_its_picks_and_follows() {
         assert_eq!(rt.script.names(), vec!["places.placeFor", "places.picksOf", "recipes.save", "places.follow", "places.followers"]);
         assert_eq!(rt.script.calls_to("places.placeFor")[0].args, json!({ "word": "spoo" }));
         assert_eq!(rt.script.calls_to("places.picksOf")[0].args, json!({ "placeId": "p_1" }));
-        assert_eq!(rt.script.calls_to("recipes.save")[0].args, json!({ "file": { "name": "mine", "agents": {}, "mcp": {}, "clis": {}, "skills": {}, "plugins": {}, "folders": {}, "configs": serde_json::to_value(file("x")).unwrap()["configs"] } }));
+        assert_eq!(
+            rt.script.calls_to("recipes.save")[0].args,
+            json!({ "file": { "name": "mine", "agents": {}, "mcp": {}, "clis": {}, "skills": {}, "plugins": {}, "folders": {}, "configs": serde_json::to_value(file("x")).unwrap()["configs"] } })
+        );
         assert_eq!(rt.script.calls_to("places.follow")[0].args, json!({ "placeId": "p_1", "recipe": "mine" }));
     })
 }
@@ -1084,7 +1171,8 @@ fn recipes_remove_check_unfollows_nothing() {
         let served = with_shelf(&rt);
         let (socket, sink) = host_socket(&served).await;
         let web = shelved("web-dev", "Web Dev");
-        rt.script.once::<Result<IndexMap<String, Vec<String>>, HostError>>("places.followers", Ok(followers(&[("web-dev", &["spoo", "lab"])])));
+        rt.script
+            .once::<Result<IndexMap<String, Vec<String>>, HostError>>("places.followers", Ok(followers(&[("web-dev", &["spoo", "lab"])])));
         rt.script.once::<Result<ShelvedRecipe, HostError>>("recipes.read", Ok(web.clone()));
         let reply = request(&socket, &sink, 1, "recipes.remove", json!({ "name": "Web Dev", "check": true })).await;
         assert_eq!(reply.to_string(), json!({ "id": 1, "ok": true, "recipe": recipe_view(&web, &["spoo", "lab"]) }).to_string());
@@ -1189,7 +1277,11 @@ fn devices_revoke_answers_before_cutting_its_own_socket() {
         let _keep = (&twin, &other);
 
         let reply = request(&mine, &mine_sink, 9, "devices.revoke", json!({ "deviceId": "d_1" })).await;
-        assert_eq!(reply.to_string(), json!({ "id": 9, "ok": true, "revoked": true }).to_string(), "a paired computer may revoke its own token and reads the answer");
+        assert_eq!(
+            reply.to_string(),
+            json!({ "id": 9, "ok": true, "revoked": true }).to_string(),
+            "a paired computer may revoke its own token and reads the answer"
+        );
         assert_eq!(rt.script.calls_to("devices.revoke")[0].args, json!({ "id": "d_1" }));
         assert_eq!(mine_sink.closed(), Some((4401, UNAUTHORIZED.to_string())));
         assert_eq!(twin_sink.closed(), Some((4401, UNAUTHORIZED.to_string())), "every socket the device held is cut");

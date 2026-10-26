@@ -93,7 +93,10 @@ fn the_defaults_are_the_protocols_numbers() {
     block(async {
         let rt = FakeRuntime::new();
         let devices: Rc<dyn wsp_core::devices::DeviceDoor> = rt.devices.clone();
-        rt.script.once::<Result<wsp_core::devices::IssuedCode, HostError>>("devices.issue", Ok(wsp_core::devices::IssuedCode { code: "c".into(), expires_at: 1 }));
+        rt.script.once::<Result<wsp_core::devices::IssuedCode, HostError>>(
+            "devices.issue",
+            Ok(wsp_core::devices::IssuedCode { code: "c".into(), expires_at: 1 }),
+        );
         let served = served_with(&rt, ServeOptions { devices: Some(devices), ..opts() });
         let (socket, sink) = host_socket(&served).await;
         request(&socket, &sink, 1, "pair.issue", json!({})).await;
@@ -109,7 +112,10 @@ fn a_runtime_given_port_zero_binds_one_and_names_it() {
         let server = serve(&rt, ServeOptions { port: Some(0), ..opts() }).await;
         assert_ne!(server.port(), 0);
         let mut ws = dial(server.port(), "/").await.expect("the own port answers");
-        assert_eq!(ask(&mut ws, json!({ "id": 1, "op": "auth", "token": "wrong" })).await, json!({ "id": 1, "ok": false, "error": "unauthorized", "kind": "auth" }));
+        assert_eq!(
+            ask(&mut ws, json!({ "id": 1, "op": "auth", "token": "wrong" })).await,
+            json!({ "id": 1, "ok": false, "error": "unauthorized", "kind": "auth" })
+        );
         assert_eq!(close_code(&mut ws, 5).await, Some(4401));
         server.close().await.unwrap();
     })
@@ -198,7 +204,10 @@ fn an_unmasked_frame_is_said_in_one_line_and_the_next_socket_is_answered() {
         sock.write_all(&[0x81, 0x04, 0x6e, 0x75, 0x6c, 0x6c]).await.unwrap();
         let mut rest = Vec::new();
         let _ = tokio::time::timeout(Duration::from_secs(5), sock.read_to_end(&mut rest)).await.expect("the socket is cut");
-        assert_eq!(warned.lines(), vec!["socket from 127.0.0.1 dropped on a wire fault: Invalid WebSocket frame: MASK must be set".to_string()]);
+        assert_eq!(
+            warned.lines(),
+            vec!["socket from 127.0.0.1 dropped on a wire fault: Invalid WebSocket frame: MASK must be set".to_string()]
+        );
         let mut next = dial(server.port(), "/").await.unwrap();
         assert_eq!(ask(&mut next, json!({ "id": 1, "op": "auth", "token": TOKEN })).await["ok"], json!(true));
         server.close().await.unwrap();
@@ -246,7 +255,11 @@ fn revoke_device_cuts_every_socket_that_device_holds() {
         rt.script.once::<Result<bool, HostError>>("devices.revoke", Ok(true));
         assert!(server.revoke_device("d-1").await.unwrap());
         assert_eq!(close_code(&mut a, 5).await, Some(4401));
-        assert_eq!(ask(&mut host, json!({ "id": 2, "op": "auth", "token": TOKEN })).await["ok"], json!(true), "the host's own socket stays");
+        assert_eq!(
+            ask(&mut host, json!({ "id": 2, "op": "auth", "token": TOKEN })).await["ok"],
+            json!(true),
+            "the host's own socket stays"
+        );
         server.close().await.unwrap();
     })
 }
