@@ -43,7 +43,7 @@ use super::door::{Served, Ticket};
 use super::served::Payload;
 use super::socket::Socket;
 use crate::serve::Released;
-use crate::serve_projects::thread_places;
+use crate::serve_projects::{thread_place_rows, thread_places};
 
 /// Answers the ops of this unit and sends their replies; `NotMine` for any other op. An error is the switch's to
 /// send (spec O2).
@@ -84,7 +84,7 @@ pub async fn answer_places(
         RuntimeOp::PlacesList { .. } => {
             if road.by.is_some() {
                 let places = thread_places(&*served.rt, origin, served.now()).await?;
-                ok_reply(&id, fields([("places", to_value(&places)?), ("adds", json!([])), ("pending", json!([]))]))
+                ok_reply(&id, fields([("places", thread_place_rows(&places)?), ("adds", json!([])), ("pending", json!([]))]))
             } else if !road.own_road() {
                 refusal_reply(&id, PLACES_TICKET_REFUSAL, Some("ticket"))
             } else {
@@ -145,7 +145,7 @@ pub async fn answer_places(
             };
             let also = PlaceSetAlso { name: name.clone(), ssh: ssh.clone(), recipe };
             let view = door.set(place_id, set, reset.clone().unwrap_or_default(), also).await?;
-            ok_reply(&id, spread(&view)?)
+            ok_reply(&id, fields([("place", to_value(&view)?)]))
         }
         RuntimeOp::PlacesFollow { place_id, recipe, .. } => {
             let slug = if recipe == NO_RECIPE { recipe.clone() } else { recipe_named(&served, recipe).await?.slug };
@@ -388,7 +388,8 @@ pub async fn answer_places(
             let mut bytes = [0u8; 24];
             OsRng.fill_bytes(&mut bytes);
             let ticket = URL_SAFE_NO_PAD.encode(bytes);
-            let expires_at = served.now() + served.ticket_ttl_ms as i64;
+            let ttl = i64::try_from(served.ticket_ttl_ms).unwrap_or(i64::MAX);
+            let expires_at = served.now().saturating_add(ttl);
             let held = Ticket { purpose: *purpose, expires_at, paired: road.paired_road };
             served.tickets.borrow_mut().insert(ticket.clone(), held);
             ok_reply(&id, fields([("ticket", Value::from(ticket)), ("expiresAt", json!(expires_at))]))
