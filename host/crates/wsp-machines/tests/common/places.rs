@@ -81,6 +81,17 @@ pub fn base64_of(text: &str) -> String {
     base64::engine::general_purpose::STANDARD.encode(text)
 }
 
+/// A 64-byte signature standing for a text: the wire reads an ed25519 signature as 64 bytes of base64 and no other.
+pub fn signature_of(text: &str) -> String {
+    use sha2::Digest;
+    base64_of_bytes(&sha2::Sha512::digest(text.as_bytes()))
+}
+
+fn base64_of_bytes(bytes: &[u8]) -> String {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.encode(bytes)
+}
+
 /// The text a `putFiles` command writes: the base64 inside its `printf %s '...'` (places-setup.test.ts:1156 `written`).
 pub fn written(cmd: &str) -> String {
     use base64::Engine;
@@ -649,7 +660,7 @@ impl LinkRecords for FakeRecords {
         self.challenge.borrow().as_ref().map(|f| f(subject))
     }
     fn signed_refusal(&self, place_id: &str, place_nonce: &str, sentence: &str) -> PlaceAuthRefusal {
-        serde_json::from_value(json!({ "hostPublicKey": "MCowBQYDK2VwAyEAGb9ECWmEzf6FQbrBZ9w7lshQhqowtrbLDFw4rXAxZuE=", "signature": base64_of(&format!("signed:{place_id}:{place_nonce}:{sentence}")) })).expect("a signed refusal")
+        serde_json::from_value(json!({ "hostPublicKey": "MCowBQYDK2VwAyEAGb9ECWmEzf6FQbrBZ9w7lshQhqowtrbLDFw4rXAxZuE=", "signature": signature_of(&format!("signed:{place_id}:{place_nonce}:{sentence}")) })).expect("a signed refusal")
     }
     async fn write_seen(&self, place_id: &str, at: u64) -> PlaceResult<()> {
         self.seen.borrow_mut().push((place_id.to_string(), at));

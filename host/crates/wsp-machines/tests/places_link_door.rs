@@ -161,7 +161,7 @@ fn auth_refuses_an_unknown_id_with_a_signed_sentence() {
         match link.auth(auth_req("p_nowhere")).await.expect("answered") {
             AuthAnswer::Refusal { refusal, signed } => {
                 assert_eq!(refusal, PLACE_UNKNOWN_REFUSAL);
-                assert_eq!(serde_json::to_value(signed).unwrap()["signature"], json!(base64_of(&format!("signed:p_nowhere:{}:{PLACE_UNKNOWN_REFUSAL}", nonce()))));
+                assert_eq!(serde_json::to_value(signed).unwrap()["signature"], json!(common::places::signature_of(&format!("signed:p_nowhere:{}:{PLACE_UNKNOWN_REFUSAL}", nonce()))));
             }
             AuthAnswer::Reply { .. } => panic!("an unknown id is refused"),
         }
