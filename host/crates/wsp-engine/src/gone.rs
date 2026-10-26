@@ -90,23 +90,51 @@ pub async fn kill_until_gone(
     confirm: KillConfirm,
     clock: &dyn RetryClock,
 ) -> Result<()> {
+    read_back_gone(backend, machine, confirm, clock, None).await.map(|_| ())
+}
+
+/// golden.ts:177 `WatchRound`. One background round: whether the first kill was sent already, and whether the watch is
+/// still open.
+pub struct WatchRound<'a> {
+    pub asked: bool,
+    pub live: &'a dyn Fn() -> bool,
+}
+
+/// golden.ts:185 `readBackGone`, `killUntilGone`'s rule. Under a watch's round it answers `false` as soon as the watch
+/// closes and sends nothing after; `true` is a machine read gone `GONE_READS` times in a row.
+pub async fn read_back_gone(
+    backend: &dyn MachineBackend,
+    machine: &dyn Machine,
+    confirm: KillConfirm,
+    clock: &dyn RetryClock,
+    round: Option<&WatchRound<'_>>,
+) -> Result<bool> {
+    let live = || round.is_none_or(|r| (r.live)());
     let grace_ms = confirm.grace_ms.unwrap_or(KILL_GRACE_MS) as i64;
     let poll_ms = confirm.poll_ms.unwrap_or(POLL_MS);
     let mut alive = MachineState::Running;
-    for _ in 0..KILL_ASKS {
-        if let Err(e) = machine.kill().await {
-            if !is_missing(&e) {
-                return Err(e);
+    for attempt in 0..KILL_ASKS {
+        if !live() {
+            return Ok(false);
+        }
+        if attempt > 0 || !round.is_some_and(|r| r.asked) {
+            if let Err(e) = machine.kill().await {
+                if !is_missing(&e) {
+                    return Err(e);
+                }
             }
         }
         let deadline = clock.now() + grace_ms;
         let mut gone = 0;
         loop {
+            if !live() {
+                return Ok(false);
+            }
             let seen = read_once(backend, machine.id()).await?;
             if seen.state == MachineState::Gone {
                 gone += 1;
                 if gone >= GONE_READS {
-                    return Ok(());
+                    return Ok(true);
                 }
             } else {
                 alive = seen.state;
