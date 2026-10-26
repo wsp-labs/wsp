@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use tokio::sync::oneshot;
 
+use super::workspaces_help::HostRow;
 use crate::init_layout::colour_depth;
 use wsp_catalog::catalog::catalog_agents;
 use wsp_catalog::git_hosts::THREAD_AGENTS;
@@ -392,11 +393,28 @@ pub fn quiet_line(line: &str) {
 // ---------------------------------------------------------------------------------------------------------------
 
 /// `Created` (io.ts:231).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Created {
     pub workspace: WorkspaceOut,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    /// The workspace as the host wrote it: what the answer prints, since the TS passes the host's object on.
+    pub shown: Option<Value>,
     pub notice: Option<String>,
+}
+
+impl Serialize for Created {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::Error;
+        let workspace = match &self.shown {
+            Some(shown) => shown.clone(),
+            None => serde_json::to_value(&self.workspace).map_err(S::Error::custom)?,
+        };
+        let mut written = serde_json::Map::new();
+        written.insert("workspace".to_owned(), workspace);
+        if let Some(notice) = &self.notice {
+            written.insert("notice".to_owned(), Value::from(notice.as_str()));
+        }
+        Value::Object(written).serialize(serializer)
+    }
 }
 
 /// `SEND_MEETS` (io.ts:236), built from `SessionStartOutcome`'s words and `still_working_line()`.
@@ -877,7 +895,7 @@ pub async fn host_folders(
     client: &dyn HostClient,
     asked: &FoldersAsked,
     here: &(dyn Fn(&str) -> Result<String, HostError> + Send + Sync),
-) -> Result<HostFolderListing, HostError> {
+) -> Result<HostRow<HostFolderListing>, HostError> {
     let place = match asked.on.as_deref() {
         Some(on) => Some(place_named(client, on).await?),
         None => None,
@@ -904,7 +922,7 @@ pub async fn host_folders(
         params.insert("on".to_owned(), json!(place.id));
     }
     let reply = client.request("host.folders", params).await?;
-    field_of(&reply, "host.folders", "listing")
+    HostRow::from_reply(&reply, "host.folders", "listing")
 }
 
 /// `initSetup(client)` (io.ts:449-452): `init.get {}`'s `setup`, parsed against `InitSetup`; a shape it refuses is

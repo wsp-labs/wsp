@@ -20,8 +20,8 @@ use super::client::*;
 use super::io::{as_json, as_text, confirmed, timeout_flag, wait_answer};
 use super::turns_help::{project_defaults_of, wait_through};
 use super::workspaces_help::{
-    disk_gone_lines, place_names, project_line, project_of, projects_of, thread_lines, thread_rows, thread_tree, threads, threads_of,
-    workspaces, NO_PROJECT_YET, THREAD_HEAD,
+    disk_gone_lines, place_names, project_listed, project_row_line, projects_listed, thread_lines, thread_rows, thread_tree, threads,
+    threads_of, workspaces, NO_PROJECT_YET, THREAD_HEAD,
 };
 
 /// `projectSetLines` (projects.ts:24-29): what a new thread on the project starts on, then the after-worktree
@@ -106,6 +106,11 @@ fn home() -> Option<String> {
 
 fn json_of<T: serde::Serialize>(value: &T) -> Value {
     serde_json::to_value(value).expect("a view writes as JSON")
+}
+
+/// A string key of a row the host wrote, empty where it is not there.
+fn row_text<'a>(row: &'a Value, key: &str) -> &'a str {
+    row.get(key).and_then(Value::as_str).unwrap_or_default()
 }
 
 fn arg_str<'a>(args: &'a Frame, key: &str) -> Option<&'a str> {
@@ -321,9 +326,9 @@ fn call_projects(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolR
     Box::pin(async move {
         let _ = args;
         let client = deps.client(None).await?;
-        let projects = projects_of(&*client).await?;
+        let projects = projects_listed(&*client).await?;
         let defaults = project_defaults_of(&*client).await?;
-        Ok(as_json(json!({ "projects": json_of(&projects), "defaults": json_of(&defaults) })))
+        Ok(as_json(json!({ "projects": projects, "defaults": json_of(&defaults) })))
     })
 }
 
@@ -334,7 +339,7 @@ fn run_projects(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
             return Err(usage_refusal("wsp projects takes no positional arguments.", &usage_is(ctx)));
         }
         let client = ctx.client(None).await?;
-        let projects = projects_of(&*client).await?;
+        let projects = projects_listed(&*client).await?;
         let none = projects.is_empty();
         let held = if none { Vec::new() } else { workspaces(&*client).await? };
         let running = if none { Vec::new() } else { threads(&*client, None).await? };
@@ -346,13 +351,13 @@ fn run_projects(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
             let mut rows =
                 vec![["PROJECT", "ID", "COMPUTER", "SOURCE", "PATH", "BASE", "THREADS", "NEW THREADS"].map(str::to_owned).to_vec()];
             for p in &projects {
-                let mut cells = project_line(p, &held, &running, &named);
-                cells.push(defaults_cell(defaults.get(&p.id)));
+                let mut cells = project_row_line(p, &held, &running, &named);
+                cells.push(defaults_cell(defaults.get(row_text(p, "id"))));
                 rows.push(cells);
             }
             table(&rows).join("\n")
         };
-        ctx.out.emit(&json!({ "projects": json_of(&projects), "defaults": json_of(&defaults) }), Some(&line));
+        ctx.out.emit(&json!({ "projects": projects, "defaults": json_of(&defaults) }), Some(&line));
         Ok(0)
     })
 }
@@ -389,15 +394,15 @@ fn call_projects_add(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallT
 fn call_projects_remove(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
         let client = deps.client(None).await?;
-        let project = project_of(&*client, arg_str(&args, "project").unwrap_or_default()).await?;
+        let project = project_listed(&*client, arg_str(&args, "project").unwrap_or_default()).await?;
         let mut params = Frame::new();
-        params.insert("projectId".to_owned(), Value::from(project.id.as_str()));
+        params.insert("projectId".to_owned(), Value::from(row_text(&project, "id")));
         if args.get("force") == Some(&Value::Bool(true)) {
             params.insert("force".to_owned(), Value::Bool(true));
         }
         let reply = client.request("projects.remove", params).await?;
         let said: String = field(&reply, "projects.remove", "said")?;
-        Ok(as_text(&said, json!({ "project": json_of(&project), "said": said })))
+        Ok(as_text(&said, json!({ "project": project, "said": said })))
     })
 }
 
@@ -409,10 +414,11 @@ fn run_projects_remove(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError
             _ => return Err(usage_refusal("wsp projects remove takes one project.", &usage_is(ctx))),
         };
         let client = ctx.client(None).await?;
-        let project = project_of(&*client, reference).await?;
+        let project = project_listed(&*client, reference).await?;
+        let (project_id, project_name) = (row_text(&project, "id").to_owned(), row_text(&project, "name").to_owned());
         let force = flag_set(&ctx.flags, "force");
         let mut check = Frame::new();
-        check.insert("projectId".to_owned(), Value::from(project.id.as_str()));
+        check.insert("projectId".to_owned(), Value::from(project_id.as_str()));
         check.insert("check".to_owned(), Value::Bool(true));
         if force {
             check.insert("force".to_owned(), Value::Bool(true));
@@ -424,19 +430,19 @@ fn run_projects_remove(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError
         };
         let question = format!(
             "Remove {}?\nIts record leaves this wsp, with the folder wsp made for it on the computer holding it; a folder of yours stays where it is.{losing}",
-            project.name
+            project_name
         );
-        if !confirmed(ctx, &question, &project.name).await? {
+        if !confirmed(ctx, &question, &project_name).await? {
             return Ok(1);
         }
         let mut remove = Frame::new();
-        remove.insert("projectId".to_owned(), Value::from(project.id.as_str()));
+        remove.insert("projectId".to_owned(), Value::from(project_id.as_str()));
         if force {
             remove.insert("force".to_owned(), Value::Bool(true));
         }
         let reply = client.request("projects.remove", remove).await?;
         let said: String = field(&reply, "projects.remove", "said")?;
-        ctx.out.emit(&json!({ "project": json_of(&project), "said": said }), Some(&said));
+        ctx.out.emit(&json!({ "project": project, "said": said }), Some(&said));
         Ok(0)
     })
 }

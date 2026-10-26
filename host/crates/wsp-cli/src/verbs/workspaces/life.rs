@@ -117,7 +117,7 @@ pub(super) fn call_review(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<
         let (url, workspace_id) = if is_link(&target) {
             (Some(target), None)
         } else {
-            (None, Some(thread_at(&*client, &target, "wsp review", false).await?.1.id))
+            (None, Some(thread_at_in(&*client, &target, "wsp review", false, cloud_of(&deps.env)).await?.1.id))
         };
         let ask = ReviewStartedAsk {
             url,
@@ -143,7 +143,7 @@ pub(super) fn run_review(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErr
         let (url, workspace_id) = if is_link(&target) {
             (Some(target), None)
         } else {
-            (None, Some(thread_at(&*client, &target, "wsp review", false).await?.1.id))
+            (None, Some(thread_at_in(&*client, &target, "wsp review", false, cloud_of(&ctx.env)).await?.1.id))
         };
         let ask = ReviewStartedAsk {
             url,
@@ -161,8 +161,13 @@ pub(super) fn run_review(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErr
 /// The `review_post` tool's call (`verbs/workspaces.ts:411-416`).
 pub(super) fn call_review_post(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
+        let asked = frame_str(&args, "verdict");
+        if let Some(word) = asked.as_deref().filter(|word| !["comment", "approve", "request_changes"].contains(word)) {
+            return Ok(off_the_list("review_post", "verdict", &["comment", "approve", "request_changes"], word));
+        }
         let client = deps.client(None).await?;
-        let at = thread_at(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp review post", false).await?;
+        let at =
+            thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp review post", false, cloud_of(&deps.env)).await?;
         let edits =
             ReviewEdits { verdict: frame_str(&args, "verdict").and_then(|word| verdict_of(&word)), summary: frame_str(&args, "summary") };
         let posted = review_posted(&*client, &at.1.id, &edits, &thread_id_of(&at.0)).await?;
@@ -188,7 +193,7 @@ pub(super) fn run_review_post(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, Ho
             })?),
         };
         let client = ctx.client(None).await?;
-        let at = thread_at(&*client, &reference, "wsp review post", false).await?;
+        let at = thread_at_in(&*client, &reference, "wsp review post", false, cloud_of(&ctx.env)).await?;
         let edits = ReviewEdits { verdict, summary: flag(&ctx.flags, "summary").map(str::to_owned) };
         let posted = review_posted(&*client, &at.1.id, &edits, &thread_id_of(&at.0)).await?;
         ctx.out.emit(&json_of(&posted), Some(&posted_line(&thread_label(&at.0), &posted)));
@@ -322,7 +327,7 @@ pub(super) fn call_image_build(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Re
     Box::pin(async move {
         let client = deps.client(None).await?;
         let force = args.get("force").and_then(Value::as_bool);
-        let built = build_image_at(&*client, &Out::quiet(), &frame_str(&args, "place").unwrap_or_default(), force).await?;
+        let built = build_image_unheard(&*client, &frame_str(&args, "place").unwrap_or_default(), force).await?;
         Ok(as_text(&sealed_built_line(&built.image, &built.built.copy, built.built.built), json_of(&built.built)))
     })
 }
@@ -381,7 +386,7 @@ pub(super) fn call_delete(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<
             if let Some(sub) = thread.as_ref().filter(|t| t.sub.is_some()) {
                 let id = thread_id_of(sub);
                 if !confirm {
-                    let question = sub_deleting(&*client, Some(sub)).await?.map(|s| s.question).unwrap_or_default();
+                    let question = sub_deleting(&*client, Some(sub)).await?.and_then(|s| s.question).unwrap_or_default();
                     let text =
                         format!("thread {id} kept. {} Ask the person, then call delete again with confirm true.", second_line(&question));
                     return Ok(kept_result(text, json!({ "threadId": id, "workspaceId": sub.workspace_id, "threads": 1 })));
@@ -390,7 +395,7 @@ pub(super) fn call_delete(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<
                 return Ok(as_text(&sub_deleted_line(&id, gone.on.as_deref().unwrap_or("")), deleted_value(&id, &gone, false)));
             }
             let Some(here) = thread_here(&*client, thread.as_ref().map(ThreadRef::Row)).await? else {
-                if cloud_on() {
+                if cloud_of(&deps.env) {
                     refuse_machine_thread(&*client, &reference).await?;
                 }
                 return Err(usage_refusal(&format!("no thread {reference}"), NO_THREAD_FIX));
@@ -413,7 +418,7 @@ pub(super) fn call_delete(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<
         }
         let Some(reference) = frame_str(&args, "workspace") else {
             return Err(usage_refusal(
-                &cloud_text("delete takes a thread<!-- cloud -->, or a workspace<!-- /cloud -->.", cloud_on()),
+                &cloud_text("delete takes a thread<!-- cloud -->, or a workspace<!-- /cloud -->.", cloud_of(&deps.env)),
                 "Name one.",
             ));
         };
@@ -444,7 +449,7 @@ pub(super) fn run_delete(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErr
             [reference] => reference.clone(),
             _ => {
                 return Err(usage_refusal(
-                    &cloud_text("wsp delete takes one thread<!-- cloud -->, or one workspace<!-- /cloud -->.", cloud_on()),
+                    &cloud_text("wsp delete takes one thread<!-- cloud -->, or one workspace<!-- /cloud -->.", cloud_of(&ctx.env)),
                     &usage_is(ctx),
                 ));
             }
@@ -453,7 +458,7 @@ pub(super) fn run_delete(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErr
         let client = ctx.client(None).await?;
         let thread = thread_of(&*client, &reference).await.ok();
         if let Some(subbed) = sub_deleting(&*client, thread.as_ref()).await? {
-            if !confirmed(ctx, &subbed.question, &subbed.id).await? {
+            if !confirmed(ctx, subbed.question.as_deref().unwrap_or_default(), &subbed.id).await? {
                 return Ok(1);
             }
             let gone = thread_deleted(&*client, &subbed.id, &ThreadDeletedAsk::default()).await?;
@@ -472,7 +477,7 @@ pub(super) fn run_delete(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErr
             ctx.out.emit(&deleted_value(&here.id, &gone, true), Some(&lines.join("\n")));
             return Ok(0);
         }
-        if !cloud_on() {
+        if !cloud_of(&ctx.env) {
             return Err(usage_refusal(&format!("no thread {reference}"), NO_THREAD_FIX));
         }
         // A workspace by that name comes first; a ref that names none but is a thread on a box's machine says how that
