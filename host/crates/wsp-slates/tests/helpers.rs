@@ -309,7 +309,7 @@ fn longest_of_a_string_is_its_own_path_and_length() {
 #[test]
 fn longest_counts_utf16_units() {
     let got = longest(&json!({"a": "abc", "b": "a😀"}), &[]);
-    assert_eq!(got, Some(Longest { at: vec![key("b")], length: 3 }));
+    assert_eq!(got, Some(Longest { at: vec![key("a")], length: 3 }));
     let wide = longest(&json!({"a": "abcd", "b": "😀😀"}), &[]);
     assert_eq!(wide, Some(Longest { at: vec![key("a")], length: 4 }));
     let wider = longest(&json!(["😀😀😀"]), &[]);
