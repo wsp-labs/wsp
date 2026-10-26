@@ -192,7 +192,10 @@ pub async fn answer_ops(
             };
             one("run", to_value(&rt.sessions().run(step, origin).await?)?)
         }
-        RuntimeOp::GoldenGet { name, .. } => one("manifest", to_value(&rt.golden().get(Some(name.clone())).await?)?),
+        RuntimeOp::GoldenGet { name, .. } => match rt.golden().get(Some(name.clone())).await? {
+            Some(manifest) => one("manifest", to_value(&manifest)?),
+            None => Payload::new(),
+        },
         RuntimeOp::CapabilitiesGet { .. } => {
             let capabilities = rt.backend().capabilities();
             one("capabilities", to_value(&capabilities)?)

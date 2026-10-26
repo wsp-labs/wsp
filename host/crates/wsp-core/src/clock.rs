@@ -3,9 +3,12 @@
 //! Spec: spec/clock.md.
 //!
 //! The one time seam of the runtime (rule 3.15). `unref` is dropped: it has no meaning in Rust.
+use async_trait::async_trait;
+use futures::channel::oneshot;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use wsp_engine::errors::RetryClock;
 
 /// Stops a timer that has not fired; a second call, or one after it fired, does nothing (clock.ts:21).
 pub type Cancel = Rc<dyn Fn()>;
@@ -177,5 +180,52 @@ impl Clock for FakeClock {
                 state.borrow_mut().timers.retain(|t| t.id != id);
             }
         })
+    }
+}
+
+struct CancelOnDrop(Cancel);
+
+impl Drop for CancelOnDrop {
+    fn drop(&mut self) {
+        (self.0)()
+    }
+}
+
+// errors.ts:315
+// export const realRetryClock: RetryClock = {
+//   now: () => Date.now(),
+//   sleep: ms => new Promise(r => setTimeout(r, ms)),
+//   random: () => Math.random(),
+// };
+/// The engine's `RetryClock` over the runtime's `Clock`: `now` and `sleep` follow the clock the context holds (rule
+/// 3.15), so a test that moves the fake clock moves the engine's retries. A sleep dropped before it ends cancels its
+/// timer.
+pub struct RetryClockOver {
+    clock: Rc<dyn Clock>,
+}
+
+impl RetryClockOver {
+    pub fn new(clock: Rc<dyn Clock>) -> Self {
+        RetryClockOver { clock }
+    }
+}
+
+#[async_trait(?Send)]
+impl RetryClock for RetryClockOver {
+    fn now(&self) -> i64 {
+        self.clock.now()
+    }
+    async fn sleep(&self, ms: u64) {
+        let (tx, rx) = oneshot::channel::<()>();
+        let _stop = CancelOnDrop(self.clock.schedule(
+            Box::new(move || {
+                let _ = tx.send(());
+            }),
+            i64::try_from(ms).unwrap_or(i64::MAX),
+        ));
+        let _ = rx.await;
+    }
+    fn random(&self) -> f64 {
+        rand::random::<f64>()
     }
 }

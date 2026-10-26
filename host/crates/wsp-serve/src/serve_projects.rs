@@ -92,6 +92,21 @@ pub async fn thread_places(rt: &DynRuntime, origin: Option<Caller>, now: i64) ->
         .collect())
 }
 
+/// `thread_places` rows for a reply: a provider's `label` goes last, as serve-projects.ts:43 `{ ...p, label }` puts it.
+pub fn thread_place_rows(rows: &[PlaceView]) -> Result<Value, HostError> {
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        let mut value = to_value(row)?;
+        if let (PlaceKind::Provider, Value::Object(fields)) = (&row.kind, &mut value) {
+            if let Some(label) = fields.remove("label") {
+                fields.insert("label".into(), label);
+            }
+        }
+        out.push(value);
+    }
+    Ok(Value::Array(out))
+}
+
 /// `projects.remove`'s answer: `unsaved` only where something was left unsaved.
 fn removed_payload(removed: &ProjectRemoved) -> Result<Payload, HostError> {
     let mut out = Payload::new();
