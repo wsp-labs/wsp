@@ -162,6 +162,12 @@ impl Rig {
         (socket, sink)
     }
     /// A computer the person paired: on the own road, never the host.
+    /// The browser `wsp init` let in: a device marked `here`, which takes the person's own road.
+    async fn browser(&self) -> (Rc<Socket>, Rc<RecordingSink>) {
+        let mut view = held(None, None);
+        view.view.here = Some(from(json!(true)));
+        self.as_device(view).await
+    }
     async fn paired(&self) -> (Rc<Socket>, Rc<RecordingSink>) {
         self.as_device(held(None, None)).await
     }
@@ -1584,7 +1590,7 @@ fn agents_setup_env_values_only_from_the_host() {
         let r = rig(|_| {});
         let rt = &r.rt;
         let stop = || Err::<wsp_wire::types::agents_report::AgentRow, _>(HostError::new("stop"));
-        let (paired, paired_sink) = r.paired().await;
+        let (paired, paired_sink) = r.browser().await;
         let with_value = json!({ "placeId": "pl_1", "agent": "claude", "env": { "TOKEN": "v-1" } });
         let refused = request(&paired, &paired_sink, 1, "agents.setup", with_value.clone()).await;
         assert_eq!(refused.to_string(), json!({ "id": 1, "ok": false, "error": ENV_VALUE_REFUSAL }).to_string());

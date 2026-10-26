@@ -33,7 +33,7 @@ use wsp_wire::wire::place_link::{
 use wsp_words::exit::HostError;
 use wsp_words::place_word::{place_said, PlaceRef};
 use wsp_words::recipe_file::{no_picks_refusal, recipe_from_here_refusal, recipe_summary};
-use wsp_words::words::computer::RELAY_TICKET_REFUSAL;
+use wsp_words::words::computer::{device_held_refusal, RELAY_TICKET_REFUSAL};
 use wsp_words::words::computer::UNAUTHORIZED;
 use wsp_words::words::places::join_roads;
 use wsp_words::words::units::{doctor_row_refusal, doctor_running_line, DOCTOR_UNSERVED};
@@ -81,6 +81,13 @@ fn spread(id: u64, fields: &Value) -> String {
         v[k] = f.clone();
     }
     v.to_string()
+}
+
+/// The one frame a places.set sent back. The reply spreads the place's view after `id`, so the place's own id
+/// stands where the request's was (serve.ts:946) and the reply cannot be found by the request's id.
+async fn answer_of(socket: &Rc<Socket>, sink: &RecordingSink, id: u64, op: &str, fields: Value) -> Value {
+    support::send(socket, support::frame(id, op, fields)).await;
+    sink.frames().last().cloned().expect("a reply")
 }
 
 fn base(rt: &Rc<FakeRuntime>) -> ServeOptions {
@@ -296,11 +303,11 @@ fn host_only_ops_refuse_a_device_socket_in_their_own_sentence() {
         let served = served_with(&rt, ServeOptions { door: Some(Rc::new(FakeDoor { script: rt.script.clone() })), ..base(&rt) });
         let (socket, sink) = device_socket(&served, "dev-token").await;
         let r = request(&socket, &sink, 1, "pair.issue", json!({})).await;
-        assert_eq!(r.to_string(), refused(1, PAIR_ISSUE_REFUSAL, None));
+        assert_eq!(r.to_string(), refused(1, &device_held_refusal("pair.issue"), None));
         let r = request(&socket, &sink, 2, "places.mint", json!({})).await;
-        assert_eq!(r.to_string(), refused(2, MINT_JOIN_REFUSAL, None));
+        assert_eq!(r.to_string(), refused(2, &device_held_refusal("places.mint"), None));
         let r = request(&socket, &sink, 3, "places.sshHosts", json!({})).await;
-        assert_eq!(r.to_string(), refused(3, SSH_HOSTS_REFUSAL, None));
+        assert_eq!(r.to_string(), refused(3, &device_held_refusal("places.sshHosts"), None));
         assert!(rt.script.calls_to("devices.issue").is_empty());
         assert!(rt.script.calls_to("door.open").is_empty());
         assert!(rt.script.calls_to("places.hostKey").is_empty());
@@ -394,7 +401,7 @@ fn pair_issue_on_a_device_socket_is_refused() {
         let served = served_with(&rt, base(&rt));
         let (socket, sink) = device_socket(&served, "dev-token").await;
         let reply = request(&socket, &sink, 1, "pair.issue", json!({})).await;
-        assert_eq!(reply.to_string(), refused(1, PAIR_ISSUE_REFUSAL, None));
+        assert_eq!(reply.to_string(), refused(1, &device_held_refusal("pair.issue"), None));
         assert!(rt.script.calls_to("devices.issue").is_empty());
     })
 }
@@ -617,7 +624,7 @@ fn places_set_reads_a_recipe_word_as_its_slug_and_none_as_none() {
         let served = served_with(&rt, ServeOptions { recipes: Some(Rc::new(FakeShelf { script: rt.script.clone() })), ..base(&rt) });
         let (socket, sink) = host_socket(&served).await;
 
-        let named = request(
+        let named = answer_of(
             &socket,
             &sink,
             1,
@@ -626,9 +633,9 @@ fn places_set_reads_a_recipe_word_as_its_slug_and_none_as_none() {
         )
         .await;
         assert_eq!(named.to_string(), spread(1, &serde_json::to_value(&view).unwrap()), "the door's answer is spread after ok");
-        let none = request(&socket, &sink, 2, "places.set", json!({ "placeId": "p_1", "recipe": NO_RECIPE })).await;
+        let none = answer_of(&socket, &sink, 2, "places.set", json!({ "placeId": "p_1", "recipe": NO_RECIPE })).await;
         assert_eq!(none["ok"], json!(true));
-        let absent = request(&socket, &sink, 3, "places.set", json!({ "placeId": "p_1", "threads": 5 })).await;
+        let absent = answer_of(&socket, &sink, 3, "places.set", json!({ "placeId": "p_1", "threads": 5 })).await;
         assert_eq!(absent["ok"], json!(true));
 
         let asked = rt.script.calls_to("places.set");
@@ -1210,6 +1217,7 @@ fn recipes_are_refused_kind_ticket_off_the_own_road() {
 fn recipes_without_a_shelf_say_so() {
     support::block(async {
         let rt = FakeRuntime::with_places();
+        rt.script.once::<Result<IndexMap<String, Vec<String>>, HostError>>("places.followers", Ok(IndexMap::new()));
         let served = served_with(&rt, base(&rt));
         let (socket, sink) = host_socket(&served).await;
         let reply = request(&socket, &sink, 1, "recipes.list", json!({})).await;
