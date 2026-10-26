@@ -3,10 +3,20 @@
 //! and the tools, this computer's processes and a box's by the thread that started them, and the `--processes`
 //! choice settle and delete hand the host. Spec: `spec/activity.md`.
 
-use wsp_wire::views::activity::{ActivityEnded, ActivityView};
-use wsp_words::exit::HostError;
+use serde_json::Value;
+use wsp_wire::types::js_number::JsNumber;
+use wsp_wire::views::activity::{end_gone_said, ActivityEnded, ActivityView, END_GRACE_WORD, PROCESSES_CHOICES};
+use wsp_words::exit::{usage_refusal, HostError};
+use wsp_words::js::to_number;
+use wsp_words::words::computer::thread_word;
+use wsp_words::words::units::fmt_bytes;
 
+use super::activity_table::{activity_table, cpu_word, kind_word, TableOpts};
 use super::client::*;
+use super::io::as_text;
+use super::workspaces_help::thread_of;
+use crate::cloud::cloud_on;
+use crate::cloud_text::cloud_text;
 
 /// `STARTED_WORDS` (activity.ts:25): what each door says the start is.
 pub const STARTED_WORDS: &str = "the start activity listed it with, its startedAt in epoch milliseconds";
@@ -14,39 +24,116 @@ pub const STARTED_WORDS: &str = "the start activity listed it with, its startedA
 /// `readActivity` (activity.ts:27-29): `activity.read` with `{computer?, thread?}` in that key order, its
 /// `activity` field parsed as the view.
 pub async fn read_activity(client: &dyn HostClient, computer: Option<&str>, thread: Option<&str>) -> Result<ActivityView, HostError> {
-    let _ = (client, computer, thread);
-    todo!("activity.ts:27-29")
+    let mut params = Frame::new();
+    if let Some(computer) = computer {
+        params.insert("computer".to_owned(), Value::from(computer));
+    }
+    if let Some(thread) = thread {
+        params.insert("thread".to_owned(), Value::from(thread));
+    }
+    let reply = client.request("activity.read", params).await?;
+    let view = reply.get("activity").cloned().and_then(|value| serde_json::from_value(value).ok());
+    view.ok_or_else(|| HostError::new(other_version("activity.read")))
 }
 
 /// `endProcess` (activity.ts:31-33): `activity.end` with `{pid, startedAt, computer?}` in that key order (the
 /// caller's spread order), the whole reply parsed as `ActivityEnded`.
 pub async fn end_process(client: &dyn HostClient, pid: i64, started_at: f64, computer: Option<&str>) -> Result<ActivityEnded, HostError> {
-    let _ = (client, pid, started_at, computer);
-    todo!("activity.ts:31-33")
+    let mut params = Frame::new();
+    params.insert("pid".to_owned(), Value::from(pid));
+    params.insert("startedAt".to_owned(), serde_json::to_value(JsNumber(started_at)).expect("a number writes as JSON"));
+    if let Some(computer) = computer {
+        params.insert("computer".to_owned(), Value::from(computer));
+    }
+    let reply = client.request("activity.end", params).await?;
+    serde_json::from_value(Value::Object(reply)).map_err(|_| HostError::new(other_version("activity.end")))
+}
+
+/// `readFor` (activity.ts:35-39): the read, its thread named by a `threadOf` read first.
+async fn read_for(client: &dyn HostClient, computer: Option<&str>, reference: Option<&str>) -> Result<ActivityView, HostError> {
+    let thread = match reference {
+        Some(reference) => Some(thread_of(client, reference).await?.id),
+        None => None,
+    };
+    read_activity(client, computer, thread.as_deref()).await
+}
+
+/// One process of a read, as the tool's text names it: its depth, pid, kind, command, ports, memory and CPU.
+fn proc_line(p: &wsp_wire::views::activity::ActivityProc) -> String {
+    let ports = if p.ports.is_empty() {
+        String::new()
+    } else {
+        format!("  :{}", p.ports.iter().map(|port| port.get().to_string()).collect::<Vec<_>>().join(" :"))
+    };
+    format!(
+        "{}{}  {}  {}{ports}  {}  {}",
+        "  ".repeat(p.depth.get() as usize + 1),
+        p.pid.get(),
+        kind_word(p.kind),
+        p.command,
+        fmt_bytes(p.memory.0),
+        cpu_word(p.cpu.0)
+    )
 }
 
 /// `activityLines` (activity.ts:42-48): the tool's text for a read.
 pub fn activity_lines(view: &ActivityView) -> String {
-    let _ = view;
-    todo!("activity.ts:42-48")
+    let mut lines: Vec<String> = Vec::new();
+    for t in &view.threads {
+        lines.push(format!("thread {} {}  {}  {}", thread_word(&t.thread_id), t.title, fmt_bytes(t.memory.0), cpu_word(t.cpu.0)));
+        lines.extend(t.processes.iter().map(proc_line));
+    }
+    if !view.wsp.is_empty() {
+        lines.push("wsp".to_owned());
+        lines.extend(view.wsp.iter().map(proc_line));
+    }
+    if !view.unowned.is_empty() {
+        lines.push("no thread".to_owned());
+        lines.extend(view.unowned.iter().map(proc_line));
+    }
+    if lines.is_empty() {
+        return format!("no thread runs a process on {}", view.computer);
+    }
+    lines.join("\n")
 }
 
 /// `endedLines` (activity.ts:50-58): what an end says, a freed kept agent first.
 pub fn ended_lines(ended: &ActivityEnded) -> String {
-    let _ = ended;
-    todo!("activity.ts:50-58")
+    if let Some(freed) = &ended.freed {
+        return format!("freed the agent thread {} kept", thread_word(freed));
+    }
+    let Some((first, under)) = ended.ended.split_first() else {
+        return end_gone_said(ended.pid.get());
+    };
+    let under_word = if under.is_empty() { String::new() } else { format!(" and {} under it", under.len()) };
+    let mut lines = vec![format!("ended {} {}{under_word}", first.pid.get(), first.name)];
+    let pids = |list: &[wsp_wire::types::js_number::JsInt]| list.iter().map(|p| p.get().to_string()).collect::<Vec<_>>().join(" ");
+    if !ended.forced.is_empty() {
+        lines.push(format!("KILL after TERM's {END_GRACE_WORD}: {}", pids(&ended.forced)));
+    }
+    if !ended.left.is_empty() {
+        lines.push(format!("still running after KILL: {}", pids(&ended.left)));
+    }
+    lines.join("\n")
 }
 
 /// `processesAsked` (activity.ts:65): `oneOf("processes", PROCESSES_CHOICES, value, on)`.
 pub fn processes_asked(value: Option<&str>, on: Option<&str>) -> Result<Option<String>, HostError> {
-    let _ = (value, on);
-    todo!("activity.ts:65")
+    one_of("processes", PROCESSES_CHOICES, value, on)
 }
 
 /// `ProcessesIn` (activity.ts:67): the optional `processes` input of settle and delete, its words through
 /// `cloud_text` with the cloud as this process reads it.
 pub fn processes_in() -> ToolInput {
-    todo!("activity.ts:67")
+    ToolInput {
+        name: "processes",
+        kind: InputKind::Enum(PROCESSES_CHOICES.to_vec()),
+        optional: true,
+        describe: Some(cloud_text(
+            "what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run<!-- cloud -->. A thread on a cloud machine is not read and goes as before<!-- /cloud -->",
+            cloud_on(),
+        )),
+    }
 }
 
 /// The entries of `verbs/activity.ts`, in the TS table's order (its order is `tools/list`'s).
@@ -107,31 +194,62 @@ pub fn activity_verbs() -> Vec<Verb> {
 /// The `activity` tool's call (`verbs/activity.ts:91-94`).
 fn call_activity(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/activity.ts:91-94")
+        let client = deps.client(None).await?;
+        let computer = args.get("computer").and_then(Value::as_str);
+        let thread = args.get("thread").and_then(Value::as_str);
+        let view = read_for(&*client, computer, thread).await?;
+        Ok(as_text(&activity_lines(&view), json_value(&view)))
     })
 }
 
 /// `wsp activity` (`verbs/activity.ts:77-82`).
 fn run_activity(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/activity.ts:77-82")
+        if ctx.args.len() > 1 {
+            return Err(usage_refusal("wsp activity takes one thread at most.", &usage_is(ctx)));
+        }
+        let client = ctx.client(None).await?;
+        let view = read_for(&*client, flag(&ctx.flags, "computer"), ctx.args.first().map(String::as_str)).await?;
+        let width = ctx.io.redraw().map(|redraw| usize::from(redraw.columns()));
+        let table = activity_table(&view, TableOpts { width, wide: flag_set(&ctx.flags, "wide") });
+        ctx.out.emit(&json_value(&view), Some(&table));
+        Ok(0)
     })
+}
+
+fn json_value<T: serde::Serialize>(value: &T) -> Value {
+    serde_json::to_value(value).expect("a view writes as JSON")
 }
 
 /// The `activity_end` tool's call (`verbs/activity.ts:123-126`).
 fn call_activity_end(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/activity.ts:123-126")
+        let pid = args.get("pid").and_then(Value::as_f64).unwrap_or_default() as i64;
+        let started = args.get("started").and_then(Value::as_f64).unwrap_or_default();
+        let computer = args.get("computer").and_then(Value::as_str);
+        let ended = end_process(&*deps.client(None).await?, pid, started, computer).await?;
+        Ok(as_text(&ended_lines(&ended), json_value(&ended)))
     })
 }
 
 /// `wsp activity end` (`verbs/activity.ts:103-114`).
 fn run_activity_end(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/activity.ts:103-114")
+        let pid = match ctx.args.as_slice() {
+            [word] => to_number(word),
+            _ => f64::NAN,
+        };
+        if ctx.args.len() != 1 || !pid.is_finite() || pid.fract() != 0.0 || pid <= 0.0 {
+            return Err(usage_refusal("wsp activity end takes one pid.", &usage_is(ctx)));
+        }
+        let started = flag(&ctx.flags, "started");
+        let started_at = started.map_or(f64::NAN, to_number);
+        if started.is_none_or(|word| word.is_empty()) || !started_at.is_finite() {
+            return Err(usage_refusal(&format!("wsp activity end takes --started, {STARTED_WORDS}."), &usage_is(ctx)));
+        }
+        let computer = flag(&ctx.flags, "computer");
+        let ended = end_process(&*ctx.client(None).await?, pid as i64, started_at, computer).await?;
+        ctx.out.emit(&json_value(&ended), Some(&ended_lines(&ended)));
+        Ok(0)
     })
 }

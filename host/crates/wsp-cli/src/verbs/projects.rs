@@ -2,11 +2,27 @@
 //! `packages/host/src/verbs/projects.ts` at 65f6b89c7: `wsp projects` and its subcommands, `wsp threads` and
 //! `wsp threads wait`, and the tool-only `projects_add`. Spec: `spec/projects.md`.
 
-use wsp_wire::types::thread_defaults::ThreadDefaults;
-use wsp_wire::views::workspace::ProjectSeed;
-use wsp_words::exit::HostError;
+use std::sync::Arc;
 
+use indexmap::IndexMap;
+use serde_json::{json, Value};
+use wsp_wire::types::thread_defaults::ThreadDefaults;
+use wsp_wire::views::workspace::{ProjectSeed, ProjectView};
+use wsp_words::exit::{usage_refusal, HostError};
+use wsp_words::words::computer::Platform;
+use wsp_words::words::turn::NotifyLength;
+
+use super::agents_help::{
+    after_worktree_line, defaults_cell, draw_rows, new_threads_head_line, project_defaults_set, thread_defaults_lines, trackers_line,
+    ProjectSetAsk, Rows,
+};
 use super::client::*;
+use super::io::{as_json, as_text, confirmed, timeout_flag, wait_answer};
+use super::turns_help::{project_defaults_of, wait_through};
+use super::workspaces_help::{
+    disk_gone_lines, place_names, project_line, project_of, projects_of, thread_lines, thread_rows, thread_tree, threads, threads_of,
+    workspaces, NO_PROJECT_YET, THREAD_HEAD,
+};
 
 /// `projectSetLines` (projects.ts:24-29): what a new thread on the project starts on, then the after-worktree
 /// command and the trackers where the answer carries them.
@@ -16,8 +32,15 @@ pub fn project_set_lines(
     after_worktree: Option<&str>,
     trackers: Option<&[String]>,
 ) -> Vec<String> {
-    let _ = (project_name, defaults, after_worktree, trackers);
-    todo!("projects.ts:24-29")
+    let mut lines = vec![new_threads_head_line(project_name)];
+    lines.extend(thread_defaults_lines(defaults));
+    if let Some(command) = after_worktree {
+        lines.push(after_worktree_line(command));
+    }
+    if let Some(list) = trackers {
+        lines.push(trackers_line(list));
+    }
+    lines
 }
 
 /// The picks a seed line asks for (projects.ts:32).
@@ -32,15 +55,91 @@ pub struct SeedAsk {
 /// `projectSeed` (projects.ts:32-41): `projects.seed` with `project`, then `keep`, `cut`, `none: true` and
 /// `save: true` only where given, in that order, the reply parsed as `ProjectSeed`.
 pub async fn project_seed(client: &dyn HostClient, project: &str, ask: &SeedAsk) -> Result<ProjectSeed, HostError> {
-    let _ = (client, project, ask);
-    todo!("projects.ts:32-41")
+    let mut params = Frame::new();
+    params.insert("project".to_owned(), Value::from(project));
+    if !ask.keep.is_empty() {
+        params.insert("keep".to_owned(), json!(ask.keep));
+    }
+    if !ask.cut.is_empty() {
+        params.insert("cut".to_owned(), json!(ask.cut));
+    }
+    if ask.none {
+        params.insert("none".to_owned(), Value::Bool(true));
+    }
+    if ask.save {
+        params.insert("save".to_owned(), Value::Bool(true));
+    }
+    let reply = client.request("projects.seed", params).await?;
+    serde_json::from_value(Value::Object(reply)).map_err(|_| HostError::new(other_version("projects.seed")))
 }
 
 /// `projectSeedText` (projects.ts:44-47): the head, a blank line, the menu indented two spaces and a blank line
 /// where it has rows, then the foot.
 pub fn project_seed_text(seed: &ProjectSeed) -> String {
-    let _ = seed;
-    todo!("projects.ts:44-47")
+    let lines = wsp_words::project_seed::project_seed_lines(seed);
+    let mut out = vec![lines.head, String::new()];
+    if !lines.rows.is_empty() {
+        out.extend(table(&lines.rows).into_iter().map(|line| format!("  {line}")));
+        out.push(String::new());
+    }
+    out.extend(lines.foot);
+    out.join("\n")
+}
+
+/// The host platform word as the sentences name a computer by (`hostPlatform`).
+fn platform() -> Platform {
+    if cfg!(target_os = "macos") {
+        Platform::Darwin
+    } else {
+        Platform::Linux
+    }
+}
+
+fn now_ms() -> f64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0.0, |d| d.as_millis() as f64)
+}
+
+/// The home folder `os.homedir()` names, from `HOME`.
+fn home() -> Option<String> {
+    std::env::var("HOME").ok().filter(|home| !home.is_empty())
+}
+
+fn json_of<T: serde::Serialize>(value: &T) -> Value {
+    serde_json::to_value(value).expect("a view writes as JSON")
+}
+
+fn arg_str<'a>(args: &'a Frame, key: &str) -> Option<&'a str> {
+    args.get(key).and_then(Value::as_str)
+}
+
+/// A list argument as its strings, where the frame carries one.
+fn arg_list(args: &Frame, key: &str) -> Option<Vec<String>> {
+    args.get(key).and_then(Value::as_array).map(|items| items.iter().filter_map(Value::as_str).map(str::to_owned).collect())
+}
+
+/// The reply's field read into the type a verb takes; a field the host left out or shaped otherwise is the other-version
+/// refusal.
+fn field<T: serde::de::DeserializeOwned>(reply: &Frame, op: &str, key: &str) -> Result<T, HostError> {
+    reply.get(key).cloned().and_then(|value| serde_json::from_value(value).ok()).ok_or_else(|| HostError::new(other_version(op)))
+}
+
+/// The `threads` rows as the listing draws them: the table of the thread head and each thread's line, then the disk lines.
+async fn thread_rows_frame(client: &dyn HostClient, within: Option<&str>, tree: bool) -> Result<Rows, HostError> {
+    let rows = thread_rows(client, within).await?;
+    let (now, home) = (now_ms(), home());
+    let mut lines: Vec<Vec<String>> = vec![THREAD_HEAD.iter().map(|head| (*head).to_owned()).collect()];
+    if tree {
+        for entry in thread_tree(&rows) {
+            lines.extend(thread_lines(entry.row, &"  ".repeat(entry.depth), home.as_deref(), now));
+        }
+    } else {
+        for row in &rows {
+            lines.extend(thread_lines(row, "", home.as_deref(), now));
+        }
+    }
+    let mut out = table(&lines);
+    out.extend(disk_gone_lines(&rows));
+    Ok(Rows { value: json!({ "threads": json_of(&rows) }), rows: out })
 }
 
 /// The entries of `verbs/projects.ts`, in the TS table's order (its order is `tools/list`'s).
@@ -128,7 +227,7 @@ pub fn project_verbs() -> Vec<Verb> {
                 ToolInput { name: "access", kind: InputKind::String, optional: true, describe: Some("how far the agent may go without asking, in wsp's words: ask (asks about each action that needs permission), auto-edit (edits files without asking), full (every action without asking) or plan (reads and proposes, changes nothing); each is mapped to the agent's own mode and refused where the agent has none, and a harness's own spelling is refused. Absent means the project's access, else the one set for that agent, else full".to_string()) },
                 ToolInput { name: "after_worktree", kind: InputKind::String, optional: true, describe: Some("a shell line a new worktree of the project runs once at its top, after each ecosystem's own install".to_string()) },
                 ToolInput { name: "trackers", kind: InputKind::StringList { min: None }, optional: true, describe: Some("the whole list of repos, each owner/name, besides the project's own that gh on a sub-thread's machine may comment on".to_string()) },
-                ToolInput { name: "reset", kind: InputKind::StringList { min: None }, optional: true, describe: Some("fields to put back on the layer below: agent, model, effort, access, after-worktree to take the command away, or trackers to empty the list".to_string()) },
+                ToolInput { name: "reset", kind: InputKind::Json, optional: true, describe: Some("fields to put back on the layer below: agent, model, effort, access, after-worktree to take the command away, or trackers to empty the list".to_string()) },
             ],
             output: vec!["project", "defaults", "afterWorktree", "trackers"],
             stream: vec![],
@@ -220,103 +319,262 @@ pub fn project_verbs() -> Vec<Verb> {
 /// The `projects` tool's call (`verbs/projects.ts:74-77`).
 fn call_projects(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/projects.ts:74-77")
+        let _ = args;
+        let client = deps.client(None).await?;
+        let projects = projects_of(&*client).await?;
+        let defaults = project_defaults_of(&*client).await?;
+        Ok(as_json(json!({ "projects": json_of(&projects), "defaults": json_of(&defaults) })))
     })
 }
 
 /// `wsp projects` (`verbs/projects.ts:56-68`).
 fn run_projects(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/projects.ts:56-68")
+        if !ctx.args.is_empty() {
+            return Err(usage_refusal("wsp projects takes no positional arguments.", &usage_is(ctx)));
+        }
+        let client = ctx.client(None).await?;
+        let projects = projects_of(&*client).await?;
+        let none = projects.is_empty();
+        let held = if none { Vec::new() } else { workspaces(&*client).await? };
+        let running = if none { Vec::new() } else { threads(&*client, None).await? };
+        let named: IndexMap<String, String> = if none { IndexMap::new() } else { place_names(&*client).await.unwrap_or_default() };
+        let defaults: IndexMap<String, ThreadDefaults> = if none { IndexMap::new() } else { project_defaults_of(&*client).await? };
+        let line = if none {
+            NO_PROJECT_YET.to_owned()
+        } else {
+            let mut rows =
+                vec![["PROJECT", "ID", "COMPUTER", "SOURCE", "PATH", "BASE", "THREADS", "NEW THREADS"].map(str::to_owned).to_vec()];
+            for p in &projects {
+                let mut cells = project_line(p, &held, &running, &named);
+                cells.push(defaults_cell(defaults.get(&p.id)));
+                rows.push(cells);
+            }
+            table(&rows).join("\n")
+        };
+        ctx.out.emit(&json!({ "projects": json_of(&projects), "defaults": json_of(&defaults) }), Some(&line));
+        Ok(0)
     })
 }
 
 /// The `projects_add` tool's call (`verbs/projects.ts:95-109`).
 fn call_projects_add(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/projects.ts:95-109")
+        let client = deps.client(None).await?;
+        let mut params = Frame::new();
+        params.insert("source".to_owned(), Value::from(arg_str(&args, "source").unwrap_or_default()));
+        for key in ["on", "name", "base", "into"] {
+            if let Some(value) = arg_str(&args, key) {
+                params.insert(key.to_owned(), Value::from(value));
+            }
+        }
+        let reply = client.request("projects.add", params).await?;
+        let project: ProjectView = field(&reply, "projects.add", "project")?;
+        let notice = reply.get("notice").and_then(Value::as_str).map(str::to_owned);
+        let named = place_names(&*client).await.unwrap_or_default();
+        let said = wsp_words::projects::added_project_line(&project, Some(&named), &platform());
+        let text = match &notice {
+            Some(notice) => format!("{said}\n{notice}"),
+            None => said,
+        };
+        let structured = match &notice {
+            Some(notice) => json!({ "project": json_of(&project), "notice": notice }),
+            None => json!({ "project": json_of(&project) }),
+        };
+        Ok(as_text(&text, structured))
     })
 }
 
 /// The `projects_remove` tool's call (`verbs/projects.ts:141-146`).
 fn call_projects_remove(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/projects.ts:141-146")
+        let client = deps.client(None).await?;
+        let project = project_of(&*client, arg_str(&args, "project").unwrap_or_default()).await?;
+        let mut params = Frame::new();
+        params.insert("projectId".to_owned(), Value::from(project.id.as_str()));
+        if args.get("force") == Some(&Value::Bool(true)) {
+            params.insert("force".to_owned(), Value::Bool(true));
+        }
+        let reply = client.request("projects.remove", params).await?;
+        let said: String = field(&reply, "projects.remove", "said")?;
+        Ok(as_text(&said, json!({ "project": json_of(&project), "said": said })))
     })
 }
 
 /// `wsp projects remove` (`verbs/projects.ts:118-133`).
 fn run_projects_remove(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/projects.ts:118-133")
+        let reference = match ctx.args.as_slice() {
+            [reference] => reference.as_str(),
+            _ => return Err(usage_refusal("wsp projects remove takes one project.", &usage_is(ctx))),
+        };
+        let client = ctx.client(None).await?;
+        let project = project_of(&*client, reference).await?;
+        let force = flag_set(&ctx.flags, "force");
+        let mut check = Frame::new();
+        check.insert("projectId".to_owned(), Value::from(project.id.as_str()));
+        check.insert("check".to_owned(), Value::Bool(true));
+        if force {
+            check.insert("force".to_owned(), Value::Bool(true));
+        }
+        let answer = client.request("projects.remove", check).await?;
+        let losing = match answer.get("unsaved").and_then(Value::as_str) {
+            Some(unsaved) => format!("\nWith it goes work no remote has: {unsaved}."),
+            None => String::new(),
+        };
+        let question = format!(
+            "Remove {}?\nIts record leaves this wsp, with the folder wsp made for it on the computer holding it; a folder of yours stays where it is.{losing}",
+            project.name
+        );
+        if !confirmed(ctx, &question, &project.name).await? {
+            return Ok(1);
+        }
+        let mut remove = Frame::new();
+        remove.insert("projectId".to_owned(), Value::from(project.id.as_str()));
+        if force {
+            remove.insert("force".to_owned(), Value::Bool(true));
+        }
+        let reply = client.request("projects.remove", remove).await?;
+        let said: String = field(&reply, "projects.remove", "said")?;
+        ctx.out.emit(&json!({ "project": json_of(&project), "said": said }), Some(&said));
+        Ok(0)
     })
 }
 
 /// The `projects_set` tool's call (`verbs/projects.ts:184-187`).
 fn call_projects_set(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/projects.ts:184-187")
+        let project = arg_str(&args, "project").unwrap_or_default();
+        let ask = ProjectSetAsk {
+            agent: arg_str(&args, "agent").map(str::to_owned),
+            model: arg_str(&args, "model").map(str::to_owned),
+            effort: arg_str(&args, "effort").map(str::to_owned),
+            access: arg_str(&args, "access").map(str::to_owned),
+            after_worktree: arg_str(&args, "after_worktree").map(str::to_owned),
+            trackers: arg_list(&args, "trackers"),
+            reset: arg_list(&args, "reset"),
+        };
+        let set = project_defaults_set(&*deps.client(None).await?, project, &ask).await?;
+        let text = project_set_lines(&set.project.name, &set.defaults, set.after_worktree.as_deref(), set.trackers.as_deref()).join("\n");
+        Ok(as_text(&text, json_of(&set)))
     })
 }
 
 /// `wsp projects set` (`verbs/projects.ts:155-169`).
 fn run_projects_set(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/projects.ts:155-169")
+        let reference = match ctx.args.as_slice() {
+            [reference] => reference.as_str(),
+            _ => return Err(usage_refusal("wsp projects set takes one project.", &usage_is(ctx))),
+        };
+        let flags = &ctx.flags;
+        let ask = ProjectSetAsk {
+            agent: flag(flags, "agent").map(str::to_owned),
+            model: flag(flags, "model").map(str::to_owned),
+            effort: flag(flags, "effort").map(str::to_owned),
+            access: flag(flags, "access").map(str::to_owned),
+            after_worktree: flag(flags, "after-worktree").map(str::to_owned),
+            trackers: Some(flag_list(flags, "tracker")),
+            reset: Some(flag_list(flags, "reset")),
+        };
+        let set = project_defaults_set(&*ctx.client(None).await?, reference, &ask).await?;
+        let line = project_set_lines(&set.project.name, &set.defaults, set.after_worktree.as_deref(), set.trackers.as_deref()).join("\n");
+        ctx.out.emit(&json_of(&set), Some(&line));
+        Ok(0)
     })
 }
 
 /// The `projects_seed` tool's call (`verbs/projects.ts:214-214`).
 fn call_projects_seed(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/projects.ts:214-214")
+        let ask = SeedAsk {
+            keep: arg_list(&args, "keep").unwrap_or_default(),
+            cut: arg_list(&args, "cut").unwrap_or_default(),
+            none: args.get("none") == Some(&Value::Bool(true)),
+            save: args.get("confirm") == Some(&Value::Bool(true)),
+        };
+        let seed = project_seed(&*deps.client(None).await?, arg_str(&args, "project").unwrap_or_default(), &ask).await?;
+        Ok(as_json(json_of(&seed)))
     })
 }
 
 /// `wsp projects seed` (`verbs/projects.ts:196-202`).
 fn run_projects_seed(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/projects.ts:196-202")
+        let reference = match ctx.args.as_slice() {
+            [reference] => reference.as_str(),
+            _ => return Err(usage_refusal("wsp projects seed takes one project.", &usage_is(ctx))),
+        };
+        let ask = SeedAsk {
+            keep: flag_list(&ctx.flags, "keep"),
+            cut: flag_list(&ctx.flags, "cut"),
+            none: flag_set(&ctx.flags, "none"),
+            save: flag_set(&ctx.flags, "yes"),
+        };
+        let seed = project_seed(&*ctx.client(None).await?, reference, &ask).await?;
+        ctx.out.emit(&json_of(&seed), Some(&project_seed_text(&seed)));
+        Ok(0)
     })
 }
 
 /// The `threads` tool's call (`verbs/projects.ts:236-236`).
 fn call_threads(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/projects.ts:236-236")
+        let within = arg_str(&args, "project");
+        let rows = thread_rows(&*deps.client(None).await?, within).await?;
+        Ok(as_json(json!({ "threads": json_of(&rows) })))
     })
 }
 
 /// `wsp threads` (`verbs/projects.ts:223-230`).
 fn run_threads(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/projects.ts:223-230")
+        if ctx.args.len() > 1 {
+            let said = "wsp threads takes at most one project; wsp threads wait is its one subcommand, and wsp thread read <thread> prints what one said.";
+            return Err(usage_refusal(said, &usage_is(ctx)));
+        }
+        let within: Option<String> = ctx.args.first().cloned();
+        let tree = flag_set(&ctx.flags, "tree");
+        let frame = move |client: Arc<dyn HostClient>| -> BoxFuture<'static, Result<Rows, HostError>> {
+            let within = within.clone();
+            Box::pin(async move { thread_rows_frame(&*client, within.as_deref(), tree).await })
+        };
+        draw_rows(ctx, "wsp threads", &frame).await
     })
 }
 
 /// The `threads_wait` tool's call (`verbs/projects.ts:267-271`).
 fn call_threads_wait(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/projects.ts:267-271")
+        let refs = arg_list(&args, "threads").unwrap_or_default();
+        let named = threads_of(&*deps.client(None).await?, &refs).await?;
+        let timeout_ms = args.get("timeout").and_then(Value::as_f64).map(|seconds| (seconds * 1_000.0) as u64);
+        let waited = wait_through(deps, &named, timeout_ms, None).await?;
+        let (value, line) = wait_answer(&named, &waited, NotifyLength::Tail);
+        Ok(as_text(&line, json_of(&value)))
     })
 }
 
 /// `wsp threads wait` (`verbs/projects.ts:246-259`).
 fn run_threads_wait(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/projects.ts:246-259")
+        if ctx.args.is_empty() {
+            return Err(usage_refusal("wsp threads wait takes one thread or more.", &usage_is(ctx)));
+        }
+        let timeout_ms = timeout_flag(flag(&ctx.flags, "timeout"))?.map(|ms| ms as u64);
+        let client = ctx.client(None).await?;
+        let named = threads_of(&*client, &ctx.args).await?;
+        let io = ctx.io.clone();
+        let redialed = move || io.error(HOST_RESTARTING_LINE);
+        let waited = wait_through(&ctx.deps, &named, timeout_ms, Some(&redialed)).await?;
+        let length = if flag_set(&ctx.flags, "tail") { NotifyLength::Tail } else { NotifyLength::Whole };
+        let (value, line) = wait_answer(&named, &waited, length);
+        if value.timed_out == Some(true) {
+            ctx.out.emit(&json_of(&value), None);
+            ctx.io.error(&line);
+        } else {
+            ctx.out.emit(&json_of(&value), Some(&line));
+        }
+        Ok(0)
     })
 }

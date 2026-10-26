@@ -23,6 +23,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 thiserror = "2"
 wsp-wire = { path = "../wsp-wire" }
+wsp-frames = { path = "../../../daemon/crates/wsp-frames" }
 wsp-words = { path = "../wsp-words" }
 wsp-catalog = { path = "../wsp-catalog" }
 wsp-collect = { path = "../wsp-collect" }
