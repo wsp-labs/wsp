@@ -892,10 +892,11 @@ fn decision(p: &PieceCx, _window: &mut Window, cx: &mut App) -> AnyElement {
                             div().text_color(pal.muted_foreground).child(format!("My pick: {}{why}", c.label))
                         }))
                         .children(others.map(|c| {
-                            div()
-                                .debug_selector(|| "slate-answer-note".into())
-                                .text_color(pal.muted_foreground.opacity(0.7))
-                                .child(format!("{}: {}", c.label, c.note.clone().unwrap_or_default()))
+                            div().debug_selector(|| "slate-answer-note".into()).text_color(pal.muted_foreground).child(format!(
+                                "{}: {}",
+                                c.label,
+                                c.note.clone().unwrap_or_default()
+                            ))
                         })),
                 )
             })
