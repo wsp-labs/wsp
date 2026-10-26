@@ -28,18 +28,20 @@ use crate::threads::threads::Row;
 /// One row of what a turn used: a model's share of its tokens and cost, or the whole turn where no model names one.
 struct Use {
     model: Option<String>,
-    tokens: Option<UsageTokens>,
+    tokens: Option<TurnTokens>,
     cost: Option<f64>,
 }
 
-/// The ledger's UsageTokens from a turn's TurnTokens; an absent split files as zero.
-fn usage_of(tokens: &TurnTokens) -> UsageTokens {
-    UsageTokens {
+/// A model's five counts as the ledger takes them, for a turn that names each model it used.
+fn tokens_of(tokens: &UsageTokens) -> TurnTokens {
+    TurnTokens {
         input: tokens.input,
         output: tokens.output,
-        cached: tokens.cached.unwrap_or(JsNumber(0.0)),
-        cache_write: tokens.cache_write.unwrap_or(JsNumber(0.0)),
-        reasoning: tokens.reasoning.unwrap_or(JsNumber(0.0)),
+        cached: Some(tokens.cached),
+        cache_write: Some(tokens.cache_write),
+        reasoning: Some(tokens.reasoning),
+        context: None,
+        window: None,
     }
 }
 
@@ -416,9 +418,9 @@ impl TurnState {
         let uses: Vec<Use> = match &result.models {
             Some(models) if !models.is_empty() => models
                 .iter()
-                .map(|m| Use { model: Some(m.model.clone()), tokens: Some(m.tokens.clone()), cost: m.cost_usd.map(|c| c.0) })
+                .map(|m| Use { model: Some(m.model.clone()), tokens: Some(tokens_of(&m.tokens)), cost: m.cost_usd.map(|c| c.0) })
                 .collect(),
-            _ => vec![Use { model: model.clone(), tokens: result.tokens.as_ref().map(usage_of), cost: result.cost_usd.map(|c| c.0) }],
+            _ => vec![Use { model: model.clone(), tokens: result.tokens.clone(), cost: result.cost_usd.map(|c| c.0) }],
         };
         let counted = uses.iter().position(|u| u.model == model).unwrap_or(0);
         let record = self.entry.borrow().record.borrow().clone();
