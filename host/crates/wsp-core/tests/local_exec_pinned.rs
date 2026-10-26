@@ -207,7 +207,7 @@ own_group_test!(a_reap_with_no_readable_pid_signals_nothing_and_deletes_the_file
         }
         let seen = Arc::new(std::sync::Mutex::new(None));
         let s2 = seen.clone();
-        reap_run(&base, Some(Box::new(move |end| Box::pin(async move { *s2.lock().unwrap() = Some(end) }))), 2_000).await;
+        let _ = reap_run(&base, Some(Box::new(move |end| Box::pin(async move { *s2.lock().unwrap() = Some(end) }))), 2_000).await;
         assert_eq!(*seen.lock().unwrap(), Some(1), "last_read gets the log's size");
         assert!(!exists(&format!("{base}.d")));
         // The two files the reap never takes stay behind.

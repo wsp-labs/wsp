@@ -107,27 +107,29 @@ fn the_agents_wsp_can_open_a_thread_on_is_one_list_the_adapter_registry_is_keyed
 // TS: adapters.test.ts:554
 #[test]
 fn each_catalog_row_says_what_its_own_adapter_can_hand_a_launch_so_a_client_reads_the_row_before_any_workspace_exists() {
-    for id in THREAD_AGENTS {
-        let adapter = adapter(id, cloud());
-        let row = row(id);
-        assert_eq!(takes_mcp_servers(Some(&row)), adapter.mcp_servers(), "{id} mcpServers");
-        assert_eq!(screen_commands_of(&row), adapter.screen_commands(), "{id} screenCommands");
-        assert_eq!(row.moves_access == Some(true), adapter.moves_access(), "{id} movesAccess");
-        assert_eq!(row.steers_images == Some(true), adapter.steers_images(), "{id} steersImages");
-        assert_eq!(row.asides == Some(true), has_aside(adapter.as_ref()), "{id} asides");
-    }
-    let claude_commands: Vec<String> = screen_commands_of(&row("claude")).into_iter().map(|c| c.name).collect();
-    assert!(claude_commands.contains(&"login".to_string()), "{claude_commands:?}");
-    assert_eq!(screen_commands_of(&row("codex")), vec![]);
-    assert_eq!(row("claude").bypass_mode.as_deref(), Some(SKIP_PROMPTS_MODE));
-    for id in ["claude", "codex"] {
-        let adapter = adapter(id, cloud());
-        assert!(adapter.steers(), "{id} steers");
-        assert!(has_aside(adapter.as_ref()), "{id} aside");
-        assert_eq!(adapter.compacts().as_deref(), Some("/compact"), "{id} compacts");
-    }
-    assert!(takes_mcp_servers(Some(&row("claude"))));
-    assert!(takes_mcp_servers(Some(&row("codex"))));
+    run_local(async {
+        for id in THREAD_AGENTS {
+            let adapter = adapter(id, cloud());
+            let row = row(id);
+            assert_eq!(takes_mcp_servers(Some(&row)), adapter.mcp_servers(), "{id} mcpServers");
+            assert_eq!(screen_commands_of(&row), adapter.screen_commands(), "{id} screenCommands");
+            assert_eq!(row.moves_access == Some(true), adapter.moves_access(), "{id} movesAccess");
+            assert_eq!(row.steers_images == Some(true), adapter.steers_images(), "{id} steersImages");
+            assert_eq!(row.asides == Some(true), has_aside(adapter.as_ref()), "{id} asides");
+        }
+        let claude_commands: Vec<String> = screen_commands_of(&row("claude")).into_iter().map(|c| c.name).collect();
+        assert!(claude_commands.contains(&"login".to_string()), "{claude_commands:?}");
+        assert_eq!(screen_commands_of(&row("codex")), vec![]);
+        assert_eq!(row("claude").bypass_mode.as_deref(), Some(SKIP_PROMPTS_MODE));
+        for id in ["claude", "codex"] {
+            let adapter = adapter(id, cloud());
+            assert!(adapter.steers(), "{id} steers");
+            assert!(has_aside(adapter.as_ref()), "{id} aside");
+            assert_eq!(adapter.compacts().as_deref(), Some("/compact"), "{id} compacts");
+        }
+        assert!(takes_mcp_servers(Some(&row("claude"))));
+        assert!(takes_mcp_servers(Some(&row("codex"))));
+    });
 }
 
 // TS: adapters.test.ts:591
