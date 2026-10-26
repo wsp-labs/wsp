@@ -720,10 +720,31 @@ pub(crate) fn js_string(v: &Value) -> String {
     match v {
         Value::String(s) => s.clone(),
         Value::Null => "null".into(),
-        Value::Array(items) => items.iter().map(|i| if i.is_null() { String::new() } else { js_string(i) }).collect::<Vec<_>>().join(","),
+        Value::Array(items) => array_string(items),
         Value::Object(_) => "[object Object]".into(),
         other => other.to_string(),
     }
+}
+
+/// An array's `String(...)`, its nested arrays written in place from a stack of its own.
+fn array_string(items: &[Value]) -> String {
+    let mut out = String::new();
+    let mut open = vec![(items.iter(), false)];
+    while let Some((rest, started)) = open.last_mut() {
+        let Some(item) = rest.next() else {
+            open.pop();
+            continue;
+        };
+        if std::mem::replace(started, true) {
+            out.push(',');
+        }
+        match item {
+            Value::Null => {}
+            Value::Array(inner) => open.push((inner.iter(), false)),
+            other => out.push_str(&js_string(other)),
+        }
+    }
+    out
 }
 
 /// The id of a reply: a JSON number equal to a whole number from 0 up (`2.0` is 2, `"2"` is no id).
