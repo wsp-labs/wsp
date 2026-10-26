@@ -473,7 +473,7 @@ async fn each_import_sends_the_ts_script_checks_the_hash_and_refuses_an_empty_ar
     ];
     for (name, tar, dest, opts) in cases {
         let (m, execs, runs) = recorder();
-        let got = import_into(&m, &tar, dest, &VaultOptions { fetch: Some(fetch.clone()), ..opts }).await;
+        let got = import_into(common::handle(&m), &tar, dest, &VaultOptions { fetch: Some(fetch.clone()), ..opts }).await;
         let w = &o["importInto"][name];
         assert_eq!(normalised(&runs), want(&w["runs"]), "{name} runs");
         assert_eq!(normalised(&execs), want(&w["execs"]), "{name} execs");
@@ -497,9 +497,13 @@ async fn a_landing_refuses_a_relative_path_and_the_root_and_moves_the_staging_in
         ("top", "/app", false),
     ] {
         let (m, execs, runs) = recorder();
-        let got =
-            land_bundle(&m, b"not really a tgz", dest, &LandOptions { fetch: Some(fetch.clone()), replace, ..LandOptions::default() })
-                .await;
+        let got = land_bundle(
+            &common::handle(&m),
+            b"not really a tgz",
+            dest,
+            &LandOptions { fetch: Some(fetch.clone()), replace, ..LandOptions::default() },
+        )
+        .await;
         let w = &o["landBundle"][name];
         assert_eq!(normalised(&runs), want(&w["runs"]), "{name} runs");
         assert_eq!(normalised(&execs), want(&w["execs"]), "{name} execs");

@@ -277,7 +277,7 @@ fn home_tar(root: &Path) -> Vec<u8> {
 async fn import_into_uploads_via_upload_url_and_untars_at_the_destination() {
     let stub = vault_stub();
     let payload = b"payload-tgz".to_vec();
-    import_into(&stub.machine, &payload, "/root", &stub_opts(&stub)).await.unwrap();
+    import_into(common::handle(&stub.machine), &payload, "/root", &stub_opts(&stub)).await.unwrap();
     let puts = stub.fetch.puts.lock().unwrap().clone();
     assert_eq!(puts.len(), 1);
     assert_eq!(puts[0].1, payload);
@@ -292,7 +292,7 @@ async fn import_into_uploads_via_upload_url_and_untars_at_the_destination() {
 async fn an_overlay_import_merges_into_the_destination_with_no_recursive_unlink() {
     let stub = vault_stub();
     let o = VaultOptions { overlay: true, ..stub_opts(&stub) };
-    import_into(&stub.machine, b"payload-tgz", "/root", &o).await.unwrap();
+    import_into(common::handle(&stub.machine), b"payload-tgz", "/root", &o).await.unwrap();
     let cmds = stub.exec_cmds.lock().unwrap().clone();
     let untar = cmds.iter().find(|c| c.contains("tar xzf")).expect("an untar command");
     assert!(untar.contains("-C '/root' --no-same-owner"), "{untar}");
@@ -303,7 +303,7 @@ async fn an_overlay_import_merges_into_the_destination_with_no_recursive_unlink(
 async fn lands_identical(tar: &[u8], blob: &[u8]) -> (Imported, Vec<(String, usize)>) {
     let g = guest();
     let dest = tmp("wsp-vault-dest-");
-    let out = import_into(&g.machine, tar, dest.path().to_str().unwrap(), &overlay(&g)).await.unwrap();
+    let out = import_into(common::handle(&g.machine), tar, dest.path().to_str().unwrap(), &overlay(&g)).await.unwrap();
     assert!(std::fs::read(dest.path().join("blob.bin")).unwrap() == blob, "blob.bin differs");
     g.fetch.assert_no_part_left();
     (out, g.fetch.puts())
@@ -335,7 +335,7 @@ async fn an_archive_of_exactly_one_part_goes_up_as_one_put_and_one_byte_more_is_
 #[tokio::test]
 async fn an_empty_archive_is_refused_before_any_upload() {
     let stub = vault_stub();
-    let err = import_into(&stub.machine, &[], "/root", &stub_opts(&stub)).await.unwrap_err();
+    let err = import_into(common::handle(&stub.machine), &[], "/root", &stub_opts(&stub)).await.unwrap_err();
     assert!(err.to_string().contains("empty archive"), "{err}");
     assert_eq!(stub.fetch.calls.load(Ordering::SeqCst), 0);
     assert_eq!(*stub.exec_cmds.lock().unwrap(), Vec::<String>::new());
@@ -349,7 +349,7 @@ async fn reports_each_part_as_it_lands() {
     let (seen, on_part) = part_log();
     let tar = vec![0u8; UPLOAD_PART_BYTES as usize + 5];
     let o = VaultOptions { on_part: Some(on_part), ..stub_opts(&stub) };
-    import_into(&stub.machine, &tar, "/root", &o).await.unwrap();
+    import_into(common::handle(&stub.machine), &tar, "/root", &o).await.unwrap();
     let total = tar.len() as u64;
     assert_eq!(
         *seen.lock().unwrap(),
@@ -372,12 +372,12 @@ async fn says_how_many_pieces_a_part_was_cut_into_on_a_road_that_cuts_them() {
         ..stub.machine.clone()
     };
     let o = VaultOptions { on_part: Some(on_part), ..stub_opts(&stub) };
-    import_into(&by_road, &tar, "/root", &o).await.unwrap();
+    import_into(common::handle(&by_road), &tar, "/root", &o).await.unwrap();
     let total = tar.len() as u64;
     assert_eq!(*seen.lock().unwrap(), vec![UploadProgress { part: 1, parts: 1, bytes: total, total, pieces: Some(7) }]);
     // The signed URL road puts the part in one call, so there is no piece count to carry.
     seen.lock().unwrap().clear();
-    import_into(&stub.machine, &tar, "/root", &o).await.unwrap();
+    import_into(common::handle(&stub.machine), &tar, "/root", &o).await.unwrap();
     assert_eq!(*seen.lock().unwrap(), vec![UploadProgress { part: 1, parts: 1, bytes: total, total, pieces: None }]);
 }
 
@@ -418,7 +418,7 @@ async fn a_part_the_edge_answers_502_or_drops_is_retried_per_part_with_a_bound()
         inner: stub.fetch.clone(),
     });
     let o = VaultOptions { fetch: Some(flaky.clone()), ..Default::default() };
-    let out = import_into(&stub.machine, &vec![0u8; UPLOAD_PART_BYTES as usize + 7], "/root", &o).await.unwrap();
+    let out = import_into(common::handle(&stub.machine), &vec![0u8; UPLOAD_PART_BYTES as usize + 7], "/root", &o).await.unwrap();
     assert_eq!(out.parts, 2);
     assert_eq!(*flaky.sent.lock().unwrap(), vec![UPLOAD_PART_BYTES as usize, 7, 7, 7]);
 }
@@ -443,7 +443,7 @@ async fn a_part_that_keeps_failing_gives_up_after_three_attempts_and_removes_eve
     let stub = vault_stub();
     let down = Arc::new(Down { n: AtomicUsize::new(0) });
     let o = VaultOptions { fetch: Some(down.clone()), ..Default::default() };
-    let err = import_into(&stub.machine, &vec![0u8; UPLOAD_PART_BYTES as usize + 7], "/root", &o).await.unwrap_err();
+    let err = import_into(common::handle(&stub.machine), &vec![0u8; UPLOAD_PART_BYTES as usize + 7], "/root", &o).await.unwrap_err();
     assert!(err.to_string().contains("part 1 of 2: HTTP 503 Service Unavailable after 3 attempts"), "{err}");
     assert_eq!(down.n.load(Ordering::SeqCst), 3);
     let cmds = stub.exec_cmds.lock().unwrap().clone();
@@ -459,7 +459,7 @@ async fn a_40_mb_archive_goes_up_in_two_parts_under_the_measured_cap_and_lands_b
     assert!(tar.len() > CAP);
     let g = guest();
     let dest = tmp("wsp-vault-dest-");
-    let out = import_into(&g.machine, &tar, dest.path().to_str().unwrap(), &overlay(&g)).await.unwrap();
+    let out = import_into(common::handle(&g.machine), &tar, dest.path().to_str().unwrap(), &overlay(&g)).await.unwrap();
     assert_eq!(out.parts, 2);
     assert_eq!(g.fetch.puts().iter().map(|p| p.1).collect::<Vec<_>>(), vec![CAP, tar.len() - CAP]);
     assert!(std::fs::read(dest.path().join("blob.bin")).unwrap() == blob, "blob.bin differs");
@@ -488,7 +488,7 @@ async fn a_part_the_provider_refuses_names_the_limit_it_answered_with_and_the_pa
     let stub = vault_stub();
     let refusing = Arc::new(FirstThenRefuse { n: AtomicUsize::new(0) });
     let o = VaultOptions { fetch: Some(refusing.clone()), ..Default::default() };
-    let err = import_into(&stub.machine, &vec![0u8; 33 * MIB], "/root", &o).await.unwrap_err().to_string();
+    let err = import_into(common::handle(&stub.machine), &vec![0u8; 33 * MIB], "/root", &o).await.unwrap_err().to_string();
     assert!(in_order(&err, &["part 2 of 2", "HTTP 413", "33554432 bytes"]), "{err}");
     assert_eq!(refusing.n.load(Ordering::SeqCst), 2);
     let cmds = stub.exec_cmds.lock().unwrap().clone();
@@ -503,7 +503,7 @@ async fn a_part_missing_on_the_machine_is_reported_as_cats_error_not_as_a_hash_m
     let tar = tar_of_blob(&random_bytes(33 * MIB));
     let g = guest_with(PartsFetch::new(false, Some(".part1")));
     let dest = tmp("wsp-vault-dest-");
-    let err = import_into(&g.machine, &tar, dest.path().to_str().unwrap(), &overlay(&g)).await.unwrap_err().to_string();
+    let err = import_into(common::handle(&g.machine), &tar, dest.path().to_str().unwrap(), &overlay(&g)).await.unwrap_err().to_string();
     assert!(in_order(&err, &["vault import untar failed", "No such file or directory"]), "{err}");
     assert!(!err.contains("did not match its hash"), "{err}");
     assert!(!exists(&dest.path().join("blob.bin")));
@@ -517,7 +517,7 @@ async fn a_failed_extraction_leaves_no_part_behind_on_the_machine() {
     let not_a_tar = random_bytes(33 * MIB);
     let g = guest();
     let dest = tmp("wsp-vault-dest-");
-    let err = import_into(&g.machine, &not_a_tar, dest.path().to_str().unwrap(), &overlay(&g)).await.unwrap_err();
+    let err = import_into(common::handle(&g.machine), &not_a_tar, dest.path().to_str().unwrap(), &overlay(&g)).await.unwrap_err();
     assert!(err.to_string().contains("vault import untar failed"), "{err}");
     assert_eq!(g.fetch.puts().len(), 2);
     g.fetch.assert_no_part_left();
@@ -530,7 +530,7 @@ async fn an_archive_that_does_not_match_its_hash_after_reassembly_is_refused_bef
     let tar = tar_of_blob(&random_bytes(4096));
     let g = guest_with(PartsFetch::new(true, None));
     let dest = tmp("wsp-vault-dest-");
-    let err = import_into(&g.machine, &tar, dest.path().to_str().unwrap(), &overlay(&g)).await.unwrap_err();
+    let err = import_into(common::handle(&g.machine), &tar, dest.path().to_str().unwrap(), &overlay(&g)).await.unwrap_err();
     assert!(err.to_string().contains("did not match its hash"), "{err}");
     assert!(!exists(&dest.path().join("blob.bin")));
     g.fetch.assert_no_part_left();
@@ -574,7 +574,7 @@ async fn lands_the_archive_at_the_path_with_the_bytes_the_exec_bit_and_the_stage
         ..Default::default()
     };
     let bin = binary();
-    let out = land_bundle(&g.machine, &bundle(&bin), dest.to_str().unwrap(), &opts).await.unwrap();
+    let out = land_bundle(&common::handle(&g.machine), &bundle(&bin), dest.to_str().unwrap(), &opts).await.unwrap();
     assert_eq!(out.parts, 1);
     assert_eq!(*stages.lock().unwrap(), vec!["part", "landing"]);
     assert!(std::fs::read(dest.join("src/run.sh")).unwrap() == bin, "run.sh differs");
@@ -595,14 +595,14 @@ async fn refuses_an_existing_destination_with_kind_exists_before_any_byte_goes_u
     std::fs::write(dest.join("old.txt"), "old\n").unwrap();
     let bin = binary();
     let opts = LandOptions { fetch: Some(g.fetch.clone()), ..Default::default() };
-    let err = land_bundle(&g.machine, &bundle(&bin), dest.to_str().unwrap(), &opts).await.unwrap_err();
+    let err = land_bundle(&common::handle(&g.machine), &bundle(&bin), dest.to_str().unwrap(), &opts).await.unwrap_err();
     match err {
         EngineError::Exists { message } => assert!(message.contains("import with replace"), "{message}"),
         other => panic!("expected kind exists, got {other}"),
     }
     assert_eq!(g.fetch.puts(), Vec::<(String, usize)>::new());
     assert_eq!(std::fs::read_to_string(dest.join("old.txt")).unwrap(), "old\n");
-    land_bundle(&g.machine, &bundle(&bin), dest.to_str().unwrap(), &LandOptions { replace: true, ..opts }).await.unwrap();
+    land_bundle(&common::handle(&g.machine), &bundle(&bin), dest.to_str().unwrap(), &LandOptions { replace: true, ..opts }).await.unwrap();
     assert!(!exists(&dest.join("old.txt")));
     assert_eq!(std::fs::read_to_string(dest.join("src/plain.txt")).unwrap(), "plain\n");
     assert_eq!(names_in(root.path()), strs(&["proj"]));
@@ -615,7 +615,7 @@ async fn refuses_a_relative_destination_and_the_root() {
     let stub = vault_stub();
     let tar = bundle(&binary());
     for dest in ["work/proj", "/", "//"] {
-        let err = land_bundle(&stub.machine, &tar, dest, &LandOptions::default()).await.unwrap_err();
+        let err = land_bundle(&common::handle(&stub.machine), &tar, dest, &LandOptions::default()).await.unwrap_err();
         assert!(err.to_string().contains("absolute path"), "{dest}: {err}");
     }
 }
@@ -700,7 +700,7 @@ async fn import_into_leaves_the_same_paths_out_of_an_archive_that_holds_them() {
     let tar = home_tar(root.path());
     // The overlay road, since --recursive-unlink is GNU tar's alone; the excludes stand in the same place on both.
     let o = VaultOptions { leave: moved(root.path(), dest.path(), &leave), ..overlay(&g) };
-    import_into(&g.machine, &tar, dest.path().to_str().unwrap(), &o).await.unwrap();
+    import_into(common::handle(&g.machine), &tar, dest.path().to_str().unwrap(), &o).await.unwrap();
     assert_eq!(find_all(dest.path()), strs(&KEPT));
 }
 
@@ -720,7 +720,7 @@ async fn a_replacing_import_keeps_what_the_destination_holds_at_each_path_it_lea
     write(dest.path(), "home/.aws/credentials", "the replacement's own\n");
     let tar = home_tar(root.path());
     let o = VaultOptions { leave: moved(root.path(), dest.path(), &leave), ..g.opts() };
-    import_into(&g.machine, &tar, dest.path().to_str().unwrap(), &o).await.unwrap();
+    import_into(common::handle(&g.machine), &tar, dest.path().to_str().unwrap(), &o).await.unwrap();
     let mut expected = strs(&KEPT);
     expected.extend(strs(&["home/.aws", "home/.aws/credentials", "home/.codex/auth.json"]));
     expected.sort();
@@ -739,7 +739,7 @@ async fn an_import_whose_extract_fails_still_puts_back_what_it_moved_aside() {
     write(dest.path(), "home/.codex/auth.json", "the replacement's own\n");
     let scratch = tmp("wsp-vault-scratch-");
     let o = VaultOptions { tmp_dir: Some(s(scratch.path())), leave: vec![s(&dest.path().join("home/.codex/auth.json"))], ..g.opts() };
-    let err = import_into(&g.machine, b"not a gzip at all", dest.path().to_str().unwrap(), &o).await.unwrap_err();
+    let err = import_into(common::handle(&g.machine), b"not a gzip at all", dest.path().to_str().unwrap(), &o).await.unwrap_err();
     assert!(err.to_string().contains("vault import untar failed"), "{err}");
     assert_eq!(common::read(dest.path(), "home/.codex/auth.json"), "the replacement's own\n");
     assert_eq!(names_in(scratch.path()), Vec::<String>::new());

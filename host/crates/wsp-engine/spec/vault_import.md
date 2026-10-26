@@ -25,6 +25,12 @@ the parts are removed on every exit of the guest script, and on any upload failu
 
 ## import_into (:424)
 
+`import_into(machine: Arc<dyn Machine>, tar, dest_dir, opts)` takes the shared owned handle and runs everything below on the host's
+local task set (`local_task::finish_on_local_set`), so a caller that stops waiting leaves the import running to its
+end: the part extracted and removed, as the TS's promise does (vault.ts:424-474). Outside a `LocalSet` there is no task
+to run it on, so it runs on the caller's task and stops with it. Callers: `land_bundle`, `land_agent_files`,
+`apply_machine_context`, and through them `provision_files` and `provision_step`; each takes `&Arc<dyn Machine>`.
+
 1. An empty tar: `vault import: empty archive, nothing to import`, before any call.
 2. `tmp = guest_tmp_path("wsp-vault-in", opts.tmp_dir) + ".tgz"`; `parts = ceil(len / UPLOAD_PART_BYTES)`; one part
    is `tmp` itself, more are `tmp.part0` .. `tmp.part<n-1>`. 32 MiB exactly is one part; one byte more is two, the
