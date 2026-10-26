@@ -7,12 +7,12 @@ use serde_json::{json, Map, Value};
 
 use crate::errors::{EngineError, Result};
 use crate::project_state::py::{py_data, PY_PREAMBLE};
-use crate::project_state::resolver::js_read;
+use crate::project_state::resolver::js_read_kept;
 
 /// merge.ts:11. What the script prints as its last line.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MergeOutput {
-    Merged { merged: u64, kept: u64, note: Option<String> },
+    Merged { merged: f64, kept: f64, note: Option<String> },
     Waiting { waiting: String },
 }
 
@@ -26,7 +26,7 @@ pub fn parse_merge_output(stdout: &str) -> Result<MergeOutput> {
         return Err(EngineError::Other { message: "the merge script printed nothing".into(), code: None });
     }
     let ended = || EngineError::Other { message: format!("the merge script ended with: {last}"), code: None };
-    let parsed = js_read(last).ok_or_else(ended)?;
+    let parsed = js_read_kept(last).ok_or_else(ended)?.0;
     let o: Map<String, Value> = match parsed {
         Value::Object(o) => o,
         _ => Map::new(),
@@ -43,8 +43,8 @@ pub fn parse_merge_output(stdout: &str) -> Result<MergeOutput> {
     }
 }
 
-fn count(o: &Map<String, Value>, key: &str) -> Option<u64> {
-    o.get(key).and_then(Value::as_f64).filter(|n| n.fract() == 0.0 && *n >= 0.0).map(|n| n as u64)
+fn count(o: &Map<String, Value>, key: &str) -> Option<f64> {
+    o.get(key).and_then(Value::as_f64)
 }
 
 /// merge.ts:37. A merge script from its steps, byte for byte as the TS builds it (pinned by the oracle).

@@ -46,9 +46,7 @@ pub use merge::{parse_merge_output, MergeOutput};
 pub use resolver::{files_under, inside_folder, resolve_project_path, under_home, MovedState, ProjectStateResolver, SharedStore};
 pub use wsp_words::project_path::under_project;
 
-thread_local! {
-    static RESOLVERS: &'static IndexMap<&'static str, Arc<dyn ProjectStateResolver>> = Box::leak(Box::new(build_resolvers()));
-}
+static RESOLVERS: std::sync::OnceLock<IndexMap<&'static str, Arc<dyn ProjectStateResolver>>> = std::sync::OnceLock::new();
 
 fn build_resolvers() -> IndexMap<&'static str, Arc<dyn ProjectStateResolver>> {
     let modules: [Arc<dyn ProjectStateResolver>; 6] = [
@@ -73,7 +71,7 @@ fn other(message: String) -> EngineError {
 /// index.ts:27. claude, codex, gemini, hermes, opencode, pi, in that order, keyed by `agent()`; the same map on every
 /// call (built once).
 pub fn project_state_resolvers() -> &'static IndexMap<&'static str, Arc<dyn ProjectStateResolver>> {
-    RESOLVERS.with(|resolvers| *resolvers)
+    RESOLVERS.get_or_init(build_resolvers)
 }
 
 /// index.ts:38. The agent's module's key for `resolve_project_path(path)`; `None` for an agent with no module or no key.

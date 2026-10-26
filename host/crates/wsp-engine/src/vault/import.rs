@@ -30,9 +30,9 @@ fn last_units(text: &str, n: i64) -> String {
     utf16::slice(text, -n, None)
 }
 
-/// vault.ts:304 `parseBody`: the body as JSON, nothing where it does not parse.
+/// vault.ts:304 `parseBody`: the body as JSON at any depth, nothing where it does not parse.
 fn parse_body(body: &str) -> Option<Value> {
-    serde_json::from_str(body).ok()
+    crate::project_state::resolver::js_read_kept(body).map(|(value, _)| value)
 }
 
 /// vault.ts:304 `uploadFailure`: the sentence for a refused part. `where` is empty for a one-part archive, else ` on

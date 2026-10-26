@@ -127,7 +127,14 @@ pub async fn download_buffer(machine: &dyn Machine, path: &str, opts: &VaultOpti
 /// vault.ts:115 `downloadFile`: a download streamed into a file on this computer; a download that fails leaves no
 /// file behind. Answers the bytes the file holds (its size on disk once closed).
 pub async fn download_file(machine: &dyn Machine, path: &str, into: &Path, opts: &VaultOptions, total: Option<u64>) -> Result<u64> {
-    let mut out = tokio::fs::File::create(into).await.map_err(io)?;
+    let mut out = match tokio::fs::File::create(into).await {
+        Ok(out) => out,
+        Err(e) => {
+            // The TS opens the stream without waiting, so the download goes on and the open's error is what it ends with.
+            let _ = download(machine, path, &mut tokio::io::sink(), opts, total).await;
+            return Err(crate::project_state::resolver::node_io(&e, "open", &into.to_string_lossy()));
+        }
+    };
     if let Err(e) = download(machine, path, &mut out, opts, total).await {
         drop(out);
         let _ = tokio::fs::remove_file(into).await;

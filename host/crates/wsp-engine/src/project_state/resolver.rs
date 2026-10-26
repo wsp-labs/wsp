@@ -42,7 +42,7 @@ pub type KeyOf = fn(&str) -> String;
 /// resolver.ts:32. Moves one agent's project state inside that agent's home. A TS optional member is a method with a
 /// default here: `key` `None`, `listing` `None`, `shared` `None`, and `merge` absent where `has_merge` is false.
 #[async_trait(?Send)]
-pub trait ProjectStateResolver {
+pub trait ProjectStateResolver: Send + Sync {
     /// The catalog id of the agent whose state this moves.
     fn agent(&self) -> &'static str;
     /// The catalog projectState rows this module moves, in order.
@@ -236,8 +236,11 @@ pub async fn rewrite_jsonl(file: &str, edit: &mut dyn FnMut(&mut Map<String, Val
             break;
         }
         let mut written = line.to_string();
-        if let Some(Value::Object(mut map)) = js_read(line) {
+        if let Some((Value::Object(mut map), truncated)) = js_read_kept(line) {
             if edit(&mut map)? {
+                if truncated {
+                    return Err(EngineError::Other { message: "Maximum call stack size exceeded".to_string(), code: None });
+                }
                 changed += 1;
                 written = js_write(&Value::Object(map), None);
             }
@@ -292,12 +295,26 @@ pub(crate) fn join_posix(parts: &[&str]) -> String {
     }
 }
 
-/// `JSON.parse`: None where JS would throw. A number overflow reads as null, as JSON.stringify writes Infinity.
+/// How deep a value is kept. node's `JSON.parse` reads any depth, but its `JSON.stringify` throws past about 3,650, so a value
+/// held deeper is one that could not be written back; what lies below this is read for its syntax and not kept.
+const KEPT_DEPTH: usize = 3_500;
+
+/// `JSON.parse`: None where JS would throw, or where the value is nested past `KEPT_DEPTH`. A number overflow reads as
+/// null, as JSON.stringify writes Infinity.
 pub(crate) fn js_read(text: &str) -> Option<Value> {
+    match js_read_kept(text)? {
+        (value, false) => Some(value),
+        (_, true) => None,
+    }
+}
+
+/// `JSON.parse` of a line, with whether anything below `KEPT_DEPTH` was read for its syntax and left out (as null):
+/// such a value reads as far as a caller looks at its top and cannot be written back.
+pub(crate) fn js_read_kept(text: &str) -> Option<(Value, bool)> {
     let mut reader = JsReader { chars: text.chars().collect(), at: 0 };
-    let value = reader.value()?;
+    let read = reader.value()?;
     reader.skip_space();
-    (reader.at == reader.chars.len()).then_some(value)
+    (reader.at == reader.chars.len()).then_some(read)
 }
 
 /// `JSON.stringify(value)`, or `JSON.stringify(value, null, indent)` with `Some(indent)`.
@@ -307,7 +324,10 @@ pub(crate) fn js_write(value: &Value, indent: Option<usize>) -> String {
     out
 }
 
-// A lone surrogate has no char, so it is carried as a private-use char and written back as its escape.
+// A string is held as its text with two escapes, so that a lone surrogate, which has no char, and every char there is
+// stay told apart: a lone surrogate is `ESCAPE` and then the private-use char standing for it, and a real `ESCAPE` char is
+// written twice. `write_string` reads them back.
+const ESCAPE: char = '\u{10F7FF}';
 const LONE_BASE: u32 = 0x10F800;
 
 fn lone(unit: u16) -> char {
@@ -317,6 +337,15 @@ fn lone(unit: u16) -> char {
 struct JsReader {
     chars: Vec<char>,
     at: usize,
+}
+
+/// A container being read: what it holds so far and, for an object, the key its next value goes under. A `Skip` is one
+/// below `KEPT_DEPTH`, which keeps nothing.
+enum Frame {
+    Array(Vec<Value>),
+    Object(Map<String, Value>, String),
+    SkipArray,
+    SkipObject,
 }
 
 impl JsReader {
@@ -338,18 +367,108 @@ impl JsReader {
         }
     }
 
-    fn value(&mut self) -> Option<Value> {
-        self.skip_space();
-        match self.peek()? {
-            '{' => self.object(),
-            '[' => self.array(),
-            '"' => self.string().map(Value::String),
-            't' => self.word("true", Value::Bool(true)),
-            'f' => self.word("false", Value::Bool(false)),
-            'n' => self.word("null", Value::Null),
-            '-' | '0'..='9' => self.number(),
-            _ => None,
+    /// One value, read without recursion so no depth can end the thread; the flag says whether a part below `KEPT_DEPTH`
+    /// was left out.
+    fn value(&mut self) -> Option<(Value, bool)> {
+        let mut stack: Vec<Frame> = Vec::new();
+        let mut truncated = false;
+        loop {
+            self.skip_space();
+            let mut done = match self.peek()? {
+                '{' => {
+                    self.at += 1;
+                    self.skip_space();
+                    if self.eat('}') {
+                        Value::Object(Map::new())
+                    } else if stack.len() >= KEPT_DEPTH || matches!(stack.last(), Some(Frame::SkipArray | Frame::SkipObject)) {
+                        self.key()?;
+                        stack.push(Frame::SkipObject);
+                        continue;
+                    } else {
+                        let key = self.key()?;
+                        stack.push(Frame::Object(Map::new(), key));
+                        continue;
+                    }
+                }
+                '[' => {
+                    self.at += 1;
+                    self.skip_space();
+                    if self.eat(']') {
+                        Value::Array(Vec::new())
+                    } else {
+                        let kept = stack.len() < KEPT_DEPTH && !matches!(stack.last(), Some(Frame::SkipArray | Frame::SkipObject));
+                        stack.push(if kept { Frame::Array(Vec::new()) } else { Frame::SkipArray });
+                        continue;
+                    }
+                }
+                '"' => Value::String(self.string()?),
+                't' => self.word("true", Value::Bool(true))?,
+                'f' => self.word("false", Value::Bool(false))?,
+                'n' => self.word("null", Value::Null)?,
+                '-' | '0'..='9' => self.number()?,
+                _ => return None,
+            };
+            loop {
+                match stack.last_mut() {
+                    None => return Some((done, truncated)),
+                    Some(Frame::Array(items)) => {
+                        items.push(done);
+                        self.skip_space();
+                        if self.eat(',') {
+                            break;
+                        }
+                        if !self.eat(']') {
+                            return None;
+                        }
+                        let Some(Frame::Array(items)) = stack.pop() else { return None };
+                        done = Value::Array(items);
+                    }
+                    Some(Frame::Object(map, key)) => {
+                        map.insert(std::mem::take(key), done);
+                        self.skip_space();
+                        if self.eat(',') {
+                            self.skip_space();
+                            *key = self.key()?;
+                            break;
+                        }
+                        if !self.eat('}') {
+                            return None;
+                        }
+                        let Some(Frame::Object(map, _)) = stack.pop() else { return None };
+                        done = Value::Object(map);
+                    }
+                    Some(skip @ (Frame::SkipArray | Frame::SkipObject)) => {
+                        let object = matches!(skip, Frame::SkipObject);
+                        self.skip_space();
+                        if self.eat(',') {
+                            if object {
+                                self.skip_space();
+                                self.key()?;
+                            }
+                            break;
+                        }
+                        if !self.eat(if object { '}' } else { ']' }) {
+                            return None;
+                        }
+                        stack.pop();
+                        if !matches!(stack.last(), Some(Frame::SkipArray | Frame::SkipObject)) {
+                            truncated = true;
+                            done = Value::Null;
+                        } else {
+                            done = Value::Null;
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    /// An object's key and the colon after it.
+    fn key(&mut self) -> Option<String> {
+        self.skip_space();
+        let key = self.string()?;
+        self.skip_space();
+        self.eat(':').then_some(key)
     }
 
     fn word(&mut self, text: &str, value: Value) -> Option<Value> {
@@ -400,23 +519,28 @@ impl JsReader {
         u16::try_from(unit).ok()
     }
 
-    fn unit_char(&mut self, unit: u16) -> Option<char> {
+    /// What a `\u` unit adds to a string: the char it is, or a lone surrogate as its escape.
+    fn push_unit(&mut self, unit: u16, out: &mut String) -> Option<()> {
         if (0xDC00..0xE000).contains(&unit) {
-            return Some(lone(unit));
+            out.extend([ESCAPE, lone(unit)]);
+            return Some(());
         }
         if !(0xD800..0xDC00).contains(&unit) {
-            return char::from_u32(u32::from(unit));
+            push_char(char::from_u32(u32::from(unit))?, out);
+            return Some(());
         }
         let mark = self.at;
         if self.eat('\\') && self.eat('u') {
             let low = self.hex4()?;
             if (0xDC00..0xE000).contains(&low) {
                 let code = 0x10000 + ((u32::from(unit) - 0xD800) << 10) + (u32::from(low) - 0xDC00);
-                return char::from_u32(code);
+                push_char(char::from_u32(code)?, out);
+                return Some(());
             }
         }
         self.at = mark;
-        Some(lone(unit))
+        out.extend([ESCAPE, lone(unit)]);
+        Some(())
     }
 
     fn string(&mut self) -> Option<String> {
@@ -441,55 +565,23 @@ impl JsReader {
                         't' => out.push('\t'),
                         'u' => {
                             let unit = self.hex4()?;
-                            out.push(self.unit_char(unit)?);
+                            self.push_unit(unit, &mut out)?;
                         }
                         _ => return None,
                     }
                 }
                 c if (c as u32) < 0x20 => return None,
-                c => out.push(c),
+                c => push_char(c, &mut out),
             }
         }
     }
+}
 
-    fn object(&mut self) -> Option<Value> {
-        self.at += 1;
-        let mut map = Map::new();
-        self.skip_space();
-        if self.eat('}') {
-            return Some(Value::Object(map));
-        }
-        loop {
-            self.skip_space();
-            let key = self.string()?;
-            self.skip_space();
-            if !self.eat(':') {
-                return None;
-            }
-            map.insert(key, self.value()?);
-            self.skip_space();
-            if self.eat(',') {
-                continue;
-            }
-            return self.eat('}').then_some(Value::Object(map));
-        }
-    }
-
-    fn array(&mut self) -> Option<Value> {
-        self.at += 1;
-        let mut items = Vec::new();
-        self.skip_space();
-        if self.eat(']') {
-            return Some(Value::Array(items));
-        }
-        loop {
-            items.push(self.value()?);
-            self.skip_space();
-            if self.eat(',') {
-                continue;
-            }
-            return self.eat(']').then_some(Value::Array(items));
-        }
+/// A char into a held string: the `ESCAPE` char is told apart from the escape by being written twice.
+fn push_char(c: char, out: &mut String) {
+    out.push(c);
+    if c == ESCAPE {
+        out.push(c);
     }
 }
 
@@ -548,7 +640,8 @@ fn newline(indent: Option<usize>, depth: usize, out: &mut String) {
 
 fn write_string(s: &str, out: &mut String) {
     out.push('"');
-    for c in s.chars() {
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
         match c {
             '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
@@ -558,7 +651,12 @@ fn write_string(s: &str, out: &mut String) {
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
             c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
-            c if (LONE_BASE..=0x10FFFF).contains(&(c as u32)) => out.push_str(&format!("\\u{:04x}", c as u32 - LONE_BASE + 0xD800)),
+            ESCAPE => match chars.next() {
+                Some(next) if (LONE_BASE..LONE_BASE + 0x800).contains(&(next as u32)) => {
+                    out.push_str(&format!("\\u{:04x}", next as u32 - LONE_BASE + 0xD800));
+                }
+                _ => out.push(ESCAPE),
+            },
             c => out.push(c),
         }
     }
@@ -585,7 +683,7 @@ fn array_index(key: &str) -> Option<u64> {
 }
 
 fn cwd_of(line: &str) -> Option<String> {
-    match js_read(line)? {
+    match js_read_kept(line)?.0 {
         Value::Object(map) => map.get("cwd")?.as_str().map(str::to_string),
         _ => None,
     }
