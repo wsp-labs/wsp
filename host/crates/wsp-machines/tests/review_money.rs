@@ -32,7 +32,7 @@ fn a_fork_the_cloud_cancelled_still_names_its_box_to_the_sub_thread_start() {
         let record = support::shared(support::record_of("running", json!({}), true));
         let err = w
             .area
-            .fork(&record, &|_m, _r| {}, None, None, false)
+            .fork(&record, &|_m, _r| Ok(()), None, None, false)
             .await
             .err()
             .expect("the cloud cancelled the create");
@@ -65,6 +65,7 @@ fn a_bind_that_writes_the_record_it_forks_does_not_panic() {
         let bind = move |m: &std::sync::Arc<dyn wsp_engine::machine::Machine>,
                          _r: &wsp_core::types::wiring::WorkspaceRecord| {
             held.borrow_mut().machine_id = m.id().to_string();
+            Ok(())
         };
         let forked = futures::FutureExt::catch_unwind(std::panic::AssertUnwindSafe(
             w.area.fork(&record, &bind, None, None, false),

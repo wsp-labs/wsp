@@ -156,7 +156,7 @@ pub trait MachinesRuntime {
         reach: ReachState,
         said: Option<&str>,
     ) -> Result<(), HostError>;
-    fn reach_of(&self, entry: &Entry) -> ReachState;
+    fn reach_of(&self, entry: &Entry) -> Result<ReachState, HostError>;
     fn nap_refused_of(&self, entry: &Entry) -> Option<String>;
     fn nap_refused_reason(&self, entry: &Entry) -> Option<String>;
     fn stop_refused_reason(&self, entry: &Entry) -> Option<String>;
@@ -166,8 +166,8 @@ pub trait MachinesRuntime {
     fn sync_daemon(&self, entry: &Entry);
     async fn write_daemon_roots(&self, entry: &Entry) -> Result<(), HostError>;
     async fn sub_lost(&self, entry: &Entry, reason: &str) -> Result<GoneOutcome, HostError>;
-    fn backend_for(&self, record: &WorkspaceRecord) -> Arc<dyn MachineBackend>;
-    fn module_of(&self, kind: &str) -> Rc<dyn KindModule>;
+    fn backend_for(&self, record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError>;
+    fn module_of(&self, kind: &str) -> Result<Rc<dyn KindModule>, HostError>;
     fn keeps_images(&self, backend: &Arc<dyn MachineBackend>) -> bool;
     fn names_workspace(&self, backend: &Arc<dyn MachineBackend>) -> bool;
     fn pause_keeps_disk(&self, backend: &Arc<dyn MachineBackend>) -> bool;

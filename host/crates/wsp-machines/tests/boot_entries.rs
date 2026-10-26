@@ -163,47 +163,56 @@ fn a_row_reaches_by_its_thread_then_by_the_rule_of_its_workspace() {
         let thread = thread_caller();
         let caller = support::caller_json(Some(&thread));
         assert!(
-            w.area.reaches_row(
-                &RowAt {
-                    thread_id: Some("t-a-own".into()),
-                    workspace_id: "none".into()
-                },
-                Some(&thread),
-                None
-            ),
+            w.area
+                .reaches_row(
+                    &RowAt {
+                        thread_id: Some("t-a-own".into()),
+                        workspace_id: "none".into()
+                    },
+                    Some(&thread),
+                    None
+                )
+                .expect("the tree answers"),
             "no live record reaches"
         );
         assert!(
-            !w.area.reaches_row(
-                &RowAt {
-                    thread_id: Some("t-b".into()),
-                    workspace_id: "none".into()
-                },
-                Some(&thread),
-                None
-            ),
+            !w.area
+                .reaches_row(
+                    &RowAt {
+                        thread_id: Some("t-b".into()),
+                        workspace_id: "none".into()
+                    },
+                    Some(&thread),
+                    None
+                )
+                .expect("the tree answers"),
             "a thread outside the tree is not driven"
         );
         assert!(
-            w.area.reaches_row(
+            w.area
+                .reaches_row(
+                    &RowAt {
+                        thread_id: Some("t-a-own".into()),
+                        workspace_id: "a".into()
+                    },
+                    Some(&thread),
+                    Some(TreeTalk::Send)
+                )
+                .expect("the tree answers"),
+            "by the workspace's act rule, talk or not, while the tree is not talked to"
+        );
+        w.rt.talks_to_tree.set(true);
+        assert!(w
+            .area
+            .reaches_row(
                 &RowAt {
                     thread_id: Some("t-a-own".into()),
                     workspace_id: "a".into()
                 },
                 Some(&thread),
-                Some(TreeTalk::Send)
-            ),
-            "by the workspace's act rule, talk or not, while the tree is not talked to"
-        );
-        w.rt.talks_to_tree.set(true);
-        assert!(w.area.reaches_row(
-            &RowAt {
-                thread_id: Some("t-a-own".into()),
-                workspace_id: "a".into()
-            },
-            Some(&thread),
-            Some(TreeTalk::List)
-        ));
+                Some(TreeTalk::List)
+            )
+            .expect("the tree answers"));
         w.rt.talks_to_tree.set(false);
         assert_eq!(
             w.log.take(),
@@ -231,13 +240,23 @@ fn tree_records_name_only_the_workspace_asked() {
             v.into_iter().map(|(t, ws, _)| (t, ws)).collect::<Vec<_>>()
         };
         assert_eq!(
-            ids(w.area.tree_records(None, None, Some("b"))),
+            ids(w
+                .area
+                .tree_records(None, None, Some("b"))
+                .expect("the tree answers")),
             vec![
                 ("t-2".to_string(), "b".to_string()),
                 ("t-3".to_string(), "b".to_string())
             ]
         );
-        assert_eq!(ids(w.area.tree_records(None, None, None)).len(), 3);
+        assert_eq!(
+            ids(w
+                .area
+                .tree_records(None, None, None)
+                .expect("the tree answers"))
+            .len(),
+            3
+        );
     });
 }
 

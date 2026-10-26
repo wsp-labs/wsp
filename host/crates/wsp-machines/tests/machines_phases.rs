@@ -193,24 +193,56 @@ fn the_gone_confirmation_waits_gone_confirm_ms_on_the_clock() {
 fn idle_quiet_of_reads_the_figure_only_for_a_running_record() {
     common::run_local(async {
         let w = World::new(with_lifecycle(false, true));
-        assert_eq!(w.area.quiet_of("ws_none").await, None, "no entry");
+        assert_eq!(
+            w.area
+                .quiet_of("ws_none")
+                .await
+                .expect("the figure is read"),
+            None,
+            "no entry"
+        );
 
         let napping = w.entry_in(EntryOpts {
             phase: "napping",
             ..Default::default()
         });
         set_quiet(&w, Ok(Some(1234)));
-        assert_eq!(w.area.quiet_of("ws_1").await, None, "a record not running");
+        assert_eq!(
+            w.area.quiet_of("ws_1").await.expect("the figure is read"),
+            None,
+            "a record not running"
+        );
         drop(napping);
 
         let running = World::new(with_lifecycle(false, true));
         let _e = running.entry_in(EntryOpts::default());
         set_quiet(&running, Ok(Some(1234)));
-        assert_eq!(running.area.quiet_of("ws_1").await, Some(1234));
+        assert_eq!(
+            running
+                .area
+                .quiet_of("ws_1")
+                .await
+                .expect("the figure is read"),
+            Some(1234)
+        );
         set_quiet(&running, Ok(None));
-        assert_eq!(running.area.quiet_of("ws_1").await, None);
+        assert_eq!(
+            running
+                .area
+                .quiet_of("ws_1")
+                .await
+                .expect("the figure is read"),
+            None
+        );
         set_quiet(&running, Err(support::plain("the computer did not answer")));
-        assert_eq!(running.area.quiet_of("ws_1").await, None);
+        assert_eq!(
+            running
+                .area
+                .quiet_of("ws_1")
+                .await
+                .expect("the figure is read"),
+            None
+        );
         assert_eq!(
             running.warns(),
             vec!["quiet figure of ws_1 not read: the computer did not answer".to_string()]
@@ -220,7 +252,10 @@ fn idle_quiet_of_reads_the_figure_only_for_a_running_record() {
         let _e = mute.entry_in(EntryOpts::default());
         set_quiet(&mute, Ok(Some(1234)));
         assert_eq!(
-            mute.area.quiet_of("ws_1").await,
+            mute.area
+                .quiet_of("ws_1")
+                .await
+                .expect("the figure is read"),
             None,
             "a lifecycle that keeps no figure is not asked"
         );

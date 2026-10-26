@@ -166,8 +166,8 @@ impl KindModule for CloudKind {
     fn admit_folder(&self, _record: FolderAdmit) -> Option<Local<'static, ()>> {
         None
     }
-    fn folder(&self, record: &WorkspaceRecord) -> Option<String> {
-        record.sub.as_ref().map(|sub| sub.folder.clone())
+    fn folder(&self, record: &WorkspaceRecord) -> Result<Option<String>, HostError> {
+        Ok(record.sub.as_ref().map(|sub| sub.folder.clone()))
     }
     fn home(&self, _entry: &LiveWorkspace, agent_id: &str) -> String {
         let area = area_of(&self.area);
@@ -214,11 +214,18 @@ impl KindModule for CloudKind {
         let asked = area.clone_project(entry, project, report);
         Box::pin(async move { asked.await.map_err(AreaError::into_host) })
     }
-    fn memory_key(&self, entry: &LiveWorkspace, agent_id: &str) -> Option<String> {
+    fn memory_key(
+        &self,
+        entry: &LiveWorkspace,
+        agent_id: &str,
+    ) -> Result<Option<String>, HostError> {
         let area = area_of(&self.area);
         let project_id = entry.record.borrow().project.clone();
-        let project = area.ctx.project_held(&project_id);
-        area.project_memory_key(agent_id, &project)
+        let project = area
+            .ctx
+            .project_held(&project_id)
+            .map_err(AreaError::into_host)?;
+        Ok(area.project_memory_key(agent_id, &project))
     }
     fn end_thread(
         &self,
@@ -325,8 +332,12 @@ impl KindModule for LocalKind {
     fn admit_folder(&self, _record: FolderAdmit) -> Option<Local<'static, ()>> {
         None
     }
-    fn folder(&self, record: &WorkspaceRecord) -> Option<String> {
-        Some(area_of(&self.area).ctx.checkout_of(record))
+    fn folder(&self, record: &WorkspaceRecord) -> Result<Option<String>, HostError> {
+        area_of(&self.area)
+            .ctx
+            .checkout_of(record)
+            .map(Some)
+            .map_err(AreaError::into_host)
     }
     fn home(&self, _entry: &LiveWorkspace, agent_id: &str) -> String {
         area_of(&self.area).ctx.local_home(agent_id)
@@ -373,7 +384,11 @@ impl KindModule for LocalKind {
     ) -> Local<'static, ()> {
         Box::pin(async { Ok(()) })
     }
-    fn memory_key(&self, entry: &LiveWorkspace, agent_id: &str) -> Option<String> {
+    fn memory_key(
+        &self,
+        entry: &LiveWorkspace,
+        agent_id: &str,
+    ) -> Result<Option<String>, HostError> {
         let area = area_of(&self.area);
         let (project_id, made_tree) = {
             let record = entry.record.borrow();
@@ -386,14 +401,17 @@ impl KindModule for LocalKind {
                     .map(|tree| tree.path.clone()),
             )
         };
-        let project = area.ctx.project_held(&project_id);
+        let project = area
+            .ctx
+            .project_held(&project_id)
+            .map_err(AreaError::into_host)?;
         if let Some(path) = made_tree {
-            return project_state_key(agent_id, &path);
+            return Ok(project_state_key(agent_id, &path));
         }
-        match project.git.as_ref().map(|git| git.top.clone()) {
+        Ok(match project.git.as_ref().map(|git| git.top.clone()) {
             Some(top) if top != project.path => project_state_key(agent_id, &top),
             _ => area.project_memory_key(agent_id, &project),
-        }
+        })
     }
     fn end_thread(
         &self,
@@ -539,8 +557,12 @@ impl KindModule for PlaceKind {
             Ok(())
         }))
     }
-    fn folder(&self, record: &WorkspaceRecord) -> Option<String> {
-        Some(area_of(&self.area).ctx.checkout_of(record))
+    fn folder(&self, record: &WorkspaceRecord) -> Result<Option<String>, HostError> {
+        area_of(&self.area)
+            .ctx
+            .checkout_of(record)
+            .map(Some)
+            .map_err(AreaError::into_host)
     }
     fn home(&self, entry: &LiveWorkspace, agent_id: &str) -> String {
         let area = area_of(&self.area);
@@ -619,11 +641,18 @@ impl KindModule for PlaceKind {
     ) -> Local<'static, ()> {
         Box::pin(async { Ok(()) })
     }
-    fn memory_key(&self, entry: &LiveWorkspace, agent_id: &str) -> Option<String> {
+    fn memory_key(
+        &self,
+        entry: &LiveWorkspace,
+        agent_id: &str,
+    ) -> Result<Option<String>, HostError> {
         let area = area_of(&self.area);
         let project_id = entry.record.borrow().project.clone();
-        let project = area.ctx.project_held(&project_id);
-        area.project_memory_key(agent_id, &project)
+        let project = area
+            .ctx
+            .project_held(&project_id)
+            .map_err(AreaError::into_host)?;
+        Ok(area.project_memory_key(agent_id, &project))
     }
     fn end_thread(
         &self,

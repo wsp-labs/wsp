@@ -141,9 +141,9 @@ impl BootArea {
         row: &RowAt,
         caller: Option<&Caller>,
         talk: Option<TreeTalk>,
-    ) -> bool {
+    ) -> Result<bool, HostError> {
         if !self.rt.drives_thread(row.thread_id.as_deref(), caller) {
-            return false;
+            return Ok(false);
         }
         let record = self
             .rt
@@ -152,11 +152,9 @@ impl BootArea {
             .get(&row.workspace_id)
             .map(|e| e.borrow().record.borrow().clone());
         match record {
-            None => true,
-            Some(record) => {
-                (talk.is_some() && self.rt.talks_to_its_tree(caller))
-                    || self.rt.acts_on(&record, caller)
-            }
+            None => Ok(true),
+            Some(record) => Ok((talk.is_some() && self.rt.talks_to_its_tree(caller)?)
+                || self.rt.acts_on(&record, caller)),
         }
     }
 
@@ -185,7 +183,7 @@ impl BootArea {
         let entry = self.rt.live().borrow().get(&row.workspace_id).cloned();
         let Some(entry) = entry else { return Ok(None) };
         let creating = entry.borrow().creating;
-        if (creating && !being_made) || !self.reaches_row(row, origin, talk) {
+        if (creating && !being_made) || !self.reaches_row(row, origin, talk)? {
             return Ok(None);
         }
         let pending = self.rt.boot_work().borrow().get(&row.workspace_id).cloned();
@@ -205,7 +203,7 @@ impl BootArea {
         caller: Option<&Caller>,
         talk: Option<TreeTalk>,
         workspace_id: Option<&str>,
-    ) -> Vec<(String, String, ThreadRecord)> {
+    ) -> Result<Vec<(String, String, ThreadRecord)>, HostError> {
         let root = wsp_wire::views::workspace::scope_of(caller).map(|s| s.root_thread_id);
         let records: Vec<(String, ThreadRecord)> = self
             .rt
@@ -214,29 +212,34 @@ impl BootArea {
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
-        records
-            .into_iter()
-            .filter(|(thread, record)| {
-                let r = ThreadOn::of(record);
-                let root_ok = root.as_ref().is_none_or(|root| {
-                    r.record.root_thread_id.as_deref().unwrap_or(thread) == root.as_str()
-                });
-                let ws_ok = workspace_id.is_none_or(|ws| ws == r.workspace_id);
-                let live = self.rt.live().borrow().contains_key(r.workspace_id);
-                root_ok
-                    && ws_ok
-                    && live
-                    && self.reaches_row(
-                        &RowAt {
-                            thread_id: Some(thread.clone()),
-                            workspace_id: r.workspace_id.to_string(),
-                        },
-                        caller,
-                        talk,
-                    )
-            })
-            .map(|(thread, record)| (thread, record.workspace_id.clone(), record))
-            .collect()
+        let mut out = Vec::new();
+        for (thread, record) in records {
+            let r = ThreadOn::of(&record);
+            let root_ok = root.as_ref().is_none_or(|root| {
+                r.record
+                    .root_thread_id
+                    .as_deref()
+                    .unwrap_or(thread.as_str())
+                    == root.as_str()
+            });
+            let ws_ok = workspace_id.is_none_or(|ws| ws == r.workspace_id);
+            let live = self.rt.live().borrow().contains_key(r.workspace_id);
+            let reached = root_ok
+                && ws_ok
+                && live
+                && self.reaches_row(
+                    &RowAt {
+                        thread_id: Some(thread.clone()),
+                        workspace_id: r.workspace_id.to_string(),
+                    },
+                    caller,
+                    talk,
+                )?;
+            if reached {
+                out.push((thread, record.workspace_id.clone(), record));
+            }
+        }
+        Ok(out)
     }
 
     /// `treeStandsOn` (boot.ts:1024), spec rule 6.
@@ -245,9 +248,9 @@ impl BootArea {
         workspace_id: &str,
         caller: Option<&Caller>,
         talk: Option<TreeTalk>,
-    ) -> bool {
+    ) -> Result<bool, HostError> {
         if wsp_wire::views::workspace::scope_of(caller).is_none() {
-            return false;
+            return Ok(false);
         }
         let views: Vec<SessionView> = self
             .rt
@@ -256,8 +259,9 @@ impl BootArea {
             .values()
             .map(|s| s.borrow().view.clone())
             .collect();
-        let by_row = views.iter().any(|v| {
-            v.workspace_id == workspace_id
+        let mut by_row = false;
+        for v in &views {
+            if v.workspace_id == workspace_id
                 && self.reaches_row(
                     &RowAt {
                         thread_id: v.thread_id.clone(),
@@ -265,18 +269,26 @@ impl BootArea {
                     },
                     caller,
                     talk,
-                )
-        });
-        by_row
+                )?
+            {
+                by_row = true;
+                break;
+            }
+        }
+        Ok(by_row
             || !self
-                .tree_records(caller, talk, Some(workspace_id))
-                .is_empty()
+                .tree_records(caller, talk, Some(workspace_id))?
+                .is_empty())
     }
 
     /// `talksToTreeOn` (boot.ts:1029), spec rule 7.
-    pub fn talks_to_tree_on(&self, workspace_id: &str, caller: Option<&Caller>) -> bool {
-        self.rt.talks_to_its_tree(caller)
-            && self.tree_stands_on(workspace_id, caller, Some(TreeTalk::Send))
+    pub fn talks_to_tree_on(
+        &self,
+        workspace_id: &str,
+        caller: Option<&Caller>,
+    ) -> Result<bool, HostError> {
+        Ok(self.rt.talks_to_its_tree(caller)?
+            && self.tree_stands_on(workspace_id, caller, Some(TreeTalk::Send))?)
     }
 
     /// `computerRows` (boot.ts:1038), spec rule 8.

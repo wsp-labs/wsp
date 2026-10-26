@@ -93,11 +93,11 @@ pub trait SubSpawnCtx {
     fn name_given(&self, name: &str) -> String;
     /// `spawnGuard("fork", origin)`: the release on success.
     fn spawn_guard(&self, origin: Option<&Caller>) -> Result<Box<dyn FnOnce()>, HostError>;
-    fn project_held(&self, id: &str) -> ProjectView;
+    fn project_held(&self, id: &str) -> Result<ProjectView, HostError>;
     async fn copy_blocked(&self, lead: &Entry) -> AreaResult<()>;
     /// One frame through the workspace's own daemon (`withDaemon`).
     async fn daemon_frame(&self, entry: &Entry, frame: Value) -> AreaResult<Value>;
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String;
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError>;
     /// `ctx.brokered({kind, place})`.
     fn brokered(&self, kind: &str, place: Option<&str>) -> bool;
     /// branch-of-record.ts `brokeredStart(ctx, true)`.
@@ -142,13 +142,17 @@ pub trait SubSpawnCtx {
     async fn fork(
         &self,
         record: &Rc<RefCell<WorkspaceRecord>>,
-        on_machine: Box<dyn Fn(Arc<dyn Machine>)>,
+        on_machine: Box<dyn Fn(Arc<dyn Machine>) -> Result<(), HostError>>,
         report: StageReport,
     ) -> AreaResult<()>;
     /// `attach(record, machine)`.
-    fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry;
+    fn attach(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        machine: Arc<dyn Machine>,
+    ) -> Result<Entry, HostError>;
     /// `attach(record, deadMachine(""))`.
-    fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Entry;
+    fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Result<Entry, HostError>;
     async fn ping_daemon(&self, entry: &Entry) -> Option<String>;
     fn sync_daemon(&self, entry: &Entry);
     async fn persist(&self, record: &WorkspaceRecord) -> AreaResult<()>;

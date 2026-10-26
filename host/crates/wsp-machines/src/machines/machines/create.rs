@@ -1168,13 +1168,16 @@ impl MachinesArea {
     pub async fn fork(
         self: &Rc<Self>,
         record: &Rc<RefCell<WorkspaceRecord>>,
-        bind: &dyn for<'m, 'r> Fn(&'m Arc<dyn Machine>, &'r WorkspaceRecord),
+        bind: &dyn for<'m, 'r> Fn(
+            &'m Arc<dyn Machine>,
+            &'r WorkspaceRecord,
+        ) -> Result<(), HostError>,
         over: Option<&WorkspaceSpec>,
         report: Option<Report>,
         reads_memory: bool,
     ) -> AreaResult<Arc<dyn Machine>> {
         let snapshot = record.borrow().clone();
-        let at = self.rt.backend_for(&snapshot);
+        let at = self.rt.backend_for(&snapshot)?;
         let claim = self.begin_claim(
             &format!("workspace/{}", snapshot.id),
             at,
@@ -1192,7 +1195,10 @@ impl MachinesArea {
         self: &Rc<Self>,
         claim: &Claimed,
         record: &Rc<RefCell<WorkspaceRecord>>,
-        bind: &dyn for<'m, 'r> Fn(&'m Arc<dyn Machine>, &'r WorkspaceRecord),
+        bind: &dyn for<'m, 'r> Fn(
+            &'m Arc<dyn Machine>,
+            &'r WorkspaceRecord,
+        ) -> Result<(), HostError>,
         over: Option<&WorkspaceSpec>,
         report: Option<Report>,
         reads_memory: bool,
@@ -1256,7 +1262,7 @@ impl MachinesArea {
         };
 
         let bound = record.borrow().clone();
-        bind(&machine, &bound);
+        bind(&machine, &bound)?;
 
         if !self.rt.names_workspace(&b) {
             let named = set_hostname(machine.as_ref(), &snapshot.name).await;
@@ -1355,7 +1361,7 @@ impl MachinesArea {
             let snapshot = e.record.borrow().clone();
             (e.machine.id().to_string(), e.machine.clone(), snapshot)
         };
-        let at = self.rt.backend_for(&snapshot);
+        let at = self.rt.backend_for(&snapshot)?;
         let clock = self.rt.clock();
         kill_until_gone(
             at.as_ref(),

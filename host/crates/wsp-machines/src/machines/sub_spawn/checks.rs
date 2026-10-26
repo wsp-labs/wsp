@@ -197,7 +197,7 @@ impl SubSpawnArea {
                 &lead_name,
             )));
         }
-        let project = self.ctx.project_held(&lead_project);
+        let project = self.ctx.project_held(&lead_project)?;
         if !ask.project.is_empty() && ask.project != project.id && ask.project != project.name {
             return Err(AreaError::Host(sub_other_project_refusal(
                 &ask.on,
@@ -219,7 +219,16 @@ impl SubSpawnArea {
         let owner_repo = owner_repo_of(&project.remote).unwrap_or_default();
         let repo = host.https_url(&owner_repo);
         self.ctx.copy_blocked(&lead).await?;
-        let frame = json!({ "op": "git.status", "cwd": self.ctx.checkout_of(&lead.borrow().record.borrow()) });
+        // sub-spawn.ts:176: the checkout is read inside the git.status callback, and its failure is the same refusal.
+        let cwd = self
+            .ctx
+            .checkout_of(&lead.borrow().record.borrow())
+            .map_err(|e| {
+                AreaError::Host(HostError::new(branch_unread_refusal(
+                    &lead_name, &e.message,
+                )))
+            })?;
+        let frame = json!({ "op": "git.status", "cwd": cwd });
         let said = self.ctx.daemon_frame(&lead, frame).await.map_err(|e| {
             AreaError::Host(HostError::new(branch_unread_refusal(
                 &lead_name,
@@ -688,9 +697,9 @@ impl SubSpawnArea {
     pub(crate) async fn git_at_lead(&self, lead: &Entry, args: &[&str]) -> AreaResult<ExecResult> {
         let (project_id, folder) = {
             let record = lead.borrow().record.borrow().clone();
-            (record.project.clone(), self.ctx.checkout_of(&record))
+            (record.project.clone(), self.ctx.checkout_of(&record)?)
         };
-        let computer = self.ctx.project_held(&project_id).computer;
+        let computer = self.ctx.project_held(&project_id)?.computer;
         let machine = if copies_folder(&kind_for_computer(&computer, None)) {
             self.ctx.local_machine().await?
         } else {

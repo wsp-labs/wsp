@@ -185,7 +185,7 @@ impl MachinesArea {
                     },
                 );
             }
-            let reach = self.rt.reach_of(entry);
+            let reach = self.rt.reach_of(entry)?;
             self.rt
                 .emit_status(entry, reach, Some(&e.to_string()))
                 .await?;
@@ -333,7 +333,7 @@ impl MachinesArea {
                 seq: None,
             },
         ))?;
-        let reach = self.rt.reach_of(entry);
+        let reach = self.rt.reach_of(entry)?;
         self.rt
             .emit_status(entry, reach, Some(ALREADY_RUNNING))
             .await
@@ -361,7 +361,7 @@ impl MachinesArea {
         reason: &str,
     ) -> Result<GoneOutcome, HostError> {
         let snapshot = Self::record_snapshot(entry);
-        let backend = self.rt.backend_for(&snapshot);
+        let backend = self.rt.backend_for(&snapshot)?;
         let read = self.gone_confirmed(&backend, &snapshot.machine_id).await;
         match read {
             GoneRead::State(MachineState::Gone) => {
@@ -444,7 +444,7 @@ impl MachinesArea {
         self.rereading.borrow_mut().insert(id.clone());
         let out = match self.settle_gone(entry, reason).await {
             Ok(GoneOutcome::Unchecked) => {
-                let reach = self.rt.reach_of(entry);
+                let reach = self.rt.reach_of(entry)?;
                 self.rt
                     .emit_status(entry, reach, Some(GONE_UNCHECKED))
                     .await
@@ -511,7 +511,7 @@ impl MachinesArea {
             ))?;
         }
         let reach = if next == WorkspacePhase::Running {
-            self.rt.reach_of(entry)
+            self.rt.reach_of(entry)?
         } else {
             ReachState::Napping
         };
@@ -519,23 +519,27 @@ impl MachinesArea {
         Ok(Some(next))
     }
 
-    /// `quietOf` (machines.ts:777).
-    pub async fn quiet_of(&self, id: &str) -> Option<u64> {
-        let entry = self.rt.live().borrow().get(id).cloned()?;
+    /// `quietOf` (machines.ts:777): the backend read has no catch of its own, so its failure rejects the idle nap.
+    pub async fn quiet_of(&self, id: &str) -> Result<Option<u64>, HostError> {
+        let Some(entry) = self.rt.live().borrow().get(id).cloned() else {
+            return Ok(None);
+        };
         if entry.borrow().record.borrow().phase != WorkspacePhase::Running {
-            return None;
+            return Ok(None);
         }
-        let backend = self.rt.backend_for(&Self::record_snapshot(&entry));
+        let backend = self.rt.backend_for(&Self::record_snapshot(&entry))?;
         let machine = entry.borrow().machine.clone();
-        let lifecycle = backend.lifecycle()?;
+        let Some(lifecycle) = backend.lifecycle() else {
+            return Ok(None);
+        };
         if !lifecycle.has_quiet_for_ms() {
-            return None;
+            return Ok(None);
         }
         match lifecycle.quiet_for_ms(machine.as_ref()).await {
-            Ok(quiet) => quiet,
+            Ok(quiet) => Ok(quiet),
             Err(e) => {
                 self.rt.warn(&format!("quiet figure of {id} not read: {e}"));
-                None
+                Ok(None)
             }
         }
     }
@@ -554,7 +558,7 @@ impl MachinesArea {
 
     /// The idle policy's `onIdle` (machines.ts:797): `Err` only for an unanswered move, which the policy retries.
     pub async fn on_idle(self: &Rc<Self>, id: &str, window_ms: f64) -> Result<(), HostError> {
-        if let Some(quiet) = self.quiet_of(id).await {
+        if let Some(quiet) = self.quiet_of(id).await? {
             if (quiet as f64) < window_ms {
                 self.rt.idle().touch(id);
                 return Ok(());
@@ -578,7 +582,7 @@ impl MachinesArea {
                 .nap_refused_reason(&entry)
                 .or_else(|| self.rt.stop_refused_reason(&entry))
                 .unwrap_or_else(|| e.message.clone());
-            let reach = self.rt.reach_of(&entry);
+            let reach = self.rt.reach_of(&entry)?;
             self.rt.emit_status(&entry, reach, Some(&line)).await?;
         }
         if !e.marks.iter().any(|m| m == MARK_NAP_REFUSED) {
@@ -612,7 +616,16 @@ impl MachinesArea {
         if phase != WorkspacePhase::Running || sub_delete.is_some() {
             return;
         }
-        let backend = self.rt.backend_for(&Self::record_snapshot(&entry));
+        // machines.ts:829-833: the call is made synchronously in the idle policy's arming, which has no caller that
+        // takes an error; the failure is warned, not carried, until the idle door can answer one.
+        let backend = match self.rt.backend_for(&Self::record_snapshot(&entry)) {
+            Ok(backend) => backend,
+            Err(e) => {
+                self.rt
+                    .warn(&format!("backstop of {id} not set: {}", e.message));
+                return;
+            }
+        };
         let machine = entry.borrow().machine.clone();
         let Some(lifecycle) = backend.lifecycle() else {
             return;
@@ -721,7 +734,7 @@ impl MachinesArea {
         };
         Self::set_phase(entry, WorkspacePhase::Running);
         self.rt.persist(&Self::record_snapshot(entry)).await?;
-        let reach = self.rt.reach_of(entry);
+        let reach = self.rt.reach_of(entry)?;
         self.rt.emit_status(entry, reach, said.as_deref()).await?;
         match outcome {
             Wake::Proven => Ok(self.rt.view(&Self::record_snapshot(entry))),

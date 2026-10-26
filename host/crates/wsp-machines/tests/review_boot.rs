@@ -263,7 +263,7 @@ impl BootRuntime for Wrap {
     fn index_pos(&self, workspace_id: &str) -> u64 { self.inner.index_pos(workspace_id) }
     fn index_children(&self, workspace_id: &str, thread_id: &str) -> Vec<serde_json::Value> { self.inner.index_children(workspace_id, thread_id) }
     fn observed(&self, machine: Arc<dyn Machine>) -> Arc<dyn Machine> { self.inner.observed(machine) }
-    fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry { self.inner.attach(record, machine) }
+    fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Result<Entry, HostError> { self.inner.attach(record, machine) }
     async fn mark_gone(&self, entry: &Entry, machine_id: &str, reason: &str) -> Result<GoneOutcome, HostError> { let out = self.inner.mark_gone(entry, machine_id, reason).await; if self.fails("mark_gone") { return Err(HostError::new("markGone failed")); } out }
     fn idle_touch(&self, workspace_id: &str) { self.inner.idle_touch(workspace_id) }
     fn sync_daemon(&self, entry: &Entry) { self.inner.sync_daemon(entry) }
@@ -275,7 +275,7 @@ impl BootRuntime for Wrap {
     fn arm_grace(&self, builder_id: &str, sealed_at: &str) { self.inner.arm_grace(builder_id, sealed_at) }
     fn door_backend_of(&self, place: &str) -> Option<Arc<dyn MachineBackend>> { self.inner.door_backend_of(place) }
     async fn image_kind(&self, golden: &str) -> Result<Option<wsp_wire::views::golden_image::MachineKind>, HostError> { let out = self.inner.image_kind(golden).await; if self.fails("image_kind") { return Err(HostError::new("imageKind failed")); } out }
-    fn attach_queued(&self, record: &Rc<RefCell<WorkspaceRecord>>) { self.inner.attach_queued(record) }
+    fn attach_queued(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Result<(), HostError> { self.inner.attach_queued(record) }
     async fn migrate_copies(&self) -> Result<(), HostError> { let out = self.inner.migrate_copies().await; if self.fails("migrate_copies") { return Err(HostError::new("migrateCopies failed")); } out }
     async fn place_door_load(&self) -> Result<(), HostError> { let out = self.inner.place_door_load().await; if self.fails("place_door_load") { return Err(HostError::new("placeDoorLoad failed")); } out }
     async fn git_top_of(&self, path: &str) -> Result<String, HostError> { let out = self.inner.git_top_of(path).await; if self.fails("git_top_of") { return Err(HostError::new("gitTopOf failed")); } out }

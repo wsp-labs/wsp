@@ -922,7 +922,7 @@ impl KindModule for FakeKind {
     fn admit_folder(&self, _record: FolderAdmit) -> Option<Local<'static, ()>> {
         unimplemented!("fake kind")
     }
-    fn folder(&self, _record: &WorkspaceRecord) -> Option<String> {
+    fn folder(&self, _record: &WorkspaceRecord) -> Result<Option<String>, HostError> {
         unimplemented!("fake kind")
     }
     fn home(&self, _entry: &LiveWorkspace, _agent_id: &str) -> String {
@@ -961,7 +961,11 @@ impl KindModule for FakeKind {
     ) -> Local<'static, ()> {
         unimplemented!("fake kind")
     }
-    fn memory_key(&self, _entry: &LiveWorkspace, _agent_id: &str) -> Option<String> {
+    fn memory_key(
+        &self,
+        _entry: &LiveWorkspace,
+        _agent_id: &str,
+    ) -> Result<Option<String>, HostError> {
         unimplemented!("fake kind")
     }
     fn end_thread(
@@ -1271,8 +1275,8 @@ impl MachinesRuntime for Rt {
         tick().await;
         Ok(())
     }
-    fn reach_of(&self, _entry: &Entry) -> ReachState {
-        ReachState::Reachable
+    fn reach_of(&self, _entry: &Entry) -> Result<ReachState, HostError> {
+        Ok(ReachState::Reachable)
     }
     fn nap_refused_of(&self, entry: &Entry) -> Option<String> {
         let id = Rt::id_of(entry);

@@ -42,7 +42,7 @@ pub trait RecordsCtx {
     /// `ctx.homeOf(r).home`.
     fn home_of(&self, r: &WorkspaceRecord) -> Option<String>;
     /// `ctx.refOf(ctx.projectHeld(r.project))`.
-    fn project_ref(&self, project: &str) -> ProjectView;
+    fn project_ref(&self, project: &str) -> Result<ProjectView, HostError>;
     /// `ctx.daemonNotes.get(r.id)`.
     fn daemon_note(&self, workspace_id: &str) -> Option<String>;
     /// `ctx.agentsOf(r)`, as its JSON.
@@ -100,9 +100,9 @@ impl RecordsArea {
     }
 
     /// records.ts:88-125 (R1, R2).
-    pub fn view(&self, r: &WorkspaceRecord) -> WorkspaceView {
-        let project = self.ctx.project_ref(&r.project);
-        WorkspaceView {
+    pub fn view(&self, r: &WorkspaceRecord) -> Result<WorkspaceView, HostError> {
+        let project = self.ctx.project_ref(&r.project)?;
+        Ok(WorkspaceView {
             id: r.id.clone(),
             name: r.name.clone(),
             machine_id: r.machine_id.clone(),
@@ -148,7 +148,7 @@ impl RecordsArea {
             from: r.from.clone(),
             review: r.review.clone(),
             branch_of_record: r.branch_of_record.clone(),
-        }
+        })
     }
 
     /// records.ts:129-133 (R3): `None` leaves, `Some(None)` clears, `Some(Some(v))` sets the look fact, as its JSON.

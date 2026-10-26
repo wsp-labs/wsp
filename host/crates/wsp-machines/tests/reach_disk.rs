@@ -634,15 +634,27 @@ fn reach_of_takes_unreached_then_polled_then_the_kinds_claim() {
         let w = world(plain_record(WS, "web", "running", "bx_1"));
         let k = knobs();
         // Nothing polled and no claim.
-        assert_eq!(w.area.reach_of(&w.entry), ReachState::Unsupported);
+        assert_eq!(
+            w.area.reach_of(&w.entry).expect("the reach answers"),
+            ReachState::Unsupported
+        );
         // The kind's claim, then the machine's own daemon-answers road.
         k.has_daemon.set(true);
-        assert_eq!(w.area.reach_of(&w.entry), ReachState::Reachable);
+        assert_eq!(
+            w.area.reach_of(&w.entry).expect("the reach answers"),
+            ReachState::Reachable
+        );
         k.has_daemon.set(false);
         w.machine.offers.lock().unwrap().daemon_answers = true;
-        assert_eq!(w.area.reach_of(&w.entry), ReachState::Reachable);
+        assert_eq!(
+            w.area.reach_of(&w.entry).expect("the reach answers"),
+            ReachState::Reachable
+        );
         w.machine.offers.lock().unwrap().daemon_answers = false;
-        assert_eq!(w.area.reach_of(&w.entry), ReachState::Unsupported);
+        assert_eq!(
+            w.area.reach_of(&w.entry).expect("the reach answers"),
+            ReachState::Unsupported
+        );
 
         // A reading the poll made for this machine outranks the claim.
         k.has_daemon.set(true);
@@ -653,7 +665,10 @@ fn reach_of_takes_unreached_then_polled_then_the_kinds_claim() {
                 value: ReachState::NoDaemon,
             },
         );
-        assert_eq!(w.area.reach_of(&w.entry), ReachState::NoDaemon);
+        assert_eq!(
+            w.area.reach_of(&w.entry).expect("the reach answers"),
+            ReachState::NoDaemon
+        );
         // One made for another machine is not this one's.
         k.has_daemon.set(false);
         w.area.polled_reach.borrow_mut().insert(
@@ -663,7 +678,10 @@ fn reach_of_takes_unreached_then_polled_then_the_kinds_claim() {
                 value: ReachState::Reachable,
             },
         );
-        assert_eq!(w.area.reach_of(&w.entry), ReachState::Unsupported);
+        assert_eq!(
+            w.area.reach_of(&w.entry).expect("the reach answers"),
+            ReachState::Unsupported
+        );
 
         // A line about the daemon outranks them all.
         w.area.polled_reach.borrow_mut().insert(
@@ -676,7 +694,10 @@ fn reach_of_takes_unreached_then_polled_then_the_kinds_claim() {
         k.unreached
             .borrow_mut()
             .insert(WS.to_string(), "the daemon is down".to_string());
-        assert_eq!(w.area.reach_of(&w.entry), ReachState::Unreachable);
+        assert_eq!(
+            w.area.reach_of(&w.entry).expect("the reach answers"),
+            ReachState::Unreachable
+        );
     });
 }
 

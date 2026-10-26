@@ -105,7 +105,7 @@ pub trait CreateRuntime {
     async fn landing_deps(&self, computer: &str) -> Result<serde_json::Value, HostError>;
     fn project_landing(&self, kind: &str) -> Result<Rc<dyn LandingRoad>, HostError>;
     async fn remember_project(&self, project: ProjectView) -> Result<(), HostError>;
-    fn project_held(&self, project_id: &str) -> ProjectView;
+    fn project_held(&self, project_id: &str) -> Result<ProjectView, HostError>;
     fn keeps_images(&self, at: &Arc<dyn MachineBackend>) -> bool;
     async fn copy_for_fork(
         &self,
@@ -128,12 +128,19 @@ pub trait CreateRuntime {
     /// `ctx.treeOf(spawned)`: `{rootThreadId, threadId}` written on the record, or nothing.
     fn tree_of(&self, spawned: Option<&ThreadScope>) -> serde_json::Map<String, serde_json::Value>;
     /// The machines area's `attach`.
-    fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry;
+    fn attach(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        machine: Arc<dyn Machine>,
+    ) -> Result<Entry, HostError>;
     /// The machines area's `fork` with no override and `readsMemory` false; `bind` runs before the claim is let go.
     async fn fork(
         &self,
         record: &Rc<RefCell<WorkspaceRecord>>,
-        bind: &dyn for<'m, 'r> Fn(&'m Arc<dyn Machine>, &'r WorkspaceRecord),
+        bind: &dyn for<'m, 'r> Fn(
+            &'m Arc<dyn Machine>,
+            &'r WorkspaceRecord,
+        ) -> Result<(), HostError>,
         report: StageReport,
     ) -> Result<Arc<dyn Machine>, HostError>;
     async fn refresh_builders(&self) -> Result<(), HostError>;
@@ -147,7 +154,7 @@ pub trait CreateRuntime {
     fn holds_slot(&self, record: &WorkspaceRecord) -> bool;
     fn served_by_its_computer(&self, entry: &Entry) -> Option<String>;
     /// `ctx.lifecycleOf(entry).budgets.daemonAnswersMs`.
-    fn daemon_answers_ms(&self, entry: &Entry) -> u64;
+    fn daemon_answers_ms(&self, entry: &Entry) -> Result<u64, HostError>;
     /// `entry.ws.daemonReach()`.
     async fn daemon_reach(&self, entry: &Entry) -> Result<(), HostError>;
     async fn ping_daemon(&self, entry: &Entry) -> Option<String>;
@@ -158,7 +165,7 @@ pub trait CreateRuntime {
         machine: &Arc<dyn Machine>,
         sizes: &[wsp_wire::wire::capabilities::WorkspaceSize],
     ) -> bool;
-    fn module_of(&self, kind: &str) -> Rc<dyn KindModule>;
+    fn module_of(&self, kind: &str) -> Result<Rc<dyn KindModule>, HostError>;
     async fn write_daemon_roots(&self, entry: &Entry) -> Result<(), HostError>;
     async fn persist(&self, record: &WorkspaceRecord) -> Result<(), HostError>;
     async fn mark_used(&self, place_id: Option<&str>) -> Result<(), HostError>;
@@ -265,7 +272,7 @@ impl CreateArea {
             })
             .await?;
         }
-        let binds = road.workspace_binds(&rt.project_held(&project.id));
+        let binds = road.workspace_binds(&rt.project_held(&project.id)?);
         let copy = project.checkout.as_ref().map(|from| WorkspaceCopy {
             from: from.clone(),
             at: project.path.clone(),
@@ -412,9 +419,9 @@ impl CreateArea {
         let cell = Rc::new(RefCell::new(record));
         let opens = opens_thread.clone();
         let of_record = o.branch_of_record.is_some();
-        let bind = |m: &Arc<dyn Machine>, _r: &WorkspaceRecord| {
+        let bind = |m: &Arc<dyn Machine>, _r: &WorkspaceRecord| -> Result<(), HostError> {
             cell.borrow_mut().machine_id = m.id().to_string();
-            let entry = rt.attach(&cell, m.clone());
+            let entry = rt.attach(&cell, m.clone())?;
             {
                 let mut live = entry.borrow_mut();
                 live.creating = true;
@@ -428,6 +435,7 @@ impl CreateArea {
             if let Some(landed) = &landed {
                 landed();
             }
+            Ok(())
         };
         let mut notices: Vec<String> = Vec::new();
         let first = rt.fork(&cell, &bind, report.clone()).await;
@@ -521,25 +529,31 @@ impl CreateArea {
             && (offers_now.preview_url || offers_now.daemon_answers)
         {
             if offers_now.preview_url {
-                let deadline = rt.clock().now() + rt.daemon_answers_ms(&entry) as i64;
-                match until(
-                    rt.daemon_reach(&entry),
-                    deadline,
-                    "preview route",
-                    rt.clock(),
-                )
-                .await
-                {
+                // create.ts:169: the lifecycle read sits in the try whose catch reports the route as not minted.
+                let reached = match rt.daemon_answers_ms(&entry) {
+                    Ok(answers_ms) => {
+                        let deadline = rt.clock().now() + answers_ms as i64;
+                        until(
+                            rt.daemon_reach(&entry),
+                            deadline,
+                            "preview route",
+                            rt.clock(),
+                        )
+                        .await
+                        .map_err(|e| match e {
+                            wsp_core::types::wiring::UntilError::Deadline(d) => d.0,
+                            wsp_core::types::wiring::UntilError::Failed(f) => f.message,
+                        })
+                    }
+                    Err(e) => Err(e.message),
+                };
+                match reached {
                     Ok(()) => report(
                         WorkspaceCreateStage::PreviewRoute,
                         "Preview route to the daemon minted.",
                         None,
                     ),
-                    Err(e) => {
-                        let why = match e {
-                            wsp_core::types::wiring::UntilError::Deadline(d) => d.0,
-                            wsp_core::types::wiring::UntilError::Failed(f) => f.message,
-                        };
+                    Err(why) => {
                         let notice =
                             format!("preview route for {} not minted ({why})", machine_obj.id());
                         report(
@@ -595,9 +609,11 @@ impl CreateArea {
             .ok()
             .and_then(|v| v.as_str().map(str::to_string))
             .unwrap_or_default();
-        let landing =
-            rt.module_of(&kind_name)
-                .land_project(&entry.borrow(), project.clone(), report.clone());
+        let landing = rt.module_of(&kind_name)?.land_project(
+            &entry.borrow(),
+            project.clone(),
+            report.clone(),
+        );
         landing.await?;
         rt.write_daemon_roots(&entry).await?;
         let snapshot = record_cell.borrow().clone();

@@ -262,7 +262,7 @@ impl MachinesArea {
         self: &Rc<Self>,
         record: &Rc<RefCell<WorkspaceRecord>>,
         machine: Arc<dyn Machine>,
-    ) -> Entry {
+    ) -> Result<Entry, HostError> {
         let (id, golden, phase, first_life, kept, checkout) = {
             let r = record.borrow();
             (
@@ -280,7 +280,7 @@ impl MachinesArea {
             .borrow()
             .get(&id)
             .map_or(0, |e| e.borrow().generation + 1);
-        let at = self.rt.backend_for(&record.borrow().clone());
+        let at = self.rt.backend_for(&record.borrow().clone())?;
         let vaulted = self.rt.keeps_images(&at);
         if !vaulted {
             let mut r = record.borrow_mut();
@@ -350,7 +350,7 @@ impl MachinesArea {
             })
         });
         self.rt.live().borrow_mut().insert(id, entry.clone());
-        entry
+        Ok(entry)
     }
 
     /// `idleWindowOf` (machines.ts:517): `None` is off.
@@ -399,7 +399,7 @@ impl MachinesArea {
                 let r = e.record.borrow();
                 (r.kind, r.name.clone(), e.machine.id().to_string())
             };
-            let module = self.rt.module_of(kind_key(kind));
+            let module = self.rt.module_of(kind_key(kind))?;
             let dropped = {
                 let e = entry.borrow();
                 module.dropped(&e)
@@ -537,12 +537,14 @@ fn build_hooks(h: &Hooks, golden: String, wake_attempts: u32, vaulted: bool) -> 
                 async move {
                     let bind_entry = entry.clone();
                     let bind_area = area.clone();
-                    let bind = move |m: &MachineRef, _r: &WorkspaceRecord| {
-                        if let Some(live) = bind_entry.upgrade() {
-                            live.borrow_mut().machine =
-                                bind_area.watched_on(bind_entry.clone(), m.clone());
-                        }
-                    };
+                    let bind =
+                        move |m: &MachineRef, _r: &WorkspaceRecord| -> Result<(), HostError> {
+                            if let Some(live) = bind_entry.upgrade() {
+                                live.borrow_mut().machine =
+                                    bind_area.watched_on(bind_entry.clone(), m.clone());
+                            }
+                            Ok(())
+                        };
                     let over = over.map(|o| WorkspaceSpec {
                         cpu: o.cpu,
                         mem_mb: o.mem_mb,

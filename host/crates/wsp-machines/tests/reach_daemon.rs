@@ -1103,7 +1103,10 @@ fn a_lead_whose_children_are_gone_loses_its_tree() {
         let making = put_kid(&t.host, "ws_c1", "pr_kid", json!({}));
         making.borrow_mut().creating = true;
 
-        assert_eq!(t.area.read_tree(&t.lead).await, None);
+        assert_eq!(
+            t.area.read_tree(&t.lead).await.expect("the read answers"),
+            None
+        );
         assert!(t.lead.borrow().tree.is_none());
         let seen = t.host.events_of("workspace.status");
         assert_eq!(seen.len(), 1);
@@ -1112,7 +1115,10 @@ fn a_lead_whose_children_are_gone_loses_its_tree() {
         assert!(t.host.calls_of("with_daemon").is_empty());
 
         // Nothing held and nothing to read: no status goes out.
-        assert_eq!(t.area.read_tree(&t.lead).await, None);
+        assert_eq!(
+            t.area.read_tree(&t.lead).await.expect("the read answers"),
+            None
+        );
         assert_eq!(t.host.events_of("workspace.status").len(), 1);
 
         // The child lands, is read, then goes: the tree read of it is taken off.
@@ -1128,7 +1134,10 @@ fn a_lead_whose_children_are_gone_loses_its_tree() {
         assert!(t.lead.borrow().tree.is_some());
         let pushed = t.host.events_of("workspace.status").len();
         t.host.live.borrow_mut().shift_remove("ws_c1");
-        assert_eq!(t.area.read_tree(&t.lead).await, None);
+        assert_eq!(
+            t.area.read_tree(&t.lead).await.expect("the read answers"),
+            None
+        );
         assert!(t.lead.borrow().tree.is_none());
         let seen = t.host.events_of("workspace.status");
         assert_eq!(seen.len(), pushed + 1);

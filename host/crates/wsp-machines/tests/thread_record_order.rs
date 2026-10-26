@@ -54,7 +54,9 @@ fn every_stamp_the_boot_road_marks_writes_the_bytes_node_writes() {
                     ..BootOpts::default()
                 });
                 w.started().await;
-                w.rt.thread_records.borrow_mut().insert("t1".to_string(), held);
+                w.rt.thread_records
+                    .borrow_mut()
+                    .insert("t1".to_string(), held);
                 w.area
                     .mark(&["t1".into()], Stamped::Same(object(&case["input"])), None)
                     .await

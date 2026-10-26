@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! project_held may fail: the folder of a fork falls back to the project's path with no catch.
+#![allow(clippy::await_holding_refcell_ref)]
 mod machines_b_support;
 
 use serde_json::json;

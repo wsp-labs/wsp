@@ -134,7 +134,14 @@ impl ReachArea {
             },
         );
         if self.disk_reason(entry) != was {
-            let reach = self.reach_of(entry);
+            // reach.ts:137 (readDisk) is a timer's callback with no caller to hand a failure to: the failure is warned.
+            let reach = match self.reach_of(entry) {
+                Ok(reach) => reach,
+                Err(e) => {
+                    self.ctx.warn(&e.message());
+                    return None;
+                }
+            };
             let reason = self.ctx.row_reason(entry);
             if let Err(e) = self.emit_status(entry, reach, reason.as_deref()).await {
                 self.ctx.warn(&e.message());
@@ -370,20 +377,20 @@ impl ReachArea {
     }
 
     /// reach.ts:165 (rule 14).
-    pub fn reach_of(&self, entry: &Entry) -> ReachState {
+    pub fn reach_of(&self, entry: &Entry) -> AreaResult<ReachState> {
         if self.ctx.unreached_of(entry).is_some() {
-            return ReachState::Unreachable;
+            return Ok(ReachState::Unreachable);
         }
         let (id, machine_id) = entry_ids(entry);
         let seen = self.polled_reach.borrow().get(&id).cloned();
         if let Some(seen) = seen.filter(|seen| seen.machine_id == machine_id) {
-            return seen.value;
+            return Ok(seen.value);
         }
         let answers = entry.borrow().machine.offers().daemon_answers;
-        if self.ctx.kind_has_daemon(entry) || answers {
-            ReachState::Reachable
+        if self.ctx.kind_has_daemon(entry)? || answers {
+            Ok(ReachState::Reachable)
         } else {
-            ReachState::Unsupported
+            Ok(ReachState::Unsupported)
         }
     }
 
@@ -477,7 +484,7 @@ impl ReachArea {
         if !running {
             return Ok(());
         }
-        let reach = self.reach_of(entry);
+        let reach = self.reach_of(entry)?;
         self.emit_status(entry, reach, None).await
     }
 
@@ -485,7 +492,7 @@ impl ReachArea {
     pub async fn status_now(&self, entry: &Entry) -> AreaResult<()> {
         let running = entry.borrow().record.borrow().phase == WorkspacePhase::Running;
         let reach = if running {
-            self.reach_of(entry)
+            self.reach_of(entry)?
         } else {
             ReachState::Napping
         };

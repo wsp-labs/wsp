@@ -29,7 +29,7 @@ use wsp_wire::views::workspace::WorkspaceProject;
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::views::workspace_more::WorkspaceOrigin;
 use wsp_wire::wire::machine_link::{place_forks_nowhere_line, place_serves_daemon_line};
-use wsp_words::exit::Kind;
+use wsp_words::exit::{HostError, Kind};
 use wsp_words::project_path::place_daemon_paths;
 
 fn module(area: &KindsArea, kind: WorkspaceKind) -> Rc<dyn KindModule> {
@@ -172,11 +172,13 @@ fn cloud_answers_its_fixed_facts() {
         assert_eq!(cloud.home(&entry.borrow(), "claude"), "/root/.claude-cfg");
         assert_eq!(cloud.home(&entry.borrow(), "codex"), "/root/.codex");
         assert_eq!(
-            cloud.folder(&held_record(&entry)),
+            cloud
+                .folder(&held_record(&entry))
+                .expect("the folder answers"),
             Some("/root/web".to_string())
         );
         let plain = record("ws_k", json!({ "project": "pr_1" }), &["sub"]);
-        assert_eq!(cloud.folder(&plain), None);
+        assert_eq!(cloud.folder(&plain).expect("the folder answers"), None);
         dropped_of(&*cloud, &entry).await.unwrap();
         assert!(
             deploy_of(&*cloud, &entry).is_none() && cloud.restart_daemon(&entry.borrow()).is_none()
@@ -221,7 +223,9 @@ fn cloud_answers_its_fixed_facts() {
 
         // The key the project was recorded with, never one off the fork's own path.
         assert_eq!(
-            cloud.memory_key(&entry.borrow(), "claude"),
+            cloud
+                .memory_key(&entry.borrow(), "claude")
+                .expect("the memory key answers"),
             Some("-recorded-pr_1".to_string())
         );
 
@@ -411,7 +415,9 @@ fn local_wsp_mcp_carries_the_scoped_arg_and_turn_reach_the_here_url() {
             json!({ "computer": "here" }),
         ));
         assert_eq!(
-            local.folder(&held_record(&entry)),
+            local
+                .folder(&held_record(&entry))
+                .expect("the folder answers"),
             Some("/home/z/lab".to_string())
         );
         assert_eq!(daemon_version_of(&*local, &entry).await.unwrap(), None);
@@ -437,24 +443,32 @@ fn local_memory_key_follows_a_made_worktree_then_the_git_top() {
         // A project with no git, or whose path is its repo's top, takes the key recorded with it.
         held(json!({}));
         assert_eq!(
-            local.memory_key(&entry.borrow(), "claude"),
+            local
+                .memory_key(&entry.borrow(), "claude")
+                .expect("the memory key answers"),
             Some("-recorded-key".to_string())
         );
         held(json!({ "git": { "top": nested } }));
         assert_eq!(
-            local.memory_key(&entry.borrow(), "claude"),
+            local
+                .memory_key(&entry.borrow(), "claude")
+                .expect("the memory key answers"),
             Some("-recorded-key".to_string())
         );
         // A subfolder project takes the key Claude Code gives it in the person's own terminal: its repo's top.
         held(json!({ "git": { "top": "/repos/lab" } }));
         assert_eq!(
-            local.memory_key(&entry.borrow(), "claude"),
+            local
+                .memory_key(&entry.borrow(), "claude")
+                .expect("the memory key answers"),
             Some("-repos-lab".to_string())
         );
         // A worktree wsp made keys off its own path, so a builder there never loads the person's notes.
         set_worktree(&entry, json!({ "path": "/wt/lab-feature", "made": true }));
         assert_eq!(
-            local.memory_key(&entry.borrow(), "claude"),
+            local
+                .memory_key(&entry.borrow(), "claude")
+                .expect("the memory key answers"),
             Some("-wt-lab-feature".to_string())
         );
         // Not once it is gone, and never one the person made.
@@ -463,12 +477,16 @@ fn local_memory_key_follows_a_made_worktree_then_the_git_top() {
             json!({ "path": "/wt/lab-feature", "made": true, "gone": true }),
         );
         assert_eq!(
-            local.memory_key(&entry.borrow(), "claude"),
+            local
+                .memory_key(&entry.borrow(), "claude")
+                .expect("the memory key answers"),
             Some("-repos-lab".to_string())
         );
         set_worktree(&entry, json!({ "path": "/wt/lab-feature", "made": false }));
         assert_eq!(
-            local.memory_key(&entry.borrow(), "claude"),
+            local
+                .memory_key(&entry.borrow(), "claude")
+                .expect("the memory key answers"),
             Some("-repos-lab".to_string())
         );
     });
@@ -745,11 +763,15 @@ fn place_wsp_mcp_only_where_the_report_says_tools() {
             Some("/home/srv".to_string())
         );
         assert_eq!(
-            place.folder(&held_record(&srv)),
+            place
+                .folder(&held_record(&srv))
+                .expect("the folder answers"),
             Some("/home/srv/lab".to_string())
         );
         assert_eq!(
-            place.memory_key(&srv.borrow(), "claude"),
+            place
+                .memory_key(&srv.borrow(), "claude")
+                .expect("the memory key answers"),
             Some("-recorded-pr_p".to_string())
         );
         let e = daemon_road_of(&*place, &srv).await.unwrap_err();
@@ -919,6 +941,37 @@ fn a_door_that_signs_in_is_read_as_the_agents_word() {
         assert!(
             place.login_stands(&entry.borrow(), "codex")
                 && !place.login_stands(&entry.borrow(), "claude")
+        );
+    });
+}
+
+#[test]
+fn an_unknown_checkout_fails_the_kinds_folder_as_it_is() {
+    // kinds.ts:381 and 470: `folder: record => ctx.checkoutOf(record)`, which throws on an unknown project, with no catch.
+    run(async {
+        let (host, area) = kinds();
+        let local = module(&area, WorkspaceKind::Local);
+        let entry = local_entry(&host, json!({}));
+        *host.checkout_failure.borrow_mut() = Some(HostError::new("no such project pr_l"));
+        let record = entry.borrow().record.borrow().clone();
+        assert_eq!(
+            local.folder(&record),
+            Err(HostError::new("no such project pr_l"))
+        );
+    });
+}
+
+#[test]
+fn an_unknown_project_fails_the_kinds_memory_key_as_it_is() {
+    // kinds.ts:371 (cloud), 427 (local) and 503 (place): `projectHeld` inside memoryKey, with no catch.
+    run(async {
+        let (host, area) = kinds();
+        let local = module(&area, WorkspaceKind::Local);
+        let entry = local_entry(&host, json!({}));
+        *host.project_held_failure.borrow_mut() = Some(HostError::new("no such project pr_l"));
+        assert_eq!(
+            local.memory_key(&entry.borrow(), "claude"),
+            Err(HostError::new("no such project pr_l"))
         );
     });
 }

@@ -949,9 +949,13 @@ impl KindsArea {
             return Ok(cwd.to_string());
         }
         let record = entry.record.borrow().clone();
-        if let Some(folder) = self.module_of(record.kind)?.folder(&record) {
+        if let Some(folder) = self.module_of(record.kind)?.folder(&record)? {
             return Ok(folder);
         }
-        Ok(self.ctx.project_held(&record.project).path)
+        Ok(self
+            .ctx
+            .project_held(&record.project)
+            .map_err(AreaError::into_host)?
+            .path)
     }
 }

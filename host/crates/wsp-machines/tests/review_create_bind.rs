@@ -118,13 +118,20 @@ impl CreateRuntime for AfterBind {
     fn tree_of(&self, spawned: Option<&ThreadScope>) -> serde_json::Map<String, Value> {
         self.0.tree_of(spawned)
     }
-    fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry {
+    fn attach(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        machine: Arc<dyn Machine>,
+    ) -> Result<Entry, HostError> {
         self.0.attach(record, machine)
     }
     async fn fork(
         &self,
         record: &Rc<RefCell<WorkspaceRecord>>,
-        bind: &dyn for<'m, 'r> Fn(&'m Arc<dyn Machine>, &'r WorkspaceRecord),
+        bind: &dyn for<'m, 'r> Fn(
+            &'m Arc<dyn Machine>,
+            &'r WorkspaceRecord,
+        ) -> Result<(), HostError>,
         report: StageReport,
     ) -> Result<Arc<dyn Machine>, HostError> {
         let machine = self.0.fork(record, bind, report).await?;

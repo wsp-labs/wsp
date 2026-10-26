@@ -82,11 +82,11 @@ pub trait DaemonRuntime {
     async fn push_status(&self, entry: &Entry) -> Result<(), HostError>;
     async fn persist(&self, record: &WorkspaceRecord) -> Result<(), HostError>;
     fn served_by_its_computer(&self, entry: &Entry) -> Option<String>;
-    fn module_of(&self, kind: &str) -> Rc<dyn KindModule>;
+    fn module_of(&self, kind: &str) -> Result<Rc<dyn KindModule>, HostError>;
     /// `ctx.projectHeld(id).path`.
-    fn project_path(&self, project_id: &str) -> String;
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String;
-    fn backend_for(&self, record: &WorkspaceRecord) -> Arc<dyn MachineBackend>;
+    fn project_path(&self, project_id: &str) -> Result<String, HostError>;
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError>;
+    fn backend_for(&self, record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError>;
 }
 
 /// A bus wait: told each event, and it answers true once it is done and should go.
@@ -433,19 +433,18 @@ impl DaemonArea {
             if other.machine_id != record.machine_id {
                 continue;
             }
-            for dest in [
-                self.rt.project_path(&other.project),
-                self.rt.checkout_of(&other),
-            ]
-            .into_iter()
-            .chain(other.landed.clone().unwrap_or_default())
+            let project_dest = self.rt.project_path(&other.project)?;
+            let checkout_dest = self.rt.checkout_of(&other)?;
+            for dest in [project_dest, checkout_dest]
+                .into_iter()
+                .chain(other.landed.clone().unwrap_or_default())
             {
                 if !dests.contains(&dest) {
                     dests.push(dest);
                 }
             }
         }
-        let module = self.rt.module_of(&kind_word(&record.kind));
+        let module = self.rt.module_of(&kind_word(&record.kind))?;
         let written = module.roots(&entry.borrow(), &dests);
         if strict {
             return written.await;
@@ -510,25 +509,25 @@ impl DaemonArea {
     }
 
     /// `canDeployDaemon` (daemon.ts:135), spec rule 7.
-    fn can_deploy(&self, entry: &Entry) -> bool {
+    fn can_deploy(&self, entry: &Entry) -> Result<bool, HostError> {
         if self.rt.served_by_its_computer(entry).is_some() {
-            return false;
+            return Ok(false);
         }
         let record = snapshot(entry);
-        let module = self.rt.module_of(&kind_word(&record.kind));
+        let module = self.rt.module_of(&kind_word(&record.kind))?;
         let has_deploy = module.deploy_daemon(&entry.borrow()).is_some();
         if !has_deploy {
-            return false;
+            return Ok(false);
         }
-        let backend: Arc<dyn MachineBackend> = self.rt.backend_for(&record);
+        let backend: Arc<dyn MachineBackend> = self.rt.backend_for(&record)?;
         let machine = entry.borrow().machine.clone();
-        lands_bytes(&backend.capabilities(), machine.as_ref())
+        Ok(lands_bytes(&backend.capabilities(), machine.as_ref()))
     }
 
     /// `deployDaemonOn` (daemon.ts:147), spec rule 8: the deploy is the kind module's, called on the entry.
     pub async fn deploy_daemon_on(&self, entry: &Entry) -> Result<Option<String>, HostError> {
         let record = snapshot(entry);
-        let module = self.rt.module_of(&kind_word(&record.kind));
+        let module = self.rt.module_of(&kind_word(&record.kind))?;
         let deploy = module
             .deploy_daemon(&entry.borrow())
             .ok_or_else(|| HostError::new("this kind has no daemon to deploy"))?;
@@ -628,7 +627,7 @@ impl DaemonArea {
     async fn run_sync(self: &Rc<Self>, entry: &Entry) -> Result<(), HostError> {
         let record = snapshot(entry);
         let (id, key) = (record.id.clone(), machine_id_of(entry));
-        let module = self.rt.module_of(&kind_word(&record.kind));
+        let module = self.rt.module_of(&kind_word(&record.kind))?;
         if self.rt.served_by_its_computer(entry).is_some() {
             if runs_in_folder(&record.kind) {
                 self.write_daemon_roots(entry, false).await?;
@@ -643,7 +642,7 @@ impl DaemonArea {
             }
         }
         self.write_daemon_roots(entry, false).await?;
-        if !self.can_deploy(entry) {
+        if !self.can_deploy(entry)? {
             return Ok(());
         }
         let version_read = module.daemon_version(&entry.borrow());
@@ -769,19 +768,23 @@ impl DaemonArea {
     }
 
     /// `reviveDaemon` (daemon.ts:292), spec rule 13: starts its work and returns.
-    pub fn revive_daemon(self: &Rc<Self>, entry: &Entry, reach: ReachState) {
+    pub fn revive_daemon(
+        self: &Rc<Self>,
+        entry: &Entry,
+        reach: ReachState,
+    ) -> Result<(), HostError> {
         if reach != ReachState::NoDaemon
             || entry.borrow().record.borrow().phase != WorkspacePhase::Running
         {
-            return;
+            return Ok(());
         }
-        if !self.can_deploy(entry) || self.unreached_of(entry).is_some() {
-            return;
+        if !self.can_deploy(entry)? || self.unreached_of(entry).is_some() {
+            return Ok(());
         }
         let record = snapshot(entry);
         let key = machine_id_of(entry);
         if self.daemon_revivals.borrow().contains_key(&key) {
-            return;
+            return Ok(());
         }
         let now = self.rt.clock().now() as f64;
         let recent = self
@@ -792,7 +795,7 @@ impl DaemonArea {
                 last.machine_id == key && now - last.at.0 < DAEMON_REVIVE_AGAIN_MS as f64
             });
         if recent {
-            return;
+            return Ok(());
         }
         self.revived_at.borrow_mut().insert(
             record.id.clone(),
@@ -824,6 +827,7 @@ impl DaemonArea {
                 }
             }),
         ));
+        Ok(())
     }
 
     /// The work of a revive (daemon.ts:309-330).

@@ -142,7 +142,11 @@ pub trait BootRuntime {
 
     // The machines area.
     fn observed(&self, machine: Arc<dyn Machine>) -> Arc<dyn Machine>;
-    fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry;
+    fn attach(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        machine: Arc<dyn Machine>,
+    ) -> Result<Entry, HostError>;
     async fn mark_gone(
         &self,
         entry: &Entry,
@@ -151,8 +155,8 @@ pub trait BootRuntime {
     ) -> Result<GoneOutcome, HostError>;
     fn idle_touch(&self, workspace_id: &str);
     fn sync_daemon(&self, entry: &Entry);
-    fn backend_for(&self, record: &WorkspaceRecord) -> Arc<dyn MachineBackend>;
-    fn module_of(&self, kind: &str) -> Rc<dyn KindModule>;
+    fn backend_for(&self, record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError>;
+    fn module_of(&self, kind: &str) -> Result<Rc<dyn KindModule>, HostError>;
     async fn persist(&self, record: &WorkspaceRecord) -> Result<(), HostError>;
     async fn shape_of(&self, machine: &Arc<dyn Machine>) -> Option<MachineShape>;
     fn size_built(&self, shape: Option<&MachineShape>, asked: WorkspaceSize) -> WorkspaceSize;
@@ -164,7 +168,7 @@ pub trait BootRuntime {
         &self,
         golden: &str,
     ) -> Result<Option<wsp_wire::views::golden_image::MachineKind>, HostError>;
-    fn attach_queued(&self, record: &Rc<RefCell<WorkspaceRecord>>);
+    fn attach_queued(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Result<(), HostError>;
 
     // The start's other steps (boot.ts:343-618), in the order ready() calls them.
     async fn migrate_copies(&self) -> Result<(), HostError>;
@@ -217,7 +221,7 @@ pub trait BootRuntime {
     // The doors (boot.ts:628-672, 1017-1065).
     fn drives_thread(&self, thread_id: Option<&str>, caller: Option<&Caller>) -> bool;
     fn acts_on(&self, record: &WorkspaceRecord, caller: Option<&Caller>) -> bool;
-    fn talks_to_its_tree(&self, caller: Option<&Caller>) -> bool;
+    fn talks_to_its_tree(&self, caller: Option<&Caller>) -> Result<bool, HostError>;
     fn refuse_relayed(
         &self,
         record: &WorkspaceRecord,

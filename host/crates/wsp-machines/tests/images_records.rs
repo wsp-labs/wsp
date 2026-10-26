@@ -43,7 +43,7 @@ fn view_carries_every_present_fact_in_the_ts_key_order() {
     r.glyph = Some(serde_json::from_value(json!("code")).expect("glyph"));
     r.parent_thread_id = Some("t-parent".into());
     r.place = Some("boat".into());
-    let view = area(&w).view(&r);
+    let view = area(&w).view(&r).expect("the view answers");
     let text = serde_json::to_value(&view).expect("view json");
     let keys: Vec<String> = text.as_object().expect("object").keys().cloned().collect();
     // The TS literal's order: folder, the home spread, id ... project, then each optional fact, pauseMode last.
@@ -82,7 +82,8 @@ fn view_carries_every_present_fact_in_the_ts_key_order() {
 fn view_leaves_out_every_absent_fact() {
     let w = World::new();
     let r = workspace_record("w1", "landing", "snap-1");
-    let text = serde_json::to_value(area(&w).view(&r)).expect("view json");
+    let text =
+        serde_json::to_value(area(&w).view(&r).expect("the view answers")).expect("view json");
     for key in [
         "worktree",
         "from",
@@ -119,8 +120,12 @@ fn view_leaves_out_pause_mode_when_the_backend_cannot_be_read() {
     w.runtime_backend.caps.borrow_mut().pause_mode =
         Some(serde_json::from_value(json!("memory")).expect("mode"));
     w.backend_for_fails.set(true);
-    let text = serde_json::to_value(area(&w).view(&workspace_record("w1", "landing", "snap-1")))
-        .expect("view json");
+    let text = serde_json::to_value(
+        area(&w)
+            .view(&workspace_record("w1", "landing", "snap-1"))
+            .expect("the view answers"),
+    )
+    .expect("view json");
     assert!(text.get("pauseMode").is_none(), "{text}");
     assert_eq!(text["name"], json!("landing"));
 }
@@ -131,8 +136,12 @@ fn view_carries_the_backends_pause_mode() {
     let w = World::new();
     w.runtime_backend.caps.borrow_mut().pause_mode =
         Some(serde_json::from_value(json!("memory")).expect("mode"));
-    let text = serde_json::to_value(area(&w).view(&workspace_record("w1", "landing", "snap-1")))
-        .expect("view json");
+    let text = serde_json::to_value(
+        area(&w)
+            .view(&workspace_record("w1", "landing", "snap-1"))
+            .expect("the view answers"),
+    )
+    .expect("view json");
     assert_eq!(text["pauseMode"], json!("memory"));
     assert_eq!(
         text.as_object()

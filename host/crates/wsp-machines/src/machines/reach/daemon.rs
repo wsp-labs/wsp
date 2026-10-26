@@ -525,10 +525,14 @@ impl ReachArea {
     }
 
     async fn read_checkout_now(&self, entry: &Entry) {
+        // reach.ts:412: the reading's catch keeps the held fact when the checkout cannot be named.
         let cwd = {
             let held = entry.borrow();
             let record = held.record.borrow().clone();
             self.ctx.checkout_of(&record)
+        };
+        let Ok(cwd) = cwd else {
+            return;
         };
         let frame = json!({ "op": "git.status", "cwd": cwd });
         let Ok(said) = self.ctx.with_daemon(entry, frame).await else {
@@ -578,25 +582,27 @@ impl ReachArea {
     }
 
     /// reach.ts:428 (rule 8).
-    pub async fn read_tree(&self, lead: &Entry) -> Option<TreeFact> {
+    pub async fn read_tree(&self, lead: &Entry) -> Result<Option<TreeFact>, HostError> {
         let reading = lead.borrow().tree_reading.clone();
         if let Some(reading) = reading {
-            return reading.await.ok().flatten();
+            return reading.await;
         }
-        let area = self.me.upgrade()?;
+        let Some(area) = self.me.upgrade() else {
+            return Ok(None);
+        };
         let owned = Rc::clone(lead);
         let future: LocalBoxFuture<'static, Result<Option<TreeFact>, HostError>> =
             Box::pin(async move {
                 let outcome = area.read_tree_now(&owned).await;
                 owned.borrow_mut().tree_reading = None;
-                Ok(outcome)
+                outcome
             });
         let shared: Joined<Option<TreeFact>> = future.shared();
         lead.borrow_mut().tree_reading = Some(shared.clone());
-        shared.await.ok().flatten()
+        shared.await
     }
 
-    async fn read_tree_now(&self, lead: &Entry) -> Option<TreeFact> {
+    async fn read_tree_now(&self, lead: &Entry) -> Result<Option<TreeFact>, HostError> {
         let (lead_id, lead_project, lead_base) = {
             let held = lead.borrow();
             let record = held.record.borrow();
@@ -621,9 +627,12 @@ impl ReachArea {
                 lead.borrow_mut().tree = None;
                 let _ = self.status_now(lead).await;
             }
-            return None;
+            return Ok(None);
         }
-        let project = self.ctx.project_held(&lead_project);
+        let project = self
+            .ctx
+            .project_held(&lead_project)
+            .map_err(AreaError::into_host)?;
         let read = self
             .read_checkout(lead, false)
             .await
@@ -634,7 +643,7 @@ impl ReachArea {
             .unwrap_or(project.default_branch.clone());
         let mut rows: Vec<TreeChild> = Vec::new();
         for child in &children {
-            rows.push(self.tree_child_of(child, &lead_branch).await);
+            rows.push(self.tree_child_of(child, &lead_branch).await?);
         }
         let fact = TreeFact {
             lead_branch,
@@ -643,11 +652,15 @@ impl ReachArea {
         };
         lead.borrow_mut().tree = Some(fact.clone());
         let _ = self.status_now(lead).await;
-        Some(fact)
+        Ok(Some(fact))
     }
 
     /// reach.ts:456 (rule 9).
-    pub(crate) async fn tree_child_of(&self, child: &Entry, lead_branch: &str) -> TreeChild {
+    pub(crate) async fn tree_child_of(
+        &self,
+        child: &Entry,
+        lead_branch: &str,
+    ) -> Result<TreeChild, HostError> {
         let (record, machine_tree, branch_held) = {
             let held = child.borrow();
             let record = held.record.borrow().clone();
@@ -672,7 +685,11 @@ impl ReachArea {
             .into_iter()
             .find(|entry| entry.view.workspace_id == record.id && entry.view.thread_id.is_some())
             .and_then(|entry| entry.view.thread_id.clone());
-        let remote = self.ctx.project_held(&record.project).remote;
+        let remote = self
+            .ctx
+            .project_held(&record.project)
+            .map_err(AreaError::into_host)?
+            .remote;
         let asked: Option<GitBranchCompareReply> = if branch.is_empty()
             || branch == DETACHED_HEAD
             || remote_host(&remote).is_none()
@@ -711,17 +728,19 @@ impl ReachArea {
                 row.insert(key, value);
             }
         }
-        serde_json::from_value(Value::Object(row)).unwrap_or_else(|_| TreeChild {
-            merged: None,
-            conflicts: None,
-            push_refused: None,
-            workspace_id: record.id.clone(),
-            thread_id: None,
-            branch: String::new(),
-            pushed: None,
-            ahead_of_lead: None,
-            behind_lead: None,
-        })
+        Ok(
+            serde_json::from_value(Value::Object(row)).unwrap_or_else(|_| TreeChild {
+                merged: None,
+                conflicts: None,
+                push_refused: None,
+                workspace_id: record.id.clone(),
+                thread_id: None,
+                branch: String::new(),
+                pushed: None,
+                ahead_of_lead: None,
+                behind_lead: None,
+            }),
+        )
     }
 
     /// reach.ts:471 (rule 10).
@@ -737,7 +756,10 @@ impl ReachArea {
             return;
         };
         self.ctx.spawn(Box::pin(async move {
-            let _ = area.read_tree(&lead).await;
+            // reach.ts:471: the tree read is a spawned task with no caller to hand a failure to, so it is warned.
+            if let Err(e) = area.read_tree(&lead).await {
+                area.ctx.warn(&e.message);
+            }
         }));
     }
 }

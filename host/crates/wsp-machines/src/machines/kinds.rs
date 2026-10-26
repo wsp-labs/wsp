@@ -64,8 +64,8 @@ pub trait KindsCtx {
     fn place_name(&self, place: &str) -> String;
     /// `places.wired`.
     fn wired_place(&self) -> String;
-    fn project_held(&self, id: &str) -> ProjectView;
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String;
+    fn project_held(&self, id: &str) -> AreaResult<ProjectView>;
+    fn checkout_of(&self, record: &WorkspaceRecord) -> AreaResult<String>;
     fn computer_of(&self, entry: &LiveWorkspace) -> String;
     fn served_by_its_computer(&self, entry: &LiveWorkspace) -> bool;
     /// Whether the host wired a place door at all.

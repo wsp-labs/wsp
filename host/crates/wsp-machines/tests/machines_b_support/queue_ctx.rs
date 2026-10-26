@@ -150,19 +150,23 @@ impl SubQueueCtx for FakeHost {
         self.recorded.borrow_mut().push(event.clone());
         self.emit_now(event);
     }
-    fn attach_absent(&self, record: &Rc<RefCell<WorkspaceRecord>>, said: &str) -> Entry {
+    fn attach_absent(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        said: &str,
+    ) -> Result<Entry, HostError> {
         let id = record.borrow().id.clone();
         self.call("attach_absent", &[&id, said]);
         let entry = live_entry(record.clone(), FakeMachine::new(""));
         self.live.borrow_mut().insert(id, entry.clone());
-        entry
+        Ok(entry)
     }
-    fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Entry {
+    fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Result<Entry, HostError> {
         let id = record.borrow().id.clone();
         self.call("attach_dead", &[&id]);
         let entry = live_entry(record.clone(), FakeMachine::new(""));
         self.live.borrow_mut().insert(id, entry.clone());
-        entry
+        Ok(entry)
     }
     fn record_cell(&self, workspace_id: &str) -> Option<Rc<RefCell<WorkspaceRecord>>> {
         self.live

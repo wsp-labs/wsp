@@ -864,7 +864,7 @@ impl KindModule for FakeModule {
     fn admit_folder(&self, _record: FolderAdmit) -> Option<Local<'static, ()>> {
         unimplemented!()
     }
-    fn folder(&self, _record: &WorkspaceRecord) -> Option<String> {
+    fn folder(&self, _record: &WorkspaceRecord) -> Result<Option<String>, HostError> {
         unimplemented!()
     }
     fn home(&self, _entry: &LiveWorkspace, _agent_id: &str) -> String {
@@ -903,7 +903,11 @@ impl KindModule for FakeModule {
     ) -> Local<'static, ()> {
         unimplemented!()
     }
-    fn memory_key(&self, _entry: &LiveWorkspace, _agent_id: &str) -> Option<String> {
+    fn memory_key(
+        &self,
+        _entry: &LiveWorkspace,
+        _agent_id: &str,
+    ) -> Result<Option<String>, HostError> {
         unimplemented!()
     }
     fn end_thread(
@@ -1559,7 +1563,11 @@ impl BootRuntime for Fake {
     fn observed(&self, machine: Arc<dyn Machine>) -> Arc<dyn Machine> {
         machine
     }
-    fn attach(&self, handle: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry {
+    fn attach(
+        &self,
+        handle: &Rc<RefCell<WorkspaceRecord>>,
+        machine: Arc<dyn Machine>,
+    ) -> Result<Entry, HostError> {
         let record = handle.borrow().clone();
         match self.mode {
             Mode::Load => self.log.push(norm(json!([
@@ -1578,7 +1586,7 @@ impl BootRuntime for Fake {
         let entry = live_workspace(record, machine);
         entry.borrow_mut().record = Rc::clone(handle);
         self.live.borrow_mut().insert(id, entry.clone());
-        entry
+        Ok(entry)
     }
     async fn mark_gone(
         &self,
@@ -1657,8 +1665,9 @@ impl BootRuntime for Fake {
         }
         Ok(None)
     }
-    fn attach_queued(&self, record: &Rc<RefCell<WorkspaceRecord>>) {
+    fn attach_queued(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Result<(), HostError> {
         self.gen("attachQueued", vec![json!(record.borrow().id)]);
+        Ok(())
     }
 
     async fn migrate_copies(&self) -> Result<(), HostError> {
@@ -2381,11 +2390,11 @@ pub async fn replay(scene: &Value) -> (World, Value) {
                 v.into_iter().map(|(id, _, _)| id).collect::<Vec<_>>()
             };
             json!({
-                "tree": ids(area.tree_records(Some(&thread), None, None)),
-                "all": ids(area.tree_records(None, None, None)),
-                "on": area.tree_stands_on("a", Some(&thread), None),
-                "person": area.tree_stands_on("a", None, None),
-                "talks": area.talks_to_tree_on("a", Some(&thread)),
+                "tree": ids(area.tree_records(Some(&thread), None, None).expect("the tree answers")),
+                "all": ids(area.tree_records(None, None, None).expect("the tree answers")),
+                "on": area.tree_stands_on("a", Some(&thread), None).expect("the tree answers"),
+                "person": area.tree_stands_on("a", None, None).expect("the tree answers"),
+                "talks": area.talks_to_tree_on("a", Some(&thread)).expect("the tree answers"),
             })
         }
         other => panic!("no act for scene {other:?}"),

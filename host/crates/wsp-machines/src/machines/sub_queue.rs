@@ -113,9 +113,13 @@ pub trait SubQueueCtx {
     /// `ctx.record(event)`: a transcript event, stamped and emitted.
     fn record(&self, event: Value);
     /// `attach(record, absentMachine("", "sandbox", () => throw said))`.
-    fn attach_absent(&self, record: &Rc<RefCell<WorkspaceRecord>>, said: &str) -> Entry;
+    fn attach_absent(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        said: &str,
+    ) -> Result<Entry, HostError>;
     /// `attach(record, deadMachine(""))`.
-    fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Entry;
+    fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Result<Entry, HostError>;
     /// The record's shared cell, for a record live or just read.
     fn record_cell(&self, workspace_id: &str) -> Option<Rc<RefCell<WorkspaceRecord>>>;
     /// `ctx.drop(id)`: the record goes.
@@ -542,7 +546,7 @@ impl SubQueueArea {
         if let Some(wait) = &wait {
             self.last_wait.borrow_mut().insert(id, wait.clone());
         }
-        self.attach_queued(record, wait.as_ref());
+        self.attach_queued(record, wait.as_ref())?;
         self.persist_cell(record).await?;
         let view = self.ctx.view(&snapshot(record));
         self.ctx
@@ -560,12 +564,13 @@ impl SubQueueArea {
         &self,
         record: &Rc<RefCell<WorkspaceRecord>>,
         wait: Option<&ThreadCapWait>,
-    ) {
+    ) -> Result<(), HostError> {
         let said = match wait {
             None => format!("{} is waiting for a machine", record.borrow().name),
             Some(wait) => cap_wait_line(wait),
         };
-        self.ctx.attach_absent(record, &said);
+        self.ctx.attach_absent(record, &said)?;
+        Ok(())
     }
 
     /// sub-queue.ts:151 (rule 10).
@@ -830,7 +835,7 @@ impl SubQueueArea {
                 }
             }
         }
-        self.ctx.attach_dead(record);
+        self.ctx.attach_dead(record)?;
         self.persist_cell(record).await?;
         if self.ctx.session(&r.turn_id).is_some() {
             let now = self.ctx.now();

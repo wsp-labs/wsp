@@ -337,12 +337,27 @@ fn begin_claim_holds_every_claimed_id_until_end_claim() {
     common::run_local(async {
         let w = World::new(Opts::default());
         let at = w.provider(BackendOpts::default());
-        let claim = w.area.begin_claim("workspace/ws_1", at as Arc<dyn MachineBackend>, None);
-        claim.create(support::spec_default(), None).await.map_err(AreaError::into_host).expect("the handle creates");
-        assert!(w.area.inflight().contains(&"m-made".to_string()), "the handle claimed the machine it made");
+        let claim = w
+            .area
+            .begin_claim("workspace/ws_1", at as Arc<dyn MachineBackend>, None);
+        claim
+            .create(support::spec_default(), None)
+            .await
+            .map_err(AreaError::into_host)
+            .expect("the handle creates");
+        assert!(
+            w.area.inflight().contains(&"m-made".to_string()),
+            "the handle claimed the machine it made"
+        );
         w.area.end_claim(&claim);
-        assert!(w.area.inflight().is_empty(), "end_claim releases every id the handle claimed");
-        assert!(w.area.hold("workspace/ws_1").now_or_never().is_some(), "and the purpose is free");
+        assert!(
+            w.area.inflight().is_empty(),
+            "end_claim releases every id the handle claimed"
+        );
+        assert!(
+            w.area.hold("workspace/ws_1").now_or_never().is_some(),
+            "and the purpose is free"
+        );
     })
 }
 
@@ -567,6 +582,7 @@ fn fork_binds_before_the_claim_is_released() {
                 store.table("creates"),
                 r.id.clone(),
             ));
+            Ok(())
         };
         let machine = w
             .area
@@ -623,7 +639,7 @@ fn fork_at_a_place_without_the_image_says_where_it_would_land() {
         let record = support::shared(record_with(json!({ "place": "pl1", "golden": "snap_g" })));
         let err = w
             .area
-            .fork(&record, &|_m, _r| {}, None, None, false)
+            .fork(&record, &|_m, _r| Ok(()), None, None, false)
             .await
             .err()
             .expect("the fork is refused");
@@ -652,7 +668,7 @@ fn fork_at_a_place_without_the_image_says_where_it_would_land() {
         let here = support::shared(record_with(json!({ "golden": "snap_g" })));
         let err = own
             .area
-            .fork(&here, &|_m, _r| {}, None, None, false)
+            .fork(&here, &|_m, _r| Ok(()), None, None, false)
             .await
             .err()
             .expect("the fork is refused");
@@ -667,7 +683,7 @@ fn fork_at_a_place_without_the_image_says_where_it_would_land() {
         let there = support::shared(record_with(json!({ "place": "pl1", "golden": "snap_g" })));
         let err = bare
             .area
-            .fork(&there, &|_m, _r| {}, None, None, false)
+            .fork(&there, &|_m, _r| Ok(()), None, None, false)
             .await
             .err()
             .expect("the fork is refused");
@@ -703,7 +719,7 @@ fn fork_writes_shape_size_and_screen_and_deletes_what_is_absent() {
             json!({ "npmBin": "/old/bin", "screen": { "streamUrl": "https://old" } }),
         ));
         w.area
-            .fork(&record, &|_m, _r| {}, None, None, true)
+            .fork(&record, &|_m, _r| Ok(()), None, None, true)
             .await
             .expect("the fork lands");
         assert_eq!(
@@ -752,7 +768,7 @@ fn fork_writes_shape_size_and_screen_and_deletes_what_is_absent() {
             json!({ "shape": { "cpu": 2, "memMb": 4096 }, "screen": { "streamUrl": "https://old" } }),
         ));
         bare.area
-            .fork(&again, &|_m, _r| {}, None, None, false)
+            .fork(&again, &|_m, _r| Ok(()), None, None, false)
             .await
             .expect("the fork lands");
         assert_eq!(again.borrow().shape, None);
@@ -768,7 +784,7 @@ fn fork_writes_shape_size_and_screen_and_deletes_what_is_absent() {
         let at_place = support::shared(record_with(json!({ "place": "pl1" })));
         placed
             .area
-            .fork(&at_place, &|_m, _r| {}, None, None, true)
+            .fork(&at_place, &|_m, _r| Ok(()), None, None, true)
             .await
             .expect("the fork lands");
         assert!(placed.rt.cfg.borrow().read_memory_calls.is_empty());
