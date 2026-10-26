@@ -1325,6 +1325,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn an_empty_resume_is_a_resume_under_the_empty_id() {
+        tokio::task::LocalSet::new().run_until(an_empty_resume_is_a_resume_under_the_empty_id_body()).await
+    }
+
+    async fn an_empty_resume_is_a_resume_under_the_empty_id_body() {
         // CA2; adapter.ts:1268 (`resume ?? randomUUID()`), no slug check.
         let launch = answering(|m, w| match method(m) {
             "thread/resume" => w.push(&opened(THREAD_ID)),
@@ -1341,6 +1345,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn a_kept_server_s_next_turn_joins_the_registry_under_the_thread_id_beside_the_first() {
+        tokio::task::LocalSet::new().run_until(a_kept_server_s_next_turn_joins_the_registry_under_the_thread_id_beside_the_first_body()).await
+    }
+
+    async fn a_kept_server_s_next_turn_joins_the_registry_under_the_thread_id_beside_the_first_body() {
         // CA3; adapter.ts:1229-1255 (`nextOn` follows with the thread id as its local id), 1225.
         let launch = answering(|m, w| match method(m) {
             "thread/start" | "thread/resume" => w.push(&opened(THREAD_ID)),
@@ -1360,6 +1368,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn a_lost_session_whose_second_launch_is_refused_fails_in_its_words_under_the_new_launch_s_id() {
+        tokio::task::LocalSet::new().run_until(a_lost_session_whose_second_launch_is_refused_fails_in_its_words_under_the_new_launch_s_id_body()).await
+    }
+
+    async fn a_lost_session_whose_second_launch_is_refused_fails_in_its_words_under_the_new_launch_s_id_body() {
         // CA4; lost-session.ts:66-96. Only the second launch's end reaches the caller; the registry holds the first
         // launch's local id (the resume) and the second launch's own fresh id.
         let launch = answering(|m, w| match method(m) {
@@ -1394,6 +1406,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn a_revert_by_count_pages_at_most_100_at_a_time_and_a_count_of_none_writes_nothing_past_the_resume() {
+        tokio::task::LocalSet::new().run_until(a_revert_by_count_pages_at_most_100_at_a_time_and_a_count_of_none_writes_nothing_past_the_resume_body()).await
+    }
+
+    async fn a_revert_by_count_pages_at_most_100_at_a_time_and_a_count_of_none_writes_nothing_past_the_resume_body() {
         // CA5; turn-pages.ts:44-88.
         let ids: Vec<String> = (0..250).map(|i| format!("r{i}")).collect();
         let launch = answering(move |m, w| match method(m) {
@@ -1427,6 +1443,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn an_attached_run_that_never_spoke_answers_every_method_as_not_running_and_a_stop_tears_it_down_alone() {
+        tokio::task::LocalSet::new().run_until(an_attached_run_that_never_spoke_answers_every_method_as_not_running_and_a_stop_tears_it_down_alone_body()).await
+    }
+
+    async fn an_attached_run_that_never_spoke_answers_every_method_as_not_running_and_a_stop_tears_it_down_alone_body() {
         // CA6; adapter.ts:1397-1413 with follow's methods before any line.
         let launch = launcher(scripted(vec![], false));
         let quiet = wire(WireOpts::default());
