@@ -82,8 +82,8 @@ impl MoveRoads for Lossy {
     async fn merge_on_machine(&self, entry: &Entry, script: &str, agent: ProjectAgentResult) -> Result<ProjectAgentResult, HostError> { self.0.merge_on_machine(entry, script, agent).await }
     fn project_of(&self, dest: &str, bytes: u64) -> Option<serde_json::Value> { self.0.project_of(dest, bytes) }
     async fn provider_row(&self, entry: &Entry) -> Result<bool, HostError> { self.0.provider_row(entry).await }
-    async fn export_folder( &self, entry: &Entry, source: &str, caches: &[String], archive: &str, on_progress: Rc<dyn Fn(Progress)>, ) -> Result<Vec<String>, HostError> { self.0.export_folder(entry, source, caches, archive, on_progress).await }
-    async fn export_paths_into( &self, entry: &Entry, groups: Vec<(String, Vec<String>)>, archive: &str, on_progress: Rc<dyn Fn(Progress)>, ) -> Result<(), HostError> { self.0.export_paths_into(entry, groups, archive, on_progress).await }
+    async fn export_folder( &self, entry: &Entry, source: &str, caches: &wsp_core::types::pending::CacheRule, archive: &str, timeout_ms: u64, on_progress: Rc<dyn Fn(Progress)>, ) -> Result<Vec<String>, HostError> { self.0.export_folder(entry, source, caches, archive, timeout_ms, on_progress).await }
+    async fn export_paths_into( &self, entry: &Entry, groups: Vec<(String, Vec<String>)>, archive: &str, timeout_ms: u64, on_progress: Rc<dyn Fn(Progress)>, ) -> Result<(), HostError> { self.0.export_paths_into(entry, groups, archive, timeout_ms, on_progress).await }
     async fn machine_run(&self, entry: &Entry, script: &str, deadline_ms: u64) -> Result<ExecResult, HostError> { self.0.machine_run(entry, script, deadline_ms).await }
     async fn machine_exec(&self, entry: &Entry, cmd: &str, timeout_ms: u64) -> Result<ExecResult, HostError> { self.0.machine_exec(entry, cmd, timeout_ms).await }
     async fn kind_import(&self, entry: &Entry, o: ProjectImportOptions, report: ImportReport) -> Result<ImportLanded, HostError> { self.0.kind_import(entry, o, report).await }
