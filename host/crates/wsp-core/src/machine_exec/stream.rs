@@ -9,8 +9,6 @@ use std::future::pending;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 use std::time::Duration;
 
-use base64::engine::{general_purpose::NO_PAD, GeneralPurpose};
-use base64::{alphabet, Engine as _};
 use futures::channel::oneshot;
 use futures::future::{FutureExt, LocalBoxFuture};
 use futures::stream::LocalBoxStream;
@@ -29,6 +27,7 @@ use super::factory::{
     claim, exec_failure_of, grace_checks, holds_run_probe, reap_script, release_held_sh, release_late_sh, Core, Launched, Posting,
 };
 use super::rules::{reads_work, turn_activity, turn_cut, LineCut, TurnActivity, TurnLimits, LEFTOVERS_AWK, TREE_WORK_AWK};
+use crate::node_base64::node_base64;
 
 /// The poll after a write, a hand-over, or a poll that took bytes in a launch's opening, and for how long.
 pub const HURRIED_POLL_MS: u64 = 200;
@@ -83,7 +82,7 @@ struct RunState {
     posting: Option<Posting>,
     nap: Arc<PollNap>,
     exited: SharedFuture<Option<i32>>,
-    chain: futures::lock::Mutex<()>,
+    chain: tokio::sync::Mutex<()>,
     state: Mutex<RunMutable>,
 }
 
@@ -117,7 +116,7 @@ enum Holds {
 /// One chunk of a reap: the bytes past the offset and the log's size the reap read up to.
 struct Read {
     chunk: Vec<u8>,
-    end: u64,
+    end: i64,
 }
 
 impl RunState {
@@ -199,12 +198,10 @@ impl RunState {
             let _ = me.core.machine.exec(&cmd, me.core.exec_opts()).await;
         });
     }
-    /// A second kill sends nothing: the group already had its KILL, and a kill answering its own exec never lets the reader run.
+    /// Every kill sends its own KILL, as a second Stop's retry does when the first one's exec was lost.
     fn kill(self: &Arc<Self>) {
-        let first = !std::mem::replace(&mut self.lock().killed, true);
-        if first {
-            self.signal("KILL");
-        }
+        self.lock().killed = true;
+        self.signal("KILL");
     }
     async fn killed_here(&self) -> Option<String> {
         let (signalled, started_at) = {
@@ -216,14 +213,14 @@ impl RunState {
             _ => None,
         }
     }
-    async fn reap(&self, offset: u64, end: Option<u64>) -> Option<Read> {
+    async fn reap(&self, offset: u64, end: Option<i64>) -> Option<Read> {
         let read = reap_read(&self.base, &self.reap_mark, offset, end);
         let cmd = format!("{}; true", reap_script(&self.base, &read, end.is_none()));
         let res = self.core.machine.exec(&cmd, self.core.exec_opts()).await.ok()?;
         let out: Vec<&str> = res.stdout.split('\n').collect();
         let prefix = format!("{} ", self.reap_mark);
         let at = out.iter().position(|line| line.starts_with(&prefix))?;
-        let size = u64::try_from(js_parse_int(&out[at][prefix.len()..])?).ok()?;
+        let size = js_parse_int(&out[at][prefix.len()..])?;
         Some(Read { chunk: node_base64(&out[..at].concat()), end: size })
     }
     async fn remove(&self) {
@@ -295,7 +292,7 @@ impl RunState {
         Ok(WriteOutcome::Written)
     }
     /// A line held beside the run until `after` settles: keyed and parked on the guest, then released or appended.
-    async fn park(&self, line: String, after: Settle) {
+    async fn park(&self, line: String, due: oneshot::Receiver<bool>) {
         let b = q(&self.base);
         let parked = if self.opened.clone().await.is_ok() {
             let files = [
@@ -308,7 +305,7 @@ impl RunState {
         } else {
             false
         };
-        if after.await.is_err() {
+        if !due.await.unwrap_or(false) {
             if parked {
                 let _ = self.core.machine.exec(&format!("rm -f {b}.late {b}.late.key"), self.core.exec_opts()).await;
             }
@@ -344,6 +341,7 @@ enum Stage {
     Opening,
     Looping,
     Reaping(Reaping),
+    Settling(Ending),
     Done,
 }
 
@@ -351,7 +349,7 @@ enum Stage {
 #[derive(Default)]
 struct Reaping {
     ending: Ending,
-    end: Option<u64>,
+    end: Option<i64>,
 }
 
 /// How a run ends after its reap: the exit code it settles, whether the kernel's kill words are asked for, and the
@@ -423,6 +421,7 @@ impl Reader {
                 self.looping().await;
             }
             Stage::Reaping(r) => self.reaping(r).await,
+            Stage::Settling(ending) => self.settle(ending).await,
         }
     }
     async fn looping(&mut self) {
@@ -499,7 +498,7 @@ impl Reader {
             return;
         }
         if !exit_str.is_empty() {
-            let code = js_parse_int(exit_str).and_then(|c| i32::try_from(c).ok());
+            let code = js_parse_int(exit_str).map(|c| i32::try_from(c).unwrap_or(if c < 0 { i32::MIN } else { i32::MAX }));
             self.stage =
                 Stage::Reaping(Reaping { ending: Ending { code, check_killed: code == Some(SIGKILL_EXIT), fail: None }, end: None });
             return;
@@ -527,7 +526,7 @@ impl Reader {
                 r.end = Some(read.end);
                 let offset = self.s.add_offset(read.chunk.len() as u64);
                 self.push_chunk(&read.chunk);
-                read.chunk.is_empty() || offset >= read.end
+                read.chunk.is_empty() || offset as i64 >= read.end
             }
             None => true,
         };
@@ -535,13 +534,13 @@ impl Reader {
             self.stage = Stage::Reaping(r);
             return;
         }
-        if r.end.is_none_or(|end| self.s.offset() < end) {
+        if r.end.is_none_or(|end| (self.s.offset() as i64) < end) {
             self.s.remove().await;
         }
         if let Some(last) = self.split.rest() {
             self.queue.push_back(Ok(last));
         }
-        self.settle(r.ending).await;
+        self.stage = Stage::Settling(r.ending);
     }
     async fn settle(&mut self, ending: Ending) {
         self.stage = Stage::Done;
@@ -784,7 +783,7 @@ pub fn open(core: Arc<Core>, args: OpenArgs) -> Arc<MachineStream> {
         posting,
         nap,
         exited,
-        chain: futures::lock::Mutex::new(()),
+        chain: tokio::sync::Mutex::new(()),
         state: Mutex::new(state),
     });
     if let Some(reading) = &core.reading {
@@ -1097,6 +1096,10 @@ impl ExecStream for MachineStream {
         if !s.has_input {
             return None;
         }
+        let (due_tx, due) = oneshot::channel::<bool>();
+        spawn_local(async move {
+            let _ = due_tx.send(after.await.is_ok());
+        });
         let (tx, rx) = oneshot::channel::<()>();
         let mine: SharedFuture<()> = async move {
             let _ = rx.await;
@@ -1113,7 +1116,7 @@ impl ExecStream for MachineStream {
             if let Some((_, before)) = before {
                 let _ = before.await;
             }
-            s.park(line, after).await;
+            s.park(line, due).await;
             {
                 let mut m = s.lock();
                 if matches!(m.parked, Some((id, _)) if id == seq) {
@@ -1307,7 +1310,7 @@ pub fn poll_cmd(base: &str, sentinel: &str, offset: u64, work: bool) -> String {
 //         `S=${end ?? `$({ wc -c < ${log}; } 2>/dev/null || echo 0)`}; N=$((S - ${offset})); [ $N -gt ${EXEC_CHUNK_BYTES} ] && N=${EXEC_CHUNK_BYTES}; ` +
 //         `[ $N -gt 0 ] && tail -c +${offset + 1} ${log} 2>/dev/null | head -c $N | base64 -w0; printf '\\n%s %s\\n' ${reapMark} "$((S))"; ` +
 //         `[ $((S - ${offset})) -gt ${EXEC_CHUNK_BYTES} ] && exit 0; `;
-pub fn reap_read(base: &str, mark: &str, offset: u64, end: Option<u64>) -> String {
+pub fn reap_read(base: &str, mark: &str, offset: u64, end: Option<i64>) -> String {
     let log = format!("{}.log", q(base));
     let size = match end {
         Some(end) => end.to_string(),
@@ -1383,18 +1386,6 @@ pub fn js_parse_int(text: &str) -> Option<i64> {
     let value = if negative { -magnitude } else { magnitude };
     (value.abs() <= 9_007_199_254_740_991.0).then_some(value as i64)
 }
-
-/// Node's `Buffer.from(text, "base64")`: characters outside the alphabet are skipped and a missing padding is fine.
-fn node_base64(text: &str) -> Vec<u8> {
-    let mut clean: String =
-        text.chars().take_while(|&c| c != '=').filter(|c| c.is_ascii_alphanumeric() || *c == '+' || *c == '/').collect();
-    if clean.len() % 4 == 1 {
-        clean.pop();
-    }
-    LENIENT_BASE64.decode(clean).unwrap_or_default()
-}
-
-const LENIENT_BASE64: GeneralPurpose = GeneralPurpose::new(&alphabet::STANDARD, NO_PAD.with_decode_allow_trailing_bits(true));
 
 fn refusal(message: &str) -> ExecFailure {
     ExecFailure { kind: ExecFailureKind::Other, message: message.to_string() }
