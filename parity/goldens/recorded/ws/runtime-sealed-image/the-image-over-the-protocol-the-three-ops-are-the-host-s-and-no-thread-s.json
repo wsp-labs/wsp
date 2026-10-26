@@ -1,0 +1,26 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "view": {
+        "image": null,
+        "copies": [],
+        "projects": []
+      }
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "this host owns no image named default yet; wsp init seals one",
+      "kind": "conflict"
+    }
+  ],
+  "events": []
+}

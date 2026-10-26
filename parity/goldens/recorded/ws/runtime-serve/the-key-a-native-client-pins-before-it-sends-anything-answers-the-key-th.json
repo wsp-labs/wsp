@@ -1,0 +1,35 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "nonce": "<id-1, 44 characters>",
+      "hostPublicKey": "<id-2, 60 characters>",
+      "signature": "<id-3, 88 characters>",
+      "ephemeral": "<id-4, 44 characters>"
+    },
+    {
+      "parity": "no reply",
+      "id": "2"
+    },
+    {
+      "parity": "no reply",
+      "id": "3"
+    },
+    {
+      "parity": "no reply",
+      "id": "4"
+    }
+  ],
+  "events": [
+    {
+      "binary": 61
+    },
+    {
+      "close": {
+        "code": 4401,
+        "reason": "unauthorized"
+      }
+    }
+  ]
+}

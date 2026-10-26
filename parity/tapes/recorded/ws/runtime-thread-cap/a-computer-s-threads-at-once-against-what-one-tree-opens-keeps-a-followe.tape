@@ -1,0 +1,7 @@
+{"meta":{"door":"ws","source":"packages/runtime/test/thread-cap.test.ts > a computer's threads at once against what one tree opens > keeps a followed turn in the slot it borrowed when the thread it borrowed from ends first, so a thread of another tree waits for all of it","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
+{"out":{"id":1,"ok":true}}
+{"in":{"placeId":"here","threads":1,"id":2,"op":"places.set"}}
+{"out":{"id":2,"ok":true,"place":{"id":"here","kind":"computer","name":"zingzys-mac","mac":"mac-mini","default":true,"os":"macOS 15.0","shape":{"cpu":8,"memMb":16384},"engine":"docker","home":"/home/dev","present":true,"takesForks":false,"buildsImages":false,"cap":{"threads":1},"capDefault":{"threads":8},"settings":{"threads":1},"turnLimitMs":null,"turnLimitDefault":null,"spawn":{"spawn":true,"maxMachines":3,"maxDepth":2},"spawnDefault":{"spawn":true,"maxMachines":3,"maxDepth":2},"running":0}}}
+{"in":{"workspaceId":"ws_00000001","prompt":"outside","answerHeld":true,"id":3,"op":"sessions.start"}}
+{"out":{"id":3,"ok":true,"session":{"id":"00000000-0000-4000-8000-000000000001","workspaceId":"ws_00000001","harness":"claude","status":"running","startedBy":"person","threadId":"00000000-0000-4000-8000-000000000002","prompt":"outside","startedAt":1792950401712,"capped":{"placeId":"here","place":"zingzys-mac","running":3,"atOnce":1}},"outcome":"held","turnId":"00000000-0000-4000-8000-000000000001"}}

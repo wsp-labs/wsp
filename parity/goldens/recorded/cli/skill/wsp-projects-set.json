@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp projects set takes one project. usage: wsp projects set <project> [--agent <id>] [--model <slug>] [--effort <word>] [--access <word>] [--after-worktree <command>] [--tracker <owner/name>]... [--reset <field>]...\n"
+    }
+  ],
+  "events": []
+}

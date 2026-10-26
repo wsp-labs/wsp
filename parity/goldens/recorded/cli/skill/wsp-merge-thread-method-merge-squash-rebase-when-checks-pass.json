@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp merge: --method takes merge, squash or rebase, and got merge\\|squash\\|rebase. usage: wsp merge <thread> [--method merge|squash|rebase] [--when-checks-pass]\n"
+    }
+  ],
+  "events": []
+}

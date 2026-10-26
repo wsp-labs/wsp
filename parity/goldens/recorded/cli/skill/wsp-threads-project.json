@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp threads: no project <project>. Run wsp projects to read the names.\n"
+    }
+  ],
+  "events": []
+}

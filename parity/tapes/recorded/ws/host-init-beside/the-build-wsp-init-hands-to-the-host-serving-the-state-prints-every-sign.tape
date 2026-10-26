@@ -1,0 +1,11 @@
+{"meta":{"door":"ws","source":"packages/host/test/init-beside.test.ts > the build wsp init hands to the host serving the state > prints every sign-in with the state word the setup sheet shows, so a later or copied login never reads as signed in","outs":"recorded"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8"}}
+{"in":{"id":2,"op":"events.subscribe"}}
+{"out":{"id":2,"ok":true,"seq":0,"stream":"00000000-0000-4000-8000-000000000001"}}
+{"in":{"road":"terminal","id":3,"op":"init.start"}}
+{"out":{"id":3,"ok":true,"job":{"id":"init_1","road":"terminal","keys":{"solari":true},"step":0,"stoppable":true,"screens":[],"progress":{"done":0,"total":1},"log":[],"phase":"reading","rows":[]}}}
+{"out":{"type":"init.job","job":{"id":"init_1","road":"terminal","keys":{"solari":true},"step":0,"stoppable":true,"screens":[],"progress":{"done":0,"total":1},"log":[],"phase":"answering","rows":[]}}}
+{"in":{"yes":true,"id":4,"op":"init.build"}}
+{"out":{"id":4,"ok":true,"job":{"id":"init_1","road":"terminal","keys":{"solari":true},"step":0,"stoppable":true,"screens":[],"progress":{"done":0,"total":1},"log":[],"phase":"answering","rows":[]}}}
+{"out":{"type":"init.job","job":{"id":"init_1","road":"terminal","keys":{"solari":true},"step":0,"stoppable":true,"screens":[],"progress":{"done":0,"total":1},"log":[],"phase":"done","rows":[{"id":"sign-in/gh","kind":"sign-in","tool":"gh","label":"GitHub CLI login","state":"not signed in, sign in when you first need it","login":"deferred"},{"id":"sign-in/claude","kind":"sign-in","tool":"claude","label":"Claude Code login","state":"copied from this Mac","login":"copied"},{"id":"sign-in/codex","kind":"sign-in","tool":"codex","label":"Codex login","state":"done","login":"signed-in"},{"id":"sign-in/opencode","kind":"sign-in","tool":"opencode","label":"OpenCode login","state":"skipped","login":"skipped","detail":"--yes asks nothing"},{"id":"sign-in/cursor","kind":"sign-in","tool":"cursor","label":"Cursor login","state":"not signed in","login":"not-signed-in","detail":"stopped after 10 minutes"},{"id":"sign-in/amp","kind":"sign-in","tool":"amp","label":"Amp login","state":"not verified","login":"not-verified","detail":"no status command known for amp"},{"id":"sign-in/gemini","kind":"sign-in","tool":"gemini","label":"Gemini login","state":"key set"}],"golden":{"version":1}}}}

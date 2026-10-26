@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "starting the host for <tmp>/scratch/wsp-keys-<temp>/home/state.json; its log is <tmp>/scratch/wsp-keys-<temp>/home/host.log, and wsp down stops it\nno place named spoo; you have <computer>\n"
+    }
+  ],
+  "events": []
+}
