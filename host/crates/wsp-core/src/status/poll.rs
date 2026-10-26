@@ -539,20 +539,17 @@ fn row_key(status: &WorkspaceStatus) -> String {
 }
 
 fn strip_clock_fields(v: &mut Value) {
-    match v {
-        Value::Object(map) => {
-            map.remove("uptimeMs");
-            map.remove("readAt");
-            for child in map.values_mut() {
-                strip_clock_fields(child);
+    let mut pending = vec![v];
+    while let Some(v) = pending.pop() {
+        match v {
+            Value::Object(map) => {
+                map.remove("uptimeMs");
+                map.remove("readAt");
+                pending.extend(map.values_mut());
             }
+            Value::Array(items) => pending.extend(items.iter_mut()),
+            _ => {}
         }
-        Value::Array(items) => {
-            for item in items {
-                strip_clock_fields(item);
-            }
-        }
-        _ => {}
     }
 }
 
