@@ -403,6 +403,7 @@ pub fn is_slate_binding(v: &Value) -> bool {
 pub mod batch;
 pub mod catalog;
 pub mod chart;
+pub mod examples;
 pub mod expr;
 pub mod image;
 pub mod kit;
@@ -417,6 +418,8 @@ pub mod syntax;
 pub mod validate;
 pub use batch::{run_slate_batch, SlateBatchSend, SlateBatchWindowStep, SlateWriter};
 pub use catalog::slate_catalog;
+pub use catalog::{slate_takes_figures, slate_tokens, SLATE_CHAPTERS, SLATE_INDEX_EXAMPLE, SLATE_RULES};
+pub use examples::{SlateExample, SLATE_EXAMPLES};
 pub use chart::{
     slate_axis_word, slate_chart_axis, slate_shares, slate_span_state, slate_time, SlateChartAxis, SlateShare, SLATE_DONUT_PARTS,
     SLATE_SPAN_STATES, SLATE_TIME_FLOOR,
