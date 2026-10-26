@@ -237,8 +237,11 @@ impl SessionsArea {
             };
             let workspace_id = record.workspace_id.clone();
             let records = self.ctx.records();
-            records.borrow_mut().insert(id.to_string(), ThreadRecord { permission_mode: Some(permission_mode.to_string()), ..record });
-            let _ = self.ctx.persist_sessions(&workspace_id).await;
+            let mut record = record;
+            record.pin_order();
+            record.permission_mode = Some(permission_mode.to_string());
+            records.borrow_mut().insert(id.to_string(), record);
+            self.ctx.persist_sessions(&workspace_id).await;
             self.ctx.push_head(id);
             return Ok(access_answer(SessionAccessOutcome::Set));
         };
@@ -293,19 +296,21 @@ impl SessionsArea {
     ) {
         if let Some(thread) = thread_id {
             let records = self.ctx.records();
-            let base = records.borrow().get(thread).cloned().unwrap_or_else(|| ThreadRecord {
+            let mut record = records.borrow().get(thread).cloned().unwrap_or_else(|| ThreadRecord {
                 workspace_id: view.workspace_id.clone(),
                 harness: view.harness.clone(),
                 ..ThreadRecord::default()
             });
-            records.borrow_mut().insert(thread.to_string(), ThreadRecord { permission_mode: Some(permission_mode.to_string()), ..base });
+            record.pin_order();
+            record.permission_mode = Some(permission_mode.to_string());
+            records.borrow_mut().insert(thread.to_string(), record);
         }
         if !latest_running {
             if let Some(latest) = latest_row {
                 latest.borrow_mut().view.permission_mode = Some(permission_mode.to_string());
             }
         }
-        let _ = self.ctx.persist_sessions(&view.workspace_id).await;
+        self.ctx.persist_sessions(&view.workspace_id).await;
         self.ctx.push_head(&thread_key_of(view));
     }
 
@@ -349,7 +354,7 @@ impl SessionsArea {
                 other.view.title_source = Some(TitleSource::Person);
             }
         }
-        self.ctx.persist_sessions(&workspace_id).await?;
+        self.ctx.persist_sessions(&workspace_id).await;
         self.ctx.push_head(&thread_key_of(&view));
         Ok(rename_answer(SessionRenameOutcome::Renamed, None))
     }

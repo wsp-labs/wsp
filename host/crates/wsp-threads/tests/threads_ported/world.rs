@@ -482,7 +482,7 @@ fn roots(ctx: &FakeThreadsCtx, pairs: &[(&str, &str)]) {
     }
 }
 
-fn prompt_of(ask_id: &str) -> ThreadPrompt {
+fn prompt_of(ask_id: &str) -> wsp_adapters::port::PermissionAsk {
     serde_json::from_value(json!({
         "askId": ask_id,
         "toolName": "Read",

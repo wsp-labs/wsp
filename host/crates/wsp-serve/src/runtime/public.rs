@@ -76,7 +76,8 @@ pub trait PublicCtx {
     async fn hold(&self, builder_id: &str) -> Result<(), HostError>;
     async fn stop_builder(&self, builder_id: &str, place: &str) -> Result<(), HostError>;
     async fn forget_builder(&self, builder_id: &str) -> Result<(), HostError>;
-    async fn replay_creates(&self, failed: &mut Vec<ReapFailure>) -> Result<Vec<ReapedMachine>, HostError>;
+    /// `known` is `knownIds` (runtime.ts:1141-1147), read once per machine the replay finds.
+    async fn replay_creates(&self, known: &dyn Fn() -> Vec<String>, failed: &mut Vec<ReapFailure>) -> Result<Vec<ReapedMachine>, HostError>;
     /// The wired place, then every other in `places.list()` order, each with whether a backend answers there.
     fn sweep_places(&self) -> Vec<(String, bool)>;
     fn wired_place(&self) -> String;
@@ -195,7 +196,8 @@ pub async fn reap(ctx: &dyn PublicCtx, older_than_ms: Option<i64>, say: Option<R
         };
         reaped.push(ReapedMachine { id: b.id, labels: None, builder: true, reason, age_ms, name: None });
     }
-    match ctx.replay_creates(&mut failed).await {
+    let known = || claimable(ctx, &reaped);
+    match ctx.replay_creates(&known, &mut failed).await {
         Ok(replayed) => reaped.extend(replayed),
         Err(e) => failed.push(ReapFailure { id: None, message: format!("asking lost creates again: {}", e.message) }),
     }

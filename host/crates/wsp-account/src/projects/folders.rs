@@ -12,7 +12,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::future::{LocalBoxFuture, Shared};
 use indexmap::IndexMap;
-use wsp_core::clock::Cancel;
+use wsp_core::context::{RuntimeState, StateCell};
 use wsp_core::types::harness::StartPicksAsked;
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_engine::machine::Machine;
@@ -31,14 +31,6 @@ pub use wsp_core::types::wiring::HereDaemon;
 pub use wsp_engine::copier::WorktreeRemove;
 /// `copier.worktree({...})`'s ask. folders.ts:82.
 pub use wsp_wire::views::workspace_more::WorktreeAsk;
-
-/// `ctx.state`'s sweep fields: the armed timer, the sweep in flight, and the close's stop. folders.ts:280-296.
-#[derive(Default)]
-pub struct SweepState {
-    pub timer: Option<Cancel>,
-    pub sweeping: Option<Shared<LocalBoxFuture<'static, ()>>>,
-    pub stopped: bool,
-}
 
 /// What the folders area reads off the runtime context, past `Base`.
 #[async_trait(?Send)]
@@ -86,7 +78,8 @@ pub trait FoldersCtx: Base {
     /// `machine.exec(cmd, {timeoutMs, stdin?})` on this computer's local machine.
     async fn local_exec(&self, cmd: &str, timeout_ms: u64, stdin: Option<Vec<u8>>) -> Result<ExecResult, HostError>;
     /// `ctx.state`'s sweep fields.
-    fn sweep_state(&self) -> Rc<RefCell<SweepState>>;
+    /// `ctx.state`, whose `sweepTimer`, `sweeping` and `sweepStopped` are the sweep's own (folders.ts:280-296).
+    fn state(&self) -> StateCell<RuntimeState>;
     /// A TS `void f()`: `f` runs now, nothing awaits it.
     fn spawn(&self, f: LocalBoxFuture<'static, ()>);
 }

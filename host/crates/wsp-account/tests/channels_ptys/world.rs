@@ -15,6 +15,7 @@ use wsp_account::account::channels::{
 use wsp_account::account::core_types::{AccountError, AccountResult, Entry, Frame, Release};
 use wsp_account::account::proc_scopes::{KeptRow, LatestRow, ProcScopesArea, ProcScopesCtx, ScopeRecord, ScopeRow, ThreadTerminal};
 use wsp_core::clock::{Cancel, Clock, FakeClock};
+use wsp_core::context::{RuntimeState, StateCell};
 use wsp_core::daemon_channel::{ChannelEnd, ChannelError, DaemonChannel};
 use wsp_core::devices::{DeviceDoor, HeldDevice, IssuedCode, MintMore, PairedDevice, ScopedRoad};
 use wsp_core::types::internal::ThreadRecord;
@@ -366,7 +367,7 @@ struct World {
     agent_pids: RefCell<HashMap<String, i64>>,
     agent_bins: RefCell<Vec<String>>,
     moved: Cell<usize>,
-    recheck: Rc<RefCell<Option<Cancel>>>,
+    state: StateCell<RuntimeState>,
     deleted: RefCell<Vec<Rc<dyn Fn(&str)>>>,
     live_ids: RefCell<HashSet<String>>,
     forward_moved: RefCell<Option<Rc<ProcScopesArea>>>,
@@ -431,7 +432,7 @@ impl World {
             agent_pids: RefCell::default(),
             agent_bins: RefCell::default(),
             moved: Cell::new(0),
-            recheck: Rc::new(RefCell::new(None)),
+            state: StateCell::new(RuntimeState::default()),
             deleted: RefCell::default(),
             live_ids: RefCell::default(),
             forward_moved: RefCell::default(),
@@ -640,8 +641,8 @@ impl ChannelsCtx for World {
             scopes.proc_scopes_moved();
         }
     }
-    fn roots_recheck(&self) -> Rc<RefCell<Option<Cancel>>> {
-        self.recheck.clone()
+    fn state(&self) -> StateCell<RuntimeState> {
+        self.state.clone()
     }
     fn box_panels_ctx(&self) -> Rc<dyn BoxPanelsCtx> {
         Rc::new(NoPanels)

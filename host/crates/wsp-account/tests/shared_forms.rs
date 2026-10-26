@@ -44,12 +44,19 @@ fn viewed_marks_are_kept_as_the_ts_record_per_workspace_and_a_mark_keeps_its_pla
             area::viewed(&w.ctx, "ws1", mark(path, blob), origin()).await.expect("a mark lands");
         }
         let held: IndexMap<String, String> = w.fake.viewed.borrow().get("ws1").cloned().expect("held");
-        assert_eq!(held.into_iter().collect::<Vec<_>>(), vec![("a.ts".to_string(), "b9".to_string()), ("c.ts".to_string(), "b3".to_string())]);
+        assert_eq!(
+            held.into_iter().collect::<Vec<_>>(),
+            vec![("a.ts".to_string(), "b9".to_string()), ("c.ts".to_string(), "b3".to_string())]
+        );
     })
 }
 
 #[allow(dead_code)]
-fn the_contexts_hand_the_viewed_marks_and_the_state_the_runtime_holds(git: &dyn GitCtx, channels: &dyn ChannelsCtx, folders: &dyn FoldersCtx) {
+fn the_contexts_hand_the_viewed_marks_and_the_state_the_runtime_holds(
+    git: &dyn GitCtx,
+    channels: &dyn ChannelsCtx,
+    folders: &dyn FoldersCtx,
+) {
     let _: std::rc::Rc<std::cell::RefCell<IndexMap<String, IndexMap<String, String>>>> = git.viewed_marks();
     let _: StateCell<RuntimeState> = channels.state();
     let _: StateCell<RuntimeState> = folders.state();

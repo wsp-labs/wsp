@@ -276,7 +276,7 @@ pub struct FakeHost {
     pub held_at_close: HeldAtClose,
     pub checkpoints_landing: Rc<RefCell<IndexMap<String, Joined>>>,
     pub lead_asks: Rc<RefCell<IndexMap<String, PermissionAsk>>>,
-    pub turn_groups: Rc<RefCell<IndexMap<String, IndexMap<u32, String>>>>,
+    pub turn_groups: Rc<RefCell<IndexMap<String, IndexMap<i64, String>>>>,
     me: RefCell<Weak<FakeHost>>,
 }
 

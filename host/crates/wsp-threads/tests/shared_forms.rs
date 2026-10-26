@@ -13,6 +13,7 @@ use indexmap::IndexMap;
 use serde_json::{json, Value};
 use support::threads_ctx::FakeThreadsCtx;
 use support::transcripts_ctx::FakeTranscriptsCtx;
+use support::Lend;
 use support::{local, row, view};
 use wsp_account::account::core_types::{AccountError, Entry};
 use wsp_adapters::port::PermissionAsk;
@@ -24,8 +25,8 @@ use wsp_threads::threads::forks::ForksCtx;
 use wsp_threads::threads::sessions::SessionsCtx;
 use wsp_threads::threads::threads::ThreadsCtx;
 use wsp_threads::threads::turns::TurnsCtx;
-use wsp_words::exit::HostError;
 use wsp_wire::views::session_events_more::SessionEvent;
+use wsp_words::exit::HostError;
 
 fn ask(id: &str) -> PermissionAsk {
     serde_json::from_value(json!({ "askId": id, "toolName": "Bash", "input": "{}", "options": [] })).expect("a permission ask")
@@ -72,7 +73,11 @@ fn viewed_marks_are_the_ts_record_per_thread_and_the_session_document_writes_the
         assert!(Rc::ptr_eq(&held, &area.viewed_marks));
         area.persist_sessions("ws1").await;
         let doc = ctx.store.get_now("sessions", "ws1").expect("the document is put");
-        assert_eq!(serde_json::to_string(&doc["viewed"]).expect("serializes"), r#"{"9":"z","10":"y","b.rs":"x"}"#, "a JS object lists integer keys first");
+        assert_eq!(
+            serde_json::to_string(&doc["viewed"]).expect("serializes"),
+            r#"{"9":"z","10":"y","b.rs":"x"}"#,
+            "a JS object lists integer keys first"
+        );
     });
 }
 
@@ -97,9 +102,6 @@ fn the_threads_traits_share_one_signature_each_for_the_calls_more_than_one_asks(
     let _: [Option<Joined>; 3] = [sessions.kept_writes("w"), threads.kept_writes("w"), forks.kept_writes("w")];
     let _: [LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>; 4] =
         [sessions.open_thread("w", "t"), turns.open_thread("w", "t"), threads.open_thread("w", "t"), forks.open_thread("w", "t")];
-    let _: [LocalBoxFuture<'static, Result<Value, AccountError>>; 3] = [
-        threads.with_daemon(entry, Value::Null),
-        conversations.with_daemon(entry, Value::Null),
-        activity.with_daemon(entry, Value::Null),
-    ];
+    let _: [LocalBoxFuture<'static, Result<Value, AccountError>>; 3] =
+        [threads.with_daemon(entry, Value::Null), conversations.with_daemon(entry, Value::Null), activity.with_daemon(entry, Value::Null)];
 }

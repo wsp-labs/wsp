@@ -192,7 +192,7 @@ fn record_folder_arms_the_sweep_only_for_a_made_worktree() {
     ))
     .unwrap();
     base::assert_due(&rig.base.clock, &[1_600_000]);
-    assert!(rig.fake.sweep.borrow().timer.is_some());
+    assert!(rig.fake.state.with(|s| s.sweep_timer.is_some()));
 }
 
 // Ports box-folder.test.ts:42: a folder on a computer the person joined is a place's record.

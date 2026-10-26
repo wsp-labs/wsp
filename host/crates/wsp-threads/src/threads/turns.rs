@@ -156,7 +156,7 @@ pub trait TurnsCtx {
     fn emit(&self, event: EventUnion);
     /// `bus.pass(event)`: delivered, never ringed.
     fn pass(&self, event: EventUnion);
-    async fn persist_sessions(&self, workspace_id: &str) -> Result<(), HostError>;
+    fn persist_sessions(&self, workspace_id: &str) -> LocalBoxFuture<'static, ()>;
     async fn persist_record(&self, record: WorkspaceRecord) -> Result<(), HostError>;
     fn held_at_close(&self) -> HeldAtClose;
     async fn slates_turn_ended(&self, thread_id: &str, turn_id: &str) -> Result<(), HostError>;
@@ -199,7 +199,7 @@ pub trait TurnsCtx {
     fn harness_exec(&self, entry: &Entry, timeout_ms: u64) -> Arc<dyn HarnessExec>;
     /// `ctx.moduleOf(entry.record.kind).sharedDaemon`.
     fn shared_daemon(&self, entry: &Entry) -> bool;
-    fn turn_groups(&self) -> Rc<RefCell<IndexMap<String, IndexMap<u32, String>>>>;
+    fn turn_groups(&self) -> Rc<RefCell<IndexMap<String, IndexMap<i64, String>>>>;
     fn arm_roots_recheck(&self);
     fn port_roots_moved(&self, workspace_id: &str);
     /// Keeps the agent for the thread's next turn; a hold the runtime refuses is handed back, so the turn closes its
@@ -221,7 +221,7 @@ pub trait TurnsCtx {
     /// `ctx.execFactoryFor(entry).sweep`, None where the factory has none.
     fn exec_sweep(&self, entry: &Entry) -> Option<Sweep>;
     fn adapter_for(&self, entry: &Entry, ask: AdapterAsk) -> Result<BuiltAdapter, HostError>;
-    async fn open_thread(&self, workspace_id: &str, thread_id: &str) -> Result<Vec<SessionEvent>, HostError>;
+    fn open_thread(&self, workspace_id: &str, thread_id: &str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>;
     /// TS `void promise`: work that outlives its caller. The host runs it on its `LocalSet`, so where it runs is its to say.
     fn spawn(&self, work: LocalBoxFuture<'static, ()>);
 }

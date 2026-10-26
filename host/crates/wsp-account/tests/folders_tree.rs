@@ -517,12 +517,12 @@ fn arm_sweep_holds_no_timer_without_a_made_worktree() {
     rig.tree("ws_gone", GONE_PATH, json!({ "gone": true }));
     rig.folders.arm_sweep();
     base::assert_due(&rig.base.clock, &[]);
-    assert!(rig.fake.sweep.borrow().timer.is_none());
+    assert!(rig.fake.state.with(|s| s.sweep_timer.is_none()));
     rig.tree("ws_made", GONE_PATH, json!({}));
     rig.folders.arm_sweep();
     rig.folders.arm_sweep();
     base::assert_due(&rig.base.clock, &[START + SWEEP_MS]);
-    assert!(rig.fake.sweep.borrow().timer.is_some());
+    assert!(rig.fake.state.with(|s| s.sweep_timer.is_some()));
 }
 
 #[test]
@@ -534,18 +534,18 @@ fn arm_sweep_arms_one_timer_and_re_arms_after_the_sweep() {
     rig.folders.arm_sweep();
     run(async {
         rig.base.clock.advance(SWEEP_MS - 1);
-        assert!(rig.fake.sweep.borrow().sweeping.is_none());
+        assert!(rig.fake.state.with(|s| s.sweeping.is_none()));
         base::assert_due(&rig.base.clock, &[START + SWEEP_MS]);
         rig.base.clock.advance(1);
         // The timer's slot is cleared and the sweep is in flight, with no second timer yet.
-        assert!(rig.fake.sweep.borrow().timer.is_none());
-        let sweeping = rig.fake.sweep.borrow().sweeping.clone().expect("the sweep is in flight");
+        assert!(rig.fake.state.with(|s| s.sweep_timer.is_none()));
+        let sweeping = rig.fake.state.with(|s| s.sweeping.clone()).expect("the sweep is in flight");
         base::assert_due(&rig.base.clock, &[]);
         sweeping.await;
         settle().await;
     });
-    assert!(rig.fake.sweep.borrow().sweeping.is_none());
-    assert!(rig.fake.sweep.borrow().timer.is_some());
+    assert!(rig.fake.state.with(|s| s.sweeping.is_none()));
+    assert!(rig.fake.state.with(|s| s.sweep_timer.is_some()));
     base::assert_due(&rig.base.clock, &[START + 2 * SWEEP_MS]);
     // The tree has no remote: the sweep asked nothing of git or the host.
     assert_eq!(rig.effects(), Vec::<String>::new());
@@ -555,16 +555,16 @@ fn arm_sweep_arms_one_timer_and_re_arms_after_the_sweep() {
 fn a_stopped_sweep_arms_nothing() {
     let rig = Rig::new();
     rig.tree("ws_made", GONE_PATH, json!({}));
-    rig.fake.sweep.borrow_mut().stopped = true;
+    rig.fake.state.with(|s| s.sweep_stopped = true);
     rig.folders.arm_sweep();
     base::assert_due(&rig.base.clock, &[]);
-    rig.fake.sweep.borrow_mut().stopped = false;
-    rig.fake.sweep.borrow_mut().sweeping = Some(async {}.boxed_local().shared());
+    rig.fake.state.with(|s| s.sweep_stopped = false);
+    rig.fake.state.with(|s| s.sweeping = Some(async {}.boxed_local().shared()));
     rig.folders.arm_sweep();
     base::assert_due(&rig.base.clock, &[]);
-    rig.fake.sweep.borrow_mut().sweeping = None;
+    rig.fake.state.with(|s| s.sweeping = None);
     let cancel: wsp_core::clock::Cancel = Rc::new(|| {});
-    rig.fake.sweep.borrow_mut().timer = Some(cancel);
+    rig.fake.state.with(|s| s.sweep_timer = Some(cancel));
     rig.folders.arm_sweep();
     base::assert_due(&rig.base.clock, &[]);
 }

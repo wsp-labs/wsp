@@ -208,7 +208,8 @@ pub trait GitCtx: Base {
     /// `putFiles(machine, [{path, text}], { before })`: the shell lines run before the file is written.
     async fn put_files(&self, entry: &Entry, path: &str, text: &str, before: &[&str]) -> Result<ExecResult, HostError>;
     async fn draft_for(&self, entry: &Entry, agent: &str, prompt_file: &str, model: Option<&str>) -> Result<Option<String>, HostError>;
-    fn viewed_marks(&self) -> Rc<std::cell::RefCell<indexmap::IndexMap<String, ViewedMarks>>>;
+    /// `ctx.viewedMarks`: the TS record per workspace, path against blob id.
+    fn viewed_marks(&self) -> Rc<std::cell::RefCell<indexmap::IndexMap<String, indexmap::IndexMap<String, String>>>>;
     async fn persist_sessions(&self, workspace_id: &str) -> Result<(), HostError>;
     async fn pull_request_on(&self, workspace_id: &str, origin: Option<Caller>) -> Result<PullRequestOn, HostError>;
     async fn read_page(&self, entry: &Entry, remote: &str, number: i64, fresh: bool) -> Result<(PullRequestPage, bool), HostError>;
@@ -864,8 +865,7 @@ pub async fn viewed(
     origin: Option<Caller>,
 ) -> Result<ViewedMarks, HostError> {
     let _entry = ctx.entry_of(workspace_id, origin, EntryAsk::default()).await?;
-    let mut marks: indexmap::IndexMap<String, String> =
-        ctx.viewed_marks().borrow().get(workspace_id).map(|m| m.viewed.clone()).unwrap_or_default();
+    let mut marks: indexmap::IndexMap<String, String> = ctx.viewed_marks().borrow().get(workspace_id).cloned().unwrap_or_default();
     let Some(mark) = mark else {
         return Ok(ViewedMarks { viewed: marks });
     };
@@ -877,10 +877,10 @@ pub async fn viewed(
             marks.shift_remove(&mark.path);
         }
     }
-    let answer = ViewedMarks { viewed: marks };
-    ctx.viewed_marks().borrow_mut().insert(workspace_id.to_owned(), answer.clone());
+    let answer = ViewedMarks { viewed: marks.clone() };
+    ctx.viewed_marks().borrow_mut().insert(workspace_id.to_owned(), marks);
     ctx.persist_sessions(workspace_id).await?;
-    ctx.emit(json!({ "type": "workspace.viewed", "workspaceId": workspace_id, "viewed": json_of(&answer.viewed) }))?;
+    ctx.emit(json!({ "type": "workspace.viewed", "workspaceId": workspace_id, "viewed": json_of(&answer)["viewed"].clone() }))?;
     Ok(answer)
 }
 

@@ -585,53 +585,160 @@ pub struct Rewound {
 /// A thread's own record. internal.ts:772-818. The runtime's map holds it as `ThreadRecord & { workspaceId }`
 /// (context.ts:213), `workspaceId` first as every literal that makes one writes it; the index record that stores a
 /// thread under its workspace holds none, and an empty one is left unwritten.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+///
+/// It writes its keys in the order the TS inserted them, which a JS object keeps: a record read from JSON writes the
+/// order of this struct (the hydrate literal of boot.ts:403 is built in it), `from_map` keeps the order of the map it
+/// is made from, and a key set after `pin_order` is written after the keys then held.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ThreadRecord {
-    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[serde(default)]
     pub workspace_id: String,
     pub harness: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub permission_mode: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub parent_thread_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub root_thread_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub read_at: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub settled_at: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub settle_named_at: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub pinned_at: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub order: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub folded_at: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub replaces: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub snoozed_until: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub section: Option<ThreadPlacement>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub cut_owed: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub forked_from: Option<ForkedFrom>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub limit_resume: Option<LimitResume>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub rewound: Option<Rewound>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub files_in: Option<Vec<String>>,
     /// Absent reads as worked.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub worked: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub ended: Option<TurnStatus>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub clouds: Option<Vec<String>>,
+    #[serde(skip)]
+    pub key_order: KeyOrder,
+}
+
+/// The keys of a thread record in the order they were inserted, empty where the struct's own order is the one. Never
+/// part of what a record is: two records with the same values are equal whatever order they were written in.
+#[derive(Clone, Debug, Default)]
+pub struct KeyOrder(Vec<&'static str>);
+
+impl PartialEq for KeyOrder {
+    fn eq(&self, _: &KeyOrder) -> bool {
+        true
+    }
+}
+
+const THREAD_RECORD_KEYS: [&str; 22] = [
+    "workspaceId",
+    "harness",
+    "permissionMode",
+    "parentThreadId",
+    "rootThreadId",
+    "readAt",
+    "settledAt",
+    "settleNamedAt",
+    "pinnedAt",
+    "order",
+    "foldedAt",
+    "replaces",
+    "snoozedUntil",
+    "section",
+    "cutOwed",
+    "forkedFrom",
+    "limitResume",
+    "rewound",
+    "filesIn",
+    "worked",
+    "ended",
+    "clouds",
+];
+
+impl ThreadRecord {
+    /// A record made from the map the TS would hold, keeping its key order. A key the record does not hold is dropped.
+    pub fn from_map(map: serde_json::Map<String, Value>) -> Result<ThreadRecord, serde_json::Error> {
+        let order: Vec<&'static str> =
+            map.keys().filter_map(|k| THREAD_RECORD_KEYS.iter().find(|held| **held == k.as_str()).copied()).collect();
+        let mut record: ThreadRecord = serde_json::from_value(Value::Object(map))?;
+        record.key_order = KeyOrder(order);
+        Ok(record)
+    }
+
+    /// The keys the record holds, as the TS object holds them: in the order they were inserted.
+    pub fn to_map(&self) -> serde_json::Map<String, Value> {
+        self.entries().into_iter().map(|(key, value)| (key.to_string(), value)).collect()
+    }
+
+    /// Fixes the order the record writes now, so a key set after this call is written after the keys then held, as
+    /// an assignment to a JS object adds its key last. Call it before each assignment that may add a key; a key taken
+    /// off since the last call is forgotten, so setting it again puts it last, as `delete` and a new assignment do.
+    pub fn pin_order(&mut self) {
+        self.key_order = KeyOrder(self.entries().into_iter().map(|(key, _)| key).collect());
+    }
+
+    fn entries(&self) -> Vec<(&'static str, Value)> {
+        fn put<T: Serialize>(held: &mut Vec<(&'static str, Value)>, key: &'static str, value: &Option<T>) {
+            if let Some(value) = value.as_ref().and_then(|v| serde_json::to_value(v).ok()) {
+                held.push((key, value));
+            }
+        }
+        let mut held: Vec<(&'static str, Value)> = Vec::new();
+        if !self.workspace_id.is_empty() {
+            held.push(("workspaceId", Value::String(self.workspace_id.clone())));
+        }
+        held.push(("harness", Value::String(self.harness.clone())));
+        put(&mut held, "permissionMode", &self.permission_mode);
+        put(&mut held, "parentThreadId", &self.parent_thread_id);
+        put(&mut held, "rootThreadId", &self.root_thread_id);
+        put(&mut held, "readAt", &self.read_at);
+        put(&mut held, "settledAt", &self.settled_at);
+        put(&mut held, "settleNamedAt", &self.settle_named_at);
+        put(&mut held, "pinnedAt", &self.pinned_at);
+        put(&mut held, "order", &self.order);
+        put(&mut held, "foldedAt", &self.folded_at);
+        put(&mut held, "replaces", &self.replaces);
+        put(&mut held, "snoozedUntil", &self.snoozed_until);
+        put(&mut held, "section", &self.section);
+        put(&mut held, "cutOwed", &self.cut_owed);
+        put(&mut held, "forkedFrom", &self.forked_from);
+        put(&mut held, "limitResume", &self.limit_resume);
+        put(&mut held, "rewound", &self.rewound);
+        put(&mut held, "filesIn", &self.files_in);
+        put(&mut held, "worked", &self.worked);
+        put(&mut held, "ended", &self.ended);
+        put(&mut held, "clouds", &self.clouds);
+        let order = &self.key_order.0;
+        held.sort_by_key(|(key, _)| order.iter().position(|o| o == key).unwrap_or(usize::MAX));
+        held
+    }
+}
+
+impl Serialize for ThreadRecord {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.to_map().serialize(serializer)
+    }
 }
 
 /// The stamps a mark moves on a thread's record: every key but harness and permissionMode, one set to `Some(None)`

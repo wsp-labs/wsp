@@ -5,6 +5,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use super::fake::*;
+use wsp_account::account::core_types::AccountError;
 
 #[async_trait(?Send)]
 impl SessionsCtx for FakeHost {
@@ -145,14 +146,12 @@ impl SessionsCtx for FakeHost {
         }
         Rc::new(|| {})
     }
-    async fn persist_sessions(&self, workspace_id: &str) -> Result<(), HostError> {
+    fn persist_sessions(&self, workspace_id: &str) -> LocalBoxFuture<'static, ()> {
         self.hooks.log("persist_sessions", vec![workspace_id.to_string()]);
-        if let Some(hook) =
-            self.hooks.get::<dyn Fn(&str) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::persist_sessions")
-        {
-            return hook(workspace_id).await;
+        if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> LocalBoxFuture<'static, ()>>("SessionsCtx::persist_sessions") {
+            return hook(workspace_id);
         }
-        Ok(())
+        futures::FutureExt::boxed_local(async {})
     }
     fn push_head(&self, thread_id: &str) {
         self.hooks.log("push_head", vec![thread_id.to_string()]);
@@ -891,15 +890,16 @@ impl SessionsCtx for FakeHost {
         }
         ()
     }
-    async fn open_thread(&self, workspace_id: &str, thread_id: &str) -> Result<Vec<SessionEvent>, HostError> {
+    fn open_thread(&self, workspace_id: &str, thread_id: &str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>> {
         self.hooks.log("open_thread", vec![workspace_id.to_string(), thread_id.to_string()]);
         if let Some(hook) = self
             .hooks
             .get::<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>>("SessionsCtx::open_thread")
         {
-            return hook(workspace_id, thread_id).await;
+            return hook(workspace_id, thread_id);
         }
-        Ok(self.thread_events(thread_id))
+        let events = self.thread_events(thread_id);
+        futures::FutureExt::boxed_local(async move { Ok(events) })
     }
     fn tree_stands_on(&self, workspace_id: &str, origin: Option<&Caller>, talk: Option<TreeTalk>) -> bool {
         self.hooks.log("tree_stands_on", vec![workspace_id.to_string()]);
@@ -1019,12 +1019,12 @@ impl SessionsCtx for FakeHost {
         }
         Ok(None)
     }
-    async fn kept_writes(&self, workspace_id: &str) {
+    fn kept_writes(&self, workspace_id: &str) -> Option<Joined> {
         self.hooks.log("kept_writes", vec![workspace_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> LocalBoxFuture<'static, ()>>("SessionsCtx::kept_writes") {
-            return hook(workspace_id).await;
+        if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> Option<Joined>>("SessionsCtx::kept_writes") {
+            return hook(workspace_id);
         }
-        ()
+        None
     }
     async fn store_get(&self, collection: &str, id: &str) -> Result<Option<Value>, HostError> {
         self.hooks.log("store_get", vec![collection.to_string(), id.to_string()]);

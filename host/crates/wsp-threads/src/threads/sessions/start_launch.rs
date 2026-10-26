@@ -1064,11 +1064,12 @@ impl SessionsArea {
             set_opt(&mut doc, "replaces", st.p.replaces.clone().map(Value::from));
             set_opt(&mut doc, "forkedFrom", st.p.plan.as_ref().and_then(|p| serde_json::to_value(&p.forked_from).ok()));
             doc.insert("worked".into(), json!(thread_ran(&views)));
-            let record: ThreadRecord = serde_json::from_value(Value::Object(doc)).map_err(|e| HostError::new(e.to_string()))?;
+            let record = ThreadRecord::from_map(doc).map_err(|e| HostError::new(e.to_string()))?;
             ctx.records().borrow_mut().insert(thread_id.clone(), record);
         }
         if let Some(clouds) = st.p.clouds.clone() {
             if let Some(record) = ctx.records().borrow_mut().get_mut(&thread_id) {
+                record.pin_order();
                 record.clouds = Some(clouds);
             }
         }
@@ -1088,6 +1089,7 @@ impl SessionsArea {
         }
         if let Some(folder) = st.files_folder.clone() {
             if let Some(record) = ctx.records().borrow_mut().get_mut(&thread_id) {
+                record.pin_order();
                 let files = record.files_in.get_or_insert_with(Vec::new);
                 if !files.contains(&folder) {
                     files.push(folder);
@@ -1154,7 +1156,7 @@ impl SessionsArea {
                                 break;
                             }
                         }
-                        let _ = ctx.persist_sessions(&before.workspace_id).await;
+                        ctx.persist_sessions(&before.workspace_id).await;
                     }
                 }
             }

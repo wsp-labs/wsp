@@ -341,36 +341,33 @@ impl Folders {
     //|   };
     /// Arms the sweep's timer, only while a worktree wsp made stands.
     pub fn arm_sweep(self: &Rc<Self>) {
-        let state = self.ctx.sweep_state();
-        {
-            let sweep = state.borrow();
-            if sweep.timer.is_some() || sweep.sweeping.is_some() || sweep.stopped {
-                return;
-            }
+        let state = self.ctx.state();
+        if state.with(|s| s.sweep_timer.is_some() || s.sweeping.is_some() || s.sweep_stopped) {
+            return;
         }
         if !self.sweep_has_work() {
             return;
         }
         let me = self.clone();
         let cancel = self.ctx.clock().schedule(Box::new(move || me.start_sweep()), SWEEP_MS);
-        state.borrow_mut().timer = Some(cancel);
+        state.with(|s| s.sweep_timer = Some(cancel));
     }
 
     /// The timer's body: the sweep in flight, which re-arms the timer once it settles.
     fn start_sweep(self: &Rc<Self>) {
-        let state = self.ctx.sweep_state();
-        state.borrow_mut().timer = None;
+        let state = self.ctx.state();
+        state.with(|s| s.sweep_timer = None);
         let me = self.clone();
         let sweeping = async move {
             if let Err(e) = me.sweep_worktrees().await {
                 warn(&format!("the sweep of worktrees stopped: {}", e.message));
             }
-            me.ctx.sweep_state().borrow_mut().sweeping = None;
+            me.ctx.state().with(|s| s.sweeping = None);
             me.arm_sweep();
         }
         .boxed_local()
         .shared();
-        state.borrow_mut().sweeping = Some(sweeping.clone());
+        state.with(|s| s.sweeping = Some(sweeping.clone()));
         self.ctx.spawn(sweeping.boxed_local());
     }
 

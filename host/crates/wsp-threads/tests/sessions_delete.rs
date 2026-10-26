@@ -213,11 +213,11 @@ impl Rig {
             }),
         );
         let l = log.clone();
-        host.hooks.set::<dyn Fn(&str) -> LocalBoxFuture<'static, Result<(), HostError>>>(
+        host.hooks.set::<dyn Fn(&str) -> LocalBoxFuture<'static, ()>>(
             "SessionsCtx::persist_sessions",
             Rc::new(move |w: &str| {
                 l.borrow_mut().push(format!("persist_sessions {w}"));
-                async { Ok::<(), HostError>(()) }.boxed_local()
+                async {}.boxed_local()
             }),
         );
         let (l, h) = (log.clone(), host.clone());

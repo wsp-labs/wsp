@@ -148,7 +148,7 @@ impl SessionsArea {
         }
         ctx.records().borrow_mut().shift_remove(thread_id);
         ctx.drop_from_transcript(&workspace_id, thread_id, None).await?;
-        ctx.persist_sessions(&workspace_id).await?;
+        ctx.persist_sessions(&workspace_id).await;
         ctx.slates_forget(thread_id, keep).await?;
         Ok(deleted(&workspace_id, None, ended))
     }
@@ -191,7 +191,7 @@ impl SessionsArea {
         ctx.records().borrow_mut().shift_remove(thread_id);
         ctx.slates_forget(thread_id, false).await?;
         ctx.drop_from_transcript(&workspace_id, thread_id, None).await?;
-        ctx.persist_sessions(&workspace_id).await?;
+        ctx.persist_sessions(&workspace_id).await;
         Ok(())
     }
 }

@@ -38,7 +38,7 @@ fn every_key_the_struct_holds_survives_a_round_trip_in_struct_order() {
     );
     let record: ThreadRecord = serde_json::from_str(text).expect("reads");
     assert_eq!(bytes(&record), text);
-    assert_eq!(record.to_map().len(), 21);
+    assert_eq!(record.to_map().len(), 22);
 }
 
 #[test]
@@ -46,7 +46,10 @@ fn a_record_made_from_a_map_writes_the_maps_order() {
     let text = r#"{"workspaceId":"w1","harness":"claude","worked":true,"readAt":1700,"permissionMode":"plan"}"#;
     let record = ThreadRecord::from_map(object(text)).expect("reads");
     assert_eq!(bytes(&record), text);
-    assert_eq!(record.to_map().keys().map(String::as_str).collect::<Vec<_>>(), ["workspaceId", "harness", "worked", "readAt", "permissionMode"]);
+    assert_eq!(
+        record.to_map().keys().map(String::as_str).collect::<Vec<_>>(),
+        ["workspaceId", "harness", "worked", "readAt", "permissionMode"]
+    );
 }
 
 #[test]

@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use futures::future::{FutureExt, LocalBoxFuture};
 use indexmap::{IndexMap, IndexSet};
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use wsp_account::account::core_types::AccountError;
 use wsp_account::projects::folders::place::FolderPlaced;
 use wsp_account::projects::folders::tree::ListedWorktree;
@@ -394,8 +394,7 @@ impl ConversationsCtx for FakeConversationsCtx {
     fn live_project(&self, workspace_id: &str) -> Option<String> {
         self.live_projects.borrow().get(workspace_id).cloned()
     }
-    fn with_daemon(&self, _entry: &Entry, frame: Map<String, Value>) -> LocalBoxFuture<'static, Result<Value, AccountError>> {
-        let frame = Value::Object(frame);
+    fn with_daemon(&self, _entry: &Entry, frame: Value) -> LocalBoxFuture<'static, Result<Value, AccountError>> {
         let op = frame["op"].as_str().unwrap_or("").to_string();
         self.frames.borrow_mut().push(frame);
         let answer = self.daemon.borrow().iter().find(|(o, _)| *o == op).map(|(_, a)| a.clone());

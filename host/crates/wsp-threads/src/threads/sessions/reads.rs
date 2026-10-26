@@ -199,7 +199,9 @@ impl SessionsArea {
         if !self.ctx.tree_stands_on(workspace_id, origin.as_ref(), None) {
             self.ctx.entry_of_with(workspace_id, origin.as_ref(), entry_asks(false, false)).await?;
         }
-        self.ctx.kept_writes(workspace_id).await;
+        if let Some(writes) = self.ctx.kept_writes(workspace_id) {
+            writes.await;
+        }
         let key = attachment_key(thread_id, Some(request_id), index as f64);
         let held: Option<KeptImage> = match key {
             Some(key) if self.ctx.drives_thread(Some(thread_id), origin.as_ref()) => {

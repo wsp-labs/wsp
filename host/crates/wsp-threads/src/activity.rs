@@ -144,7 +144,7 @@ pub trait ActivityCtx {
         o: EndThread,
     ) -> Option<futures::future::LocalBoxFuture<'static, Result<Option<String>, HostError>>>;
     /// `ctx.withDaemon(entry, ask => ask(frame))`.
-    async fn with_daemon(&self, entry: &Entry, frame: Value) -> Result<Map<String, Value>, HostError>;
+    fn with_daemon(&self, entry: &Entry, frame: Value) -> futures::future::LocalBoxFuture<'static, Result<Value, AccountError>>;
     /// `ctx.slates.closeServers(threadId)`.
     fn close_servers(&self, thread_id: &str);
 }
@@ -602,7 +602,7 @@ impl Activity {
         let ptys: Vec<String> = read.procs.iter().filter(|q| listed(q)).filter_map(|q| q.pty.clone()).collect();
         for pty in ptys {
             if let Err(e) = self.ctx.with_daemon(entry, json!({ "op": "pty.kill", "ptyId": pty })).await {
-                console::warn(&format!("shell {pty} of thread {} was not ended: {}", thread_word(&t.thread_id), e.message));
+                console::warn(&format!("shell {pty} of thread {} was not ended: {}", thread_word(&t.thread_id), e.message()));
             }
         }
         self.ctx.close_servers(&t.thread_id);

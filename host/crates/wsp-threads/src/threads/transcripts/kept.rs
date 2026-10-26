@@ -13,10 +13,11 @@ use wsp_core::clock::Clock;
 use wsp_core::console;
 use wsp_core::context::Joined;
 use wsp_core::daemon_token::{daemon_token_for, daemon_token_path_of};
-use wsp_core::types::internal::{KeptImage, KeptImages, SessionEntry, ThreadRecord};
+use wsp_core::types::internal::{KeptImage, KeptImages, SessionEntry};
 use wsp_engine::machine::Machine;
 use wsp_store::store::Store;
 use wsp_wire::types::attachments::Attachment;
+use wsp_wire::types::changes::ViewedMarks;
 use wsp_wire::types::harness_picks::{model_picks, recorded_picks, RanPicks};
 use wsp_wire::views::session::{thread_key_of, thread_ran, SessionStatus, SessionView};
 use wsp_wire::views::session_events::TurnStatus;
@@ -354,8 +355,10 @@ impl TranscriptsArea {
                 continue;
             };
             let held = records.borrow().get(&thread).cloned();
-            if let Some(record) = held {
-                records.borrow_mut().insert(thread, ThreadRecord { ended: Some(status), ..record });
+            if let Some(mut record) = held {
+                record.pin_order();
+                record.ended = Some(status);
+                records.borrow_mut().insert(thread, record);
             }
         }
     }
@@ -379,8 +382,10 @@ impl TranscriptsArea {
             let worked_false = records.borrow().get(&thread).is_some_and(|r| r.worked == Some(false));
             if worked_false && thread_ran(std::slice::from_ref(view)) {
                 let held = records.borrow().get(&thread).cloned();
-                if let Some(record) = held {
-                    records.borrow_mut().insert(thread, ThreadRecord { worked: Some(true), ..record });
+                if let Some(mut record) = held {
+                    record.pin_order();
+                    record.worked = Some(true);
+                    records.borrow_mut().insert(thread, record);
                 }
             }
         }
@@ -406,7 +411,12 @@ impl TranscriptsArea {
                 (id.clone(), Value::Object(held))
             })
             .collect();
-        let marks = self.viewed_marks.borrow().get(workspace_id).filter(|m| !m.is_empty()).map(to_json);
+        let marks = self
+            .viewed_marks
+            .borrow()
+            .get(workspace_id)
+            .filter(|m| !m.is_empty())
+            .map(|m| to_json(&ViewedMarks { viewed: m.clone() })["viewed"].clone());
         let mut doc = Map::new();
         doc.insert("workspaceId".into(), json!(workspace_id));
         doc.insert("sessions".into(), Value::Array(rows));

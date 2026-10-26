@@ -19,7 +19,7 @@ use wsp_words::exit::HostError;
 use wsp_words::js_date::iso_string;
 use wsp_words::words::thread::RECORD_RESTORED;
 
-use crate::account::core_types::{AccountError, AccountResult, Entry};
+use crate::account::core_types::{AccountResult, Entry};
 
 /// One row of a provider's listing as the sweep hands it (`ListedMachine`): id, state and labels.
 #[derive(Clone, Debug, PartialEq)]
@@ -118,13 +118,6 @@ pub struct StatusArea {
 
 fn record_of_entry(entry: &Entry) -> WorkspaceRecord {
     entry.borrow().record.borrow().clone()
-}
-
-fn host_error(e: AccountError) -> HostError {
-    match e {
-        AccountError::Host(error) => error,
-        other => HostError::new(other.message()),
-    }
 }
 
 /// `Date.parse(text)` as the TS reads it: NaN where the text is no date.
@@ -266,13 +259,13 @@ impl StatusArea {
         let mut unreached: BTreeSet<String> = BTreeSet::new();
         let now = ctx.wall_now();
         let mut dropped: BTreeSet<String> = BTreeSet::new();
-        for d in ctx.store_list(DROPPED).await.map_err(host_error)? {
+        for d in ctx.store_list(DROPPED).await.map_err(HostError::from)? {
             let machine_id = d["machineId"].as_str().unwrap_or_default().to_string();
             let at = parse_date(d["at"].as_str().unwrap_or_default());
             if (ctx.now() as f64) - at < DROPPED_WATCH_MS as f64 {
                 dropped.insert(machine_id);
             } else {
-                ctx.store_delete(DROPPED, &machine_id).await.map_err(host_error)?;
+                ctx.store_delete(DROPPED, &machine_id).await.map_err(HostError::from)?;
             }
         }
         let owner = ctx.owner();
@@ -283,7 +276,7 @@ impl StatusArea {
             let stamped: Option<String> = row.labels.get(WORKSPACE_LABEL).cloned();
             let holder: Option<Entry> = stamped.as_deref().and_then(|id| ctx.live(id));
             if let (Some(stamped), None) = (&stamped, &holder) {
-                if ctx.store_get(WORKSPACES, stamped).await.map_err(host_error)?.is_some() {
+                if ctx.store_get(WORKSPACES, stamped).await.map_err(HostError::from)?.is_some() {
                     known.insert(row.id.clone());
                     failed.push(ReapFailure {
                         id: Some(row.id.clone()),
@@ -299,19 +292,22 @@ impl StatusArea {
                 }
             }
             let kept: Option<Value> = match (&stamped, &holder) {
-                (Some(stamped), None) => ctx.store_get(WORKSPACE_NAMES, stamped).await.map_err(host_error)?,
+                (Some(stamped), None) => ctx.store_get(WORKSPACE_NAMES, stamped).await.map_err(HostError::from)?,
                 _ => None,
             };
             if let (Some(stamped), None) = (&stamped, &kept) {
                 known.insert(row.id.clone());
                 unreached.insert(row.id.clone());
-                let mut seen_at: Option<String> =
-                    ctx.store_get(UNRECORDED, &row.id).await.map_err(host_error)?.and_then(|u| u["seenAt"].as_str().map(str::to_string));
+                let mut seen_at: Option<String> = ctx
+                    .store_get(UNRECORDED, &row.id)
+                    .await
+                    .map_err(HostError::from)?
+                    .and_then(|u| u["seenAt"].as_str().map(str::to_string));
                 if seen_at.is_none() {
                     let stamp = iso_of(ctx.now());
                     ctx.store_put(UNRECORDED, &row.id, json!({ "machineId": row.id, "place": place, "seenAt": stamp }))
                         .await
-                        .map_err(host_error)?;
+                        .map_err(HostError::from)?;
                     seen_at = Some(stamp);
                 }
                 let goes_at = parse_date(seen_at.as_deref().unwrap_or_default()) + UNRECORDED_DELETE_MS as f64;
@@ -347,7 +343,7 @@ impl StatusArea {
                         continue;
                     }
                 }
-                ctx.store_delete(UNRECORDED, &row.id).await.map_err(host_error)?;
+                ctx.store_delete(UNRECORDED, &row.id).await.map_err(HostError::from)?;
                 let born = row.labels.get(CREATED_AT_LABEL).map(|b| parse_date(b)).filter(|b| !b.is_nan());
                 reaped.push(ReapedMachine {
                     id: row.id.clone(),
@@ -416,7 +412,7 @@ impl StatusArea {
             }
             let record: WorkspaceRecord = serde_json::from_value(Value::Object(doc)).map_err(|e| HostError::new(e.to_string()))?;
             let entry = ctx.attach(record.clone());
-            ctx.persist(&record).await.map_err(host_error)?;
+            ctx.persist(&record).await.map_err(HostError::from)?;
             if phase == "running" {
                 ctx.sync_daemon(&entry);
             }
@@ -425,10 +421,10 @@ impl StatusArea {
             ctx.emit_status(&entry, &reach, RECORD_RESTORED).await;
             adopted.push(AdoptedMachine { id: row.id.clone(), workspace_id: stamped, name: record.name.clone(), phase: record.phase });
         }
-        for u in ctx.store_list(UNRECORDED).await.map_err(host_error)? {
+        for u in ctx.store_list(UNRECORDED).await.map_err(HostError::from)? {
             let machine_id = u["machineId"].as_str().unwrap_or_default().to_string();
             if u["place"].as_str() == Some(place) && !unreached.contains(&machine_id) {
-                ctx.store_delete(UNRECORDED, &machine_id).await.map_err(host_error)?;
+                ctx.store_delete(UNRECORDED, &machine_id).await.map_err(HostError::from)?;
             }
         }
         Ok((adopted, reaped))

@@ -107,6 +107,7 @@ const endings = [
   ["a record that worked", worked],
   ["a record that ended before", { ...base, worked: true, ended: "completed" }],
   ["a record with marks", { ...base, readAt: 1, settledAt: 2, worked: true }],
+  ["a record that holds clouds", { ...base, worked: true, clouds: ["c1"] }],
 ];
 for (const [name, before] of endings) add("end", name, before, { ended: "failed" }, { ...before, ended: "failed" });
 

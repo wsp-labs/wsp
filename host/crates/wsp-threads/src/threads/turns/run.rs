@@ -246,7 +246,7 @@ impl TurnState {
         detach(
             &self.ctx,
             async move {
-                let _ = ctx.persist_sessions(&workspace_id).await;
+                ctx.persist_sessions(&workspace_id).await;
             }
             .boxed_local(),
         );
@@ -981,7 +981,7 @@ impl TurnsArea {
         if let Some(pid) = started.pid() {
             if ctx.shared_daemon(&state.entry) {
                 let groups = ctx.turn_groups();
-                groups.borrow_mut().entry(workspace_id.clone()).or_default().insert(pid, state.thread_id.clone());
+                groups.borrow_mut().entry(workspace_id.clone()).or_default().insert(i64::from(pid), state.thread_id.clone());
                 ctx.arm_roots_recheck();
             }
         }

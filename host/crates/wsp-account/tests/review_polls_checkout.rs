@@ -21,7 +21,6 @@ use wsp_core::types::api::FolderFor;
 use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::pending::Store;
 use wsp_core::types::wiring::{RunningExec, WorkspaceRecord};
-use wsp_wire::types::changes::ViewedMarks;
 use wsp_wire::types::pull_request::{GitUpdateReply, PullRequestPage};
 use wsp_wire::types::tree::TreeRecord;
 use wsp_wire::views::preferences::Preferences;
@@ -200,7 +199,7 @@ impl GitCtx for Slow {
     async fn draft_for(&self, entry: &Entry, agent: &str, prompt_file: &str, model: Option<&str>) -> Result<Option<String>, HostError> {
         self.0.draft_for(entry, agent, prompt_file, model).await
     }
-    fn viewed_marks(&self) -> Rc<std::cell::RefCell<indexmap::IndexMap<String, ViewedMarks>>> {
+    fn viewed_marks(&self) -> Rc<std::cell::RefCell<indexmap::IndexMap<String, indexmap::IndexMap<String, String>>>> {
         self.0.viewed_marks()
     }
     async fn persist_sessions(&self, workspace_id: &str) -> Result<(), HostError> {

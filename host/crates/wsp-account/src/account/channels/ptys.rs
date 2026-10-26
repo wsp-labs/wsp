@@ -271,7 +271,7 @@ impl ChannelsArea {
 
     /// Y10, channels.ts:495.
     pub fn arm_roots_recheck(self: &Rc<Self>) {
-        if self.ctx.roots_recheck().borrow().is_some() {
+        if self.ctx.state().with(|s| s.roots_recheck.is_some()) {
             return;
         }
         self.schedule_roots_tick();
@@ -287,7 +287,7 @@ impl ChannelsArea {
                 }
             }),
         );
-        *self.ctx.roots_recheck().borrow_mut() = Some(cancel);
+        self.ctx.state().with(|s| s.roots_recheck = Some(cancel));
     }
 
     fn roots_tick(self: &Rc<Self>) {
@@ -299,7 +299,7 @@ impl ChannelsArea {
             self.schedule_roots_tick();
             return;
         }
-        *self.ctx.roots_recheck().borrow_mut() = None;
+        self.ctx.state().with(|s| s.roots_recheck = None);
     }
 
     /// Y10, channels.ts:507.

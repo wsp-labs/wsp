@@ -15,9 +15,10 @@ use futures::future::{LocalBoxFuture, Shared};
 use futures::FutureExt;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Value};
-use wsp_account::projects::folders::{FoldersCtx, HereDaemon, SweepState, WorktreeAsk, WorktreeRemove};
+use wsp_account::projects::folders::{FoldersCtx, HereDaemon, WorktreeAsk, WorktreeRemove};
 use wsp_account::projects::workspaces::seam::{Base, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, ProjectsHeld};
 use wsp_core::clock::Clock;
+use wsp_core::context::{RuntimeState, StateCell};
 use wsp_core::ids::Ids;
 use wsp_core::types::harness::StartPicksAsked;
 use wsp_core::types::internal::ThreadRecord;
@@ -89,7 +90,7 @@ pub struct FakeFolders {
     pub state_path: Cell<bool>,
     /// `local.hereDaemon`.
     pub here: RefCell<Option<Rc<dyn HereDaemon>>>,
-    pub sweep: Rc<RefCell<SweepState>>,
+    pub state: StateCell<RuntimeState>,
     /// Workspace ids a turn runs in.
     pub running: RefCell<IndexSet<String>>,
     /// Workspace ids `notARepo` answers true for.
@@ -109,7 +110,7 @@ impl FakeFolders {
             copier: Cell::new(true),
             state_path: Cell::new(true),
             here: RefCell::new(None),
-            sweep: Rc::new(RefCell::new(SweepState::default())),
+            state: StateCell::new(RuntimeState::default()),
             running: RefCell::new(IndexSet::new()),
             not_repo: RefCell::new(IndexSet::new()),
             branches: RefCell::new(IndexMap::new()),
@@ -371,8 +372,8 @@ impl FoldersCtx for FakeFolders {
         self.base.call("local_exec", json!({ "cmd": cmd, "timeoutMs": timeout_ms, "stdin": stdin.as_ref().map(Vec::len) }));
         self.base.answer_as("local_exec", || ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() })
     }
-    fn sweep_state(&self) -> Rc<RefCell<SweepState>> {
-        self.sweep.clone()
+    fn state(&self) -> StateCell<RuntimeState> {
+        self.state.clone()
     }
     fn spawn(&self, f: LocalBoxFuture<'static, ()>) {
         tokio::task::spawn_local(f);

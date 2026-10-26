@@ -283,6 +283,7 @@ impl SessionsArea {
                 record.cut_owed = None;
             }
             if let Some(before) = before.clone() {
+                record.pin_order();
                 record.rewound = Some(wsp_core::types::internal::Rewound { before, at: JsNumber(ctx.clock().now() as f64) });
             }
         }
@@ -346,7 +347,7 @@ fn besides_running(ctx: &Rc<dyn SessionsCtx>, workspace_id: &str, thread_id: &st
 
 /// W3, W14: the rewind's end: rows persisted, transcript flushed, `thread.rewound` said.
 async fn done(ctx: &Rc<dyn SessionsCtx>, workspace_id: &str, thread_id: &str) -> Result<(), HostError> {
-    ctx.persist_sessions(workspace_id).await?;
+    ctx.persist_sessions(workspace_id).await;
     ctx.flush_transcript(workspace_id).await?;
     if let Ok(event) =
         serde_json::from_value::<EventUnion>(json!({ "type": "thread.rewound", "workspaceId": workspace_id, "threadId": thread_id }))

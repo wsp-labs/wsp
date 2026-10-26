@@ -103,7 +103,7 @@ pub struct TranscriptsArea {
     /// transcripts.ts:484
     pub warming: Cell<bool>,
     /// transcripts.ts:615
-    pub viewed_marks: RefCell<IndexMap<String, IndexMap<String, String>>>,
+    pub viewed_marks: Rc<RefCell<IndexMap<String, IndexMap<String, String>>>>,
     /// transcripts.ts:717
     pub accrued: RefCell<IndexMap<String, f64>>,
 }
@@ -126,7 +126,7 @@ impl TranscriptsArea {
             writing: RefCell::default(),
             flushes_queued: RefCell::default(),
             warming: Cell::new(false),
-            viewed_marks: RefCell::default(),
+            viewed_marks: Rc::default(),
             accrued: RefCell::default(),
         });
         let weak = Rc::downgrade(&area);

@@ -14,8 +14,17 @@ fn cases(road: &str) -> Vec<Value> {
     all.into_iter().filter(|c| c["road"] == road).collect()
 }
 
-fn held(case: &Value) -> ThreadRecord {
-    ThreadRecord::from_map(case["before"].as_object().expect("a record").clone()).expect("the record literal")
+/// The record as a road made it (its keys in the order the TS inserted them), and again as a restart reads it back,
+/// which writes the struct's order, where that is the same record.
+fn variants(before: &Value) -> Vec<ThreadRecord> {
+    let road = ThreadRecord::from_map(before.as_object().expect("a record").clone()).expect("the record literal");
+    let hydrated: ThreadRecord = serde_json::from_value(before.clone()).expect("the record literal");
+    let same = serde_json::to_string(&hydrated).expect("serializes") == serde_json::to_string(&road).expect("serializes");
+    if same {
+        vec![road, hydrated]
+    } else {
+        vec![road]
+    }
 }
 
 fn wrote(host: &FakeHost, thread: &str) -> String {
@@ -27,32 +36,38 @@ fn access_on_a_thread_with_no_row_writes_the_bytes_node_writes() {
     let all = cases("access");
     assert_eq!(all.len(), 4);
     for case in all {
-        run_local(async move {
-            let (host, area) = host();
-            host.add_record("t9", "w1", held(&case));
-            adapters(&host, StubAdapter::default());
-            let got = area.access_row("t9", "plan", None).await.expect("an answer");
-            assert_eq!(json_of(&got), json!({ "outcome": "set" }));
-            assert_eq!(wrote(&host, "t9"), case["after"].as_str().expect("the bytes"), "{}", case["name"]);
-        });
+        for held in variants(&case["before"]) {
+            let case = case.clone();
+            run_local(async move {
+                let (host, area) = host();
+                host.add_record("t9", "w1", held);
+                adapters(&host, StubAdapter::default());
+                let got = area.access_row("t9", "plan", None).await.expect("an answer");
+                assert_eq!(json_of(&got), json!({ "outcome": "set" }));
+                assert_eq!(wrote(&host, "t9"), case["after"].as_str().expect("the bytes"), "{}", case["name"]);
+            });
+        }
     }
 }
 
 #[test]
 fn access_on_a_thread_with_a_row_writes_the_bytes_node_writes() {
     for case in cases("access") {
-        run_local(async move {
-            let (host, area) = host();
-            let no_record = case["name"] == "a thread with no record yet";
-            if !no_record {
-                host.add_record("t1", "w1", held(&case));
-            }
-            let log = Rc::new(RefCell::new(Vec::new()));
-            put(&host, "turn-1", "w1", json!({ "threadId": "t1", "status": "completed" }), Some(StubHandle::new(&log)));
-            adapters(&host, StubAdapter::default());
-            let got = area.access_row("turn-1", "plan", None).await.expect("an answer");
-            assert_eq!(json_of(&got), json!({ "outcome": "set" }));
-            assert_eq!(wrote(&host, "t1"), case["after"].as_str().expect("the bytes"), "{}", case["name"]);
-        });
+        for held in variants(&case["before"]) {
+            let case = case.clone();
+            run_local(async move {
+                let (host, area) = host();
+                let no_record = case["name"] == "a thread with no record yet";
+                if !no_record {
+                    host.add_record("t1", "w1", held);
+                }
+                let log = Rc::new(RefCell::new(Vec::new()));
+                put(&host, "turn-1", "w1", json!({ "threadId": "t1", "status": "completed" }), Some(StubHandle::new(&log)));
+                adapters(&host, StubAdapter::default());
+                let got = area.access_row("turn-1", "plan", None).await.expect("an answer");
+                assert_eq!(json_of(&got), json!({ "outcome": "set" }));
+                assert_eq!(wrote(&host, "t1"), case["after"].as_str().expect("the bytes"), "{}", case["name"]);
+            });
+        }
     }
 }
