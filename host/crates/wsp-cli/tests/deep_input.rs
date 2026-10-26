@@ -88,9 +88,11 @@ fn table_chain_past_node_body(depth: usize) {
 
 fn reply_body(depth: usize) {
     let text = format!(r#"{{"id":1,"ok":true,"values":{}}}"#, nested(depth));
-    let read = parse_frame(&text).expect("a frame is read, past the cap with its containers past 128 levels kept empty");
-    if depth < 1_000 {
-        assert_eq!(stringify(&read), text, "node reads and writes it whole");
+    let read = parse_frame(&text);
+    if depth < 500 {
+        assert_eq!(stringify(&read.expect("a frame under the cap is read")), text, "node reads and writes it whole");
+    } else {
+        assert_eq!(read, None, "a frame past the cap is not read, and the process holds");
     }
 }
 
@@ -116,41 +118,42 @@ fn a_process_chain_20000_deep_fails_the_line_not_the_process() {
     in_child("a_process_chain_20000_deep_fails_the_line_not_the_process", 20_000, table_chain_past_node_body);
 }
 
-// Ruling 2: the frame holds a level more than `depth` (its own object), so 1,000 of them is 1,001 levels, one past the cap of
-// the catalog's port, and the frame is read by the lax reader instead; the whole read is asserted below 1,000.
-// json_whole.rs:28 `parse_frame` falls to wsp-catalog's JSON.parse port (json_parse.rs, MAX_DEPTH 1000) for any reply
-// past serde_json's 128, and the port dies at 876, under its own cap. Fed by every reply the host sends (a slate value an
-// agent stored up to the slates' 500 bound reads; one past 876 cannot reach here today). node's JSON.parse has no depth
-// limit and reads the frame at any depth.
+// Ruling 1 of the round 2 brief: one cap of 500 levels for the whole host. The frame holds a level more than `depth` (its
+// own object), so a reply 499 deep is 500 levels, the cap of the catalog's port, and is read whole.
+// json_whole.rs `parse_frame` falls to wsp-catalog's JSON.parse port for any reply past serde_json's 128. Fed by every
+// reply the host sends. node's JSON.parse has no depth limit and reads the frame at any depth.
 #[test]
-fn a_reply_1000_deep_reads_whole() {
-    in_child("a_reply_1000_deep_reads_whole", 1_000, reply_body);
+fn a_reply_499_deep_reads_whole() {
+    in_child("a_reply_499_deep_reads_whole", 499, reply_body);
 }
 
+// Past the cap the read fails (m1 of the review: "past the cap the read must fail, no lax fallback tree"); it answers, and the
+// process holds.
 #[test]
-fn a_reply_200000_deep_is_read_not_an_abort() {
-    in_child("a_reply_200000_deep_is_read_not_an_abort", 200_000, reply_body);
+fn a_reply_200000_deep_is_refused_not_an_abort() {
+    in_child("a_reply_200000_deep_is_refused_not_an_abort", 200_000, reply_body);
 }
 
 // verbs/slate.rs:114 `js_value` recurses once per level over a `wsp slate state $x=<json>` word (the port reads it whole
-// to 1,000). Dies at 496. node reads and sends the word whole to 3,610 levels, where JSON.stringify throws.
+// to 500, ruling 1 of the round 2 brief). Dies at 496. node reads and sends the word whole to 3,610 levels, where JSON.stringify
+// throws.
 #[test]
-fn a_state_word_1000_deep_is_sent_whole() {
-    in_child("a_state_word_1000_deep_is_sent_whole", 1_000, state_word_body);
+fn a_state_word_500_deep_is_sent_whole() {
+    in_child("a_state_word_500_deep_is_sent_whole", 500, state_word_body);
 }
 
 fn reply_cap_body(depth: usize) {
     let frame = |levels: usize| format!(r#"{{"id":1,"values":{}}}"#, nested(levels - 1));
     let read = parse_frame(&frame(depth)).expect("a frame at the cap is read");
     assert_eq!(stringify(&read), frame(depth), "{depth} levels read whole");
-    let past = parse_frame(&frame(depth + 1)).expect("a frame past the cap is still answered");
-    assert_ne!(stringify(&past), frame(depth + 1), "{} levels are not read whole", depth + 1);
+    assert_eq!(parse_frame(&frame(depth + 1)), None, "{} levels are refused, not read as a shallower tree", depth + 1);
 }
 
-// The cap of the catalog's port as a reply meets it, on the 1 MiB stack: 1,000 levels read whole, and 1,001 are not (ruling 2).
+// The cap of the catalog's port as a reply meets it, on the 1 MiB stack: 500 levels read whole, and 501 are refused. The
+// review's m1: "past the cap the read must fail, no lax fallback tree"; this test asserted the shallower tree (`assert_ne!`).
 #[test]
-fn a_reply_reads_1000_levels_whole_and_not_1001() {
-    in_child("a_reply_reads_1000_levels_whole_and_not_1001", 1000, reply_cap_body);
+fn a_reply_reads_500_levels_whole_and_not_501() {
+    in_child("a_reply_reads_500_levels_whole_and_not_501", 500, reply_cap_body);
 }
 
 fn chain_time_body(depth: usize) {
@@ -233,8 +236,8 @@ fn state_cap_body(depth: usize) {
     assert_ne!(stringify(&value), nested(depth + 1), "{} levels are not read whole", depth + 1);
 }
 
-// verbs/slate.rs `state_value` at the cap of the port, on the 1 MiB stack (ruling 2).
+// verbs/slate.rs `state_value` at the cap of the port, on the 1 MiB stack (ruling 1 of the round 2 brief).
 #[test]
-fn a_state_word_reads_1000_levels_whole_and_not_1001() {
-    in_child("a_state_word_reads_1000_levels_whole_and_not_1001", 1000, state_cap_body);
+fn a_state_word_reads_500_levels_whole_and_not_501() {
+    in_child("a_state_word_reads_500_levels_whole_and_not_501", 500, state_cap_body);
 }
