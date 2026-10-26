@@ -394,3 +394,17 @@ fn a_unit_runs_the_tapes_that_send_its_ops_and_never_a_held_back_one() {
     let held: std::collections::BTreeSet<String> = ["lists/workspaces".to_string()].into();
     assert!(xtask::unit::visible_tapes(&unit, &tapes, &held).is_empty());
 }
+
+#[test]
+fn a_unit_runs_only_its_own_test_files_and_a_folder_of_tests_runs_the_package() {
+    let (_root, unit) = unit_repo();
+    assert_eq!(
+        xtask::unit::test_args(&unit),
+        ["test", "--offline", "--manifest-path", "host/Cargo.toml", "--package", "wsp-host", "--test", "workspaces"]
+    );
+    let folder = xtask::unit::Unit { tests: vec!["host/tests".into()], filter: Some("lists".into()), ..unit };
+    assert_eq!(
+        xtask::unit::test_args(&folder),
+        ["test", "--offline", "--manifest-path", "host/Cargo.toml", "--package", "wsp-host", "--", "lists"]
+    );
+}

@@ -121,18 +121,34 @@ pub fn visible_tapes(unit: &Unit, tapes: &[Tape], held: &BTreeSet<String>) -> BT
 /// whose cache server is out of reach there.
 pub fn run_tests(root: &Path, unit: &Unit) -> Result<bool, String> {
     let mut cmd = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
-    cmd.current_dir(root).env("RUSTC_WRAPPER", "").args([
-        "test",
-        "--offline",
-        "--manifest-path",
-        &unit.manifest,
-        "--package",
-        &unit.package,
-    ]);
-    if let Some(filter) = &unit.filter {
-        cmd.args(["--", filter]);
-    }
+    cmd.current_dir(root).env("RUSTC_WRAPPER", "").args(test_args(unit));
     cmd.status().map(|s| s.success()).map_err(|e| format!("cargo test: {e}"))
+}
+
+/// What `cargo test` is handed for a unit. Test files under the crate's `tests/` run as their own targets and no other,
+/// since cargo stops at the first red target and another packet's file stays red until that packet lands; a folder
+/// runs the package's tests.
+pub fn test_args(unit: &Unit) -> Vec<String> {
+    let mut args: Vec<String> =
+        ["test", "--offline", "--manifest-path", &unit.manifest, "--package", &unit.package].map(String::from).to_vec();
+    let tests_dir = Path::new(&unit.manifest).parent().unwrap_or(Path::new("")).join("tests");
+    let stems: Option<Vec<String>> = unit
+        .tests
+        .iter()
+        .map(|t| {
+            let t = Path::new(t);
+            (t.parent() == Some(tests_dir.as_path()) && t.extension().is_some_and(|e| e == "rs"))
+                .then(|| t.file_stem().map(|s| s.to_string_lossy().into_owned()))
+                .flatten()
+        })
+        .collect();
+    for stem in stems.unwrap_or_default() {
+        args.extend(["--test".to_string(), stem]);
+    }
+    if let Some(filter) = &unit.filter {
+        args.extend(["--".to_string(), filter.clone()]);
+    }
+    args
 }
 
 /// The folder cargo builds the unit in, the one the sandbox leaves writable for its tests.
