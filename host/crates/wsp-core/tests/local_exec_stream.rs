@@ -800,6 +800,32 @@ mod a_real_turn_s_process_group {
         assert_eq!(stream.exited().await, Some(0));
     });
 
+    // local-exec.test.ts:659-678 (62fededd7): the wait's outcome is taken when write_after is called, which a Rust
+    // future shows as being polled at once, while an earlier held line still holds the queue.
+    own_group_test!(a_wait_already_refused_while_an_earlier_line_is_still_held_is_taken_at_once_and_drops_its_line, 20_000, {
+        let c = Case::new("wsp-localexec-group-");
+        let stream = c.ended(c.factory().launch("cat", with_input(&["seed"])));
+        let (due, rx) = oneshot::channel::<()>();
+        stream.write_after("first".into(), settle_on(rx)).expect("a held line");
+        let polled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let noted = polled.clone();
+        let refused: Settle = Box::pin(async move {
+            noted.store(true, std::sync::atomic::Ordering::SeqCst);
+            Err("stopped".to_string())
+        });
+        stream.write_after("never".into(), refused).expect("a held line");
+        sleep_ms(100).await;
+        assert!(
+            polled.load(std::sync::atomic::Ordering::SeqCst),
+            "the refused wait was not taken while an earlier line still held the queue"
+        );
+        due.send(()).unwrap();
+        let channel = format!("{}.in", stream.run().unwrap());
+        wait_for("the first line in the channel", 5_000, || support::read(&channel) == "seed\nfirst\n").await;
+        stream.close_input();
+        assert_eq!(support::lines_ok(&*stream).await, strs(&["seed", "first"]));
+    });
+
     own_group_test!(a_line_written_or_an_end_asked_for_before_a_held_seed_is_due_goes_after_the_seed, 20_000, {
         let c = Case::new("wsp-localexec-group-");
         let factory = c.factory();
