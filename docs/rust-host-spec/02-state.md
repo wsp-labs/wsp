@@ -112,7 +112,7 @@ The host throws these and goes no further; it never moves a file itself.
 
 2.28. The checkpointer MUST open its own connection with `mode=rw` (it never creates the file), set the same `busy_timeout`, end when the database file is gone, and checkpoint only when `data_version` moved, counting a pass done only when the WAL's frames all went (`log === checkpointed`). A worker that ends early is made again 2 s later, at most twice in a row (three workers in all); one that lived 20 s or more resets the count. Giving up logs `the checkpoints of <db> stopped (<why>), so a commit takes one past 64 MB of WAL` (`sqlite-store.ts:59,78-131`).
 
-2.29. A fresh database MUST end its open with the schema's statements run (the TS host's seven less `migrations`: a brand-new file may be made without it), the shape row written with shape 2, and no other row; the runtime's start then writes `owner` and `reads` (rule 2.23). An existing file's `migrations` table and its rows (`('store', 1)` and `('transcripts', 1)`, `sqlite-store.ts:141-151`) MUST be left as they are: the Rust host neither drops the table nor reads it.
+2.29. A fresh database MUST end its open with the TS host's seven statements run, `migrations` included, its two rows written (`('store', 1)` and `('transcripts', 1)`, `sqlite-store.ts:141-151`), the shape row written with shape 2, and no other row; the runtime's start then writes `owner` and `reads` (rule 2.23). A file made without `migrations` is one a TS host cannot open: it runs its first migration again and fails with `table collections already exists` (measured by `wsp-store`'s cross-host test, 26 Oct 2026). An existing file's `migrations` table and rows MUST be left as they are; the Rust host never reads them.
 
 ## Transcripts
 
@@ -215,7 +215,7 @@ A snooze timer whose time is past is not armed; a limit-resume timer whose time 
 
 ## Proposal 3: the store
 
-> **Proposal 3, accepted with a change by the owner (26 Oct 2026, #2442):** SQLite through `rusqlite` with the bundled SQLite, the same tables, pragmas and JSON-bag layout, and the Rust host **opens today's `state.db` as it is**: today's shape number, the existing `migrations` table tolerated, the records read and written exactly as the TS host does. A brand-new file runs the statements above less `migrations`. No import, no shape upgrade and no migration code: a database older than today's shape is refused with the TS host's own line (rule 2.19). Why: the launch ships on the TS host, so people will have real threads and projects before the Rust host takes over, and starting fresh would wipe them at the switch.
+> **Proposal 3, accepted with a change by the owner (26 Oct 2026, #2442):** SQLite through `rusqlite` with the bundled SQLite, the same tables, pragmas and JSON-bag layout, and the Rust host **opens today's `state.db` as it is**: today's shape number, the existing `migrations` table tolerated, the records read and written exactly as the TS host does. A brand-new file runs all seven statements above and writes the two `migrations` rows, so a TS host can open it. No import, no shape upgrade and no migration code: a database older than today's shape is refused with the TS host's own line (rule 2.19). Why: the launch ships on the TS host, so people will have real threads and projects before the Rust host takes over, and starting fresh would wipe them at the switch.
 
 Why the same layout and not typed tables:
 
@@ -226,7 +226,7 @@ Why the same layout and not typed tables:
 
 What the Rust host drops (every one is in today's code, `sqlite-store.ts`, `store.ts`, `machines/boot.ts`, `images/records.ts`, `threads/transcripts.ts`, `transcript-reader.ts`):
 
-- the per-module migration runner (the `migrations` table itself stays where a file has it; a new file is made without it);
+- the per-module migration runner (the `migrations` table and its two rows stay, in a new file too, and nothing in the Rust host reads them);
 - the `state.json` import, `state.json.imported`, the JSON store and `WSP_STATE_STORE=json`;
 - transcripts kept inside the state file or as blobs, and their move to rows (`moveBlobs`);
 - events without `pos`, indexes missing `taken`, `children` or `pos`;
