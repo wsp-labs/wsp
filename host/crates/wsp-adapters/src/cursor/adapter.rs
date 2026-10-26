@@ -16,9 +16,9 @@ use crate::claude::turn::{fire, INTERRUPT_GRACE_MS, RUN_EXIT_MS};
 use crate::cursor::command::{build_command, build_env, BuildCommandOptions, CursorEnvOptions};
 use crate::pending::{refused_turn, Refusal};
 use crate::port::{
-    end_after_result, end_run, AdapterAttachOptions, AdapterError, AdapterEvent, AgentLaunch, AttachRunOptions, Attached, DeltaKind, Env,
-    ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, HarnessAdapter, HarnessSession, HarnessStartOptions, OnEvent, SharedFuture,
-    TurnDelta, TurnResult, TurnStatus, TurnTokens,
+    end_after_result, end_run, started, AdapterAttachOptions, AdapterError, AdapterEvent, AgentLaunch, AttachRunOptions, Attached,
+    DeltaKind, Env, ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, HarnessAdapter, HarnessSession, HarnessStartOptions, OnEvent,
+    SharedFuture, TurnDelta, TurnResult, TurnStatus, TurnTokens,
 };
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::session::TurnRefusal;
@@ -445,7 +445,7 @@ impl CursorCore for Turn {
         self.st.borrow_mut().interrupt_requested = true;
         let stream = self.stream.clone();
         let grace = self.grace_ms;
-        async move { end_run(&*stream, grace).await }.boxed_local()
+        started(async move { end_run(&*stream, grace).await }.boxed_local())
     }
 }
 

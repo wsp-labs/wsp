@@ -134,6 +134,10 @@ the attached turn's result leaves no process for the next message (rule T5).
 STDERR_TAIL_LINES 5, RUN_EXIT_MS 10000 (`result_exit_ms`), INTERRUPT_GRACE_MS 5000, STEER_JOIN_MS 10000,
 STOP_TASK_WAIT_MS 10000, each the default where its dep is `None`. Request ids come off one counter per turn, from 1.
 
+## After the port
+
+- A tool call's input nested past 128 levels is shown with its inner containers emptied (`wsp-words` `KEPT_DEPTH`, which guards the stack); the TS prints it whole (adapter.ts:565). No tool sends input that deep. Ruled on #2447, the review's finding 5.
+
 ## Rules added for the port (numbered; each value printed by the TS at a3b870a6e)
 
 - **T1.** On a kept turn (`keep: true`) the result's `close_input` closes the turn's view, not the process's input, and

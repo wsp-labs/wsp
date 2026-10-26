@@ -878,7 +878,7 @@ async fn earlier_reads_one_conversation_off_transcripts_read_and_is_gone_where_n
                 },
                 ConversationLine { who: "agent".to_string(), text: "done".to_string(), tool: None, at: None },
             ],
-            earlier: 4,
+            earlier: 4.0,
         })
     );
     assert_eq!(
@@ -906,7 +906,7 @@ async fn earlier_asks_the_daemon_for_the_end_of_the_file_alone_where_the_read_na
             cwd: None,
             title: None,
             lines: vec![ConversationLine { who: "agent".to_string(), text: "done".to_string(), tool: None, at: None }],
-            earlier: 0
+            earlier: 0.0
         })
     );
     assert_eq!(
