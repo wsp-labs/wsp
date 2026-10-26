@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Round 2 of wsp-labs/wsp-map#2448 (wsp-words): an End over a list that holds a pid twice.
+//! Round 2 of wsp-labs/wsp-map#2448 (wsp-words): an End over a list that holds a pid twice, and a tree the words reader keeps
+//! cloned and dropped on a 1 MiB stack.
 use wsp_frames::{ProcEntry, ProcOwnedBy, ProcOwner};
 use wsp_wire::views::activity::{ActivityRead, EndPlan};
 use wsp_words::views::activity::end_plan;
@@ -62,4 +63,33 @@ fn an_end_over_a_pid_listed_twice_with_no_cycle_takes_it_twice_as_node_does() {
 fn an_end_over_a_parent_cycle_fails_as_node_does() {
     let rows = vec![row(1, 99), row(2, 1), row(1, 2)];
     assert_eq!(ending(rows, 1), Err("Maximum call stack size exceeded".to_string()));
+}
+
+// ruling 3 of the round 2 brief: v8_json::parse_json reads 500 levels of objects, keeps 128 and reads empty containers below; the
+// tree it hands back is cloned and dropped on a 1 MiB stack.
+#[test]
+fn a_tree_of_500_object_levels_read_by_v8_json_is_cloned_and_dropped() {
+    let name = "a_tree_of_500_object_levels_read_by_v8_json_is_cloned_and_dropped";
+    if std::env::var("ROUND2_2448_CHILD").as_deref() == Ok(name) {
+        std::thread::Builder::new()
+            .stack_size(1024 * 1024)
+            .spawn(|| {
+                let text = format!("{}1{}", "{\"a\":".repeat(500), "}".repeat(500));
+                let read = wsp_words::v8_json::parse_json(&text).expect("a text at 500 levels is read");
+                let copy = read.clone();
+                assert_eq!(copy, read);
+                drop(copy);
+                drop(read);
+            })
+            .unwrap()
+            .join()
+            .expect("the body held");
+        return;
+    }
+    let out = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", name, "--nocapture", "--test-threads=1"])
+        .env("ROUND2_2448_CHILD", name)
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "the child died ({}): {}", out.status, String::from_utf8_lossy(&out.stderr).lines().last().unwrap_or(""));
 }
