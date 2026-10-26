@@ -69,8 +69,8 @@ Project import and copy roads carrying a Codex config (#2443).
    `toml` crate, so a file reads as the same tree or fails with the same message (the first line in
    `refer_codex`'s "the file is not valid TOML (...)", the whole message with its code block where the TS lets it
    through). `oracle/toml_parse.oracle.mjs` writes 5329 texts with smol-toml's answer; `tests/toml_parse.rs` checks
-   them. Differences: nesting is refused past 256 levels (smol-toml 1000), and V8's lenient legacy date reader is not
-   ported (a date shape TOML has reads as it does).
+   them. Differences: nesting is capped as the After the port list says, and V8's lenient legacy date reader is not ported (a
+   date shape TOML has reads as it does).
 4. `decode_toml` throws as `String.fromCodePoint` throws on a `\u` or `\U` without its digits ("Invalid code point
    NaN") or past U+10FFFF; `read_codex` reads that as no server, the editors, `refer` and the Codex hooks carry the
    error.
@@ -78,7 +78,7 @@ Project import and copy roads carrying a Codex config (#2443).
 
 ## After the port
 
-- None found.
+- smol-toml reads tables nested by a `[a.a.a]` header or a dotted key to any depth (mcp.ts:1662, mcp-codex.ts:44 and :60, mcp-launch.ts:181; its `maxDepth` of 1000, parse.js:108, counts arrays and inline tables only), and the port refuses a tree deeper than 1,000 levels with smol-toml's own words for excessive nesting. Tables, arrays and inline tables count together in that 1,000, so a file with `[a.b]` and an array 999 deep inside it is refused where smol-toml reads it. A `toml::Table` drops recursively (dies at 3,615 levels) and a `serde_json::Value` clones recursively (dies at 1,183), so a tree kept deeper could abort the host wherever it is cloned or dropped.
 
 ## Rules to tests
 

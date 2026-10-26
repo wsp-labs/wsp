@@ -27,17 +27,25 @@ type R<T> = Result<T, String>;
 /// The tree smol-toml's `parse` returns; an error is the first line of its message.
 pub fn parse_toml(text: &str) -> Result<toml::Table, String> {
     let mut ctx = Ctx { s: text.encode_utf16().collect(), p: 0, d: MAX_DEPTH };
-    Ok(table_value(parse(&mut ctx)?))
+    Ok(table_value(&parse(&mut ctx)?))
 }
 
-/// smol-toml allows 1000 levels of arrays and inline tables; the recursion here stays within a test thread's stack at
-/// this many, and the words past it are smol-toml's own.
-const MAX_DEPTH: i32 = 256;
+/// smol-toml's own cap on nested arrays and inline tables, and the one this reader keeps on every level of a tree: the
+/// tables a header or a dotted key nests count too (smol-toml has no cap on them), so a tree it reads is never deeper
+/// than a `serde_json::Value` or a `toml::Table` clones and drops. The words past it are smol-toml's own.
+const MAX_DEPTH: i32 = 1000;
+const TOO_DEEP: &str = "document contains excessively nested structures. aborting.";
 
 const BASIC: u16 = 0x22;
 const LITERAL: u16 = 0x27;
 
-#[derive(Debug)]
+/// An array or an inline table `extract_value` has open: where it began, what it holds, and for an inline table the key
+/// of the member being read and how many levels that key's tables took from the depth left.
+enum Reading {
+    Array { start: usize, items: Vec<Node> },
+    Inline { start: usize, res: Tbl, key: Vec<String>, nested: i32 },
+}
+
 enum Node {
     Table(Tbl),
     Array(Vec<Node>),
@@ -48,11 +56,33 @@ enum Node {
     Date(String),
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 struct Tbl {
     map: IndexMap<String, Node>,
     /// An inline table: nothing is added to it by a later key.
     sealed: bool,
+}
+
+impl Node {
+    /// Moves what this node holds into `into`, leaving it empty.
+    fn take_children(&mut self, into: &mut Vec<Node>) {
+        match self {
+            Node::Table(t) => into.extend(std::mem::take(&mut t.map).into_values()),
+            Node::Array(items) => into.extend(std::mem::take(items)),
+            _ => {}
+        }
+    }
+}
+
+impl Drop for Node {
+    /// A tree dropped field by field recurses once per level.
+    fn drop(&mut self) {
+        let mut work = Vec::new();
+        self.take_children(&mut work);
+        while let Some(mut node) = work.pop() {
+            node.take_children(&mut work);
+        }
+    }
 }
 
 struct Ctx {
@@ -310,93 +340,147 @@ impl Ctx {
         self.fail_at("incomplete key-value: cannot find end of key", start_ptr)
     }
 
-    fn parse_inline_table(&mut self) -> R<Node> {
-        let start_ptr = self.p;
-        self.p += 1;
-        let mut res = Tbl { map: IndexMap::new(), sealed: true };
-        while self.p < self.s.len() {
-            self.skip_void(false, false)?;
-            if self.at(self.p) == Some(0x7d) {
-                self.p += 1;
-                return Ok(Node::Table(res));
-            }
-            let err_ptr = self.p;
-            let key = self.parse_key(0x3d)?;
-            let mut t = &mut res;
-            let mut has_own = false;
-            for (i, k) in key.iter().enumerate() {
-                if i > 0 {
-                    let previous = &key[i - 1];
-                    let Some(Node::Table(next)) = (if has_own {
-                        t.map.get_mut(previous)
-                    } else {
-                        Some(t.map.entry(previous.clone()).or_insert_with(|| Node::Table(Tbl::default())))
-                    }) else {
-                        return self.fail_at("trying to redefine an already defined value", err_ptr);
-                    };
-                    t = next;
-                }
-                has_own = t.map.contains_key(k);
-                if has_own && !matches!(t.map.get(k), Some(Node::Table(inner)) if !inner.sealed) {
+    /// The first thing an open array or inline table holds: its end, as the finished node, or the start of its next
+    /// member, as nothing (an inline table's key is read, its tables made and its slot held in the frame).
+    fn head(&mut self, stack: &mut Vec<Reading>) -> R<Option<Node>> {
+        let Some(top) = stack.last_mut() else { unreachable!("a container is open") };
+        let (start, close, word) = match top {
+            Reading::Array { start, .. } => (*start, 0x5d, "unfinished array"),
+            Reading::Inline { start, .. } => (*start, 0x7d, "unfinished table"),
+        };
+        if self.p >= self.s.len() {
+            return self.fail_at(word, start);
+        }
+        self.skip_void(false, false)?;
+        if self.at(self.p) == Some(close) {
+            self.p += 1;
+            return Ok(Some(self.close(stack)));
+        }
+        let Some(Reading::Inline { res, key, nested, .. }) = stack.last_mut() else { return Ok(None) };
+        let err_ptr = self.p;
+        let parsed = self.parse_key(0x3d)?;
+        let extra = parsed.len().saturating_sub(1) as i32;
+        if extra > self.d {
+            return self.fail_at(TOO_DEEP, err_ptr);
+        }
+        let mut t: &mut Tbl = res;
+        let mut has_own = false;
+        for (i, k) in parsed.iter().enumerate() {
+            if i > 0 {
+                let previous = &parsed[i - 1];
+                let Some(Node::Table(next)) = (if has_own {
+                    t.map.get_mut(previous)
+                } else {
+                    Some(t.map.entry(previous.clone()).or_insert_with(|| Node::Table(Tbl::default())))
+                }) else {
                     return self.fail_at("trying to redefine an already defined value", err_ptr);
-                }
+                };
+                t = next;
             }
-            if has_own {
+            has_own = t.map.contains_key(k);
+            if has_own && !matches!(t.map.get(k), Some(Node::Table(inner)) if !inner.sealed) {
                 return self.fail_at("trying to redefine an already defined value", err_ptr);
             }
-            self.skip_void(true, true)?;
-            let value = self.extract_value(Some(0x7d))?;
-            t.map.insert(key[key.len() - 1].clone(), value);
-            self.skip_void(false, false)?;
-            let c = self.at(self.p);
-            self.p += 1;
-            if c == Some(0x7d) {
-                return Ok(Node::Table(res));
-            }
-            if c != Some(0x2c) {
-                return self.fail_at("expected comma or end of structure", self.p - 1);
-            }
         }
-        self.fail_at("unfinished table", start_ptr)
+        if has_own {
+            return self.fail_at("trying to redefine an already defined value", err_ptr);
+        }
+        self.skip_void(true, true)?;
+        self.d -= extra;
+        *nested = extra;
+        *key = parsed;
+        Ok(None)
     }
 
-    fn parse_array(&mut self) -> R<Node> {
-        let start_ptr = self.p;
+    /// The member just read, put in the open container on top; then what follows it: the container's end, as the
+    /// finished node, or the start of its next member, as nothing.
+    fn tail(&mut self, stack: &mut Vec<Reading>, value: Node) -> R<Option<Node>> {
+        let close = match stack.last_mut() {
+            Some(Reading::Array { items, .. }) => {
+                items.push(value);
+                0x5d
+            }
+            Some(Reading::Inline { res, key, nested, .. }) => {
+                self.d += *nested;
+                let (last, via) = key.split_last().expect("an inline table's member has a key");
+                let mut t: &mut Tbl = res;
+                for part in via {
+                    let Some(Node::Table(next)) = t.map.get_mut(part) else { unreachable!("the tables on a key were made") };
+                    t = next;
+                }
+                t.map.insert(last.clone(), value);
+                0x7d
+            }
+            None => unreachable!("a container is open"),
+        };
+        self.skip_void(false, false)?;
+        let c = self.at(self.p);
         self.p += 1;
-        let mut res = Vec::new();
-        while self.p < self.s.len() {
-            self.skip_void(false, false)?;
-            if self.at(self.p) == Some(0x5d) {
-                self.p += 1;
-                return Ok(Node::Array(res));
-            }
-            res.push(self.extract_value(Some(0x5d))?);
-            self.skip_void(false, false)?;
-            let c = self.at(self.p);
-            self.p += 1;
-            if c == Some(0x5d) {
-                return Ok(Node::Array(res));
-            }
-            if c != Some(0x2c) {
-                return self.fail_at("expected comma or end of structure", self.p - 1);
-            }
+        if c == Some(close) {
+            return Ok(Some(self.close(stack)));
         }
-        self.fail_at("unfinished array", start_ptr)
+        if c != Some(0x2c) {
+            return self.fail_at("expected comma or end of structure", self.p - 1);
+        }
+        self.head(stack)
     }
 
+    /// The open container on top of `stack`, whose end `p` has just passed.
+    fn close(&mut self, stack: &mut Vec<Reading>) -> Node {
+        self.d += 1;
+        match stack.pop() {
+            Some(Reading::Array { items, .. }) => Node::Array(items),
+            Some(Reading::Inline { res, .. }) => Node::Table(res),
+            None => unreachable!("a container is open"),
+        }
+    }
+
+    /// A value, with the arrays and inline tables it holds read on a stack of their own, so no nesting overflows a
+    /// thread's.
     fn extract_value(&mut self, end: Option<u16>) -> R<Node> {
+        let mut stack: Vec<Reading> = Vec::new();
+        loop {
+            let c = self.at(self.p);
+            let mut done = if c == Some(0x5b) || c == Some(0x7b) {
+                let deep = self.d == 0;
+                self.d -= 1;
+                if deep {
+                    return self.fail(TOO_DEEP);
+                }
+                let start = self.p;
+                self.p += 1;
+                stack.push(if c == Some(0x5b) {
+                    Reading::Array { start, items: Vec::new() }
+                } else {
+                    Reading::Inline { start, res: Tbl { map: IndexMap::new(), sealed: true }, key: Vec::new(), nested: 0 }
+                });
+                match self.head(&mut stack)? {
+                    Some(node) => node,
+                    None => continue,
+                }
+            } else {
+                let end = match stack.last() {
+                    Some(Reading::Array { .. }) => Some(0x5d),
+                    Some(Reading::Inline { .. }) => Some(0x7d),
+                    None => end,
+                };
+                self.scalar_value(end)?
+            };
+            loop {
+                if stack.is_empty() {
+                    return Ok(done);
+                }
+                match self.tail(&mut stack, done)? {
+                    Some(node) => done = node,
+                    None => break,
+                }
+            }
+        }
+    }
+
+    fn scalar_value(&mut self, end: Option<u16>) -> R<Node> {
         let err_ptr = self.p;
         let c = self.at(self.p);
-        if c == Some(0x5b) || c == Some(0x7b) {
-            let deep = self.d == 0;
-            self.d -= 1;
-            if deep {
-                return self.fail("document contains excessively nested structures. aborting.");
-            }
-            let value = if c == Some(0x5b) { self.parse_array()? } else { self.parse_inline_table()? };
-            self.d += 1;
-            return Ok(value);
-        }
         if c == Some(BASIC) || c == Some(LITERAL) {
             return self.parse_string().map(Node::Str);
         }
@@ -789,12 +873,20 @@ enum Kind {
     ArrayDotted,
 }
 
-#[derive(Debug)]
 struct Meta {
     t: Kind,
     d: bool,
     i: usize,
     c: IndexMap<String, Meta>,
+}
+
+impl Drop for Meta {
+    fn drop(&mut self) {
+        let mut work: Vec<Meta> = std::mem::take(&mut self.c).into_values().collect();
+        while let Some(mut meta) = work.pop() {
+            work.extend(std::mem::take(&mut meta.c).into_values());
+        }
+    }
 }
 
 impl Meta {
@@ -805,13 +897,18 @@ impl Meta {
 
 /// A step from the root to the current table: the key, and whether the key holds an array of tables whose last table
 /// is the one meant.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct Seg {
     key: String,
     last: bool,
 }
 
 type Metas = IndexMap<String, Meta>;
+
+/// How deep a path leads in the tree: a table is a level, and the array an array of tables holds its tables in another.
+fn levels(path: &[Seg]) -> usize {
+    path.iter().map(|seg| 1 + usize::from(seg.last)).sum()
+}
 
 /// The table and the metas a path leads to.
 fn nav<'a>(mut t: &'a mut Tbl, mut m: &'a mut Metas, path: &[Seg]) -> (&'a mut Tbl, &'a mut Metas) {
@@ -937,16 +1034,30 @@ fn parse(ctx: &mut Ctx) -> R<Tbl> {
                 }
                 ctx.p += 1;
             }
+            if key.len() > MAX_DEPTH as usize {
+                return ctx.fail_at(TOO_DEEP, key_start);
+            }
             let Some(peeked) = peek_table(&mut res, &mut meta, &[], &key, if is_table_array { Kind::Array } else { Kind::Explicit }) else {
                 return ctx.fail_at("trying to redefine an already defined table or value", key_start);
             };
+            if levels(&peeked.opened) > MAX_DEPTH as usize {
+                return ctx.fail_at(TOO_DEEP, key_start);
+            }
             current = peeked.opened;
         } else {
             let key_start = ctx.p;
             let key = ctx.parse_key(0x3d)?;
+            if levels(&current) + key.len().saturating_sub(1) > MAX_DEPTH as usize {
+                return ctx.fail_at(TOO_DEEP, key_start);
+            }
             let Some(peeked) = peek_table(&mut res, &mut meta, &current, &key, Kind::Dotted) else {
                 return ctx.fail_at("trying to redefine an already defined table or value", key_start);
             };
+            let held = levels(&peeked.parent);
+            if held > MAX_DEPTH as usize {
+                return ctx.fail_at(TOO_DEEP, key_start);
+            }
+            ctx.d = MAX_DEPTH - held as i32;
             ctx.skip_void(true, true)?;
             let value = ctx.extract_value(None)?;
             let (t, _) = nav(&mut res, &mut meta, &peeked.parent);
@@ -964,13 +1075,53 @@ fn parse(ctx: &mut Ctx) -> R<Tbl> {
     Ok(res)
 }
 
-fn table_value(t: Tbl) -> toml::Table {
-    let mut out = toml::Table::new();
-    let ordered: Vec<(&String, &Node)> = js_order(&t.map);
-    for (k, v) in ordered {
-        out.insert(k.clone(), value_of(v));
+/// A table or an array being turned into a `toml` value: its members still to convert, and what is built of it.
+enum Open<'a> {
+    Table(std::vec::IntoIter<(&'a String, &'a Node)>, toml::Table, Option<&'a String>),
+    Array(std::slice::Iter<'a, Node>, Vec<toml::Value>),
+}
+
+/// The root table as a `toml::Table`, with the open tables and arrays on a stack so no depth overflows a thread's.
+fn table_value(root: &Tbl) -> toml::Table {
+    let mut stack = vec![Open::Table(js_order(&root.map).into_iter(), toml::Table::new(), None)];
+    loop {
+        let next = match stack.last_mut() {
+            Some(Open::Table(members, _, key)) => members.next().map(|(k, n)| {
+                *key = Some(k);
+                n
+            }),
+            Some(Open::Array(items, _)) => items.next(),
+            None => unreachable!("the root stays open until it is returned"),
+        };
+        let done = match next {
+            Some(Node::Table(t)) => {
+                stack.push(Open::Table(js_order(&t.map).into_iter(), toml::Table::new(), None));
+                continue;
+            }
+            Some(Node::Array(items)) => {
+                stack.push(Open::Array(items.iter(), Vec::with_capacity(items.len())));
+                continue;
+            }
+            Some(Node::Str(s)) => toml::Value::String(s.clone()),
+            Some(Node::Int(i)) => toml::Value::Integer(*i),
+            Some(Node::Float(f)) => toml::Value::Float(*f),
+            Some(Node::Bool(b)) => toml::Value::Boolean(*b),
+            Some(Node::Date(text)) => date_value(text),
+            None => match stack.pop() {
+                Some(Open::Table(_, table, _)) if stack.is_empty() => return table,
+                Some(Open::Table(_, table, _)) => toml::Value::Table(table),
+                Some(Open::Array(_, items)) => toml::Value::Array(items),
+                None => unreachable!("the root stays open until it is returned"),
+            },
+        };
+        match stack.last_mut() {
+            Some(Open::Table(_, table, key)) => {
+                table.insert(key.take().expect("a member is being read").clone(), done);
+            }
+            Some(Open::Array(_, items)) => items.push(done),
+            None => unreachable!("the root stays open until it is returned"),
+        }
     }
-    out
 }
 
 /// A table's entries as JavaScript lists them: array-index keys first, ascending, then the rest in order.
@@ -978,24 +1129,6 @@ fn js_order(map: &IndexMap<String, Node>) -> Vec<(&String, &Node)> {
     let as_json: serde_json::Map<String, serde_json::Value> = map.keys().map(|k| (k.clone(), serde_json::Value::Null)).collect();
     let order: Vec<String> = js_entries(&as_json).into_iter().map(|(k, _)| k.clone()).collect();
     order.iter().filter_map(|k| map.get_key_value(k)).collect()
-}
-
-fn value_of(n: &Node) -> toml::Value {
-    match n {
-        Node::Table(t) => {
-            let mut table = toml::Table::new();
-            for (k, v) in js_order(&t.map) {
-                table.insert(k.clone(), value_of(v));
-            }
-            toml::Value::Table(table)
-        }
-        Node::Array(items) => toml::Value::Array(items.iter().map(value_of).collect()),
-        Node::Str(s) => toml::Value::String(s.clone()),
-        Node::Int(i) => toml::Value::Integer(*i),
-        Node::Float(f) => toml::Value::Float(*f),
-        Node::Bool(b) => toml::Value::Boolean(*b),
-        Node::Date(text) => date_value(text),
-    }
 }
 
 /// The date the `toml` crate reads from the text, the text as a string where it does not read it.
