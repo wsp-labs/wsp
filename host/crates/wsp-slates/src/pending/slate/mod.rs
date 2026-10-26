@@ -317,6 +317,8 @@ pub struct SlateWrite {
 #[derive(Clone, Debug, PartialEq)]
 pub struct BatchStart {
     pub run: String,
+    /// `person` or `reaction`.
+    pub by: String,
     pub why: String,
 }
 
@@ -338,12 +340,16 @@ pub struct BatchSend {
 #[derive(Clone, Debug, PartialEq)]
 pub struct SlateBatchResult {
     pub values: SlateValues,
+    /// The own names whose value moved in this batch, as `$name`.
+    pub changed: Vec<String>,
     pub problems: Vec<SlateProblem>,
     pub starts: Vec<BatchStart>,
     pub cancels: Vec<String>,
     pub sends: Vec<BatchSend>,
     /// Steps the window carries out (`open`, `copy`, `pane`, `fill`): each step's `do`.
     pub other: Vec<String>,
+    /// The same window steps with their data (`other` is their `do` names).
+    pub other_steps: Vec<SlateBatchWindowStep>,
 }
 
 /// What `parseSlate` and `validateSlate` answer.
@@ -409,7 +415,7 @@ pub mod sources;
 pub mod steps;
 pub mod syntax;
 pub mod validate;
-pub use batch::run_slate_batch;
+pub use batch::{run_slate_batch, SlateBatchSend, SlateBatchWindowStep, SlateWriter};
 pub use catalog::slate_catalog;
 pub use chart::{
     slate_axis_word, slate_chart_axis, slate_shares, slate_span_state, slate_time, SlateChartAxis, SlateShare, SLATE_DONUT_PARTS,
