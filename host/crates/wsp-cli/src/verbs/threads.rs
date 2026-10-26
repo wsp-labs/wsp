@@ -30,7 +30,7 @@ use wsp_words::words::thread::{
 };
 use wsp_words::workspace_state::turn_spend_word;
 
-use crate::cloud::cloud_on_in;
+use super::cloud_of;
 
 use super::activity;
 use super::activity::{ended_lines, processes_asked};
@@ -774,7 +774,7 @@ async fn prepare_run(
             &ask.message,
             ask.harness.as_deref(),
             &ask.picks,
-            crate::cloud::cloud_on_in(&*env),
+            crate::verbs::cloud_of(&*env),
         )
         .await?;
         let notify = notify_of(client, &ask.notify).await?;
@@ -796,12 +796,12 @@ async fn prepare_run(
     }
     let named = match &ask.beside {
         Some(beside) => RunTarget::Workspace {
-            workspace: thread_at_in(client, beside, "wsp run --beside", false, cloud_on_in(&*env)).await?.1,
+            workspace: thread_at_in(client, beside, "wsp run --beside", false, cloud_of(&*env)).await?.1,
             opened: None,
         },
         None => {
             let wher = RunWhere { branch: ask.branch.clone(), cwd: ask.cwd.clone() };
-            run_target(client, ask.project.as_deref(), caller_cwd, env, Some(elsewhere), &wher, crate::cloud::cloud_on_in(&*env)).await?
+            run_target(client, ask.project.as_deref(), caller_cwd, env, Some(elsewhere), &wher, crate::verbs::cloud_of(&*env)).await?
         }
     };
     let (workspace_id, fork_of) = match &named {

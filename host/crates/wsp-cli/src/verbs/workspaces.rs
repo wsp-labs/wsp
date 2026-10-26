@@ -39,7 +39,7 @@ use wsp_words::workspace_state::{
     delete_notice, gone_refusal, turn_spend_word, workspace_kind, workspace_state, WorkspaceState, WorkspaceStateInput,
 };
 
-use crate::cloud::cloud_on_in;
+use super::cloud_of;
 use crate::cloud_text::cloud_text;
 
 use super::activity::{ended_lines, processes_asked};

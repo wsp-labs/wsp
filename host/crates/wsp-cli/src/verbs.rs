@@ -158,6 +158,12 @@ pub fn verbs_for(cloud_on: bool) -> Vec<Verb> {
     kept.iter().map(|verb| in_cloud_words(verb, cloud_on)).collect()
 }
 
+/// Whether the cloud is on for a caller holding this environment: the line's own, which carries the table it runs
+/// from, or this process's.
+pub fn cloud_of(vars: &IndexMap<String, String>) -> bool {
+    crate::cloud::cloud_on_in(vars) || crate::cloud::cloud_on()
+}
+
 /// `VERBS` of this process: `verbs_for(crate::cloud::cloud_on())`, built once.
 pub fn verbs() -> &'static [Verb] {
     static VERBS: OnceLock<Vec<Verb>> = OnceLock::new();
