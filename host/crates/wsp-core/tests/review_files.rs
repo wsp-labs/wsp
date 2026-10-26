@@ -20,7 +20,6 @@ use wsp_core::ids::OsIds;
 use wsp_core::project_landing::*;
 use wsp_core::project_sources::{project_source, ProjectSourceModule};
 use wsp_core::types::internal::*;
-use wsp_core::types::pending::Store;
 use wsp_engine::Machine;
 use wsp_wire::views::session_events::SessionEvent;
 use wsp_wire::views::workspace::ProjectView;
@@ -95,7 +94,9 @@ fn deps(m: Rc<RecMachine>, now: Rc<dyn Fn() -> i64>) -> LandingDeps {
 }
 
 fn project(name: &str) -> ProjectView {
-    wire(&json!({ "id": "pr_1", "name": name, "computer": "p", "source": { "kind": "git", "url": "https://github.com/acme/lab.git" }, "path": "", "remote": "https://github.com/acme/lab.git", "defaultBranch": "main", "memoryKey": "", "memoryDir": "", "createdAt": "" }))
+    wire(
+        &json!({ "id": "pr_1", "name": name, "computer": "p", "source": { "kind": "git", "url": "https://github.com/acme/lab.git" }, "path": "", "remote": "https://github.com/acme/lab.git", "defaultBranch": "main", "memoryKey": "", "memoryDir": "", "createdAt": "" }),
+    )
 }
 
 fn request(name: &str) -> LandRequest {
@@ -178,7 +179,8 @@ fn index_read_takes_a_lone_surrogate_the_ts_wrote() {
 // ---- the transcript index as bytes ----
 
 fn events() -> Vec<SessionEvent> {
-    let usage = json!({"tokens": {"input": 10, "output": 2, "cached": 0, "cacheWrite": 0, "reasoning": 0}, "toolUses": 3, "durationMs": 50});
+    let usage =
+        json!({"tokens": {"input": 10, "output": 2, "cached": 0, "cacheWrite": 0, "reasoning": 0}, "toolUses": 3, "durationMs": 50});
     let base = |v: Value| {
         let mut o = json!({"workspaceId": "w1"});
         for (k, x) in v.as_object().unwrap() {
@@ -187,14 +189,28 @@ fn events() -> Vec<SessionEvent> {
         serde_json::from_value::<SessionEvent>(o).unwrap()
     };
     vec![
-        base(json!({"type": "session.start", "sessionId": "s1", "threadId": "t1", "turnId": "u1", "model": "m", "requestId": "r1", "at": 1, "prompt": "hi"})),
+        base(
+            json!({"type": "session.start", "sessionId": "s1", "threadId": "t1", "turnId": "u1", "model": "m", "requestId": "r1", "at": 1, "prompt": "hi"}),
+        ),
         base(json!({"type": "session.start", "sessionId": "s1", "threadId": "t1", "turnId": "u2", "cwd": "/x", "at": 2})),
-        base(json!({"type": "session.subagent", "sessionId": "s1", "threadId": "t1", "turnId": "u2", "task": "k", "state": "running", "title": "T", "at": 5, "usage": usage})),
-        base(json!({"type": "session.subagent", "sessionId": "s1", "threadId": "t1", "turnId": "u2", "task": "k", "state": "done", "summary": "all fine\nok", "at": 9})),
-        base(json!({"type": "session.subagent", "sessionId": "s1", "threadId": "t1", "turnId": "u2", "task": "j", "state": "running", "title": "J", "at": 6})),
-        base(json!({"type": "session.subagent", "sessionId": "s1", "threadId": "t1", "turnId": "u2", "task": "j", "state": "failed", "summary": "bad thing\nmore", "at": 10})),
-        base(json!({"type": "session.subagent", "sessionId": "s1", "threadId": "t1", "turnId": "u2", "task": "r", "state": "running", "title": "R", "at": 7, "depth": 1, "model": "haiku", "asked": "look", "usage": usage})),
-        base(json!({"type": "session.end", "sessionId": "s1", "threadId": "t1", "turnId": "u2", "exitCode": 0, "sawResult": true, "at": 11})),
+        base(
+            json!({"type": "session.subagent", "sessionId": "s1", "threadId": "t1", "turnId": "u2", "task": "k", "state": "running", "title": "T", "at": 5, "usage": usage}),
+        ),
+        base(
+            json!({"type": "session.subagent", "sessionId": "s1", "threadId": "t1", "turnId": "u2", "task": "k", "state": "done", "summary": "all fine\nok", "at": 9}),
+        ),
+        base(
+            json!({"type": "session.subagent", "sessionId": "s1", "threadId": "t1", "turnId": "u2", "task": "j", "state": "running", "title": "J", "at": 6}),
+        ),
+        base(
+            json!({"type": "session.subagent", "sessionId": "s1", "threadId": "t1", "turnId": "u2", "task": "j", "state": "failed", "summary": "bad thing\nmore", "at": 10}),
+        ),
+        base(
+            json!({"type": "session.subagent", "sessionId": "s1", "threadId": "t1", "turnId": "u2", "task": "r", "state": "running", "title": "R", "at": 7, "depth": 1, "model": "haiku", "asked": "look", "usage": usage}),
+        ),
+        base(
+            json!({"type": "session.end", "sessionId": "s1", "threadId": "t1", "turnId": "u2", "exitCode": 0, "sawResult": true, "at": 11}),
+        ),
     ]
 }
 
@@ -261,7 +277,11 @@ fn host_identity_does_not_trim_a_next_line_mark() {
 // F8 MINOR: TS host-id.ts:24
 #[test]
 fn host_identity_reads_a_file_that_is_not_utf8_with_replacements() {
-    assert_eq!(id_of("bad", &[0x61, 0x62, 0xff, 0xfe, 0x63, 0x64, 0x0a]), "ab\u{fffd}\u{fffd}cd", "readFileSync(path, \"utf8\") replaces what does not decode");
+    assert_eq!(
+        id_of("bad", &[0x61, 0x62, 0xff, 0xfe, 0x63, 0x64, 0x0a]),
+        "ab\u{fffd}\u{fffd}cd",
+        "readFileSync(path, \"utf8\") replaces what does not decode"
+    );
 }
 
 // F9 MINOR: TS host-id.ts:12

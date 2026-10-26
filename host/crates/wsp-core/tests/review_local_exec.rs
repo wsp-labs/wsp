@@ -163,11 +163,7 @@ own_group_test!(an_attach_whose_held_seed_cannot_be_appended_fails_and_leaves_th
     std::fs::write(format!("{base}.log"), "").unwrap();
     symlink("/dev/full", format!("{base}.in")).unwrap();
     std::fs::write(format!("{base}.held"), "seed\n").unwrap();
-    let attached = c
-        .factory()
-        .attach(&base, AttachRunOptions { input: true, started_at: now_ms(), from: None })
-        .expect("an attach")
-        .await;
+    let attached = c.factory().attach(&base, AttachRunOptions { input: true, started_at: now_ms(), from: None }).expect("an attach").await;
     sleep_ms(300).await;
     let outcome = match &attached {
         Ok(Attached::Gone) => "gone".to_string(),
@@ -250,16 +246,17 @@ own_group_test!(a_second_lines_call_after_the_first_reader_went_answers_an_empty
 // F3 MINOR: TS local-exec.ts:331-332 (needs root with CAP_LINUX_IMMUTABLE and chattr)
 own_group_test!(a_claim_the_reap_cannot_take_ends_the_stream_in_the_failure_node_throws, 30_000, {
     let c = Case::new();
-    let stream = c.go(
-        "f=\"${WSP_AGENT_PID_FILE%.agent}\"; mkdir \"$f.d/x\"; touch \"$f.d/x/y\"; chattr +i \"$f.d/x/y\"; echo ok",
-    );
+    let stream = c.go("f=\"${WSP_AGENT_PID_FILE%.agent}\"; mkdir \"$f.d/x\"; touch \"$f.d/x/y\"; chattr +i \"$f.d/x/y\"; echo ok");
     let (lines, failure) = drain(&*stream).await;
     let code = stream.exited().await;
     let left = c.files();
     unfreeze(&c.root);
     assert_eq!(lines, vec!["ok".to_string()]);
     assert!(left.iter().any(|n| n.ends_with(".d")), "the claim should be left behind: {left:?}");
-    assert!(failure.is_some() && code.is_none(), "the TS ended the stream with a failure and no code; this one ended with {failure:?} and {code:?}");
+    assert!(
+        failure.is_some() && code.is_none(),
+        "the TS ended the stream with a failure and no code; this one ended with {failure:?} and {code:?}"
+    );
 });
 
 // F7 MINOR: TS local-exec.ts:322 (also 489, 252)
@@ -330,9 +327,13 @@ own_group_test!(an_env_value_node_refuses_is_a_refused_launch_with_its_words, 60
 own_group_test!(a_started_at_that_is_not_a_finite_number_is_read_as_the_ts_reads_it, 60_000, {
     let c = Case::new();
     let mut wrong = Vec::new();
-    for (tag, started_at, ts_cuts) in
-        [("nan", f64::NAN, false), ("minus-huge", -1e300, true), ("plus-huge", 1e300, false), ("minus-inf", f64::NEG_INFINITY, true), ("zero", 0.0, true)]
-    {
+    for (tag, started_at, ts_cuts) in [
+        ("nan", f64::NAN, false),
+        ("minus-huge", -1e300, true),
+        ("plus-huge", 1e300, false),
+        ("minus-inf", f64::NEG_INFINITY, true),
+        ("zero", 0.0, true),
+    ] {
         let dir = format!("{}/r-{tag}", c.root);
         std::fs::create_dir_all(&dir).unwrap();
         let base = format!("{dir}/00000000abcd");
@@ -356,7 +357,9 @@ own_group_test!(a_started_at_that_is_not_a_finite_number_is_read_as_the_ts_reads
 // Run only inside a pid namespace of its own (unshare --pid --fork --mount-proc), where kill(-1) can reach nothing
 // outside it; anywhere else this test returns at once.
 own_group_test!(a_pid_file_naming_pid_1_is_signalled_as_every_process, 60_000, {
-    let crowd = std::fs::read_dir("/proc").map(|d| d.flatten().filter(|e| e.file_name().to_string_lossy().chars().all(|ch| ch.is_ascii_digit())).count()).unwrap_or(9999);
+    let crowd = std::fs::read_dir("/proc")
+        .map(|d| d.flatten().filter(|e| e.file_name().to_string_lossy().chars().all(|ch| ch.is_ascii_digit())).count())
+        .unwrap_or(9999);
     if std::env::var("WSP_REVIEW_PIDNS").is_err() || crowd > 30 {
         return;
     }
@@ -400,8 +403,10 @@ own_group_test!(permissions_the_command_changes_on_its_own_run_files_end_the_str
         std::fs::create_dir_all(&dir).unwrap();
         let marker = format!("{}/perm-{tag}.pid", c.root);
         let run_dir = format!("{dir}/runs");
-        let factory = local_exec_stream(LocalExecOptions { poll_ms: Some(50), ..LocalExecOptions::new(c.root.clone(), run_dir.clone()) }, None);
-        let stream = c.ended(factory.launch(&format!("f=\"${{WSP_AGENT_PID_FILE%.agent}}\"; echo $$ > {marker}; {body}"), Launch::default()));
+        let factory =
+            local_exec_stream(LocalExecOptions { poll_ms: Some(50), ..LocalExecOptions::new(c.root.clone(), run_dir.clone()) }, None);
+        let stream =
+            c.ended(factory.launch(&format!("f=\"${{WSP_AGENT_PID_FILE%.agent}}\"; echo $$ > {marker}; {body}"), Launch::default()));
         let (lines, failure) = drain(&*stream).await;
         let code = stream.exited().await;
         sleep_ms(100).await;
@@ -411,7 +416,10 @@ own_group_test!(permissions_the_command_changes_on_its_own_run_files_end_the_str
             record(kid);
         }
         let left = suffixes(&files(&run_dir));
-        let lines: Vec<String> = lines.iter().map(|l| if l.contains("Permission denied") { "<bash: exit file: Permission denied>".to_string() } else { l.clone() }).collect();
+        let lines: Vec<String> = lines
+            .iter()
+            .map(|l| if l.contains("Permission denied") { "<bash: exit file: Permission denied>".to_string() } else { l.clone() })
+            .collect();
         let failure_head = failure.as_ref().map(|f| f.message.clone());
         let got = (lines.clone(), failure_head.clone(), code, running, left.clone());
         let ok = lines == want_lines

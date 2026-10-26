@@ -25,7 +25,13 @@ use wsp_wire::wire::daemon_events::parse_daemon_event;
 
 fn chan_options(url: String, events: &Rc<RefCell<Vec<Value>>>) -> DaemonChannelOptions {
     let events = events.clone();
-    DaemonChannelOptions { url, token: "t".into(), on_event: Rc::new(move |e| events.borrow_mut().push(e)), connect_timeout_ms: Some(5_000), clock: None }
+    DaemonChannelOptions {
+        url,
+        token: "t".into(),
+        on_event: Rc::new(move |e| events.borrow_mut().push(e)),
+        connect_timeout_ms: Some(5_000),
+        clock: None,
+    }
 }
 
 async fn read_head(sock: &mut tokio::net::TcpStream) -> String {
@@ -211,7 +217,11 @@ fn a_chunked_refusal_from_a_door_that_keeps_the_connection_open_still_answers_as
         tokio::task::spawn_local(async move {
             let (mut sock, _) = listener.accept().await.unwrap();
             read_head(&mut sock).await;
-            sock.write_all(b"HTTP/1.1 502 Bad Gateway\r\ncontent-type: text/plain\r\ntransfer-encoding: chunked\r\nconnection: keep-alive\r\n\r\n").await.unwrap();
+            sock.write_all(
+                b"HTTP/1.1 502 Bad Gateway\r\ncontent-type: text/plain\r\ntransfer-encoding: chunked\r\nconnection: keep-alive\r\n\r\n",
+            )
+            .await
+            .unwrap();
             sock.write_all(b"12\r\nupstream is asleep\r\n0\r\n\r\n").await.unwrap();
             std::future::pending::<()>().await;
         });
@@ -249,7 +259,7 @@ fn close_against_a_silent_peer_still_settles_closed() {
             std::future::pending::<()>().await;
         });
         let events = Rc::new(RefCell::new(Vec::new()));
-        let ch = open_daemon_channel(chan_options(format!("ws://127.0.0.1:{port}/"), &events)).await.ok().expect("opens");
+        let ch = open_daemon_channel(chan_options(format!("ws://127.0.0.1:{port}/"), &events)).await.expect("opens");
         ch.close();
         let end = tokio::time::timeout(Duration::from_secs(34), ch.closed()).await;
         assert!(end.is_ok(), "closed never settled 34 s after close() against a peer that sends no close frame");
@@ -319,7 +329,7 @@ fn a_20_mib_reply_is_delivered() {
             }
         });
         let events = Rc::new(RefCell::new(Vec::new()));
-        let ch = open_daemon_channel(chan_options(format!("ws://127.0.0.1:{port}/"), &events)).await.ok().expect("opens");
+        let ch = open_daemon_channel(chan_options(format!("ws://127.0.0.1:{port}/"), &events)).await.expect("opens");
         let mut f = serde_json::Map::new();
         f.insert("op".into(), json!("files.read"));
         let reply = ch.send(f).await.expect("a 20 MiB reply arrives");
