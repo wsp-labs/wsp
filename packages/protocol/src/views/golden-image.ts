@@ -2,7 +2,6 @@
 
 import { z } from "zod";
 import { LoginChoice, LoginState } from "../setup.js";
-import { shellQuote } from "../shell-quote.js";
 import { WorkspaceSize } from "../wire/capabilities.js";
 
 // --- golden image (manifest, interactive builder, build stages) ---------------
@@ -369,22 +368,6 @@ export type SealedImageCopy = z.infer<typeof SealedImageCopy>;
  * person typing the line twice both get the copy they asked for. */
 export const SealedImageBuilt = z.object({ copy: SealedImageCopy, built: z.boolean() });
 export type SealedImageBuilt = z.infer<typeof SealedImageBuilt>;
-
-/** A sealed vault's header, one line of JSON a reader parses before anything else: it says how the bytes behind it
- * are keyed and carries the record in the plain, so an import can show what a file holds before asking for the
- * passphrase. The header's own bytes are the cipher's additional data, so an edited header fails to open. */
-export const SealedVaultHeader = z.object({
-  format: z.literal("wsp-vault-1"),
-  cipher: z.literal("aes-256-gcm"),
-  to: z.enum(["passphrase", "key"]),
-  /** scrypt salt (passphrase) or HKDF salt (key), base64. */
-  salt: z.string(),
-  nonce: z.string(),
-  /** The sender's ephemeral X25519 public key, base64, on `to: "key"` only. */
-  ephemeral: z.string().optional(),
-  image: SealedImage,
-});
-export type SealedVaultHeader = z.infer<typeof SealedVaultHeader>;
 
 /** The detail a golden.stage frame carries for a step the builder already holds; a reader closes the step at once and charges it no time. */
 export const ALREADY_APPLIED = "already applied";

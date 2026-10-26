@@ -2,7 +2,7 @@
 
 {/* Written by apps/docs-next/scripts/mcp-tools.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
 
-`wsp mcp` serves these 74 tools over stdio to an agent on your computer, and `wsp mcp install --agent <id>` writes it into that agent's own config. A tool answers a failure as a tool error that carries the object `--json` prints.
+`wsp mcp` serves these 75 tools over stdio to an agent on your computer, and `wsp mcp install --agent <id>` writes it into that agent's own config. A tool answers a failure as a tool error that carries the object `--json` prints.
 
 Each tool but `projects_add` is a line of the command line, its words joined with `_`, and that line's page links here.
 
@@ -1556,9 +1556,7 @@ Nothing.
 | `setup.keyProvider` | string |  |  |
 | `setup.home` | string | yes |  |
 | `setup.pricing` | object or null | yes |  |
-| `setup.place` | object |  |  |
 | `setup.forksOn` | string |  |  |
-| `setup.buildRefusal` | string |  |  |
 
 ## skills
 
@@ -1717,7 +1715,7 @@ A skill's SKILL.md as text, its first 64 KB and the whole file's size: a skill o
 
 ## slate_catalog
 
-What a slate, the live panel beside the chat, can hold: every piece, and the runs that keep it fresh. Call it first whenever the person wants to see, watch, monitor or keep an eye on something, tick things off as they go, or see what's unread, even when another tool fetches the data.
+What a slate here can hold: every piece and run. The slate is the person's visual companion while you work: words stay in the chat, and your reply never restates it. Call it first whenever the person wants to see, watch, monitor or keep an eye on something, tick things off as they go, or see what's unread, even when another tool fetches the data.
 
 **Takes**
 
@@ -1730,6 +1728,28 @@ What a slate, the live panel beside the chat, can hold: every piece, and the run
 | Field | Type | Required | What it is |
 |---|---|---|---|
 | `text` | string | yes |  |
+
+## slate_look
+
+A picture of this thread's slate as the person sees it, in their theme and panel width. Look once after a frame or a big change, not each patch.
+
+**Takes**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `thread` | string |  | another thread's id |
+| `width` | integer |  | 280 to 1600 px, else the panel's |
+
+**Answers**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `width` | number | yes |  |
+| `height` | number | yes |  |
+| `scale` | number | yes |  |
+| `theme` | string | yes |  |
+| `whole` | number |  |  |
+| `path` | string |  |  |
 
 ## slate_read
 
@@ -1763,7 +1783,7 @@ Reads this thread's slate: what the person filled in or pressed, live values, ru
 
 ## slate_state
 
-Sets the slate's live $values by path, so the person sees progress, status or a checklist tick move as you work; reactions fire. start starts a run the person allowed to run always.
+Sets the slate's live $values by path, so the person sees progress, status or a checklist tick move; reactions fire. start starts a run the person allowed always.
 
 **Takes**
 
@@ -1786,7 +1806,7 @@ Sets the slate's live $values by path, so the person sees progress, status or a 
 
 ## slate_write
 
-Writes this thread's slate, the live panel here beside the chat. Use it to show the person what they want to see, watch, monitor or keep an eye on while you work (live data, traffic, metrics, a price, logs, a PR, progress, status), a dashboard, a form to fill in or a checklist. A run with every= refreshes on a timer with no turns, so nothing polls. A run's script goes in a \<file name="x.py">, run as python3 "$SLATE_DIR/x.py", never in the project.
+Writes this thread's slate. The slate is the person's visual companion while you work: words stay in the chat, and your reply never restates it. Show what they want to see (live data, traffic, metrics, a price, a PR, progress), a dashboard, a form to fill in or a decision. A run with every= refreshes; never poll in chat. A run's script goes in a \<file name="x.py">, run as python3 "$SLATE_DIR/x.py", never in the project.
 
 **Takes**
 

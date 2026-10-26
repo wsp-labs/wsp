@@ -129,6 +129,14 @@ describe("the tests a change runs", () => {
     expect(affected(workspace(), { "elsewhere/notes.txt": "\n" }).out).toEqual([]);
   });
 
+  it("runs only the files every change runs for the parity harness: its cargo task, its tapes and the root cargo alias", () => {
+    const changes: Record<string, string>[] = [{ ".cargo/config.toml": "[alias]\n" }, { "xtask/src/main.rs": "//\n" }, { "parity/tapes/hand/x.tape": "{}\n" }];
+    for (const change of changes) {
+      const { out, err } = affected(workspace(), change);
+      expect(out, err).toEqual(ALWAYS);
+    }
+  });
+
   it("answers with --always the named files and every test that lists the whole tree, with no base", () => {
     const run = spawnSync(process.execPath, [SCRIPT, "--always"], { cwd: workspace(), encoding: "utf8" });
     expect(run.status, run.stderr).toBe(0);

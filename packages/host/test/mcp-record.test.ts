@@ -47,6 +47,7 @@ const RELEASE_ROAD_SAMPLES = [
   "/Users/dev/wsp/packages/wspx/daemon/aarch64-apple-darwin/wsp-daemon",
 ];
 import { ADD_TOOL_FIX, ADD_TOOL_MS, addToolRefusal } from "../src/setup-follow.js";
+import { lookCutLine, lookLine } from "../src/verbs/slate.js";
 import { PLUGIN_KIND_WORDS, pluginTurnedWords } from "../src/verbs/agents-help.js";
 import { WORKSPACE_ANSWERED, workspaceWords } from "./mcp-record-workspaces.js";
 import { SLATE_ANSWERED } from "./mcp-record-slates.js";
@@ -245,6 +246,8 @@ async function words(): Promise<Record<string, unknown>> {
     unclosedQuote: refusalLine(unclosedQuoteRefusal, "{usage}"),
     projectScope: refusalLine(projectScopeLine("{scope}"), "{usage}"),
     noSkillHits: noSkillHitsLine,
+    slateLook: lookLine({ width: "{width}", height: "{height}", scale: "{scale}", theme: "{theme}" } as unknown as Parameters<typeof lookLine>[0]),
+    slateLookCut: lookCutLine("{height}" as unknown as number, "{whole}" as unknown as number),
     skillHitColumns: SKILL_HIT_COLUMNS,
     previewBytes: SKILL_PREVIEW_BYTES,
     previewCut: previewCutLine("{kb}" as unknown as number),

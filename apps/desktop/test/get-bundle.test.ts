@@ -13,8 +13,8 @@ import { BUNDLE_WORDS, IN_PLACE_HOVER, askedVersion, bundleHover, bundleShell, g
 const BYTES = Buffer.from("a disk image, as far as this test is concerned");
 const SUM = createHash("sha256").update(BYTES).digest("hex");
 const TAG_URL = "https://api.github.com/repos/wsp-labs/wsp/releases/tags/v0.3.0";
-const DMG_URL = "https://github.com/wsp-labs/wsp/releases/download/v0.3.0/wsp-0.3.0-mac.dmg";
-const ZIP_URL = "https://github.com/wsp-labs/wsp/releases/download/v0.3.0/wsp-0.3.0-mac.zip";
+const DMG_URL = "https://github.com/wsp-labs/wsp/releases/download/v0.3.0/wsp-classic-0.3.0-mac.dmg";
+const ZIP_URL = "https://github.com/wsp-labs/wsp/releases/download/v0.3.0/wsp-classic-0.3.0-mac.zip";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -30,7 +30,7 @@ const answer = (assets: unknown[]): Response => new Response(JSON.stringify({ ta
 const asset = (name: string, digest: string | null = `sha256:${SUM}`, size: number | string | null = BYTES.length): Record<string, unknown> => ({ name, ...(size === null ? {} : { size }), ...(digest === null ? {} : { digest }) });
 
 /** A GitHub that answers the tag with these assets and serves these bytes for any download, logging every URL. */
-function github(assets: unknown[] = [asset("wsp-0.3.0-mac.dmg"), asset("wsp-0.3.0-mac.zip"), asset("wsp-0.3.0.AppImage")], bytes: Buffer = BYTES, status = 200) {
+function github(assets: unknown[] = [asset("wsp-classic-0.3.0-mac.dmg"), asset("wsp-classic-0.3.0-mac.zip"), asset("wsp-classic-0.3.0.AppImage")], bytes: Buffer = BYTES, status = 200) {
   const asked: string[] = [];
   const fetcher = vi.fn(async (url: string | URL | Request): Promise<Response> => {
     const at = String(url);
@@ -56,10 +56,10 @@ describe("the download", () => {
     const hub = github();
     const d = deps({ fetch: hub.fetch });
     const got = await getBundle("0.3.0", d);
-    expect(got).toEqual({ ok: true, file: join(d.dir, "wsp-0.3.0-mac.dmg"), sum: SUM });
+    expect(got).toEqual({ ok: true, file: join(d.dir, "wsp-classic-0.3.0-mac.dmg"), sum: SUM });
     expect(hub.asked).toEqual([TAG_URL, DMG_URL]);
-    expect(readFileSync(join(d.dir, "wsp-0.3.0-mac.dmg"))).toEqual(BYTES);
-    expect(readdirSync(d.dir)).toEqual(["wsp-0.3.0-mac.dmg"]);
+    expect(readFileSync(join(d.dir, "wsp-classic-0.3.0-mac.dmg"))).toEqual(BYTES);
+    expect(readdirSync(d.dir)).toEqual(["wsp-classic-0.3.0-mac.dmg"]);
   });
 
   it("names itself to GitHub", async () => {
@@ -72,8 +72,8 @@ describe("the download", () => {
   it("takes the AppImage on linux, and on a platform with no bundle refuses before asking anything", async () => {
     const hub = github();
     const d = deps({ platform: "linux", fetch: hub.fetch });
-    expect(await getBundle("0.3.0", d)).toEqual({ ok: true, file: join(d.dir, "wsp-0.3.0.AppImage"), sum: SUM });
-    expect(hub.asked.at(-1)).toBe("https://github.com/wsp-labs/wsp/releases/download/v0.3.0/wsp-0.3.0.AppImage");
+    expect(await getBundle("0.3.0", d)).toEqual({ ok: true, file: join(d.dir, "wsp-classic-0.3.0.AppImage"), sum: SUM });
+    expect(hub.asked.at(-1)).toBe("https://github.com/wsp-labs/wsp/releases/download/v0.3.0/wsp-classic-0.3.0.AppImage");
     const none = github();
     expect(await getBundle("0.3.0", deps({ platform: "win32", fetch: none.fetch }))).toEqual({ ok: false, error: BUNDLE_WORDS.noBundle("win32") });
     expect(none.asked).toEqual([]);
@@ -82,20 +82,20 @@ describe("the download", () => {
   it("follows the smoke's variable for the answer and the download both", async () => {
     const hub = github();
     await getBundle("0.3.0", deps({ fetch: hub.fetch, env: { [RELEASE_API_ENV]: "http://127.0.0.1:9911" } }));
-    expect(hub.asked).toEqual(["http://127.0.0.1:9911/repos/wsp-labs/wsp/releases/tags/v0.3.0", "http://127.0.0.1:9911/wsp-labs/wsp/releases/download/v0.3.0/wsp-0.3.0-mac.dmg"]);
+    expect(hub.asked).toEqual(["http://127.0.0.1:9911/repos/wsp-labs/wsp/releases/tags/v0.3.0", "http://127.0.0.1:9911/wsp-labs/wsp/releases/download/v0.3.0/wsp-classic-0.3.0-mac.dmg"]);
   });
 
   it("keeps nothing whose sha256 is not the published one, and says so", async () => {
     const d = deps({ fetch: github(undefined, Buffer.from("something else")).fetch });
-    expect(await getBundle("0.3.0", d)).toEqual({ ok: false, error: BUNDLE_WORDS.mismatch("wsp-0.3.0-mac.dmg") });
+    expect(await getBundle("0.3.0", d)).toEqual({ ok: false, error: BUNDLE_WORDS.mismatch("wsp-classic-0.3.0-mac.dmg") });
     expect(readdirSync(d.dir)).toEqual([]);
   });
 
   it("downloads nothing for an asset the release does not list, or lists with no sha256 or no size", async () => {
-    for (const assets of [[asset("wsp-0.3.0.AppImage")], [asset("wsp-0.3.0-mac.dmg", null)], [asset("wsp-0.3.0-mac.dmg", "md5:abc")], [asset("wsp-0.3.0-mac.dmg", undefined, null)], [asset("wsp-0.3.0-mac.dmg", undefined, "47")]]) {
+    for (const assets of [[asset("wsp-classic-0.3.0.AppImage")], [asset("wsp-classic-0.3.0-mac.dmg", null)], [asset("wsp-classic-0.3.0-mac.dmg", "md5:abc")], [asset("wsp-classic-0.3.0-mac.dmg", undefined, null)], [asset("wsp-classic-0.3.0-mac.dmg", undefined, "47")]]) {
       const hub = github(assets);
       const d = deps({ fetch: hub.fetch });
-      expect(await getBundle("0.3.0", d)).toEqual({ ok: false, error: BUNDLE_WORDS.noDigest("wsp-0.3.0-mac.dmg") });
+      expect(await getBundle("0.3.0", d)).toEqual({ ok: false, error: BUNDLE_WORDS.noDigest("wsp-classic-0.3.0-mac.dmg") });
       expect(hub.asked).toEqual([TAG_URL]);
       expect(readdirSync(d.dir)).toEqual([]);
     }
@@ -136,7 +136,7 @@ describe("the download", () => {
 
   it("gives up a download that stops sending bytes, leaving no file", async () => {
     const stalls = vi.fn(async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
-      if (String(url).includes("/releases/tags/")) return answer([asset("wsp-0.3.0-mac.dmg")]);
+      if (String(url).includes("/releases/tags/")) return answer([asset("wsp-classic-0.3.0-mac.dmg")]);
       const body = new ReadableStream<Uint8Array>({
         start(controller) {
           controller.enqueue(new Uint8Array(BYTES.subarray(0, 8)));
@@ -152,7 +152,7 @@ describe("the download", () => {
 
   it("stops a download that runs past the size the release publishes, leaving no file", async () => {
     const endless = vi.fn(async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
-      if (String(url).includes("/releases/tags/")) return answer([asset("wsp-0.3.0-mac.dmg")]);
+      if (String(url).includes("/releases/tags/")) return answer([asset("wsp-classic-0.3.0-mac.dmg")]);
       let sent = 0;
       const body = new ReadableStream<Uint8Array>({
         pull(controller) {
@@ -164,39 +164,39 @@ describe("the download", () => {
       return new Response(body);
     }) as unknown as typeof fetch;
     const d = deps({ fetch: endless });
-    expect(await getBundle("0.3.0", d)).toEqual({ ok: false, error: BUNDLE_WORDS.tooBig("wsp-0.3.0-mac.dmg") });
+    expect(await getBundle("0.3.0", d)).toEqual({ ok: false, error: BUNDLE_WORDS.tooBig("wsp-classic-0.3.0-mac.dmg") });
     expect(readdirSync(d.dir)).toEqual([]);
   });
 
   it("answers one sentence with no path where the file cannot be put in place, and leaves no partial file", async () => {
     const d = deps();
-    mkdirSync(join(d.dir, "wsp-0.3.0-mac.dmg"));
+    mkdirSync(join(d.dir, "wsp-classic-0.3.0-mac.dmg"));
     const got = await getBundle("0.3.0", d);
-    expect(got).toEqual({ ok: false, error: BUNDLE_WORDS.unsaved("wsp-0.3.0-mac.dmg") });
-    expect(readdirSync(d.dir)).toEqual(["wsp-0.3.0-mac.dmg"]);
+    expect(got).toEqual({ ok: false, error: BUNDLE_WORDS.unsaved("wsp-classic-0.3.0-mac.dmg") });
+    expect(readdirSync(d.dir)).toEqual(["wsp-classic-0.3.0-mac.dmg"]);
   });
 
   it("writes through no link planted at the partial file's name", async () => {
     const d = deps();
     const elsewhere = join(downloads(), "someone-elses-file");
     writeFileSync(elsewhere, "keep me");
-    symlinkSync(elsewhere, join(d.dir, "wsp-0.3.0-mac.dmg.part"));
-    expect(await getBundle("0.3.0", d)).toEqual({ ok: true, file: join(d.dir, "wsp-0.3.0-mac.dmg"), sum: SUM });
+    symlinkSync(elsewhere, join(d.dir, "wsp-classic-0.3.0-mac.dmg.part"));
+    expect(await getBundle("0.3.0", d)).toEqual({ ok: true, file: join(d.dir, "wsp-classic-0.3.0-mac.dmg"), sum: SUM });
     expect(readFileSync(elsewhere, "utf8")).toBe("keep me");
-    expect(readFileSync(join(d.dir, "wsp-0.3.0-mac.dmg"))).toEqual(BYTES);
-    expect(readdirSync(d.dir)).toEqual(["wsp-0.3.0-mac.dmg"]);
+    expect(readFileSync(join(d.dir, "wsp-classic-0.3.0-mac.dmg"))).toEqual(BYTES);
+    expect(readdirSync(d.dir)).toEqual(["wsp-classic-0.3.0-mac.dmg"]);
   });
 
   it("fetches a bundle already there with the published sha256 no second time, and replaces one that differs", async () => {
     const hub = github();
     const d = deps({ fetch: hub.fetch });
-    writeFileSync(join(d.dir, "wsp-0.3.0-mac.dmg"), BYTES);
-    expect(await getBundle("0.3.0", d)).toEqual({ ok: true, file: join(d.dir, "wsp-0.3.0-mac.dmg"), sum: SUM });
+    writeFileSync(join(d.dir, "wsp-classic-0.3.0-mac.dmg"), BYTES);
+    expect(await getBundle("0.3.0", d)).toEqual({ ok: true, file: join(d.dir, "wsp-classic-0.3.0-mac.dmg"), sum: SUM });
     expect(hub.asked).toEqual([TAG_URL]);
-    writeFileSync(join(d.dir, "wsp-0.3.0-mac.dmg"), "a half download from before");
+    writeFileSync(join(d.dir, "wsp-classic-0.3.0-mac.dmg"), "a half download from before");
     expect((await getBundle("0.3.0", d)).ok).toBe(true);
     expect(hub.asked).toEqual([TAG_URL, TAG_URL, DMG_URL]);
-    expect(readFileSync(join(d.dir, "wsp-0.3.0-mac.dmg"))).toEqual(BYTES);
+    expect(readFileSync(join(d.dir, "wsp-classic-0.3.0-mac.dmg"))).toEqual(BYTES);
   });
 });
 
@@ -216,14 +216,14 @@ describe("the words over Get", () => {
 describe("opening what was kept", () => {
   it("opens the disk image on a mac, and says the system's words when it will not open", async () => {
     const open = vi.fn(async () => "");
-    expect(await openBundle({ file: "/d/wsp-0.3.0-mac.dmg", platform: "darwin" }, { open, reveal: vi.fn() })).toEqual({ ok: true });
-    expect(open).toHaveBeenCalledWith("/d/wsp-0.3.0-mac.dmg");
-    expect(await openBundle({ file: "/d/wsp-0.3.0-mac.dmg", platform: "darwin" }, { open: async () => "no application", reveal: vi.fn() })).toEqual({ ok: false, error: "no application" });
+    expect(await openBundle({ file: "/d/wsp-classic-0.3.0-mac.dmg", platform: "darwin" }, { open, reveal: vi.fn() })).toEqual({ ok: true });
+    expect(open).toHaveBeenCalledWith("/d/wsp-classic-0.3.0-mac.dmg");
+    expect(await openBundle({ file: "/d/wsp-classic-0.3.0-mac.dmg", platform: "darwin" }, { open: async () => "no application", reveal: vi.fn() })).toEqual({ ok: false, error: "no application" });
   });
 
   it("marks the AppImage runnable on linux and shows it in its folder", async () => {
     const dir = downloads();
-    const file = join(dir, "wsp-0.3.0.AppImage");
+    const file = join(dir, "wsp-classic-0.3.0.AppImage");
     writeFileSync(file, BYTES, { mode: 0o644 });
     const reveal = vi.fn();
     expect(await openBundle({ file, platform: "linux" }, { open: vi.fn(), reveal })).toEqual({ ok: true });
@@ -252,14 +252,14 @@ describe("the shell's two channels", () => {
     const { shell } = shellWith({ fetch: hub.fetch, running: "0.3.0" });
     for (const version of ["0.3.0", "0.2.9", "0.0.1", "0.4.0-rc.1"]) expect(await shell.get({ version })).toEqual({ ok: false, error: BUNDLE_WORDS.notNewer(version) });
     expect(hub.asked).toEqual([]);
-    expect(await shell.get({ version: "0.3.1" })).toEqual({ ok: false, error: BUNDLE_WORDS.noDigest("wsp-0.3.1-mac.dmg") });
+    expect(await shell.get({ version: "0.3.1" })).toEqual({ ok: false, error: BUNDLE_WORDS.noDigest("wsp-classic-0.3.1-mac.dmg") });
   });
 
   it("checks the kept file's sha256 again at open, and opens nothing and stays up where it changed", async () => {
     const { shell, quit, open, d } = shellWith();
     expect(await shell.get({ version: "0.3.0" })).toEqual({ ok: true });
-    writeFileSync(join(d.dir, "wsp-0.3.0-mac.dmg"), "swapped after the check");
-    expect(await shell.open()).toEqual({ ok: false, error: BUNDLE_WORDS.changed("wsp-0.3.0-mac.dmg") });
+    writeFileSync(join(d.dir, "wsp-classic-0.3.0-mac.dmg"), "swapped after the check");
+    expect(await shell.open()).toEqual({ ok: false, error: BUNDLE_WORDS.changed("wsp-classic-0.3.0-mac.dmg") });
     expect(open).not.toHaveBeenCalled();
     expect(quit).not.toHaveBeenCalled();
     expect(await shell.open()).toEqual({ ok: false, error: BUNDLE_WORDS.nothingKept });
@@ -278,7 +278,7 @@ describe("the shell's two channels", () => {
     expect(quit).not.toHaveBeenCalled();
     expect(await shell.get({ version: "0.3.0" })).toEqual({ ok: true });
     expect(await shell.open()).toEqual({ ok: true });
-    expect(open).toHaveBeenCalledWith(join(d.dir, "wsp-0.3.0-mac.dmg"));
+    expect(open).toHaveBeenCalledWith(join(d.dir, "wsp-classic-0.3.0-mac.dmg"));
     expect(quit).toHaveBeenCalledTimes(1);
     open.mockResolvedValueOnce("the disk image is damaged");
     expect(await shell.open()).toEqual({ ok: false, error: "the disk image is damaged" });
@@ -294,7 +294,7 @@ describe("the shell's two channels", () => {
     const bad = shellWith({ fetch: github(undefined, Buffer.from("tampered")).fetch });
     expect((await bad.shell.get({ version: "0.3.0" })).ok).toBe(false);
     expect(await bad.shell.open()).toEqual({ ok: false, error: BUNDLE_WORDS.nothingKept });
-    expect(existsSync(join(bad.d.dir, "wsp-0.3.0-mac.dmg"))).toBe(false);
+    expect(existsSync(join(bad.d.dir, "wsp-classic-0.3.0-mac.dmg"))).toBe(false);
   });
 });
 
@@ -318,14 +318,14 @@ describe("an app that replaces itself", () => {
     const { shell, road, d } = inPlaceShell({ fetch: hub.fetch });
     expect(await shell.get({ version: "0.3.0" })).toEqual({ ok: true });
     expect(hub.asked).toEqual([TAG_URL, ZIP_URL]);
-    expect(road.stage).toHaveBeenCalledWith(join(road.dir, "wsp-0.3.0-mac.zip"), "0.3.0");
-    expect(readFileSync(join(road.dir, "wsp-0.3.0-mac.zip"))).toEqual(BYTES);
+    expect(road.stage).toHaveBeenCalledWith(join(road.dir, "wsp-classic-0.3.0-mac.zip"), "0.3.0");
+    expect(readFileSync(join(road.dir, "wsp-classic-0.3.0-mac.zip"))).toEqual(BYTES);
     expect(readdirSync(d.dir)).toEqual([]);
   });
 
   it("stages nothing from a zip whose sha256 is not the published one", async () => {
     const { shell, road, quit } = inPlaceShell({ fetch: github(undefined, Buffer.from("tampered")).fetch });
-    expect(await shell.get({ version: "0.3.0" })).toEqual({ ok: false, error: BUNDLE_WORDS.mismatch("wsp-0.3.0-mac.zip") });
+    expect(await shell.get({ version: "0.3.0" })).toEqual({ ok: false, error: BUNDLE_WORDS.mismatch("wsp-classic-0.3.0-mac.zip") });
     expect(road.stage).not.toHaveBeenCalled();
     expect(readdirSync(road.dir)).toEqual([]);
     expect(await shell.open()).toEqual({ ok: false, error: BUNDLE_WORDS.nothingKept });
@@ -352,8 +352,8 @@ describe("an app that replaces itself", () => {
   });
 
   it("says the stage's refusal, and a refused or vanished copy starts no swap and does not quit", async () => {
-    const refused = inPlaceShell({}, async () => ({ ok: false, error: "wsp-0.3.0-mac.zip failed its signature check and was deleted" }));
-    expect(await refused.shell.get({ version: "0.3.0" })).toEqual({ ok: false, error: "wsp-0.3.0-mac.zip failed its signature check and was deleted" });
+    const refused = inPlaceShell({}, async () => ({ ok: false, error: "wsp-classic-0.3.0-mac.zip failed its signature check and was deleted" }));
+    expect(await refused.shell.get({ version: "0.3.0" })).toEqual({ ok: false, error: "wsp-classic-0.3.0-mac.zip failed its signature check and was deleted" });
     expect(await refused.shell.open()).toEqual({ ok: false, error: BUNDLE_WORDS.nothingKept });
     const vanished = inPlaceShell({}, async () => checked(true));
     expect(await vanished.shell.get({ version: "0.3.0" })).toEqual({ ok: true });
@@ -375,7 +375,7 @@ describe("an app that replaces itself", () => {
   });
 
   it("deletes an older checked copy before it stages a newer release", async () => {
-    const { shell, road } = inPlaceShell({ fetch: github([asset("wsp-0.3.0-mac.zip"), asset("wsp-0.3.1-mac.zip")]).fetch });
+    const { shell, road } = inPlaceShell({ fetch: github([asset("wsp-classic-0.3.0-mac.zip"), asset("wsp-classic-0.3.1-mac.zip")]).fetch });
     expect(await shell.get({ version: "0.3.0" })).toEqual({ ok: true });
     expect(road.discard).not.toHaveBeenCalled();
     expect(await shell.get({ version: "0.3.1" })).toEqual({ ok: true });

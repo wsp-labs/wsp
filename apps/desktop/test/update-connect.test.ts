@@ -14,7 +14,7 @@ import { slowRoad } from "../../../packages/host/test/held-connect.js";
 import { getBundle } from "../src/get-bundle.js";
 
 const BYTES = Buffer.from("a disk image, as far as this test is concerned");
-const ASSET = "wsp-0.3.0-mac.dmg";
+const ASSET = "wsp-classic-0.3.0-mac.dmg";
 const realAttemptMs = net.getDefaultAutoSelectFamilyAttemptTimeout();
 let road: (() => void) | undefined;
 let server: Server | undefined;

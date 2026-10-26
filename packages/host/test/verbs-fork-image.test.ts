@@ -2,25 +2,21 @@
 // The wsp verbs against a host over the fake runtime: each one a client of
 // the protocol on localhost, authenticated with the token the host wrote,
 // reading the same session index the sidebar reads.
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { type AddressInfo } from "node:net";
-import { join } from "node:path";
 import { NoProviderBackend } from "@wsp/engine";
 import { childStartedLine, HERE_PLACE_ID, goneRoadRefusal, notAnsweringYet, EXIT_CODES, IMAGE_NO_VAULT, placeBuildsNoImageLine } from "@wsp/protocol";
 import { memoryStore } from "@wsp/runtime";
 import { describe, expect, it, vi } from "vitest";
-import { HELP, agentPage, cli, commandPage, COMMANDS_FOR_HELP } from "../src/cli.js";
+import { HELP, agentPage, cli } from "../src/cli.js";
 import { CLI_VERBS, runVerb, dialHost } from "../src/verbs.js";
-import { HOST_SIDE_VAULT, THREAD_PREFIX_WORD } from "../src/verbs.js";
-import { hostSideOnlyFix, hostSideOnlyLine } from "../src/hosts.js";
+import { THREAD_PREFIX_WORD } from "../src/verbs.js";
 import type { WatchSignals } from "../src/watch.js";
-import { writeHost } from "../src/hosts.js";
 import { stubBackend, withDaemonRoads } from "./stub-backend.js";
 import { captured, threadOn, type Captured } from "./verbs-fixture.js";
 import { runsFromItsOwnFolder } from "./own-folder.js";
 import { CLOUD_ON } from "../src/cloud.js";
-import { HOST_KEY, verbsHost } from "./verbs-host.js";
+import { verbsHost } from "./verbs-host.js";
 
 runsFromItsOwnFolder();
 

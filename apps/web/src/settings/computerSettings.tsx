@@ -9,7 +9,6 @@ import { HERE_PLACE_ID, NAP_AFTER_MAX_MS, TURN_LIMIT_MAX_MS, fmtMemGb, fmtRate, 
 import { Button } from "../components/ui/button.js";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "../components/ui/input-group.js";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../components/ui/select.js";
-import { Switch } from "../components/ui/switch.js";
 import { noticeFailure } from "../notices/store.js";
 import { useStore } from "../protocol/store.js";
 import { COMPUTER_PAGE_WORDS as W, SETTINGS_WORDS } from "./format.js";

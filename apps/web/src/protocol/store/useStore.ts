@@ -186,7 +186,7 @@ export const useStore = create<State>((set, get) => {
    * create the host holds, which lands ahead of the list's reply, so a kept row unheard by then is one no create
    * there is making. */
   const heard = new Set<string>();
-  const runCreation = async (key: string, project: string, name: string, picked?: { golden?: string; size?: WorkspaceSize }): Promise<string | null> => {
+  const runCreation = async (key: string, project: string, name: string, picked?: { size?: WorkspaceSize }): Promise<string | null> => {
     const api = get().api;
     if (!api) return null;
     try {
@@ -540,7 +540,7 @@ export const useStore = create<State>((set, get) => {
       set(s => ({
         creations: [
           ...s.creations,
-          { key, name, project, askedAt: Date.now(), ...(picked?.golden !== undefined ? { golden: picked.golden } : {}), ...(picked?.size !== undefined ? { size: picked.size } : {}), ...said, ...(computer !== undefined ? { where: computer } : {}), workspaceId: null, lines: NO_LINES, failed: null },
+          { key, name, project, askedAt: Date.now(), ...(picked?.size !== undefined ? { size: picked.size } : {}), ...said, ...(computer !== undefined ? { where: computer } : {}), workspaceId: null, lines: NO_LINES, failed: null },
         ],
         selectedId: key,
         selectedThreadId: null,
@@ -592,7 +592,7 @@ export const useStore = create<State>((set, get) => {
       // From here the create's own reply answers for the row, as for a row this page asked for.
       restored.delete(key);
       patchCreation(key, c => ({ ...c, workspaceId: null, lines: NO_LINES, failed: null }));
-      await runCreation(key, creation.project, creation.name, { ...(creation.golden !== undefined ? { golden: creation.golden } : {}), ...(creation.size !== undefined ? { size: creation.size } : {}) });
+      await runCreation(key, creation.project, creation.name, { ...(creation.size !== undefined ? { size: creation.size } : {}) });
     },
     dismissCreation(key) {
       // The runtime holds a create that failed with the id its stages carried, so every client's row goes with it. A

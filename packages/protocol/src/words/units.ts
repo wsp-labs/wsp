@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { MachineSizeOffer, PlaceCapacity, WorkspaceSize } from "../index.js";
-import { plural } from "./base.js";
 export const KIB = 1024;
 const MIB = KIB * 1024;
 const GIB = MIB * 1024;
@@ -25,6 +24,13 @@ export function fmtBytes(n: number): string {
   return bytesIn(n, KIB);
 }
 
+/** Bytes as a figure a person compares: one decimal under 10 of a unit, so 1,268,000 bytes reads 1.2 MB, not 1 MB. */
+export function fmtBytesFigure(n: number): string {
+  if (n < KIB) return `${n} B`;
+  const [size, unit] = n < MIB ? [n / KIB, "KB"] : n < GIB ? [n / MIB, "MB"] : [n / GIB, "GB"];
+  return `${size < 10 ? Number(size.toFixed(1)) : Math.round(size)} ${unit}`;
+}
+
 /** Bytes in decimal units, as a provider sells a disk: a 160 GB disk reads 160 GB, where fmtBytes says 149. */
 export function fmtDiskBytes(n: number): string {
   return bytesIn(n, 1000);
@@ -44,9 +50,6 @@ export function fmtBytesOver(n: number): string {
   if (n < MIB || n >= GIB) return fmtBytes(n);
   return `${(Math.ceil((n / MIB) * 10) / 10).toFixed(1)} MB`;
 }
-
-/** What a row reads where the catalog has measured no size. */
-export const UNKNOWN_SIZE = "size unknown";
 
 /** How often the agents ran a tool here, the one number a usage row shows. */
 export const fmtCalls = (n: number): string => `${n.toLocaleString("en-US")} ${n === 1 ? "call" : "calls"}`;

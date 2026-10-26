@@ -6,7 +6,7 @@
 // record a project one way and read it back another.
 import { THIS_COMPUTER, thisComputer } from "./format.js";
 import { HERE_PLACE_ID, namesPlace } from "./place-word.js";
-import type { ProjectSource, ProjectView, WorkspaceKind, WorkspaceProject } from "./index.js";
+import type { ProjectSource, ProjectView, WorkspaceKind } from "./index.js";
 import { folderName, underProject } from "./project-path.js";
 import { shellQuote } from "./shell-quote.js";
 import { EXEC_DEADLINE_EXIT } from "./wire/daemon.js";

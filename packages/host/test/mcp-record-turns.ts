@@ -24,7 +24,6 @@ import {
   FILES_MAX,
   filesRefusal,
   IMAGE_MAX_BYTES,
-  jsonLine,
   threadResult,
   notifyLine,
   NOTIFY_ME,
@@ -36,15 +35,12 @@ import {
   usageRefusal,
   replacesWorkingLine,
   replacesWorkingFix,
-  verbFailure,
   TURN_TOKEN_ENV,
-  UNKNOWN_SIZE,
   UNTYPED_FILE,
   waitTimedOutLine,
   workspaceAsleepAgainLine,
   workspaceStaysAwakeLine,
   type HarnessCatalog,
-  type Recipe,
   type ThreadView,
   type TurnResult,
   BUILT_IN_LIST_CLAUSE,
@@ -74,7 +70,6 @@ import {
   subFromNoCloudRefusal,
   threadOpRefusal,
 } from "@wsp/protocol";
-import { GUTTER } from "../src/init-layout.js";
 import {
   absoluteFolder,
   accessWordOf,
@@ -95,13 +90,10 @@ import {
   restoredLines,
   threadOf,
   runTarget,
-  toolFailure,
   turnFailure,
-  VERBS,
   workspaceOf,
   type HostClient,
   type Turn,
-  type VerbDeps,
 } from "../src/verbs.js";
 import { activityLines, endedLines } from "../src/verbs/activity.js";
 import { SERVICE_WAIT_MS } from "../src/host-lock.js";

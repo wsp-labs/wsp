@@ -7,13 +7,11 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { DISK_SYNC_CMD } from "@wsp/engine";
-import { addingProjectLine, HERE_PLACE_ID, seedMemoryKeptLine, type AdapterEvent, type EventUnion, type MachineSpec, type ProjectAddEvent, type SeedChoice, type SeedPlan, type TurnResult } from "@wsp/protocol";
-import { MEMORY_KEPT_MARK } from "../src/project-landing.js";
+import { afterEach, describe, expect, it } from "vitest";
+import { HERE_PLACE_ID, type AdapterEvent, type MachineSpec, type SeedChoice, type SeedPlan, type TurnResult } from "@wsp/protocol";
 import { copyKey, createRuntime, type HarnessAdapterFactory, type Runtime, type SeedWiring } from "../src/runtime.js";
 import { memoryStore, type Store } from "../src/store.js";
-import { fakeLocal, missesFirstDelete, stubBackend, type StubBackend, type StubMachine } from "./stub-backend.js";
+import { fakeLocal, stubBackend, type StubBackend } from "./stub-backend.js";
 
 const version = { version: 1, snapshotId: "snap_golden-v1", baseTemplate: "base", setupSha: "s1", createdAt: "2026-09-17T00:00:00.000Z", smoke: { cmd: "true", exitCode: 0 } };
 const REMOTE = "https://github.com/spoo-me/frontend.git";
@@ -79,8 +77,6 @@ function plan(folder: string, over: Partial<SeedPlan> = {}): SeedPlan {
   };
 }
 
-const TICKED: SeedChoice = { files: [".env.local"], memory: true, commits: false };
-
 /** A host with an image sealed on the computer named, the stub provider as its backend and a folder reader that
  * answers the plan handed in: what an add of a folder on this computer onto a computer that clones needs. */
 async function withImage(o: { at?: string; plan: SeedPlan; packed?: Buffer; left?: string[]; vault?: Record<string, string> } = { plan: plan("/x") }): Promise<{ rt: Runtime; backend: StubBackend; store: Store; seed: SeedWiring; packs: { plan: SeedPlan; choice: SeedChoice }[] }> {
@@ -101,22 +97,10 @@ async function withImage(o: { at?: string; plan: SeedPlan; packed?: Buffer; left
   return { rt: createRuntime({ backend, store, adapters, local: fakeLocal(root), seed, killConfirm: { graceMs: 20, pollMs: 1 }, ...(o.vault !== undefined ? { vault: () => o.vault! } : {}) }), backend, store, seed, packs };
 }
 
-const stages = (events: readonly EventUnion[]): ProjectAddEvent[] => events.filter((e): e is ProjectAddEvent & { seq: number } => e.type === "project.add");
-
 /** Every command every machine of this backend was asked to run, oldest first. */
 const commands = (backend: StubBackend): string => backend.machines.flatMap(m => m.execLog).join("\n");
 /** The spec of every machine it was asked for, in order. */
 const specs = (backend: StubBackend): MachineSpec[] => backend.machines.map(m => m.spec);
-const stopped = (backend: StubBackend): number => backend.machines.filter(m => m.killed).length;
-/** Every machine this backend makes from now on takes its first delete on the copy that never held it. */
-function missingFirstDeletes(backend: StubBackend): void {
-  const create = backend.create.bind(backend);
-  backend.create = async spec => {
-    const m = await create(spec);
-    missesFirstDelete(m as StubMachine);
-    return m;
-  };
-}
 /** What the machine answers one command with, over the probe the stub answers by default. */
 function answering(backend: StubBackend, reply: (cmd: string) => { exitCode: number; stdout: string; stderr: string } | undefined): void {
   const own = backend.execImpl;
@@ -150,13 +134,6 @@ describe("a repo named by owner and repo", () => {
     expect(commands(backend)).toContain("glab repo clone dev/thing /root/thing");
   });
 });
-
-/** The key one harness's launch on a workspace was handed, read off the adapter the runtime built for it. */
-async function launchKey(rt: Runtime, workspaceId: string, harness: string): Promise<string | undefined> {
-  const session = await rt.sessions.start(workspaceId, { prompt: "hi", harness });
-  await session.finished;
-  return launches.filter(l => l.harness === harness).at(-1)?.projectKey;
-}
 
 describe("a file of values or a key on the menu", () => {
   const values = { path: ".env", dir: false, bytes: 120, kind: "secret" as const, row: { id: "node", name: "Node" }, ticked: true };

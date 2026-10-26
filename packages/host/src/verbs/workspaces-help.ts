@@ -105,7 +105,7 @@ import {
   type ProcessesAsk,
 } from "@wsp/protocol";
 import { gitRootOf } from "../repo-root.js";
-import { type HostClient, pushedFrames, type Out, hostPlatform, flagFor, type SshAsked, type VerbContext, absolutePath, accessWordOf, under, otherVersion, threadIdOf, openedThreadSaid } from "./client.js";
+import { type HostClient, pushedFrames, type Out, hostPlatform, flagFor, type SshAsked, absolutePath, accessWordOf, under, otherVersion, threadIdOf, openedThreadSaid } from "./client.js";
 import type { Turn } from "./turns-help.js";
 
 export async function workspaces(client: HostClient): Promise<WorkspaceOut[]> {

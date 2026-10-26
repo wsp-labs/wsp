@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
-import { DAEMON_VERSION, probePath, RecipeFile, type AdapterEvent, type TurnResult } from "@wsp/protocol";
-import { CATALOG, GUEST_HOME } from "@wsp/catalog";
-import { HERE } from "./recipe-fixture.js";
+import { DAEMON_VERSION, probePath, type AdapterEvent, type TurnResult } from "@wsp/protocol";
+import { GUEST_HOME } from "@wsp/catalog";
 import { BOX_PRICING, BUILDER_IDLE_MS, goldenName, NoProviderBackend, type GoldenImport } from "@wsp/engine";
 import { copyKey, createRuntime, memoryStore, type HarnessAdapterFactory, type ReapResult, type Runtime, type Store } from "@wsp/runtime";
 import { execFileSync } from "node:child_process";
 import { DAEMON_PORT } from "@wsp/engine";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
-import { cli, hostDoctorReaders, serve, type CliIO } from "../src/cli.js";
+import { cli, serve, type CliIO } from "../src/cli.js";
 import { placeWiring } from "../src/places.js";
-import { claudeEnvs } from "../src/doctor.js";
 import { REAP_INTERVAL_MS, startHost, type HostDoctorReaders, type HostHandle } from "../src/server.js";
 import { VERSION } from "../src/version.js";
 import { SEALED_GOLDEN as GOLDEN } from "./sealed-golden.js";
@@ -24,7 +22,6 @@ import { stubBackend, type StubBackend } from "./stub-backend.js";
 import { closeStandInGuests, fakeGuestAt } from "../src/fake-guest.js";
 import { runsFromItsOwnFolder } from "./own-folder.js";
 import { createOn, projectOn } from "./verbs-fixture.js";
-import { writeStub } from "../../protocol/test/stub-script.js";
 
 runsFromItsOwnFolder();
 
@@ -100,38 +97,6 @@ function inlineScripts(html: string): string[] {
   return [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]!);
 }
 
-/** A computer for the recipe verb to read, written to a temp dir: one agent's history with node, pnpm and pulumi
- * in two sessions, and java on PATH and never run. The verb reads a computer through nodeHost(), whose whole answer
- * comes from HOME and PATH, so pinning those two is what keeps these rows off whichever box the suite runs on. */
-function fixtureMachine(): { dir: string; home: string; state: string; project: string; close(): void } {
-  const dir = mkdtempSync(join(tmpdir(), "wsp-cli-recipe-"));
-  const home = join(dir, "home");
-  const bin = join(dir, "bin");
-  const project = join(home, "proj");
-  const line = (sessionId: string, commands: readonly string[]): string =>
-    JSON.stringify({ type: "assistant", cwd: project, sessionId, message: { role: "assistant", content: commands.map(command => ({ type: "tool_use", id: "toolu_1", name: "Bash", input: { command } })) } });
-  mkdirSync(join(home, ".claude", "projects", "s"), { recursive: true });
-  mkdirSync(bin, { recursive: true });
-  writeFileSync(join(home, ".claude", "settings.json"), "{}\n");
-  writeFileSync(join(home, ".claude", "projects", "s", "s1.jsonl"), `${[line("s1", ["node build.js", "node build.js", "node build.js", "pnpm install", "pnpm install", "pnpm install"]), line("s1", ["pulumi -q"])].join("\n")}\n`);
-  writeFileSync(join(home, ".claude", "projects", "s", "s2.jsonl"), `${[line("s2", ["pnpm test", "pnpm test", "node build.js", "node build.js", "node build.js", "pulumi"])].join("\n")}\n`);
-  writeStub(join(bin, "java"), "#!/bin/sh\nexit 0\n");
-  // nodeHost() takes its home from HOME and answers `which` off PATH, so these two words are the whole computer
-  // the verb sees: no transcript, config tree or binary of the box the suite runs on is read.
-  vi.stubEnv("HOME", home);
-  vi.stubEnv("PATH", bin);
-  return {
-    dir,
-    home,
-    state: join(dir, "state.json"),
-    project,
-    close: () => {
-      vi.unstubAllEnvs();
-      rmSync(dir, { recursive: true, force: true });
-    },
-  };
-}
-
 describe("wsp cli", () => {
   afterEach(() => vi.unstubAllEnvs());
 
@@ -190,24 +155,6 @@ describe("host serves the app", () => {
     handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), statePath: "/Users/dev/.wsp/state.json" });
     const html = await (await fetch(`http://127.0.0.1:${handle.port}/`)).text();
     expect(inlineScripts(html)).toEqual([`window.__WSP__ = {"tokenHash":"${createHash("sha256").update(handle.authToken).digest("hex")}","wsPath":"/ws","paired":true,"version":"${VERSION}","statePath":"/Users/dev/.wsp/state.json"};`]);
-  });
-
-  it("the handle's createWorkspace forks the golden's head the way the app's own create does, and refuses without a golden", async () => {
-    const { rt, backend } = testRuntime();
-    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), workspaceEnvs: g => claudeEnvs(g) });
-    await handle.addProject("https://github.com/dev/first.git", "default");
-    const first = await handle.createWorkspace("first");
-    expect(first.name).toBe("first");
-    expect(first.golden).toBe("snap_gold");
-    const machine = backend.machines.find(m => m.id === first.machineId)!;
-    expect(machine.spec.envs?.["CLAUDE_CONFIG_DIR"]).toBe("/root/.claude-cfg");
-    expect(machine.spec.labels).toMatchObject({ wsp: "1", "wsp-host": "1" });
-    expect((await rt.workspaces.list()).map(w => w.id)).toEqual([first.id]);
-    await handle.close();
-    const bare = testRuntime(false);
-    handle = await startHost({ runtime: bare.rt, port: 0, webDir: webDir() });
-    await handle.addProject("https://github.com/dev/first.git", "default");
-    await expect(handle.createWorkspace("first")).rejects.toThrow("no image yet");
   });
 
   it("through the cli, the page never carries a key value", async () => {
@@ -278,26 +225,6 @@ describe("host serves the app", () => {
     await expect(
       startHost({ runtime: rt, port: 0, webDir: webDir("<!doctype html><html><body></body></html>") }),
     ).rejects.toThrow(/__WSP__/);
-  });
-
-  it("bakes BROWSER into a fork only when its golden head was sealed with the shim", async () => {
-    for (const browserShim of [true, false]) {
-      const backend = stubBackend();
-      const store = memoryStore();
-      const head = { ...GOLDEN.versions[0]!, ...(browserShim ? { browserShim } : {}) };
-      void store.put("goldens", copyKey("default", "default"), { head: 1, versions: [head] });
-      const rt = createRuntime({ backend, store, adapters: {} });
-      const h = await startHost({ runtime: rt, port: 0, webDir: webDir(), workspaceEnvs: g => claudeEnvs(g) });
-      try {
-        await h.addProject("https://github.com/dev/beta.git", "default");
-        await h.createWorkspace("beta");
-        const envs = backend.machines[0]?.spec.envs ?? {};
-        expect(envs["CLAUDE_CONFIG_DIR"]).toBe("/root/.claude-cfg");
-        expect(envs["BROWSER"]).toBe(browserShim ? "/usr/local/bin/wsp-open" : undefined);
-      } finally {
-        await h.close();
-      }
-    }
   });
 
 });

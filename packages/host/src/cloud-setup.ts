@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The cloud setup a client opens on: which provider keys this host holds, the price of the machine a build boots and
-// where it would boot. Saving the provider key is the one write, and a provider that refuses the key is told before
-// anything lands in the wsp home.
+// The cloud setup a client opens on: which provider keys this host holds and the price of the machine a copy build
+// boots. Saving the provider key is the one write, and a provider that refuses the key is told before anything lands
+// in the wsp home.
 import { keyCheckLine, type KeyCheck, type MachineBackend } from "@wsp/engine";
-import { KEY_REFUSED, KEY_UNCHECKED, type InitKeys, type InitSetup, type PlaceKind } from "@wsp/protocol";
+import { KEY_REFUSED, KEY_UNCHECKED, type InitKeys, type InitSetup } from "@wsp/protocol";
 import type { InitDoor, Runtime } from "@wsp/runtime";
 
 export interface CloudSetupDeps {
@@ -38,16 +38,13 @@ export class CloudSetup implements InitDoor {
 
   async get(o: { on?: string } = {}): Promise<InitSetup> {
     const keyProvider = this.deps.keyProvider();
-    // Nothing to price where no build can start: the client reads the runtime's sentence for it, so the sheet and the
-    // command line say the same one. A place the ask named and this host cannot build at is that place's own
-    // refusal, not a null price.
-    let built: { place: string; name: string; kind: PlaceKind; backend: MachineBackend } | undefined;
-    let buildRefusal: string | undefined;
+    // Nothing to price where no build can start. A place the ask named and this host cannot build at is that place's
+    // own refusal, not a null price.
+    let built: { backend: MachineBackend } | undefined;
     try {
       built = await this.deps.rt.golden.buildPlace(o.on);
     } catch (e) {
       if (o.on !== undefined) throw e;
-      buildRefusal = e instanceof Error ? e.message : String(e);
     }
     const pricing = built?.backend.pricing;
     return {
@@ -55,9 +52,7 @@ export class CloudSetup implements InitDoor {
       ...(keyProvider !== undefined ? { keyProvider } : {}),
       home: this.deps.home,
       pricing: pricing === undefined ? null : { size: pricing.defaultSize, rateUsdPerHour: pricing.rateUsdPerHour(pricing.defaultSize), ...(pricing.builderDiskGb !== undefined ? { builderDiskGb: pricing.builderDiskGb } : {}) },
-      ...(built !== undefined ? { place: { id: built.place, name: built.name, kind: built.kind } } : {}),
       forksOn: this.deps.forksOn(),
-      ...(buildRefusal !== undefined ? { buildRefusal } : {}),
     };
   }
 

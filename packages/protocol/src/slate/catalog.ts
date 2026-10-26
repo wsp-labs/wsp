@@ -11,7 +11,8 @@ import { SLATE_STEPS } from "./steps.js";
 import { compileSlateText } from "./syntax.js";
 import { SLATE_RUN_FIELDS } from "./types.js";
 import { slateTable } from "./paths.js";
-import { SLATE_LIMITS } from "./limits.js";
+import { SLATE_GLANCE, SLATE_LIMITS } from "./limits.js";
+import { SLATE_PURPOSE } from "../wsp-tools.js";
 
 /** A conservative token count: each word, each number and each other non-space character is one. Real tokenizers
  * join common words with their spaces and punctuation, so they count fewer. */
@@ -20,32 +21,35 @@ export function slateTokens(text: string): number {
 }
 
 export const SLATE_RULES: readonly string[] = [
-  "One <slate>, one root piece, declarations beside it. Give an id to a piece you will change.",
+  "One <slate>, one root piece, declarations beside it. Give an id to what you will change.",
   "prop=\"text\" is literal; prop={formula} reads live data or $values with operators, a ? b : c, [lists], {records} and functions, never methods or =>. A text child with {holes} fills a sentence.",
   "Props are meaning, never style. held is a sentence that disables: bind it to a condition; \"\" or false enables.",
   "A list binds to items; item and index read the row.",
   "A press reaches you only through send(\"literal text\", $path); <when> chains run without you.",
-  "Small edit: patch by id, <props id=\"price\" value={$spot.json.v} />; bigger: resend the whole slate with if_version.",
-  "Simple and airy unless asked for more: few pieces, one idea per section, short labels, no emoji. Separate things by layout, never by ·, • or |.",
-  "One heading per section: its title or a heading, in sentence case, never bold text.",
-  "Status and last-checked lines small and muted, beside their subject.",
-  "Actions at the end of their row; one primary per section.",
-  "mono only for figures, ids, times and paths.",
-  "Every live number says its window and unit. Show a run's json fields, never its raw out; times through date(), time() or ago().",
-  "Nothing centered but a lone figure or card.",
+  "Small edit: patch by id, <props id=\"price\" value={$spot.json.v} />; bigger: resend the slate with if_version.",
+  `At a glance: at most ${SLATE_GLANCE.sectionsOpen} sections open, the rest collapsible open={false}; ${SLATE_GLANCE.tablesOpen} table of ${SLATE_GLANCE.columns} columns; notes, cells to ${SLATE_GLANCE.cellWords} words, texts to ${SLATE_GLANCE.textWords}; no logs, drawn tables. Replace a section, never add one beside it.`,
+  "Fill pieces, not layout: no card in a card, never ·, • or | between things, short labels, no emoji. Heads in sentence case, never bold text.",
+  "A live number shows once, with its window and unit: never a progress count as a stat too. Show a run's json fields, never its raw out or error lines, which its <output> leads with; times through date(), time() or ago(). A run's every= keeps it fresh: never poll in chat.",
   "Use the slate tools, never wsp from a shell.",
   "A secret the person types goes in a <secret> input, never a file or the chat. One in a file stays there for the run to read, never you.",
   "A button asked for where the project has no UI goes here: the slate is its UI, and the reply says so.",
 ];
 
-export const SLATE_INDEX_EXAMPLE = `<slate title="Issue">
-  <value name="id" start="" />
-  <run name="check" cmd='gh api "repos/{owner}/{repo}/issues/$ID"' env={{ ID: $id }} />
-  <when change={$id} do={start($check)} />
+/** The look step, said last so it reads as the step after a write, and only where an app here draws looks. */
+export const SLATE_LOOK_RULE = "If slate_look is offered, look once after writing a frame or a large change, never after each patch.";
+
+export const SLATE_INDEX_EXAMPLE = `<slate title="Deploy">
+  <run name="ci" cmd="./ci" every={30} />
+  <value name="ship" start="" />
   <column>
-    <input label="Issue" value={$id} />
-    <text when={$check.exit == 0}>{$check.json.title}</text>
-    <button label="Fix it" onPress={send("Fix this issue.", $id)} />
+    <stats>
+      <stat label="Passed" value={$ci.json.passed} max={$ci.json.total} window="this run" />
+      <stat label="Spent" value={thread.cost.usd} format="usd" window="this thread" />
+    </stats>
+    <chart label="Build" items={$ci.json.runs} x={item.at} value={item.s} unit="s" />
+    <decision label="Ship?" value={$ship} onChange={send("Ship?", $ship)}>
+      <option value="yes" label="Ship" /><option value="no" label="Wait" />
+    </decision>
   </column>
 </slate>`;
 
@@ -53,7 +57,7 @@ export const SLATE_INDEX_EXAMPLE = `<slate title="Issue">
 const BOX = { pad: true, surface: true };
 
 /** Enums said once for every piece on the index's own lines, so a piece's line does not repeat them. */
-const SAID_ONCE = new Set(["tone", "emphasis", "pad", "align"]);
+const SAID_ONCE = new Set(["tone", "emphasis", "pad", "align", "gap"]);
 
 /** Whether a prop takes the figure formats, which the index says once rather than on every piece that plots. */
 export const slateTakesFigures = (spec: SlatePropSpec): boolean => Array.isArray(spec.type) && (spec.type as readonly string[]).join() === SLATE_FIGURES.join();
@@ -69,7 +73,8 @@ function pieceLine(p: SlatePieceModule): string {
   const props = Object.keys(p.props).filter(k => !Object.values(p.items).some(i => i.prop === k) && !(k in BOX)).map(k => propWord(k, p.props[k]!));
   const items = Object.entries(p.items).map(([tag, s]) => `<${tag} ${[...Object.entries(s.fields).map(([k, f]) => propWord(k, f)), ...(s.events !== undefined ? ["onPress"] : [])].join(" ")}>`);
   const events = p.events.map(e => `on${e[0]!.toUpperCase()}${e.slice(1)}`);
-  return `${p.type}: ${[...props, ...events].join(" ")}${items.length > 0 ? `; ${items.join(" ")}` : ""}${p.holdsChildren && p.childLimit === undefined ? "; children" : ""}`;
+  const own = [...props, ...events].join(" ");
+  return `${p.type}: ${own}${items.length > 0 ? `${own === "" ? "" : "; "}${items.join(" ")}` : ""}${p.holdsChildren && p.childLimit === undefined ? "; children" : ""}`;
 }
 
 function sourceLine(name: string): string {
@@ -80,23 +85,42 @@ function sourceLine(name: string): string {
   return `${name}: ${fields.map(([k, v]) => (typeof v === "object" && "list" in v ? `${k}[]` : k)).join(" ")}${more}`;
 }
 
-function index(): string {
-  const core = Object.values(SLATE_PIECES).filter(p => p.level === "core");
+/** The index lists the pieces read by eye first, then those the person answers with, then words, then layout. */
+const FIRST = ["stats", "progress", "decision"];
+const rank = (p: SlatePieceModule): number => (FIRST.includes(p.type) ? 0 : p.reads === "eye" ? 1 : p.interactive === true ? 2 : p.reads === "words" ? 3 : 4);
+
+/** The pieces and items whose tone lacks some of the shared line's words, grouped by the words they lack. */
+function narrowTones(core: SlatePieceModule[]): string {
+  const groups = new Map<string, string[]>();
+  const add = (name: string, spec: SlatePropSpec | undefined): void => {
+    if (!Array.isArray(spec?.type) || (spec.type as readonly string[]).join() === SLATE_TONES.join()) return;
+    const lacks = SLATE_TONES.filter(t => !(spec.type as readonly string[]).includes(t)).join(" ");
+    groups.set(lacks, [...(groups.get(lacks) ?? []), name]);
+  };
+  for (const p of core) {
+    add(p.type, p.props.tone);
+    for (const [tag, item] of Object.entries(p.items)) add(tag, item.fields.tone);
+  }
+  return [...groups].map(([lacks, names]) => `; ${names.join(" and ")} ${names.length > 1 ? "lack" : "lacks"} ${lacks}`).join("");
+}
+
+function index(look: boolean): string {
+  const core = Object.values(SLATE_PIECES).filter(p => p.level === "core").sort((a, b) => rank(a) - rank(b));
   return [
-    "Slate kit wsp/2, JSX-like text. Pieces (attributes, ! required, (a|b) the only values; <items>):",
+    SLATE_PURPOSE,
+    "Pieces, visual first (! required, (a|b) only these, <items>):",
     ...core.map(pieceLine),
-    `Every piece: id, when={cond}; items take when too. tone: default muted good warning bad info accent. emphasis: normal strong quiet. format, where a line lists none: ${SLATE_FIGURES.join(" ")}.`,
-    "section, column, grid: pad none tight normal loose; surface=\"inset\" sets the card ground; align start center end, else children fill the width.",
-    "bars compare categories; time is a chart, x in ms or ISO; shares a donut, sizes a treemap, spans on a clock a timeline; a flow is a diagram; a screenshot or plot is an image from its path on the thread's computer, or an https address the person allows.",
+    `Every piece: id, when={cond}; items take when too. tone: ${SLATE_TONES.join(" ")}${narrowTones(core)}. emphasis: normal strong quiet. gap: tight normal loose. format, where none is listed: ${SLATE_FIGURES.join(" ")}.`,
+    `Pick: figures stats; done of many progress; a question decision; categories bars; time is a chart, x in ms or ISO; shares donut; sizes treemap; spans timeline; a flow is a diagram; what no piece draws, a frame: an .html file you wrote.`,
     "Sources, read only:",
     ...Object.values(SLATE_SOURCES).filter(s => s.level === "core").map(s => sourceLine(s.name)),
     "Declarations: <value name start> <secret name> <derived name value> <run name cmd env args stdin on timeout every always once confirm then tool resource description> <file name> <when change={$path} or done={$run} do={steps}>",
-    `Steps: ${Object.keys(SLATE_STEPS).join(" ")}. Functions: ${Object.keys(SLATE_FUNCTIONS).join(" ")}. ago(t) "30s ago", until(t) "in 4m".`,
-    `After |: ${Object.keys(SLATE_PIPE_STEPS).join(" ")}. $run reads state exit out err json; a secret only .set .len.`,
+    `Steps: ${Object.keys(SLATE_STEPS).join(" ")}. Functions: slate_catalog functions; ago(t) "30s ago", until(t) "in 4m".`,
+    `After |: ${Object.keys(SLATE_PIPE_STEPS).filter(n => ["where", "sortBy", "take", "count"].includes(n)).join(" ")} and more. $run reads state exit out err json; a secret only .set .len.`,
     "Rules:",
-    ...SLATE_RULES.map((r, i) => `${i + 1}. ${r}`),
+    ...[...SLATE_RULES, ...(look ? [SLATE_LOOK_RULE] : [])].map((r, i) => `${i + 1}. ${r}`),
     SLATE_INDEX_EXAMPLE,
-    "More: slate_catalog <piece, source, runs, patch, functions, steps, handlers or examples>.",
+    "More: slate_catalog <piece, source, runs, patch, functions or examples>.",
   ].join("\n");
 }
 
@@ -196,10 +220,11 @@ function handlersEntry(): string {
   return [`Handler steps, in onPress, onSubmit, onChange and <when do>; one step or [a, b], at most ${SLATE_LIMITS.stepsPerReaction}:`, ...Object.values(SLATE_STEPS).map(s => `${s.sig}: ${s.purpose}. ${s.runs === "window" ? "Window only, on a press. " : ""}Consent: ${s.consent}. ${s.example}`)].join("\n");
 }
 
-/** The catalog: the index with no name, else the named piece, source or chapter, as text. */
-export function slateCatalog(name?: string): string {
-  if (name === undefined || name === "" || name === "index") return index();
-  const text = entry(name);
+/** The catalog: the index with no name, else the named piece, source or chapter, as text. `look` says the look rule,
+ * where an app on the host's computer draws looks. */
+export function slateCatalog(name?: string, o: { look?: boolean } = {}): string {
+  if (name === undefined || name === "" || name === "index") return index(o.look === true);
+  const text = entry(name, o.look === true);
   // A named entry adds detail only; agents that read one alone guessed pieces like <h1> and <p>.
   return text.startsWith(`${name.trim()} ${NOT_IN}`) ? text : `${text}\n${BACK}`;
 }
@@ -211,7 +236,7 @@ const NOT_IN = "is not in the catalog";
 /** The entries slate_catalog answers by name besides the pieces and the sources. */
 export const SLATE_CHAPTERS = ["runs", "functions", "steps", "handlers", "patch", "examples"] as const;
 
-function entry(name: string): string {
+function entry(name: string, look: boolean): string {
   const n = name.trim();
   if (n === "file") return `The <file name="x.py"> declaration, code a run calls as $SLATE_DIR/x.py, is in slate_catalog runs.`;
   if (SLATE_PIECES[n] !== undefined) return pieceEntry(SLATE_PIECES[n]);
@@ -227,7 +252,7 @@ function entry(name: string): string {
       const options = [...Object.keys(SLATE_PIECES), ...Object.keys(SLATE_SOURCES), ...SLATE_CHAPTERS];
       const fix = nearest(n, options);
       // A guessed name answers the index too: small models asked for "dashboards" or "rows" and never saw a piece.
-      return `${n} is not in the catalog${fix !== undefined ? `; did you mean ${fix}?` : "."} Ask for a piece, a source, runs, patch, functions, steps, handlers or examples; a server's tools are the host's to answer. The whole index:\n\n${index()}`;
+      return `${n} is not in the catalog${fix !== undefined ? `; did you mean ${fix}?` : "."} Ask for a piece, a source, runs, patch, functions, steps, handlers or examples; a server's tools are the host's to answer. The whole index:\n\n${index(look)}`;
     }
   }
 }

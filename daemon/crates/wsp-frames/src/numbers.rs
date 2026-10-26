@@ -2,7 +2,7 @@
 //! The numbers and paths the protocol and the node daemon own, as the contract fixture pins them.
 
 /// The daemon's protocol version, carried in its hello: the length of the protocol's DAEMON_CONTENTS record.
-pub const DAEMON_VERSION: u32 = 167;
+pub const DAEMON_VERSION: u32 = 169;
 
 pub const DEFAULT_HOST: &str = "0.0.0.0";
 pub const DEFAULT_PORT: u16 = 7070;
@@ -150,6 +150,8 @@ pub const EXEC_DEADLINE_EXIT: i32 = 124;
 pub const FS_READ_CAP_BYTES: u64 = 2 * 1024 * 1024;
 /// The most one fs.image carries, the cap on an image a person attaches.
 pub const FS_IMAGE_CAP_BYTES: u64 = 10 * 1024 * 1024;
+/// The most one fs.page carries, the most a slate frame's page may weigh.
+pub const FS_PAGE_CAP_BYTES: u64 = 1024 * 1024;
 /// The most files one fs.hash hashes, the largest it reads, and the most paths it is asked about.
 pub const FS_HASH_FILES_MAX: usize = 32;
 pub const FS_HASH_CAP_BYTES: u64 = 4 * 1024 * 1024;

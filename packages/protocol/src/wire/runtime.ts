@@ -4,11 +4,10 @@ import { z } from "zod";
 import { AgentsTarget, McpScope, PluginAsk, ServerAdd, ServerAsk } from "../agents-report.js";
 import { Attachment } from "../attachments.js";
 import { threadAt } from "../format.js";
-import { SIGN_IN_CODE_MAX } from "../setup.js";
 import { ReadingsRange, UsageRange, UsageSplit } from "../usage.js";
 import { ResumeAsk } from "../conversations.js";
 import { AccessChoice, AgentSetupSet } from "../thread-defaults.js";
-import { SLATE_OPS } from "../slate/wire.js";
+import { SLATE_OPS, SlatesLookAnswer } from "../slate/wire.js";
 import { RecipeFile } from "../recipe-file.js";
 import { MergeMethod, PullRequestItem, PR_REPLY_BODY_MAX, ReactionContent } from "../pull-request.js";
 import { WorkspaceLook } from "../workspace-look.js";
@@ -45,6 +44,8 @@ function slateOps() {
     op("slates.unsubscribe"),
     op("slates.resolve"),
     op("slates.image"),
+    op("slates.page"),
+    op("slates.look"),
   ] as const;
 }
 
@@ -217,10 +218,6 @@ const RuntimeOp = z.discriminatedUnion("op", [
   z.object({
     id: reqId,
     op: z.literal("workspaces.create"),
-    /** An image by snapshot id; absent takes the head of the project's computer's own image. A create a thread asked
-     * for names none and is refused where it does: it takes the image its own workspace's project runs, which is the
-     * only image a thread reaches. */
-    golden: z.string().optional(),
     /** The project this workspace is made for, by id or by name. Its computer is where the workspace lands. Beside
      * `sub` the project is the asking thread's own, read off its token: empty or that project's id or name, any
      * other refused. */
@@ -443,6 +440,11 @@ const RuntimeOp = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("appProcs.offer") }),
   /** The app's processes as it read them just now, from a socket that offered; pushed to every socket that watches. */
   z.object({ id: reqId, op: z.literal("appProcs.set"), procs: AppProcList }),
+  /** The app on this computer offers to draw slates on this socket, for slates.look: the host pushes a
+   * SlateLookWantedEvent here for each look and waits for its answer. The host's own road alone; replies `{}`. */
+  z.object({ id: reqId, op: z.literal("slateLook.offer") }),
+  /** One look drawn, by the id its event carried: the slate's picture, or the sentence that says why there is none. */
+  z.object({ id: reqId, op: z.literal("slateLook.answer"), lookId: z.string(), look: SlatesLookAnswer.optional(), problem: z.string().max(2000).optional() }),
   /** A computer's processes by the thread that started them, replied as { activity: ActivityView }: this computer's,
    * the one a computer named must be, or one thread's alone, refused for a thread on a box. A thread reads itself and
    * the threads under it alone. */
@@ -982,8 +984,13 @@ export const RuntimeRequest = z.intersection(RuntimeOp, z.object({ origin: Works
 export const RUNTIME_OPS: readonly string[] = RuntimeOp.options.map(o => o.shape.op.value);
 
 /** The request fields above that carry a secret: a key, a token, a code, a passphrase, or a record of logins or
- * environment values a person puts keys into. A new field that carries one is added here, beside its schema. */
-export const SECRET_REQUEST_FIELDS: readonly string[] = ["token", "key", "rows", "code", "passphrase", "env", "envs", "headers", "sudoPassword"];
+ * environment values a person puts keys into, and `ticket`, the bearer ticket.issue answers with, which the tap reads
+ * off answers by the same list. A new field that carries one is added here, beside its schema. */
+export const SECRET_REQUEST_FIELDS: readonly string[] = ["token", "turnToken", "ticket", "key", "rows", "code", "passphrase", "env", "envs", "headers", "sudoPassword"];
+
+/** More secret values than any real frame carries (a record of logins, an environment); a line holding more is not
+ * blanked value by value, since each value is one pass over the line on the host's own thread. */
+export const SCANNED_SECRETS = 256;
 
 /** The secret values a request frame carries, read one level into a record and no deeper: a record of logins is as
  * deep as a secret field goes, and the frame may be a stranger's. */
@@ -1082,6 +1089,7 @@ export const THREAD_OPS: readonly string[] = [
   "slates.state",
   "slates.read",
   "slates.catalog",
+  "slates.look",
 ];
 
 /** The ops a computer the person paired may send with no role of its own, and the whole of them, for the reason
@@ -1189,6 +1197,7 @@ export const DEVICE_OPS: readonly string[] = [
   "slates.unsubscribe",
   "slates.resolve",
   "slates.image",
+  "slates.page",
 ];
 
 /** The one sentence a thread's own token is refused an op with. It names the op rather than guessing why a caller

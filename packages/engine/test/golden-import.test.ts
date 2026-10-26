@@ -6,10 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { ROOT, sourceFiles } from "../../protocol/test/source-files.js";
-import { diffRecipes } from "../src/golden-diff.js";
 import { CATALOG_AGENTS, CLAUDE_CODE, CLAUDE_INSTALL, LOCAL_BIN, ROAD_MODULES, ROAD_STEPS, baseNote, catalogEntry as catalogEntryOf, installLine, parseJsonc } from "@wsp/catalog";
 import {
-  rowRoad,
   UNMEASURED_ROAD,
   PATH_LINE,
   CATALOG_PREFIX,

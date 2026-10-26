@@ -3,6 +3,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  COPY_BUILD_FIX,
+  IMAGE_NO_VAULT,
+  NO_IMAGE_FIX,
+  NO_IMAGE_YET,
+  NO_NEW_VERSION,
+  NO_SEALED_IMAGE,
+  imageRebuildFix,
   spawnDepthRefusal,
   HOST_BEAT_MS,
   ADDRESS_NEXT_START,
@@ -125,13 +132,9 @@ import {
   plural,
   providerAnswerLine,
   providerRoadRetryLine,
-  INSTALLER_MOVED_LINE,
-  NO_ROAD_WORDS,
   thisComputer,
   SUM_SHOWN,
   pinMismatchLine,
-  INSTALLS_LATEST,
-  roadMovedLine,
   shortSum,
   sizeFromWord,
   sizeRefusal,
@@ -182,7 +185,6 @@ import {
   NOT_GONE,
   repoLine,
   secretsNote,
-  secretSignalsLine,
   SESSIONS_NOTE,
   shellVersionNotice,
   type GoldenMissingTool,
@@ -1456,13 +1458,24 @@ describe("a pinned release that moved", () => {
     // With the widest tool and asset names the catalog has, the line stays under the 160 characters the reason rule keeps.
     expect(pinMismatchLine("google-cloud-cli-575.0.0-linux-x86_64.tar.gz", "575.0.0", "b".repeat(12), "c".repeat(12)).length).toBeLessThan(160);
   });
+});
 
-  it("why a tool installs differently now: the road in the roads' words, the lines otherwise", () => {
-    expect(roadMovedLine("with Homebrew", "by its own installer")).toBe("now by its own installer, was with Homebrew");
-    expect(INSTALLER_MOVED_LINE).toBe("its install lines changed");
-    expect(roadMovedLine("with Homebrew", NO_ROAD_WORDS)).toBe("now by no road, was with Homebrew");
+describe("what an image refusal tells a person to do", () => {
+  it("where there is no image it names wsp doctor on the cloud computer, and where a next version is asked for it says the image stays as it is and this build makes none", () => {
+    expect(NO_IMAGE_FIX).toBe("Run wsp doctor with the name of your cloud computer; it builds the default image there.");
+    expect(NO_SEALED_IMAGE).toBe("no image yet. Run wsp doctor with the name of your cloud computer; it builds the default image there.");
+    expect(NO_IMAGE_YET).toBe(NO_SEALED_IMAGE);
+    expect(NO_NEW_VERSION).toBe("The image stays as it is, and this build makes no new version.");
+    expect(IMAGE_NO_VAULT).toBe("no sign-ins held; this build makes no new version to hold them");
+    expect(imageRebuildFix("Boat")).toBe("The image stays as it is, and this build makes no new version, so a fork on Boat stays refused.");
+    expect(COPY_BUILD_FIX.noImage).toBe(NO_IMAGE_FIX);
+    expect(COPY_BUILD_FIX.noRecipe).toBe("The image stays as it is, and this build makes no new version. This one cannot be copied.");
+    expect(COPY_BUILD_FIX.noVault).toBe("The image stays as it is, and this build makes no new version. Run it again with --force to copy this one anyway.");
   });
 
+  it("names no road that is gone", () => {
+    for (const words of [NO_IMAGE_FIX, NO_NEW_VERSION, IMAGE_NO_VAULT, imageRebuildFix("Boat"), ...Object.values(COPY_BUILD_FIX)]) expect(words).not.toMatch(/wsp init|seal|the next version/i);
+  });
 });
 
 describe("the computer being read", () => {
@@ -1486,10 +1499,6 @@ describe("the import dialog's words", () => {
     expect(secretsNote(2)).toBe("2 files look like secrets. Ticked files are copied as they are. Unticked files are left out and listed.");
     expect(secretsNote(1)).toBe("1 file looks like a secret. Ticked files are copied as they are. Unticked files are left out and listed.");
     expect(SESSIONS_NOTE).toBe("Ticked agents' sessions go with the folder. The rest stay here.");
-  });
-
-  it("names why a file looks like a secret and its size, the one spelling the CLI's plan column and the dialog's hover share", () => {
-    expect(secretSignalsLine({ path: ".env", bytes: 120, signals: ["name", "keys"] })).toBe("name, keys, 120 B");
   });
 
   const ev = (over: { stage: string; message?: string; bytes?: number; total?: number }) => ({ message: "", ...over }) as Parameters<typeof importProgress>[0][number];

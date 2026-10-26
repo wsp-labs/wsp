@@ -6,17 +6,17 @@
 // run, is a stub on PATH.
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chownSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { accessSync, chownSync, constants, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { hostname, tmpdir } from "node:os";
-import { join } from "node:path";
-import { fmtBytes } from "@wsp/protocol";
+import { dirname, join } from "node:path";
+import { fmtBytes, shellQuote } from "@wsp/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { REPO, bundleNames } from "../../../packages/protocol/src/bundles.mjs";
 import { compareVersions } from "../../../packages/protocol/src/semver.mjs";
 import { writeStub } from "../../../packages/protocol/test/stub-script.js";
-import { keepAppImage, shimText } from "../src/shim.js";
+import { shimText } from "../src/shim.js";
 
 const SCRIPT = join(__dirname, "..", "..", "www", "public", "install");
 const REPO_PATH = new URL(REPO).pathname;
@@ -40,31 +40,79 @@ function answer(version: string, assets: Record<string, Buffer>): string {
   return JSON.stringify({ tag_name: `v${version}`, name: `wsp ${version}`, draft: false, prerelease: false, assets: rows, body }, null, 2);
 }
 
-/** The desktop entry a release's AppImage carries, as electron-builder writes it. */
+/** The desktop entry a release's AppImage carries, as apps/desktop-gpui/scripts/package.sh writes it. */
 const carriedEntry = (version: string): string =>
+  `[Desktop Entry]\nType=Application\nName=wsp\nComment=wsp's desktop app\nExec=desktop-gpui %U\nIcon=wsp\nTerminal=false\nCategories=Development;\nMimeType=x-scheme-handler/wsp;\nX-AppImage-Version=${version}\n`;
+
+/** The desktop entry the classic app's AppImage carries, as electron-builder writes it. */
+const classicEntry = (version: string): string =>
   `[Desktop Entry]\nName=wsp\nExec=AppRun %U\nTerminal=false\nType=Application\nIcon=wsp\nStartupWMClass=wsp\nX-AppImage-Version=${version}\nMimeType=x-scheme-handler/wsp;\nCategories=Development;\n`;
 
-/** An AppImage whose runtime unpacks a tree with the app's binary and its command, the binary answering --version as
- * the app run as node does, and the AppRun, entry and icon a release carries beside them. */
-function appImage(version: string, opts: { command?: boolean } = {}): Buffer {
-  const binary = `#!/bin/sh\n[ "$1" = --no-memory-pool ] || exit 5\ncase "$2" in */resources/app/main/cli.mjs) ;; *) exit 3 ;; esac\n[ "$ELECTRON_RUN_AS_NODE" = 1 ] || exit 4\n[ "$3" = --version ] && echo "wsp ${version}"\n`;
+/** The classic app's Electron binary, answering --version as it does run as Node on the bundled command. */
+const electronBinary = (version: string, command: string): string =>
+  `#!/bin/sh\n[ "$1" = --no-memory-pool ] || exit 5\ncase "$2" in */${command}) ;; *) exit 3 ;; esac\n[ "$ELECTRON_RUN_AS_NODE" = 1 ] || exit 4\n[ "$3" = --version ] && echo "wsp ${version}"\n`;
+
+/** The bundled Node, answering --version as Node running the bundled command does, and only with no Electron switch. */
+const nodeBinary = (version: string, command: string): string =>
+  `#!/bin/sh\ncase "$1" in */${command}) ;; *) exit 3 ;; esac\n[ -z "\${ELECTRON_RUN_AS_NODE+set}" ] || exit 4\n[ "$2" = --version ] && echo "wsp ${version}"\n`;
+
+/** The daemon's forwarder as the wsp command runs it: no host to hand the line to, so it runs the wsp it was given. */
+const daemonBinary = '#!/bin/sh\n[ "$1 $2 $4 $6" = "forward --wsp-argv --wsp-argv --" ] || exit 6\nnode=$3\ncommand=$5\nshift 6\nexec "$node" "$command" "$@"\n';
+
+/** The wsp command the app writes for its bundled daemon, Node and command (apps/desktop-gpui/app/src/service/shim.rs
+ * `text`), each path bare where sh reads it as itself. */
+function appShim(daemon: string, node: string, command: string): string {
+  const word = (path: string): string => (/^[A-Za-z0-9_./:=@,+-]+$/.test(path) ? path : shellQuote(path));
+  return `#!/bin/sh\n# The wsp app writes this on each launch; it runs the wsp the app bundles.\nexec ${word(daemon)} forward --wsp-argv ${word(node)} --wsp-argv ${word(command)} -- "$@"\n`;
+}
+
+const LINUX_DAEMON = "usr/lib/wsp/app/assets/daemon/x86_64-unknown-linux-musl/wsp-daemon";
+
+/** An AppImage whose runtime unpacks the app's tree (its binary, the bundled Node, command and daemon) or the classic
+ * app's (its Electron binary and command), and the AppRun, entry and icon a release carries beside them. Run as the
+ * app, it says it opened and whether its runtime was told to unpack it for the launch instead of mounting it. */
+function appImage(version: string, opts: { command?: boolean; classic?: boolean; mounts?: boolean } = {}): Buffer {
+  const tree =
+    opts.classic === true
+      ? [
+          "mkdir -p squashfs-root/resources/app/main",
+          ": > squashfs-root/resources/app/main/cli.mjs",
+          `cat > squashfs-root/wsp <<'BIN'\n${electronBinary(version, "resources/app/main/cli.mjs")}BIN`,
+          "chmod 755 squashfs-root/wsp",
+          `cat > squashfs-root/wsp.desktop <<'ENTRY'\n${classicEntry(version)}ENTRY`,
+        ]
+      : [
+          `mkdir -p squashfs-root/usr/bin squashfs-root/usr/lib/wsp/app/main ${dirname(`squashfs-root/${LINUX_DAEMON}`)}`,
+          ": > squashfs-root/usr/bin/desktop-gpui",
+          `cat > squashfs-root/usr/bin/node <<'BIN'\n${nodeBinary(version, "usr/lib/wsp/app/main/cli.mjs")}BIN`,
+          `cat > squashfs-root/${LINUX_DAEMON} <<'BIN'\n${daemonBinary}BIN`,
+          `chmod 755 squashfs-root/usr/bin/desktop-gpui squashfs-root/usr/bin/node squashfs-root/${LINUX_DAEMON}`,
+          `cat > squashfs-root/wsp.desktop <<'ENTRY'\n${carriedEntry(version)}ENTRY`,
+          opts.command === false ? "" : ": > squashfs-root/usr/lib/wsp/app/main/cli.mjs",
+        ];
   return Buffer.from(
     [
       "#!/bin/sh",
-      '[ "$1" = --appimage-extract ] || exit 2',
-      "mkdir -p squashfs-root/resources/app/main",
-      ": > squashfs-root/resources/app/main/cli.mjs",
-      `cat > squashfs-root/wsp <<'BIN'\n${binary}BIN`,
-      "chmod 755 squashfs-root/wsp",
-      `cat > squashfs-root/wsp.desktop <<'ENTRY'\n${carriedEntry(version)}ENTRY`,
+      opts.mounts === false ? '[ "$1" = --appimage-extract ] || [ -n "${APPIMAGE_EXTRACT_AND_RUN+set}" ] || { echo "Cannot mount AppImage, please check your FUSE setup."; exit 127; }' : "",
+      `if [ "$1" != --appimage-extract ]; then echo "wsp ${version} opened $*"; echo "APPIMAGE_EXTRACT_AND_RUN=\${APPIMAGE_EXTRACT_AND_RUN-unset}"; exit 0; fi`,
+      ...tree,
       `printf '#!/bin/sh\\necho "wsp ${version} opened $*"\\n' > squashfs-root/AppRun`,
       "chmod 755 squashfs-root/AppRun",
       ": > squashfs-root/wsp.png",
-      opts.command === false ? "rm squashfs-root/resources/app/main/cli.mjs" : ": > squashfs-root/resources/app/main/cli.mjs",
       "",
     ].join("\n"),
   );
 }
+
+/** Whether this computer's AppImage runtime could open /dev/fuse to mount an AppImage. */
+const FUSE = ((): boolean => {
+  try {
+    accessSync("/dev/fuse", constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+})();
 
 interface Ran {
   code: number | null;
@@ -205,7 +253,7 @@ describe("the install line", () => {
       expect(first.stdout).toContain("wsp install: sha256 matches the release");
       const shim = join(home, ".wsp", "bin", "wsp");
       const files = join(home, ".wsp", "app", "0.3.0-install");
-      expect(readFileSync(shim, "utf8")).toBe(shimText({ execPath: join(files, "wsp"), script: join(files, "resources", "app", "main", "cli.mjs") }));
+      expect(readFileSync(shim, "utf8")).toBe(appShim(join(files, LINUX_DAEMON), join(files, "usr", "bin", "node"), join(files, "usr", "lib", "wsp", "app", "main", "cli.mjs")));
       expect(readFileSync(join(home, "Applications", "wsp.AppImage"))).toEqual(appImage("0.3.0"));
 
       const second = await run();
@@ -272,18 +320,40 @@ describe("the install line", () => {
       expect(readdirSync(join(home, ".local", "bin")).filter(name => name.endsWith(".part"))).toEqual([]);
     });
 
-    it("says it installs the libraries the app links where they are missing, under the names this computer's apt knows", async () => {
-      const apt = JSON.stringify(join(root, "apt.log"));
-      const installed = JSON.stringify(join(root, "installed"));
-      writeStub(join(bin, "ldd"), `#!/bin/sh\n[ -e ${installed} ] || printf '\\tlibgtk-3.so.0 => not found\\n\\tlibnss3.so => not found\\n'\n`);
-      writeStub(join(bin, "apt-cache"), `#!/bin/sh\ncase "$2" in libgtk-3-0t64 | libasound2t64 | libnss3 | libgbm1) exit 0 ;; esac\nexit 100\n`);
-      writeStub(join(bin, "apt-get"), `#!/bin/sh\necho "apt-get $*" >> ${apt}\ncase "$*" in *install*) touch ${installed} ;; esac\n`);
+    it("installs the classic app an earlier release's AppImage holds, then the app over it, each with its own command and the libraries it links under the names this computer's apt knows", async () => {
+      const apt = join(root, "apt.log");
+      const installed = join(root, "installed");
+      writeStub(
+        join(bin, "ldd"),
+        `#!/bin/sh\n[ -e ${JSON.stringify(installed)} ] && exit 0\ncase "$1" in */squashfs-root/wsp) printf '\\tlibgtk-3.so.0 => not found\\n\\tlibnss3.so => not found\\n' ;; */squashfs-root/usr/bin/desktop-gpui) printf '\\tlibwebkit2gtk-4.1.so.0 => not found\\n\\tlibxkbcommon-x11.so.0 => not found\\n' ;; *) exit 1 ;; esac\n`,
+      );
+      writeStub(join(bin, "apt-cache"), `#!/bin/sh\ncase "$2" in libgtk-3-0t64 | libasound2t64 | libnss3 | libgbm1 | libwebkit2gtk-4.1-0 | libxkbcommon-x11-0) exit 0 ;; esac\nexit 100\n`);
+      writeStub(join(bin, "apt-get"), `#!/bin/sh\necho "apt-get $*" >> ${JSON.stringify(apt)}\ncase "$*" in *install*) touch ${JSON.stringify(installed)} ;; esac\n`);
       writeStub(join(bin, "sudo"), `#!/bin/sh\nexec "$@"\n`);
+      // v0.3.8 is the last release whose AppImage holds the classic app under the app's name.
+      publish("0.3.8", { [bundleNames("0.3.8").appImage]: appImage("0.3.8", { classic: true }) });
       publish("0.4.0", { [bundleNames("0.4.0").appImage]: appImage("0.4.0") }, { latest: true });
-      const ran = await run();
-      expect(ran.code, ran.stderr).toBe(0);
-      expect(ran.stdout).toMatch(/^wsp install: this computer lacks 2 libraries the app links, GTK among them; installing them with apt-get(, which asks for sudo)?$/m);
-      expect(readFileSync(join(root, "apt.log"), "utf8")).toBe("apt-get update -qq\napt-get install -y -qq --no-install-recommends libgtk-3-0t64 libnss3 libasound2t64 libgbm1\n");
+      const shim = join(home, ".wsp", "bin", "wsp");
+      const answers = (): string => spawnSync(shim, ["--version"], { encoding: "utf8", env: { PATH: "/usr/bin:/bin" } }).stdout;
+
+      const classic = await run({ WSP_VERSION: "0.3.8" });
+      expect(classic.code, classic.stderr).toBe(0);
+      expect(classic.stdout).toMatch(/^wsp install: this computer lacks 2 libraries the app links; installing them with apt-get(, which asks for sudo)?$/m);
+      expect(readFileSync(apt, "utf8")).toBe("apt-get update -qq\napt-get install -y -qq --no-install-recommends libgtk-3-0t64 libnss3 libasound2t64 libgbm1\n");
+      const files = join(home, ".wsp", "app", "0.3.8-install");
+      expect(readFileSync(shim, "utf8")).toBe(shimText({ execPath: join(files, "wsp"), script: join(files, "resources", "app", "main", "cli.mjs") }));
+      expect(answers()).toBe("wsp 0.3.8\n");
+
+      rmSync(apt);
+      rmSync(installed);
+      const app = await run();
+      expect(app.code, app.stderr).toBe(0);
+      expect(readFileSync(apt, "utf8")).toBe("apt-get update -qq\napt-get install -y -qq --no-install-recommends libwebkit2gtk-4.1-0 libxkbcommon-x11-0\n");
+      const replaced = join(home, ".wsp", "app", "0.4.0-install");
+      expect(readFileSync(shim, "utf8")).toBe(appShim(join(replaced, LINUX_DAEMON), join(replaced, "usr", "bin", "node"), join(replaced, "usr", "lib", "wsp", "app", "main", "cli.mjs")));
+      expect(answers()).toBe("wsp 0.4.0\n");
+      expect(readdirSync(join(home, ".wsp", "app"))).toEqual(["0.4.0-install"]);
+      expect(readFileSync(join(home, "Applications", "wsp.AppImage"))).toEqual(appImage("0.4.0"));
     });
 
     /** An AppImage four megabytes long, so its download takes a while dripped. */
@@ -338,9 +408,12 @@ describe("the install line", () => {
       return words.filter(word => !/^%[a-zA-Z]$/.test(word)).map(word => (word.startsWith('"') ? word.slice(1, -1).replace(/\\(.)/g, "$1") : word).replaceAll("%%", "%"));
     }
 
-    it("on a desktop puts the AppImage's own entry in the app menu running the unpacked app through a launcher that stays, needing no FUSE, and opens it once", async () => {
+    it("on a desktop puts the AppImage's own entry in the app menu running the AppImage through a launcher, unpacked for each launch where FUSE cannot be used, and opens it once", async () => {
       const launches = join(root, "setsid.log");
       writeStub(join(bin, "setsid"), `#!/bin/sh\necho "setsid $*" >> ${JSON.stringify(launches)}\n`);
+      writeStub(join(bin, "fusermount"), "#!/bin/sh\n");
+      const noFuse = join(root, "no-fuse");
+      mkdirSync(noFuse);
       publish("0.4.0", { [bundleNames("0.4.0").appImage]: appImage("0.4.0") }, { latest: true });
       // A home whose path the Exec line has to quote and escape.
       const spaced = join(root, "home of 100% $wsp");
@@ -353,78 +426,83 @@ describe("the install line", () => {
         const launcher = join(at, ".wsp", "bin", "wsp-desktop");
         const icon = join(at, ".local", "share", "icons", "hicolor", "512x512", "apps", "wsp.png");
         const entry = readFileSync(join(at, ".local", "share", "applications", "wsp.desktop"), "utf8");
-        expect(entry).toBe(carriedEntry("0.4.0").replace("Exec=AppRun", `Exec=${JSON.stringify(launcher).replace(/[$%\\]/g, c => (c === "%" ? "%%" : `\\\\${c}`))}`).replace("Icon=wsp", `Icon=${icon}`));
+        expect(entry).toBe(carriedEntry("0.4.0").replace("Exec=desktop-gpui", `Exec=${JSON.stringify(launcher).replace(/[$%\\]/g, c => (c === "%" ? "%%" : `\\\\${c}`))}`).replace("Icon=wsp", `Icon=${icon}`));
         expect(existsSync(icon)).toBe(true);
         expect(execWords(entry)).toEqual([launcher]);
-        // What the menu runs is the unpacked app itself, with no AppImage runtime to mount.
-        expect(menuOpens(entry, at)).toBe("wsp 0.4.0 opened \n");
+        // What the menu runs is the AppImage, whose runtime mounts it where FUSE works and unpacks it for the launch
+        // where /dev/fuse cannot be opened or no fusermount is on PATH.
+        expect(menuOpens(entry, at, bin, "wsp://open")).toBe(`wsp 0.4.0 opened wsp://open\nAPPIMAGE_EXTRACT_AND_RUN=${FUSE ? "unset" : "1"}\n`);
+        expect(menuOpens(entry, at, noFuse)).toBe("wsp 0.4.0 opened \nAPPIMAGE_EXTRACT_AND_RUN=1\n");
         for (let n = 0; n < 40 && !existsSync(launches); n++) await new Promise(done => setTimeout(done, 50));
         expect(readFileSync(launches, "utf8")).toBe(`setsid ${launcher}\n`);
         expect(ran.stdout.trimEnd().split("\n").at(-1)).toBe("wsp install: open wsp from your app menu, or run ~/Applications/wsp.AppImage");
       }
+      // A FUSE that looks usable and still cannot mount, as root in a container without CAP_SYS_ADMIN, unpacks it too.
+      writeFileSync(join(home, "Applications", "wsp.AppImage"), appImage("0.4.0", { mounts: false }));
+      const entry = readFileSync(join(home, ".local", "share", "applications", "wsp.desktop"), "utf8");
+      const tried = FUSE ? "Cannot mount AppImage, please check your FUSE setup.\n" : "";
+      expect(menuOpens(entry, home, bin)).toBe(`${tried}wsp 0.4.0 opened \nAPPIMAGE_EXTRACT_AND_RUN=1\n`);
     });
 
-    /** What the entry's Exec line prints when a launcher runs it on `at`'s session. */
-    const menuOpens = (entry: string, at: string): string => {
+    /** What the entry's Exec line prints when a launcher runs it on `at`'s session with `path` for PATH, `more` after
+     * its own words. */
+    const menuOpens = (entry: string, at: string, path = "/usr/bin:/bin", ...more: string[]): string => {
       const [command = "", ...args] = execWords(entry);
-      const ran = spawnSync(command, args, { encoding: "utf8", env: { HOME: at, PATH: "/usr/bin:/bin" } });
+      const ran = spawnSync(command, [...args, ...more], { encoding: "utf8", env: { HOME: at, PATH: path } });
       return `${ran.stdout ?? ""}${ran.stderr ?? ""}${ran.error?.message ?? ""}`;
     };
 
-    it("keeps the menu entry opening wsp after the app's own copies of two later releases clean away the folder the line installed", async () => {
+    it("keeps the menu entry opening the AppImage once the files the line unpacked are gone, and names the line to run once the AppImage is", async () => {
       writeStub(join(bin, "setsid"), "#!/bin/sh\n");
       publish("0.4.0", { [bundleNames("0.4.0").appImage]: appImage("0.4.0") }, { latest: true });
       expect((await run({ DISPLAY: ":0" })).code).toBe(0);
-      const apps = join(home, ".wsp", "app");
-      const now = Date.now() / 1000;
-      utimesSync(join(apps, "0.4.0-install"), now - 20, now - 20);
-      // Each later release opened from its AppImage, as the app's Get button leaves one in Downloads.
-      for (const [version, age] of [["0.4.1", 10], ["0.4.2", 0]] as const) {
-        const mount = mkdtempSync(join(root, "mount-"));
-        mkdirSync(join(mount, "resources", "app", "main"), { recursive: true });
-        writeStub(join(mount, "AppRun"), `#!/bin/sh\necho "wsp ${version} opened $*"\n`);
-        const image = join(root, `wsp-${version}.AppImage`);
-        writeFileSync(image, version);
-        const kept = keepAppImage({ execPath: join(mount, "wsp"), script: join(mount, "resources", "app", "main", "cli.mjs") }, { appdir: mount, image, version }, join(home, ".wsp"));
-        const folder = join(kept.execPath, "..");
-        utimesSync(folder, now - age, now - age);
-      }
-      expect(readdirSync(apps).some(name => name === "0.4.0-install")).toBe(false);
-      expect(menuOpens(readFileSync(join(home, ".local", "share", "applications", "wsp.desktop"), "utf8"), home)).toBe("wsp 0.4.2 opened \n");
+      const entry = readFileSync(join(home, ".local", "share", "applications", "wsp.desktop"), "utf8");
+      rmSync(join(home, ".wsp", "app"), { recursive: true });
+      expect(menuOpens(entry, home)).toMatch(/^wsp 0\.4\.0 opened \nAPPIMAGE_EXTRACT_AND_RUN=/);
+      const image = join(home, "Applications", "wsp.AppImage");
+      rmSync(image);
+      expect(menuOpens(entry, home)).toBe(`wsp: no app at ${image}; run the install line again\n`);
     });
 
     // The window is found through /proc, which a Mac has not.
-    it.skipIf(!existsSync("/proc/self/exe"))("quits a wsp window open on this home before replacing the files it runs from, and opens the new one", async () => {
+    it.skipIf(!existsSync("/proc/self/exe"))("quits a window of the app or the classic app open on this home before replacing the files it runs from, and opens the new one", async () => {
       const launches = join(root, "setsid.log");
       writeStub(join(bin, "setsid"), `#!/bin/sh\necho "setsid $*" >> ${JSON.stringify(launches)}\n`);
       publish("0.4.0", { [bundleNames("0.4.0").appImage]: appImage("0.4.0") }, { latest: true });
       expect((await run({ DISPLAY: ":0" })).code).toBe(0);
-      rmSync(launches);
-      // A window as Chromium leaves one: a program named wsp, and the lock in the app's folder naming its pid. It holds
-      // the folder it runs from as its working folder, which a path put back by the same name does not stand in for.
-      // Told to quit, it takes the lock away at once and runs on a while, as the real app did for up to 0.1 s, then
-      // notes whether its files were there as it ended, and any moment they went while it ran.
-      const said = join(root, "window.log");
-      mkdirSync(join(root, "window"));
-      copyFileSync("/bin/sh", join(root, "window", "wsp"));
-      const watch = `trap 'rm -f "$1"; sleep 0.5; if [ -f AppRun ]; then echo "quit with its files"; else echo "quit without its files"; fi >> "$0"; exit 0' TERM
-while :; do [ -f AppRun ] || echo "its files went while it ran" >> "$0"; sleep 0.05; done`;
-      const window = spawn(join(root, "window", "wsp"), ["-c", watch, said, join(home, ".wsp", "desktop", "SingletonLock")], { cwd: join(home, ".wsp", "app", "0.4.0-install"), stdio: "ignore" });
-      const exited = new Promise(done => window.once("exit", done));
-      try {
-        mkdirSync(join(home, ".wsp", "desktop"), { recursive: true });
-        symlinkSync(`${hostname()}-${window.pid}`, join(home, ".wsp", "desktop", "SingletonLock"));
-        await new Promise(done => setTimeout(done, 200));
+      const singleton = join(home, ".wsp", "desktop", "SingletonLock");
+      for (const program of ["desktop-gpui", "wsp"] as const) {
+        rmSync(launches, { force: true });
+        // A window as each app leaves one: a program of the app's name, holding the app's lock file in the home open, or
+        // named by the classic app's Chromium lock in its folder. It holds the folder it runs from as its working
+        // folder, which a path put back by the same name does not stand in for. Told to quit, it lets its lock go at
+        // once and runs on a while, as the classic app did for up to 0.1 s, then notes whether its files were there as
+        // it ended, and any moment they went while it ran.
+        const said = join(root, `${program}.log`);
+        mkdirSync(join(root, program));
+        copyFileSync("/bin/sh", join(root, program, program));
+        const hold = program === "wsp" ? "" : `exec 9>>${JSON.stringify(join(home, ".wsp", "desktop-gpui.lock"))}\n`;
+        const watch = `${hold}trap 'exec 9>&-; rm -f "$1"; sleep 0.5; if [ -f AppRun ]; then echo "quit with its files"; else echo "quit without its files"; fi >> "$0"; exit 0' TERM
+while :; do [ -f AppRun ] || echo "its files went while it ran" >> "$0"; sleep 0.05 9>&-; done`;
+        const window = spawn(join(root, program, program), ["-c", watch, said, singleton], { cwd: join(home, ".wsp", "app", "0.4.0-install"), stdio: "ignore" });
+        const exited = new Promise(done => window.once("exit", done));
+        try {
+          if (program === "wsp") {
+            mkdirSync(join(home, ".wsp", "desktop"), { recursive: true });
+            symlinkSync(`${hostname()}-${window.pid}`, singleton);
+          }
+          await new Promise(done => setTimeout(done, 200));
 
-        const ran = await run({ DISPLAY: ":0" });
-        expect(ran.code, ran.stderr).toBe(0);
-        expect(ran.stdout).toContain("wsp install: quitting wsp to replace it\n");
-        expect(await exited).toBe(0);
-        expect(readFileSync(said, "utf8")).toBe("quit with its files\n");
-        for (let n = 0; n < 40 && !existsSync(launches); n++) await new Promise(done => setTimeout(done, 50));
-        expect(readFileSync(launches, "utf8")).toBe(`setsid ${join(home, ".wsp", "bin", "wsp-desktop")}\n`);
-      } finally {
-        window.kill("SIGKILL");
+          const ran = await run({ DISPLAY: ":0" });
+          expect(ran.code, ran.stderr).toBe(0);
+          expect(ran.stdout, program).toContain("wsp install: quitting wsp to replace it\n");
+          expect(await exited).toBe(0);
+          expect(readFileSync(said, "utf8")).toBe("quit with its files\n");
+          for (let n = 0; n < 40 && !existsSync(launches); n++) await new Promise(done => setTimeout(done, 50));
+          expect(readFileSync(launches, "utf8")).toBe(`setsid ${join(home, ".wsp", "bin", "wsp-desktop")}\n`);
+        } finally {
+          window.kill("SIGKILL");
+        }
       }
     });
 
@@ -517,6 +595,8 @@ while :; do [ -f AppRun ] || echo "its files went while it ran" >> "$0"; sleep 0
       uname("Darwin");
       const log = (tool: string): string => `echo "${tool} $*" >> ${JSON.stringify(join(root, "tools.log"))}`;
       const running = JSON.stringify(join(root, "running"));
+      // An Apple silicon Mac, whose arm64 the app's daemon is picked by.
+      writeStub(join(bin, "sysctl"), `#!/bin/sh\n[ "$*" = "-n hw.optional.arm64" ] && echo 1\n`);
       writeStub(join(bin, "ditto"), `#!/bin/sh\n${log("ditto")}\nmkdir -p "$4" && tar -xf "$3" -C "$4"\n`);
       writeStub(join(bin, "plutil"), `#!/bin/sh\n${log("plutil")}\ncat "$6"\n`);
       writeStub(join(bin, "codesign"), `#!/bin/sh\n${log("codesign")}\n`);
@@ -529,15 +609,23 @@ while :; do [ -f AppRun ] || echo "its files went while it ran" >> "$0"; sleep 0
 
     const tools = (): string => (existsSync(join(root, "tools.log")) ? readFileSync(join(root, "tools.log"), "utf8") : "");
 
-    /** The release's zip as a tar of one wsp.app, whose binary answers --version as the app run as node does. */
-    async function macZip(version: string, binary = `#!/bin/sh\n[ "$ELECTRON_RUN_AS_NODE" = 1 ] && [ "$1" = --no-memory-pool ] && [ "$3" = --version ] && echo "wsp ${version}"\n`): Promise<Buffer> {
+    /** The release's zip as a tar of one wsp.app: the app's binary, and the bundled Node, command and a daemon for each
+     * chip, or the classic app's Electron binary and command. */
+    async function macZip(version: string, { node = nodeBinary(version, "Contents/Resources/app/main/cli.mjs"), classic = false } = {}): Promise<Buffer> {
       const tree = mkdtempSync(join(root, "zip-"));
       const contents = join(tree, "wsp.app", "Contents");
       mkdirSync(join(contents, "MacOS"), { recursive: true });
       mkdirSync(join(contents, "Resources", "app", "main"), { recursive: true });
       writeFileSync(join(contents, "Info.plist"), version);
       writeFileSync(join(contents, "Resources", "app", "main", "cli.mjs"), "");
-      writeFileSync(join(contents, "MacOS", "wsp"), binary, { mode: 0o755 });
+      if (classic) writeFileSync(join(contents, "MacOS", "wsp"), electronBinary(version, "Contents/Resources/app/main/cli.mjs"), { mode: 0o755 });
+      else writeFileSync(join(contents, "MacOS", "desktop-gpui"), "");
+      if (!classic) writeFileSync(join(contents, "MacOS", "node"), node, { mode: 0o755 });
+      for (const chip of classic ? [] : ["aarch64", "x86_64"]) {
+        const daemon = join(contents, "Resources", "app", "assets", "daemon", `${chip}-apple-darwin`);
+        mkdirSync(daemon, { recursive: true });
+        writeFileSync(join(daemon, "wsp-daemon"), chip === "aarch64" ? daemonBinary : "#!/bin/sh\nexit 86\n", { mode: 0o755 });
+      }
       await new Promise((resolve, reject) => spawn("tar", ["-cf", join(tree, "out.tar"), "wsp.app"], { cwd: tree }).on("close", resolve).on("error", reject));
       return readFileSync(join(tree, "out.tar"));
     }
@@ -560,23 +648,27 @@ while :; do [ -f AppRun ] || echo "its files went while it ran" >> "$0"; sleep 0
     });
 
     // A Mac's own /Applications is writable, and this case must never install into it.
-    it.skipIf(existsSync("/Applications"))("puts wsp.app in place, quits a running wsp to replace it with a newer one, and opens the new one", async () => {
-      publish("0.3.0", { [bundleNames("0.3.0").macZip]: await macZip("0.3.0") });
+    it.skipIf(existsSync("/Applications"))("puts the classic app an earlier release's zip holds in place, quits it to replace it with the app a newer one holds, and opens the new one", async () => {
+      publish("0.3.8", { [bundleNames("0.3.8").macZip]: await macZip("0.3.8", { classic: true }) });
       publish("0.4.0", { [bundleNames("0.4.0").macZip]: await macZip("0.4.0") }, { latest: true });
       const app = join(home, "Applications", "wsp.app");
+      const shim = join(home, ".wsp", "bin", "wsp");
+      const resources = join(app, "Contents", "Resources", "app");
 
-      const first = await run({ WSP_VERSION: "0.3.0" });
+      const first = await run({ WSP_VERSION: "0.3.8" });
       expect(first.code, first.stderr).toBe(0);
-      expect(readFileSync(join(app, "Contents", "Info.plist"), "utf8")).toBe("0.3.0");
-      expect(readFileSync(join(home, ".wsp", "bin", "wsp"), "utf8")).toBe(shimText({ execPath: join(app, "Contents", "MacOS", "wsp"), script: join(app, "Contents", "Resources", "app", "main", "cli.mjs") }));
+      expect(readFileSync(join(app, "Contents", "Info.plist"), "utf8")).toBe("0.3.8");
+      expect(readFileSync(shim, "utf8")).toBe(shimText({ execPath: join(app, "Contents", "MacOS", "wsp"), script: join(resources, "main", "cli.mjs") }));
+      expect(spawnSync(shim, ["--version"], { encoding: "utf8" }).stdout).toBe("wsp 0.3.8\n");
 
       writeFileSync(join(root, "running"), "");
       rmSync(join(root, "tools.log"));
       const second = await run({ SHELL: "/bin/zsh" });
       expect(second.code, second.stderr).toBe(0);
       expect(second.stdout).toContain("wsp install: quitting wsp to replace it");
-      expect(second.stdout).toContain("wsp install: replacing wsp 0.3.0 with 0.4.0");
+      expect(second.stdout).toContain("wsp install: replacing wsp 0.3.8 with 0.4.0");
       expect(readFileSync(join(app, "Contents", "Info.plist"), "utf8")).toBe("0.4.0");
+      expect(readFileSync(shim, "utf8")).toBe(appShim(join(resources, "assets", "daemon", "aarch64-apple-darwin", "wsp-daemon"), join(app, "Contents", "MacOS", "node"), join(resources, "main", "cli.mjs")));
       expect(readdirSync(join(home, "Applications"))).toEqual(["wsp.app"]);
       expect(tools().trim().split("\n").at(-1)).toBe(`open ${app}`);
       expect(readFileSync(join(home, ".zshrc"), "utf8")).toContain('export PATH="$HOME/.wsp/bin:$PATH"');
@@ -599,7 +691,7 @@ while :; do [ -f AppRun ] || echo "its files went while it ran" >> "$0"; sleep 0
 
     it.skipIf(existsSync("/Applications"))("leaves the installed app in place when the new one's command does not start", async () => {
       publish("0.3.0", { [bundleNames("0.3.0").macZip]: await macZip("0.3.0") });
-      publish("0.4.0", { [bundleNames("0.4.0").macZip]: await macZip("0.4.0", "#!/bin/sh\necho 'dyld: Library not loaded' >&2\nexit 134\n") }, { latest: true });
+      publish("0.4.0", { [bundleNames("0.4.0").macZip]: await macZip("0.4.0", { node: "#!/bin/sh\necho 'dyld: Library not loaded' >&2\nexit 134\n" }) }, { latest: true });
       expect((await run({ WSP_VERSION: "0.3.0" })).code).toBe(0);
       writeFileSync(join(root, "running"), "");
 

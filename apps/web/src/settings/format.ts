@@ -323,6 +323,9 @@ export const GENERAL_WORDS = {
   appLogs: "App logs",
   appLogsDescription: "The app's log and its crash reports. Nothing in them is sent anywhere.",
   openLogs: "Open logs",
+  experimental: "Experimental",
+  experimentalApp: "Use the Experimental app",
+  experimentalAppDescription: (here: string): string => onceNamed(here, h => `Opens the new native wsp app in place of this one. Threads keep running on ${h}.`),
 } as const;
 
 export const PRIVACY_WORDS = {

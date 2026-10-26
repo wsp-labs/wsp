@@ -262,17 +262,6 @@ describe("where a rebuild goes", () => {
     await rt.close();
   });
 
-  it("prepareAt names the place prepare builds the image's own builder at, before a record and after", async () => {
-    const { rt, seal } = providers();
-    const built = async (o: { place?: string }) => rt.golden.prepare(o).then(v => ({ place: v.placeId, name: v.placeName }));
-    for (const o of [{}, { place: "box" }, { place: "Box" }]) expect(await rt.golden.prepareAt(o)).toEqual(await built(o));
-    await seal({ place: "solari" });
-    for (const o of [{}, { place: "box" }, { place: "fake" }]) {
-      expect(await rt.golden.prepareAt(o)).toEqual({ place: "solari", name: "Solari" });
-      expect(await built(o)).toEqual({ place: "solari", name: "Solari" });
-    }
-    await rt.close();
-  });
 });
 
 describe("the image's home on every road", () => {
@@ -395,7 +384,7 @@ describe("a fork at a place that holds no copy of the image", () => {
       await expect(createOn(rt, { golden: await head(), name: `x-${on}`, on })).rejects.toMatchObject({ kind: "conflict", message: line, fix: imageRebuildFix("fake") });
     }
     expect([fake.machines.length, box.machines.length]).toEqual(machines);
-    expect(refusalLine(imageHeldSignInsLine("Boat"), imageRebuildFix("boat"))).toBe("Your image on Boat was sealed with sign-ins on it. Seal your image again for boat.");
+    expect(refusalLine(imageHeldSignInsLine("Boat"), imageRebuildFix("boat"))).toBe("Your image on Boat was sealed with sign-ins on it. The image stays as it is, and this build makes no new version, so a fork on boat stays refused.");
     // The rebuild at the image's own place marks the record and its version; the copy on Boat reads stale against the
     // new hash and is built again, clean, before the fork there.
     await seal();

@@ -10,7 +10,7 @@ import { createElement } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App";
-import { DOWNLOADS, platformOf } from "../src/downloads";
+import { CLASSIC, DOWNLOADS, platformOf } from "../src/downloads";
 import { DOCS, EMAIL, ORG, REPO, X } from "../src/links";
 import { KINDS, ROWS, saidOf, sources, STEPS, strongerOf, TOOLS, WSP } from "../src/compare";
 import { fileOf, ROUTES } from "../src/routes";
@@ -81,6 +81,8 @@ describe("every route, as raw HTML", () => {
     }
     expect(html).toContain(`href="/download/mac"`);
     expect(html).toContain(`href="/compare/conductor"`);
+    expect(CLASSIC).toEqual({ mac: "/download/classic/mac", linux: "/download/classic/linux" });
+    for (const href of Object.values(CLASSIC)) expect(html).toContain(`href="${href}"`);
   });
 
   it("serves /compare as one card per tool, under its kind, each opening the tool's page", () => {
@@ -156,6 +158,7 @@ describe("every route, as raw HTML", () => {
     expect(blog).toContain("<title>Blog: wsp</title>");
     expect(blog).not.toContain('content="noindex"');
     expect(blog).toContain('href="/blog/mcp-freeze"');
+    expect(built("blog/mcp-freeze/index.html")).toContain("<title>It's not a memory leak. It's what your agents started.</title>");
     expect(blog).not.toContain("A sample post");
     expect(() => built("blog/sample/index.html")).toThrow();
     expect(built("sitemap.xml")).toContain("<loc>https://usewsp.com/blog/mcp-freeze</loc>");

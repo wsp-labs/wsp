@@ -8,13 +8,12 @@ import { createServer } from "node:net";
 import { bootLineOf } from "@wsp/protocol";
 import { createRuntime, memoryStore, tokenDigest, type Runtime } from "@wsp/runtime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cli, hostRoadWord, hostStoppedLine, serve, type CliIO } from "../src/cli.js";
+import { hostRoadWord, hostStoppedLine, serve, type CliIO } from "../src/cli.js";
 import { hostTokenFor, lockPathFor, ownPid, pidAlive, servingHost, takeLock, vanishedHost } from "../src/host-lock.js";
 import type { HostHandle } from "../src/server.js";
 import { stubBackend } from "./stub-backend.js";
 import { describeWithDists } from "./built-bin.js";
 import { runsFromItsOwnFolder } from "./own-folder.js";
-import { CLOUD_ON } from "../src/cloud.js";
 
 runsFromItsOwnFolder();
 

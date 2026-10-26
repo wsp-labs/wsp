@@ -10,14 +10,12 @@ import { useStore } from "../src/protocol/store.js";
 import { HOST_NOTICE_WORDS, useHostNotices } from "../src/notices/hostNotices.js";
 import { useNotices, type Notice } from "../src/notices/store.js";
 import { closeAdd, openSetup, useAddFlow } from "../src/settings/add/addFlow.js";
-import { closeCloudAdd, goCloud, openCloudAdd } from "../src/settings/add/cloudFlow.js";
 import { useSettingsStore } from "../src/settings/settingsStore.js";
 import { resetAskedToNotify } from "../src/shell/needsYou.js";
 
 const WS: WorkspaceView = { id: "ws_1", name: "api", machineId: "m1", phase: "running", golden: "snap_g", createdAt: "2026-09-10T00:00:00Z", project: { id: "pr_api", name: "the-project", path: "/root", computer: "default" } };
 const ROW: SessionView = { id: "s1", workspaceId: "ws_1", harness: "claude", status: "running", threadId: "thr_1", prompt: "fix the login page" };
 const BOX = { id: "pl_box", kind: "computer", name: "spoo", present: true } as unknown as PlaceView;
-const NEED = { what: "sign in to GitHub CLI login", since: 1_760_000_000_000 };
 const ASKED = {
   type: "session.permission" as const,
   workspaceId: "ws_1",
@@ -66,7 +64,6 @@ beforeEach(async () => {
   await act(async () => await new Promise(resolve => setTimeout(resolve, 0)));
   useStore.setState({ workspaces: [WS], sessions: { ws_1: [ROW] }, places: [BOX], selectedId: null, selectedThreadId: null });
   useSettingsStore.getState().go({ kind: "group", group: "appearance" });
-  useSettingsStore.setState({ buildShown: null });
   act(() => useNotices.getState().clear());
   emit = e => act(() => listeners.forEach(fn => fn(e)));
   mounted = render(<Harness />);

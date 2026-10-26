@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The cloud setup on the wire: the one view the app's key step and wsp setup read, and the words it prints.
 import { describe, expect, it } from "vitest";
-import { InitSetup, LOGIN_CHOICES, NEEDS_YOU, SIGN_IN_ANSWERS, credentialOnBuilderLine, initSetupLines, initStoppedLine, titleWithNeed } from "../src/index.js";
+import { InitSetup, LOGIN_CHOICES, NEEDS_YOU, credentialOnBuilderLine, initSetupLines, initStoppedLine, titleWithNeed } from "../src/index.js";
 
 describe("the cloud setup view", () => {
   it("carries the provider key's presence alone, never a key, and the price", () => {
@@ -34,9 +34,8 @@ describe("the need mark", () => {
 });
 
 describe("the sign-in words", () => {
-  it("the sign-in answers offer six words, each with the words its row and its counts print", () => {
+  it("a login is answered in one of six words", () => {
     expect(LOGIN_CHOICES).toEqual(["copy", "machine", "later", "key", "skip", "token"]);
-    for (const value of LOGIN_CHOICES) expect(SIGN_IN_ANSWERS[value], value).toBeDefined();
   });
 
   it("a builder holding a sign-in file is refused in one sentence that names the paths", () => {

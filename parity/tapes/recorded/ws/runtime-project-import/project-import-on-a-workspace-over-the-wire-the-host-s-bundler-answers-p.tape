@@ -1,0 +1,5 @@
+{"meta":{"door":"ws","source":"packages/runtime/test/project-import.test.ts > project.import on a workspace > over the wire the host's bundler answers project.plan and feeds project.import; a server without one refuses both","outs":"recorded"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
+{"out":{"id":1,"ok":true}}
+{"in":{"source":"/Users/dev/code/proj","id":2,"op":"project.plan"}}
+{"out":{"id":2,"ok":true,"plan":{"source":"/Users/dev/code/proj","repo":true,"files":6,"bytes":4321,"secrets":[{"path":".env","bytes":20,"signals":["name","keys"]},{"path":".git/config","bytes":300,"signals":["url"],"rewrite":{"urls":["https://github.com/example/proj.git"],"drop":[]}},{"path":"config/secrets.json","bytes":25,"signals":["name","keys"]},{"path":"keys/id_00000001","bytes":80,"signals":["name","mode","pem"]}],"values":[".env"],"excluded":["dist","node_modules"],"skipped":[],"agents":[{"agent":"claude","name":"Claude Code","sessions":2,"bytes":4096,"carry":"moves"},{"agent":"pi","name":"Pi","sessions":1,"bytes":512,"carry":"moves"},{"agent":"codex","name":"Codex","sessions":3,"bytes":900,"carry":"transcript-only"}]}}}

@@ -18,7 +18,6 @@ import { useAdds } from "../src/settings/adds.js";
 import { AGENTS_LIST_WORDS } from "../src/components/agents/agentsRows.js";
 import { ADD_COMPUTER_WORDS, AGENTS_PAGE_WORDS, COMPUTER_PAGE_WORDS, WHERE_WORDS, capitalised } from "../src/settings/format.js";
 import { AGENTS_REPORT } from "./fixtures/agents-report.js";
-import { IMAGE_WORDS } from "../src/settings/image.js";
 import { absentOf } from "../src/settings/places.js";
 import { useSettingsStore, type SettingsAt } from "../src/settings/settingsStore.js";
 import { SidebarCorner } from "../src/sidebar/SidebarCorner.js";

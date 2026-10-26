@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import { CLOUD_ENV, escapeC1, HOST_TOKEN_ENV, HOST_URL_ENV, TURN_TOKEN_ENV } from "@wsp/protocol";
+import { tokenDigest } from "@wsp/runtime";
 import { describe, expect, it, vi } from "vitest";
 import { guestTools } from "../src/guest-tools.js";
 import { toolServerLine, type RunningWsp } from "../src/mcp-install.js";
@@ -24,6 +25,10 @@ const MCP_BIN = mcpBinNamed(process.env["WSP_MCP_BIN"]);
 const suite = MCP_BIN !== undefined ? describe : describe.skip;
 const TOKEN = "replay-token";
 const STOPPING_CLOSE = 4001;
+/** The page a host on loopback serves at `/`, which the binary reads before it sends the lock's port the token: the
+ * token's digest and the release the binary's own record names, as packages/host/src/server.ts writes it. */
+const RELEASE = (JSON.parse(readFileSync(join(REPO, "daemon", "crates", "wsp-mcp", "record", "server.json"), "utf8")) as { version: string }).version;
+const PAGE = `<!doctype html><script>window.__WSP__ = ${JSON.stringify({ tokenHash: tokenDigest(TOKEN), wsPath: "/ws", paired: true, version: RELEASE })};</script>`;
 
 interface Case {
   case: string;
@@ -46,7 +51,7 @@ interface Case {
  * and an op no frame answers refused as that host refused one. Every op past the token and the events is noted. */
 async function hostFor(c: Case): Promise<{ port: number; asked: Record<string, unknown>[]; close: () => Promise<void> }> {
   const asked: Record<string, unknown>[] = [];
-  const http: Server = createServer((_, res) => res.end());
+  const http: Server = createServer((_, res) => res.setHeader("content-type", "text/html").end(PAGE));
   const wss = new WebSocketServer({ server: http, path: "/ws" });
   // How many times each op was asked, so the frame recorded under `<op> #<n>` answers its nth ask.
   const seen = new Map<string, number>();

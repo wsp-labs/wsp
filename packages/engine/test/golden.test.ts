@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { UNMEASURED_ROAD, customInstallsFor, recipeDigest, toolInstallsFor, type BrewTable, type RecipeEntry } from "../src/golden-import.js";
-import { diffRecipes, retiredBy, rowsToApply } from "../src/golden-diff.js";
 import { BUILDER_IDLE_MS, CredentialOnBuilderError, MachineAliveError, SnapshotFailedError, applyDelta, applyGoldenImport, buildGolden, forkGolden, nextLeftBehind, nextSetupSha, nextMissing, nextSmoke, prepareBuilder, QUIET_LOGS, rollback, CLAUDE_LINK_LINE, npmBinOf, promoteVersion, sealGolden, smokeTally, snapshotUntilGone, templatesOf, upgradeBuilder, type GoldenDelta, type GoldenImport, type GoldenStage, type GoldenVersion, type ImportResult, type PackedFiles } from "../src/golden.js";
 import { BUILDER_DISK_GB } from "../src/tool-sizes.js";
 import { CLAUDE_INSTALL, CURL_NET, GOLDEN_SETUP, MCP_SERVERS_JSON, NEVER_IN_IMAGE, NODE_RELEASES, ROAD_STEPS, nodeInstallScript } from "@wsp/catalog";
@@ -2859,11 +2858,12 @@ describe("golden import stages", () => {
       agents: [],
       onResult: r => void results.push(r),
     });
-    /** As wsp init plans an update: the rows the diff names, planned like a first build, hashed as the whole recipe. */
+    /** An update's delta: the rows the recipe gained planned like a first build, hashed as the whole recipe, and the rows it dropped retired. */
     const deltaBetween = (from: RecipeEntry[], to: RecipeEntry[], recipeHash: string, results: ImportResult[] = []): GoldenDelta => {
-      const diff = diffRecipes(recipeDigest(from, [], [], new Map()), recipeDigest(to, [], [], new Map()));
-      const rows = rowsToApply(diff);
-      return { import: { ...planOf(to.filter(e => rows.has(e.id)), recipeHash, results), recipe: recipeDigest(to, [], [], new Map()) }, retired: retiredBy(diff), retiredOnImage: retiredBy(diff) };
+      const had = new Set(from.map(e => e.id));
+      const kept = new Set(to.map(e => e.id));
+      const retired = from.filter(e => !kept.has(e.id)).map(e => ({ id: e.id, name: e.label }));
+      return { import: { ...planOf(to.filter(e => !had.has(e.id)), recipeHash, results), recipe: recipeDigest(to, [], [], new Map()) }, retired, retiredOnImage: retired };
     };
 
     it("a binary row toggled after the seal: ticked, the next version installs it; unticked, the version after retires it and leaves it on the image; a Homebrew formula and a road tool each way", async () => {

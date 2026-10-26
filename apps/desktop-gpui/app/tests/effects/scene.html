@@ -1,0 +1,165 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; width: 640px; height: 480px; overflow: hidden; }
+  div { position: absolute; box-sizing: border-box; }
+</style>
+</head>
+<body>
+<script>
+  const PALETTE = ["#e11d48", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#64748b"];
+  const SCENES = {
+    "plain-light": { page: "#f4f4f5", ink: "#18181b", tint: "rgba(255,255,255,0.55)", filter: "" },
+    "blur-light": { page: "#f4f4f5", ink: "#18181b", tint: "rgba(255,255,255,0.55)", filter: "blur(12px) saturate(1.14)" },
+    "blur-dark": { page: "#0a0a0a", ink: "#f4f4f5", tint: "rgba(245,245,245,0.03)", filter: "blur(16px) saturate(1.08)" },
+    "blur-two": { page: "#f4f4f5", ink: "#18181b", tint: "rgba(255,255,255,0.55)" },
+    "clip": { page: "#f4f4f5", ink: "#18181b" },
+    "clip-nested": { page: "#f4f4f5", ink: "#18181b" },
+    "blur-radii": { page: "#f4f4f5", ink: "#18181b" },
+    "blur-tint-dark": { page: "#0a0a0a", ink: "#f4f4f5" },
+    "blur-shadow": { page: "#f4f4f5", ink: "#18181b" },
+    "fade": { page: "#f4f4f5", ink: "#18181b" },
+    // Today's tokens from apps/web/src/themes and index.css.
+    "borders-paper": {
+      page: "#fcfcfc", input: "#d4d4d8", inputFill: "#ffffff", keycap: "rgb(255 255 255/60%)", border: "#e4e4e7",
+      muted: "#fafafa", cardBorder: "rgb(228 228 231/60%)", card: "rgb(255 255 255/40%)", outline: "rgb(0 0 0/10%)",
+      highlight: "transparent", tint: "rgb(255 255 255/55%)", glass: "blur(12px) saturate(1.14)",
+    },
+    "borders-graphite": {
+      page: "#0a0a0a", input: "rgb(255 255 255/8%)", inputFill: "rgb(255 255 255/2.5%)", keycap: "rgb(255 255 255/6%)",
+      border: "#232323", muted: "rgb(255 255 255/3%)", cardBorder: "rgb(35 35 35/60%)", card: "rgb(17 17 17/40%)",
+      outline: "rgb(255 255 255/9%)", highlight: "rgb(255 255 255/4%)", tint: "rgb(245 245 245/3%)",
+      glass: "blur(16px) saturate(1.08)",
+    },
+  };
+  const params = new URLSearchParams(location.search);
+  const name = params.get("scene") || "plain-light";
+  const scroll = Number(params.get("scroll") || 0);
+  const scene = SCENES[name];
+  if (!scene) throw new Error("unknown scene " + name);
+  document.body.style.background = scene.page;
+
+  function rect(parent, left, top, width, height, color) {
+    const d = document.createElement("div");
+    d.style.cssText = `left:${left}px;top:${top}px;width:${width}px;height:${height}px;background:${color}`;
+    parent.appendChild(d);
+    return d;
+  }
+
+  function stripes(parent, i, rowTop, x0) {
+    const count = 8 + (i * 7) % 13;
+    for (let k = 0; k < count; k++) rect(parent, x0 + 10 * k, rowTop + 10, 2, 16, scene.ink);
+  }
+
+  if (name === "clip") {
+    const box = rect(document.body, 180, 40, 280, 400, "#ffffff");
+    box.style.borderRadius = "14px";
+    box.style.overflow = "hidden";
+    for (let i = 0; i * 36 - scroll < 400; i++) {
+      const top = i * 36 - scroll;
+      if (top + 36 <= 0) continue;
+      rect(box, 0, top, 280, 36, PALETTE[i % 6]);
+      stripes(box, i, top, 12);
+    }
+  } else if (name === "clip-nested") {
+    const panel = rect(document.body, 160, 40, 320, 400, "#e4e4e7");
+    panel.style.borderRadius = "22px";
+    panel.style.overflowY = "hidden";
+    for (let i = 0; i * 80 - scroll < 400; i++) {
+      const top = i * 80 - scroll;
+      const card = rect(panel, 0, top, 320, 72, "transparent");
+      card.style.borderRadius = "8px";
+      card.style.overflow = "hidden";
+      rect(card, 0, 0, 320, 72, top < 0 || top + 72 > 400 ? "#ececee" : PALETTE[i % 6]);
+      stripes(card, i, 18, 40);
+    }
+  } else if (name === "blur-radii") {
+    const widths = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32];
+    for (let k = 0, x = 48; x + widths[k % 10] <= 584; x += widths[k % 10] + Math.max(widths[k % 10], 6), k++) {
+      rect(document.body, x, 0, widths[k % 10], 480, scene.ink);
+    }
+    rect(document.body, 599, 0, 1, 480, scene.ink);
+    const panels = [[30, 1], [180, 4], [330, 8]];
+    for (const [top] of panels) {
+      for (const [y, h] of [[12, 2], [30, 8], [56, 24]]) rect(document.body, 40, top + y, 544, h, scene.ink);
+      rect(document.body, 40, top + 119, 560, 1, scene.ink);
+    }
+    for (const [top, blur] of panels) {
+      const panel = rect(document.body, 40, top, 560, 120, "transparent");
+      panel.style.borderRadius = "12px";
+      panel.style.backdropFilter = `blur(${blur}px)`;
+    }
+  } else if (name.startsWith("borders-")) {
+    // GitSplit's outline halves, the chat's inline code, CARD_SURFACE and the composer's box, its drop shadow left out.
+    const piece = (left, top, width, height, css) => {
+      const d = rect(document.body, left, top, width, height, "transparent");
+      d.style.cssText += ";" + css;
+      return d;
+    };
+    const half = `border:1px solid ${scene.input};background:${scene.inputFill};box-shadow:inset 0 1px 0 ${scene.keycap}`;
+    piece(40, 40, 26, 32, `${half};border-radius:8px 0 0 8px`);
+    piece(65, 40, 18, 32, `${half};border-radius:0 8px 8px 0`);
+    piece(40, 120, 80, 20, `border:1px solid ${scene.border};border-radius:6px;background:${scene.muted}`);
+    piece(40, 180, 240, 100, `border:1px solid ${scene.cardBorder};border-radius:11px;background:${scene.card}`);
+    piece(320, 40, 280, 140, `border:1px solid ${scene.outline};border-radius:22px;background:${scene.tint};` +
+      `backdrop-filter:${scene.glass};box-shadow:inset 0 1px ${scene.highlight}`);
+  } else if (name === "fade") {
+    const bubble = document.createElement("div");
+    bubble.style.cssText = "left:24px;top:40px;width:280px;padding:12px;border-radius:18px;background:#e4e4e7";
+    document.body.appendChild(bubble);
+    const body = document.createElement("div");
+    body.style.cssText = "position:relative;width:256px;max-height:176px;overflow:hidden;" +
+      "mask-image:linear-gradient(to bottom, black calc(100% - 5rem), transparent calc(100% - 1.5rem))";
+    bubble.appendChild(body);
+    const bars = document.createElement("div");
+    bars.style.cssText = "position:relative;width:256px;height:288px";
+    body.appendChild(bars);
+    for (let i = 0; i < 8; i++) {
+      rect(bars, 0, i * 36 + 4, 120, 28, PALETTE[i % 6]);
+      stripes(bars, i, i * 36, 132);
+    }
+    const peekPage = rect(document.body, 336, 40, 280, 120, "#fde68a");
+    const row = rect(peekPage, 16, 36, 248, 48, "transparent");
+    row.style.maskImage = "linear-gradient(to bottom, black 0%, transparent 100%)";
+    rect(row, 0, 0, 112, 48, PALETTE[4]);
+    stripes(row, 0, 6, 124);
+    rect(row, 236, 8, 2, 64, scene.ink);
+  } else {
+    for (let i = 0; i * 36 - scroll < 480; i++) {
+      const top = i * 36 - scroll;
+      if (top + 36 <= 0) continue;
+      rect(document.body, 24, top + 4, 592, 28, PALETTE[i % 6]);
+      stripes(document.body, i, top, 40);
+    }
+    if (name === "blur-two") {
+      const small = rect(document.body, 60, 40, 200, 80, scene.tint);
+      small.style.borderRadius = "16px";
+      small.style.backdropFilter = "blur(6px) saturate(1.14)";
+      const large = rect(document.body, 40, 280, 560, 160, scene.tint);
+      large.style.borderRadius = "22px";
+      large.style.backdropFilter = "blur(16px) saturate(1.08)";
+    } else if (name === "blur-tint-dark") {
+      const dropdown = rect(document.body, 380, 60, 220, 288, "rgba(17,17,17,0.96)");
+      dropdown.style.borderRadius = "12px";
+      dropdown.style.backdropFilter = "blur(8px)";
+    } else if (name === "blur-shadow") {
+      const pane = rect(document.body, 0, 200, 640, 280, "transparent");
+      pane.style.overflow = "hidden";
+      for (const top of [-116, 120]) {
+        const composer = rect(pane, 40, top, 560, 120, "rgba(255,255,255,0.55)");
+        composer.style.borderRadius = "22px";
+        composer.style.boxShadow = "0 12px 28px -18px rgb(0 0 0/40%)";
+        composer.style.backdropFilter = "blur(12px) saturate(1.14)";
+      }
+    } else {
+      const panel = rect(document.body, 40, 300, 560, 120, scene.tint);
+      panel.style.borderRadius = "22px";
+      if (scene.filter) panel.style.backdropFilter = scene.filter;
+    }
+  }
+</script>
+</body>
+</html>

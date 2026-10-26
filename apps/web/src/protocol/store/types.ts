@@ -38,8 +38,6 @@ export interface Creation {
   /** The project this work is on, by its id: what the create was asked with, and what a retry asks again. Absent on
    * a row another client started, whose creating frames name the workspace and not the project it came from. */
   readonly project?: string;
-  /** The snapshot the create forks, when it is not the image's head: a project image's. */
-  readonly golden?: string;
   /** The size the person picked; absent, the golden's. */
   readonly size?: WorkspaceSize;
   /** The message that asked for this work, drawn as the thread's first message while the machine is made. */
@@ -207,7 +205,7 @@ export interface State {
    * it through the stage events; resolves with the runtime's id for the new workspace, or null when the create was
    * refused. `picked` carries a project image or a size only where the person chose one; `asked` is the message the
    * work was asked with, which the creation view draws until the workspace is up. */
-  createWorkspace(project: string, name: string, picked?: { golden?: string; size?: WorkspaceSize }, asked?: Asked): Promise<string | null>;
+  createWorkspace(project: string, name: string, picked?: { size?: WorkspaceSize }, asked?: Asked): Promise<string | null>;
   /** Records a project and answers the record the host kept: a folder on this computer, or a repository address on
    * the computer named. The row arrives by the project.added event too; this is what the first run and the sheet
    * wait on. Null on a client that cannot record one. */

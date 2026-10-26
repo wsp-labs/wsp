@@ -6,8 +6,9 @@
 // editors installed on the computer the host runs on, and whether it opens a
 // workspace on another computer over ssh; and what quitting the desktop app
 // does, whether wsp starts at login and whether the app keeps this computer
-// awake while a thread works on it. A row off its default carries the arrow
-// that puts it back.
+// awake while a thread works on it; and in the desktop app, whether it hands
+// over to the Experimental app. A row off its default carries the arrow that
+// puts it back.
 import { DEFAULT_PREFERENCES, NEW_THREAD_IN_CHOICES, NOTIFY_CHOICES, ON_QUIT_CHOICES, SETTLE_CHOICES, type EditorId, type NotifyChoice, type PreferencesPatch } from "@wsp/protocol";
 import { Button } from "../components/ui/button.js";
 import { SegmentedControl } from "../components/ui/segmented-control.js";
@@ -68,6 +69,8 @@ export function generalCards(ctx: SettingsContext): SettingsCardData[] {
   const loginStart = ctx.reads.loginStart;
   const turnLogin = (on: boolean): void => void desktopBridge()?.setLoginStart?.(on).then(next => useSettingsStore.getState().setReads({ loginStart: next }), ctx.failed);
   const openLogs = desktopBridge()?.openLogs;
+  const experimental = ctx.reads.experimental;
+  const turnExperimental = (on: boolean): void => void desktopBridge()?.setExperimental?.(on).then(next => useSettingsStore.getState().setReads({ experimental: next }), ctx.failed);
   return [
     {
       id: "composer",
@@ -182,6 +185,24 @@ export function generalCards(ctx: SettingsContext): SettingsCardData[] {
                 <Button size="xs" variant="outline" data-k="open-logs" onClick={() => void openLogs().catch(ctx.failed)}>
                   {W.openLogs}
                 </Button>,
+              ),
+            ],
+          },
+        ]),
+    // Drawn by the desktop app alone, on its own computer's host, where an Experimental app is installed.
+    ...(experimental === null
+      ? []
+      : [
+          {
+            id: "experimental",
+            head: W.experimental,
+            items: [
+              row(
+                "experimental-app",
+                W.experimentalApp,
+                W.experimentalAppDescription(here),
+                <Switch data-k="experimental-app" aria-label={W.experimentalApp} checked={experimental} onCheckedChange={turnExperimental} />,
+                experimental ? { reset: () => turnExperimental(false) } : {},
               ),
             ],
           },

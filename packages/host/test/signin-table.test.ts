@@ -4,10 +4,9 @@
 // the tool prints it (fake names, masked tokens; nothing real).
 import { describe, expect, it } from "vitest";
 import { SignInFinish } from "@wsp/protocol";
-import { AWS_STATUS, CLOUDFLARED_STATUS, GEMINI_STATUS, SIGN_INS, TOKEN_SOURCE, claudeSource, geminiSource, hasLogin, questionsOf, secretNamed, signInFor, signsInByDefault, type SignIn } from "../src/signin-table.js";
-import { asksThePerson, livesOnComputer, loginWords, mintsToken } from "@wsp/catalog";
+import { AWS_STATUS, CLOUDFLARED_STATUS, GEMINI_STATUS, TOKEN_SOURCE, asksThePerson, claudeSource, geminiSource, hasLogin, livesOnComputer, mintsToken, questionsOf, secretNamed, signsInByDefault } from "@wsp/catalog";
 import { collectorLogins } from "./collector-logins.js";
-import { ASKED, REACHED } from "./signin-questions.js";
+import { ASKED, REACHED, SIGN_INS, signInFor, type SignIn } from "./signin-questions.js";
 
 /** The catalog's status check on a row, whichever kind it is. */
 const statusOf = (s: SignIn) => (s.kind === "shell" ? undefined : s.status);
@@ -297,12 +296,6 @@ describe("sign-in table", () => {
     expect(machine.sort()).toEqual(["aws", "cloudflared", "codex", "gcloud", "gemini", "gh", "hermes", "pi", "vercel", "wrangler"]);
     for (const id of ["opencode", "kube", "op"]) expect(signsInByDefault(signInFor(id)), id).toBe(false);
     expect(signsInByDefault({ kind: "shell" })).toBe(false);
-  });
-
-  it("words a row's login without the flags that answer a tool's questions, which nobody has to type", () => {
-    expect(loginWords(command("gh"))).toBe("gh auth login");
-    expect(loginWords(command("gemini"))).toBe("gemini");
-    expect(loginWords(command("aws"))).toBe("aws configure sso");
   });
 
   it("never carries a token-looking value", () => {

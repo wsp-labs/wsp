@@ -3,15 +3,11 @@
 // what a login defaults to, the recipe file (the same list with the person's
 // ticks, saved next to the state so golden v2 is a re-run of it), and the
 // golden recipe the ticked rows add up to.
-import { basename, dirname, join } from "node:path";
-import { writeOwn } from "@wsp/own-file";
 import { LOGIN_CHOICES, type Manifest, type ManifestEntry, type Rung } from "@wsp/collect";
-import { CATALOG_AGENTS, catalogEntry, catalogIdOfRow, catalogToolFor, guestEnv, hasLogin, loginIdOf, loginRow, loginSignIn, loginStatePaths, mintsToken } from "@wsp/catalog";
-import { CATALOG_PREFIX, agentOwning, isMcpRow, isTap, neverCopied, packageOf, parseMcpId, rowRoad, type BrewTable, type RecipeDigest } from "@wsp/engine";
-import { Recipe, SIGN_IN_ANSWERS, type LoginChoice, type RecipeRow } from "@wsp/protocol";
-import type { GoldenImport, GoldenRecipe, Machine } from "@wsp/runtime";
+import { CATALOG_AGENTS, catalogEntry, catalogIdOfRow, catalogToolFor, hasLogin, loginIdOf, loginRow, loginSignIn, mintsToken } from "@wsp/catalog";
+import { CATALOG_PREFIX, agentOwning, isMcpRow, neverCopied, packageOf, parseMcpId, rowRoad, type BrewTable } from "@wsp/engine";
+import { Recipe, type LoginChoice } from "@wsp/protocol";
 import type { Keys } from "./cli.js";
-import { GUEST_ENVS } from "./doctor.js";
 
 /** The plan's note when every path of a row is refused by name, asked of the same rule the pack asks with the
  * same answer about what is on disk (`isDir`: true, false, or undefined when the path is not there). */

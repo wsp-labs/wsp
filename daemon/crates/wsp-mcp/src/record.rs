@@ -6,6 +6,7 @@
 //! nothing but the handshake.
 
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 use serde::Deserialize;
 
@@ -17,6 +18,15 @@ const HOST: &str = include_str!(concat!(env!("OUT_DIR"), "/record/host.json"));
 /// A record this build carries and cannot read is a build that never passed its own tests.
 fn read<T: for<'de> Deserialize<'de>>(name: &str, text: &str) -> T {
     serde_json::from_str(text).unwrap_or_else(|e| panic!("record/{name} does not read: {e}"))
+}
+
+/// The parse's frames run to tens of KB, more than a tokio worker that asks first may have left.
+const PARSE_STACK: usize = 8 << 20;
+
+/// A record read on a thread of its own and kept on the heap, so the caller's stack holds neither the parse nor the value.
+fn read_apart<T: for<'de> Deserialize<'de> + Send + 'static>(name: &'static str, text: &'static str) -> Box<T> {
+    let parsing = std::thread::Builder::new().stack_size(PARSE_STACK).spawn(move || Box::new(read(name, text)));
+    parsing.expect("a thread to read a record on").join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }
 
 #[derive(Deserialize)]
@@ -93,6 +103,10 @@ pub struct Words {
     pub unclosed_quote: String,
     pub project_scope: String,
     pub no_skill_hits: String,
+    /// What slate_look says under its picture: {width}, {height}, {scale} and {theme} filled.
+    pub slate_look: String,
+    /// Said after it where the look cut a slate taller than it takes: {height} and {whole} filled.
+    pub slate_look_cut: String,
     pub skill_hit_columns: Vec<String>,
     pub preview_bytes: u64,
     pub preview_cut: String,
@@ -156,8 +170,9 @@ pub struct Release {
     pub order_samples: Vec<(String, String, i64)>,
 }
 
-pub fn words() -> Words {
-    read("words.json", WORDS)
+pub fn words() -> &'static Words {
+    static READ: OnceLock<Box<Words>> = OnceLock::new();
+    READ.get_or_init(|| read_apart("words.json", WORDS))
 }
 
 /// A recorded sentence with each `{name}` in it filled, in one pass over the template: a value is never read again,
@@ -268,8 +283,9 @@ pub struct EnvNames {
     pub cloud: String,
 }
 
-pub fn host() -> Host {
-    read("host.json", HOST)
+pub fn host() -> &'static Host {
+    static READ: OnceLock<Box<Host>> = OnceLock::new();
+    READ.get_or_init(|| read_apart("host.json", HOST))
 }
 
 #[cfg(test)]
@@ -286,6 +302,24 @@ mod tests {
         assert!(noted.contains("/s/state.json") && !noted.contains('{'), "{noted}");
         assert_eq!(fill("{a} and {b}, {c} {a}", &[("a", "{b}"), ("b", "x}")]), "{b} and x}, {c} {b}");
         assert_eq!(fill("{ {a}", &[("a", "1")]), "{ 1");
+    }
+
+    #[test]
+    fn a_record_is_read_whole_from_a_thread_with_little_stack_left() {
+        let small = std::thread::Builder::new().stack_size(64 << 10);
+        let asked = small.spawn(|| {
+            let read: Box<Words> = read_apart("words.json", WORDS);
+            let names: Box<Host> = read_apart("host.json", HOST);
+            (read.no_host_serving.clone(), names.ws_path.clone(), words().no_host_serving.clone())
+        });
+        let (said, path, kept) = asked.unwrap().join().unwrap();
+        assert!(!said.is_empty() && !path.is_empty() && said == kept);
+    }
+
+    #[test]
+    fn the_words_and_the_host_record_are_read_once() {
+        assert!(std::ptr::eq(words(), words()));
+        assert!(std::ptr::eq(host(), host()));
     }
 
     #[test]

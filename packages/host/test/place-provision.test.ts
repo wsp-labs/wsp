@@ -2,41 +2,21 @@
 // The recipe beside this host's state file, planned for a computer somebody
 // owns: the same rows a copy of the image is planned from, come to the steps
 // that run on the computer itself.
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Manifest } from "@wsp/collect";
-import { TOOL_PREFIX, catalogEntry } from "@wsp/catalog";
-import { MCP_ID_PREFIX, TOOLS_PATH, placeProvisionPaths, probePath, type Recipe, type RecipeFile } from "@wsp/protocol";
-import { AGENT_NODE_STEP, closeAgentFiles, oncePathsOf, pathLine, provisionFiles, provisionMcp, unlandFiles, type ProvisionPlan } from "@wsp/engine";
+import { MCP_ID_PREFIX, type RecipeFile } from "@wsp/protocol";
+import { type ProvisionPlan } from "@wsp/engine";
 import { nodeHost } from "@wsp/collect";
-import { boxGuest, cleanGuests } from "../../engine/test/box-guest.js";
-import { parseEnvFile, serverEnvFileFor } from "../src/env-keys.js";
-import { serversActs } from "../src/servers-acts.js";
 import { placeProvisioner, undoPlan } from "../src/place-provision.js";
-import { FIXTURE, RECIPE } from "./init-fixture.js";
-
-/** The recipe this computer holds: the fixture's, with Codex ticked and one row the catalog has none for. */
-const SMALL: Recipe = {
-  ...RECIPE,
-  rows: RECIPE.rows.map(r => (r.id === "codex" ? { ...r, on: true } : r)),
-  custom: [{ kind: "custom", id: "wsp-map", name: "wsp-map", install: ["npm install -g wsp-map@1.0.0"], check: "wsp-map --version", manager: "npm", why: "added by the agent" }],
-};
+import { FIXTURE } from "./init-fixture.js";
 
 describe("the recipe this host holds, planned for a computer you own", () => {
   let dir: string;
   let home: string;
   let statePath: string;
-
-  const planner = () =>
-    placeProvisioner({
-      statePath,
-      home,
-      platform: "linux",
-      collect: async (): Promise<Manifest> => FIXTURE,
-      brew: async () => new Map(),
-    });
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "wsp-place-provision-"));

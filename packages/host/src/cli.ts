@@ -16,13 +16,13 @@ import { runningWsp, type RunningWsp } from "./mcp-install.js";
 import { cloudLineOf, failed, findVerb, jsonAsked, runVerb, takeCommon, verbUsage } from "./verbs.js";
 import { VERSION } from "./version.js";
 import { type CliIO, terminalIO } from "./cli/io.js";
-export { type CliIO, terminalIO, jsonCliIO } from "./cli/io.js";
+export { type CliIO, terminalIO } from "./cli/io.js";
 export { type KeySources, keySources, type NoProviderKey, type LoadedKeys, loadKeys, keysFound, vaultNow, saveQuestion } from "./cli/keys.js";
 import { statePathFrom } from "./cli/state.js";
 export { devCheckoutState, type StatePick, statePick, defaultStatePath, statesHere, stateStore } from "./cli/state.js";
 import { SERVE_FLAGS, optsFor, type SharedFlags, SHARED_OPTIONS } from "./cli/flags.js";
 export { type ServeAsked, SERVE_FLAGS, type SharedOpts, optsFor, SHARED_OPTIONS } from "./cli/flags.js";
-export { goldenRecipe, localWorkFolder, type LocalDaemonStart, localWiring, hostRecipeWatch, providerSlotOf, swapProvider, forgetProviderKey, servingWiring, makeRuntime, hostSeed, projectFolder } from "./cli/wiring.js";
+export { goldenRecipe, localWorkFolder, type LocalDaemonStart, localWiring, hostRecipeWatch, providerSlotOf, swapProvider, forgetProviderKey, servingWiring, makeRuntime, hostSeed } from "./cli/wiring.js";
 export { type StopProcess, OWN_FILES_POLL_MS, stopOnSignals, type UncaughtProcess, stayOnUncaught, type ServeOptions, serve, noClaudeKeyNote, hostDoctorReaders } from "./cli/serve.js";
 export { up, type ServiceDeps, hostRoadWord, hostStoppedLine, systemService, serviceArgv, keyOnlyInThisShell, claudeKeyOnlyInThisShell, upServiceCommand, downCommand, statusCommand, pickUpPorts } from "./cli/service.js";
 import { type CommandDeps, SYSTEM_COMMAND_DEPS, HOST_COMMANDS, HOST_WORD, HOST_LINES, findCommand, JSON_COMMANDS, MCP_COMMAND, mcpUsage, SHARED_FLAGS, readers } from "./cli/commands.js";
@@ -30,6 +30,7 @@ export { HOST_STARTS_ITSELF, type HostFlag, type CommandDeps, SYSTEM_COMMAND_DEP
 import { HELP, HELP_PAGES, agentPage, hostPage, devPage, commandPage } from "./cli/help.js";
 export { HELP, HELP_PAGES, agentPage, hostPage, devPage, commandPage } from "./cli/help.js";
 import { mcp } from "./cli/mcp.js";
+import { tapeOf } from "@wsp/runtime";
 
 export type { Keys } from "./env-keys.js";
 
@@ -64,6 +65,7 @@ export async function cli(
   deps: CommandDeps = SYSTEM_COMMAND_DEPS,
 ): Promise<number> {
   const env = given;
+  tapeOf(env, "cli")?.in({ argv });
   const starter = start ?? starterFor(run, env);
   const starts = starter === false ? {} : { start: starter };
   // One reading for every road out of this process, and the sentence about it said once: a verb, a command and the

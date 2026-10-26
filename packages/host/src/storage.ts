@@ -2,7 +2,7 @@
 // Snapshot storage in words: the line wsp prints at start and the doctor's split of the account listing into this
 // host's, this host's orphans and the rest.
 import { billedByCount, plural, type SnapshotStoragePricing } from "@wsp/engine";
-import { providerKeyName, type SnapshotStorage } from "@wsp/protocol";
+import { type SnapshotStorage } from "@wsp/protocol";
 import type { AccountOrphans, OrphansDeleted } from "@wsp/runtime";
 
 /** The provider lists and bills snapshots in decimal GB (a 3839352227-byte snapshot is 3.84 GB to it), so this line keeps its unit rather than the binary one fmtBytes prints. */

@@ -53,8 +53,6 @@ export const SEED_CHOICES = "seed-choices";
 export const GOLDENS = "goldens";
 /** The recipe each sealed version was built from, keyed `<place>/<name>@v<version>`; the next update diffs against the head's. */
 export const GOLDEN_RECIPES = "golden-recipes";
-/** One document per project golden, keyed by its snapshot id. */
-export const PROJECT_GOLDENS = "project-goldens";
 /** The image record the host owns, one per golden name; every copy is built from it. */
 export const IMAGES = "images";
 /** The one refusal for a copy build on a runtime wired without a composer for its recipe. */

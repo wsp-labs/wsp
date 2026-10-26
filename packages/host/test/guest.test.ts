@@ -95,8 +95,8 @@ describe("a guest session on the host", () => {
     rt = createRuntime({ backend, store, adapters: {}, placeLinks: placeWiring(statePath) });
     handle = await serve(captured(), { port: 0, statePath, webDir, runtime: rt });
     vi.stubEnv("SOLARI_API_KEY", "");
-    await handle.addProject("https://github.com/dev/alpha.git", "default");
-    workspaceId = (await handle.createWorkspace("alpha")).id;
+    const project = await rt.projects.add({ source: "https://github.com/dev/alpha.git", on: "default" });
+    workspaceId = (await rt.workspaces.create({ project: project.id, name: "alpha" })).id;
     sent = [];
     link = {
       workspaceId,
@@ -247,16 +247,36 @@ describe("a guest session on the host", () => {
       expect(await hello(await tokenOn(workspaceId, "t0"))).not.toContain("slate");
     });
 
+    it("lists slate_look to a lead's server only while an app on the host's computer draws looks", async () => {
+      const listed = async (lookable: boolean): Promise<string[]> => {
+        door = guestDoor({
+          authorize: token => rt.devices.match(token).then(device => (device === undefined ? undefined : { kind: "device", device })),
+          hostUrl: () => `http://${LOOPBACK}:${handle!.port}`,
+          kinds: guestKinds(statePath),
+          lookable: () => lookable,
+        });
+        sent = [];
+        const token = await tokenOn(workspaceId);
+        door.event(link, opened({ token, kind: "mcp", argv: ["mcp"], session: "g0" }));
+        await call(token, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "t", version: "0" } } });
+        const tools = await call(token, { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
+        door.event(link, { type: "guest.closed", session: "g0" });
+        return (tools["result"] as { tools: { name: string }[] }).tools.map(t => t.name).filter(n => n.startsWith("slate_"));
+      };
+      expect(await listed(false)).toEqual(expect.not.arrayContaining(["slate_look"]));
+      expect(await listed(true)).toContain("slate_look");
+    });
+
     it("puts the word on the line of this computer's binary for a thread another thread started, and only there", async () => {
       const seen = join(dir, "argv");
       const server = join(dir, "tool-server");
       writeStub(server, `#!/bin/sh\necho "$@" >> ${seen}\n`);
       const kind = guestTools(statePath, server);
-      for (const noSlate of [false, true]) {
-        kind.open({ argv: ["mcp"], cwd: "/root", env: {}, ...(noSlate ? { noSlate: true as const } : {}), reply: () => undefined, close: () => undefined });
+      for (const told of [{}, { noSlate: true as const }, { noLook: true as const }]) {
+        kind.open({ argv: ["mcp"], cwd: "/root", env: {}, ...told, reply: () => undefined, close: () => undefined });
       }
-      await settled(() => existsSync(seen) && readFileSync(seen, "utf8").split("\n").length > 2);
-      expect(readFileSync(seen, "utf8").trim().split("\n").sort()).toEqual([`mcp --state ${statePath} --scoped --guest`, `mcp --state ${statePath} --scoped --guest --no-slate`]);
+      await settled(() => existsSync(seen) && readFileSync(seen, "utf8").split("\n").length > 3);
+      expect(readFileSync(seen, "utf8").trim().split("\n").sort()).toEqual([`mcp --state ${statePath} --scoped --guest`, `mcp --state ${statePath} --scoped --guest --no-look`, `mcp --state ${statePath} --scoped --guest --no-slate`]);
     });
 
     it("names the tool server's process as its thread's to the owner ladder while the session stands", async () => {

@@ -95,63 +95,10 @@ function rcIdentities(home: string): Set<string> {
   return out;
 }
 
-export interface SecretReader {
-  /** The secret stored under a Keychain service, filed under the account when one is given; rejects when the item is missing or the person refuses the consent dialog. */
-  read(service: string, account?: string): Promise<string>;
-  /** What a helper command prints on this computer, run under sh as the tool would run it; rejects when it fails. */
-  run(command: string): Promise<string>;
-}
-
-/** The last line `security` printed, since its stderr names the cause and never the secret. A helper's failure is its
- * exit status alone: the command line and whatever it printed may carry the key. */
-function secretFailure(e: unknown, helper: boolean): string {
-  if (helper) {
-    const code = e instanceof Error ? (e as { code?: unknown }).code : undefined;
-    return typeof code === "number" ? `exit status ${code}` : typeof code === "string" ? code : "no exit status";
-  }
-  const lines = (e instanceof Error ? e.message : String(e)).split("\n").map(l => l.trim()).filter(l => l !== "");
-  return lines.at(-1) ?? "unknown error";
-}
-
-export interface ReadSecrets {
-  /** Secret by its key (see secretKey), for the pack. */
-  values: Map<string, string>;
-  /** Logins none of whose items were read, with the reason security gave for each, after the account when the item is per user; `command` names a helper that failed. */
-  refused: { id: string; service: string; command?: string; reason: string }[];
-  /** Items not read on a login another of whose items was read: the login copies without them; `left` is the row detail. */
-  dropped: { id: string; service: string; account?: string; left: string; reason: string }[];
-}
-
 /** The row detail for an item the copy went without: an account's Keychain token, or another of a login's items. */
 export const leftBehind = (what: string, why = "no token in the Keychain"): string => `${what} left behind: ${why}`;
 
 const leftBehindItem = (s: PlannedSecret): string => (s.command === undefined ? leftBehind(s.service) : leftBehind("the helper's key", "the helper did not run here"));
-
-export async function readSecrets(wanted: readonly PlannedSecret[], reader: SecretReader): Promise<ReadSecrets> {
-  const out: ReadSecrets = { values: new Map(), refused: [], dropped: [] };
-  const failed: { s: PlannedSecret; reason: string }[] = [];
-  for (const s of wanted) {
-    // One value per key: a helper two guest files render from runs once, so the consent dialog shows once.
-    if (out.values.has(secretKey(s)) || failed.some(f => secretKey(f.s) === secretKey(s))) continue;
-    try {
-      out.values.set(secretKey(s), s.command === undefined ? await reader.read(s.service, s.account) : await reader.run(s.command));
-    } catch (e) {
-      failed.push({ s, reason: secretFailure(e, s.command !== undefined) });
-    }
-  }
-  const read = new Set(wanted.filter(s => out.values.has(secretKey(s))).map(s => s.id));
-  for (const { s, reason } of failed) {
-    if (read.has(s.id)) {
-      out.dropped.push({ id: s.id, service: s.service, ...(s.account !== undefined ? { account: s.account } : {}), left: s.account !== undefined ? leftBehind(s.account) : leftBehindItem(s), reason });
-      continue;
-    }
-    const named = s.account === undefined ? reason : `${s.account}: ${reason}`;
-    const row = out.refused.find(r => r.id === s.id);
-    if (row === undefined) out.refused.push({ id: s.id, service: s.service, ...(s.command !== undefined ? { command: s.command } : {}), reason: named });
-    else row.reason = `${row.reason}; ${named}`;
-  }
-  return out;
-}
 
 /** Every file staged under a tree, by its path relative to that tree, which is where it lands under the home on
  * the far side. */
@@ -544,7 +491,7 @@ function hookDest(abs: string, home: string, row: Pick<RecipeEntry, "id" | "rung
 
 export interface ImportOptions {
   home: string;
-  /** Keychain secrets already read, by key (see readSecrets). */
+  /** Keychain secrets already read, by key. */
   secrets: ReadonlyMap<string, string>;
   platform: "darwin" | "linux";
   /** Every row of the manifest with its tick, so the MCP stage knows which servers stay and which come out; without it no MCP plan is made. */

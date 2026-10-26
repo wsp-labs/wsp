@@ -69,7 +69,9 @@ export function SlateSurface() {
   return <ThreadSlate key={threadId} threadId={threadId} />;
 }
 
-function ThreadSlate({ threadId }: { threadId: string }) {
+/** One thread's slate as the tab draws it; whole, for wsp slate look, its full height with no scroll box, holding
+ * nothing on the host, so a look starts none of the runs the slate skipped while no window showed it. */
+export function ThreadSlate({ threadId, whole = false }: { threadId: string; whole?: boolean }) {
   const entry = useSlateStore(s => s.byThread[threadId]);
   const bundle = useMemo(() => slateBundle(threadId), [threadId]);
   useEffect(() => {
@@ -85,16 +87,17 @@ function ThreadSlate({ threadId }: { threadId: string }) {
       slates: () => ({ lastTurn: useSlateStore.getState().lastTurn, record: useSlateStore.getState().byThread[threadId]?.record ?? null }),
       subscribeSlates: listener => useSlateStore.subscribe(listener),
       api: () => useStore.getState().api?.slates ?? null,
+      hold: !whole,
     });
-  }, [bundle, threadId, drawn]);
+  }, [bundle, threadId, drawn, whole]);
   useEffect(() => {
-    if (!drawn || !live) return;
+    if (!drawn || !live || whole) return;
     // The tab on screen is what "shown" means to the host: its `every` runs tick while any window holds the slate.
     // The hold is the socket's, so a connection that comes back takes it again.
     const api = useStore.getState().api?.slates ?? null;
     void api?.subscribe(threadId, [SHOWN_HOLD]).catch(() => {});
     return () => void api?.unsubscribe(threadId, [SHOWN_HOLD]).catch(() => {});
-  }, [threadId, drawn, live]);
+  }, [threadId, drawn, live, whole]);
   if (entry === undefined) return null;
   if (!drawn) return <EmptySlate threadId={threadId} entry={entry} />;
   return (
@@ -103,11 +106,17 @@ function ThreadSlate({ threadId }: { threadId: string }) {
       <HeldRuns engine={bundle.engine} asks={entry.record?.asks ?? []} review={run => askConsent(threadId, { run })} refuse={ask => refuse(threadId, ask)} />
       <Consent threadId={threadId} />
       <LinkPrompt threadId={threadId} />
-      <ScrollArea className="min-h-0 flex-1">
+      {whole ? (
         <div className={cn(COLUMN, "pb-8")}>
           <SlateView engine={bundle.engine} views={SLATE_VIEWS} runner={bundle.runner} sender={bundle.sender} />
         </div>
-      </ScrollArea>
+      ) : (
+        <ScrollArea className="min-h-0 flex-1">
+          <div className={cn(COLUMN, "pb-8")}>
+            <SlateView engine={bundle.engine} views={SLATE_VIEWS} runner={bundle.runner} sender={bundle.sender} />
+          </div>
+        </ScrollArea>
+      )}
     </div>
   );
 }

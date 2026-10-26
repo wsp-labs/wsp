@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { resolve } from "node:path";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { CATALOG_AGENTS, THREAD_AGENTS } from "@wsp/catalog";
@@ -15,25 +14,15 @@ import {
   IMAGE_TYPE_WORDS,
   NOTIFY_CALLER,
   ProjectExportResult,
-  ProjectImportResult,
-  ProjectPlan,
   SessionStartOutcome,
   TerminalScheme,
   ThreadView,
   TurnStatus,
   WorkspaceOut,
-  WorkspaceView,
-  canTravel,
-  defaultAgents,
-  defaultConsent,
   folderLevelLine,
-  fmtBytes,
-  plural,
   type NotifyLength,
   notifyLine,
   notifyTail,
-  secretOffer,
-  secretSignalsLine,
   stillWorkingLine,
   capWaitLine,
   ThreadCapWait,
@@ -42,16 +31,13 @@ import {
   waitTimedOutLine,
   type ExecEvent,
   type ProjectExportEvent,
-  type ProjectImportEvent,
-  type ProjectImportRequest,
   HERE_PLACE_ID,
   jsonLine,
   SubOut,
   SubResult,
 } from "@wsp/protocol";
 import type { CliIO } from "../cli.js";
-import { colourDepth, isTTY } from "../init-layout.js";
-import { type HostClient, untilSettled, pushedFrames, type Out, table, type Flags, type VerbContext, type FlagTable, placeNamed, absolutePath, threadIdOf, openedThreadLine } from "./client.js";
+import { type HostClient, untilSettled, pushedFrames, type Out, table, type VerbContext, type FlagTable, placeNamed, absolutePath, threadIdOf, openedThreadLine } from "./client.js";
 import { type Turn, type Ended, type Waited, turnRefusal, turnView } from "./turns-help.js";
 
 export type ExecExit = Extract<ExecEvent, { type: "exec.exit" }>;
@@ -119,76 +105,6 @@ export async function exportProject(client: HostClient, workspaceId: string, req
     pushed.stop();
   }
 }
-
-/** The plan for a folder on this computer, as the app's dialog reads it: nothing is packed or uploaded. */
-export async function planProject(client: HostClient, source: string): Promise<ProjectPlan> {
-  return (await client.request<{ plan: ProjectPlan }>("project.plan", { source })).plan;
-}
-
-/** Lands a folder on this computer at dest on the workspace's machine, the way the app's dialog does: `on` sees each
- * stage of the import as the runtime says it, and the result is what landed. Fails when the host goes away first. */
-export async function importProject(client: HostClient, workspaceId: string, req: ProjectImportRequest, on: (e: ProjectImportEvent) => void): Promise<ProjectImportResult> {
-  const pushed = pushedFrames(client);
-  await client.events();
-  pushed.follow(
-    f => f.type === "project.import" && f["workspaceId"] === workspaceId && f["source"] === req.source && f["dest"] === req.dest,
-    f => on(f as unknown as ProjectImportEvent),
-  );
-  try {
-    const { imported } = await untilSettled(client, client.request<{ imported: ProjectImportResult }>("project.import", { workspaceId, ...req }));
-    return imported;
-  } finally {
-    pushed.stop();
-  }
-}
-
-/** The rows a person changed from the plan's defaults: keep ticks a secret-shaped row, cut unticks it; a path the
- * plan does not list as secret-shaped is refused, since nothing would change for it. */
-export function secretsChosen(plan: ProjectPlan, keep: readonly string[], cut: readonly string[]): ReadonlySet<string> {
-  const listed = new Set(plan.secrets.map(s => s.path));
-  for (const path of [...keep, ...cut]) {
-    if (!listed.has(path)) throw usageRefusal(`${path} is not a secret-shaped file in the plan${listed.size === 0 ? ", which lists none" : `; the plan lists ${[...listed].join(", ")}`}.`, "Name one the plan lists, or drop the flag.");
-  }
-  const ticked = new Set(defaultConsent(plan.secrets));
-  for (const path of keep) ticked.add(path);
-  for (const path of cut) ticked.delete(path);
-  return ticked;
-}
-
-/** The agents whose sessions travel: the ones named, each with sessions in the plan, else the plan's default. */
-export function agentsChosen(plan: ProjectPlan, named: readonly string[] | undefined): ReadonlySet<string> {
-  if (named === undefined) return defaultAgents(plan.agents);
-  const travelling = plan.agents.filter(canTravel);
-  for (const id of named) {
-    if (!travelling.some(a => a.agent === id)) throw usageRefusal(`${id} has no sessions for this folder${travelling.length === 0 ? "" : `; the plan lists ${travelling.map(a => a.agent).join(", ")}`}.`, "Name one the plan lists, or drop the flag and let every agent with sessions come.");
-  }
-  return new Set(named);
-}
-
-/** The plan as the dialog shows it, one fact per line: the repository, the files and their size, the caches left
- * behind, the paths not carried, where it lands, then each secret-shaped row with its signals, size and what its tick
- * means, and each agent with its sessions and whether they travel. */
-export function planLines(plan: ProjectPlan, ticked: ReadonlySet<string>, agents: ReadonlySet<string>, workspace?: Pick<WorkspaceView, "kind" | "home">): string[] {
-  const rows: string[][] = [
-    ["Repository", plan.repo ? "git, .git travels whole" : "none"],
-    ["Files", `${plural(plan.files, "file")}, ${fmtBytes(plan.bytes)}`],
-    ["Caches left behind", plan.excluded.length === 0 ? "none" : plan.excluded.join(", ")],
-    ["Not carried", plan.skipped.length === 0 ? "none" : plural(plan.skipped.length, "path")],
-    ...plan.skipped.map(s => [`  ${s.path}`, s.note]),
-    ["Lands at", plan.source],
-    ["Secret-shaped", plan.secrets.length === 0 ? "none" : plural(plan.secrets.length, "file")],
-    ...plan.secrets.map(s => [`  ${s.path}`, secretSignalsLine(s), secretOffer(s, ticked.has(s.path)).full]),
-    ["Agents", plan.agents.length === 0 ? "none with sessions for the folder" : `${plural(plan.agents.length, "agent")} with sessions for the folder`],
-    ...plan.agents.map(a => [`  ${a.name}`, a.error ?? plural(a.sessions, "session"), agents.has(a.agent) ? "sessions travel" : "stays"]),
-  ];
-  return table(rows);
-}
-
-/** The line under a plan nobody has consented to yet, off a terminal: nothing moved, and the two ways to say yes. */
-export const PLAN_ONLY = "nothing imported; run again with --yes to take these defaults, or --keep <path> and --cut <path> per secret-shaped row";
-
-/** The one question a person at the terminal is asked under the plan; no is the default and moves nothing. */
-export const IMPORT_NOW = "Import now? y/N";
 
 /** A destination the runtime refused as already there, with the flag that overwrites it named; any other failure as it came. */
 export function withReplaceHint(e: unknown): unknown {
@@ -397,34 +313,12 @@ export const SizeIn = z.string().optional().describe("the machine size as <cpu>x
 export const MaxMachinesIn = z.number().int().min(0).optional().describe("how many machines may stand at once under one root thread; defaults to 3");
 export const MaxDepthIn = z.number().int().min(1).optional().describe("how many levels deep the tree under a root thread may go, 2 by default; 1 stops at the root's own children");
 
-export const PROJECT_FOLDERS = z.array(z.string()).optional().describe("folders on this computer, absolute, to weigh the histories by: only sessions that ran in one of them or under it count");
-/** The same folders on the write verb, where naming them is also naming a rule input, so it re-decides the ticks. */
-export const WEIGH_BY_FOLDERS = z.array(z.string()).optional().describe("folders on this computer, absolute, to weigh the histories by: only sessions that ran in one of them or under it count. Naming one re-decides every tick from the rule, as tick does, so any flip an earlier call made goes");
-/** Absolute, since the tool server's own folder is wherever the agent launched it and a prefix test on a relative
- * path silently matches nothing. */
-export const projectFolders = (folders: readonly string[]): string[] => folders.map(f => absolutePath("project is a folder on this computer", f));
-
 /** The scheme a --scheme flag names; a word outside the pair is refused before anything is read. */
 export function schemeFlag(value: string | undefined): TerminalScheme | undefined {
   if (value === undefined) return undefined;
   const parsed = TerminalScheme.safeParse(value);
   if (!parsed.success) throw usageRefusal(`--scheme takes one of ${TerminalScheme.options.join(", ")}, and got ${JSON.stringify(value)}.`, "Name one of those.");
   return parsed.data;
-}
-
-/** The --project folders a recipe line names, resolved from where the person stands; nothing when it names none. */
-export const projectsFlag = (flags: Flags): { projects?: string[] } => (Array.isArray(flags["project"]) ? { projects: (flags["project"] as string[]).map(p => resolve(p)) } : {});
-
-/** The reading is progress, not the answer: it goes to stderr so what is on stdout is the whole answer. */
-export const progress = (io: CliIO): { log(line: string): void; note(line: string): void } => ({ log: line => io.log(line), note: line => io.error(line) });
-
-/** The recipe verbs' answer on the command line: one JSON object under --json, else the table's lines in the
- * terminal's colours and the line that says what to do next. */
-export function printTable(ctx: VerbContext, value: unknown, lines: (depth: number) => string[], next: string): void {
-  ctx.out.emit(value);
-  if (ctx.flags["json"] === true) return;
-  for (const line of lines(colourDepth(isTTY(process.stdout)))) ctx.io.log(line);
-  ctx.io.log(next);
 }
 
 /** One level of one computer's folders over the protocol, or every repo under its roots: the folder picker a browser

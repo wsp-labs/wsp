@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LocalBackend } from "@wsp/engine";
-import { HERE_PLACE_ID, NOTIFY_ME, unreadLine, type Attachment, type Caller, type SessionEvent, type ThreadScope, type TurnImage, type TurnResult } from "@wsp/protocol";
+import { HERE_PLACE_ID, NOTIFY_ME, unreadLine, type Attachment, type Caller, type SessionEvent, type TurnImage, type TurnResult } from "@wsp/protocol";
 import { gateLoop, writeStub } from "../../protocol/test/stub-script.js";
 import { HARNESS_ADAPTERS } from "../src/adapters.js";
 import { localExecStream } from "../src/local-exec.js";
@@ -23,10 +23,6 @@ import { until } from "./until.js";
 const LINE = "thread 1234abcd finished (completed): reply with the single word BANANA";
 /** A one-pixel PNG. */
 const DOT: Attachment = { mediaType: "image/png", bytes: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", name: "dot.png" };
-/** A thread's own scope, as the door builds one off the token its turn runs with. */
-const scopeOf = (workspaceId: string, threadId: string): ThreadScope => ({ kind: "thread", threadId, workspaceId, rootThreadId: threadId });
-const asThread = (scope: ThreadScope, origin: "relayed" | "here" = "relayed"): Caller => ({ origin, by: scope });
-
 /** A harness whose turns end when the case says, telling the messages steered into them unread as they end; a stop,
  * the person's or a cut's, ends the turn with every message it was steered unread. With `images` it reads them inline,
  * on a start and on a steer. */

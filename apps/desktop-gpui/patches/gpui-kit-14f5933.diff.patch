@@ -1,0 +1,2520 @@
+diff --git a/crates/component/src/diff/document.rs b/crates/component/src/diff/document.rs
+index ad21555..bb12ca1 100644
+--- a/crates/component/src/diff/document.rs
++++ b/crates/component/src/diff/document.rs
+@@ -117,25 +117,18 @@ impl DiffLineRange {
+     }
+ }
+ 
+-/// One supplied source line and its display form.
++/// One supplied source line: where it lies in its side's source, and where
++/// its tabs expand. Its text is read from the source when it is drawn, so a
++/// patch's text is kept once for each side rather than again for each line.
+ #[derive(Debug)]
+ pub(crate) struct SourceLine {
+-    line_number: usize,
+-    text: SharedString,
+-    display: SharedString,
+-    chunks: SmallVec<[DisplayChunk; 1]>,
+-    counterpart: Option<usize>,
++    line_number: u32,
++    source: Range<u32>,
++    content_end: u32,
++    counterpart: Option<u32>,
+     // Only expanded tabs need an entry; ordinary UTF-8 bytes map by identity
+     // plus the cumulative expansion of earlier tabs.
+-    display_tabs: Vec<DisplayTab>,
+-    source: Range<usize>,
+-    content_end: usize,
+-}
+-
+-#[derive(Debug)]
+-struct DisplayChunk {
+-    range: Range<usize>,
+-    text: SharedString,
++    display_tabs: Box<[DisplayTab]>,
+ }
+ 
+ #[derive(Debug)]
+@@ -148,54 +141,100 @@ struct DisplayTab {
+ impl SourceLine {
+     /// The one-based line number in the source file.
+     pub(crate) fn line_number(&self) -> usize {
+-        self.line_number
++        self.line_number as usize
+     }
+-    /// The source content, without its line ending.
+-    pub(crate) fn text(&self) -> &SharedString {
+-        &self.text
++    /// The source content, without its line ending, from the side's `source`.
++    pub(crate) fn text<'a>(&self, source: &'a str) -> &'a str {
++        &source[self.source.start as usize..self.content_end as usize]
+     }
+     /// The content with tabs expanded, as painted.
+-    pub(crate) fn display(&self) -> &SharedString {
+-        &self.display
++    pub(crate) fn display(&self, source: &str) -> SharedString {
++        let text = self.text(source);
++        if self.display_tabs.is_empty() {
++            return SharedString::from(text.to_owned());
++        }
++        self.expand(text, 0..text.len()).into()
++    }
++    /// Bytes `bytes` of the line's `text`, with their tabs expanded.
++    fn expand(&self, text: &str, bytes: Range<usize>) -> String {
++        let mut out = String::with_capacity(bytes.len());
++        let mut copied = bytes.start;
++        let first = self
++            .display_tabs
++            .partition_point(|tab| tab.source_offset < bytes.start);
++        for tab in self.display_tabs[first..]
++            .iter()
++            .take_while(|tab| tab.source_offset < bytes.end)
++        {
++            out.push_str(&text[copied..tab.source_offset]);
++            out.extend(std::iter::repeat_n(' ', tab.width));
++            copied = tab.source_offset + 1;
++        }
++        out.push_str(&text[copied..bytes.end]);
++        out
++    }
++    /// The length of [`Self::display`].
++    pub(crate) fn display_len(&self) -> usize {
++        let text = (self.content_end - self.source.start) as usize;
++        text + self
++            .display_tabs
++            .iter()
++            .map(|tab| tab.width - 1)
++            .sum::<usize>()
++    }
++    /// Whether the line holds a tab, which displays wider than its source.
++    pub(crate) fn has_tabs(&self) -> bool {
++        !self.display_tabs.is_empty()
+     }
+     /// Display ranges painted as separate text runs, bounding shaping cost.
+-    pub(crate) fn chunk_ranges(&self) -> impl Iterator<Item = Range<usize>> + '_ {
+-        self.chunks.iter().map(|chunk| chunk.range.clone())
++    pub(crate) fn chunk_ranges(&self, source: &str) -> SmallVec<[Range<usize>; 1]> {
++        if self.display_len() <= DISPLAY_CHUNK {
++            return smallvec![0..self.display_len()];
++        }
++        if self.display_tabs.is_empty() {
++            return display_chunks(self.text(source));
++        }
++        display_chunks(&self.display(source))
+     }
+     /// The index of the paired line on the other side, if any.
+     pub(crate) fn counterpart(&self) -> Option<usize> {
+-        self.counterpart
++        self.counterpart.map(|ix| ix as usize)
+     }
+     /// The byte range in the side's source, including the line ending.
+     pub(crate) fn source(&self) -> Range<usize> {
+-        self.source.clone()
++        self.source.start as usize..self.source.end as usize
+     }
+     /// The source offset where the line ending begins.
+     pub(crate) fn content_end(&self) -> usize {
+-        self.content_end
++        self.content_end as usize
+     }
+ 
+-    /// Reuses the retained text for a projected chunk. The fallback supports
+-    /// valid partial ranges without making ordinary rendering allocate.
+-    pub(crate) fn chunk_text(&self, range: &Range<usize>) -> SharedString {
+-        if range.start == 0 && range.end == self.display.len() {
+-            return self.display.clone();
+-        }
+-        let ix = self
+-            .chunks
+-            .partition_point(|chunk| chunk.range.start < range.start);
+-        if let Some(chunk) = self.chunks.get(ix)
+-            && chunk.range == *range
+-        {
+-            return chunk.text.clone();
++    /// The display text of one projected chunk, built from the source bytes
++    /// under it alone: a line is drawn a chunk at a time, every frame.
++    pub(crate) fn chunk_text(&self, source: &str, range: &Range<usize>) -> SharedString {
++        let text = self.text(source);
++        let piece = |text: &str, range: Range<usize>| {
++            text.get(range).map_or_else(SharedString::default, |text| {
++                SharedString::from(text.to_owned())
++            })
++        };
++        if self.display_tabs.is_empty() {
++            return piece(text, range.clone());
+         }
+-        self.display
+-            .get(range.clone())
+-            .map_or_else(SharedString::default, SharedString::from)
++        let end = range.end.min(self.display_len());
++        let start = range.start.min(end);
++        let from = self.source_offset(start);
++        let to = if end > start {
++            (self.source_offset(end - 1) + 1).min(text.len())
++        } else {
++            from
++        };
++        let skip = start - self.display_offset(from);
++        piece(&self.expand(text, from..to), skip..skip + (end - start))
+     }
+ 
+     pub(crate) fn source_offset(&self, display_offset: usize) -> usize {
+-        let display_offset = display_offset.min(self.display.len());
++        let display_offset = display_offset.min(self.display_len());
+         let preceding = self
+             .display_tabs
+             .partition_point(|tab| tab.display_offset <= display_offset);
+@@ -213,7 +252,7 @@ impl SourceLine {
+     }
+ 
+     fn display_offset(&self, source_offset: usize) -> usize {
+-        let source_offset = source_offset.min(self.text.len());
++        let source_offset = source_offset.min((self.content_end - self.source.start) as usize);
+         let preceding = self
+             .display_tabs
+             .partition_point(|tab| tab.source_offset < source_offset);
+@@ -417,14 +456,14 @@ impl DiffFile {
+                 deletions += usize::from(pair.original.is_some());
+             }
+             if let (Some(old), Some(new)) = (pair.original, pair.modified) {
+-                original.lines[old].counterpart = Some(new);
+-                modified.lines[new].counterpart = Some(old);
++                original.lines[old].counterpart = Some(narrow(new));
++                modified.lines[new].counterpart = Some(narrow(old));
+             }
+         }
+         let widest = [&original, &modified]
+             .iter()
+             .filter_map(|side| side.lines.last())
+-            .map(|line| line.line_number)
++            .map(SourceLine::line_number)
+             .max()
+             .unwrap_or(1);
+         let path = modified
+@@ -433,6 +472,8 @@ impl DiffFile {
+             .or_else(|| original.path.clone())
+             .unwrap_or_default();
+         let (patch_lines, patch_ixs) = patch_order(&pairs, &hunks, &original, &modified);
++        let mut pairs = pairs;
++        pairs.shrink_to_fit();
+         Self {
+             inner: Arc::new(DocumentInner {
+                 path,
+@@ -514,6 +555,58 @@ impl DiffFile {
+             || self.status() == DiffFileStatus::Conflicted
+     }
+ 
++    /// The file written back as a unified diff: a Git header, the extended
++    /// headers, the `---` and `+++` paths and each hunk under its own head,
++    /// so the patch text need not be kept beside the parsed file. Paths are
++    /// written unquoted.
++    pub fn to_patch(&self) -> String {
++        let inner = &self.inner;
++        let (old, new) = (self.original_path(), self.modified_path());
++        let path = |side: Option<&SharedString>, prefix: &str| {
++            side.map_or("/dev/null".to_owned(), |path| format!("{prefix}{path}"))
++        };
++        let mut out = format!(
++            "diff --git a/{} b/{}\n",
++            old.or(new).map_or("", |p| p.as_str()),
++            new.or(old).map_or("", |p| p.as_str()),
++        );
++        for header in &inner.extended_headers {
++            out.push_str(header);
++            out.push('\n');
++        }
++        if inner.hunks.is_empty() {
++            return out;
++        }
++        out.push_str(&format!(
++            "--- {}\n+++ {}\n",
++            path(old, "a/"),
++            path(new, "b/")
++        ));
++        let mut lines = inner.patch_lines.iter().peekable();
++        for hunk in &inner.hunks {
++            out.push_str(&hunk.label);
++            out.push('\n');
++            while let Some(line) = lines.next_if(|line| {
++                line.original.is_some_and(|ix| hunk.original.contains(&ix))
++                    || line.modified.is_some_and(|ix| hunk.modified.contains(&ix))
++            }) {
++                let (tag, side, ix) = match (line.original, line.modified) {
++                    (Some(ix), Some(_)) => (' ', DiffSide::Original, ix),
++                    (Some(ix), None) => ('-', DiffSide::Original, ix),
++                    (None, Some(ix)) => ('+', DiffSide::Modified, ix),
++                    (None, None) => continue,
++                };
++                let text = &self.source(side)[self.lines(side)[ix].source()];
++                out.push(tag);
++                out.push_str(text);
++                if !text.ends_with('\n') {
++                    out.push_str("\n\\ No newline at end of file\n");
++                }
++            }
++        }
++        out
++    }
++
+     /// Whether the file has one column in every display mode.
+     pub(crate) fn is_single_column(&self) -> bool {
+         matches!(
+@@ -540,22 +633,22 @@ impl DiffFile {
+     /// inventing source lines.
+     pub(crate) fn text_for_lines(&self, side: DiffSide, start: usize, end: usize) -> String {
+         let lines = self.lines(side);
+-        let start_ix = lines.partition_point(|line| line.line_number < start);
+-        let end_ix = lines.partition_point(|line| line.line_number <= end);
++        let start_ix = lines.partition_point(|line| line.line_number() < start);
++        let end_ix = lines.partition_point(|line| line.line_number() <= end);
+         let selected = &lines[start_ix..end_ix];
+         let (Some(first), Some(last)) = (selected.first(), selected.last()) else {
+             return String::new();
+         };
+-        self.source(side)[first.source.start..last.source.end].to_owned()
++        self.source(side)[first.source().start..last.source().end].to_owned()
+     }
+ 
+     /// The one-based line number of the line at `index` on `side`.
+     pub(crate) fn line_number(&self, side: DiffSide, index: usize) -> usize {
+-        self.lines(side)[index].line_number
++        self.lines(side)[index].line_number()
+     }
+     pub(crate) fn line_index(&self, side: DiffSide, line: usize) -> Option<usize> {
+         self.lines(side)
+-            .binary_search_by_key(&line, |source| source.line_number)
++            .binary_search_by_key(&line, SourceLine::line_number)
+             .ok()
+     }
+ 
+@@ -594,6 +687,14 @@ impl DiffFile {
+     pub(crate) fn source(&self, side: DiffSide) -> &str {
+         &self.side(side).source
+     }
++    /// The text of line `ix` of `side`, without its line ending.
++    pub(crate) fn line_text(&self, side: DiffSide, ix: usize) -> &str {
++        self.lines(side)[ix].text(self.source(side))
++    }
++    /// Line `ix` of `side` with its tabs expanded, as painted.
++    pub(crate) fn line_display(&self, side: DiffSide, ix: usize) -> SharedString {
++        self.lines(side)[ix].display(self.source(side))
++    }
+ }
+ 
+ /// Orders the patch body as Git writes it: within each run of changes, every
+@@ -653,62 +754,48 @@ fn patch_order(
+             ixs[1][ix] = patch_ix;
+         }
+     }
++    lines.shrink_to_fit();
+     (lines, ixs)
+ }
+ 
+-/// Builds the display form of one source line from its range in `source`.
++/// A line's number or offset as stored: a side's source of 4 GiB or more is
++/// not a patch this view draws.
++fn narrow(value: usize) -> u32 {
++    u32::try_from(value).expect("a patch side under 4 GiB")
++}
++
++/// Builds one source line from its range in `source`.
+ fn source_line(source: &str, range: Range<usize>, line_number: usize) -> SourceLine {
+     let raw = &source[range.clone()];
+     let content = match raw.strip_suffix('\n') {
+         Some(content) => content.strip_suffix('\r').unwrap_or(content),
+         None => raw,
+     };
+-    let text = SharedString::from(content.to_owned());
+-    let (display, display_tabs): (SharedString, Vec<DisplayTab>) = if content.contains('\t') {
+-        let mut display = String::with_capacity(content.len());
+-        let mut display_tabs = Vec::new();
+-        let mut column = 0;
++    let mut display_tabs = Vec::new();
++    if content.contains('\t') {
++        let (mut column, mut display_len) = (0, 0);
+         for (ix, ch) in content.char_indices() {
+             if ch == '\t' {
+                 let spaces = 4 - column % 4;
+                 display_tabs.push(DisplayTab {
+                     source_offset: ix,
+-                    display_offset: display.len(),
++                    display_offset: display_len,
+                     width: spaces,
+                 });
+-                for _ in 0..spaces {
+-                    display.push(' ');
+-                }
++                display_len += spaces;
+                 column += spaces;
+             } else {
+-                display.push(ch);
++                display_len += ch.len_utf8();
+                 column += 1;
+             }
+         }
+-        (display.into(), display_tabs)
+-    } else {
+-        (text.clone(), Vec::new())
+-    };
+-    let chunks = display_chunks(&display)
+-        .into_iter()
+-        .map(|range| {
+-            let text = if range.start == 0 && range.end == display.len() {
+-                display.clone()
+-            } else {
+-                SharedString::from(display[range.clone()].to_owned())
+-            };
+-            DisplayChunk { range, text }
+-        })
+-        .collect();
++    }
+     SourceLine {
+-        line_number,
+-        text,
+-        display,
+-        chunks,
++        line_number: narrow(line_number),
++        content_end: narrow(range.start + content.len()),
++        source: narrow(range.start)..narrow(range.end),
+         counterpart: None,
+-        display_tabs,
+-        content_end: range.start + content.len(),
+-        source: range,
++        display_tabs: display_tabs.into_boxed_slice(),
+     }
+ }
+ 
+@@ -725,10 +812,13 @@ pub(crate) fn source_lines(text: &str) -> Vec<SourceLine> {
+         .collect()
+ }
+ 
++/// The longest display text painted as one run.
++const DISPLAY_CHUNK: usize = 512;
++
+ /// Bound native selection projection while preserving grapheme boundaries.
+ /// Exceptionally large clusters split only at UTF-8 boundaries.
+ pub(crate) fn display_chunks(text: &str) -> SmallVec<[Range<usize>; 1]> {
+-    const MAX_BYTES: usize = 512;
++    const MAX_BYTES: usize = DISPLAY_CHUNK;
+     if text.len() <= MAX_BYTES {
+         return smallvec![0..text.len()];
+     }
+@@ -928,7 +1018,7 @@ mod tests {
+                 if !pair.changed {
+                     let old_line = &doc.lines(DiffSide::Original)[pair.original.unwrap()];
+                     let new_line = &doc.lines(DiffSide::Modified)[pair.modified.unwrap()];
+-                    assert_eq!(&old[old_line.source.clone()], &new[new_line.source.clone()]);
++                    assert_eq!(&old[old_line.source()], &new[new_line.source()]);
+                 }
+             }
+         }
+@@ -957,31 +1047,50 @@ mod tests {
+         assert_eq!(bare_cr.inner.pairs.len(), 1);
+     }
+ 
++    #[test]
++    fn a_file_written_back_is_its_patch() {
++        for patch in [
++            "diff --git a/a.txt b/a.txt\nindex 1111111..2222222 100644\n--- a/a.txt\n+++ b/a.txt\n@@ -1,3 +1,3 @@ fn a\n one\n-two\n+2\n three\n@@ -9 +9,2 @@\n-x\n\\ No newline at end of file\n+y\n+z\n\\ No newline at end of file\n",
++            "diff --git a/new.ts b/new.ts\nnew file mode 100644\n--- /dev/null\n+++ b/new.ts\n@@ -0,0 +1,2 @@\n+a\r\n+b\n",
++            "diff --git a/logo.png b/logo.png\nindex 7777777..8888888 100644\nBinary files a/logo.png and b/logo.png differ\n",
++        ] {
++            assert_eq!(DiffFile::parse(patch).unwrap()[0].to_patch(), patch);
++        }
++    }
++
+     #[test]
+     fn source_display_mapping_preserves_tabs_and_unicode() {
+-        let lines = source_lines("é\t中\t\r\nlast\r");
++        let text = "é\t中\t\r\nlast\r";
++        let lines = source_lines(text);
+         let first = &lines[0];
+-        assert_eq!(first.text.as_str(), "é\t中\t");
+-        assert_eq!(first.display.as_str(), "é   中   ");
+-        assert_eq!(first.source, 0..9);
+-        assert_eq!(first.content_end, 7);
++        assert_eq!(first.text(text), "é\t中\t");
++        assert_eq!(first.display(text).as_str(), "é   中   ");
++        assert_eq!(first.display_len(), first.display(text).len());
++        assert_eq!(first.source(), 0..9);
++        assert_eq!(first.content_end(), 7);
+         assert_eq!(first.display_tabs.len(), 2);
+         assert_eq!(first.display_range(2..3), 2..5);
+         assert_eq!(first.display_range(6..7), 8..11);
+         assert_eq!(
+-            first.display_range(0..first.text.len()),
+-            0..first.display.len()
++            first.display_range(0..first.text(text).len()),
++            0..first.display_len()
+         );
+         for offset in 2..5 {
+             assert_eq!(first.source_offset(offset), 2);
+         }
+         assert_eq!(first.source_offset(5), 3);
+-        assert_eq!(first.source_offset(first.display.len()), first.text.len());
+-        assert_eq!(first.source_offset(usize::MAX), first.text.len());
+-        assert_eq!(lines[1].text.as_str(), "last\r");
++        assert_eq!(
++            first.source_offset(first.display_len()),
++            first.text(text).len()
++        );
++        assert_eq!(first.source_offset(usize::MAX), first.text(text).len());
++        assert_eq!(lines[1].text(text), "last\r");
+         assert!(lines[1].display_tabs.is_empty());
+         assert_eq!(lines[1].source_offset(2), 2);
+-        assert_eq!(lines[1].source_offset(usize::MAX), lines[1].text.len());
++        assert_eq!(
++            lines[1].source_offset(usize::MAX),
++            lines[1].text(text).len()
++        );
+         assert_eq!(lines[1].display_range(1..4), 1..4);
+         let plain_unicode = source_lines("中é");
+         assert!(plain_unicode[0].display_tabs.is_empty());
+@@ -1002,8 +1111,9 @@ mod tests {
+                 display_offset..display_offset
+             );
+         }
+-        let adjacent_tabs = source_lines("\t\té\t");
+-        assert_eq!(adjacent_tabs[0].display.as_str(), "        é   ");
++        let adjacent = "\t\té\t";
++        let adjacent_tabs = source_lines(adjacent);
++        assert_eq!(adjacent_tabs[0].display(adjacent).as_str(), "        é   ");
+         assert_eq!(adjacent_tabs[0].display_tabs.len(), 3);
+         for (source_offset, display_offset) in [0, 4, 8, 9, 10, 13].into_iter().enumerate() {
+             assert_eq!(
+@@ -1011,10 +1121,14 @@ mod tests {
+                 display_offset..display_offset
+             );
+         }
+-        let long_line = source_lines("a long source line without tabs uses shared heap storage");
+-        assert_eq!(long_line[0].text.as_ptr(), long_line[0].display.as_ptr());
+-        let long_tab_line = source_lines(&format!("{}\t", "a".repeat(100_000)));
++        let long = "a long source line without tabs displays as its source";
++        let long_line = source_lines(long);
++        assert!(!long_line[0].has_tabs());
++        assert_eq!(long_line[0].display(long).as_str(), long);
++        let long_tab = format!("{}\t", "a".repeat(100_000));
++        let long_tab_line = source_lines(&long_tab);
+         assert_eq!(long_tab_line[0].display_tabs.len(), 1);
++        assert_eq!(long_tab_line[0].display_len(), 100_004);
+     }
+ 
+     #[test]
+@@ -1048,14 +1162,22 @@ mod tests {
+             }
+             let lines = source_lines(&text);
+             let line = &lines[0];
+-            assert_eq!(line.chunks.len(), chunks.len());
+-            assert_eq!(line.chunk_text(&(0..line.display.len())), line.display);
+-            for chunk in &line.chunks {
+-                let retained = line.chunk_text(&chunk.range);
+-                assert_eq!(retained.as_str(), &text[chunk.range.clone()]);
+-                if retained.len() > 23 {
+-                    assert_eq!(retained.as_ptr(), chunk.text.as_ptr());
+-                }
++            // The line's own pieces: under 512 bytes each, on character
++            // boundaries, covering the line in order.
++            let pieces = line.chunk_ranges(&text);
++            assert!(pieces.iter().all(|range| range.len() <= 512
++                && text.is_char_boundary(range.start)
++                && text.is_char_boundary(range.end)));
++            assert_eq!(
++                pieces
++                    .iter()
++                    .map(|range| &text[range.clone()])
++                    .collect::<String>(),
++                text
++            );
++            assert_eq!(line.chunk_text(&text, &(0..text.len())).as_str(), text);
++            for range in &chunks {
++                assert_eq!(line.chunk_text(&text, range).as_str(), &text[range.clone()]);
+             }
+         }
+         let normal_graphemes = "é👩‍💻中".repeat(200);
+@@ -1068,6 +1190,22 @@ mod tests {
+             assert!(boundaries.contains(&range.start) && boundaries.contains(&range.end));
+         }
+         let line = &source_lines(ordinary)[0];
+-        assert_eq!(line.display.as_ptr(), line.chunks[0].text.as_ptr());
++        assert_eq!(line.chunk_ranges(ordinary).as_slice(), [0..ordinary.len()]);
++        // With tabs, each piece is the expanded text under it, a tab split
++        // across two pieces included.
++        let tabbed = format!("{}\n", "a\tbé\t".repeat(200));
++        let line = &source_lines(&tabbed)[0];
++        let expanded = "a   bé  ".repeat(200);
++        assert_eq!(line.display(&tabbed).as_str(), expanded);
++        let len = expanded.len();
++        let boundaries = (0..=len).filter(|&ix| expanded.is_char_boundary(ix));
++        for start in boundaries.clone().step_by(7) {
++            for end in boundaries.clone().filter(|&end| end >= start).step_by(13) {
++                assert_eq!(
++                    line.chunk_text(&tabbed, &(start..end)).as_str(),
++                    &expanded[start..end]
++                );
++            }
++        }
+     }
+ }
+diff --git a/crates/component/src/diff/mod.rs b/crates/component/src/diff/mod.rs
+index 036d11b..9311e7d 100644
+--- a/crates/component/src/diff/mod.rs
++++ b/crates/component/src/diff/mod.rs
+@@ -14,6 +14,8 @@ pub use conflict::{DiffConflict, DiffConflictResolution};
+ pub use document::{DiffFile, DiffFileStatus, DiffLinePosition, DiffLineRange, DiffSide};
+ pub use parser::DiffParseError;
+ pub use presentation::DiffInlineUnit;
++#[doc(hidden)]
++pub use presentation::syntax_colors;
+ pub use state::{DiffEvent, DiffState};
+ 
+ use std::{collections::HashMap, rc::Rc, sync::Arc};
+@@ -38,7 +40,7 @@ use crate::{
+ };
+ use actions::*;
+ use conflict::ConflictPart;
+-use presentation::FilePresentation;
++use presentation::{BlockKey, FilePresentation, SyntaxBlock};
+ use selection::{CodeText, SelectionLayer};
+ use state::{DisplayRow, FoldExpansion, LayoutKey, SelectedLines};
+ 
+@@ -127,6 +129,33 @@ pub enum DiffChangeIndicator {
+     Bars,
+     /// No marker.
+     None,
++    /// A 4 px bar at the row's leading edge, over its line number. A selected
++    /// row's bar takes the theme's info color.
++    Edge,
++}
++
++/// Pierre's row geometry and fills: a number lane `(3 + digits)` characters
++/// wide per file, a gap in the background color between it and the code,
++/// code inset one character, and each part of a row filled on its own.
++#[derive(Clone, Copy, Debug)]
++pub struct DiffLook {
++    pub gap: Pixels,
++    pub added_line: Hsla,
++    pub added_number: Hsla,
++    pub deleted_line: Hsla,
++    pub deleted_number: Hsla,
++    pub selected_line: Hsla,
++    pub selected_number: Hsla,
++    /// A selected line's number.
++    pub selected_ink: Hsla,
++    /// The stripe between the deleted edge bar's red ones.
++    pub deleted_stripe: Hsla,
++    /// The empty side of a split row: its number lane and its code's stripes.
++    pub buffer_number: Hsla,
++    pub buffer_stripe: Hsla,
++    /// A line annotation's code column and its number lane.
++    pub note: Hsla,
++    pub note_number: Hsla,
+ }
+ 
+ /// Application-owned content attached to a source line or to a whole file.
+@@ -176,6 +205,7 @@ type AnnotationRenderer = Rc<dyn Fn(&DiffAnnotation, &mut Window, &mut App) -> A
+ type RangeHandler = Rc<dyn Fn(&DiffLineRange, &mut Window, &mut App)>;
+ type ClickHandler = Rc<dyn Fn(&DiffLinePosition, &ClickEvent, &mut Window, &mut App)>;
+ type HoverHandler = Rc<dyn Fn(Option<&DiffLinePosition>, &mut Window, &mut App)>;
++type HunkRenderer = Rc<dyn Fn(&DiffFile, usize, &mut Window, &mut App) -> AnyElement>;
+ 
+ #[derive(Default)]
+ struct HeaderSlots {
+@@ -210,8 +240,20 @@ pub struct Diff {
+     hunk_separator: DiffHunkSeparator,
+     change_indicator: DiffChangeIndicator,
+     change_background: bool,
++    change_background_opacity: f32,
++    inline_change_opacity: f32,
++    inline_change_color: Option<Hsla>,
++    single_line_number: bool,
++    tint_line_numbers: bool,
++    single_column_added_deleted: bool,
++    row_height: Option<Pixels>,
+     soft_wrap: bool,
++    look: Option<DiffLook>,
++    inline_change_pill: bool,
++    scrollbar: bool,
++    scrollbar_lane: Pixels,
+     header: HeaderSlots,
++    hunk_separator_content: Option<HunkRenderer>,
+     annotations: Rc<Annotations>,
+     annotation_content: Option<AnnotationRenderer>,
+     on_add_annotation: Option<RangeHandler>,
+@@ -239,8 +281,20 @@ impl Diff {
+             hunk_separator: DiffHunkSeparator::default(),
+             change_indicator: DiffChangeIndicator::default(),
+             change_background: true,
++            change_background_opacity: 0.12,
++            inline_change_opacity: 0.3,
++            inline_change_color: None,
++            single_line_number: false,
++            tint_line_numbers: false,
++            single_column_added_deleted: false,
++            row_height: None,
+             soft_wrap: false,
++            look: None,
++            inline_change_pill: false,
++            scrollbar: true,
++            scrollbar_lane: px(0.),
+             header: HeaderSlots::default(),
++            hunk_separator_content: None,
+             annotations: Rc::default(),
+             annotation_content: None,
+             on_add_annotation: None,
+@@ -283,12 +337,89 @@ impl Diff {
+         self.change_background = value;
+         self
+     }
++    /// The share of the change color a changed line's background takes.
++    /// Default is 0.12.
++    pub fn change_background_opacity(mut self, opacity: f32) -> Self {
++        self.change_background_opacity = opacity;
++        self
++    }
++    /// The share of the change color behind the changed words of a changed
++    /// line, over the line's own tint. Default is 0.3.
++    pub fn inline_change_opacity(mut self, opacity: f32) -> Self {
++        self.inline_change_opacity = opacity;
++        self
++    }
++    /// Draws the changed words of a changed line in `color` rather than their
++    /// syntax colors. Default is their syntax colors.
++    pub fn inline_change_color(mut self, color: impl Into<Hsla>) -> Self {
++        self.inline_change_color = Some(color.into());
++        self
++    }
++    /// In unified mode, shows one line-number lane: the modified line's
++    /// number, or the original's on a deleted line. Default is false.
++    pub fn single_line_number(mut self, value: bool) -> Self {
++        self.single_line_number = value;
++        self
++    }
++    /// Draws a changed line's number in its change color, and a selected
++    /// line's in the theme's info color. Default is false.
++    pub fn tint_line_numbers(mut self, value: bool) -> Self {
++        self.tint_line_numbers = value;
++        self
++    }
++    /// The height of a code row. Default is 1.6 times the code font size.
++    pub fn row_height(mut self, height: Pixels) -> Self {
++        self.row_height = Some(height);
++        self
++    }
++    /// In split mode, gives an added or deleted file the whole width as one
++    /// column, since its other side is empty. Default is false.
++    pub fn single_column_added_deleted(mut self, value: bool) -> Self {
++        self.single_column_added_deleted = value;
++        self
++    }
+     /// Wraps long lines at the column width instead of scrolling horizontally.
+     /// Default is false.
+     pub fn soft_wrap(mut self, value: bool) -> Self {
+         self.soft_wrap = value;
+         self
+     }
++    /// Lays rows out and fills them as [`DiffLook`] says. Default is none.
++    pub fn look(mut self, look: DiffLook) -> Self {
++        self.look = Some(look);
++        self
++    }
++    /// Draws the box behind a changed line's changed words as a rounded pill
++    /// the height of the text, not the row. Default is false.
++    pub fn inline_change_pill(mut self, value: bool) -> Self {
++        self.inline_change_pill = value;
++        self
++    }
++    /// Draws the component's own vertical scrollbar. Default is true; an owner
++    /// that draws its own over [`DiffState::list`] turns it off.
++    pub fn scrollbar(mut self, value: bool) -> Self {
++        self.scrollbar = value;
++        self
++    }
++    /// Keeps `width` free at the right of the rows for an owner's scrollbar.
++    /// Default is none.
++    pub fn scrollbar_lane(mut self, width: Pixels) -> Self {
++        self.scrollbar_lane = width;
++        self
++    }
++    /// Draws the mark at the start of each hunk in place of
++    /// [`DiffHunkSeparator`]'s, given the file and the hunk's index in
++    /// [`DiffFile::hunks`]. An empty element takes no height.
++    pub fn render_hunk_separator<F, E>(mut self, render: F) -> Self
++    where
++        F: Fn(&DiffFile, usize, &mut Window, &mut App) -> E + 'static,
++        E: IntoElement,
++    {
++        self.hunk_separator_content = Some(Rc::new(move |file, hunk, window, cx| {
++            render(file, hunk, window, cx).into_any_element()
++        }));
++        self
++    }
+     /// Supplies annotations with stable identities and targets.
+     ///
+     /// Rows re-measure when annotations are added, removed or replaced, and
+@@ -455,26 +586,47 @@ fn render_diff(
+     let rem = window.rem_size();
+     let font_size = rem * (f32::from(cx.theme().mono_font_size) / 16.);
+     let font_family = cx.theme().mono_font_family.clone();
+-    let row_height = font_size * 1.6;
++    let row_height = props.row_height.unwrap_or(font_size * 1.6);
+     let digits = state
+         .files()
+         .iter()
+         .map(|file| file.line_number_digits())
+         .max()
+         .unwrap_or(1);
+-    let gutter_width = if props.line_number {
+-        font_size * 0.7 * digits as f32 + rem
+-    } else {
+-        px(0.)
++    // Pierre's character: the code font's advance of `0`.
++    let ch = props
++        .look
++        .map(|_| {
++            let font = gpui::Font {
++                family: font_family.clone(),
++                ..Default::default()
++            };
++            let text = window.text_system();
++            text.advance(text.resolve_font(&font), font_size, '0')
++                .map_or(font_size * 0.6, |size| size.width)
++        })
++        .unwrap_or_default();
++    let gutter_width = match props.look {
++        _ if !props.line_number => px(0.),
++        Some(look) => ch * (3 + digits) as f32 + look.gap,
++        None => font_size * 0.7 * digits as f32 + rem,
+     };
+     let mode = state.mode();
++    let lanes = if mode == DiffMode::Unified && props.single_line_number {
++        1.
++    } else {
++        2.
++    };
+     let soft_wrap = props.soft_wrap;
++    let syntax_highlight = props.syntax_highlight;
+     let layout = LayoutKey::new(
+         rem,
+         font_size,
+         font_family.clone(),
+         mode,
+         props.line_number,
++        lanes,
++        row_height,
+         soft_wrap,
+     );
+     if state.update_layout(layout, row_height) {
+@@ -488,6 +640,7 @@ fn render_diff(
+                 &font_family,
+                 gutter_width,
+                 mode,
++                lanes,
+                 window,
+                 cx,
+             )
+@@ -495,7 +648,9 @@ fn render_diff(
+         state.set_content_width(width);
+     }
+     state.sync_annotations(&props.annotations.items);
+-    let content_width = state.content_width().max(state.viewport().width);
++    let content_width = state
++        .content_width()
++        .max(state.viewport().width - props.scrollbar_lane);
+     let column_width = if mode == DiffMode::Split {
+         content_width / 2.
+     } else {
+@@ -504,12 +659,16 @@ fn render_diff(
+     let code = Rc::new(CodePresentation {
+         files: state.files().to_vec(),
+         presentations: state.presentations().to_vec(),
++        syntax: state.syntax().clone(),
+         mode,
+         content_width,
+         column_width,
+         font_size,
+         row_height,
+         gutter_width,
++        ch,
++        look: props.look,
++        inline_change_pill: props.inline_change_pill,
+         rem,
+         expansion_lines: state.expansion_lines(),
+         line_number: props.line_number,
+@@ -519,8 +678,15 @@ fn render_diff(
+         hunk_separator: props.hunk_separator,
+         change_indicator: props.change_indicator,
+         change_background: props.change_background,
++        change_background_opacity: props.change_background_opacity,
++        inline_change_opacity: props.inline_change_opacity,
++        inline_change_color: props.inline_change_color,
++        single_line_number: props.single_line_number,
++        tint_line_numbers: props.tint_line_numbers,
++        single_column_added_deleted: props.single_column_added_deleted,
+         soft_wrap,
+         header: props.header,
++        hunk_separator_content: props.hunk_separator_content,
+         annotations: props.annotations.clone(),
+         annotation_content: props.annotation_content,
+         on_add_annotation: props.on_add_annotation,
+@@ -579,11 +745,11 @@ fn render_diff(
+                 ScrollableMask::new(Axis::Horizontal, &horizontal).id("diff-horizontal-wheel"),
+             )
+         })
+-        .when(has_rows, |this| {
++        .when(has_rows && props.scrollbar, |this| {
+             this.child(Scrollbar::vertical(&scrollbar))
+-                .when(!soft_wrap, |this| {
+-                    this.child(Scrollbar::horizontal(&horizontal))
+-                })
++        })
++        .when(has_rows && !soft_wrap, |this| {
++            this.child(Scrollbar::horizontal(&horizontal))
+         })
+         // A line-number drag may finish anywhere, including outside the body.
+         .on_mouse_up(
+@@ -697,11 +863,15 @@ fn render_diff(
+                                 px(0.)
+                             } else {
+                                 let painted = state.geometry().borrow().painted_width();
+-                                code_width(painted, gutter_width, rem, mode)
++                                code_width(painted, gutter_width, rem, mode, lanes)
+                             };
+                             if state.record_paint(bounds.size, painted) || rehinted {
+                                 cx.notify();
+                             }
++                            if syntax_highlight {
++                                let theme = cx.theme().highlight_theme.clone();
++                                state.prepare_syntax_near_view(&theme, cx);
++                            }
+                         });
+                     }
+                 },
+@@ -742,12 +912,17 @@ fn body_focused(state: &DiffState, window: &Window, cx: &mut Context<DiffState>)
+ struct CodePresentation {
+     files: Vec<DiffFile>,
+     presentations: Vec<Option<Arc<FilePresentation>>>,
++    syntax: Rc<HashMap<BlockKey, Arc<SyntaxBlock>>>,
+     mode: DiffMode,
+     content_width: Pixels,
+     column_width: Pixels,
+     font_size: Pixels,
+     row_height: Pixels,
++    /// The widest number lane and, with a look, its gap.
+     gutter_width: Pixels,
++    ch: Pixels,
++    look: Option<DiffLook>,
++    inline_change_pill: bool,
+     rem: Pixels,
+     expansion_lines: usize,
+     line_number: bool,
+@@ -757,8 +932,15 @@ struct CodePresentation {
+     hunk_separator: DiffHunkSeparator,
+     change_indicator: DiffChangeIndicator,
+     change_background: bool,
++    change_background_opacity: f32,
++    inline_change_opacity: f32,
++    inline_change_color: Option<Hsla>,
++    single_line_number: bool,
++    tint_line_numbers: bool,
++    single_column_added_deleted: bool,
+     soft_wrap: bool,
+     header: HeaderSlots,
++    hunk_separator_content: Option<HunkRenderer>,
+     annotations: Rc<Annotations>,
+     annotation_content: Option<AnnotationRenderer>,
+     on_add_annotation: Option<RangeHandler>,
+@@ -786,14 +968,44 @@ impl CodePresentation {
+             .as_ref()
+             .is_some_and(|selected| selected.contains(&self.files, file, side, ix))
+     }
++
++    /// One number lane of `file`, without its gap: with a look, sized to the
++    /// file's own widest number.
++    fn lane_width(&self, file: usize) -> Pixels {
++        match self.look {
++            Some(_) if self.line_number => {
++                self.ch * (3 + self.files[file].line_number_digits()) as f32
++            }
++            _ => self.gutter_width,
++        }
++    }
++
++    /// Whether the file draws one column in this mode.
++    fn single_column(&self, file: usize) -> bool {
++        let document = &self.files[file];
++        document.is_single_column()
++            || (self.mode == DiffMode::Split
++                && self.single_column_added_deleted
++                && matches!(
++                    document.status(),
++                    DiffFileStatus::Added | DiffFileStatus::Deleted
++                ))
++    }
+ }
+ 
+-/// Total row width for code of `width` in the current mode.
+-fn code_width(width: Pixels, gutter_width: Pixels, rem: Pixels, mode: DiffMode) -> Pixels {
++/// Total row width for code of `width` in the current mode, with `lanes`
++/// line-number lanes in unified mode.
++fn code_width(
++    width: Pixels,
++    gutter_width: Pixels,
++    rem: Pixels,
++    mode: DiffMode,
++    lanes: f32,
++) -> Pixels {
+     if mode == DiffMode::Split {
+         (width + gutter_width + rem * 2.) * 2.
+     } else {
+-        width + gutter_width * 2. + rem * 2.
++        width + gutter_width * lanes + rem * 2.
+     }
+ }
+ 
+@@ -805,17 +1017,23 @@ fn measure_code_width(
+     family: &SharedString,
+     gutter_width: Pixels,
+     mode: DiffMode,
++    lanes: f32,
+     window: &mut Window,
+     cx: &App,
+ ) -> Pixels {
+     // Glyph widths vary within a font, so shape several candidates rather
+     // than trusting the single widest by cell count.
+     const CANDIDATES: usize = 8;
+-    let mut candidates: Vec<(usize, &SharedString)> = Vec::with_capacity(CANDIDATES + 1);
++    let mut candidates: Vec<(usize, SharedString)> = Vec::with_capacity(CANDIDATES + 1);
+     for file in files {
+         for side in [DiffSide::Original, DiffSide::Modified] {
++            let source = file.source(side);
+             for line in file.lines(side) {
+-                let cells = unicode_width::UnicodeWidthStr::width(line.display().as_str());
++                let cells = if line.has_tabs() {
++                    unicode_width::UnicodeWidthStr::width(line.display(source).as_str())
++                } else {
++                    unicode_width::UnicodeWidthStr::width(line.text(source))
++                };
+                 if candidates.len() == CANDIDATES
+                     && candidates
+                         .last()
+@@ -824,7 +1042,7 @@ fn measure_code_width(
+                     continue;
+                 }
+                 let ix = candidates.partition_point(|(widest, _)| *widest >= cells);
+-                candidates.insert(ix, (cells, line.display()));
++                candidates.insert(ix, (cells, line.display(source)));
+                 candidates.truncate(CANDIDATES);
+             }
+         }
+@@ -854,7 +1072,7 @@ fn measure_code_width(
+                 .width
+         })
+         .fold(px(0.), Pixels::max);
+-    code_width(width, gutter_width, window.rem_size(), mode)
++    code_width(width, gutter_width, window.rem_size(), mode, lanes)
+ }
+ 
+ fn render_row(
+@@ -866,7 +1084,7 @@ fn render_row(
+     match row {
+         DisplayRow::File(file) => render_file_header(*file, &code, window, cx),
+         DisplayRow::Notice(file) => render_notice(&code.files[*file], cx),
+-        DisplayRow::Hunk { file, hunk } => render_hunk_separator(*file, *hunk, &code, cx),
++        DisplayRow::Hunk { file, hunk } => render_hunk_separator(*file, *hunk, &code, window, cx),
+         DisplayRow::Fold { file, pairs } => render_fold(*file, pairs.clone(), &code, cx),
+         DisplayRow::Conflict {
+             file,
+@@ -879,7 +1097,7 @@ fn render_row(
+             modified,
+             changed,
+         } => {
+-            if code.mode == DiffMode::Split && !code.files[*file].is_single_column() {
++            if code.mode == DiffMode::Split && !code.single_column(*file) {
+                 h_flex()
+                     .items_stretch()
+                     .w_full()
+@@ -929,8 +1147,15 @@ fn render_hunk_separator(
+     file: usize,
+     hunk: usize,
+     code: &CodePresentation,
+-    cx: &App,
++    window: &mut Window,
++    cx: &mut App,
+ ) -> AnyElement {
++    if let Some(render) = &code.hunk_separator_content {
++        return div()
++            .w_full()
++            .child(render(&code.files[file], hunk, window, cx))
++            .into_any_element();
++    }
+     let hunks = code.files[file].hunks();
+     let row = h_flex()
+         .w_full()
+@@ -1232,7 +1457,7 @@ fn file_annotations(
+         .get(path)
+         .cloned()
+         .unwrap_or_default();
+-    annotation_elements(&ixs, code, window, cx)
++    annotation_elements(&ixs, None, code, window, cx)
+ }
+ 
+ /// Summarizes a file without source rows: binary, metadata-only or empty.
+@@ -1263,13 +1488,17 @@ fn render_notice(file: &DiffFile, cx: &App) -> AnyElement {
+         .into_any_element()
+ }
+ 
++#[allow(clippy::too_many_arguments)]
+ fn render_gutter(
+     file: usize,
+     side: DiffSide,
+     ix: Option<usize>,
++    tint: Option<Hsla>,
++    fill: Option<Hsla>,
+     code: &CodePresentation,
+     cx: &App,
+ ) -> AnyElement {
++    let look = code.look.is_some();
+     let hover = matches!(
+         code.hover_highlight,
+         DiffHoverHighlight::LineNumber | DiffHoverHighlight::Both
+@@ -1281,8 +1510,14 @@ fn render_gutter(
+             "new-gutter"
+         })
+         .flex_shrink_0()
+-        .w(code.gutter_width)
+-        .pr_1()
++        .map(|this| {
++            if look {
++                this.w(code.lane_width(file)).pr(code.ch)
++            } else {
++                this.w(code.gutter_width).pr_1()
++            }
++        })
++        .when_some(fill, |this, fill| this.bg(fill))
+         .when(hover, |this| {
+             this.hover(|this| this.bg(cx.theme().list_hover))
+         })
+@@ -1298,12 +1533,12 @@ fn render_gutter(
+                     .test_support()
+                     .w_full()
+                     .h(code.row_height)
+-                    .px_1()
++                    .when(!look, |this| this.px_1())
+                     .flex()
+                     .items_center()
+                     .justify_end()
+                     .text_size(code.font_size)
+-                    .text_color(cx.theme().muted_foreground)
++                    .text_color(tint.unwrap_or(cx.theme().muted_foreground))
+                     .hover(|this| this.text_color(cx.theme().foreground))
+                     .role(gpui::accesskit::Role::Button)
+                     .aria_label(
+@@ -1363,9 +1598,11 @@ fn render_cell(
+         .when(side == DiffSide::Original, |this| {
+             this.border_r_1().border_color(cx.theme().border)
+         })
+-        .when(ix.is_none(), |this| {
+-            this.bg(cx.theme().muted.opacity(0.3))
+-                .child(div().h(code.row_height))
++        .when(ix.is_none(), |this| match code.look {
++            Some(look) => this.child(buffer_row(file, look, &code)),
++            None => this
++                .bg(cx.theme().muted.opacity(0.3))
++                .child(div().h(code.row_height)),
+         });
+     let Some(ix) = ix else {
+         return cell.into_any_element();
+@@ -1393,6 +1630,52 @@ fn render_cell(
+     .into_any_element()
+ }
+ 
++/// The empty side of a split row with a look: the number lane in its fill,
++/// the gap, and pierre's buffer stripes over the code column, 2 px wide every
++/// 8 px, rising to the right.
++fn buffer_row(file: usize, look: DiffLook, code: &CodePresentation) -> impl IntoElement {
++    let stripe = look.buffer_stripe;
++    h_flex()
++        .flex_1()
++        .min_h(code.row_height)
++        .items_stretch()
++        .when(code.line_number, |this| {
++            this.child(
++                div()
++                    .flex_shrink_0()
++                    .w(code.lane_width(file))
++                    .bg(look.buffer_number),
++            )
++            .child(div().flex_shrink_0().w(look.gap))
++        })
++        .child(
++            gpui::canvas(
++                |_, _, _| {},
++                move |bounds, _, window, _| {
++                    let (w, h) = (bounds.size.width, bounds.size.height);
++                    let mut path = gpui::PathBuilder::fill();
++                    // Where x + y is 5.25 to 7.25 px into each 8, as Chromium samples pierre's tile.
++                    let mut k = px(-2.75);
++                    while k < w + h {
++                        let at = |x: Pixels, y: Pixels| point(bounds.left() + x, bounds.top() + y);
++                        path.move_to(at(k, px(0.)));
++                        path.line_to(at(k + px(2.), px(0.)));
++                        path.line_to(at(k + px(2.) - h, h));
++                        path.line_to(at(k - h, h));
++                        path.close();
++                        k += px(8.);
++                    }
++                    if let Ok(path) = path.build() {
++                        window.with_content_mask(Some(gpui::ContentMask { bounds }), |window| {
++                            window.paint_path(path, stripe)
++                        });
++                    }
++                },
++            )
++            .flex_1(),
++        )
++}
++
+ #[allow(clippy::too_many_arguments)]
+ fn render_unified_cell(
+     file: usize,
+@@ -1405,7 +1688,7 @@ fn render_unified_cell(
+     cx: &mut App,
+ ) -> AnyElement {
+     let (original, modified) = pair;
+-    let single_column = code.files[file].is_single_column();
++    let single_column = code.single_column(file);
+     let counterpart = code.files[file].lines(side)[ix].counterpart();
+     let other_ix = if side == DiffSide::Original {
+         modified
+@@ -1423,8 +1706,10 @@ fn render_unified_cell(
+             cx,
+         ));
+     }
+-    let gutters = if single_column {
++    let gutters = if code.files[file].is_single_column() {
+         [Some((DiffSide::Modified, modified)), None]
++    } else if single_column || code.single_line_number {
++        [Some((side, Some(ix))), None]
+     } else {
+         [
+             Some((DiffSide::Original, original)),
+@@ -1459,6 +1744,7 @@ fn render_unified_cell(
+ }
+ 
+ /// Syntax colors with inline-change and selection emphasis layered over them.
++/// With [`Diff::inline_change_pill`], the changed words' boxes go to `pills`.
+ #[allow(clippy::too_many_arguments)]
+ fn line_highlights(
+     file: usize,
+@@ -1468,30 +1754,41 @@ fn line_highlights(
+     selected: bool,
+     status: Hsla,
+     code: &CodePresentation,
++    pills: &mut Vec<(std::ops::Range<usize>, Hsla)>,
+     cx: &App,
+ ) -> Vec<(std::ops::Range<usize>, HighlightStyle)> {
+     let line = &code.files[file].lines(side)[ix];
+     let presentation = code.presentations.get(file).and_then(Option::as_ref);
+-    let mut highlights = match presentation {
+-        Some(presentation) if code.syntax_highlight => {
++    let mut highlights = match (code.syntax.get(&BlockKey::of(file, side, ix)), presentation) {
++        _ if !code.syntax_highlight => Vec::new(),
++        (Some(block), _) => block.highlights(line, ix),
++        (None, Some(presentation)) => {
+             presentation.syntax_highlights(line, side, ix, cx.theme().highlight_theme.as_ref())
+         }
+-        _ => Vec::new(),
++        (None, None) => Vec::new(),
+     };
+     if changed && let Some(presentation) = presentation {
++        let color = code.inline_change_color;
++        let fill = status.opacity(code.inline_change_opacity);
++        let pill = code.inline_change_pill;
+         highlights.extend(presentation.inline_changes(line, side, ix).map(|range| {
++            if pill {
++                pills.push((range.clone(), fill));
++            }
+             (
+                 range,
+                 HighlightStyle {
+-                    background_color: Some(status.opacity(0.3)),
++                    color,
++                    background_color: (!pill).then_some(fill),
+                     ..Default::default()
+                 },
+             )
+         }));
+     }
+-    if selected {
++    // A look fills the selected line's code cell instead.
++    if selected && code.look.is_none() {
+         highlights.push((
+-            0..line.display().len(),
++            0..line.display_len(),
+             HighlightStyle {
+                 background_color: Some(cx.theme().selection),
+                 ..Default::default()
+@@ -1589,7 +1886,30 @@ fn code_line(
+                 .iter()
+                 .flatten()
+                 .any(|(side, ix)| ix.is_some_and(|ix| code.is_selected(file, *side, ix))));
+-    let highlights = line_highlights(file, side, ix, changed, selected, status, &code, cx);
++    let mut pills = Vec::new();
++    let highlights = line_highlights(
++        file, side, ix, changed, selected, status, &code, &mut pills, cx,
++    );
++    let look = code.look;
++    // A look's fills: the code cell, the number cell and the number's ink.
++    let (line_fill, number_fill, number_ink) = match look {
++        Some(look) if selected => (
++            Some(look.selected_line),
++            Some(look.selected_number),
++            Some(look.selected_ink),
++        ),
++        Some(_) if changed && conflict_part.is_some() => {
++            let fill = status.opacity(code.change_background_opacity);
++            (Some(fill), Some(fill), Some(status))
++        }
++        Some(look) if changed && side == DiffSide::Original => (
++            Some(look.deleted_line),
++            Some(look.deleted_number),
++            Some(status),
++        ),
++        Some(look) if changed => (Some(look.added_line), Some(look.added_number), Some(status)),
++        _ => (None, None, None),
++    };
+     // An unchanged Unified row shows one source line for both sides; follow
+     // the side a text selection started on so its offsets stay consistent.
+     let (text_side, text_ix) = if code.mode == DiffMode::Unified
+@@ -1609,9 +1929,11 @@ fn code_line(
+     // Wrapped text must be one run to break across the column; unwrapped
+     // long lines stay chunked to bound shaping and selection projection.
+     let ranges: Vec<_> = if code.soft_wrap {
+-        vec![0..source_line.display().len()]
++        vec![0..source_line.display_len()]
+     } else {
+-        source_line.chunk_ranges().collect()
++        source_line
++            .chunk_ranges(document.source(text_side))
++            .into_vec()
+     };
+     // A block container gives wrapped text a definite width to break at.
+     let text = div()
+@@ -1631,14 +1953,15 @@ fn code_line(
+                 text_ix,
+                 range,
+                 highlights.clone(),
++                pills.clone(),
+                 code.selection.clone(),
+                 code.geometry.clone(),
+             )
+         }));
+-    let gutters_width = if code.line_number {
+-        code.gutter_width * gutters.iter().flatten().count() as f32
+-    } else {
+-        px(0.)
++    let gutters_width = match look {
++        _ if !code.line_number => px(0.),
++        Some(look) => code.lane_width(file) + look.gap,
++        None => code.gutter_width * gutters.iter().flatten().count() as f32,
+     };
+     let indicator = match code.change_indicator {
+         DiffChangeIndicator::Signs => div()
+@@ -1657,8 +1980,43 @@ fn code_line(
+         DiffChangeIndicator::Bars => div().w_4().h_full().flex_shrink_0().when(changed, |this| {
+             this.child(div().w(px(3.)).h_full().bg(status))
+         }),
+-        DiffChangeIndicator::None => div().w_2().flex_shrink_0(),
++        DiffChangeIndicator::None | DiffChangeIndicator::Edge => div().w_2().flex_shrink_0(),
+     };
++    // With a look, a deleted line's bar is pierre's: red rows 1 px high every
++    // 2 px over its stripe color.
++    let hatched = look
++        .filter(|_| !selected && changed && conflict_part.is_none() && side == DiffSide::Original);
++    let edge =
++        (code.change_indicator == DiffChangeIndicator::Edge && (changed || selected)).then(|| {
++            div()
++                .absolute()
++                .left_0()
++                .top_0()
++                .bottom_0()
++                .w(px(4.))
++                .map(|this| match hatched {
++                    Some(look) => this.bg(look.deleted_stripe).child(
++                        gpui::canvas(
++                            |_, _, _| {},
++                            move |bounds, _, window, _| {
++                                let mut y = bounds.top();
++                                while y < bounds.bottom() {
++                                    window.paint_quad(gpui::fill(
++                                        gpui::Bounds::new(
++                                            point(bounds.left(), y),
++                                            gpui::size(bounds.size.width, px(1.)),
++                                        ),
++                                        status,
++                                    ));
++                                    y += px(2.);
++                                }
++                            },
++                        )
++                        .size_full(),
++                    ),
++                    None => this.bg(if selected { cx.theme().info } else { status }),
++                })
++        });
+     let hover_line = matches!(
+         code.hover_highlight,
+         DiffHoverHighlight::Line | DiffHoverHighlight::Both
+@@ -1670,23 +2028,33 @@ fn code_line(
+         .group("diff-line")
+         .relative()
+         .w_full()
+-        .px_2()
++        .when(look.is_none(), |this| this.px_2())
+         .map(|this| {
+             if code.soft_wrap {
+-                this.min_h(code.row_height)
+-                    .items_start()
+-                    .whitespace_normal()
++                this.min_h(code.row_height).whitespace_normal()
+             } else {
+                 this.h(code.row_height).whitespace_nowrap()
+             }
+         })
++        .map(|this| {
++            if look.is_some() {
++                this.items_stretch()
++            } else if code.soft_wrap {
++                this.items_start()
++            } else {
++                this
++            }
++        })
+         .font_family(cx.theme().mono_font_family.clone())
+         .text_size(code.font_size)
+         .line_height(code.row_height)
+-        .when(changed && code.change_background, |this| {
+-            this.bg(status.opacity(0.12))
++        .when(
++            look.is_none() && changed && code.change_background,
++            |this| this.bg(status.opacity(code.change_background_opacity)),
++        )
++        .when(look.is_none() && selected, |this| {
++            this.bg(cx.theme().selection)
+         })
+-        .when(selected, |this| this.bg(cx.theme().selection))
+         .when(hover_line && !selected, |this| {
+             this.hover(|this| this.bg(cx.theme().list_hover))
+         })
+@@ -1697,14 +2065,20 @@ fn code_line(
+             })
+         })
+         .when(code.line_number, |this| {
+-            this.children(
+-                gutters
+-                    .into_iter()
+-                    .flatten()
+-                    .map(|(side, ix)| render_gutter(file, side, ix, &code, cx)),
+-            )
++            this.children(gutters.into_iter().flatten().map(|(side, ix)| {
++                let tint = match (code.tint_line_numbers, selected, changed) {
++                    _ if look.is_some() => number_ink,
++                    (true, true, _) => Some(cx.theme().info),
++                    (true, false, true) => Some(status),
++                    _ => None,
++                };
++                render_gutter(file, side, ix, tint, number_fill, &code, cx)
++            }))
++            .when_some(look, |this, look| {
++                this.child(div().flex_shrink_0().w(look.gap))
++            })
+         })
+-        .child(indicator)
++        .when(look.is_none(), |this| this.child(indicator))
+         .child(
+             div()
+                 .id("source")
+@@ -1712,12 +2086,18 @@ fn code_line(
+                 .map(|this| {
+                     if code.soft_wrap {
+                         this.flex_1().min_w_0()
++                    } else if look.is_some() {
++                        this.flex_grow(1.).flex_shrink_0()
+                     } else {
+                         this.flex_shrink_0()
+                     }
+                 })
++                .when(look.is_some(), |this| this.px(code.ch))
++                .when_some(line_fill, |this, fill| this.bg(fill))
+                 .role(gpui::accesskit::Role::Label)
+-                .aria_label(source_line.text().clone())
++                .aria_label(SharedString::from(
++                    document.line_text(text_side, text_ix).to_owned(),
++                ))
+                 .aria_description(
+                     t!(
+                         if changed {
+@@ -1750,6 +2130,7 @@ fn code_line(
+                 .child(text),
+         )
+         .children(add_button)
++        .children(edge)
+         .into_any_element()
+ }
+ 
+@@ -1804,11 +2185,14 @@ fn line_annotations(
+         .get(&position)
+         .cloned()
+         .unwrap_or_default();
+-    annotation_elements(&ixs, code, window, cx)
++    annotation_elements(&ixs, Some(file), code, window, cx)
+ }
+ 
++/// `line_of`: the file of line annotations, which a look sets in the code
++/// column on its own fill, beside the number lane in its.
+ fn annotation_elements(
+     ixs: &[usize],
++    line_of: Option<usize>,
+     code: &CodePresentation,
+     window: &mut Window,
+     cx: &mut App,
+@@ -1819,6 +2203,29 @@ fn annotation_elements(
+     ixs.iter()
+         .map(|ix| {
+             let annotation = &code.annotations.items[*ix];
++            if let (Some(look), Some(file)) = (code.look, line_of) {
++                return h_flex()
++                    .id(annotation.id.clone())
++                    .w_full()
++                    .items_stretch()
++                    .when(code.line_number, |this| {
++                        this.child(
++                            div()
++                                .flex_shrink_0()
++                                .w(code.lane_width(file))
++                                .bg(look.note_number),
++                        )
++                        .child(div().flex_shrink_0().w(look.gap))
++                    })
++                    .child(
++                        div()
++                            .flex_1()
++                            .min_w_0()
++                            .bg(look.note)
++                            .child(render(annotation, window, cx)),
++                    )
++                    .into_any_element();
++            }
+             div()
+                 .id(annotation.id.clone())
+                 .w_full()
+@@ -1844,7 +2251,7 @@ fn has_line_ending_change(
+         let other_side = side.other();
+         let line = &file.lines(side)[ix];
+         let other = &file.lines(other_side)[counterpart];
+-        line.text() == other.text()
++        file.line_text(side, ix) == file.line_text(other_side, counterpart)
+             && file.source(side)[line.content_end()..line.source().end]
+                 != file.source(other_side)[other.content_end()..other.source().end]
+     })
+diff --git a/crates/component/src/diff/newline_tests.rs b/crates/component/src/diff/newline_tests.rs
+index 382b451..10c34eb 100644
+--- a/crates/component/src/diff/newline_tests.rs
++++ b/crates/component/src/diff/newline_tests.rs
+@@ -40,7 +40,7 @@ fn missing_files_and_blank_lines_have_no_false_counterparts() {
+     ] {
+         let document = fixture::modified("a.txt", original, modified);
+         let line = &document.lines(side)[0];
+-        assert!(line.text().is_empty());
++        assert!(document.line_text(side, 0).is_empty());
+         assert_eq!(line.counterpart(), None);
+         assert!(!has_line_ending_change(
+             &document,
+diff --git a/crates/component/src/diff/presentation.rs b/crates/component/src/diff/presentation.rs
+index da211fe..0507d5a 100644
+--- a/crates/component/src/diff/presentation.rs
++++ b/crates/component/src/diff/presentation.rs
+@@ -1,12 +1,18 @@
+ //! Presentation prepared on a background thread: theme-independent syntax
+-//! captures and inline changes between paired lines.
+-use std::{collections::HashMap, ops::Range};
++//! captures and inline changes between paired lines for each whole file, or,
++//! near the view only, syntax a block of lines at a time.
++use std::{
++    collections::HashMap,
++    hash::{DefaultHasher, Hash as _, Hasher as _},
++    ops::Range,
++    sync::{OnceLock, mpsc::Sender},
++};
+ 
+ use gpui::{HighlightStyle, SharedString};
+ use gpui_base::input::HighlightStyleResolver;
+ use similar::{ChangeTag, TextDiff};
+ 
+-use super::{DiffFile, DiffSide, document::SourceLine};
++use super::{DiffFile, DiffSide, document::SourceLine, selection::merge_highlights};
+ use crate::{Rope, highlighter::SyntaxHighlighter};
+ 
+ /// The unit inline changes are compared and emphasized in.
+@@ -31,6 +37,8 @@ pub(crate) struct PresentationOptions {
+     pub inline_unit: Option<DiffInlineUnit>,
+     pub inline_max_line_length: usize,
+     pub syntax_max_line_length: usize,
++    /// Syntax is prepared in blocks near the view instead of with each file.
++    pub syntax_near_view: bool,
+ }
+ 
+ /// Highlighters by language, shared by the files of one preparation pass
+@@ -45,6 +53,121 @@ pub(crate) struct FilePresentation {
+     inline: [LineSpans<()>; 2],
+ }
+ 
++/// The lines of one side colored together near the view, so the captures
++/// kept do not grow with the patch.
++pub(crate) const SYNTAX_BLOCK: usize = 128;
++/// Hunk parses kept for the next blocks read from them.
++const HUNK_PARSES_KEPT: usize = 2;
++
++/// One side's block of [`SYNTAX_BLOCK`] lines in one file.
++#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
++pub(crate) struct BlockKey {
++    pub file: usize,
++    pub side: DiffSide,
++    pub block: usize,
++}
++
++impl BlockKey {
++    pub(crate) fn of(file: usize, side: DiffSide, ix: usize) -> Self {
++        Self {
++            file,
++            side,
++            block: ix / SYNTAX_BLOCK,
++        }
++    }
++}
++
++/// Prepared syntax of one block, in the theme it was prepared in.
++pub(crate) struct SyntaxBlock {
++    styles: Vec<HighlightStyle>,
++    spans: LineSpans<u16>,
++}
++
++/// Which text a hunk parse holds: the hunk's place and a hash of its text, so
++/// another file shown in the same place, or the same hunk changed, parses again.
++#[derive(Clone, Copy, PartialEq, Eq)]
++struct HunkKey {
++    file: usize,
++    side: DiffSide,
++    hunk: usize,
++    text: u64,
++}
++
++/// Whole hunks parsed for their blocks, the most recently read last, so the
++/// blocks of one hunk are read from one parse and a string or comment opened
++/// anywhere above a block colors it as it does in the whole hunk. A released
++/// highlighter holds no parse and is kept for its compiled queries.
++#[derive(Default)]
++pub(crate) struct HunkParses(Vec<(Option<HunkKey>, SyntaxHighlighter)>);
++
++impl HunkParses {
++    fn parse(&mut self, key: HunkKey, language: &SharedString, text: &str) -> &SyntaxHighlighter {
++        let same = |(_, highlighter): &(Option<HunkKey>, SyntaxHighlighter)| {
++            highlighter.language() == language
++        };
++        let ix = match self
++            .0
++            .iter()
++            .position(|entry| entry.0 == Some(key) && same(entry))
++        {
++            Some(ix) => ix,
++            None => {
++                let full = self.0.len() >= HUNK_PARSES_KEPT;
++                let reused = self
++                    .0
++                    .iter()
++                    .position(|entry| entry.0.is_none() && same(entry))
++                    .or_else(|| self.0.iter().position(same).filter(|_| full));
++                let mut highlighter = match reused {
++                    Some(ix) => self.0.remove(ix).1,
++                    None => SyntaxHighlighter::new(language),
++                };
++                if self.0.len() >= HUNK_PARSES_KEPT {
++                    self.0.remove(0);
++                }
++                highlighter.update(None, &Rope::from_str(text), None);
++                self.0.push((Some(key), highlighter));
++                self.0.len() - 1
++            }
++        };
++        let entry = self.0.remove(ix);
++        self.0.push(entry);
++        &self.0.last().expect("just kept").1
++    }
++
++    /// Lets go of every parse, its tree and its copy of the hunk's text,
++    /// keeping the highlighters for their compiled queries.
++    pub(crate) fn release(&mut self) {
++        for (key, highlighter) in &mut self.0 {
++            if key.take().is_some() {
++                highlighter.update(None, &Rope::new(), None);
++            }
++        }
++    }
++}
++
++/// Runs `job` on the one thread that prepares syntax near the view for every
++/// diff, so what a hunk's parse frees is reused by the next parse rather than
++/// kept by the allocator arena of whichever pool thread ran it.
++pub(crate) fn on_syntax_thread(job: impl FnOnce() + Send + 'static) {
++    type Job = Box<dyn FnOnce() + Send>;
++    static THREAD: OnceLock<Sender<Job>> = OnceLock::new();
++    let thread = THREAD.get_or_init(|| {
++        let (send, jobs) = std::sync::mpsc::channel::<Job>();
++        std::thread::Builder::new()
++            .name("diff-syntax".into())
++            .spawn(move || {
++                for job in jobs {
++                    // A job that panics loses its block, not the thread every diff shares.
++                    _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(job));
++                }
++            })
++            .expect("the diff syntax thread starts");
++        send
++    });
++    _ = thread.send(Box::new(job));
++}
++
+ /// Byte ranges relative to each line's source start, with a payload.
+ struct LineSpans<T> {
+     /// `starts[ix]..starts[ix + 1]` index the spans of line `ix`.
+@@ -64,7 +187,10 @@ impl<T> Default for LineSpans<T> {
+ impl<T> LineSpans<T> {
+     fn from_lines(per_line: Vec<Vec<(Range<u32>, T)>>) -> Self {
+         let mut spans = Self::default();
+-        spans.starts.reserve(per_line.len() + 1);
++        spans.starts.reserve_exact(per_line.len() + 1);
++        spans
++            .spans
++            .reserve_exact(per_line.iter().map(Vec::len).sum());
+         spans.starts.push(0);
+         for line in per_line {
+             spans.spans.extend(line);
+@@ -90,21 +216,23 @@ impl FilePresentation {
+     ) -> Self {
+         let mut presentation = Self::default();
+         let mut name_ixs = HashMap::<SharedString, u16>::new();
+-        for side in [DiffSide::Original, DiffSide::Modified] {
+-            let per_line = syntax_spans(
+-                file,
+-                side,
+-                options.syntax_max_line_length,
+-                highlighters,
+-                &mut |name| {
+-                    let next = name_ixs.len().min(u16::MAX as usize) as u16;
+-                    *name_ixs.entry(name.clone()).or_insert_with(|| {
+-                        presentation.names.push(name.clone());
+-                        next
+-                    })
+-                },
+-            );
+-            presentation.syntax[side as usize] = LineSpans::from_lines(per_line);
++        if !options.syntax_near_view {
++            for side in [DiffSide::Original, DiffSide::Modified] {
++                let per_line = syntax_spans(
++                    file,
++                    side,
++                    options.syntax_max_line_length,
++                    highlighters,
++                    &mut |name| {
++                        let next = name_ixs.len().min(u16::MAX as usize) as u16;
++                        *name_ixs.entry(name.clone()).or_insert_with(|| {
++                            presentation.names.push(name.clone());
++                            next
++                        })
++                    },
++                );
++                presentation.syntax[side as usize] = LineSpans::from_lines(per_line);
++            }
+         }
+         if let Some(unit) = options.inline_unit {
+             presentation.inline = inline_changes(file, unit, options.inline_max_line_length);
+@@ -147,6 +275,158 @@ impl FilePresentation {
+     }
+ }
+ 
++impl SyntaxBlock {
++    /// A block drawn without syntax, for one whose preparation failed.
++    pub(crate) fn plain() -> Self {
++        Self {
++            styles: Vec::new(),
++            spans: LineSpans::default(),
++        }
++    }
++
++    /// Blocking; run it on a background thread. Each hunk the block touches is
++    /// parsed whole, or read from `parses`, and only the block's lines are
++    /// styled in `theme`.
++    pub(crate) fn prepare(
++        file: &DiffFile,
++        key: BlockKey,
++        max_line_length: usize,
++        parses: &mut HunkParses,
++        theme: &dyn HighlightStyleResolver,
++    ) -> Self {
++        let side = key.side;
++        let lines = file.lines(side);
++        let start = (key.block * SYNTAX_BLOCK).min(lines.len());
++        let block = start..(start + SYNTAX_BLOCK).min(lines.len());
++        let mut per_line: Vec<Vec<(Range<u32>, u16)>> = block.clone().map(|_| Vec::new()).collect();
++        let mut styles = Vec::new();
++        let language = match (file.language_override(), file.side_path(side)) {
++            (Some(language), _) => language.clone(),
++            (None, Some(path)) => detected_language(path),
++            (None, None) => SharedString::new_static("text"),
++        };
++        let hunks = if file.hunks().is_empty() {
++            vec![0..lines.len()]
++        } else {
++            file.hunks().iter().map(|hunk| hunk.lines(side)).collect()
++        };
++        let source = file.source(side);
++        for (hunk_ix, hunk) in hunks.into_iter().enumerate() {
++            let wanted = hunk.start.max(block.start)..hunk.end.min(block.end);
++            if language.as_str() == "text" || wanted.is_empty() {
++                continue;
++            }
++            let kept = &lines[wanted.clone()];
++            if kept
++                .iter()
++                .all(|line| line.content_end() - line.source().start > max_line_length)
++            {
++                continue;
++            }
++            let base = lines[hunk.start].source().start;
++            let text = &source[base..lines[hunk.end - 1].source().end];
++            let mut hasher = DefaultHasher::new();
++            text.hash(&mut hasher);
++            let hunk_key = HunkKey {
++                file: key.file,
++                side,
++                hunk: hunk_ix,
++                text: hasher.finish(),
++            };
++            let parsed = parses.parse(hunk_key, &language, text);
++            let range = lines[wanted.start].source().start - base
++                ..lines[wanted.end - 1].source().end - base;
++            for (span, style) in parsed.styles(&range, theme) {
++                if span.is_empty() || style == HighlightStyle::default() {
++                    continue;
++                }
++                let style_ix = match styles.iter().position(|kept| *kept == style) {
++                    Some(ix) => ix,
++                    None => {
++                        styles.push(style);
++                        styles.len() - 1
++                    }
++                }
++                .min(u16::MAX as usize) as u16;
++                let span = span.start + base..span.end + base;
++                let first = kept.partition_point(|line| line.source().end <= span.start);
++                for (offset, line) in kept[first..].iter().enumerate() {
++                    let line_start = line.source().start;
++                    if line_start >= span.end {
++                        break;
++                    }
++                    if line.content_end() - line_start > max_line_length {
++                        continue;
++                    }
++                    let start = span.start.max(line_start);
++                    let end = span.end.min(line.content_end());
++                    if start < end {
++                        per_line[wanted.start - block.start + first + offset].push((
++                            (start - line_start) as u32..(end - line_start) as u32,
++                            style_ix,
++                        ));
++                    }
++                }
++            }
++        }
++        Self {
++            styles,
++            spans: LineSpans::from_lines(per_line),
++        }
++    }
++
++    /// The syntax styles of line `ix` of the block's side, as display ranges.
++    pub(crate) fn highlights(
++        &self,
++        line: &SourceLine,
++        ix: usize,
++    ) -> Vec<(Range<usize>, HighlightStyle)> {
++        self.spans
++            .line(ix % SYNTAX_BLOCK)
++            .iter()
++            .map(|(range, style)| {
++                (
++                    line.display_range(range.start as usize..range.end as usize),
++                    self.styles[*style as usize],
++                )
++            })
++            .collect()
++    }
++}
++
++/// Each line of `side` of `file` in the syntax colors the diff draws it in
++/// near the view, as display ranges: its blocks prepared from whole-hunk
++/// parses and merged as drawing merges them, without the inline-change and
++/// selection layers.
++#[doc(hidden)]
++pub fn syntax_colors(
++    file: &DiffFile,
++    side: DiffSide,
++    theme: &dyn HighlightStyleResolver,
++) -> Vec<Vec<(Range<usize>, HighlightStyle)>> {
++    let mut parses = HunkParses::default();
++    let mut block = None;
++    file.lines(side)
++        .iter()
++        .enumerate()
++        .map(|(ix, line)| {
++            let key = BlockKey::of(0, side, ix);
++            let prepared = block
++                .take()
++                .filter(|(kept, _)| *kept == key)
++                .unwrap_or_else(|| {
++                    (
++                        key,
++                        SyntaxBlock::prepare(file, key, usize::MAX, &mut parses, theme),
++                    )
++                });
++            let colors = merge_highlights(line.display_len(), prepared.1.highlights(line, ix));
++            block = Some(prepared);
++            colors
++        })
++        .collect()
++}
++
+ /// Parses each hunk of one side independently, so an unterminated comment or
+ /// string in one hunk cannot affect the next.
+ fn syntax_spans(
+@@ -224,8 +504,8 @@ fn inline_changes(
+         else {
+             continue;
+         };
+-        let old = file.lines(DiffSide::Original)[old_ix].text();
+-        let new = file.lines(DiffSide::Modified)[new_ix].text();
++        let old = file.line_text(DiffSide::Original, old_ix);
++        let new = file.line_text(DiffSide::Modified, new_ix);
+         if old.len() > max_line_length || new.len() > max_line_length || old == new {
+             continue;
+         }
+@@ -324,6 +604,7 @@ mod tests {
+         inline_unit: Some(DiffInlineUnit::Word),
+         inline_max_line_length: 1000,
+         syntax_max_line_length: 1000,
++        syntax_near_view: false,
+     };
+ 
+     #[test]
+@@ -459,4 +740,38 @@ mod tests {
+             FilePresentation::prepare(&as_text, OPTIONS, &mut SyntaxHighlighters::default());
+         assert!(names(&presentation, 0).is_empty());
+     }
++
++    #[cfg(feature = "tree-sitter-rust")]
++    #[test]
++    fn a_block_far_into_a_hunk_reads_the_hunk_from_its_start() {
++        // A comment opened on the hunk's second line and closed on its last:
++        // the fourth block, 384 lines in, is inside it as the first is.
++        let mut body = String::from("+fn first() {}\n+/* opened here\n");
++        for ix in 2..599 {
++            body.push_str(&format!("+fn f{ix}() {{}}\n"));
++        }
++        body.push_str("+closed */\n");
++        let patch = format!("--- /dev/null\n+++ b/a.rs\n@@ -0,0 +1,600 @@\n{body}");
++        let file = DiffFile::parse(&patch).unwrap().remove(0);
++        let theme = crate::highlighter::HighlightTheme::default_light();
++        let mut parses = HunkParses::default();
++        let styles = |ix: usize, parses: &mut HunkParses| {
++            let key = BlockKey::of(0, DiffSide::Modified, ix);
++            let block = SyntaxBlock::prepare(&file, key, 1000, parses, &*theme);
++            block.highlights(&file.lines(DiffSide::Modified)[ix], ix)
++        };
++        let inside = styles(20, &mut parses);
++        assert!(!inside.is_empty());
++        assert_ne!(
++            styles(0, &mut parses),
++            inside,
++            "code before the comment is not comment"
++        );
++        let far = styles(400, &mut parses);
++        assert_eq!(
++            far.iter().map(|(_, style)| *style).collect::<Vec<_>>(),
++            inside.iter().map(|(_, style)| *style).collect::<Vec<_>>()
++        );
++        assert_eq!(parses.0.len(), 1, "one hunk, parsed once");
++    }
+ }
+diff --git a/crates/component/src/diff/selection.rs b/crates/component/src/diff/selection.rs
+index 1947a0b..1f506c5 100644
+--- a/crates/component/src/diff/selection.rs
++++ b/crates/component/src/diff/selection.rs
+@@ -10,7 +10,7 @@ use std::{
+ 
+ use gpui::{
+     AnyElement, App, Bounds, Element, ElementId, GlobalElementId, HighlightStyle, Hitbox,
+-    HitboxBehavior, InspectorElementId, IntoElement, LayoutId, ListState, MouseButton,
++    HitboxBehavior, Hsla, InspectorElementId, IntoElement, LayoutId, ListState, MouseButton,
+     MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, ScrollHandle, StyledText,
+     TextLayout, Window, px,
+ };
+@@ -71,9 +71,9 @@ impl SelectionGeometry {
+                     .index_for_position(position)
+                     .unwrap_or_else(|ix| ix);
+             let range = if count >= 3 {
+-                0..line.display().len()
++                0..line.display_len()
+             } else {
+-                word_range(line.display(), ix)?
++                word_range(&run.document.line_display(run.side, run.line_ix), ix)?
+             };
+             self.multi_click
+                 .set((!cursor).then_some((count, position, true)));
+@@ -212,6 +212,8 @@ pub(crate) struct CodeText {
+     line_ix: usize,
+     range: Range<usize>,
+     highlights: Vec<(Range<usize>, HighlightStyle)>,
++    /// Boxes drawn behind the text, rounded and the height of its glyphs.
++    pills: Vec<(Range<usize>, Hsla)>,
+     selection: TextSelectionHandle,
+     geometry: Rc<RefCell<SelectionGeometry>>,
+     styled_text: Option<StyledText>,
+@@ -227,6 +229,7 @@ impl CodeText {
+         line_ix: usize,
+         range: Range<usize>,
+         highlights: Vec<(Range<usize>, HighlightStyle)>,
++        pills: Vec<(Range<usize>, Hsla)>,
+         selection: TextSelectionHandle,
+         geometry: Rc<RefCell<SelectionGeometry>>,
+     ) -> Self {
+@@ -238,6 +241,7 @@ impl CodeText {
+             line_ix,
+             range,
+             highlights,
++            pills,
+             selection,
+             geometry,
+             styled_text: None,
+@@ -292,7 +296,7 @@ impl Element for CodeText {
+                 clip_highlight(range, &self.range).map(|range| (range, style))
+             })
+             .collect();
+-        let text = line.chunk_text(&self.range);
++        let text = line.chunk_text(self.document.source(self.side), &self.range);
+         self.styled_text =
+             Some(StyledText::new(text).with_highlights(merge_highlights(self.range.len(), layers)));
+         self.styled_text
+@@ -331,6 +335,7 @@ impl Element for CodeText {
+         window: &mut Window,
+         cx: &mut App,
+     ) {
++        self.paint_pills(window);
+         self.styled_text.as_mut().unwrap().paint(
+             id,
+             inspector,
+@@ -343,6 +348,61 @@ impl Element for CodeText {
+     }
+ }
+ 
++impl CodeText {
++    /// Each pill as Chromium draws an inline box's background: the glyphs'
++    /// ascent and descent in device pixels around the baseline, with 3 px
++    /// corners, one box per wrapped line.
++    fn paint_pills(&self, window: &mut Window) {
++        if self.pills.is_empty() {
++            return;
++        }
++        let layout = self.styled_text.as_ref().unwrap().layout();
++        let bounds = layout.bounds();
++        let line_height = layout.line_height();
++        let scale = window.scale_factor();
++        for (range, color) in &self.pills {
++            let Some(range) = clip_highlight(range.clone(), &self.range) else {
++                continue;
++            };
++            let (Some(start), Some(end), Some(line)) = (
++                layout.position_for_index(range.start),
++                layout.position_for_index(range.end),
++                layout.line_layout_for_index(range.start),
++            ) else {
++                continue;
++            };
++            let metrics = &line.unwrapped_layout;
++            let (ascent, descent) =
++                gpui::device_font_height(metrics.ascent, metrics.descent, scale);
++            let inset =
++                gpui::line_baseline(line_height, metrics.ascent, metrics.descent, scale) - ascent;
++            let mut top = start.y;
++            let mut left = start.x;
++            loop {
++                let last = top >= end.y;
++                let right = if last { end.x } else { bounds.right() };
++                if right > left {
++                    window.paint_quad(
++                        gpui::fill(
++                            Bounds::new(
++                                gpui::point(left, top + inset),
++                                gpui::size(right - left, ascent + descent),
++                            ),
++                            *color,
++                        )
++                        .corner_radii(px(3.)),
++                    );
++                }
++                if last {
++                    break;
++                }
++                top += line_height;
++                left = bounds.left();
++            }
++        }
++    }
++}
++
+ /// Later layers override only their specified fields, preserving syntax color
+ /// when inline and selection backgrounds overlap it.
+ pub(crate) fn merge_highlights(
+@@ -517,7 +577,8 @@ impl Element for SelectionLayer {
+             .runs
+             .iter()
+             .map(|run| {
+-                let text = run.document.lines(run.side)[run.line_ix].chunk_text(&run.display_range);
++                let text = run.document.lines(run.side)[run.line_ix]
++                    .chunk_text(run.document.source(run.side), &run.display_range);
+                 TextSelectionRun::new(text, run.layout.clone(), run.bounds).with_document_order(
+                     encode_key(
+                         run.file,
+diff --git a/crates/component/src/diff/selection_tests.rs b/crates/component/src/diff/selection_tests.rs
+index 929b3c9..2aac42f 100644
+--- a/crates/component/src/diff/selection_tests.rs
++++ b/crates/component/src/diff/selection_tests.rs
+@@ -11,7 +11,10 @@ fn source_selection_maps_expanded_tabs_and_multibyte_text_without_losing_line_en
+     let source = "\tα\tx\r\nnext\n";
+     let document = fixture::document(None, Some(("text", source)));
+     let first = &document.lines(DiffSide::Modified)[0];
+-    assert_eq!(first.display().as_ref(), "    α   x");
++    assert_eq!(
++        document.line_display(DiffSide::Modified, 0).as_ref(),
++        "    α   x"
++    );
+     // Every painted space generated by a tab maps back to that single byte.
+     for ix in 0..4 {
+         assert_eq!(first.source_offset(ix), 0);
+@@ -22,8 +25,8 @@ fn source_selection_maps_expanded_tabs_and_multibyte_text_without_losing_line_en
+     assert_eq!(first.display_range(1..3), 4..6);
+     assert_eq!(first.display_range(3..4), 6..9);
+     assert_eq!(
+-        first.source_offset(first.display().len()),
+-        first.text().len()
++        first.source_offset(first.display_len()),
++        document.line_text(DiffSide::Modified, 0).len()
+     );
+     let next = &document.lines(DiffSide::Modified)[1];
+     let anchor = first.source().start + first.source_offset(4);
+diff --git a/crates/component/src/diff/state.rs b/crates/component/src/diff/state.rs
+index ba0f1f7..798acb8 100644
+--- a/crates/component/src/diff/state.rs
++++ b/crates/component/src/diff/state.rs
+@@ -13,11 +13,16 @@ use gpui::{
+ };
+ use gpui_base::{TextSelection, TextSelectionContentKey, TextSelectionEvent, TextSelectionHandle};
+ 
++use crate::highlighter::HighlightTheme;
++
+ use super::{
+     DiffAnnotation, DiffConflictResolution, DiffFile, DiffFileStatus, DiffInlineUnit,
+     DiffLinePosition, DiffLineRange, DiffMode, DiffSide,
+     conflict::ConflictPart,
+-    presentation::{FilePresentation, PresentationOptions, SyntaxHighlighters},
++    presentation::{
++        BlockKey, FilePresentation, HunkParses, PresentationOptions, SYNTAX_BLOCK, SyntaxBlock,
++        SyntaxHighlighters, on_syntax_thread,
++    },
+     selection::SelectionGeometry,
+ };
+ 
+@@ -100,16 +105,21 @@ pub(crate) struct LayoutKey {
+     font_family: SharedString,
+     mode: DiffMode,
+     line_number: bool,
++    lanes: f32,
++    row_height: Pixels,
+     soft_wrap: bool,
+ }
+ 
+ impl LayoutKey {
++    #[allow(clippy::too_many_arguments)]
+     pub(crate) fn new(
+         rem: Pixels,
+         font_size: Pixels,
+         font_family: SharedString,
+         mode: DiffMode,
+         line_number: bool,
++        lanes: f32,
++        row_height: Pixels,
+         soft_wrap: bool,
+     ) -> Self {
+         Self {
+@@ -118,6 +128,8 @@ impl LayoutKey {
+             font_family,
+             mode,
+             line_number,
++            lanes,
++            row_height,
+             soft_wrap,
+         }
+     }
+@@ -226,6 +238,18 @@ pub struct DiffState {
+     selecting: bool,
+     presentation_options: PresentationOptions,
+     presentations: Vec<Option<Arc<FilePresentation>>>,
++    /// With `syntax_near_view`, the syntax of the blocks near the view, kept
++    /// up to [`SYNTAX_BLOCKS_KEPT`] or as many as are near it.
++    syntax: Rc<HashMap<BlockKey, Arc<SyntaxBlock>>>,
++    /// The theme `syntax` is styled in.
++    syntax_theme: Option<Arc<HighlightTheme>>,
++    /// When each block was last near the view, by `syntax_clock`.
++    syntax_seen: HashMap<BlockKey, u64>,
++    syntax_clock: u64,
++    /// Blocks prepared since the state was made.
++    syntax_prepared: usize,
++    /// Taken by a syntax preparation while it runs.
++    parses: Option<HunkParses>,
+     viewport: Size<Pixels>,
+     layout: Option<LayoutKey>,
+     content_width: Pixels,
+@@ -239,9 +263,15 @@ pub struct DiffState {
+     presentation_generation: usize,
+     preparing: Option<usize>,
+     _presentation: Task<()>,
++    preparing_syntax: bool,
++    _syntax: Task<()>,
+     _selection_subscription: Subscription,
+ }
+ 
++/// Syntax blocks kept once out of view, so scrolling back does not style them
++/// again; those longest out of view go first.
++const SYNTAX_BLOCKS_KEPT: usize = 32;
++
+ impl EventEmitter<DiffEvent> for DiffState {}
+ impl Focusable for DiffState {
+     fn focus_handle(&self, _: &App) -> FocusHandle {
+@@ -333,6 +363,12 @@ impl DiffState {
+         let mut state = Self {
+             expanded: vec![Vec::new(); files.len()],
+             presentations: vec![None; files.len()],
++            syntax: Rc::default(),
++            syntax_theme: None,
++            syntax_seen: HashMap::new(),
++            syntax_clock: 0,
++            syntax_prepared: 0,
++            parses: None,
+             file_ixs: file_ixs(&files),
+             files,
+             mode: DiffMode::Unified,
+@@ -358,6 +394,7 @@ impl DiffState {
+                 inline_unit: Some(DiffInlineUnit::Word),
+                 inline_max_line_length: 1000,
+                 syntax_max_line_length: 1000,
++                syntax_near_view: false,
+             },
+             viewport: Size::default(),
+             layout: None,
+@@ -369,6 +406,8 @@ impl DiffState {
+             presentation_generation: 0,
+             preparing: None,
+             _presentation: Task::ready(()),
++            preparing_syntax: false,
++            _syntax: Task::ready(()),
+             _selection_subscription,
+         };
+         state.rebuild(true);
+@@ -419,6 +458,15 @@ impl DiffState {
+         self
+     }
+ 
++    /// Prepares syntax only for the blocks of lines near the view, each from
++    /// a parse of its whole hunk, keeping a bounded number, instead of for
++    /// every file at once. Default is false.
++    pub fn with_syntax_near_view(mut self, value: bool) -> Self {
++        self.presentation_options.syntax_near_view = value;
++        self.reset_presentation();
++        self
++    }
++
+     /// Sets the longest line, in bytes, given syntax emphasis. Default is 1,000.
+     pub fn with_syntax_max_line_length(mut self, length: usize) -> Self {
+         self.presentation_options.syntax_max_line_length = length;
+@@ -516,7 +564,8 @@ impl DiffState {
+     pub(crate) fn rows(&self) -> &Rc<Vec<DisplayRow>> {
+         &self.rows
+     }
+-    pub(crate) fn list(&self) -> &ListState {
++    /// The rows' list, for an owner drawing its own scrollbar.
++    pub fn list(&self) -> &ListState {
+         &self.list
+     }
+     pub(crate) fn horizontal_scroll(&self) -> &ScrollHandle {
+@@ -531,6 +580,20 @@ impl DiffState {
+     pub(crate) fn presentations(&self) -> &[Option<Arc<FilePresentation>>] {
+         &self.presentations
+     }
++    pub(crate) fn syntax(&self) -> &Rc<HashMap<BlockKey, Arc<SyntaxBlock>>> {
++        &self.syntax
++    }
++    /// How many blocks of syntax near the view have been prepared, for a test
++    /// to tell a view at rest from one preparing again.
++    #[doc(hidden)]
++    pub fn syntax_blocks_prepared(&self) -> usize {
++        self.syntax_prepared
++    }
++    /// How many blocks of syntax are kept, for a test to hold the bound.
++    #[doc(hidden)]
++    pub fn syntax_blocks_kept(&self) -> usize {
++        self.syntax.len()
++    }
+     /// The body's size as of the last paint.
+     pub(crate) fn viewport(&self) -> Size<Pixels> {
+         self.viewport
+@@ -623,24 +686,45 @@ impl DiffState {
+         cx.notify();
+     }
+ 
+-    /// Collapses the file at `path` to its header, or expands it, without
+-    /// emitting a user event.
+-    pub fn set_file_collapsed(&mut self, path: &str, collapsed: bool, cx: &mut Context<Self>) {
+-        let Some(file) = self.file_ix(path) else {
+-            return;
+-        };
+-        let path = self.files[file].path().clone();
+-        let changed = if collapsed {
+-            self.collapsed.insert(path)
+-        } else {
+-            self.collapsed.remove(&path)
+-        };
++    /// The index in [`Self::files`] of the file whose row is at the top of
++    /// the viewport, as of the list's scroll position now.
++    pub fn top_file(&self) -> Option<usize> {
++        self.rows
++            .get(self.list.logical_scroll_top().item_ix)
++            .map(DisplayRow::file)
++    }
++
++    /// Collapses or expands every file named, rebuilding the rows once,
++    /// without emitting a user event.
++    pub fn set_files_collapsed<P: AsRef<str>>(
++        &mut self,
++        paths: impl IntoIterator<Item = (P, bool)>,
++        cx: &mut Context<Self>,
++    ) {
++        let mut changed = false;
++        for (path, collapsed) in paths {
++            let Some(file) = self.file_ix(path.as_ref()) else {
++                continue;
++            };
++            let path = self.files[file].path().clone();
++            changed |= if collapsed {
++                self.collapsed.insert(path)
++            } else {
++                self.collapsed.remove(&path)
++            };
++        }
+         if changed {
+             self.rebuild_at_anchor();
+             cx.notify();
+         }
+     }
+ 
++    /// Collapses the file at `path` to its header, or expands it, without
++    /// emitting a user event.
++    pub fn set_file_collapsed(&mut self, path: &str, collapsed: bool, cx: &mut Context<Self>) {
++        self.set_files_collapsed([(path, collapsed)], cx);
++    }
++
+     /// The resolution of conflict `ix` in the file at `path`, if any.
+     /// Use [`DiffFile::conflicts`] to enumerate valid indices; `None` means
+     /// unresolved, or that the file or index does not exist.
+@@ -1367,9 +1451,172 @@ impl DiffState {
+     /// Discards prepared emphasis after files or options change.
+     fn reset_presentation(&mut self) {
+         self.presentations = vec![None; self.files.len()];
++        self.syntax = Rc::default();
++        self.syntax_seen.clear();
+         self.presentation_generation += 1;
+         self.preparing = None;
+         self._presentation = Task::ready(());
++        self.preparing_syntax = false;
++        self._syntax = Task::ready(());
++        if let Some(parses) = &mut self.parses {
++            parses.release();
++        }
++    }
++
++    /// With `syntax_near_view`, prepares the syntax of the blocks of the rows in
++    /// view and of those within half a block of it in `theme`, nearest first,
++    /// one block at a time on the one syntax thread, and lets go of the
++    /// blocks longest out of view past [`SYNTAX_BLOCKS_KEPT`]. Call it after
++    /// the list's prepaint.
++    pub(crate) fn prepare_syntax_near_view(
++        &mut self,
++        theme: &Arc<HighlightTheme>,
++        cx: &mut Context<Self>,
++    ) {
++        if !self.presentation_options.syntax_near_view {
++            return;
++        }
++        if !self
++            .syntax_theme
++            .as_ref()
++            .is_some_and(|styled| Arc::ptr_eq(styled, theme))
++        {
++            self.syntax = Rc::default();
++            self.syntax_seen.clear();
++            self.preparing_syntax = false;
++            self._syntax = Task::ready(());
++            self.syntax_theme = Some(theme.clone());
++        }
++        let top = self.list.logical_scroll_top().item_ix;
++        let row = f32::from(self.row_height.unwrap_or(px(20.))).max(1.);
++        let shown = (f32::from(self.viewport.height) / row).ceil() as usize + 1;
++        let margin = SYNTAX_BLOCK / 2;
++        let end = (top + shown + margin).min(self.rows.len());
++        let mut near = Vec::new();
++        for ix in (top.min(end)..end).chain((top.saturating_sub(margin)..top.min(end)).rev()) {
++            let DisplayRow::Code {
++                file,
++                original,
++                modified,
++                ..
++            } = self.rows[ix]
++            else {
++                continue;
++            };
++            let sides = match (self.mode, original, modified) {
++                (DiffMode::Split, original, modified) => [
++                    original.map(|ix| (DiffSide::Original, ix)),
++                    modified.map(|ix| (DiffSide::Modified, ix)),
++                ],
++                (DiffMode::Unified, _, Some(modified)) => {
++                    [Some((DiffSide::Modified, modified)), None]
++                }
++                (DiffMode::Unified, original, None) => {
++                    [original.map(|ix| (DiffSide::Original, ix)), None]
++                }
++            };
++            for (side, line) in sides.into_iter().flatten() {
++                let key = BlockKey::of(file, side, line);
++                if !near.contains(&key) {
++                    near.push(key);
++                }
++            }
++        }
++        self.syntax_clock += 1;
++        for key in &near {
++            self.syntax_seen.insert(*key, self.syntax_clock);
++        }
++        if self.preparing_syntax {
++            return;
++        }
++        let pending = near
++            .into_iter()
++            .filter(|key| !self.syntax.contains_key(key))
++            .map(|key| (key, self.files[key.file].clone()))
++            .collect::<Vec<_>>();
++        if pending.is_empty() {
++            return;
++        }
++        let generation = self.presentation_generation;
++        let max_line_length = self.presentation_options.syntax_max_line_length;
++        let mut parses = Some(self.parses.take().unwrap_or_default());
++        let theme = theme.clone();
++        let test = cx.background_executor().is_test();
++        self.preparing_syntax = true;
++        self._syntax = cx.spawn(async move |this, cx| {
++            for (key, file) in pending {
++                let mut moved = parses.take();
++                let theme = theme.clone();
++                let prepare = move || {
++                    let block = SyntaxBlock::prepare(
++                        &file,
++                        key,
++                        max_line_length,
++                        moved.get_or_insert_default(),
++                        &*theme,
++                    );
++                    (block, moved)
++                };
++                // A test's scheduler refuses wakes from a thread it does not run.
++                let (block, returned) = if test {
++                    cx.background_spawn(async move { prepare() }).await
++                } else {
++                    let (send, done) = smol::channel::bounded(1);
++                    on_syntax_thread(move || {
++                        // Files replaced or a view dropped since this was queued.
++                        if send.receiver_count() > 0 {
++                            _ = send.send_blocking(prepare());
++                        }
++                    });
++                    match done.recv().await {
++                        Ok(prepared) => prepared,
++                        // The preparation panicked: the block stays plain and is not tried again.
++                        Err(_) => (SyntaxBlock::plain(), None),
++                    }
++                };
++                parses = returned;
++                let current = this.update(cx, |state, cx| {
++                    if state.presentation_generation != generation {
++                        return false;
++                    }
++                    Rc::make_mut(&mut state.syntax).insert(key, Arc::new(block));
++                    state.syntax_prepared += 1;
++                    cx.notify();
++                    true
++                });
++                if !matches!(current, Ok(true)) {
++                    return;
++                }
++            }
++            if let Some(parses) = &mut parses {
++                parses.release();
++            }
++            _ = this.update(cx, |state, _| {
++                state.parses = parses;
++                state.preparing_syntax = false;
++                state.forget_syntax_out_of_view();
++            });
++        });
++    }
++
++    /// Blocks seen in the last frame are near the view and stay, however many.
++    fn forget_syntax_out_of_view(&mut self) {
++        let over = self.syntax.len().saturating_sub(SYNTAX_BLOCKS_KEPT);
++        if over > 0 {
++            let mut by_age = self
++                .syntax
++                .keys()
++                .map(|key| (self.syntax_seen.get(key).copied().unwrap_or(0), *key))
++                .filter(|(seen, _)| *seen < self.syntax_clock)
++                .collect::<Vec<_>>();
++            by_age.sort_unstable_by_key(|(seen, _)| *seen);
++            let syntax = Rc::make_mut(&mut self.syntax);
++            for (_, key) in by_age.into_iter().take(over) {
++                syntax.remove(&key);
++            }
++        }
++        let syntax = &self.syntax;
++        self.syntax_seen.retain(|key, _| syntax.contains_key(key));
+     }
+ 
+     /// Prepares syntax and inline emphasis for files that lack it, one file at

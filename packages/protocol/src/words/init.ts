@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { GoldenStage, InitSetup, LoginState, WorkspaceSize } from "../index.js";
+import type { GoldenStage, InitSetup, WorkspaceSize } from "../index.js";
 import { PROVIDER_KEY_WORDS, providerKeyName } from "../place-word.js";
-import { LOGIN_CHOICES, type LoginChoice } from "../setup.js";
-import { lowerFirst } from "./base.js";
-import { fmtBytes, fmtDuration, fmtSize, KIB } from "./units.js";
-import { THIS_COMPUTER, thisComputer } from "./computer.js";
+import { fmtBytes, fmtSize, KIB } from "./units.js";
 /** Every word of the steps that choose and build the image, drawn under a computer's Image card and, where a word is
  * the host's, in the terminal too. Headlines are a step's title, tops the one sentence under it, keycaps the one
  * primary button a step has. Nothing here asks the person to run a command, and nothing here is a word for a
@@ -97,45 +94,6 @@ export const CLOUD_SETUP_WORDS = {
     first: "This computer",
   },
 } as const;
-
-/** What a login nobody signed in during the build is left to, and the one place those words are written: the answer
- * that defers a browser sign-in to the workspace, and the second half of the word a sign-in that hit the build's cap
- * ends on. */
-export const SIGN_IN_LATER = "sign in when you first need it";
-
-/** The word a sign-in that never landed during the build ends on, deferred at the picker or stopped by the cap: it
- * says what is true of the machine and what the person does about it, in that order. */
-export const SIGN_IN_DEFERRED_WORD = `not signed in, ${SIGN_IN_LATER}`;
-
-/** One answer the sign-ins step can give, in the words its row and the counts beside it print. One entry per answer,
- * keyed by the union itself, so a fifth cannot be offered before it is named here; the order the arrows walk them is
- * LOGIN_CHOICES' own. This is the one home for those words: the terminal's screens and a client that draws the step
- * itself both read them from here. */
-export interface SignInAnswer {
-  /** The row's own column, for the computer the run is reading: the copy answer names it. */
-  label(platform: "darwin" | "linux"): string;
-  /** The word a count is made of ("2 copy  1 during the build"). */
-  short: string;
-}
-
-export const SIGN_IN_ANSWERS: Record<LoginChoice, SignInAnswer> = {
-  copy: { label: platform => `copy from ${thisComputer(platform)}`, short: "copy" },
-  machine: { label: () => "sign in during the build", short: "during the build" },
-  later: { label: () => SIGN_IN_LATER, short: "when you need it" },
-  key: { label: () => "API key", short: "API key" },
-  skip: { label: () => "skip", short: "skip" },
-  token: { label: () => "token from this computer", short: "token" },
-};
-
-/** The state of a sign-in as a word, the one spelling the terminal's rows and the modal's rows print. */
-export const LOGIN_STATE_WORDS: Record<LoginState, string> = {
-  "signed-in": "signed in",
-  "not-signed-in": "not signed in",
-  copied: "copied",
-  "not-verified": "not verified",
-  skipped: "skipped",
-  deferred: SIGN_IN_DEFERRED_WORD,
-};
 
 /** Every build stage in plain words, the one table the app's rows and the terminal's lines read. */
 export const GOLDEN_STAGE_WORDS: Record<Exclude<GoldenStage, "failed">, string> = {

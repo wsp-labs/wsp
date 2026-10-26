@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "wsp host devices revoke: no device <id> is paired with this host.\n"
+    }
+  ],
+  "events": []
+}

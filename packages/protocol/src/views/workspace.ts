@@ -162,9 +162,9 @@ export const ProjectSeed = z.object({
 export type ProjectSeed = z.infer<typeof ProjectSeed>;
 
 /** How far an add has got. In order: planned, the folder read or the remote resolved; cloning, on the computer;
- * seeding, the chosen files landed there; installing, the lockfile's own install run once; imaging, the machine
- * snapshotted as the project's image, which only a provider computer does; done. failed ends one that threw. */
-export const ProjectAddStage = z.enum(["planned", "cloning", "seeding", "installing", "imaging", "done", "failed"]);
+ * seeding, the chosen files landed there; installing, the lockfile's own install run once; done. failed ends one
+ * that threw. */
+export const ProjectAddStage = z.enum(["planned", "cloning", "seeding", "installing", "done", "failed"]);
 export type ProjectAddStage = z.infer<typeof ProjectAddStage>;
 
 /** Where a project's code comes from, as the computer it lives on sees it: a folder that computer holds, or a repo

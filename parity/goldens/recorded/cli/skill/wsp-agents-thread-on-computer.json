@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp agents: A thread already names its computer; give the thread or --on <computer>, not both. usage: wsp agents [<thread>] [--on <computer>]\n"
+    }
+  ],
+  "events": []
+}

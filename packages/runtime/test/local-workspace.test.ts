@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { CATALOG_AGENTS } from "@wsp/catalog";
 import { LocalBackend } from "@wsp/engine";
-import { APP_DATA_FOLDER, APP_LOCK_FILE, HERE_PLACE_ID, folderForkFix, folderForkRefusal, refusalLine, inFolder, machineWord, undrivenRefusal, NO_SUCH_TURN, NOTIFY_ME, noWorkspaceRefusal, deviceHeldRefusal, registeredLine, REGISTERING_LINE, RELAY_TICKET_REFUSAL, relayedRecordRefusal, relayedRefusal, RUN_GONE_LINE, THIS_COMPUTER, TICKET_ORIGIN, TURN_TOKEN_ENV, HOST_TOKEN_ENV, type AdapterAttachOptions, type AdapterEvent, type EventUnion, type ExecStream, type PortForward, type ProjectImportEvent, type TurnResult, type WorkspaceStatus } from "@wsp/protocol";
+import { APP_DATA_FOLDER, APP_LOCK_FILE, HERE_PLACE_ID, folderForkFix, folderForkRefusal, refusalLine, inFolder, NO_SUCH_TURN, NOTIFY_ME, noWorkspaceRefusal, deviceHeldRefusal, registeredLine, REGISTERING_LINE, RELAY_TICKET_REFUSAL, relayedRecordRefusal, relayedRefusal, RUN_GONE_LINE, THIS_COMPUTER, TICKET_ORIGIN, TURN_TOKEN_ENV, HOST_TOKEN_ENV, type AdapterAttachOptions, type AdapterEvent, type EventUnion, type ExecStream, type PortForward, type ProjectImportEvent, type TurnResult, type WorkspaceStatus } from "@wsp/protocol";
 import type { DaemonChannel } from "../src/daemon-channel.js";
 import type { MachineExecOptions } from "../src/machine-exec.js";
 import { createRuntime, type HarnessAdapterContext, type HarnessAdapterFactory, type HarnessSession, type LocalWiring, type ProjectExportOptions, type ProjectImportOptions, type Runtime } from "../src/runtime.js";
@@ -20,7 +20,7 @@ import { HARNESS_ADAPTERS } from "../src/adapters.js";
 import { localExecStream } from "../src/local-exec.js";
 import { serveRuntime, type ForwardsSource } from "../src/serve.js";
 import { memoryStore, type Store } from "../src/store.js";
-import { stubBackend, copyingFake, createOn, projectOn, testPlatform, tokenGuest } from "./stub-backend.js";
+import { imagedStore, stubBackend, copyingFake, createOn, projectOn, testPlatform, tokenGuest } from "./stub-backend.js";
 import { alive, grandchild, sweepStrays } from "./strays.js";
 import { until } from "./until.js";
 
@@ -203,7 +203,7 @@ describe("local workspace", () => {
 
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), "wsp-localws-"));
-    store = memoryStore();
+    store = imagedStore();
     // Each case's own list, closed over by that case's wiring: a runtime an earlier case left running still asks
     // its own wiring for a factory, and a shared variable would file those asks under the case reading it.
     const mine: (MachineExecOptions | undefined)[] = [];
@@ -1152,7 +1152,7 @@ describe("local workspace", () => {
       expect(((await paired.request("status.list"))["statuses"] as { name: string }[]).map(w => w.name).sort()).toEqual(["b1", "mac"]);
       expect((await paired.request("sessions.list")).ok).toBe(true);
       expect((await paired.request("devices.list")).ok).toBe(true);
-      const made = await paired.request("workspaces.create", { project: cloud.project.id, name: "b2", golden: "snap_g" });
+      const made = await paired.request("workspaces.create", { project: cloud.project.id, name: "b2" });
       expect(made.ok, String(made["error"])).toBe(true);
       paired.close();
       // The rule left the runtime for the door: a start asked of the runtime itself under the paired word runs, which

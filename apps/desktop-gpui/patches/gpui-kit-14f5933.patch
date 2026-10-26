@@ -1,0 +1,356 @@
+diff --git a/crates/base/src/input/base/element.rs b/crates/base/src/input/base/element.rs
+index 9915b4f..88a762f 100644
+--- a/crates/base/src/input/base/element.rs
++++ b/crates/base/src/input/base/element.rs
+@@ -548,7 +548,7 @@ impl<M: InputModeKind> TextElement<M> {
+         last_layout: &LastLayout,
+         bounds: &mut Bounds<Pixels>,
+         scroll_size: Size<Pixels>,
+-        _: &mut Window,
++        window: &mut Window,
+         cx: &mut App,
+     ) -> (Vec<CursorRenderInfo>, Point<Pixels>, Option<usize>) {
+         let state = self.state.read(cx);
+@@ -590,7 +590,14 @@ impl<M: InputModeKind> TextElement<M> {
+             line_origin
+         };
+ 
+-        let cursor_height = 0.85 * line_height;
++        // The caret spans the font's ascent and descent about the baseline, as Chromium draws it.
++        let style = window.text_style();
++        let font_size = style.font_size.to_pixels(window.rem_size());
++        let probe = window.text_system().shape_line(" ".into(), font_size, &[style.to_run(1)], None);
++        let scale_factor = window.scale_factor();
++        let (ascent, descent) = gpui::device_font_height(probe.ascent, probe.descent, scale_factor);
++        let cursor_top = gpui::line_baseline(line_height, probe.ascent, probe.descent, scale_factor) - ascent;
++        let cursor_height = ascent + descent;
+ 
+         for selection in state.selections.iter() {
+             let is_active = selection.id == active_id;
+@@ -707,7 +714,7 @@ impl<M: InputModeKind> TextElement<M> {
+                 bounds: Bounds::new(
+                     point(
+                         cursor_x,
+-                        bounds.top() + cursor_pos.y + ((line_height - cursor_height) / 2.),
++                        bounds.top() + cursor_pos.y + cursor_top,
+                     ),
+                     size(CURSOR_WIDTH, cursor_height),
+                 ),
+@@ -2357,7 +2364,10 @@ impl PrepaintState {
+ fn snap_caret_to_device_pixels(bounds: Bounds<Pixels>, scale_factor: f32) -> Bounds<Pixels> {
+     let x = (bounds.origin.x * scale_factor).round() / scale_factor;
+     let width = (bounds.size.width * scale_factor).round().max(px(1.)) / scale_factor;
+-    Bounds::new(point(x, bounds.origin.y), size(width, bounds.size.height))
++    // A row's top is fractional when the line height is; Chromium snaps the caret's top and bottom too.
++    let y = (bounds.origin.y * scale_factor).round() / scale_factor;
++    let bottom = (bounds.bottom() * scale_factor).round() / scale_factor;
++    Bounds::new(point(x, y), size(width, bottom - y))
+ }
+ 
+ impl<M: InputModeKind> IntoElement for TextElement<M> {
+@@ -2577,12 +2587,13 @@ impl<M: InputModeKind> Element for TextElement<M> {
+ 
+         let text_style = window.text_style();
+         let disabled = state.disabled;
+-        let dim = |color: Hsla| if disabled { color.opacity(0.5) } else { color };
++        let disabled_ink = state.disabled_ink;
++        let dim = |color: Hsla| if disabled { color.opacity(disabled_ink) } else { color };
+         let fg = dim(text_style.color);
+         let (display_text, text_color) = if is_empty {
+             (
+                 &Rope::from(placeholder.as_str()),
+-                dim(state.editor_style.muted_foreground),
++                dim(state.placeholder_color.unwrap_or(state.editor_style.muted_foreground)),
+             )
+         } else if state.masked {
+             (
+@@ -2722,7 +2733,7 @@ impl<M: InputModeKind> Element for TextElement<M> {
+             for (range, style) in &highlight_styles {
+                 let mut run = text_style.clone().highlight(*style).to_run(range.len());
+                 if disabled {
+-                    run.color = run.color.opacity(0.5);
++                    run.color = run.color.opacity(disabled_ink);
+                 }
+ 
+                 runs.extend(split_run_for_ime_underline(
+@@ -3352,11 +3363,16 @@ impl<M: InputModeKind> Element for TextElement<M> {
+         );
+ 
+         self.state.update(cx, |state, cx| {
+-            let geometry_changed = state.last_bounds != Some(bounds)
+-                || state.input_bounds != input_bounds
++            // A move alone, as a scroll moves the input, changes nothing a layout consumer reads off it.
++            let moved = |at: Bounds<Pixels>| Bounds {
++                origin: at.origin + bounds.origin - state.last_bounds.map_or(bounds.origin, |b| b.origin),
++                size: at.size,
++            };
++            let geometry_changed = state.last_bounds.map(|b| b.size) != Some(bounds.size)
++                || moved(state.input_bounds) != input_bounds
+                 || state.scroll_size != prepaint.scroll_size
+                 || state.last_layout.as_ref().is_none_or(|layout| {
+-                    layout.cursor_bounds != prepaint.last_layout.cursor_bounds
++                    layout.cursor_bounds.map(moved) != prepaint.last_layout.cursor_bounds
+                         || layout.line_height != prepaint.last_layout.line_height
+                 });
+             state.last_layout = Some(prepaint.last_layout.clone());
+diff --git a/crates/base/src/input/base/state.rs b/crates/base/src/input/base/state.rs
+index 4eb4c91..06c5de5 100644
+--- a/crates/base/src/input/base/state.rs
++++ b/crates/base/src/input/base/state.rs
+@@ -441,6 +441,9 @@ pub struct InputBaseState<M: InputModeKind> {
+     pub(super) scroll_beyond_last_line: Option<usize>,
+     pub(super) cursor_surrounding_lines: Option<usize>,
+     pub(super) blink_cursor: Entity<BlinkCursor>,
++    /// Whether the caret is shown as the blink last said, read in place of the blink so drawing it never wakes the whole
++    /// window; an unfocused field's blink changes nothing shown.
++    cursor_visible: bool,
+     pub(super) loading: bool,
+     /// The cursors and selections.
+     ///
+@@ -469,6 +472,8 @@ pub struct InputBaseState<M: InputModeKind> {
+     /// The selection a long press made, with its handles and edit menu.
+     pub(super) touch_selection: super::touch::TouchSelection,
+     pub(crate) disabled: bool,
++    /// The opacity a disabled input draws its text and placeholder at.
++    pub(crate) disabled_ink: f32,
+     pub(crate) readonly: bool,
+     pub(crate) text_align: TextAlign,
+     pub(super) masked: bool,
+@@ -521,6 +526,8 @@ pub struct InputBaseState<M: InputModeKind> {
+     /// its default mask when the user has not made an explicit choice.
+     pub(super) mask_pattern_set: bool,
+     pub(super) placeholder: SharedString,
++    /// The ink the placeholder draws in; unset, the muted foreground.
++    pub(super) placeholder_color: Option<gpui::Hsla>,
+ 
+     /// Diagnostic currently requested by pointer hover; applications render it.
+     pub(super) diagnostic_popover: Option<Rc<crate::input::DiagnosticEntry>>,
+@@ -791,7 +798,14 @@ impl<M: InputModeKind> InputBaseState<M> {
+                 }
+             }),
+             // Observe the blink cursor to repaint the view when it changes.
+-            cx.observe(&blink_cursor, |_, _, cx| cx.notify()),
++            cx.observe_in(&blink_cursor, window, |input, cursor, window, cx| {
++                let shown = cursor.read(cx).visible()
++                    && (input.focus_handle.is_focused(window) || M::is_context_menu_open(input, cx));
++                if shown != input.cursor_visible {
++                    input.cursor_visible = shown;
++                    cx.notify_in_place();
++                }
++            }),
+             // Blink the cursor when the window is active, pause when it's not.
+             cx.observe_window_activation(window, |input, window, cx| {
+                 if window.is_window_active() {
+@@ -824,6 +838,7 @@ impl<M: InputModeKind> InputBaseState<M> {
+             scroll_beyond_last_line: None,
+             cursor_surrounding_lines: None,
+             blink_cursor,
++            cursor_visible: false,
+             undo_manager,
+             inline_tokens: None,
+             pending_token: None,
+@@ -843,6 +858,7 @@ impl<M: InputModeKind> InputBaseState<M> {
+             selecting: false,
+             touch_selection: Default::default(),
+             disabled: false,
++            disabled_ink: 0.5,
+             readonly: false,
+             text_align: TextAlign::Left,
+             masked: false,
+@@ -874,6 +890,7 @@ impl<M: InputModeKind> InputBaseState<M> {
+             editor_paddings: Edges::default(),
+             deferred_scroll_offset: None,
+             placeholder: SharedString::default(),
++            placeholder_color: None,
+             mask_pattern: MaskPattern::default(),
+             mask_pattern_set: false,
+             editor_style: InputEditorStyle::default(),
+@@ -1212,6 +1229,26 @@ impl<M: InputModeKind> InputBaseState<M> {
+         cx.notify();
+     }
+ 
++    /// Set the ink the placeholder draws in; `None` is the theme's muted foreground.
++    pub fn set_placeholder_color(&mut self, color: Option<gpui::Hsla>, cx: &mut Context<Self>) {
++        if self.placeholder_color == color {
++            return;
++        }
++
++        self.placeholder_color = color;
++        cx.notify();
++    }
++
++    /// Set the opacity a disabled input draws its text and placeholder at, default is `0.5`.
++    pub fn set_disabled_ink(&mut self, opacity: f32, cx: &mut Context<Self>) {
++        if self.disabled_ink == opacity {
++            return;
++        }
++
++        self.disabled_ink = opacity;
++        cx.notify();
++    }
++
+     /// Set with read-only mode.
+     ///
+     /// Unlike [`Self::disabled`], a read-only input keeps the normal appearance,
+@@ -3704,7 +3741,7 @@ impl<M: InputModeKind> InputBaseState<M> {
+     pub(crate) fn show_cursor(&self, window: &Window, cx: &App) -> bool {
+         (self.focus_handle.is_focused(window) || M::is_context_menu_open(self, cx))
+             && !self.disabled
+-            && self.blink_cursor.read(cx).visible()
++            && self.cursor_visible
+             && window.is_window_active()
+     }
+ 
+diff --git a/crates/base/src/motion.rs b/crates/base/src/motion.rs
+index 3c92f91..3adc832 100644
+--- a/crates/base/src/motion.rs
++++ b/crates/base/src/motion.rs
+@@ -354,8 +354,9 @@ where
+             },
+         )
+     };
++    // A step moves only what this view draws, inside the box of the nearest view drawn cached around it.
+     if matches!(status, MotionStatus::Delayed | MotionStatus::Running) {
+-        window.request_animation_frame();
++        window.request_animation_frame_in_place();
+     }
+     MotionValue { value, status }
+ }
+@@ -401,7 +402,7 @@ where
+         MotionPhase::After => MotionStatus::Finished,
+     };
+     if matches!(status, MotionStatus::Delayed | MotionStatus::Running) {
+-        window.request_animation_frame();
++        window.request_animation_frame_in_place();
+     }
+     MotionValue {
+         value: keyframes.sample(sample.directed_progress),
+@@ -648,7 +649,7 @@ where
+         state.target = target_position;
+         state.updated_at = now;
+     });
+-    window.request_animation_frame();
++    window.request_animation_frame_in_place();
+     target.resolve(stepped.position)
+ }
+ 
+diff --git a/crates/base/src/root.rs b/crates/base/src/root.rs
+index ec2f5b4..f933529 100644
+--- a/crates/base/src/root.rs
++++ b/crates/base/src/root.rs
+@@ -116,6 +116,7 @@ pub struct Root {
+     view: AnyView,
+     style: StyleRefinement,
+     plugins: Vec<Plugin>,
++    cache_view: bool,
+ }
+ 
+ impl Root {
+@@ -177,6 +178,7 @@ impl Root {
+         Self {
+             view: view.into(),
+             style: StyleRefinement::default(),
++            cache_view: false,
+             plugins: factories
+                 .into_iter()
+                 .map(|(_, build)| build(window, cx))
+@@ -184,6 +186,13 @@ impl Root {
+         }
+     }
+ 
++    /// Draws the content view cached, as `AnyView::cached_for_in_place` does, so a frame that only draws views
++    /// again in place leaves it alone.
++    pub fn cache_view(mut self) -> Self {
++        self.cache_view = true;
++        self
++    }
++
+     /// The original application content entity.
+     pub fn view(&self) -> &AnyView {
+         &self.view
+@@ -252,7 +261,14 @@ impl Render for Root {
+             .relative()
+             .size_full()
+             .child(TextSelectionLayer)
+-            .child(self.view.clone())
++            .child(if self.cache_view {
++                self.view
++                    .clone()
++                    .cached_for_in_place(StyleRefinement::default().size_full())
++                    .into_any_element()
++            } else {
++                self.view.clone().into_any_element()
++            })
+             .child(
+                 div()
+                     .absolute()
+diff --git a/crates/component/src/input/input.rs b/crates/component/src/input/input.rs
+index 3d014b1..2e80b4b 100644
+--- a/crates/component/src/input/input.rs
++++ b/crates/component/src/input/input.rs
+@@ -123,6 +123,7 @@ pub struct Input {
+     cleanable: bool,
+     mask_toggle: bool,
+     disabled: bool,
++    disabled_ink: f32,
+     readonly: bool,
+     bordered: bool,
+     focus_bordered: bool,
+@@ -235,6 +236,7 @@ impl Input {
+             cleanable: false,
+             mask_toggle: false,
+             disabled: false,
++            disabled_ink: 0.5,
+             readonly: false,
+             bordered: true,
+             focus_bordered: true,
+@@ -348,6 +350,12 @@ impl Input {
+         self
+     }
+ 
++    /// Set the opacity a disabled input draws its text and placeholder at, default is `0.5`.
++    pub fn disabled_ink(mut self, opacity: f32) -> Self {
++        self.disabled_ink = opacity;
++        self
++    }
++
+     /// Set the input field to read-only, default is `false`.
+     ///
+     /// Unlike [`Self::disabled`], a read-only input keeps the normal appearance
+@@ -611,6 +619,7 @@ impl RenderOnce for Input {
+             cx,
+         );
+         state.set_disabled(self.disabled, cx);
++        state.set_disabled_ink(self.disabled_ink, cx);
+         state.set_readonly(self.readonly, cx);
+         state.set_text_align(text_align, cx);
+         let custom = self.context_menu_builder.clone();
+diff --git a/crates/component/src/input/state.rs b/crates/component/src/input/state.rs
+index 0ba2043..386898f 100644
+--- a/crates/component/src/input/state.rs
++++ b/crates/component/src/input/state.rs
+@@ -116,6 +116,11 @@ impl TextInputState {
+             .update(cx, |state, cx| state.set_disabled(disabled, cx)))
+     }
+ 
++    pub(crate) fn set_disabled_ink(&self, opacity: f32, cx: &mut App) {
++        dispatch!(self, |state| state
++            .update(cx, |state, cx| state.set_disabled_ink(opacity, cx)))
++    }
++
+     pub(crate) fn set_readonly(&self, readonly: bool, cx: &mut App) {
+         dispatch!(self, |state| state
+             .update(cx, |state, cx| state.set_readonly(readonly, cx)))
+diff --git a/crates/component/src/shimmer.rs b/crates/component/src/shimmer.rs
+index 08b910d..edfcff6 100644
+--- a/crates/component/src/shimmer.rs
++++ b/crates/component/src/shimmer.rs
+@@ -283,7 +283,7 @@ impl ShimmerGlyphs {
+                 let line = &wrapped_line.unwrapped_layout;
+                 let baseline_offset = point(
+                     px(0.),
+-                    (line_height - line.ascent - line.descent) / 2. + line.ascent,
++                    gpui::line_baseline(line_height, line.ascent, line.descent, window.scale_factor()),
+                 );
+                 let mut wraps = wrapped_line.wrap_boundaries.iter().peekable();
+                 let mut glyph_origin = point(

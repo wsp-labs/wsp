@@ -1,17 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { PassThrough } from "node:stream";
-import { stripVTControlCharacters } from "node:util";
-import { BOX_PRICING, SNAPSHOT_STORAGE, retentionPlan, snapshotStorage } from "@wsp/engine";
-import { copyKey, createRuntime, memoryStore, type Runtime, type Store } from "@wsp/runtime";
+import { BOX_PRICING, SNAPSHOT_STORAGE, snapshotStorage } from "@wsp/engine";
 import { describe, expect, it } from "vitest";
 import { describeOrphanOffer, describeOrphans, describeStorage, noProviderStorageLine } from "../src/storage.js";
-import { stubBackend, type StubBackend } from "./stub-backend.js";
-import { createOn, projectOn } from "./verbs-fixture.js";
 
 const GB = 1e9;
 const PRICING = SNAPSHOT_STORAGE;
-const version = (n: number, parent?: number) => ({ version: n, snapshotId: `snap_golden-v${n}`, baseTemplate: "base", setupSha: `sha${n}`, createdAt: `2026-08-${10 + n}T00:00:00.000Z`, smoke: { cmd: "true", exitCode: 0 }, ...(parent !== undefined ? { parentSnapshotId: `snap_golden-v${parent}` } : {}) });
-
 /** Every snapshot on the account is this host's and recorded, which is what the split leaves out of the line. */
 const allRecorded = (count: number, bytes: number) => ({ kept: { count, bytes }, orphans: { count: 0, bytes: 0 }, others: { count: 0, bytes: 0 } });
 

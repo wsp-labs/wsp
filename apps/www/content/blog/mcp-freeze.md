@@ -1,6 +1,6 @@
 ---
 title: It's not a memory leak. It's what your agents started.
-date: 2026-10-26
+date: 2026-10-25
 summary: That app using 60 GB in the force quit window? Usually it's the MCP servers and dev servers your agents started. Mine froze my Mac six times.
 draft: false
 author: Aditya Singhi

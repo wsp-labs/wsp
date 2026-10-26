@@ -29,6 +29,10 @@
 // it signals is read before it signals it: a pid this computer handed out again
 // leads a group of its own, so the reap asks whether the group is still there
 // and how old its leader is against the claim, and leaves anything else alone.
+// The agent can write the pid file, and a pid of 1 or less reaches every
+// process this host may signal, so a launch's own stream signals the pid it was
+// handed at the spawn and the file is read only by an attach after a restart,
+// under that same check.
 // The turn runs under the same two limits a cloud turn does, idle and
 // wall, read from the one rule machine-exec reads, so a hung agent ends with
 // the same line on either kind, and the idle limit reads the same activity on
@@ -290,18 +294,19 @@ function startedAt(pid: number): Promise<number | undefined> {
  * this computer handed out again is younger than its claim by however long the run had been going. */
 const LEADER_WINDOW_MS = 5_000;
 
-/** Whether the pid a run recorded still leads that run's own group, which is what a reap must know before it
- * signals anything. A pid is free again only once its group has no members left, so a group that still answers is
- * the one this run made and its stragglers are the turn's. The one hole that leaves is a pid handed out again
- * after the whole group went, to a process that then led a group of its own; the leader's own age closes it, since
- * the launch claims and spawns in the same moment. A ps that will not answer leaves the group's own reading as the
- * whole of it, which is what this had before the age was read at all. */
-async function leadsThisRun(base: string, pid: number): Promise<boolean> {
-  if (!groupExists(pid)) return false;
+/** Whether the pid a run recorded still leads that run's own group, which is what a signal must know before it is
+ * sent: "own" when it does, "gone" when no group of that number exists, "other" when one does and is not this run's.
+ * A pid is free again only once its group has no members left, so a group that still answers is the one this run
+ * made and its stragglers are the turn's. The one hole that leaves is a pid handed out again after the whole group
+ * went, to a process that then led a group of its own; the leader's own age closes it, since the launch claims and
+ * spawns in the same moment. A ps that will not answer leaves the group's own reading as the whole of it, which is
+ * what this had before the age was read at all. */
+async function groupOfRun(base: string, pid: number): Promise<"own" | "gone" | "other"> {
+  if (!groupExists(pid)) return "gone";
   // The leader is gone and its children hold the group open: the kernel keeps that number while they do.
-  if (!alive(pid)) return true;
+  if (!alive(pid)) return "own";
   const started = await startedAt(pid);
-  if (started === undefined) return true;
+  if (started === undefined) return "own";
   const claimed = ((): number | undefined => {
     try {
       return statSync(`${base}.d`).mtimeMs;
@@ -309,7 +314,20 @@ async function leadsThisRun(base: string, pid: number): Promise<boolean> {
       return undefined;
     }
   })();
-  return claimed === undefined || Math.abs(started - claimed) <= LEADER_WINDOW_MS;
+  return claimed === undefined || Math.abs(started - claimed) <= LEADER_WINDOW_MS ? "own" : "other";
+}
+
+/** The pid of the group this run started, read off its pid file, or none. The agent can write that file, and a
+ * number that is not a whole one above 1, or that leads some other group, is refused with one line in the log: a 1
+ * reaches every process this host may signal. A run with no pid file yet, or whose group is gone, is no refusal. */
+async function ownLeader(base: string): Promise<number | undefined> {
+  const text = readFile(`${base}.pid`);
+  if (text === undefined) return undefined;
+  const word = text.trim();
+  const pid = Number(word);
+  const group = Number.isSafeInteger(pid) && pid > 1 ? await groupOfRun(base, pid) : "other";
+  if (group === "other") console.warn(`${base}.pid names ${JSON.stringify(word.slice(0, 40))}, which is not the leader of the group this run started: nothing was signalled`);
+  return group === "own" ? pid : undefined;
 }
 
 /** Everything one run left on this computer, ended and taken away: the run's own process group gets TERM, then
@@ -318,9 +336,9 @@ async function leadsThisRun(base: string, pid: number): Promise<boolean> {
  * its life. A group that is not this run's is left alone and only its files go. `lastRead` runs once the group is
  * gone and before the log goes, so a reader takes what was printed after its last poll, up to the size the log had at
  * the KILL: a process that left the group and still holds the log would otherwise keep the read, and the stop, going. */
-async function reapRun(base: string, lastRead: (end: number) => Promise<void> = async () => {}, graceMs = RUN_STOP_MS): Promise<void> {
-  const pid = Number(readFile(`${base}.pid`)?.trim() ?? "");
-  if (Number.isSafeInteger(pid) && pid > 0 && (await leadsThisRun(base, pid))) {
+async function reapRun(base: string, known: number | undefined, lastRead: (end: number) => Promise<void> = async () => {}, graceMs = RUN_STOP_MS): Promise<void> {
+  const pid = known ?? (await ownLeader(base));
+  if (pid !== undefined) {
     signalGroup(pid, "SIGTERM");
     // The grace is the group's, not the leader's: a leader that goes at once on the TERM leaves the children it
     // started to take the whole of it, which is the stop every road here promises them.
@@ -448,7 +466,7 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
   /** The one reader both roads share: a launch that has just started its child, and an attach to a run an earlier
    * host process left behind. The log is read from its first byte either way, so a run that printed while no host
    * was listening is replayed to whoever attaches. */
-  const open = (base: string, hasInput: boolean, o: { launch?: { failed?: Error }; startedAt?: number; from?: number; taken?: readonly string[] } = {}): ExecStream => {
+  const open = (base: string, hasInput: boolean, o: { launch?: { failed?: Error }; leader?: number; startedAt?: number; from?: number; taken?: readonly string[] } = {}): ExecStream => {
     const { launch } = o;
     // The idle clock runs from this reader's first second, since nothing on disk records when the run's last byte
     // landed; the wall runs from the turn's own start, which an attach is handed.
@@ -461,7 +479,7 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
      * did: a command the agent left going holds the turn's token, which otherwise would outlive the turn by the keep.
      * The agent, the servers it started and its input stay. */
     const endLeftovers = async (): Promise<void> => {
-      const pid = leader();
+      const pid = o.leader ?? (await ownLeader(base));
       if (pid === undefined) return;
       const left = leftovers(await groupRows(pid), pid, pumpOf(base));
       for (const stray of left) signalPid(stray, "SIGTERM");
@@ -485,14 +503,19 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
       finishCode = code;
       resolveExit(code);
     };
+    /** What names the run's group when this launch started it: the pid it was handed, which the agent cannot write. An
+     * attach after a host restart has only the pid file, which the agent can, so it is read under ownLeader()'s guard. */
     const leader = (): number | undefined => {
+      if (o.leader !== undefined) return o.leader;
       const pid = Number(readFile(`${base}.pid`)?.trim() ?? "");
       return Number.isSafeInteger(pid) && pid > 0 ? pid : undefined;
     };
     const signal = (sig: NodeJS.Signals): void => {
-      const pid = leader();
-      if (pid === undefined || finishCode !== undefined) return;
-      signalGroup(pid, sig);
+      if (finishCode !== undefined) return;
+      if (o.leader !== undefined) return signalGroup(o.leader, sig);
+      void ownLeader(base).then(pid => {
+        if (pid !== undefined && finishCode === undefined) signalGroup(pid, sig);
+      });
     };
 
     /** The poll runs whether or not anybody is reading yet: the run is on this computer either way, so its limits,
@@ -549,7 +572,7 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
     const settle = async (code: number | null, cut?: Error): Promise<void> => {
       if (finishCode !== undefined) return;
       opts.reading?.delete(drop);
-      await reapRun(base, async end => {
+      await reapRun(base, o.leader, async end => {
         for (let chunk = readLog(end); chunk.length > 0; chunk = readLog(end)) {
           lines.feed(chunk);
           await new Promise(resolve => setImmediate(resolve));
@@ -657,6 +680,11 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
       },
       writeAfter: (line, after) => {
         if (!hasInput) throw new Error("this stream has no input channel");
+        // Taken at once, so a refusal that comes while an earlier line still holds the queue is never left unhandled.
+        const due = after.then(
+          () => true,
+          () => false,
+        );
         const before = parkedLine;
         let settled: () => void = () => {};
         const mine: Promise<void> = new Promise(resolve => (settled = resolve));
@@ -664,13 +692,11 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
         const park = (): Promise<void> => {
           writeOwned(`${base}.late.key`, randomBytes(6).toString("hex"));
           writeOwned(`${base}.late`, `${line}\n`);
-          return after.then(
-            () => releaseLate(base),
-            () => {
-              rmSync(`${base}.late`, { force: true });
-              rmSync(`${base}.late.key`, { force: true });
-            },
-          );
+          return due.then(isDue => {
+            if (isDue) return releaseLate(base);
+            rmSync(`${base}.late`, { force: true });
+            rmSync(`${base}.late.key`, { force: true });
+          });
         };
         void (before === undefined ? park() : before.then(park))
           .catch(() => undefined)
@@ -730,6 +756,7 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
     /** A launch node itself could not make: no bash on the PATH the turn runs under. Nothing wrote a log or an exit
      * code, so the reader has to be told rather than left polling for one. */
     const launch: { failed?: Error } = {};
+    let leaderPid: number | undefined;
     try {
       const child = spawn("bash", [`${base}.sh`], {
         cwd: opts.root,
@@ -745,11 +772,12 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
         launch.failed = e;
       });
       child.unref();
+      leaderPid = child.pid;
       if (child.pid !== undefined) writeFileSync(`${base}.pid`, `${child.pid}\n`);
     } finally {
       closeSync(log);
     }
-    const stream = open(base, input !== undefined, { launch });
+    const stream = open(base, input !== undefined, { launch, ...(leaderPid !== undefined ? { leader: leaderPid } : {}) });
     if (seed !== undefined && inputAfter !== undefined) void inputAfter.then(() => releaseHeld(base)).catch(() => stream.kill());
     return stream;
   };
@@ -762,7 +790,7 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
     if (input) releaseHeld(run);
     // An empty channel is a launch whose host went before its prompt was written, and nothing will write it now.
     if (input && existsSync(`${run}.in`) && statSync(`${run}.in`).size === 0) {
-      await reapRun(run);
+      await reapRun(run, undefined);
       return "gone";
     }
     const at = { startedAt, ...(from !== undefined ? { from } : {}) };
@@ -786,7 +814,7 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
       .filter(base => minted(base) && !kept.has(base));
     // Each run's group is ended beside the others, not after them: every reap waits out its own stop grace, and a
     // computer holding a day of them would spend that grace once per run in a connect that has to end.
-    await Promise.all(stale.map(base => reapRun(base)));
+    await Promise.all(stale.map(base => reapRun(base, undefined)));
     return stale;
   };
 

@@ -1,17 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { type Manifest, type ManifestEntry, parseManifest } from "@wsp/collect";
-import { afterEach, describe, expect, it } from "vitest";
-import type { GoldenImport } from "@wsp/runtime";
-import { Recipe, type RecipeDigest } from "@wsp/protocol";
+import { type ManifestEntry, parseManifest } from "@wsp/collect";
+import { describe, expect, it } from "vitest";
 import {
   answeredRows,
-  applyRecipe,
   hasChoices,
   initialChoice,
-  loginShown,
   lockRefused,
   refusedNote,
   initialTicks,
@@ -19,16 +12,10 @@ import {
   loginTool,
   tickLoginTools,
   withoutAgentTools,
-  withCatalogAgents,
-  } from "../src/init-recipe.js";
-import { MIB } from "@wsp/catalog";
-import { toolInstallsFor, type BrewTable } from "@wsp/engine";
+} from "../src/init-recipe.js";
 import { FIXTURE, byId } from "./init-fixture.js";
 
 const ANTHROPIC = "sk-ant-x-fake-anthropic-key";
-/** The saved manifest as the next run reads it. */
-const loadManifest = (path: string) => parseManifest(JSON.parse(readFileSync(path, "utf8")));
-
 describe("manifest ticks", () => {
   it("a skip with a reason cannot be ticked; a bare skip can", () => {
     expect(isTickable(byId("identity/ssh-key"))).toBe(false);

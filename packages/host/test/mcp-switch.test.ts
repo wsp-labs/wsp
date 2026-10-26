@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { HERE_PLACE_ID, MCP_SERVER_NAME, SCOPED_MCP_ARG } from "@wsp/protocol";
+import { HERE_PLACE_ID, MCP_SERVER_NAME, NO_LOOK_MCP_ARG, SCOPED_MCP_ARG } from "@wsp/protocol";
 import { memoryStore } from "@wsp/runtime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cli, localWiring, makeRuntime } from "../src/cli.js";
@@ -143,12 +143,12 @@ describe("the wsp tools a thread on this computer is launched with", () => {
 
   it("is the binary's tool server on the state the host serves, where this computer's binary carries one", async () => {
     const statePath = join(dir, "state", "state.json");
-    expect(await launched({ ...RUN, toolServer: BINARY }, statePath)).toEqual({ command: BINARY, args: ["mcp", ...HANDED, "--state", statePath, SCOPED_MCP_ARG] });
+    expect(await launched({ ...RUN, toolServer: BINARY }, statePath)).toEqual({ command: BINARY, args: ["mcp", ...HANDED, "--state", statePath, SCOPED_MCP_ARG, NO_LOOK_MCP_ARG] });
   });
 
   it("is the TypeScript server on that state where it carries none", async () => {
     const statePath = join(dir, "state", "state.json");
-    expect(await launched({ ...RUN, toolServer: false }, statePath)).toEqual({ command: NODE, args: [SCRIPT, "mcp", "--state", statePath, SCOPED_MCP_ARG] });
+    expect(await launched({ ...RUN, toolServer: false }, statePath)).toEqual({ command: NODE, args: [SCRIPT, "mcp", "--state", statePath, SCOPED_MCP_ARG, NO_LOOK_MCP_ARG] });
   });
 });
 

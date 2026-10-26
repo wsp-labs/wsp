@@ -7,12 +7,13 @@ import { BOX_CLASSES } from "@wsp/engine";
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { CATALOG_AGENTS, MCP_AGENT_IDS, THREAD_AGENTS } from "@wsp/catalog";
-import { ANOTHER_AGENT_WORDS, BACKGROUND_WORK_WORDS, COORDINATOR_HANDOFF, LOGIN_CHOICES, NOTIFY_CALLER, SessionStartOutcome, SLATE_BRIEF, backgroundTasksLine, notifyLine, stillRunningLine, stillWorkingLine } from "@wsp/protocol";
+import { ANOTHER_AGENT_WORDS, BACKGROUND_WORK_WORDS, COORDINATOR_HANDOFF, NOTIFY_CALLER, SessionStartOutcome, SLATE_BRIEF, SLATE_PURPOSE, backgroundTasksLine, notifyLine, stillRunningLine, stillWorkingLine } from "@wsp/protocol";
 import { slateCatalog } from "@wsp/protocol/slate";
 import { BOAT_MARK, BOAT_SPAN_END, CLOUD_MARK, instructions, INSTRUCTIONS_KEPT, SLATE_WORDS, THREAD_SLATE_WORDS, RULES_HEADING, SETUP_HEADING, SHELL_HEADING, SKILL_NAME, VERBS_HEADING, wspSkill, agentsLine, instructionsOf, skillFor } from "../src/skill.js";
 import { CLOUD_ON } from "../src/cloud.js";
 import { ALL_VERBS, hasTool, CLI_VERBS, VERBS, toolName } from "../src/verbs.js";
 import { SERVICE_MANAGERS } from "../src/service.js";
+import { SLATE_VERBS } from "../src/verbs/slate.js";
 
 const said = (text: string, word: string): boolean => new RegExp(`\\b${word}\\b`, "i").test(text);
 
@@ -182,7 +183,7 @@ describe("the wsp skill", () => {
     const reach = JSON.parse(readFileSync(new URL("./slate-reach.json", import.meta.url), "utf8")) as { prompt: string; intent: string[] }[];
     const kept = instructions(true).slice(0, INSTRUCTIONS_KEPT);
     const described = VERBS.filter(hasTool).filter(v => v.name.startsWith("slate ")).map(v => v.tool.description);
-    expect(described).toHaveLength(4);
+    expect(described).toHaveLength(5);
     for (const { prompt, intent } of reach) {
       expect(intent.length, prompt).toBeGreaterThan(0);
       for (const word of intent) {
@@ -295,6 +296,14 @@ describe("the wsp skill", () => {
     expect(section).toContain("from a thread it runs beside you in your own folder");
     // No constant path stands in for that folder: the host decides it, and a line naming one would go stale.
     expect(section).not.toContain("~/wsp-work");
+  });
+
+  it("tells a person with no image, in the setup walkthrough, to build the default one with wsp doctor on the cloud computer", () => {
+    const skill = readFileSync(new URL("../../../skills/wsp/SKILL.md", import.meta.url), "utf8");
+    const step = skill.split("\n").find(line => line.startsWith("3. "))!;
+    expect(step).toContain("<!-- cloud -->Where threads run. A thread on a cloud runs on a machine forked from the person's image");
+    expect(step).toContain("A host with no image has none to fork, and `wsp doctor <computer>`, naming the cloud computer, builds the default one.<!-- /cloud -->");
+    expect(skillFor(skill, false)).not.toContain("wsp doctor <computer>, naming");
   });
 
   it("names the unit wsp join writes as the manager itself names a place's unit, and says a Mac refuses", () => {
@@ -415,5 +424,26 @@ describe("the wsp skill", () => {
     for (const a of CATALOG_AGENTS) if (!THREAD_AGENTS.some(id => id === a.id)) expect(named(a.id), a.id).toBe(false);
     expect(instructions()).toContain(` as agent: ${THREAD_AGENTS.join(", ")}.`);
     expect(agentsLine(["claude", "codex"])).toBe(`The agents this host runs threads on, the only values ${CLOUD_ON ? "run and fork take" : "run takes"} as agent: claude, codex.`);
+  });
+});
+
+describe("what a slate is for", () => {
+  it("reads the same in the catalog's index, the server's instructions, the slate tools' descriptions and the skill", () => {
+    const skill = readFileSync(new URL("../../../skills/wsp/SKILL.md", import.meta.url), "utf8");
+    const places: Record<string, string> = {
+      "the catalog's index": slateCatalog(),
+      "a thread's server instructions": instructions(true),
+      "a thread's system prompt": SLATE_BRIEF,
+      "the skill": skill.slice(skill.indexOf("### slate\n")),
+    };
+    for (const verb of SLATE_VERBS.filter(hasTool).filter(v => v.name === "slate catalog" || v.name === "slate write")) places[`${verb.name}'s description`] = verb.tool.description;
+    expect(Object.keys(places)).toHaveLength(6);
+    for (const [where, text] of Object.entries(places)) expect(text, where).toContain(SLATE_PURPOSE);
+    expect(slateCatalog().startsWith(SLATE_PURPOSE)).toBe(true);
+  });
+
+  it("says never to poll in chat where every agent reads it, not in Claude's brief alone", () => {
+    const write = SLATE_VERBS.filter(hasTool).find(v => v.name === "slate write")!;
+    for (const [where, text] of Object.entries({ "the catalog's index": slateCatalog(), "slate write's description": write.tool.description })) expect(text, where).toMatch(/never poll in chat/i);
   });
 });

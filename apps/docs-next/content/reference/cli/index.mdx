@@ -117,6 +117,7 @@ wsp --version
 | [`wsp skills search`](/reference/cli/skills-search) | searches skills.sh for skills by their words, each with how often it was installed and the id wsp skills add takes |
 | [`wsp skills show`](/reference/cli/skills-show) | prints a skill's SKILL.md: one on skills.sh by its \<owner>/\<repo>/\<skill> before it is installed, or one already on this computer, a box you added or where a thread runs by its name |
 | [`wsp slate catalog`](/reference/cli/slate-catalog) | what a slate can hold: the index of pieces, sources, steps, functions and rules, or one entry in full |
+| [`wsp slate look`](/reference/cli/slate-look) | draws the thread's slate as the app's window does, in the person's theme at the panel's width, and saves it as a PNG; the tool answers the picture |
 | [`wsp slate read`](/reference/cli/slate-read) | the slate as it stands: the sketch, then the JSX-like form, the values, derived values, runs, problems and the paths named; --no-text leaves out the JSX-like form, --document adds the stored JSON |
 | [`wsp slate state`](/reference/cli/slate-state) | sets the slate's $values by path, like '$steps[2].done=true' or 'i=2', starts runs the person let run every time, and prints its sketch |
 | [`wsp slate write`](/reference/cli/slate-write) | writes the thread's slate from a .slate file (a whole \<slate> or a patch) or a .json document and prints its sketch; --check stores nothing, and with --set or --press rehearses values and a press on a copy, the file optional |
@@ -398,6 +399,9 @@ up and down for the host, recipe and image for what a machine starts from.
       the slate as it stands: the sketch, then the JSX-like form, the values,
       derived values, runs, problems and the paths named; --no-text leaves out
       the JSX-like form, --document adds the stored JSON
+  wsp slate look [<thread>] [--width <px>] [--out <file>]
+      draws the thread's slate as the app's window does, in the person's theme
+      at the panel's width, and saves it as a PNG; the tool answers the picture
   wsp restart
       stops the host and brings it back on the road it came up on, its service,
       the verb that started it or the app; running turns go on and the host that

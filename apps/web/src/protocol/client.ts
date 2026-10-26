@@ -525,9 +525,9 @@ export interface Api {
   getWorkspace(id: string): Promise<WorkspaceView>;
   /** A workspace for one piece of work: a copy of the project's computer with the project inside, named by the
    * work. `project` is the project's id, off projectsList; the computer is the project's own, so nothing says
-   * where. `size` is one of capabilities().sizes and `golden` a project image, each sent only when picked;
-   * absent, the workspace takes the project's computer's image head at its own size. */
-  createWorkspace(project: string, name: string, picked?: { golden?: string; size?: WorkspaceSize }): Promise<CreatedWorkspace>;
+   * where. `size` is one of capabilities().sizes, sent only when picked; absent, the workspace takes the project's
+   * computer's image head at its own size. */
+  createWorkspace(project: string, name: string, picked?: { size?: WorkspaceSize }): Promise<CreatedWorkspace>;
   /** Snapshot of enriched statuses; keeps the runtime's poller + cost ticker running for this socket. */
   watchStatuses(): Promise<WorkspaceStatus[]>;
   nap(id: string): Promise<WorkspaceView>;
@@ -1044,8 +1044,8 @@ async function followSignIn(c: ProtocolClient, op: string, params: Record<string
 }
 
 export function makeApi(c: ProtocolClient): Api {
-  const create = async (project: string, name: string, picked?: { golden?: string; size?: WorkspaceSize }): Promise<CreatedWorkspace> => {
-    const { workspace, notice } = await c.request<WorkspaceCreateResult>("workspaces.create", { project, name, ...(picked?.golden === undefined ? {} : { golden: picked.golden }), ...picked?.size });
+  const create = async (project: string, name: string, picked?: { size?: WorkspaceSize }): Promise<CreatedWorkspace> => {
+    const { workspace, notice } = await c.request<WorkspaceCreateResult>("workspaces.create", { project, name, ...picked?.size });
     return notice === undefined ? workspace : { ...workspace, notice };
   };
   return {

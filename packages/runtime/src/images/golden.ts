@@ -10,8 +10,6 @@ import {
   goldenHead,
   isMissing,
   killUntilGone,
-  snapshotUntilGone,
-  answerOf,
   prepareBuilder,
   refreshPreviewToken,
   promoteVersion,
@@ -41,15 +39,13 @@ import type { GoldenBuilderView, PlaceKind, SnapshotStorage } from "@wsp/protoco
 import {
   forksNoMachines,
   ALREADY_APPLIED,
-  notFoundRefusal,
   buildPlaceAskLine,
   placeSaid,
   NO_BUILD_PLACE_LINE,
-  } from "@wsp/protocol";
+} from "@wsp/protocol";
 import { PlaceForksNowhereError } from "../places.js";
 import type { Runtime, OrphansDeleted } from "../types/api.js";
 import {
-  PROJECT_GOLDENS,
   GOLDENS,
   copyKey,
   copyKeyParts,
@@ -128,12 +124,6 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
       if (running.length === 0) throw ctx.conflict(NO_BUILD_PLACE_LINE);
       if (running.length > 1) throw ctx.conflict(buildPlaceAskLine(running.map(placeSaid)));
       return running[0]!;
-    },
-
-    async prepareAt(o) {
-      await ctx.ready();
-      const { place } = await prepareAt(o?.name ?? "default", o?.place, false);
-      return { place, name: ctx.placeName(place) };
     },
 
     async prepare(o) {

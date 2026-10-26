@@ -5,16 +5,15 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { isIP, type Socket } from "node:net";
 import { homedir, networkInterfaces, platform } from "node:os";
 import { basename, dirname, extname, join, resolve as resolvePath, sep } from "node:path";
-import { CREATED_AT_LABEL, HOST_LABEL, SMOKE_LABEL, WSP_LABEL, type ProvisionPlan } from "@wsp/engine";
-import { BOOT_SCRIPT, DEFAULT_PORT, PAIR_CODE_TTL_MS, PLACES_WORDS, PLACE_PORT_OFFSET, WILDCARD, WS_PATH, authority, doorPortHeldLine, doorPortMovedLine, isLoopback, joinAddressOf, servedHostname, noSuchPlaceRefusal, tableName, recordRestoredLine, peerAddress, relayUrlOf, scopeOf, type BootPayload, type ProductUsageOff, type DoctorLineEvent, type Caller, type PlaceDoorView, type ProjectImportResult, type ProjectPlan, type PlaceView, type ProjectView, type ProviderKeyWorks, type WorkspaceView, kindForComputer, nameTheProjectLine, copiesFolder, runsInFolder } from "@wsp/protocol";
+import { SMOKE_LABEL, type ProvisionPlan } from "@wsp/engine";
+import { BOOT_SCRIPT, DEFAULT_PORT, PLACES_WORDS, PLACE_PORT_OFFSET, WILDCARD, WS_PATH, authority, doorPortHeldLine, doorPortMovedLine, isLoopback, joinAddressOf, servedHostname, noSuchPlaceRefusal, tableName, recordRestoredLine, peerAddress, relayUrlOf, type BootPayload, type ProductUsageOff, type DoctorLineEvent, type PlaceDoorView, type PlaceView, type ProviderKeyWorks, type WorkspaceView } from "@wsp/protocol";
 import { sshHostsIn } from "./ssh-hosts.js";
-import { LOOPBACK, describeAge, goldenHead, serveRuntime, tokenDigest, type AdmittedDevices, type CreatedWorkspace, type GoldenBuilderView, type GoldenVersion, type HostSsh, type InitDoor, type PlaceBackHolder, type PlaceDoctor, type PlaceDoorControl, type ProjectBundler, type ProjectImportOptions, type ProjectLander, type ReapedMachine, type RestartDoor, type Runtime, type RuntimeServer, type SparedMachine } from "@wsp/runtime";
+import { LOOPBACK, describeAge, serveRuntime, slateLookHubOf, tokenDigest, type AdmittedDevices, type GoldenBuilderView, type HostSsh, type InitDoor, type PlaceBackHolder, type PlaceDoctor, type PlaceDoorControl, type ProjectBundler, type ProjectLander, type ReapedMachine, type RestartDoor, type Runtime, type RuntimeServer, type SparedMachine } from "@wsp/runtime";
 import { computerDoctor } from "./doctor.js";
 import type { HostBroker } from "./server-broker.js";
 import { cloudSignIn } from "./agents-signin.js";
 import { recipeShelf } from "./recipes.js";
 import { advertiseWord, hereUrl, reachAddresses, type HereAt } from "./pairing.js";
-import { NO_PROJECT_YET } from "./verbs.js";
 import { accountHere, publicHostname } from "./relay-link.js";
 import { wspHome } from "./hosts.js";
 import { nodeHost, readGhosttyConfig } from "@wsp/collect";
@@ -61,8 +60,6 @@ export interface HostOptions {
   here?: HereAt;
   /** Auth token for the runtime WS; generated when omitted. */
   authToken?: string;
-  /** Envs baked into a workspace createWorkspace makes, given the golden version it forks. */
-  workspaceEnvs?: (golden: GoldenVersion) => Record<string, string>;
   /** Receives one line per machine a sweep killed, one per running machine the first sweep left alone, and one when a sweep fails;
    * also one per sign-in page opened, per port forwarded, refused or closed, and per frame the runtime refused. */
   log?: (line: string) => void;
@@ -124,33 +121,13 @@ export interface HostDoctorReaders {
   plan?(computer?: PlaceView): Promise<ProvisionPlan | undefined>;
 }
 
-/** The roads to a workspace and its project that the host's handle and wsp init share, so a workspace made without a
- * host is the one the app would have made. */
-export interface WorkspaceRoads {
-  /** Forks the golden's head into a new workspace, with the envs and labels the app's own create gives it. The
-   * caller is who asked, so a thread is held to what that thread may do. */
-  createWorkspace(name: string, caller?: Caller, project?: string): Promise<CreatedWorkspace>;
-  /** Records a project, the road every workspace starts from: a folder on this computer, or a repo a computer
-   * clones when `on` names one. */
-  addProject(source: string, on?: string, caller?: Caller): Promise<ProjectView>;
-  /** Makes this computer the one local workspace, as the app's own This computer row does; it forks nothing and
-   * needs no golden, so it is the one road into an empty state. */
-  /** Reads a folder on this computer as the app's import dialog reads it; nothing is packed or uploaded. */
-  planProject(source: string): Promise<ProjectPlan>;
-  /** Lands that folder on a workspace's machine through the bundler the app's import goes through. */
-  importProject(opts: Omit<ProjectImportOptions, "bundler">): Promise<ProjectImportResult>;
-}
-
-export interface HostHandle extends WorkspaceRoads {
+export interface HostHandle {
   port: number;
   authToken: string;
   /** Takes one device's token away and cuts the sockets it held, the same road the op takes: what the heartbeat's
    * reconcile of the account's own listing comes through, so a device the account dropped goes as one revoked at
    * the terminal goes. */
   revokeDevice(id: string): Promise<boolean>;
-  /** A pairing code whose device is read as the owner: what wsp init mints for the browser it opens, through the
-   * handle it holds as it makes the first workspace, so the person who ran init never meets a pair screen. */
-  hereCode(): Promise<string>;
   /** The door a computer you own dials: opened on the first ask and held open for this host's life, since a place
    * file on another computer names its port for good. */
   door: PlaceDoorControl & { close(): Promise<void>; port(): number | undefined };
@@ -366,45 +343,10 @@ async function sweepOrphans(rt: Runtime, log: (line: string) => void, listSpared
 }
 
 /** The bundler and the lander read each agent's folder on this computer where a launch here finds it. */
-export function workspaceRoads(rt: Runtime, opts: Pick<HostOptions, "workspaceEnvs"> = {}): WorkspaceRoads & { bundlerFor(source: string): ProjectBundler; lander: ProjectLander } {
-  // One bundler road for the app's import op and the handle's own: a folder is read and packed the same either way.
+export function workspaceRoads(rt: Runtime): { bundlerFor(source: string): ProjectBundler; lander: ProjectLander } {
+  // One bundler road for the app's import op and the tests': a folder is read and packed the same either way.
   const homes = () => rt.agents.homesHere();
-  const bundlerFor = (source: string) => projectBundler(source, homes);
-  return {
-    bundlerFor,
-    lander: projectLander(homes),
-    addProject: (source, on, caller) => rt.projects.add({ source, ...(on !== undefined ? { on } : {}) }, caller),
-    createWorkspace: async (name, caller, named) => {
-      // A workspace is one project's copy. A road that names none takes the only project there is and refuses in
-      // the same sentence the command line uses when there are several.
-      const all = await rt.projects.list(caller);
-      // A road that names none is forking, so the projects it can mean are the ones on a computer that forks: a
-      // folder here is copied, never forked, and is never what a fork was asked for.
-      const held = named === undefined ? all.filter(p => !copiesFolder(kindForComputer(p.computer))) : all;
-      const project = named === undefined ? held[0] : held.find(p => p.id === named || p.name === named);
-      if (project === undefined || (named === undefined && held.length !== 1)) throw new Error(held.length === 0 ? NO_PROJECT_YET : nameTheProjectLine(held.map(p => p.name)));
-      const head = goldenHead(await rt.golden.get());
-      // A thread in a project's folder forks nothing, here or on a computer the person joined, so it needs no image
-      // and takes none; every other computer's copy does.
-      const kind = (await rt.workspaces.landing({ project: project.id }, caller)).kind;
-      const forks = kind === undefined || !runsInFolder(kind);
-      if (!head && forks) throw new Error("no image yet");
-      return rt.workspaces.create(
-        {
-          project: project.id,
-          // A thread forks the image its own workspace's project runs and is refused where it names one, so the
-          // head this host holds rides only the person's own create.
-          ...(head !== undefined && forks && scopeOf(caller) === undefined ? { golden: head.snapshotId } : {}),
-          name,
-          ...(opts.workspaceEnvs !== undefined && head !== undefined && forks ? { envs: opts.workspaceEnvs(head) } : {}),
-          labels: { [WSP_LABEL]: "1", [HOST_LABEL]: "1", [CREATED_AT_LABEL]: new Date().toISOString() },
-        },
-        caller,
-      );
-    },
-    planProject: source => bundlerFor(source).plan(),
-    importProject: o => rt.projects.import({ ...o, bundler: bundlerFor(o.source) }),
-  };
+  return { bundlerFor: (source: string) => projectBundler(source, homes), lander: projectLander(homes) };
 }
 
 /** Where a computer you own is told to dial this host, in the order its link tries them: the address the person
@@ -426,7 +368,7 @@ export async function startHost(opts: HostOptions): Promise<HostHandle> {
   const webDir = resolvePath(opts.webDir);
   const log = opts.log ?? (() => {});
 
-  const { bundlerFor, lander, addProject, createWorkspace, planProject, importProject } = workspaceRoads(rt, opts);
+  const { bundlerFor, lander } = workspaceRoads(rt);
 
   const address = opts.listen ?? LOOPBACK;
   // Reaching the loopback port is not being the person: another login on this computer reaches it too. The loopback
@@ -451,6 +393,7 @@ export async function startHost(opts: HostOptions): Promise<HostHandle> {
           authorize: token => rtServer.authorize(token),
           hostUrl: () => binding.then(() => here.url),
           kinds: guestKinds(statePath, undefined, (threadId, pid, kind) => rt.ownProcess(threadId, pid, kind)),
+          lookable: () => slateLookHubOf(rt.slates).lookable(),
         });
   // Before the runtime socket: the app lists and stops the relay's forwards through it.
   const relay = startCallbackRelay({
@@ -735,7 +678,6 @@ export async function startHost(opts: HostOptions): Promise<HostHandle> {
     port,
     authToken,
     revokeDevice: id => rtServer.revokeDevice(id),
-    hereCode: async () => (await rt.devices.issue({ now: Date.now(), ttlMs: PAIR_CODE_TTL_MS, here: true })).code,
     door: {
       open: openDoor,
       port: () => doorAt,
@@ -748,10 +690,6 @@ export async function startHost(opts: HostOptions): Promise<HostHandle> {
         await Promise.all(closing);
       },
     },
-    addProject,
-    createWorkspace,
-    planProject,
-    importProject,
     close: async () => {
       // First: a forward remade while the door closes would open it again.
       opts.back?.close();

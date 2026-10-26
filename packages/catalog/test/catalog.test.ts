@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, onTestFinished } from "vitest";
 import * as catalog from "../src/index.js";
 import { pinMismatchLine, SHARED_TOOL_ROOTS, TOOLS_PATH, WORKSPACE_OVERLAID } from "@wsp/protocol";
-import { agentName, APT_INDEX, BREW_PREFIX, GUEST_HOME, APT_UPDATE, BASE_FLOOR, baseEntryFor, baseNote, BREW_ENV, CATALOG, CATALOG_AGENTS, catalogEntry, catalogToolFor, catalogToolForDependency, CLAUDE_CODE, CLAUDE_CONFIG_DIR, CLAUDE_PLUGINS, CURL_NET, DEFAULT_AGENT, GCLOUD, guestEnv, hasLogin, HISTORY_FORMATS, HOMEBREW_STEP, installAfter, installLine, installShown, keysIdOf, keysRowOf, KUBECTL, LINUX_CASKS, LOGIN_ROWS, loginIdOf, loginRow, mintsToken, NO_SIGN_IN, NET_READ_S, NET_RETRIES, pinCheckLine, PLAYWRIGHT, readsRowRoad, RELEASE_PINS, runsThreads, THREAD_AGENTS, LOCAL_BIN, installHomes, TOOL_PREFIX, ROAD_MODULES, ROAD_STEPS, roadModule, ROADS, SIGN_IN_ROWS, SIZE_METHODS, sizeBytes, smokeOf, standingPin, unpinned, versionOf, fixesVersion, catalogIdOfRow, type AgentEntry, type InstallRoad, type ToolEntry } from "../src/index.js";
+import { agentName, APT_INDEX, BREW_PREFIX, GUEST_HOME, APT_UPDATE, BASE_FLOOR, baseEntryFor, baseNote, BREW_ENV, CATALOG, CATALOG_AGENTS, catalogEntry, catalogToolFor, CLAUDE_CODE, CLAUDE_CONFIG_DIR, CLAUDE_PLUGINS, CURL_NET, DEFAULT_AGENT, GCLOUD, guestEnv, hasLogin, HISTORY_FORMATS, HOMEBREW_STEP, installAfter, installLine, installShown, keysIdOf, keysRowOf, KUBECTL, LINUX_CASKS, LOGIN_ROWS, loginIdOf, loginRow, mintsToken, NO_SIGN_IN, NET_READ_S, NET_RETRIES, pinCheckLine, PLAYWRIGHT, readsRowRoad, RELEASE_PINS, runsThreads, THREAD_AGENTS, LOCAL_BIN, installHomes, TOOL_PREFIX, ROAD_MODULES, ROAD_STEPS, roadModule, ROADS, SIGN_IN_ROWS, SIZE_METHODS, sizeBytes, smokeOf, standingPin, unpinned, versionOf, fixesVersion, catalogIdOfRow, type AgentEntry, type InstallRoad, type ToolEntry } from "../src/index.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 import { AGENT_BINS, AGENT_STORE_ENVS } from "../../../vitest.env.js";
 
@@ -1062,15 +1062,10 @@ describe("catalog", () => {
     expect(installAfter(catalogEntry("swift") as ToolEntry)).toBe(APT_INDEX);
     expect(catalogToolFor("swiftc")?.id).toBe("swift");
     // The browser: Playwright's own Chromium at the Playwright the render tests import, on the node its npm road
-    // brings; the row answers to the package names a project depends on.
+    // brings.
     expect(installLine(catalogEntry("playwright")!)).toBe('export DEBIAN_FRONTEND=noninteractive\nnpm install -g playwright@1.62.1\ncommand -v playwright >/dev/null || { b="$(npm prefix -g)/bin"; case "$b" in /root/*) ;; *) PATH="$b:$PATH" ;; esac; }\nplaywright install --with-deps chromium');
     expect(installAfter(catalogEntry("playwright") as ToolEntry)).toBe("node");
     expect(catalogToolFor("chromium")?.id).toBe("playwright");
-    // A project's npm dependency lands on a row only through the names the row lists for it: the browser's packages
-    // do, a client library named like a server's tools does not, and neither does a command or cover word.
-    for (const pkg of ["playwright", "@playwright/test", "playwright-core"]) expect(catalogToolForDependency("npm", pkg)?.id, pkg).toBe("playwright");
-    for (const pkg of ["redis", "sqlite", "sqlite3", "chromium", "bun", "eslint", "typescript", "pg"]) expect(catalogToolForDependency("npm", pkg), pkg).toBeUndefined();
-    expect(catalogToolForDependency("uv", "playwright")).toBeUndefined();
     // The pinned Playwright is the one the app manifests pin, so the golden's Chromium is the revision the render tests look for.
     for (const app of ["web", "desktop"]) {
       const manifest = JSON.parse(readFileSync(new URL(`../../../apps/${app}/package.json`, import.meta.url), "utf8")) as { devDependencies: Record<string, string> };

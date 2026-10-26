@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 1,
+      "stdout": "  PATH  SIZE  WHY\n",
+      "stderr": "no place named spoo; you have <computer>, none\n"
+    }
+  ],
+  "events": []
+}

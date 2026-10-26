@@ -73,8 +73,8 @@ describe("the Claude key in the login shell and a thread on this computer", () =
 
     const folder = mkdtempSync(join(dir, "repo-"));
     execFileSync("git", ["init", "-q", folder]);
-    const project = await handle.addProject(folder);
-    const workspace = await handle.createWorkspace(project.name, undefined, project.id);
+    const project = await built.projects.add({ source: folder });
+    const workspace = await built.workspaces.create({ project: project.id, name: project.name });
     const thread = await threadOn(built, workspace.id);
 
     // exec runs under claude's own launch environment, the one a turn on this computer starts with.
