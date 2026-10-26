@@ -1,0 +1,29 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": "before and limit page one thread's events. Name the thread with threadId.",
+      "kind": "usage",
+      "fix": "Name the thread with threadId."
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "places.readings names a placeId or a workspaceId",
+      "kind": "usage"
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "daemon.open opens a channel to one daemon: name workspaceId or placeId, not both"
+    }
+  ],
+  "events": []
+}

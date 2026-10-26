@@ -14,6 +14,7 @@ use crate::host::{Host, Replay};
 use crate::normalize::{canonical, ids_in, Facts};
 use crate::seed::Order;
 use crate::tape::{self, Door, Tape};
+use regex::Regex;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -306,7 +307,7 @@ fn written(tape: &Tape) -> Option<Value> {
             let answer_to =
                 |f: &Value| f.get("id").filter(|id| !id.is_null()).is_some() && f.get("op").is_none() && f.get("method").is_none();
             let mut replies = Vec::new();
-            let mut pool: Vec<Option<&Value>> = tape.outs.iter().filter(|f| answer_to(f)).map(Some).collect();
+            let mut pool: Vec<Option<&Value>> = tape.outs.iter().map(|f| Some(f).filter(|f| answer_to(f))).collect();
             for frame in &tape.ins {
                 let Some(id) = frame.get("id").filter(|id| !id.is_null()) else { continue };
                 if tape.door == Door::Mcp && frame.get("method").is_none() {
@@ -315,10 +316,33 @@ fn written(tape: &Tape) -> Option<Value> {
                 let found = pool.iter_mut().find(|o| o.is_some_and(|o| o.get("id") == Some(id))).and_then(Option::take);
                 replies.push(found.cloned().unwrap_or_else(|| serde_json::json!({ "parity": "no reply", "id": id.to_string() })));
             }
-            (replies, tape.outs.iter().filter(|f| !answer_to(f)).cloned().collect())
+            // An answer no request of the tape names, as one to a frame sent as text is, reaches a replay as an event.
+            let events = tape.outs.iter().zip(&pool).filter(|(f, left)| !answer_to(f) || left.is_some()).map(|(f, _)| f.clone()).collect();
+            (replies, events)
         }
     };
-    Some(canonical(&replies, &events, &sent_by(tape, &Facts::default())))
+    Some(canonical(&replies, &events, &sent_by(tape, &stated(tape))))
+}
+
+/// What a spec example's answers state of the host it was recorded on, read as the replay reads its own host's: the
+/// version of its `auth` answer as `<version>`, so an example outlives the next bump of the TS tree, and the temp
+/// folder the recording ran in as `<tmp>`, as the spec checker's `normal()` does.
+fn stated(tape: &Tape) -> Facts {
+    let mut facts = Facts::default();
+    let auth_ids: Vec<&Value> =
+        tape.ins.iter().filter(|f| f.get("op").and_then(Value::as_str) == Some("auth")).filter_map(|f| f.get("id")).collect();
+    for out in &tape.outs {
+        if let (Some(id), Some(version)) = (out.get("id"), out.get("version").and_then(Value::as_str)) {
+            if auth_ids.contains(&id) {
+                facts.add(version, "<version>");
+            }
+        }
+    }
+    let temp = Regex::new(r"/tmp/wsp-tape-[A-Za-z0-9]+").expect("temp folder");
+    for folder in temp.find_iter(&Value::Array(tape.outs.clone()).to_string()) {
+        facts.add_folder(folder.as_str(), "<tmp>");
+    }
+    facts
 }
 
 fn replay_all(host: &dyn Host, tapes: &[Tape], opts: &Options) -> Vec<Result<Replay, String>> {

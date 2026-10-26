@@ -1,0 +1,41 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": "no project \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"; wsp add <folder> records one",
+      "kind": "not-found"
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "no project \"é😀 \"; wsp add <folder> records one",
+      "kind": "not-found"
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "no project \"a\\ud83db\\u0000\\t\\\"\"; wsp add <folder> records one",
+      "kind": "not-found"
+    },
+    {
+      "id": 5,
+      "ok": false,
+      "error": "no project \"\"; wsp add <folder> records one",
+      "kind": "not-found"
+    },
+    {
+      "id": 6,
+      "ok": false,
+      "error": "no project \" ﻿x \"; wsp add <folder> records one",
+      "kind": "not-found"
+    }
+  ],
+  "events": []
+}

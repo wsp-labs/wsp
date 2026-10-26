@@ -17,7 +17,8 @@ cargo xtask unit <unit>             # one unit held to its packet, then its test
 - `tapes/`: one JSON line a frame, `{"in": frame}` sent to the host and `{"out": frame}` sent by it, after an
   optional `{"meta": {"door": "ws" | "mcp" | "cli", "source": ..., "computer": ...}}`. `recorded/` comes from
   `collect`, `hand/` is written by hand. Every fenced `tape` block in `docs/rust-host-spec/*.md` is a tape too, and
-  the answers it writes down are held to the golden. A tape whose answers read the computer the host runs on (its
+  the answers it writes down are held to the golden, read as a replay reads its host's: its `auth` answer's version as `<version>`,
+  the `/tmp/wsp-tape-...` folder it was recorded in as `<tmp>`, and a time as `<time+5m in ms>` written out. A tape whose answers read the computer the host runs on (its
   tools, cores, user, node) names that computer in `computer`: a check elsewhere skips it and says so, and a record
   elsewhere leaves its golden alone unless `--move-here`.
 - `goldens/`: the TS host's answers to each tape, normalized; `KEY` is the TS tree's hash they were recorded at,

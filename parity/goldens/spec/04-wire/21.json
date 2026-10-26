@@ -1,0 +1,62 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": {
+        "json": [
+          {
+            "code": "too_small",
+            "minimum": 0,
+            "type": "number",
+            "inclusive": true,
+            "exact": false,
+            "message": "Number must be greater than or equal to 0",
+            "path": [
+              "after"
+            ]
+          }
+        ],
+        "layout": "indented"
+      }
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": {
+        "json": [
+          {
+            "code": "invalid_type",
+            "expected": "integer",
+            "received": "float",
+            "message": "Expected integer, received float",
+            "path": [
+              "after"
+            ]
+          }
+        ],
+        "layout": "indented"
+      }
+    },
+    {
+      "id": 4,
+      "ok": true,
+      "seq": 0,
+      "stream": "<uuid-1>"
+    },
+    {
+      "id": 5,
+      "ok": true,
+      "seq": 0,
+      "stream": "<uuid-1>",
+      "gap": true
+    }
+  ],
+  "events": []
+}

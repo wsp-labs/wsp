@@ -150,7 +150,7 @@ function normal(lines, dir) {
       s = s.replace(ISO, "<iso>");
       return key === "version" && /^\d+\.\d+\.\d+/.test(s) ? "<version>" : s;
     }
-    if (typeof key === "string" && /At$/.test(key) && Number.isInteger(v) && v > 1e12) return `<${key}>`;
+    if (typeof key === "string" && /At$/.test(key) && ((Number.isInteger(v) && v > 1e12) || /^<time[^>]* in ms>$/.test(v))) return `<${key}>`;
     if (Array.isArray(v)) return v.map(x => walk(x, key));
     if (v !== null && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x, k)]));
     return v;
