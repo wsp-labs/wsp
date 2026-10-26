@@ -62,7 +62,11 @@ pub fn took_the_resume(reads: Option<wsp_engine::machine::MachineState>) -> bool
 
 /// `readsState(machine)`: the provider's state bounded by `provider_read_ms` on the clock; `None` for a read that
 /// failed or ran out (spec C3).
-pub async fn reads_state(machine: &dyn wsp_engine::machine::Machine, clock: &Rc<dyn Clock>, provider_read_ms: u64) -> Option<wsp_engine::machine::MachineState> {
+pub async fn reads_state(
+    machine: &dyn wsp_engine::machine::Machine,
+    clock: &Rc<dyn Clock>,
+    provider_read_ms: u64,
+) -> Option<wsp_engine::machine::MachineState> {
     todo!()
 }
 
@@ -201,7 +205,14 @@ impl Core {
         todo!()
     }
     /// `threadLaunch(entry, threadId, rootThreadId, o)` (spec C6-C9).
-    pub async fn thread_launch(&self, workspace_id: &str, kind: WorkspaceKind, thread_id: &str, root_thread_id: &str, aside: bool) -> Result<ThreadLaunch, HostError> {
+    pub async fn thread_launch(
+        &self,
+        workspace_id: &str,
+        kind: WorkspaceKind,
+        thread_id: &str,
+        root_thread_id: &str,
+        aside: bool,
+    ) -> Result<ThreadLaunch, HostError> {
         todo!()
     }
     /// `wakeAt(threadId, until)` (spec C10).
@@ -276,4 +287,3 @@ impl Core {
         todo!()
     }
 }
-

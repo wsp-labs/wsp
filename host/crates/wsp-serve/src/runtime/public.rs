@@ -12,11 +12,11 @@ use wsp_core::types::api::{
 use wsp_core::types::events::EventBus;
 use wsp_core::types::internal::BuilderLife;
 use wsp_core::types::pending::{DaemonChannel, DeviceDoor};
+use wsp_core::types::wiring::{AdoptedMachine, SweepResult};
 use wsp_core::types::wiring::{Detach, OriginStatusApi, RecipeShelf, SysListener, UsageDoor};
 use wsp_engine::machine::MachineBackend;
-use wsp_frames::ProcKind;
-use wsp_core::types::wiring::{AdoptedMachine, SweepResult};
 use wsp_engine::orphans::{ListedMachine, ReapFailure, ReapResult, ReapedMachine};
+use wsp_frames::ProcKind;
 use wsp_wire::views::harness::HarnessCatalog;
 use wsp_wire::views::workspace::{Caller, WorkspacePhase};
 use wsp_words::exit::HostError;
@@ -85,9 +85,26 @@ pub trait PublicCtx {
     async fn adopt_gone(&self, workspace_id: &str, words: String) -> Result<(), HostError>;
     /// The ids something claims: every record's machine ids, the builders, the in-flight creates, the gone watch's.
     fn known_ids(&self) -> Vec<String>;
-    async fn adopt_lost(&self, place: &str, rows: &[ListedMachine], claimed: &mut Vec<String>, failed: &mut Vec<ReapFailure>) -> Result<(Vec<AdoptedMachine>, Vec<ReapedMachine>), HostError>;
-    async fn engine_reap(&self, place: &str, rows: Vec<ListedMachine>, known: Vec<String>, older_than_ms: Option<i64>) -> Result<ReapResult, HostError>;
-    async fn sweep_strays(&self, known: Vec<String>, failed: &mut Vec<ReapFailure>, places: &[String]) -> Result<Vec<ReapedMachine>, HostError>;
+    async fn adopt_lost(
+        &self,
+        place: &str,
+        rows: &[ListedMachine],
+        claimed: &mut Vec<String>,
+        failed: &mut Vec<ReapFailure>,
+    ) -> Result<(Vec<AdoptedMachine>, Vec<ReapedMachine>), HostError>;
+    async fn engine_reap(
+        &self,
+        place: &str,
+        rows: Vec<ListedMachine>,
+        known: Vec<String>,
+        older_than_ms: Option<i64>,
+    ) -> Result<ReapResult, HostError>;
+    async fn sweep_strays(
+        &self,
+        known: Vec<String>,
+        failed: &mut Vec<ReapFailure>,
+        places: &[String],
+    ) -> Result<Vec<ReapedMachine>, HostError>;
     /// The close's steps, each named by the TS member it runs (spec U16), in the order `close` calls them.
     async fn close_step(&self, step: CloseStep) -> Result<(), HostError>;
     /// Thread ids of the kept agents, for the close's wait.
@@ -168,25 +185,42 @@ pub trait HarnessesCtx {
     async fn agent_lists(&self, entry: Option<&(String, String)>) -> Result<Vec<HarnessCatalog>, HostError>;
     fn default_agent_of(&self, prefs: &wsp_wire::views::preferences::Preferences, entry: Option<&(String, String)>) -> String;
     /// `defaultsOn(c, prefs, project).catalog` then `shapeModels(.., own.models)`.
-    fn shaped(&self, catalog: &HarnessCatalog, prefs: &wsp_wire::views::preferences::Preferences, project: Option<&str>) -> serde_json::Map<String, serde_json::Value>;
+    fn shaped(
+        &self,
+        catalog: &HarnessCatalog,
+        prefs: &wsp_wire::views::preferences::Preferences,
+        project: Option<&str>,
+    ) -> serde_json::Map<String, serde_json::Value>;
 }
 
 /// `harnesses.list(workspaceId, origin, at)` (spec U7): each catalog as a JSON object in the TS's key order.
-pub async fn harnesses_list(ctx: &dyn HarnessesCtx, workspace_id: Option<String>, origin: Option<Caller>, at: Option<CatalogAt>) -> Result<Vec<serde_json::Map<String, serde_json::Value>>, HostError> {
+pub async fn harnesses_list(
+    ctx: &dyn HarnessesCtx,
+    workspace_id: Option<String>,
+    origin: Option<Caller>,
+    at: Option<CatalogAt>,
+) -> Result<Vec<serde_json::Map<String, serde_json::Value>>, HostError> {
     todo!()
 }
 
 /// What `status.list` and `status.history` read (spec U5-U6).
 #[async_trait(?Send)]
 pub trait StatusCtx {
-    async fn probe_list(&self, o: Option<wsp_core::status::StatusListOptions>) -> Result<Vec<wsp_wire::views::workspace_more::WorkspaceStatus>, HostError>;
+    async fn probe_list(
+        &self,
+        o: Option<wsp_core::status::StatusListOptions>,
+    ) -> Result<Vec<wsp_wire::views::workspace_more::WorkspaceStatus>, HostError>;
     fn listed_for(&self, origin: Option<&Caller>) -> Vec<String>;
     fn refuse_named(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<(), HostError>;
     async fn history(&self, workspace_id: &str) -> Result<Vec<serde_json::Value>, HostError>;
 }
 
 /// `status.list(o, origin)` with the caller's rows read after the probes (spec U5).
-pub async fn status_list(ctx: &dyn StatusCtx, o: Option<wsp_core::status::StatusListOptions>, origin: Option<Caller>) -> Result<Vec<wsp_wire::views::workspace_more::WorkspaceStatus>, HostError> {
+pub async fn status_list(
+    ctx: &dyn StatusCtx,
+    o: Option<wsp_core::status::StatusListOptions>,
+    origin: Option<Caller>,
+) -> Result<Vec<wsp_wire::views::workspace_more::WorkspaceStatus>, HostError> {
     todo!()
 }
 
@@ -203,7 +237,6 @@ pub const NO_SAMPLES_HERE: &str = "this host reads nothing of the computer it ru
 pub struct AssembledRuntime {
     pub(crate) core: Rc<super::core::Core>,
 }
-
 
 #[async_trait(?Send)]
 impl wsp_core::types::api::Runtime for AssembledRuntime {

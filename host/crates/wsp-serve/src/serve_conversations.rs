@@ -14,6 +14,10 @@ pub fn is_conversations_request(msg: &RuntimeRequest) -> bool {
 }
 
 /// `answerConversations(conversations, msg, origin)`. serve-conversations.ts:10-17.
-pub async fn answer_conversations(conversations: &dyn ConversationsApi, msg: &RuntimeRequest, origin: Option<Caller>) -> Result<Payload, HostError> {
+pub async fn answer_conversations(
+    conversations: &dyn ConversationsApi,
+    msg: &RuntimeRequest,
+    origin: Option<Caller>,
+) -> Result<Payload, HostError> {
     todo!()
 }
