@@ -143,6 +143,6 @@ pub fn start_seeded(
     )?;
     let local = first.core.local_id();
     let session = CodexSession { core: Arc::new(LostSession { first, now, finished }) };
-    sessions.lock().unwrap().insert(local, session.clone());
+    crate::codex::turn::register(sessions, local, &session);
     Ok(session)
 }

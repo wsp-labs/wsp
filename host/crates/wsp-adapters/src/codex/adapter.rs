@@ -335,7 +335,7 @@ impl CodexAdapter {
 
     /// A snapshot of the sessions map, in registration order.
     pub fn sessions(&self) -> IndexMap<String, CodexSession> {
-        self.sessions.lock().unwrap().clone()
+        crate::codex::turn::live(&self.sessions)
     }
     /// The turn's environment. TS adapter.ts:1452.
     pub fn env(&self) -> Env {
