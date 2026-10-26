@@ -32,7 +32,7 @@ pub struct KeptBox {
 }
 
 /// A kept process's stamped session file size, read on its joined computer.
-type BoxRead = Shared<LocalBoxFuture<'static, Option<u64>>>;
+type BoxRead = Shared<LocalBoxFuture<'static, Option<i64>>>;
 
 const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 
@@ -180,8 +180,7 @@ impl ThreadsArea {
     }
     /// The size read on the joined computer, started now and read later; the read runs even if nothing waits on it.
     fn start_box_read(&self, workspace_id: &str, at: &SessionFile) -> BoxRead {
-        // The size is an i64 (-1 where no file was found) carried in wsp-core's u64 field; the cast round-trips.
-        let read: BoxRead = self.box_file_size(workspace_id, at).map(|size| size.map(|n| n as u64)).boxed_local().shared();
+        let read: BoxRead = self.box_file_size(workspace_id, at).shared();
         self.ctx.spawn(unit(read.clone()));
         read
     }
@@ -215,7 +214,7 @@ impl ThreadsArea {
             return;
         };
         let (was, now) = join(was, self.box_file_size(&workspace_id, &at)).await;
-        if let (Some(was), Some(now)) = (was.map(|n| n as i64), now) {
+        if let (Some(was), Some(now)) = (was, now) {
             if was != now && self.is_kept(thread_id, &kept) {
                 self.reap_kept(thread_id, false);
             }

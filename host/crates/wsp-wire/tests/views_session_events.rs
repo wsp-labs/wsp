@@ -17,11 +17,11 @@ fn names_the_wsp_command_in_a_bundle_by_one_rule_which_a_fork_and_a_joined_compu
 // last; the schema lists it after `line`. The bytes of the event are the same either way.
 #[test]
 fn a_stored_event_s_head_writes_cut_last() {
-    let text = r#"{"type":"session.delta","workspaceId":"w","sessionId":"s","kind":"tool_result","text":"abc","toolUseId":"t","line":2,"cut":9000,"bytes":9000,"exitCode":0}"#;
+    let text = r#"{"type":"session.delta","workspaceId":"w","sessionId":"s","line":2,"kind":"tool_result","text":"abc","toolUseId":"t","cut":9000,"exitCode":0,"bytes":9000}"#;
     let input: Value = serde_json::from_str(text).unwrap();
     let event = parse::<SessionEvent>(&input).unwrap();
     let written = head_text(&event).unwrap();
-    let want = r#"{"type":"session.delta","workspaceId":"w","sessionId":"s","kind":"tool_result","text":"abc","toolUseId":"t","line":2,"bytes":9000,"exitCode":0,"cut":9000}"#;
+    let want = r#"{"type":"session.delta","workspaceId":"w","sessionId":"s","line":2,"kind":"tool_result","text":"abc","toolUseId":"t","exitCode":0,"bytes":9000,"cut":9000}"#;
     assert_eq!(written, want);
     assert_eq!(written.len(), text.len());
 }

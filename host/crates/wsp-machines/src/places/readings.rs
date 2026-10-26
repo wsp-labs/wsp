@@ -221,7 +221,7 @@ impl PlaceReadings {
                 said
             };
             let answer = asking.boxed_local().shared();
-            crate::local_task::spawn(answer.clone());
+            wsp_engine::local_task::try_spawn_local(answer.clone());
             answer
         };
         *w.asked.borrow_mut() = Some(Asked {
@@ -268,7 +268,7 @@ impl PlaceReadings {
         }
         if self.unwatches(place_id) {
             let on = asked.on;
-            crate::local_task::spawn(async move {
+            wsp_engine::local_task::try_spawn_local(async move {
                 let _ = on.request("sys.unwatch", Map::new()).await;
             });
         } else {

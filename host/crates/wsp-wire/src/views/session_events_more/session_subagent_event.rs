@@ -17,6 +17,8 @@ pub struct SessionSubagentEvent {
     pub pos: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub copied_from: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    pub line: Option<JsInt>,
     pub task: String,
     pub state: SubagentState,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
@@ -33,8 +35,6 @@ pub struct SessionSubagentEvent {
     pub asked: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub usage: Option<SubagentUsage>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub line: Option<JsInt>,
 }
 impl SessionSubagentEvent {
     /// The `type` key's value: the enum holding this struct writes and reads it as its tag.
@@ -227,11 +227,11 @@ pub struct SessionCompactedEvent {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub copied_from: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    pub line: Option<JsInt>,
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub before: Option<JsNumber>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub after: Option<JsNumber>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub line: Option<JsInt>,
 }
 impl SessionCompactedEvent {
     /// The `type` key's value: the enum holding this struct writes and reads it as its tag.
@@ -317,13 +317,13 @@ pub struct SessionRetryEvent {
     pub pos: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub copied_from: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
+    pub line: Option<JsInt>,
     pub attempt: JsInt,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub of: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub why: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub line: Option<JsInt>,
 }
 impl SessionRetryEvent {
     /// The `type` key's value: the enum holding this struct writes and reads it as its tag.

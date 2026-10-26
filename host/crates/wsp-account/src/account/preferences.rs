@@ -20,9 +20,9 @@ use wsp_wire::views::preferences::{
     apply_preferences_patch, labs_from_env, preferences_from, server_icons_left_line, Preferences, PreferencesPatch,
 };
 use wsp_wire::views::workspace::Caller;
-use wsp_words::exit::{refusal_parts, HostError, Kind};
+use wsp_words::exit::{HostError, Kind};
 use wsp_words::projects::{bare_no_such_project_line, home_shortened};
-use wsp_words::thread_defaults::access_word_refusal;
+use wsp_words::thread_defaults::{access_refusal, model_id_refusal};
 use wsp_words::words::thread::no_adapter_line;
 use wsp_words::workspace_state::absent_computer;
 
@@ -157,22 +157,6 @@ pub struct PreferencesArea {
 /// The one throw the defaults refuse with (preferences.ts:36).
 fn usage(line: &str) -> HostError {
     HostError::with_kind(line, Kind::Usage)
-}
-
-/// `modelIdRefusal(id)` (thread-defaults.ts:258): why an id typed by hand is no model id.
-fn model_id_refusal(id: &str) -> Option<String> {
-    if id.is_empty() {
-        return Some("A model id cannot be empty".to_string());
-    }
-    if id.chars().any(char::is_whitespace) {
-        return Some("No model id has a space in it".to_string());
-    }
-    if id.starts_with('-') {
-        return Some("No model id starts with \"-\"".to_string());
-    }
-    let plain = |c: char| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | ':' | '/' | '@' | '+' | '[' | ']');
-    let odd = id.chars().find(|c| !plain(*c))?;
-    Some(format!("No model id has {} in it", serde_json::to_string(&odd.to_string()).unwrap_or_default()))
 }
 
 /// The harness's catalog as `accessRefusal` reads it: the table's own keys over the fields a catalog must carry.
@@ -318,11 +302,8 @@ impl PreferencesArea {
         };
         let table = self.ctx.access_table(agent);
         let catalog = catalog_of(agent, &table.table)?;
-        match access_word_refusal(&catalog, word) {
-            Some(refused) => {
-                let said = refusal_parts(&refused).said;
-                Err(usage(said.strip_suffix('.').unwrap_or(said.as_str())))
-            }
+        match access_refusal(&catalog, word) {
+            Some(said) => Err(usage(&said)),
             None => Ok(()),
         }
     }

@@ -545,7 +545,7 @@ impl PlaceRecordsArea {
                 {
                     if let Some(area) = self.me.upgrade() {
                         let id = row.id.clone();
-                        crate::local_task::spawn(async move {
+                        wsp_engine::local_task::try_spawn_local(async move {
                             match backend.place_limits().await.ok().flatten() {
                                 None => {
                                     area.limits_kept.borrow_mut().shift_remove(&id);
@@ -823,7 +823,7 @@ impl PlaceRecordsArea {
             };
             let ids: Vec<String> = area.ctx.kept.borrow().keys().cloned().collect();
             let ssh = ssh.clone();
-            crate::local_task::spawn(async move {
+            wsp_engine::local_task::try_spawn_local(async move {
                 for id in ids {
                     let (ssh, to) = (ssh.clone(), to.clone());
                     let _ = area
@@ -857,7 +857,7 @@ impl PlaceRecordsArea {
         // The TS calls `hold` at once and runs its body up to the first await; the rest goes on as a task.
         let mut cx = std::task::Context::from_waker(futures::task::noop_waker_ref());
         if hold.as_mut().poll(&mut cx).is_pending() {
-            crate::local_task::spawn(hold);
+            wsp_engine::local_task::try_spawn_local(hold);
         }
     }
 

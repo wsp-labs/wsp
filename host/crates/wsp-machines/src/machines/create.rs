@@ -216,7 +216,7 @@ fn start_join<T: Clone + 'static>(
     let mut first = join.clone();
     let _ = (&mut first).now_or_never();
     let keep = join.clone();
-    crate::local_task::spawn(async move {
+    wsp_engine::local_task::try_spawn_local(async move {
         let _ = keep.await;
     });
     join

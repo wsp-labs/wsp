@@ -501,6 +501,10 @@ pub enum Attached {
 /// How a turn's process is launched. TS adapter-port.ts:300.
 pub trait ExecStreamFactory {
     fn launch(&self, command: &str, options: ExecOptions) -> Arc<dyn ExecStream>;
+    /// Whether `attach` answers (the TS `attach !== undefined`), read without asking anything of a machine.
+    fn attaches(&self) -> bool {
+        false
+    }
     /// `None` where runs die with their host (TS `attach` absent).
     fn attach(&self, run: &str, options: AttachRunOptions) -> Option<LocalBoxFuture<'static, Result<Attached, ExecFailure>>> {
         let _ = (run, options);
@@ -869,6 +873,10 @@ pub trait HarnessSession {
     fn tells_unread(&self) -> Option<bool> {
         None
     }
+    /// Whether `answer` answers (the TS `started.answer !== undefined`), readable without answering anything.
+    fn answers(&self) -> bool {
+        false
+    }
     fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<LocalBoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
         let _ = (ask_id, answer);
         None
@@ -942,6 +950,14 @@ pub trait HarnessAdapter {
         let _ = version;
         None
     }
+    /// Whether `attach` answers: the TS `adapter.attach !== undefined`, readable without asking a machine anything.
+    fn attaches(&self) -> bool {
+        false
+    }
+    /// Whether `session_held` answers: the TS `adapter.sessionHeld !== undefined`.
+    fn holds_session(&self) -> bool {
+        false
+    }
     fn attach(
         &self,
         options: AdapterAttachOptions,
@@ -951,6 +967,14 @@ pub trait HarnessAdapter {
     }
     fn steers(&self) -> bool;
     fn reports_edits(&self) -> bool {
+        false
+    }
+    /// Whether `revert` answers: the TS `adapter.revert !== undefined`, readable without starting any work.
+    fn reverts(&self) -> bool {
+        false
+    }
+    /// Whether `fork_session` answers: the TS `adapter.forkSession !== undefined`, readable without starting any work.
+    fn forks(&self) -> bool {
         false
     }
     fn revert(&self, ask: RevertAsk) -> Option<LocalBoxFuture<'static, Result<Reverted, String>>> {

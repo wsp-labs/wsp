@@ -344,6 +344,13 @@ fn a_guest_tmp_path_is_the_folder_without_trailing_slashes_the_name_the_clock_an
     assert!(guest_tmp_path("x", None).starts_with("/tmp/x-"));
 }
 
+// vault.ts:177 with the clock and `Math.random()` handed in: node's `(0.123456789).toString(36).slice(2, 8)` is "4fzzzx".
+#[test]
+fn a_guest_tmp_path_at_names_the_clock_and_the_draw_it_is_given() {
+    assert_eq!(guest_tmp_path_at("wsp-state", None, 1_700_000_000_000, 0.123456789), "/tmp/wsp-state-1700000000000-4fzzzx");
+    assert_eq!(guest_tmp_path_at("x", Some("/a//"), 5, 0.987654321), "/a/x-5-zk0000");
+}
+
 struct OkFetch;
 
 #[async_trait(?Send)]

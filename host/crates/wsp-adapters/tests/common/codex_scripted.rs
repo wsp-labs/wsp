@@ -175,6 +175,9 @@ impl ExecStreamFactory for ScriptedExec {
         self.calls.lock().unwrap().push(Call { command: command.to_string(), env: options.env.clone(), input: options.input.clone() });
         self.stream()
     }
+    fn attaches(&self) -> bool {
+        *self.attach_ok.lock().unwrap()
+    }
     fn attach(&self, run: &str, options: AttachRunOptions) -> Option<LocalBoxFuture<'static, Result<Attached, ExecFailure>>> {
         if !*self.attach_ok.lock().unwrap() {
             return None;

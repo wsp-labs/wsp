@@ -481,6 +481,26 @@ fn hold_kept_reads_the_file_size_on_a_joined_computer() {
     });
 }
 
+// threads.ts:138-148: the size read answers -1 where the agent has written no file there yet, and the check compares it as a number.
+#[test]
+fn the_size_of_a_file_not_there_yet_is_kept_as_minus_one_and_a_file_that_appears_reaps_it() {
+    local(async {
+        let (_ctx, area, machine) = host(&["t1"]);
+        machine.answer("wc -c", 0, "-1");
+        let (h, _a) = hand("wsb", Some(file()), None);
+        assert!(area.hold_kept("t1", h).is_none());
+        settle().await;
+        let kept = area.kept_agents.borrow().get("t1").cloned().expect("kept");
+        assert_eq!(kept.borrow().box_file.clone().expect("read there").now_or_never(), Some(Some(-1)));
+        area.kept_check("t1").await;
+        assert_eq!(kept_ids(&area), vec!["t1"], "no file then and none now is no change");
+        machine.rules.borrow_mut().clear();
+        machine.answer("wc -c", 0, "42");
+        area.kept_check("t1").await;
+        assert!(kept_ids(&area).is_empty(), "the file appeared there");
+    });
+}
+
 #[test]
 fn hold_warm_keeps_two_unclaimed_and_reaps_the_oldest() {
     local(async {

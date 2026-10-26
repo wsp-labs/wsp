@@ -766,10 +766,21 @@ pub fn import_report() -> (Rc<RefCell<Vec<(String, String)>>>, ImportReport) {
     let keep = seen.clone();
     let report: ImportReport = Rc::new(
         move |stage: ProjectImportStage, line: &str, _: Option<(u64, u64)>| {
-            keep.borrow_mut().push((word_of(&stage), line.to_string()))
+            keep.borrow_mut().push((word_of(&stage), line.to_string()));
+            Ok(())
         },
     );
     (seen, report)
+}
+
+/// An import report whose bus listener throws at every stage: the TS's `report` throws and the import stops there.
+pub fn import_report_refused(said: &str) -> ImportReport {
+    let said = said.to_string();
+    Rc::new(
+        move |_: ProjectImportStage, _: &str, _: Option<(u64, u64)>| {
+            Err(HostError::new(said.clone()))
+        },
+    )
 }
 
 /// A number as a result carries it.

@@ -531,12 +531,6 @@ impl ActivityCtx for FakeHost {
 
 #[async_trait(?Send)]
 impl TurnsCtx for FakeHost {
-    fn session_answers(&self, session: &dyn HarnessSession) -> bool {
-        if let Some(hook) = self.hooks.get::<dyn Fn(&dyn HarnessSession) -> bool>("TurnsCtx::session_answers") {
-            return hook(session);
-        }
-        true
-    }
     fn clock(&self) -> Rc<dyn Clock> {
         if let Some(hook) = self.hooks.get::<dyn Fn() -> Rc<dyn Clock>>("TurnsCtx::clock") {
             return hook();

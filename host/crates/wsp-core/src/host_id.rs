@@ -34,6 +34,7 @@ fn home_dir() -> String {
     if let Some(home) = std::env::var_os("HOME") {
         return home.to_string_lossy().into_owned();
     }
+    // SAFETY: every field of `libc::passwd` is an integer or a pointer, so all zero bits are a valid value.
     let mut entry: libc::passwd = unsafe { std::mem::zeroed() };
     let mut found: *mut libc::passwd = std::ptr::null_mut();
     let mut buf = vec![0u8; 4096];

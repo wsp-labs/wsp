@@ -39,6 +39,7 @@ fn reporter() -> (ImportReport, Said) {
     let sink = said.clone();
     let report: ImportReport = Rc::new(move |stage, message, progress| {
         sink.borrow_mut().push((serde_json::to_value(stage).unwrap().as_str().unwrap().to_owned(), message.to_owned(), progress));
+        Ok(())
     });
     (report, said)
 }
@@ -957,5 +958,29 @@ fn export_asks_the_machine_nothing_when_no_agent_has_a_home() {
         assert!(result.agents.is_empty());
         assert_eq!(fake.base.args_of("lander_land")[0]["state"], Value::Null);
         scratch_is_gone(&fake);
+    });
+}
+
+// projects.ts:482-517: a `report` that throws stops the import at that stage, and its error is the answer.
+#[test]
+fn a_report_that_fails_stops_the_copy_import_at_its_stage() {
+    run(async {
+        let (fake, area, entry) = rig();
+        fake.base.answer_with("provider_row", vec![json!(false)]);
+        let bundler = FakeBundler::new(&fake.base, plan_of(secrets(vec![]), vec![], &[], true));
+        let stages: Rc<RefCell<Vec<String>>> = Rc::default();
+        let seen = stages.clone();
+        let report: ImportReport = Rc::new(move |stage, _message, _progress| {
+            let word = serde_json::to_value(stage).unwrap().as_str().unwrap().to_owned();
+            seen.borrow_mut().push(word.clone());
+            if word == "packing" {
+                return Err(wsp_words::exit::HostError::new("the bus refused packing"));
+            }
+            Ok(())
+        });
+        let err = area.copy_import(&entry, import_opts(&bundler, "/root/proj", &[], &[], &[]), report).await.unwrap_err();
+        assert_eq!(err.message, "the bus refused packing");
+        assert_eq!(*stages.borrow(), ["planned", "consented", "packing"]);
+        assert!(fake.base.names_of(&["land_bundle"]).is_empty(), "nothing was sent");
     });
 }

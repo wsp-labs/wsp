@@ -205,7 +205,7 @@ impl SessionsArea {
         if let (Some(why), false) = (uncut.as_deref(), files) {
             return Err(conflict(&if shared { REWIND_SHARED_LINE.to_string() } else { rewind_kept_line(why, false) }));
         }
-        let (has_revert, has_fork) = (ctx.adapter_reverts(adapter.as_ref()), ctx.adapter_forks(adapter.as_ref()));
+        let (has_revert, has_fork) = (adapter.reverts(), adapter.forks());
         let copies = !has_revert && has_fork;
         let cuts_conversation = (copies || has_revert) && uncut.is_none();
         if copies && kept_anchor.is_none() {

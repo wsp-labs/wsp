@@ -167,7 +167,8 @@ const tagOf = (s, name) => {
 };
 
 // Types whose Rust struct follows the order the TS code writes (gen.mjs ORDER), not zod's: compared as values.
-const ANY_ORDER = new Set(["views/preferences:Preferences", "views/preferences:PreferencesChangedEvent", "views/preferences:PreferencesStored", "views/harness:HarnessCatalog"]);
+const ANY_ORDER = new Set(["views/preferences:Preferences", "views/preferences:PreferencesChangedEvent", "views/preferences:PreferencesStored", "views/harness:HarnessCatalog", "views/session-events:SessionCompactedEvent", "views/session-events:SessionDeltaEvent", "views/session-events:SessionEvent", "views/session-events:SessionNotifyEvent", "views/session-events:SessionRetryEvent", "views/session-events:SessionStartEvent", "views/session-events:SessionSubagentEvent", "views/snapshot-lineage:WorkspaceCreateResult", "views/workspace:WorkspaceView", "views/workspace-events:WorkspaceCreatedEvent"]);
+// The last ten are written by the host in the order its own code builds them (records.ts:51-57, turns.ts:317-565), not zod's.
 // The same for the cases of a type where the order differs; its other cases write in zod's.
 const ANY_ORDER_CASES = { "agents-report:AgentsReport": ["full"], "agents-report:PluginRow": ["full", "nulls"] };
 

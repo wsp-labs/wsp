@@ -15,9 +15,9 @@ use wsp_core::context::Joined;
 use wsp_core::types::internal::{KeptLaunch, TurnWritten};
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_wire::types::attachments::AttachmentRecord;
-use wsp_wire::types::usage::{AccountsAnswer, HarnessLimit, UsageTokens};
+use wsp_wire::types::usage::{AccountsAnswer, HarnessLimit};
 use wsp_wire::views::session::SessionView;
-use wsp_wire::views::session_events::TurnResult;
+use wsp_wire::views::session_events::{TurnResult, TurnTokens};
 use wsp_wire::views::session_events_more::SessionEvent;
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
 use wsp_wire::wire::events_union::EventUnion;
@@ -105,7 +105,8 @@ pub struct LedgerUse {
     pub project: String,
     pub turns: u32,
     pub model: Option<String>,
-    pub tokens: Option<UsageTokens>,
+    /// As the turn's result carried them: a split the agent left out stays out (`Partial<TurnTokens>`).
+    pub tokens: Option<TurnTokens>,
     pub cost_usd: Option<f64>,
     pub session: Option<String>,
     /// Always `"wsp"`.
@@ -143,8 +144,6 @@ pub type Sweep = Box<dyn FnOnce(Vec<String>) -> LocalBoxFuture<'static, Result<V
 /// What the turns area reads of the runtime.
 #[async_trait(?Send)]
 pub trait TurnsCtx {
-    /// Whether the session has an answer road (TS `started.answer !== undefined`): the port answers only by a call.
-    fn session_answers(&self, session: &dyn HarnessSession) -> bool;
     fn clock(&self) -> Rc<dyn Clock>;
     fn sessions(&self) -> Sessions;
     fn records(&self) -> ThreadRecords;
