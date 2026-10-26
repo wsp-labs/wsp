@@ -6,7 +6,7 @@ import { Section } from "@/components/section";
 import { REPO } from "@/links";
 
 export const LEGAL_EMAIL = "aditya@usewsp.com";
-export const LEGAL_UPDATED = "9 October 2026";
+export const LEGAL_UPDATED = "27 October 2026";
 const MAIL = <a href={`mailto:${LEGAL_EMAIL}`}>{LEGAL_EMAIL}</a>;
 const REPORT = `${REPO}/security/advisories/new`;
 
@@ -38,7 +38,7 @@ export function Privacy() {
       <h2>This website</h2>
       <ul>
         <li>usewsp.com is served by Cloudflare, which sees each request (address, browser, page) as any host does.</li>
-        <li>PostHog counts visits in its cookieless mode: page views, clicks and the page you came from, processed in PostHog's EU cloud. Nothing is stored in your browser, and usewsp.com sets no cookies.</li>
+        <li>PostHog counts visits in its cookieless mode: page views, clicks, the page you came from and the country your visit came from, processed in PostHog's EU cloud. Cloudflare reads the country from your request, so PostHog never gets your address. Nothing is stored in your browser, and usewsp.com sets no cookies.</li>
         <li>If you join the Windows waitlist, your email goes to Resend. We keep it until we announce Windows, then delete it. Ask and we remove it sooner.</li>
         <li>The docs are hosted by Scalar, which may set one cookie the docs need to work.</li>
       </ul>
