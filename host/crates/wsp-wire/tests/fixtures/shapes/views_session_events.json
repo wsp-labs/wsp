@@ -1170,7 +1170,8 @@
   "tag": {
    "key": "type",
    "value": "session.compacted"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionCompactedEvent",
@@ -1184,7 +1185,8 @@
   "tag": {
    "key": "type",
    "value": "session.compacted"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionCompactedEvent",
@@ -1206,7 +1208,8 @@
   "tag": {
    "key": "type",
    "value": "session.compacted"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionCompactedEvent",
@@ -1498,7 +1501,8 @@
   "tag": {
    "key": "type",
    "value": "session.delta"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionDeltaEvent",
@@ -1514,7 +1518,8 @@
   "tag": {
    "key": "type",
    "value": "session.delta"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionDeltaEvent",
@@ -1548,7 +1553,8 @@
   "tag": {
    "key": "type",
    "value": "session.delta"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionDeltaEvent",
@@ -2826,7 +2832,8 @@
    "ms": 7,
    "said": "text é"
   },
-  "output": "{\"type\":\"thread.waited\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"ms\":7,\"said\":\"text é\"}"
+  "output": "{\"type\":\"thread.waited\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"ms\":7,\"said\":\"text é\"}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -2836,7 +2843,8 @@
    "workspaceId": "s",
    "sessionId": "s"
   },
-  "output": "{\"type\":\"session.start\",\"workspaceId\":\"s\",\"sessionId\":\"s\"}"
+  "output": "{\"type\":\"session.start\",\"workspaceId\":\"s\",\"sessionId\":\"s\"}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -2882,7 +2890,8 @@
     ]
    }
   },
-  "output": "{\"type\":\"session.start\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"prompt\":\"text é\",\"attachments\":[{\"mediaType\":\"text é\",\"bytes\":7,\"name\":\"text é\"}],\"requestId\":\"text é\",\"via\":\"slate\",\"afterCut\":true,\"afterLimit\":2.5,\"opensThread\":true,\"startedBy\":\"agent\",\"model\":\"text é\",\"cwd\":\"text é\",\"permissionMode\":\"text é\",\"effort\":\"text é\",\"agent\":\"text é\",\"tools\":[\"text é\"],\"harness\":{\"slashCommands\":[\"text é\"],\"permissionMode\":\"text é\",\"agents\":[\"text é\"]}}"
+  "output": "{\"type\":\"session.start\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"prompt\":\"text é\",\"attachments\":[{\"mediaType\":\"text é\",\"bytes\":7,\"name\":\"text é\"}],\"requestId\":\"text é\",\"via\":\"slate\",\"afterCut\":true,\"afterLimit\":2.5,\"opensThread\":true,\"startedBy\":\"agent\",\"model\":\"text é\",\"cwd\":\"text é\",\"permissionMode\":\"text é\",\"effort\":\"text é\",\"agent\":\"text é\",\"tools\":[\"text é\"],\"harness\":{\"slashCommands\":[\"text é\"],\"permissionMode\":\"text é\",\"agents\":[\"text é\"]}}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -2918,7 +2927,8 @@
    ],
    "patchCut": true
   },
-  "output": "{\"type\":\"session.delta\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"kind\":\"tool_result\",\"text\":\"text é\",\"messageId\":\"text é\",\"toolName\":\"text é\",\"toolUseId\":\"text é\",\"isError\":true,\"parentToolUseId\":\"text é\",\"cwd\":\"text é\",\"line\":7,\"cut\":7,\"bytes\":7,\"exitCode\":7,\"durationMs\":2.5,\"patch\":[{\"path\":\"text é\",\"hunks\":[],\"movedTo\":\"text é\"}],\"patchCut\":true}"
+  "output": "{\"type\":\"session.delta\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"kind\":\"tool_result\",\"text\":\"text é\",\"messageId\":\"text é\",\"toolName\":\"text é\",\"toolUseId\":\"text é\",\"isError\":true,\"parentToolUseId\":\"text é\",\"cwd\":\"text é\",\"line\":7,\"cut\":7,\"bytes\":7,\"exitCode\":7,\"durationMs\":2.5,\"patch\":[{\"path\":\"text é\",\"hunks\":[],\"movedTo\":\"text é\"}],\"patchCut\":true}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -2968,7 +2978,8 @@
     }
    }
   },
-  "output": "{\"type\":\"session.done\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"result\":{\"status\":\"failed\",\"durationMs\":2.5,\"waitedMs\":2.5,\"costUsd\":2.5,\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5,\"context\":2.5,\"window\":2.5},\"model\":\"text é\",\"models\":[{\"model\":\"text é\",\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5}}],\"text\":\"text é\",\"error\":\"text é\",\"unreached\":true,\"refusal\":\"sign-in\",\"limit\":{\"resetsAt\":2.5}}}"
+  "output": "{\"type\":\"session.done\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"result\":{\"status\":\"failed\",\"durationMs\":2.5,\"waitedMs\":2.5,\"costUsd\":2.5,\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5,\"context\":2.5,\"window\":2.5},\"model\":\"text é\",\"models\":[{\"model\":\"text é\",\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5}}],\"text\":\"text é\",\"error\":\"text é\",\"unreached\":true,\"refusal\":\"sign-in\",\"limit\":{\"resetsAt\":2.5}}}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -2989,7 +3000,8 @@
    "prompt": "text é",
    "promptless": true
   },
-  "output": "{\"type\":\"session.end\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"exitCode\":2.5,\"sawResult\":true,\"reason\":\"text é\",\"unstarted\":true,\"prompt\":\"text é\",\"promptless\":true}"
+  "output": "{\"type\":\"session.end\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"exitCode\":2.5,\"sawResult\":true,\"reason\":\"text é\",\"unstarted\":true,\"prompt\":\"text é\",\"promptless\":true}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3015,7 +3027,8 @@
    "via": "slate",
    "waiting": true
   },
-  "output": "{\"type\":\"session.steer\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"prompt\":\"text é\",\"attachments\":[{\"mediaType\":\"text é\",\"bytes\":7,\"name\":\"text é\"}],\"requestId\":\"text é\",\"via\":\"slate\",\"waiting\":true}"
+  "output": "{\"type\":\"session.steer\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"prompt\":\"text é\",\"attachments\":[{\"mediaType\":\"text é\",\"bytes\":7,\"name\":\"text é\"}],\"requestId\":\"text é\",\"via\":\"slate\",\"waiting\":true}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3032,7 +3045,8 @@
    "notify": "text é",
    "text": "text é"
   },
-  "output": "{\"type\":\"session.notify\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"notify\":\"text é\",\"text\":\"text é\"}"
+  "output": "{\"type\":\"session.notify\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"notify\":\"text é\",\"text\":\"text é\"}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3061,7 +3075,8 @@
     }
    ]
   },
-  "output": "{\"type\":\"session.permission\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"askId\":\"text é\",\"toolName\":\"text é\",\"toolUseId\":\"text é\",\"parentToolUseId\":\"text é\",\"input\":\"text é\",\"detail\":\"text é\",\"options\":[{\"id\":\"text é\",\"label\":\"text é\",\"effect\":\"answer\",\"mode\":\"text é\"}]}"
+  "output": "{\"type\":\"session.permission\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"askId\":\"text é\",\"toolName\":\"text é\",\"toolUseId\":\"text é\",\"parentToolUseId\":\"text é\",\"input\":\"text é\",\"detail\":\"text é\",\"options\":[{\"id\":\"text é\",\"label\":\"text é\",\"effect\":\"answer\",\"mode\":\"text é\"}]}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3079,7 +3094,8 @@
    "outcome": "cancelled",
    "optionId": "text é"
   },
-  "output": "{\"type\":\"session.permission.closed\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"askId\":\"text é\",\"outcome\":\"cancelled\",\"optionId\":\"text é\"}"
+  "output": "{\"type\":\"session.permission.closed\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"askId\":\"text é\",\"outcome\":\"cancelled\",\"optionId\":\"text é\"}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3098,7 +3114,8 @@
    "anchor": "text é",
    "kept": "text é"
   },
-  "output": "{\"type\":\"session.checkpoint\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"ref\":\"text é\",\"based\":true,\"anchor\":\"text é\",\"kept\":\"text é\"}"
+  "output": "{\"type\":\"session.checkpoint\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"ref\":\"text é\",\"based\":true,\"anchor\":\"text é\",\"kept\":\"text é\"}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3135,7 +3152,8 @@
     }
    ]
   },
-  "output": "{\"type\":\"session.changes\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"from\":\"text é\",\"to\":\"text é\",\"files\":[{\"path\":\"text é\",\"kind\":\"text é\",\"additions\":2.5,\"deletions\":2.5}],\"moved\":[\"text é\"],\"shared\":true,\"others\":[{\"path\":\"text é\",\"kind\":\"text é\",\"additions\":2.5,\"deletions\":2.5}]}"
+  "output": "{\"type\":\"session.changes\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"from\":\"text é\",\"to\":\"text é\",\"files\":[{\"path\":\"text é\",\"kind\":\"text é\",\"additions\":2.5,\"deletions\":2.5}],\"moved\":[\"text é\"],\"shared\":true,\"others\":[{\"path\":\"text é\",\"kind\":\"text é\",\"additions\":2.5,\"deletions\":2.5}]}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3157,7 +3175,8 @@
    ],
    "text": "text é"
   },
-  "output": "{\"type\":\"session.plan\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"steps\":[{\"text\":\"text é\",\"state\":\"done\"}],\"text\":\"text é\"}"
+  "output": "{\"type\":\"session.plan\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"steps\":[{\"text\":\"text é\",\"state\":\"done\"}],\"text\":\"text é\"}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3175,7 +3194,8 @@
    "after": 2.5,
    "line": 7
   },
-  "output": "{\"type\":\"session.compacted\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"before\":2.5,\"after\":2.5,\"line\":7}"
+  "output": "{\"type\":\"session.compacted\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"before\":2.5,\"after\":2.5,\"line\":7}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3194,7 +3214,8 @@
    "why": "text é",
    "line": 7
   },
-  "output": "{\"type\":\"session.retry\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"attempt\":7,\"of\":7,\"why\":\"text é\",\"line\":7}"
+  "output": "{\"type\":\"session.retry\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"attempt\":7,\"of\":7,\"why\":\"text é\",\"line\":7}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3211,7 +3232,8 @@
    "context": 2.5,
    "window": 2.5
   },
-  "output": "{\"type\":\"session.context\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"context\":2.5,\"window\":2.5}"
+  "output": "{\"type\":\"session.context\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"context\":2.5,\"window\":2.5}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3234,7 +3256,8 @@
    "signal": 7,
    "output": "text é"
   },
-  "output": "{\"type\":\"session.run\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"runId\":\"text é\",\"block\":\"text é\",\"command\":\"text é\",\"state\":\"lost\",\"ptyId\":\"text é\",\"exitCode\":7,\"signal\":7,\"output\":\"text é\"}"
+  "output": "{\"type\":\"session.run\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"runId\":\"text é\",\"block\":\"text é\",\"command\":\"text é\",\"state\":\"lost\",\"ptyId\":\"text é\",\"exitCode\":7,\"signal\":7,\"output\":\"text é\"}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3253,7 +3276,8 @@
    "branch": "text é",
    "fresh": true
   },
-  "output": "{\"type\":\"session.moved\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"from\":\"text é\",\"to\":\"text é\",\"branch\":\"text é\",\"fresh\":true}"
+  "output": "{\"type\":\"session.moved\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"from\":\"text é\",\"to\":\"text é\",\"branch\":\"text é\",\"fresh\":true}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3269,7 +3293,8 @@
    "copiedFrom": "text é",
    "text": "text é"
   },
-  "output": "{\"type\":\"session.behind\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"text\":\"text é\"}"
+  "output": "{\"type\":\"session.behind\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"text\":\"text é\"}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3285,7 +3310,8 @@
    "copiedFrom": "text é",
    "text": "text é"
   },
-  "output": "{\"type\":\"session.notice\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"text\":\"text é\"}"
+  "output": "{\"type\":\"session.notice\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"text\":\"text é\"}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3302,7 +3328,8 @@
    "who": "note",
    "text": "text é"
   },
-  "output": "{\"type\":\"session.earlier\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"who\":\"note\",\"text\":\"text é\"}"
+  "output": "{\"type\":\"session.earlier\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"who\":\"note\",\"text\":\"text é\"}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3324,7 +3351,8 @@
    "requestId": "text é",
    "prompt": "text é"
   },
-  "output": "{\"type\":\"session.capped\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"placeId\":\"text é\",\"place\":\"text é\",\"running\":7,\"atOnce\":7,\"why\":\"minute\",\"requestId\":\"text é\",\"prompt\":\"text é\"}"
+  "output": "{\"type\":\"session.capped\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"placeId\":\"text é\",\"place\":\"text é\",\"running\":7,\"atOnce\":7,\"why\":\"minute\",\"requestId\":\"text é\",\"prompt\":\"text é\"}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3341,7 +3369,8 @@
    "why": "lent",
    "atOnce": 7
   },
-  "output": "{\"type\":\"session.uncapped\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"why\":\"lent\",\"atOnce\":7}"
+  "output": "{\"type\":\"session.uncapped\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"why\":\"lent\",\"atOnce\":7}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3376,7 +3405,8 @@
    },
    "line": 7
   },
-  "output": "{\"type\":\"session.subagent\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"task\":\"text é\",\"state\":\"stopped\",\"parentToolUseId\":\"text é\",\"title\":\"text é\",\"summary\":\"text é\",\"depth\":7,\"model\":\"text é\",\"asked\":\"text é\",\"usage\":{\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5},\"toolUses\":7,\"durationMs\":2.5},\"line\":7}"
+  "output": "{\"type\":\"session.subagent\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"copiedFrom\":\"text é\",\"task\":\"text é\",\"state\":\"stopped\",\"parentToolUseId\":\"text é\",\"title\":\"text é\",\"summary\":\"text é\",\"depth\":7,\"model\":\"text é\",\"asked\":\"text é\",\"usage\":{\"tokens\":{\"input\":2.5,\"output\":2.5,\"cached\":2.5,\"cacheWrite\":2.5,\"reasoning\":2.5},\"toolUses\":7,\"durationMs\":2.5},\"line\":7}",
+  "anyOrder": true
  },
  {
   "type": "SessionEvent",
@@ -3397,7 +3427,8 @@
    ],
    "run": "text é"
   },
-  "output": "{\"type\":\"session.slate\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"cause\":\"run\",\"version\":7,\"by\":\"timer\",\"pieces\":[\"text é\"],\"run\":\"text é\"}"
+  "output": "{\"type\":\"session.slate\",\"workspaceId\":\"text é\",\"sessionId\":\"text é\",\"at\":2.5,\"turnId\":\"text é\",\"threadId\":\"text é\",\"pos\":7,\"cause\":\"run\",\"version\":7,\"by\":\"timer\",\"pieces\":[\"text é\"],\"run\":\"text é\"}",
+  "anyOrder": true
  },
  {
   "type": "SessionHarness",
@@ -3764,7 +3795,8 @@
   "tag": {
    "key": "type",
    "value": "session.notify"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionNotifyEvent",
@@ -3780,7 +3812,8 @@
   "tag": {
    "key": "type",
    "value": "session.notify"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionNotifyEvent",
@@ -3801,7 +3834,8 @@
   "tag": {
    "key": "type",
    "value": "session.notify"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionNotifyEvent",
@@ -4443,7 +4477,8 @@
   "tag": {
    "key": "type",
    "value": "session.retry"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionRetryEvent",
@@ -4458,7 +4493,8 @@
   "tag": {
    "key": "type",
    "value": "session.retry"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionRetryEvent",
@@ -4481,7 +4517,8 @@
   "tag": {
    "key": "type",
    "value": "session.retry"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionRetryEvent",
@@ -5384,7 +5421,8 @@
   "tag": {
    "key": "type",
    "value": "session.start"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionStartEvent",
@@ -5398,7 +5436,8 @@
   "tag": {
    "key": "type",
    "value": "session.start"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionStartEvent",
@@ -5432,7 +5471,8 @@
   "tag": {
    "key": "type",
    "value": "session.start"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionStartEvent",
@@ -5941,7 +5981,8 @@
   "tag": {
    "key": "type",
    "value": "session.subagent"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionSubagentEvent",
@@ -5957,7 +5998,8 @@
   "tag": {
    "key": "type",
    "value": "session.subagent"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionSubagentEvent",
@@ -5986,7 +6028,8 @@
   "tag": {
    "key": "type",
    "value": "session.subagent"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "SessionSubagentEvent",
