@@ -141,7 +141,7 @@ fn answer<T: DeserializeOwned + Check>(what: &str, binary: &str, res: &ExecResul
         return Err(refusal(binary, res));
     }
     let said = js_trim(&res.stdout);
-    let read = serde_json::from_str::<serde_json::Value>(said).ok().and_then(|v| parse::<T>(&v).ok());
+    let read = wsp_catalog::json_parse::parse_json(said).ok().and_then(|v| parse::<T>(&v).ok());
     read.ok_or_else(|| {
         let shown = if said.is_empty() { "nothing at all".to_string() } else { utf16::cut(said, 200) };
         EngineError::Other { message: format!("the {what} verb answered something this host does not read: {shown}"), code: None }

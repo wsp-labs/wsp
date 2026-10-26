@@ -14,7 +14,7 @@ use wsp_words::words::units::fmt_bytes;
 
 use super::probe::{
     context_agents, context_path, facts_path, guest_roots, merge_facts, parse_probe, probe_command, skill_path, AliasesUnread, BuildFacts,
-    ContextAgent, ContextProbe, ProbeShells, ALIAS_BOUND_S, BROWSER_SHIM_PATH,
+    utf8_text, ContextAgent, ContextProbe, ProbeShells, ALIAS_BOUND_S, BROWSER_SHIM_PATH,
 };
 use crate::exec_detached::put::INLINE_EXEC_MS;
 use crate::fetch::Fetch;
@@ -89,7 +89,7 @@ fn aliases_unread_line(late: bool) -> String {
 }
 
 fn missing_list<'a>(items: impl Iterator<Item = (&'a str, &'a str)>) -> String {
-    items.map(|(label, note)| format!("{label} ({note})")).collect::<Vec<_>>().join("; ")
+    items.map(|(label, note)| format!("{} ({})", utf8_text(label), utf8_text(note))).collect::<Vec<_>>().join("; ")
 }
 
 fn containers_line(probe: &ContextProbe) -> Option<String> {
@@ -189,7 +189,7 @@ pub fn render_machine_context(input: &ContextInput) -> String {
     let files = if facts.files.is_empty() {
         "none".to_string()
     } else {
-        facts.files.iter().map(|f| format!("{} ({})", f.path, f.note)).collect::<Vec<_>>().join("; ")
+        facts.files.iter().map(|f| format!("{} ({})", utf8_text(&f.path), utf8_text(&f.note))).collect::<Vec<_>>().join("; ")
     };
     workspace.push(format!("- Files left on the person's computer: {files}."));
     workspace.push(match probe.aliases_unread {
@@ -387,7 +387,7 @@ pub async fn apply_machine_context(machine: &dyn Machine, opts: ApplyContextOpti
         GuestFile {
             path: facts_path(&roots),
             mode: MODE,
-            content: format!("{}\n", serde_json::to_string_pretty(&facts).unwrap_or_default()),
+            content: format!("{}\n", wsp_catalog::jsonc::js_stringify_pretty(&serde_json::to_value(&facts).unwrap_or_default())),
         },
     ];
     let mut context: Vec<ContextResult> = Vec::new();
