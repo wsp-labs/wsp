@@ -257,7 +257,7 @@ pub fn holding(dir: &str, value: &str) -> Vec<String> {
             let p = e.path();
             if p.is_dir() {
                 walk(&p, value, out);
-            } else if std::fs::read(&p).map(|b| String::from_utf8_lossy(&b).contains(value)).unwrap_or(false) {
+            } else if p.is_file() && std::fs::read(&p).map(|b| String::from_utf8_lossy(&b).contains(value)).unwrap_or(false) {
                 out.push(p.to_string_lossy().into_owned());
             }
         }
