@@ -229,8 +229,8 @@ impl ThreadsArea {
     }
 
     /// threads.ts:957: E1.
-    pub fn not_a_repo(&self, r: &WorkspaceRecord) -> bool {
-        runs_in_folder(&r.kind) && self.ctx.project_held(&r.project).git.is_none()
+    pub fn not_a_repo(&self, r: &WorkspaceRecord) -> Result<bool, HostError> {
+        Ok(runs_in_folder(&r.kind) && self.ctx.project_held(&r.project)?.git.is_none())
     }
 
     /// threads.ts:963: E2.
@@ -238,21 +238,31 @@ impl ThreadsArea {
         let record = entry.borrow().record.borrow().clone();
         let mut reference: Option<String> = None;
         let mut based = false;
-        if !self.not_a_repo(&record) {
-            let frame = json!({
-                "op": "git.checkpoint",
-                "cwd": self.ctx.checkout_of(&record),
-                "thread": turn.thread_id.clone(),
-                "turn": turn.turn_id.clone(),
-                "scope": record.id.clone(),
-            });
-            match self.ctx.with_daemon(entry, frame).await {
-                Ok(taken) => {
-                    reference = taken.get("ref").and_then(Value::as_str).map(str::to_string);
-                    based = taken.get("based").and_then(Value::as_bool) == Some(true);
+        // The caller joins a future of nothing, so a read that throws is the checkpoint not kept, said as any other.
+        let taken = match self.not_a_repo(&record) {
+            Ok(true) => None,
+            Ok(false) => match self.ctx.checkout_of(&record) {
+                Ok(cwd) => {
+                    let frame = json!({
+                        "op": "git.checkpoint",
+                        "cwd": cwd,
+                        "thread": turn.thread_id.clone(),
+                        "turn": turn.turn_id.clone(),
+                        "scope": record.id.clone(),
+                    });
+                    Some(self.ctx.with_daemon(entry, frame).await.map_err(|e| e.message()))
                 }
-                Err(e) => console::warn(&no_checkpoint_log_line(&turn.thread_id, &record.id, &e.message())),
+                Err(e) => Some(Err(e.message)),
+            },
+            Err(e) => Some(Err(e.message)),
+        };
+        match taken {
+            Some(Ok(taken)) => {
+                reference = taken.get("ref").and_then(Value::as_str).map(str::to_string);
+                based = taken.get("based").and_then(Value::as_bool) == Some(true);
             }
+            Some(Err(why)) => console::warn(&no_checkpoint_log_line(&turn.thread_id, &record.id, &why)),
+            None => {}
         }
         if reference.is_none() && turn.anchor.is_none() && turn.kept.is_none() {
             return;
@@ -449,8 +459,13 @@ impl ThreadsArea {
     /// threads.ts:1067: E9.
     pub async fn snapshot_of(&self, entry: &Entry, cwd: &str) -> Option<String> {
         let record = entry.borrow().record.borrow().clone();
-        if self.not_a_repo(&record) || self.ctx.reach_of(entry) != ReachState::Reachable {
-            return None;
+        match self.not_a_repo(&record) {
+            Ok(false) if self.ctx.reach_of(entry) == ReachState::Reachable => {}
+            Ok(_) => return None,
+            Err(e) => {
+                console::warn(&format!("no snapshot of {cwd} on {}: {}", record.name, e.message));
+                return None;
+            }
         }
         let ms = self.ctx.turn_snapshot_ms().unwrap_or(3_000);
         let (late_sender, late) = futures::channel::oneshot::channel::<()>();

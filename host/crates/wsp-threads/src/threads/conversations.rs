@@ -82,7 +82,7 @@ pub trait ConversationsCtx {
     fn with_daemon(&self, entry: &Entry, frame: Value) -> LocalBoxFuture<'static, Result<Value, AccountError>>;
     /// `harnessExec(machine, ms)` as a road's exec.
     fn harness_exec(&self, entry: &Entry, timeout_ms: u64) -> Arc<dyn wsp_adapters::port::HarnessExec>;
-    fn project_held(&self, project: &str) -> ProjectView;
+    fn project_held(&self, project: &str) -> Result<ProjectView, HostError>;
     fn worktrees_of(&self, top: &str) -> LocalBoxFuture<'static, Result<Vec<ListedWorktree>, HostError>>;
     /// `ctx.foldersOf(project)`: every folder record of the project.
     fn folders_of(&self, project: &str) -> Vec<WorkspaceRecord>;
@@ -305,7 +305,7 @@ impl ConversationsArea {
     /// conversations.ts:97: V4.
     pub async fn folders_of(&self, entry: &Entry) -> Result<Vec<String>, HostError> {
         let record = entry.borrow().record.borrow().clone();
-        let project = self.ctx.project_held(&record.project);
+        let project = self.ctx.project_held(&record.project)?;
         let top = project.git.as_ref().map(|git| git.top.clone());
         let trees = match top {
             Some(top) if wsp_words::projects::copies_folder(&record.kind) => {

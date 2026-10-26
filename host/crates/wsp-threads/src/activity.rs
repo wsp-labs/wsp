@@ -134,7 +134,7 @@ pub trait ActivityCtx {
     /// `process.pid`.
     fn host_pid(&self) -> u32;
     fn drives(&self, kind: WorkspaceKind, caller: Option<&Caller>) -> bool;
-    fn refusal_for(&self, record: &WorkspaceRecord, caller: Option<&Caller>) -> Option<HostError>;
+    fn refusal_for(&self, record: &WorkspaceRecord, caller: Option<&Caller>) -> Result<Option<HostError>, HostError>;
     fn settles_thread(&self, thread_id: &str, caller: Option<&Caller>) -> bool;
     /// `ctx.moduleOf(entry.record.kind).endThread?.(entry, threadId, o)`; None where the kind has none.
     fn end_thread(
@@ -274,17 +274,17 @@ impl Activity {
     }
 
     /// activity.ts:206-218.
-    fn reaches(&self, thread: Option<&str>, caller: Option<&Caller>, kind: WorkspaceKind) -> bool {
-        match thread {
+    fn reaches(&self, thread: Option<&str>, caller: Option<&Caller>, kind: WorkspaceKind) -> Result<bool, HostError> {
+        Ok(match thread {
             None => scope_of(caller).is_none() && self.ctx.drives(kind, caller),
             Some(thread) => {
                 let driven = match self.record_of_thread(thread) {
                     None => self.ctx.drives(kind, caller),
-                    Some(record) => self.ctx.refusal_for(&record, caller).is_none(),
+                    Some(record) => self.ctx.refusal_for(&record, caller)?.is_none(),
                 };
                 driven && self.ctx.settles_thread(thread, caller)
             }
-        }
+        })
     }
 
     /// activity.ts:273-282: the box a thread runs on that this host has joined, by its place id.
@@ -630,7 +630,7 @@ impl Activity {
         };
         for id in asked.iter().flatten() {
             let known = self.ctx.records().borrow().get(id).is_some() || self.ctx.thread_facts(id).is_some();
-            if !known || !self.reaches(Some(id.as_str()), caller, WorkspaceKind::Local) {
+            if !known || !self.reaches(Some(id.as_str()), caller, WorkspaceKind::Local)? {
                 return Err(not_found_refusal(&format!("no thread {}", thread_word(id))));
             }
         }
@@ -683,13 +683,13 @@ impl Activity {
             }
         };
         let kind = if on_box { WorkspaceKind::Place } else { WorkspaceKind::Local };
-        let threads = view
-            .threads
-            .iter()
-            .filter(|t| wanted.as_ref().is_none_or(|w| w.contains(&t.thread_id)) && self.reaches(Some(t.thread_id.as_str()), caller, kind))
-            .cloned()
-            .collect();
-        let whole = wanted.is_none() && self.reaches(None, caller, kind);
+        let mut threads = Vec::new();
+        for t in &view.threads {
+            if wanted.as_ref().is_none_or(|w| w.contains(&t.thread_id)) && self.reaches(Some(t.thread_id.as_str()), caller, kind)? {
+                threads.push(t.clone());
+            }
+        }
+        let whole = wanted.is_none() && self.reaches(None, caller, kind)?;
         let view = ActivityView {
             threads,
             wsp: if whole { view.wsp.clone() } else { Vec::new() },
@@ -759,8 +759,19 @@ impl Activity {
 
     /// activity.ts:348-365: an End off a read already taken, its plan made before any signal.
     async fn end_on(&self, read: &ActivityRead, pid: u32, started_at: f64, caller: Option<&Caller>) -> Result<ActivityEnded, HostError> {
-        let may = |thread: Option<&str>| self.reaches(thread, caller, WorkspaceKind::Local);
-        let plan = end_plan(read, pid as f64, started_at, &may)?;
+        let threw: RefCell<Option<HostError>> = RefCell::new(None);
+        let may = |thread: Option<&str>| match self.reaches(thread, caller, WorkspaceKind::Local) {
+            Ok(reached) => reached,
+            Err(e) => {
+                threw.borrow_mut().get_or_insert(e);
+                false
+            }
+        };
+        let planned = end_plan(read, pid as f64, started_at, &may);
+        if let Some(e) = threw.take() {
+            return Err(e);
+        }
+        let plan = planned?;
         let view = activity_of(read);
         match plan {
             EndPlan::Kept(kept) => {
@@ -810,7 +821,7 @@ impl Activity {
         let mut boxes: IndexMap<String, Vec<String>> = IndexMap::new();
         for id in thread_ids {
             let Some((place, _)) = self.box_of(id) else { continue };
-            if !self.reaches(Some(id.as_str()), caller, WorkspaceKind::Local) {
+            if !self.reaches(Some(id.as_str()), caller, WorkspaceKind::Local)? {
                 return Err(not_found_refusal(&format!("no thread {}", thread_word(id))));
             }
             boxes.entry(place).or_default().push(id.clone());
@@ -835,14 +846,24 @@ impl Activity {
                 for p in end_heads(&t.processes) {
                     let pid = p.pid.get() as u32;
                     let unreached = Cell::new(false);
-                    let may = |thread: Option<&str>| {
-                        let ok = self.reaches(thread, caller, WorkspaceKind::Local);
-                        if !ok {
-                            unreached.set(true);
+                    let threw: RefCell<Option<HostError>> = RefCell::new(None);
+                    let may = |thread: Option<&str>| match self.reaches(thread, caller, WorkspaceKind::Local) {
+                        Ok(ok) => {
+                            if !ok {
+                                unreached.set(true);
+                            }
+                            ok
                         }
-                        ok
+                        Err(e) => {
+                            threw.borrow_mut().get_or_insert(e);
+                            false
+                        }
                     };
-                    let planned = match end_plan(read, pid as f64, p.started_at.0, &may) {
+                    let plan = end_plan(read, pid as f64, p.started_at.0, &may);
+                    if let Some(e) = threw.take() {
+                        return Err(e);
+                    }
+                    let planned = match plan {
                         Ok(EndPlan::Targets(targets)) => Ok(targets),
                         Ok(EndPlan::Kept(kept)) => Err(HostError::new(format!(
                             "{pid} is the agent thread {} keeps, which a settle frees itself",

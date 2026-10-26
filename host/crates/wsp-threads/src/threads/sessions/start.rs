@@ -251,15 +251,15 @@ impl SessionsArea {
             }
         }
         let opens_there = match opening.as_ref() {
-            Some(record) => ctx.opens_in(record, origin.as_ref()),
+            Some(record) => ctx.opens_in(record, origin.as_ref())?,
             None => false,
         };
         if let Some(record) = opening.as_ref() {
-            if opens && !opens_there && ctx.of_threads_repository(origin.as_ref(), &record.project) {
+            if opens && !opens_there && ctx.of_threads_repository(origin.as_ref(), &record.project)? {
                 let away = if runs_in_folder(&record.kind) {
-                    ctx.elsewhere_refusal(origin.as_ref(), &record.project, &record.name)
+                    ctx.elsewhere_refusal(origin.as_ref(), &record.project, &record.name)?
                 } else {
-                    ctx.away_for(record, origin.as_ref(), "start", workspace_id)
+                    ctx.away_for(record, origin.as_ref(), "start", workspace_id)?
                 };
                 if let Some(away) = away {
                     return Err(away);
@@ -291,8 +291,8 @@ impl SessionsArea {
         };
         if let Some(asking) = asking {
             let to_record = record_of(&entry);
-            let from = ctx.project_computer_name(&asking.project);
-            let to = ctx.project_computer_name(&to_record.project);
+            let from = ctx.project_computer_name(&asking.project)?;
+            let to = ctx.project_computer_name(&to_record.project)?;
             if opened.attachments.as_ref().is_some_and(|files| !files.is_empty()) {
                 return Err(refusal(&send_files_across_line(&from, &to, &thread_id), SEND_FILES_ACROSS_FIX, Some(Kind::Usage)));
             }

@@ -66,7 +66,7 @@ pub trait ForksCtx {
         attachments: Vec<Attachment>,
     ) -> LocalBoxFuture<'static, ()>;
     fn persist_sessions(&self, workspace_id: &str) -> LocalBoxFuture<'static, ()>;
-    fn project_held(&self, project: &str) -> ProjectView;
+    fn project_held(&self, project: &str) -> Result<ProjectView, HostError>;
     fn place_name(&self, computer: &str) -> String;
     fn git_here(&self, top: &str, args: Vec<String>) -> LocalBoxFuture<'static, Result<ExecResult, HostError>>;
     /// `new Set(ctx.live.keys())`.
@@ -81,7 +81,7 @@ pub trait ForksCtx {
         root: Option<String>,
         at_ref: &str,
     ) -> LocalBoxFuture<'static, Result<Entry, HostError>>;
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String;
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError>;
     fn take_setup_line(&self, workspace_id: &str) -> Option<String>;
     fn remove_worktree(&self, entry: &Entry, force: bool) -> LocalBoxFuture<'static, Result<(), HostError>>;
     /// TS `void promise`: work that outlives its caller. The host runs it on its `LocalSet`, so where it runs is its to say.
@@ -466,7 +466,7 @@ pub async fn fork_start(
     let options = StartOptions { fork: Some(fork), ..options };
     let Some(branch) = branch else { return start(plan.source.workspace_id.clone(), options).await };
     let record = entry.borrow().record.borrow().clone();
-    let project = ctx.project_held(&record.project);
+    let project = ctx.project_held(&record.project)?;
     if !copies_folder(&record.kind) {
         return Err(usage_refusal(&place_branch_line(&ctx.place_name(&project.computer)), FORK_NO_CHECKPOINT_FIX));
     }
@@ -485,7 +485,7 @@ pub async fn fork_start(
     let made_record = made.borrow().record.borrow().clone();
     let tree = made_record.worktree.clone();
     // The fork runs where in its tree its source ran in the source's checkout.
-    let from = ctx.checkout_of(&record);
+    let from = ctx.checkout_of(&record)?;
     let cwd = tree.as_ref().map(|tree| match plan.source.cwd.as_deref() {
         Some(source) if source.starts_with(&format!("{from}/")) => {
             Path::new(&tree.path).join(&source[from.len() + 1..]).to_string_lossy().into_owned()

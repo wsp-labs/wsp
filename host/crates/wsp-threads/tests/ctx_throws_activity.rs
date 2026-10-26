@@ -26,12 +26,15 @@ fn a_rule_that_throws_fails_the_read_of_a_thread_as_it_is() {
 fn a_rule_that_throws_fails_the_end_and_signals_nothing() {
     run_local(async {
         let lab = Lab::main();
+        lab.scopes(vec![json!({ "thread": T1, "agents": [4100] })]);
+        lab.kept(T1, 4100);
         lab.host.hooks.set::<dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Result<Option<HostError>, HostError>>(
             "ActivityCtx::refusal_for",
             Rc::new(|_r: &WorkspaceRecord, _c: Option<&Caller>| Err(HostError::new("no project p1"))),
         );
-        let said = said_of(lab.end(4700, STARTED + 7_000, None).await);
+        let said = said_of(lab.end(4100, STARTED, None).await);
         assert_eq!(said.0, "no project p1");
         assert_eq!(lab.here.signals.borrow().clone(), vec![]);
+        assert_eq!(lab.host.hooks.called("reap_kept_now"), Vec::<String>::new(), "nothing is freed either");
     });
 }

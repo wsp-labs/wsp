@@ -545,7 +545,7 @@ fn a_rewind_fails_with_the_checkout_read_that_threw_and_restores_nothing() {
         let e = r.undo().await.unwrap_err();
         assert_eq!(e.message, "no project p1");
         assert_eq!(r.restores().len(), 0);
-        assert_eq!(r.rewound().is_some(), true, "the mark stays");
+        assert!(r.rewound().is_some(), "the mark stays");
     });
 }
 
