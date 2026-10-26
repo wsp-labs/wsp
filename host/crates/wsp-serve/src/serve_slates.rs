@@ -142,7 +142,7 @@ pub async fn answer_slate(
             unhold(holds, &hold_key(thread_id, sources));
             Ok(Payload::new())
         }
-        RuntimeOp::SlatesResolve { thread_id, paths, .. } => spread(&slates.resolve(thread_id, paths).await?),
+        RuntimeOp::SlatesResolve { thread_id, paths, .. } => one("values", to_value(&slates.resolve(thread_id, paths).await?)?),
         RuntimeOp::SlatesImage { thread_id, src, have, .. } => spread(&slates.image(thread_id, src, have.as_deref()).await?),
         _ => Err(HostError::new(format!("{} is not answered here", msg.op.name()))),
     }

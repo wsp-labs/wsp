@@ -13,6 +13,7 @@ pub use public::AssembledRuntime;
 
 /// `createRuntime(opts)` (runtime.ts:425-489, spec C1): the core, every area in the order spec C1 lists, the pipe
 /// area with the brokered rule, then the public runtime. Tested by the whole-host tapes once every area is in.
+#[allow(unused_variables)]
 pub fn create_runtime(opts: RuntimeOptions) -> Rc<AssembledRuntime> {
     todo!()
 }
