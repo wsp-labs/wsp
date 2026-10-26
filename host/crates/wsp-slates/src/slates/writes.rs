@@ -472,11 +472,7 @@ impl SlatesInner {
                     return Err(invalid(&[problem("S520", "secret-exposed", &note, None)], &[]));
                 };
                 let secrets = self.runs().secrets();
-                let handle = if text.is_empty() {
-                    secrets.clear(&thread_id, &own.name)
-                } else {
-                    secrets.set(&thread_id, &own.name, text, decl.keep == Some(true))
-                };
+                let handle = secrets.typed(&thread_id, &own.name, text, decl.keep == Some(true))?;
                 let handle_value = serde_json::to_value(handle).unwrap_or(Value::Null);
                 input.push(SlateWrite { path: format!("${}", own.name), value: handle_value });
                 continue;

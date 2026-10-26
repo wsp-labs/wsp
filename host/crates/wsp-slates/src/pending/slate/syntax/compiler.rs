@@ -14,6 +14,7 @@ fn empty_doc() -> SlateDoc {
         reactions: Vec::new(),
         pieces: IndexMap::new(),
         files: None,
+        order: order::KeyOrder::Text,
     }
 }
 
@@ -27,6 +28,7 @@ impl Compiler {
             taken: HashSet::new(),
             names: IndexMap::new(),
             patch: false,
+            infinite: Vec::new(),
         };
         if let Some(cur) = current {
             for id in cur.pieces.keys() {
@@ -207,6 +209,9 @@ impl Compiler {
                     Some(a) => self.literal(a, &key),
                     None => Value::Null,
                 };
+                if start.is_null() && attr_of(el, "start").is_some_and(|a| a.kind == Kind::Braced && js_trim(&a.value) != "null") {
+                    self.infinite.push(name.clone());
+                }
                 self.doc.values.insert(name, SlateValueDecl { start, secret: None, keep: None });
             }
             "secret" => {

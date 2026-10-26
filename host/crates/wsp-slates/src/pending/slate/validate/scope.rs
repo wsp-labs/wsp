@@ -151,6 +151,8 @@ impl Ctx {
             Kind::Value | Kind::Derived => {
                 let mut t = if kind == Kind::Derived {
                     self.derived_type(name)
+                } else if self.infinite.contains(name) {
+                    ty_of(SlateTypeName::Number)
                 } else {
                     literal_type(self.doc.get("values").and_then(|v| v.get(name)).and_then(|v| v.get("start")).unwrap_or(&Value::Null))
                 };
@@ -173,10 +175,16 @@ impl Ctx {
             return hit.clone();
         }
         self.derived_types.borrow_mut().insert(name.to_string(), any_t());
+        let depth = self.derived_depth.get();
+        if depth >= DERIVED_TYPE_DEPTH {
+            return any_t();
+        }
+        self.derived_depth.set(depth + 1);
         let t = match self.derived_expr(name) {
             None => any_t(),
             Some(expr) => check_slate_expression(expr, &self.scope(None, false, None), 0).ty,
         };
+        self.derived_depth.set(depth);
         self.derived_types.borrow_mut().insert(name.to_string(), t.clone());
         t
     }
