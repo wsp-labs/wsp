@@ -14,9 +14,10 @@ use wsp_wire::views::workspace_more::WorkspaceView;
 use wsp_wire::wire::events_union::{EventUnion, Sequenced};
 use wsp_words::cost_history::{accrued_past, append_cost_point, day_start, month_start, spent_since};
 use wsp_words::date_parse::date_parse;
+use wsp_words::js::number_string;
 use wsp_words::place_state::{place_spend_limit, workspace_place_id};
 
-use super::{iso, CostHistoryRecord, Meter, StatusTracker, Stood, TrackerState, COST_HISTORIES};
+use super::{iso, CostHistoryRecord, CostPoint, Meter, StatusTracker, Stood, TrackerState, COST_HISTORIES};
 use crate::console::warn;
 
 // The meter's listeners, the load, the writes, the series' end and the cost tick, as the TS has them. Private helpers
@@ -235,9 +236,14 @@ impl StatusTracker {
     //     return ended.has(id) ? [] : (histories.get(id) ?? []);
     //   };
     /// The workspace's cost ticks since metering began, across host restarts; `[]` for a deleted one.
-    pub async fn history(&self, workspace_id: &str) -> Vec<WorkspaceCostEvent> {
+    pub async fn history(&self, workspace_id: &str) -> Vec<CostPoint> {
         self.loaded().await;
-        self.st(|s| if s.ended.contains(workspace_id) { Vec::new() } else { s.histories.get(workspace_id).cloned().unwrap_or_default() })
+        self.st(|s| {
+            if s.ended.contains(workspace_id) {
+                return Vec::new();
+            }
+            s.histories.get(workspace_id).map_or_else(Vec::new, |points| points.iter().cloned().map(CostPoint::from).collect())
+        })
     }
 
     //   const spend: StatusApi["spend"] = async (places, at = clock.now()) => {
@@ -345,7 +351,7 @@ fn accrue(last: Option<&WorkspaceCostEvent>, awake_ms: f64, rate_now: f64) -> f6
 /// `figuresOf(tick)`: the phase, rate and total a cost frame carries, the words a repeat is judged by.
 fn figures_of(tick: &WorkspaceCostEvent) -> String {
     let phase = serde_json::to_value(tick.phase).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
-    format!("{} {} {}", phase, tick.rate_usd_per_hour.js_string(), tick.accrued_usd.js_string())
+    format!("{} {} {}", phase, number_string(tick.rate_usd_per_hour.0), number_string(tick.accrued_usd.0))
 }
 
 /// Whether a tick continues the rate of the two points before it, so it replaces the newest instead of adding one.
@@ -518,7 +524,7 @@ impl StatusTracker {
     fn document(&self, id: &str) -> CostHistoryRecord {
         self.st(|s| CostHistoryRecord {
             workspace_id: id.to_string(),
-            points: s.histories.get(id).cloned().unwrap_or_default(),
+            points: s.histories.get(id).map_or_else(Vec::new, |points| points.iter().cloned().map(CostPoint::from).collect()),
             where_: s.stood.get(id).cloned(),
             ended: s.ended.contains(id).then_some(true),
         })
@@ -546,7 +552,7 @@ impl StatusTracker {
             }
             self.st(|s| {
                 let id = doc.workspace_id.clone();
-                s.histories.insert(id.clone(), doc.points.clone());
+                s.histories.insert(id.clone(), doc.points.iter().map(|p| p.event.clone()).collect());
                 if let Some(where_) = &doc.where_ {
                     s.stood.insert(id.clone(), where_.clone());
                 }
