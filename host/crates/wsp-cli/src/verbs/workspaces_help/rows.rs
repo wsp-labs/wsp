@@ -34,7 +34,7 @@ use wsp_words::words::units::{disk_expired, offered_size, size_from_word, size_r
 use wsp_words::workspace_state::{delete_notice, is_local_workspace, machine_word, on_delete_of, workspace_kind, CopyAt, StandsOn};
 
 use super::reads::{params, place_ref, reply_field, threads, workspace_of, workspaces, ThreadRow};
-use crate::verbs::client::{absolute_path, flag_for, host_platform, pick, Frame, HostClient, Out, PushedFrames, SshAsked};
+use crate::verbs::client::{absolute_path, flag_for, host_platform, other_version, pick, Frame, HostClient, Out, PushedFrames, SshAsked};
 use crate::verbs::io::Created;
 
 fn wire_word<T: Serialize>(value: &T) -> String {
@@ -401,16 +401,39 @@ pub async fn place_names(client: &dyn HostClient) -> Result<IndexMap<String, Str
     Ok(places.iter().map(|p| (p.id.clone(), table_name(&place_ref(p)))).collect())
 }
 
-/// `projectsOf(client)` (workspaces-help.ts:744): `projects.list`, its `projects`.
-pub async fn projects_of(client: &dyn HostClient) -> Result<Vec<ProjectView>, HostError> {
+/// `projectsOf(client)` (workspaces-help.ts:744): `projects.list`, its `projects` as the host wrote them.
+pub async fn projects_listed(client: &dyn HostClient) -> Result<Vec<Value>, HostError> {
     let reply = client.request("projects.list", Frame::new()).await?;
     reply_field(&reply, "projects.list", "projects")
 }
 
-/// `projectOf(client, ref)` (workspaces-help.ts:749): `projects.resolve {ref}`, its `project`.
-pub async fn project_of(client: &dyn HostClient, r#ref: &str) -> Result<ProjectView, HostError> {
+/// `projectOf(client, ref)` (workspaces-help.ts:749): `projects.resolve {ref}`, its `project` as the host wrote it.
+pub async fn project_listed(client: &dyn HostClient, r#ref: &str) -> Result<Value, HostError> {
     let reply = client.request("projects.resolve", params(json!({ "ref": r#ref }))).await?;
     reply_field(&reply, "projects.resolve", "project")
+}
+
+const PROJECT_KEYS: [&str; 9] = ["id", "name", "computer", "path", "remote", "defaultBranch", "memoryKey", "memoryDir", "createdAt"];
+
+/// A project row typed, the keys the record requires and the row lacks given as empty words.
+pub fn project_typed(mut row: Value, op: &str) -> Result<ProjectView, HostError> {
+    if let Some(object) = row.as_object_mut() {
+        for key in PROJECT_KEYS {
+            object.entry(key).or_insert_with(|| Value::from(""));
+        }
+        object.entry("source").or_insert_with(|| json!({ "kind": "folder", "path": "" }));
+    }
+    serde_json::from_value(row).map_err(|_| HostError::new(other_version(op)))
+}
+
+/// `projectsOf(client)` read into the typed record.
+pub async fn projects_of(client: &dyn HostClient) -> Result<Vec<ProjectView>, HostError> {
+    projects_listed(client).await?.into_iter().map(|row| project_typed(row, "projects.list")).collect()
+}
+
+/// `projectOf(client, ref)` read into the typed record.
+pub async fn project_of(client: &dyn HostClient, r#ref: &str) -> Result<ProjectView, HostError> {
+    project_typed(project_listed(client, r#ref).await?, "projects.resolve")
 }
 
 /// `projectLine(p, workspaces, threadsHeld, named)` (workspaces-help.ts:756-766): seven cells: name, id,
@@ -422,14 +445,27 @@ pub fn project_line(
     threads_held: &[ThreadView],
     named: &IndexMap<String, String>,
 ) -> Vec<String> {
-    let count = threads_held.iter().filter(|t| workspaces.iter().any(|w| w.id == t.workspace_id && w.project.id == p.id)).count();
+    project_row_line(&serde_json::to_value(p).unwrap_or(Value::Null), workspaces, threads_held, named)
+}
+
+/// `projectLine` over a row as the host wrote it: a cell the row lacks is empty.
+pub fn project_row_line(
+    p: &Value,
+    workspaces: &[WorkspaceOut],
+    threads_held: &[ThreadView],
+    named: &IndexMap<String, String>,
+) -> Vec<String> {
+    let text = |key: &str| p.get(key).and_then(Value::as_str).unwrap_or_default().to_owned();
+    let id = text("id");
+    let source = p.get("source").and_then(|s| serde_json::from_value(s.clone()).ok()).map(|s| source_word(&s)).unwrap_or_default();
+    let count = threads_held.iter().filter(|t| workspaces.iter().any(|w| w.id == t.workspace_id && w.project.id == id)).count();
     vec![
-        p.name.clone(),
-        p.id.clone(),
-        computer_named(&p.computer, Some(named), &platform()),
-        source_word(&p.source),
-        shortened_front(&p.path, FOLDER_WIDTH),
-        p.base.clone().unwrap_or_default(),
+        text("name"),
+        id,
+        computer_named(&text("computer"), Some(named), &platform()),
+        source,
+        shortened_front(&text("path"), FOLDER_WIDTH),
+        text("base"),
         count.to_string(),
     ]
 }
@@ -510,8 +546,9 @@ pub async fn create_for(
 /// back to `workspaces()` and the projects they hold, once each by project id (a repeated id keeps its first position
 /// and its last name and computer). A list that is empty is an answer: no fallback read.
 pub async fn projects_here(client: &dyn HostClient) -> Result<Vec<ProjectPick>, HostError> {
-    if let Ok(held) = projects_of(client).await {
-        return Ok(held.into_iter().map(|p| ProjectPick { id: p.id, name: p.name, computer: p.computer }).collect());
+    if let Ok(held) = projects_listed(client).await {
+        let text = |p: &Value, key: &str| p.get(key).and_then(Value::as_str).unwrap_or_default().to_owned();
+        return Ok(held.iter().map(|p| ProjectPick { id: text(p, "id"), name: text(p, "name"), computer: text(p, "computer") }).collect());
     }
     let mut by_id: IndexMap<String, ProjectPick> = IndexMap::new();
     for w in workspaces(client).await? {

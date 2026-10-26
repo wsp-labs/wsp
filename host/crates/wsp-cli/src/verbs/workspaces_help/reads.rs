@@ -64,7 +64,34 @@ fn io_error(e: std::io::Error) -> HostError {
 /// (not parsed: the TS hands the reply's objects on as they came).
 pub async fn workspaces(client: &dyn HostClient) -> Result<Vec<WorkspaceOut>, HostError> {
     let reply = client.request("workspaces.list", Frame::new()).await?;
-    reply_field(&reply, "workspaces.list", "workspaces")
+    let rows: Vec<Value> = reply_field(&reply, "workspaces.list", "workspaces")?;
+    rows.into_iter()
+        .map(|row| serde_json::from_value(with_workspace_keys(row)).map_err(|_| HostError::new(other_version("workspaces.list"))))
+        .collect()
+}
+
+const WORKSPACE_KEYS: [(&str, &str); 6] =
+    [("id", ""), ("name", ""), ("machineId", ""), ("phase", "running"), ("golden", ""), ("createdAt", "")];
+const PROJECT_REF_KEYS: [(&str, &str); 4] = [("id", ""), ("name", ""), ("path", ""), ("computer", "")];
+
+/// A row the host listed with only the keys it holds, given the string keys the typed record requires; the TS reads
+/// a key the row lacks as undefined, which the typed record cannot hold.
+fn with_required_keys(mut row: Value, keys: &[(&str, &str)]) -> Value {
+    if let Some(object) = row.as_object_mut() {
+        for (key, word) in keys {
+            object.entry(*key).or_insert_with(|| Value::from(*word));
+        }
+    }
+    row
+}
+
+fn with_workspace_keys(mut row: Value) -> Value {
+    row = with_required_keys(row, &WORKSPACE_KEYS);
+    if let Some(object) = row.as_object_mut() {
+        let project = object.remove("project").filter(Value::is_object).unwrap_or_else(|| json!({}));
+        object.insert("project".to_owned(), with_required_keys(project, &PROJECT_REF_KEYS));
+    }
+    row
 }
 
 /// `workspaceStatuses(client)` (workspaces-help.ts:118): `status.list`, its `statuses` as the host wrote them.
