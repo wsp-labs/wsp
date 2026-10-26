@@ -210,7 +210,7 @@ pub async fn agents_report(
 }
 
 /// The one key of a write or a read frame: `{target}`.
-fn target_frame(target: &AgentsTarget) -> Frame {
+pub(super) fn target_frame(target: &AgentsTarget) -> Frame {
     let mut params = Frame::new();
     params.insert("target".to_owned(), json!(target));
     params
@@ -218,7 +218,7 @@ fn target_frame(target: &AgentsTarget) -> Frame {
 
 /// A reply's field read into the type its shape names (zod's parse): a field the reply lacks or shapes otherwise is the
 /// other-version refusal the host's answer earns.
-fn read_reply<T: Check + serde::de::DeserializeOwned>(reply: &Frame, key: &str, op: &str) -> Result<T, HostError> {
+pub(super) fn read_reply<T: Check + serde::de::DeserializeOwned>(reply: &Frame, key: &str, op: &str) -> Result<T, HostError> {
     parse::<T>(reply.get(key).unwrap_or(&Value::Null)).map_err(|_| HostError::new(other_version(op)))
 }
 
@@ -687,13 +687,13 @@ pub fn server_values(env: &IndexMap<String, String>, names: &[String], headers: 
 
 /// The keys of an object built from these pairs, in the order a JS object gives them: canonical array indexes first in
 /// ascending order, every other key in the order first set; a repeated key keeps its first place and its last value.
-fn js_object(pairs: Vec<(String, String)>) -> IndexMap<String, String> {
-    let mut set: IndexMap<String, String> = IndexMap::new();
+pub(super) fn js_object<V>(pairs: Vec<(String, V)>) -> IndexMap<String, V> {
+    let mut set: IndexMap<String, V> = IndexMap::new();
     for (key, value) in pairs {
         set.insert(key, value);
     }
-    let mut indexed: Vec<(u64, String, String)> = Vec::new();
-    let mut named: Vec<(String, String)> = Vec::new();
+    let mut indexed: Vec<(u64, String, V)> = Vec::new();
+    let mut named: Vec<(String, V)> = Vec::new();
     for (key, value) in set {
         match array_index(&key) {
             Some(index) => indexed.push((index, key, value)),
