@@ -567,6 +567,7 @@ impl BootArea {
             return self.mark(thread_ids, Stamped::Same(stamps), origin).await;
         }
         self.ready().await.map_err(HostError::new)?;
+        tokio::task::yield_now().await;
         let mut arms: Vec<(String, Value)> = Vec::new();
         for thread_id in thread_ids {
             let held = self.thread_rows(thread_id);
