@@ -290,13 +290,6 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
         harness: &str,
         server_values: Option<wsp_adapters::port::ServerValues>,
     ) -> Result<BuiltAdapter, HostError>;
-    /// Whether the adapter has a revert road (TS `adapter.revert !== undefined`): the port answers only by a call, which
-    /// starts work on some adapters, so the wiring reads it.
-    fn adapter_reverts(&self, adapter: &dyn HarnessAdapter) -> bool;
-    /// Whether the adapter has a fork road (TS `adapter.forkSession !== undefined`).
-    fn adapter_forks(&self, adapter: &dyn HarnessAdapter) -> bool;
-    /// The adapter's `sessionHeld` road as a closure, `None` where it has none (TS `adapter.sessionHeld`).
-    fn session_held_of(&self, adapter: &Arc<dyn HarnessAdapter>) -> Option<crate::threads::launch::SessionHeld>;
     /// `harnessExec(entry.machine, timeoutMs)`.
     fn harness_exec(&self, entry: &Entry, timeout_ms: u64) -> Arc<dyn wsp_adapters::port::HarnessExec>;
     async fn write_session(

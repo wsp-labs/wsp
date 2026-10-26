@@ -345,6 +345,9 @@ impl ExecStreamFactory for LocalExecFactory {
     //     const taken = (readFile(`${run}.in`) ?? "").split("\n").filter(line => line !== "" && line !== endMarker(run));
     //     return open(run, input, { ...at, taken });
     //   };
+    fn attaches(&self) -> bool {
+        true
+    }
     fn attach(&self, run: &str, options: AttachRunOptions) -> Option<LocalBoxFuture<'static, Result<Attached, ExecFailure>>> {
         let cfg = self.cfg.clone();
         let run = run.to_string();

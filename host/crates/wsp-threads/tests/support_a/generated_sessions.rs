@@ -1086,27 +1086,6 @@ impl SessionsCtx for FakeHost {
         }
         panic!("FakeHost: SessionsCtx::launch_adapter_for has no answer; set its hook")
     }
-    fn adapter_reverts(&self, adapter: &dyn HarnessAdapter) -> bool {
-        if let Some(hook) = self.hooks.get::<dyn Fn(&dyn HarnessAdapter) -> bool>("SessionsCtx::adapter_reverts") {
-            return hook(adapter);
-        }
-        false
-    }
-    fn adapter_forks(&self, adapter: &dyn HarnessAdapter) -> bool {
-        if let Some(hook) = self.hooks.get::<dyn Fn(&dyn HarnessAdapter) -> bool>("SessionsCtx::adapter_forks") {
-            return hook(adapter);
-        }
-        false
-    }
-    fn session_held_of(&self, adapter: &Arc<dyn HarnessAdapter>) -> Option<wsp_threads::threads::launch::SessionHeld> {
-        if let Some(hook) = self
-            .hooks
-            .get::<dyn Fn(&Arc<dyn HarnessAdapter>) -> Option<wsp_threads::threads::launch::SessionHeld>>("SessionsCtx::session_held_of")
-        {
-            return hook(adapter);
-        }
-        None
-    }
     fn harness_exec(&self, entry: &Entry, timeout_ms: u64) -> Arc<dyn wsp_adapters::port::HarnessExec> {
         self.hooks.log("harness_exec", vec![timeout_ms.to_string()]);
         if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, u64) -> Arc<dyn wsp_adapters::port::HarnessExec>>("SessionsCtx::harness_exec") {

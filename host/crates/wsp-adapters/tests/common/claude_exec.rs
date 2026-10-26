@@ -336,6 +336,9 @@ impl ExecStreamFactory for FakeExec {
         }
         self.make()
     }
+    fn attaches(&self) -> bool {
+        self.attach.is_some()
+    }
     fn attach(
         &self,
         run: &str,

@@ -665,6 +665,9 @@ impl HarnessAdapter for OpenCodeAdapter {
     fn start(&self, options: HarnessStartOptions) -> Result<Arc<dyn HarnessSession>, AdapterError> {
         OpenCodeAdapter::start(self, options).map(|session| Arc::new(session) as Arc<dyn HarnessSession>)
     }
+    fn attaches(&self) -> bool {
+        self.deps.exec.attaches()
+    }
     fn attach(
         &self,
         options: AdapterAttachOptions,

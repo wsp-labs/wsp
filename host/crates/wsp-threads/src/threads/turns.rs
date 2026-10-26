@@ -144,8 +144,6 @@ pub type Sweep = Box<dyn FnOnce(Vec<String>) -> LocalBoxFuture<'static, Result<V
 /// What the turns area reads of the runtime.
 #[async_trait(?Send)]
 pub trait TurnsCtx {
-    /// Whether the session has an answer road (TS `started.answer !== undefined`): the port answers only by a call.
-    fn session_answers(&self, session: &dyn HarnessSession) -> bool;
     fn clock(&self) -> Rc<dyn Clock>;
     fn sessions(&self) -> Sessions;
     fn records(&self) -> ThreadRecords;

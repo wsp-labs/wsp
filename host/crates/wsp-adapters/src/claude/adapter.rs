@@ -572,6 +572,9 @@ impl crate::port::HarnessAdapter for ClaudeAdapter {
     fn asides(&self) -> bool {
         true
     }
+    fn attaches(&self) -> bool {
+        self.core.deps.exec.attaches()
+    }
     fn attach(
         &self,
         options: AdapterAttachOptions,
@@ -725,6 +728,9 @@ impl crate::port::HarnessSession for ClaudeSession {
     }
     fn tells_unread(&self) -> Option<bool> {
         Some(ClaudeSession::tells_unread(self))
+    }
+    fn answers(&self) -> bool {
+        true
     }
     fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<LocalBoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
         let session = self.clone();

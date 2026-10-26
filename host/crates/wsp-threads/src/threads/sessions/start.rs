@@ -441,7 +441,7 @@ impl SessionsArea {
             }
         };
         let adapter = built.adapter.clone();
-        let no_fork_road = !ctx.adapter_forks(adapter.as_ref());
+        let no_fork_road = !adapter.forks();
         let fork_turn = match plan.as_ref() {
             None => None,
             Some(plan) => {

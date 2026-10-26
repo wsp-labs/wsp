@@ -581,6 +581,12 @@ impl HarnessAdapter for CodexAdapter {
     ) -> Option<LocalBoxFuture<'static, Result<Option<Vec<HarnessCatalogModelProbe>>, String>>> {
         CodexAdapter::account_models(self, version).map(|models| models.map(Ok).boxed_local())
     }
+    fn attaches(&self) -> bool {
+        self.deps.exec.attaches()
+    }
+    fn holds_session(&self) -> bool {
+        true
+    }
     fn attach(
         &self,
         options: AdapterAttachOptions,
@@ -720,6 +726,9 @@ impl HarnessSession for CodexSession {
         _images: Vec<TurnImage>,
     ) -> Option<LocalBoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
         Some(CodexSession::steer(self, prompt).map(Ok).boxed_local())
+    }
+    fn answers(&self) -> bool {
+        true
     }
     fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<LocalBoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
         Some(CodexSession::answer(self, ask_id, answer))
