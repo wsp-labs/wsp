@@ -71,6 +71,7 @@ scratch folder removed.
 ## After the port
 
 - `import` marks `landed` before the roots write, so a concurrent write lists a folder that may be taken back (:500). Kept.
+- A bus listener that throws mid-import fails the import at the kind's return, not at its stage, because `ImportReport` answers `()`; the join changes wsp-core's `ImportReport` (`internal.rs`) to answer a `Result` and wsp-machines' call sites once wsp-machines lands.
 
 ## Rules against tests
 

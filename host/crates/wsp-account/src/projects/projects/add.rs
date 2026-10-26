@@ -2,6 +2,7 @@
 //! Recording a project: the landing roads by kind, what they may ask of the runtime, the seed menu and picks, and the
 //! add. projects.ts:108-341 at 65f6b89c7; spec/projects_add.md. `LandingRoad` and `ProjectSourceModule` are the shapes
 //! of runtime/src/project-landing.ts and project-sources.ts, which wsp-core holds and has not written yet.
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -103,6 +104,8 @@ pub trait LandingRoad {
     async fn land(&self, ask: LandAsk, deps: &LandingDeps) -> Result<Landed, HostError>;
     async fn remove(&self, project: &ProjectView, deps: &LandingDeps) -> Result<String, HostError>;
     async fn folder_stands(&self, project: &ProjectView, deps: &LandingDeps) -> Option<Result<bool, HostError>>;
+    /// `road.seedInto !== undefined`: whether the road takes files into a folder of its own.
+    fn takes_files(&self) -> bool;
     async fn seed_into(&self, project: &ProjectView, tar: Vec<u8>, deps: &LandingDeps) -> Option<Result<(), HostError>>;
     async fn unsaved(&self, project: &ProjectView, deps: &LandingDeps) -> Option<Result<Option<String>, HostError>>;
     async fn branch(&self, project: &ProjectView, deps: &LandingDeps) -> Result<ProjectBranch, HostError>;
@@ -281,8 +284,9 @@ impl Projects {
     pub async fn seed_plan(&self, source: &str, on: Option<&str>) -> Result<SeedPlan, HostError> {
         self.ctx.ready().await?;
         let folder = folder_named(source, &self.ctx.home_dir(), &process_cwd());
+        let wiring = self.seed_wiring()?;
         let homes = self.ctx.homes_here().await?;
-        let read = self.seed_wiring()?.plan(&folder, &homes).await?;
+        let read = wiring.plan(&folder, &homes).await?;
         let place = match on {
             None => None,
             Some(on) => self.ctx.computer_rows().await?.into_iter().find(|row| names_place(&place_ref(row), on)),
@@ -648,26 +652,40 @@ impl Projects {
         let project_id = project.id.clone();
         let stage_computer = computer.clone();
         let heard = o.report.clone();
-        let report: AddReport = Rc::new(move |stage: ProjectAddStage, message: &str| {
+        let emit_failed: Rc<RefCell<Option<HostError>>> = Rc::default();
+        let failed = emit_failed.clone();
+        let heard_report: AddReport = Rc::new(move |stage: ProjectAddStage, message: &str| {
+            if failed.borrow().is_some() {
+                return;
+            }
             let stage_word = json_of(&stage).unwrap_or(Value::Null);
-            let _ = emitter.emit(json!({
+            let event = json!({
                 "type": "project.add",
                 "projectId": project_id,
                 "computer": stage_computer,
                 "stage": stage_word,
                 "message": message,
                 "elapsedMs": emitter.clock().now() - began,
-            }));
+            });
+            if let Err(e) = emitter.emit(event) {
+                *failed.borrow_mut() = Some(e);
+                return;
+            }
             if let Some(heard) = &heard {
                 heard(message);
             }
         });
+        // The road's report answers nothing; the add reads a listener's failure where the TS's `report(...)` throws.
+        let report = |stage: ProjectAddStage, message: &str| -> Result<(), HostError> {
+            heard_report(stage, message);
+            emit_failed.borrow_mut().take().map_or(Ok(()), Err)
+        };
         let seed = if seeding { resolved.seed.clone().zip(o.seed.clone()) } else { None };
         let folder_for_seed = source_path.clone();
         if !road.lands_at_add(seed.is_some()) {
             return self.keep(&project, Landed::default(), o.seed.as_ref(), folder_for_seed.as_deref(), resolved.seed.as_ref()).await;
         }
-        report(ProjectAddStage::Planned, &adding_project_line(&project.name, &source, seed.is_some()));
+        report(ProjectAddStage::Planned, &adding_project_line(&project.name, &source, seed.is_some()))?;
         let outcome: Result<AddedProject, HostError> = async {
             let packed = match &seed {
                 None => None,
@@ -678,16 +696,20 @@ impl Projects {
             };
             if let Some(packed) = &packed {
                 if !packed.left.is_empty() {
-                    report(ProjectAddStage::Seeding, &left_behind_line(&packed.left));
+                    report(ProjectAddStage::Seeding, &left_behind_line(&packed.left))?;
                 }
             }
             let landed_seed = match (&packed, &seed) {
                 (Some(packed), Some((plan, choice))) => Some((packed.tar.clone(), choice.clone(), plan.clone())),
                 _ => None,
             };
-            let landed = road.land(LandAsk { project: project.clone(), seed: landed_seed, report: report.clone() }, &at.deps).await?;
+            let landed = road.land(LandAsk { project: project.clone(), seed: landed_seed, report: heard_report.clone() }, &at.deps).await;
+            if let Some(e) = emit_failed.borrow_mut().take() {
+                return Err(e);
+            }
+            let landed = landed?;
             let recorded = self.keep(&project, landed.clone(), o.seed.as_ref(), folder_for_seed.as_deref(), resolved.seed.as_ref()).await?;
-            report(ProjectAddStage::Done, &added_project_on(&recorded.project, &self.ctx.name_of_computer(&computer, &rows)));
+            report(ProjectAddStage::Done, &added_project_on(&recorded.project, &self.ctx.name_of_computer(&computer, &rows)))?;
             let mut notices: Vec<String> = Vec::new();
             if let Some(notice) = landed.notice.clone() {
                 notices.push(notice);
@@ -700,10 +722,10 @@ impl Projects {
             Ok(AddedProject { project: recorded.project, notice: if notices.is_empty() { None } else { Some(notices.join("; ")) } })
         }
         .await;
-        if let Err(e) = &outcome {
-            report(ProjectAddStage::Failed, &e.message);
+        match outcome {
+            Err(e) => Err(report(ProjectAddStage::Failed, &e.message).err().unwrap_or(e)),
+            done => done,
         }
-        outcome
     }
 }
 
@@ -777,10 +799,10 @@ impl Projects {
                     None => Vec::new(),
                     Some(plan) => held_back_picks(plan, &prior_files),
                 };
-                let mut files = choice.files.clone();
-                for file in held {
-                    if !files.contains(&file) {
-                        files.push(file);
+                let mut files: Vec<String> = Vec::new();
+                for file in choice.files.iter().chain(&held) {
+                    if !files.contains(file) {
+                        files.push(file.clone());
                     }
                 }
                 let kept = SeedChoice { files, ..choice.clone() };

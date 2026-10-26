@@ -689,7 +689,7 @@ impl ChannelsCtx for World {
     fn terminal_sign_in(&self, _harness: &str, _entry: &Entry, _token: &str) -> Option<TerminalSignIn> {
         unreachable!()
     }
-    fn terminal_line(&self, _harness: &str, _program: &str) -> String {
+    fn terminal_line(&self, _harness: &str, _program: Option<&str>) -> String {
         unreachable!()
     }
     async fn thread_folder(&self, _entry: &Entry) -> String {

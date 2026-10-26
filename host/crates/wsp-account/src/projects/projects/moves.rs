@@ -2,13 +2,15 @@
 //! A folder of this computer's onto a workspace's machine and a machine's folder back here, each saying its stages.
 //! projects.ts:23-106, 482-574 at 65f6b89c7; spec/projects_move.md. The engine's roads these call are reached through
 //! `MoveRoads`, so a test scripts them as the TS tests mock the engine.
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+use std::os::unix::fs::DirBuilderExt;
 use std::rc::Rc;
 
 use async_trait::async_trait;
 use serde::Serialize;
 use serde_json::{json, Value};
 use wsp_core::types::internal::{ImportLanded, ImportReport};
+use wsp_core::types::pending::CacheRule;
 use wsp_core::types::wiring::{
     home_outcome, outcome_words, LandRequest, LandState, LandedProject, PackedState, ProjectExportOptions, ProjectImportOptions,
     StateAgent, StateRequest, LISTING_DEADLINE_MS,
@@ -32,7 +34,10 @@ use super::Projects;
 use crate::projects::workspaces::seam::{record_of, Entry, EntryAsk};
 
 /// What an export says as it goes, with the bytes read so far and the total where the road counts them.
-pub type ExportReport = Rc<dyn Fn(ProjectExportStage, &str, Option<(u64, u64)>)>;
+pub type ExportReport = Rc<dyn Fn(ProjectExportStage, &str, Option<(u64, u64)>) -> Result<(), HostError>>;
+
+/// The deadline every upload, landing and download of a move is given (projects.ts:76, 90, 540, 681).
+const MOVE_DEADLINE_MS: u64 = 600_000;
 
 /// A part of an upload or a download: `{bytes, total}`, with the part number where the road counts parts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -43,10 +48,13 @@ pub struct Progress {
     pub total: u64,
 }
 
-/// What a landing of a bundle says as it goes.
+/// What a landing of a bundle says as it goes, and where and for how long it works: the machine's kind names the
+/// folder its parts are written in (`tmpDir`), and `timeoutMs` is 600 s.
 pub struct LandHooks {
     pub on_part: Rc<dyn Fn(Progress)>,
     pub on_landing: Option<Rc<dyn Fn()>>,
+    pub tmp_dir: String,
+    pub timeout_ms: u64,
 }
 
 /// The engine roads the moves call, on the entry's machine. Each is the TS engine function of the same name.
@@ -69,13 +77,15 @@ pub trait MoveRoads {
     fn project_of(&self, dest: &str, bytes: u64) -> Option<serde_json::Value>;
     /// `ctx.computerRows()` row of the record's place or provider is a provider place.
     async fn provider_row(&self, entry: &Entry) -> Result<bool, HostError>;
-    /// `exportFolder(machine, source, caches, archive, {timeoutMs, onProgress})`: what it left out.
+    /// `exportFolder(machine, source, caches, archive, {timeoutMs, onProgress})`: what it left out. The rule is the
+    /// lander's own, folders, files and markers apart.
     async fn export_folder(
         &self,
         entry: &Entry,
         source: &str,
-        caches: &[String],
+        caches: &CacheRule,
         archive: &str,
+        timeout_ms: u64,
         on_progress: Rc<dyn Fn(Progress)>,
     ) -> Result<Vec<String>, HostError>;
     /// `exportPathsInto(machine, groups, archive, {timeoutMs, onProgress})`.
@@ -84,6 +94,7 @@ pub trait MoveRoads {
         entry: &Entry,
         groups: Vec<(String, Vec<String>)>,
         archive: &str,
+        timeout_ms: u64,
         on_progress: Rc<dyn Fn(Progress)>,
     ) -> Result<(), HostError>;
     /// `machine.run(script, {deadlineMs})`.
@@ -132,8 +143,9 @@ fn tail_of(text: &str) -> String {
     String::from_utf16_lossy(&units[units.len().saturating_sub(200)..])
 }
 
-/// The upload hooks: each part says `uploading` with its progress; `landing` names the path when one is given.
-fn upload_hooks(report: &ImportReport, landing: Option<String>) -> LandHooks {
+/// The upload hooks: each part says `uploading` with its progress; `landing` names the path when one is given. The
+/// parts are written in `tmp_dir`, the machine's kind's scratch folder.
+fn upload_hooks(report: &ImportReport, landing: Option<String>, tmp_dir: String) -> LandHooks {
     let part_report = report.clone();
     let on_part: Rc<dyn Fn(Progress)> = Rc::new(move |p: Progress| {
         let message = format!("Part {} of {}, {} of {}.", p.part, p.parts, fmt_bytes(p.bytes as f64), fmt_bytes(p.total as f64));
@@ -143,7 +155,7 @@ fn upload_hooks(report: &ImportReport, landing: Option<String>) -> LandHooks {
         let landing_report = report.clone();
         Rc::new(move || landing_report(ProjectImportStage::Landing, &format!("Landing at {dest}."), None)) as Rc<dyn Fn()>
     });
-    LandHooks { on_part, on_landing }
+    LandHooks { on_part, on_landing, tmp_dir, timeout_ms: MOVE_DEADLINE_MS }
 }
 
 impl Projects {
@@ -157,29 +169,11 @@ impl Projects {
         }
     }
 
-    /// An empty folder under the temp root for one export's archives.
+    /// An empty folder under the temp root for one export's archives, private to the person as `mkdtempSync` makes it.
     fn scratch_dir(&self) -> Result<String, HostError> {
         let path = format!("{}/wsp-exported-{}", self.ctx.temp_dir(), hex::encode(self.ctx.ids().bytes(6)));
-        std::fs::create_dir_all(&path).map_err(engine_err)?;
+        std::fs::DirBuilder::new().mode(0o700).create(&path).map_err(engine_err)?;
         Ok(path)
-    }
-
-    /// The export's steps, then the listing's cleanup on the machine where a listing ran.
-    async fn export_run(
-        &self,
-        entry: &Entry,
-        o: &ProjectExportOptions,
-        scratch: &str,
-        report: ExportReport,
-    ) -> Result<ProjectExportResult, HostError> {
-        let on_machine = guest_tmp_path("wsp-state", GUEST_TMP, self.ctx.clock().now(), self.ctx.ids().random());
-        let listed = Cell::new(false);
-        let outcome = self.export_steps(entry, o, scratch, &report, &on_machine, &listed).await;
-        if listed.get() {
-            let cleanup = format!("rm -rf {}", shell_quote(&on_machine));
-            let _ = self.ctx.machine_exec(entry, &cleanup, INLINE_EXEC_MS).await;
-        }
-        outcome
     }
 
     async fn export_steps(
@@ -191,14 +185,15 @@ impl Projects {
         on_machine: &str,
         listed: &Cell<bool>,
     ) -> Result<ProjectExportResult, HostError> {
+        let progress_failed: Rc<RefCell<Option<HostError>>> = Rc::default();
         let downloading = |what: &'static str| -> Rc<dyn Fn(Progress)> {
             let report = report.clone();
+            let failed = progress_failed.clone();
             Rc::new(move |p: Progress| {
-                report(
-                    ProjectExportStage::Downloading,
-                    &format!("{what}: {} of {}.", fmt_bytes(p.bytes as f64), fmt_bytes(p.total as f64)),
-                    Some((p.bytes, p.total)),
-                );
+                let said = format!("{what}: {} of {}.", fmt_bytes(p.bytes as f64), fmt_bytes(p.total as f64));
+                if let Err(e) = report(ProjectExportStage::Downloading, &said, Some((p.bytes, p.total))) {
+                    failed.borrow_mut().get_or_insert(e);
+                }
             })
         };
         let homes = self.ctx.guest_agent_homes();
@@ -208,11 +203,13 @@ impl Projects {
                 return Err(dest_exists(&o.dest, files));
             }
         }
-        report(ProjectExportStage::Packing, &format!("Packing {} on the machine.", o.source), None);
+        report(ProjectExportStage::Packing, &format!("Packing {} on the machine.", o.source), None)?;
         let archive = format!("{scratch}/folder.tgz");
-        let rule = o.lander.caches();
-        let caches: Vec<String> = rule.dirs.iter().chain(rule.files.iter()).chain(rule.markers.iter()).cloned().collect();
-        let excluded = self.ctx.export_folder(entry, &o.source, &caches, &archive, downloading("The folder")).await?;
+        let excluded =
+            self.ctx.export_folder(entry, &o.source, &o.lander.caches(), &archive, MOVE_DEADLINE_MS, downloading("The folder")).await?;
+        if let Some(e) = progress_failed.borrow_mut().take() {
+            return Err(e);
+        }
         let mut found = ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() };
         if !listing.is_empty() {
             listed.set(true);
@@ -224,7 +221,7 @@ impl Projects {
         let listed_state = parse_state_listing(&found.stdout).map_err(engine_err)?;
         let mut state: Option<LandState> = None;
         if !listed_state.paths.is_empty() {
-            report(ProjectExportStage::Packing, "Packing the agents' state for it on the machine.", None);
+            report(ProjectExportStage::Packing, "Packing the agents' state for it on the machine.", None)?;
             let state_archive = format!("{scratch}/state.tgz");
             let outside: Vec<String> = listed_state.paths.iter().filter(|p| !under_project(p, on_machine)).cloned().collect();
             let inside: Vec<String> = listed_state.paths.iter().filter(|p| under_project(p, on_machine)).cloned().collect();
@@ -235,10 +232,13 @@ impl Projects {
             if !inside.is_empty() {
                 groups.push((on_machine.to_owned(), inside));
             }
-            self.ctx.export_paths_into(entry, groups, &state_archive, downloading("Agent state")).await?;
+            self.ctx.export_paths_into(entry, groups, &state_archive, MOVE_DEADLINE_MS, downloading("Agent state")).await?;
+            if let Some(e) = progress_failed.borrow_mut().take() {
+                return Err(e);
+            }
             state = Some(LandState { archive: state_archive, homes: homes.clone(), agents: o.agents.clone() });
         }
-        report(ProjectExportStage::Landing, &format!("Landing at {}.", o.dest), None);
+        report(ProjectExportStage::Landing, &format!("Landing at {}.", o.dest), None)?;
         let landed: LandedProject = o
             .lander
             .land(LandRequest {
@@ -269,7 +269,7 @@ impl Projects {
                 sessions
             ),
             None,
-        );
+        )?;
         Ok(ProjectExportResult {
             dest: o.dest.clone(),
             files: JsNumber(landed.files as f64),
@@ -479,8 +479,8 @@ impl Projects {
         }
         let tar_len = packed.tar.len() as u64;
         report(ProjectImportStage::Uploading, &format!("Uploading {}.", fmt_bytes(tar_len as f64)), Some((0, tar_len)));
-        let parts =
-            self.ctx.land_bundle(entry, packed.tar.clone(), &o.dest, o.replace, upload_hooks(&report, Some(o.dest.clone()))).await?;
+        let hooks = upload_hooks(&report, Some(o.dest.clone()), self.ctx.scratch(entry));
+        let parts = self.ctx.land_bundle(entry, packed.tar.clone(), &o.dest, o.replace, hooks).await?;
         let name_of = |id: &str| plan.agents.iter().find(|a| a.agent == id).map(|a| a.name.clone()).unwrap_or_else(|| id.to_owned());
         let mut agents: Vec<ProjectAgentResult> = state.as_ref().map(|s| s.agents.clone()).unwrap_or_default();
         let outcomes = |agents: &[ProjectAgentResult]| {
@@ -502,7 +502,8 @@ impl Projects {
                     &format!("Uploading {}, {}.", what.join(" and "), fmt_bytes(state_len as f64)),
                     Some((0, state_len)),
                 );
-                self.ctx.import_into(entry, state.tar.clone(), upload_hooks(&report, None)).await?;
+                let hooks = upload_hooks(&report, None, self.ctx.scratch(entry));
+                self.ctx.import_into(entry, state.tar.clone(), hooks).await?;
                 if !state.merges.is_empty() {
                     let names: Vec<String> = state.merges.iter().map(|(agent, _)| name_of(agent)).collect();
                     report(ProjectImportStage::Landing, &format!("Merging rows into {}.", names.join(", ")), None);
@@ -588,7 +589,12 @@ impl Projects {
         let began = self.ctx.clock().now();
         let emitter = self.ctx.clone();
         let (workspace_id, source, dest) = (o.workspace_id.clone(), o.source.clone(), o.dest.clone());
+        let emit_failed: Rc<RefCell<Option<HostError>>> = Rc::default();
+        let failed = emit_failed.clone();
         let report: ImportReport = Rc::new(move |stage: ProjectImportStage, message: &str, progress: Option<(u64, u64)>| {
+            if failed.borrow().is_some() {
+                return;
+            }
             let mut event = json!({
                 "type": "project.import",
                 "workspaceId": workspace_id,
@@ -602,17 +608,34 @@ impl Projects {
                 event["bytes"] = json!(bytes);
                 event["total"] = json!(total);
             }
-            let _ = emitter.emit(event);
+            if let Err(e) = emitter.emit(event) {
+                *failed.borrow_mut() = Some(e);
+            }
         });
-        let outcome = self.import_run(&entry, o, &report).await;
+        let mut outcome = self.import_run(&entry, o, &report, &emit_failed).await;
         if let Err(e) = &outcome {
             report(ProjectImportStage::Failed, &e.message, None);
+            if let Some(said) = emit_failed.borrow_mut().take() {
+                outcome = Err(said);
+            }
         }
         outcome
     }
 
-    async fn import_run(&self, entry: &Entry, o: ProjectImportOptions, report: &ImportReport) -> Result<ProjectImportResult, HostError> {
-        let landed = self.ctx.kind_import(entry, o, report.clone()).await?;
+    /// `emit_failed` holds a bus listener's failure: the report's own return is `()`, so the road reads it where the TS's
+    /// `report(...)` would have thrown.
+    async fn import_run(
+        &self,
+        entry: &Entry,
+        o: ProjectImportOptions,
+        report: &ImportReport,
+        emit_failed: &RefCell<Option<HostError>>,
+    ) -> Result<ProjectImportResult, HostError> {
+        let landed = self.ctx.kind_import(entry, o, report.clone()).await;
+        if let Some(e) = emit_failed.borrow_mut().take() {
+            return Err(e);
+        }
+        let landed = landed?;
         let landed_dest = landed.result.dest.clone();
         let had = record_of(entry).landed.is_some_and(|dirs| dirs.contains(&landed_dest));
         {
@@ -635,6 +658,9 @@ impl Projects {
         }
         self.ctx.persist(record_of(entry)).await?;
         report(ProjectImportStage::Done, &landed.done, None);
+        if let Some(e) = emit_failed.borrow_mut().take() {
+            return Err(e);
+        }
         Ok(landed.result)
     }
 
@@ -717,12 +743,20 @@ impl Projects {
                 event["bytes"] = json!(bytes);
                 event["total"] = json!(total);
             }
-            let _ = emitter.emit(event);
+            emitter.emit(event)
         });
         let scratch = self.scratch_dir()?;
-        let outcome = self.export_run(&entry, &o, &scratch, report.clone()).await;
+        let on_machine = guest_tmp_path("wsp-state", GUEST_TMP, self.ctx.clock().now(), self.ctx.ids().random());
+        let listed = Cell::new(false);
+        let mut outcome = self.export_steps(&entry, &o, &scratch, &report, &on_machine, &listed).await;
         if let Err(e) = &outcome {
-            report(ProjectExportStage::Failed, &e.message, None);
+            if let Err(said) = report(ProjectExportStage::Failed, &e.message, None) {
+                outcome = Err(said);
+            }
+        }
+        if listed.get() {
+            let cleanup = format!("rm -rf {}", shell_quote(&on_machine));
+            let _ = self.ctx.machine_exec(&entry, &cleanup, INLINE_EXEC_MS).await;
         }
         std::fs::remove_dir_all(&scratch).ok();
         outcome
