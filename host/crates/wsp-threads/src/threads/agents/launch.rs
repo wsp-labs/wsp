@@ -43,12 +43,13 @@ use wsp_wire::views::workspace::{Caller, WorkspacePhase};
 use wsp_words::agents_report::config_unread_line;
 use wsp_words::attachments::{drop_files_line, file_path_in, files_not_landed_line, image_path_in, land_files_line};
 use wsp_words::exit::{HostError, Kind};
+use wsp_words::js::js_trim;
 use wsp_words::project_path::under_project;
 use wsp_words::thread_defaults::{access_mode, config_dir_refusal};
 use wsp_words::workspace_state::sign_in_refusal_line;
 
 use super::super::threads::Entry;
-use super::{fire, AgentsArea, AgentsCtx, SignsIn, TurnLaunch};
+use super::{AgentsArea, AgentsCtx, SignsIn, TurnLaunch};
 
 pub use wsp_engine::exec_detached::put::INLINE_EXEC_MS;
 /// `{ images, dir? }` (agents.ts:448).
@@ -364,9 +365,9 @@ impl AgentsArea {
         }
         let read = self.ctx.place_exec(place, &real_folder_script(path), INLINE_EXEC_MS).await?;
         if read.exit_code.get() == 3 {
-            return Err(HostError::with_kind(read.stderr.trim(), Kind::Usage));
+            return Err(HostError::with_kind(js_trim(&read.stderr), Kind::Usage));
         }
-        let said = read.stdout.trim().to_string();
+        let said = js_trim(&read.stdout).to_string();
         let mut lines = said.split('\n');
         let folder = lines.next().map(str::to_string);
         let home = lines.next().map(str::to_string);
@@ -376,8 +377,11 @@ impl AgentsArea {
                 Ok(ResolvedFolder { folder: posix_normalize(&folder), home, kept: vec![kept] })
             }
             _ => {
-                let why =
-                    if read.stderr.trim().is_empty() { format!("exit {}", read.exit_code.get()) } else { read.stderr.trim().to_string() };
+                let why = if js_trim(&read.stderr).is_empty() {
+                    format!("exit {}", read.exit_code.get())
+                } else {
+                    js_trim(&read.stderr).to_string()
+                };
                 Err(HostError::with_kind(format!("{} did not say where {path} is: {why}", self.ctx.place_name(place)), Kind::Invalid))
             }
         }
@@ -609,7 +613,7 @@ impl AgentsArea {
         let machine = entry.borrow().machine.clone();
         let id = entry.borrow().record.borrow().id.clone();
         let command = format!("rm -rf {}", shell_quote(dir));
-        fire(
+        self.fire(
             async move {
                 if let Err(e) =
                     machine.exec(&command, ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), idempotency_key: None, stdin: None }).await

@@ -26,6 +26,7 @@ use wsp_words::exit::HostError;
 
 use super::super::threads::{Entry, Row};
 use super::TranscriptsArea;
+use crate::threads::unit;
 
 pub use wsp_core::types::internal::{ATTACHMENTS, ATTACHMENT_KEYS, DAEMON_TOKEN_MISS_TTL_MS, SESSIONS, SESSION_INDEX_CAP};
 /// One step of the kept-images chain: the document as read, answering the document to write, or `None` where the
@@ -204,7 +205,7 @@ impl TranscriptsArea {
         .boxed_local()
         .shared();
         self.kept_writes.borrow_mut().insert(workspace_id.to_string(), link.clone());
-        tokio::task::spawn_local(link.clone());
+        self.ctx.spawn(unit(link.clone()));
         link.boxed_local()
     }
 
@@ -401,7 +402,7 @@ impl TranscriptsArea {
                     Value::Object(map) => map,
                     _ => Map::new(),
                 };
-                held.remove("workspaceId");
+                held.shift_remove("workspaceId");
                 (id.clone(), Value::Object(held))
             })
             .collect();
@@ -429,7 +430,7 @@ impl TranscriptsArea {
         flushes.with(|m| {
             m.insert(workspace_id.to_string(), link.clone());
         });
-        tokio::task::spawn_local(link.clone());
+        self.ctx.spawn(unit(link.clone()));
         link.boxed_local()
     }
 

@@ -535,6 +535,9 @@ fn kept_at(setups: &RefCell<IndexMap<(String, String), FakeSetup>>, place: &str,
 }
 
 impl AgentsCtx for FakeAgentsCtx {
+    fn spawn(&self, work: LocalBoxFuture<'static, ()>) {
+        super::spawn_detached(work);
+    }
     fn clock(&self) -> Rc<dyn Clock> {
         self.clock.clone()
     }

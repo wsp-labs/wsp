@@ -155,6 +155,8 @@ pub trait LaunchCtx {
     ) -> Result<LaunchServers, HostError>;
     fn hold_warm(&self, thread_id: &str, hold: KeptHand);
     async fn revoke_device(&self, device_id: &str) -> Result<(), HostError>;
+    /// TS `void promise`: work that outlives its caller. The host runs it on its `LocalSet`, so where it runs is its to say.
+    fn spawn(&self, work: LocalBoxFuture<'static, ()>);
 }
 
 /// What `launch_picks` answers: the catalog read and the picks for a session (launch.ts:264).

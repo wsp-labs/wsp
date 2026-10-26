@@ -219,6 +219,7 @@ impl TurnState {
         };
         let ctx = self.ctx.clone();
         detach(
+            &self.ctx,
             async move {
                 let _ = ctx.persist_record(record).await;
             }
@@ -236,6 +237,7 @@ impl TurnState {
                 let ctx = self.ctx.clone();
                 let title = title.clone();
                 detach(
+                    &self.ctx,
                     async move {
                         let _ = ctx.name_in_harness(view, &title).await;
                     }
@@ -443,6 +445,7 @@ impl TurnState {
             let ctx = self.ctx.clone();
             let turn = self.turn_id.clone();
             detach(
+                &self.ctx,
                 async move {
                     if let Err(e) = ctx.ledger_add(row).await {
                         wsp_core::console::warn(&format!("the use of turn {turn} was not filed: {}", e.message));
@@ -472,6 +475,7 @@ impl TurnState {
         let ctx = self.ctx.clone();
         let key = account.key;
         detach(
+            &self.ctx,
             async move {
                 let kept: Result<(), HostError> = async {
                     let (before, after) = ctx.ledger_limit(ask).await?;

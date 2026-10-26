@@ -4,6 +4,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use crate::threads::unit;
 use futures::future::{join, join_all, ready, LocalBoxFuture, Shared};
 use futures::FutureExt;
 use wsp_adapters::port::{SessionFile, SessionRenameWrite};
@@ -15,9 +16,10 @@ use wsp_engine::machine::ExecOptions;
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_words::exit::HostError;
+use wsp_words::js::{js_trim, js_trim_start};
 use wsp_words::words::computer::thread_word;
 
-use super::{KeptHand, PlaceMove, ThreadsArea};
+use super::{KeptHand, PlaceMove, ThreadsArea, ThreadsCtx};
 
 pub use wsp_wire::wire::limits::{
     agents_kept_on, AGENTS_KEPT, AGENTS_WARM, AGENT_KEEP_MS, AGENT_WARM_MS, KEPT_AGENT_MB, KEPT_MEMORY_SHARE,
@@ -42,7 +44,7 @@ pub fn box_file_line(at: &SessionFile) -> String {
 
 /// `parseInt(text, 10)` where the answer is a safe integer, else None.
 fn js_int(text: &str) -> Option<i64> {
-    let text = text.trim_start();
+    let text = js_trim_start(text);
     let (sign, digits) = match text.strip_prefix('-') {
         Some(rest) => (-1, rest),
         None => (1, text.strip_prefix('+').unwrap_or(text)),
@@ -65,9 +67,9 @@ fn cancel_timer(kept: &Rc<RefCell<KeptProcess>>) {
     cancel();
 }
 
-fn close_agent(kept: &Rc<RefCell<KeptProcess>>, now: bool) {
+fn close_agent(ctx: &Rc<dyn ThreadsCtx>, kept: &Rc<RefCell<KeptProcess>>, now: bool) {
     let close = kept.borrow().agent.close(now);
-    tokio::task::spawn_local(close);
+    ctx.spawn(unit(close));
 }
 
 /// The earliest-used process, the first in map order on a tie (threads.ts `reduce`).
@@ -126,21 +128,21 @@ impl ThreadsArea {
         if let Some(device) = device {
             let revoke = self.ctx.revoke_device(&device);
             let word = thread_word(thread_id);
-            tokio::task::spawn_local(async move {
+            self.ctx.spawn(Box::pin(async move {
                 if let Err(e) = revoke.await {
                     warn(&format!("the token of thread {word} was not taken away: {}", e.message));
                 }
-            });
+            }));
         }
         let place = if self.ctx.closing() { None } else { self.kept_box(&workspace_id).map(|b| b.place) };
         let Some(place) = place else {
-            return close_agent(&kept, now);
+            return close_agent(&self.ctx, &kept, now);
         };
         if !self.ctx.has_place_door() || self.ctx.place_linked(&place) {
-            return close_agent(&kept, now);
+            return close_agent(&self.ctx, &kept, now);
         }
         let stop: Rc<RefCell<Option<Box<dyn Fn()>>>> = Rc::default();
-        let (stop_in, kept_in) = (stop.clone(), kept.clone());
+        let (stop_in, kept_in, ctx_in) = (stop.clone(), kept.clone(), self.ctx.clone());
         let listener: Rc<dyn Fn(&PlaceMove)> = Rc::new(move |m: &PlaceMove| {
             let arrived = match m {
                 PlaceMove::Present(p) if *p == place => true,
@@ -152,12 +154,12 @@ impl ThreadsArea {
                 off();
             }
             if arrived {
-                close_agent(&kept_in, now);
+                close_agent(&ctx_in, &kept_in, now);
             }
         });
         match self.ctx.on_place_move(listener) {
             Some(off) => *stop.borrow_mut() = Some(off),
-            None => close_agent(&kept, now),
+            None => close_agent(&self.ctx, &kept, now),
         }
     }
     /// threads.ts:140: K4. -1 where the agent wrote no file there.
@@ -172,7 +174,7 @@ impl ThreadsArea {
             if res.exit_code.as_f64() != 0.0 {
                 return None;
             }
-            js_int(res.stdout.trim())
+            js_int(js_trim(&res.stdout))
         }
         .boxed_local()
     }
@@ -180,7 +182,7 @@ impl ThreadsArea {
     fn start_box_read(&self, workspace_id: &str, at: &SessionFile) -> BoxRead {
         // The size is an i64 (-1 where no file was found) carried in wsp-core's u64 field; the cast round-trips.
         let read: BoxRead = self.box_file_size(workspace_id, at).map(|size| size.map(|n| n as u64)).boxed_local().shared();
-        tokio::task::spawn_local(read.clone());
+        self.ctx.spawn(unit(read.clone()));
         read
     }
     /// threads.ts:160: K6.
@@ -256,7 +258,7 @@ impl ThreadsArea {
         self.host_writes.borrow_mut().insert(harness_session_id.to_string(), settled.clone());
         let me = self.me.clone();
         let key = harness_session_id.to_string();
-        tokio::task::spawn_local(async move {
+        self.ctx.spawn(Box::pin(async move {
             settled.await;
             let Some(area) = me.upgrade() else {
                 return;
@@ -265,7 +267,7 @@ impl ThreadsArea {
             if writes.get(&key).is_some_and(|held| held.peek().is_some()) {
                 writes.shift_remove(&key);
             }
-        });
+        }));
         wrote.boxed_local()
     }
     /// The processes kept on a session stamp its file again once the host has written it (threads.ts:180-195).
@@ -320,7 +322,7 @@ impl ThreadsArea {
     pub fn hold_kept(&self, thread_id: &str, o: KeptHand) -> Option<KeptHand> {
         if self.ctx.closing() || !self.ctx.thread_records().borrow().contains_key(thread_id) {
             let close = o.agent.close(false);
-            tokio::task::spawn_local(close);
+            self.ctx.spawn(unit(close));
             return Some(o);
         }
         self.reap_kept(thread_id, false);
@@ -455,7 +457,7 @@ impl ThreadsArea {
         let me = self.me.clone();
         let thread = thread_id.to_string();
         let kept = kept.clone();
-        tokio::task::spawn_local(async move {
+        self.ctx.spawn(Box::pin(async move {
             exited.await;
             let Some(area) = me.upgrade() else {
                 return;
@@ -469,6 +471,6 @@ impl ThreadsArea {
             if let Some(device) = device {
                 let _ = area.ctx.revoke_device(&device).await;
             }
-        });
+        }));
     }
 }

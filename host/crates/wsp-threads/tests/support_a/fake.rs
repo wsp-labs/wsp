@@ -369,7 +369,21 @@ impl FakeHost {
 pub fn run_local<F: std::future::Future<Output = ()>>(f: F) {
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime");
     let local = tokio::task::LocalSet::new();
+    IN_LOCAL_SET.with(|in_set| in_set.set(true));
     local.block_on(&rt, f);
+    IN_LOCAL_SET.with(|in_set| in_set.set(false));
+}
+
+thread_local! {
+    static IN_LOCAL_SET: Cell<bool> = const { Cell::new(false) };
+}
+
+/// What the host's `spawn` does with detached work: runs it on the `LocalSet` the test runs in; where the test has none,
+/// as a host with no executor has, nothing is spawned and nothing panics.
+pub fn spawn_detached(work: futures::future::LocalBoxFuture<'static, ()>) {
+    if IN_LOCAL_SET.with(Cell::get) {
+        tokio::task::spawn_local(work);
+    }
 }
 
 /// Lets detached work run until nothing is ready (never a sleep).

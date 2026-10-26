@@ -138,6 +138,8 @@ pub trait ThreadsCtx {
     fn computer_of(&self, entry: &Entry) -> String;
     /// `ctx.ledger.limits()`.
     fn ledger_limits(&self) -> LocalBoxFuture<'static, Result<Vec<AccountLimit>, HostError>>;
+    /// TS `void promise`: work that outlives its caller. The host runs it on its `LocalSet`, so where it runs is its to say.
+    fn spawn(&self, work: LocalBoxFuture<'static, ()>);
 }
 
 /// The threads area (`threadsArea`, `threads.ts:70`). Every field is the TS closure's state of the same name.
