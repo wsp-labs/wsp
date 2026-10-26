@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! What `runtimeOf` decides (runtime.ts:1017-1277): the public members that are more than an area's own, the sweep
 //! and the close. The calls it makes on the core and the areas are `PublicCtx`. Spec: spec/runtime_of.md.
+use std::collections::HashSet;
 use std::rc::Rc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use wsp_core::types::api::CatalogAt;
@@ -14,12 +16,14 @@ use wsp_core::types::internal::BuilderLife;
 use wsp_core::types::pending::{DaemonChannel, DeviceDoor};
 use wsp_core::types::wiring::{AdoptedMachine, SweepResult};
 use wsp_core::types::wiring::{Detach, OriginStatusApi, RecipeShelf, SysListener, UsageDoor};
+use wsp_engine::golden_seam::BUILDER_IDLE_MS;
 use wsp_engine::machine::MachineBackend;
-use wsp_engine::orphans::{ListedMachine, ReapFailure, ReapResult, ReapedMachine};
+use wsp_engine::orphans::{date_parse, ListedMachine, ReapFailure, ReapReason, ReapResult, ReapedMachine, SparedMachine};
 use wsp_frames::ProcKind;
-use wsp_wire::views::harness::HarnessCatalog;
+use wsp_wire::views::harness::{HarnessCatalog, HarnessCatalogUnshaped};
 use wsp_wire::views::workspace::{Caller, WorkspacePhase};
 use wsp_words::exit::HostError;
+use wsp_words::words::thread::{gone_words, GoneSeenBy, GoneSighting};
 
 /// A builder as the sweep reads it (runtime.ts:1122-1140).
 #[derive(Clone, Debug, PartialEq)]
@@ -150,7 +154,156 @@ pub use wsp_core::types::internal::KEPT_CLOSE_WAIT_MS;
 
 /// `rt.reap(olderThanMs, say)` (runtime.ts:1105-1216, spec U9-U15).
 pub async fn reap(ctx: &dyn PublicCtx, older_than_ms: Option<i64>, say: Option<Rc<dyn Fn(&str)>>) -> Result<SweepAnswer, HostError> {
-    todo!()
+    if let Some(say) = say {
+        ctx.set_say_stops(say);
+    }
+    ctx.ready().await?;
+    ctx.refresh_builders().await?;
+    let mut failed: Vec<ReapFailure> = vec![];
+    let mut reaped: Vec<ReapedMachine> = vec![];
+    match ctx.expire_grace().await {
+        Ok((grace, grace_failed)) => {
+            reaped.extend(grace);
+            failed.extend(grace_failed);
+        }
+        Err(e) => failed.push(ReapFailure { id: None, message: format!("grace sweep: {}", e.message) }),
+    }
+    let now = ctx.wall_now();
+    for b in ctx.builders() {
+        if b.life == BuilderLife::Own {
+            ctx.hold(&b.id).await?;
+        }
+        let born = date_parse(b.created_label.as_deref().unwrap_or(&b.created_at));
+        let age_ms = (!born.is_nan()).then(|| now - born as i64);
+        let expired = b.life == BuilderLife::Reusable && age_ms.is_none_or(|age| age >= BUILDER_IDLE_MS as i64);
+        if b.life != BuilderLife::Stale && !expired {
+            continue;
+        }
+        let place = b.place.clone().unwrap_or_else(|| ctx.wired_place());
+        if let Err(e) = ctx.stop_builder(&b.id, &place).await {
+            failed.push(ReapFailure {
+                id: Some(b.id.clone()),
+                message: format!("could not stop: {}; stays recorded, retried next sweep", e.message),
+            });
+            continue;
+        }
+        ctx.forget_builder(&b.id).await?;
+        let (reason, age_ms) = if b.life == BuilderLife::Stale {
+            (if b.building { ReapReason::Unfinished } else { ReapReason::Recorded }, None)
+        } else {
+            (ReapReason::Expired, age_ms)
+        };
+        reaped.push(ReapedMachine { id: b.id, labels: None, builder: true, reason, age_ms, name: None });
+    }
+    match ctx.replay_creates(&mut failed).await {
+        Ok(replayed) => reaped.extend(replayed),
+        Err(e) => failed.push(ReapFailure { id: None, message: format!("asking lost creates again: {}", e.message) }),
+    }
+    let wired = ctx.wired_place();
+    let mut listings: Vec<(String, Vec<ListedMachine>)> = vec![];
+    for (place, answers) in ctx.sweep_places() {
+        if !answers {
+            continue;
+        }
+        match ctx.list_at(&place).await {
+            Ok(rows) => listings.push((place, rows)),
+            Err(e) if place == wired => {
+                failed.push(ReapFailure { id: None, message: e.message });
+                return Ok(sweep_answer(reaped, vec![], failed, vec![]));
+            }
+            Err(e) => failed.push(ReapFailure { id: None, message: format!("{}: {}", ctx.place_name(&place), e.message) }),
+        }
+    }
+    let listed: HashSet<&str> = listings.iter().flat_map(|(_, rows)| rows.iter().map(|row| row.id.as_str())).collect();
+    for entry in ctx.entries() {
+        if entry.creating || entry.napping || entry.waking || entry.deleting {
+            continue;
+        }
+        if entry.absent_machine {
+            if let Err(e) = ctx.reread_held(&entry.id, "sweep").await {
+                failed.push(ReapFailure { id: None, message: e.message });
+            }
+            continue;
+        }
+        if listed.contains(entry.machine_id.as_str()) {
+            if entry.phase == WorkspacePhase::Gone {
+                ctx.recover_gone(&entry.id).await?;
+            }
+            continue;
+        }
+        if entry.phase == WorkspacePhase::Gone {
+            continue;
+        }
+        if let MachineRead::Missing { answer } = ctx.read_machine(&entry.id).await {
+            let seen = GoneSighting { by: GoneSeenBy::Sweep, at: ctx.clock_now() as f64, answer };
+            ctx.adopt_gone(&entry.id, gone_words(&entry.machine_id, Some(&seen))).await?;
+        }
+    }
+    let mut claimed = claimable(ctx, &reaped);
+    let mut adopted: Vec<AdoptedMachine> = vec![];
+    for (place, rows) in &listings {
+        let (found, lost) = ctx.adopt_lost(place, rows, &mut claimed, &mut failed).await?;
+        adopted.extend(found);
+        reaped.extend(lost);
+    }
+    match engine_pass(ctx, &listings, &reaped, &claimed, older_than_ms, &mut failed).await {
+        Ok((swept, strayed)) => {
+            reaped.extend(swept.reaped);
+            reaped.extend(strayed);
+            failed.extend(swept.failed.unwrap_or_default());
+            Ok(sweep_answer(reaped, swept.spared, failed, adopted))
+        }
+        Err(e) => {
+            failed.push(ReapFailure { id: None, message: e.message });
+            Ok(sweep_answer(reaped, vec![], failed, adopted))
+        }
+    }
+}
+
+/// The ids something claims: the ctx's own, then every id reaped so far.
+fn claimable(ctx: &dyn PublicCtx, reaped: &[ReapedMachine]) -> Vec<String> {
+    let mut ids = ctx.known_ids();
+    ids.extend(reaped.iter().map(|r| r.id.clone()));
+    ids
+}
+
+fn sweep_answer(
+    reaped: Vec<ReapedMachine>,
+    spared: Vec<SparedMachine>,
+    failed: Vec<ReapFailure>,
+    adopted: Vec<AdoptedMachine>,
+) -> SweepAnswer {
+    SweepAnswer { reaped, spared, failed: (!failed.is_empty()).then_some(failed), adopted: (!adopted.is_empty()).then_some(adopted) }
+}
+
+/// The engine's pass over each listing, then the strays named after this host's images (runtime.ts:1199-1214).
+async fn engine_pass(
+    ctx: &dyn PublicCtx,
+    listings: &[(String, Vec<ListedMachine>)],
+    reaped: &[ReapedMachine],
+    claimed: &[String],
+    older_than_ms: Option<i64>,
+    failed: &mut Vec<ReapFailure>,
+) -> Result<(ReapResult, Vec<ReapedMachine>), HostError> {
+    let known = || [claimable(ctx, reaped), claimed.to_vec()].concat();
+    let mut swept = ReapResult { reaped: vec![], spared: vec![], failed: None };
+    for (place, rows) in listings {
+        let one = ctx.engine_reap(place, rows.clone(), known(), older_than_ms).await?;
+        swept.reaped.extend(one.reaped);
+        swept.spared.extend(one.spared);
+        if let Some(more) = one.failed {
+            swept.failed.get_or_insert_with(Vec::new).extend(more);
+        }
+    }
+    let places: Vec<String> = listings.iter().map(|(place, _)| place.clone()).collect();
+    let strayed = match ctx.sweep_strays(known(), failed, &places).await {
+        Ok(found) => found,
+        Err(e) => {
+            failed.push(ReapFailure { id: None, message: format!("machines named after this host's images: {}", e.message) });
+            vec![]
+        }
+    };
+    Ok((swept, strayed))
 }
 
 /// `{ reaped, spared, failed?, adopted? }` as the sweep answers it (runtime.ts:1142-1145).
@@ -164,13 +317,53 @@ pub struct SweepAnswer {
 
 impl From<SweepAnswer> for SweepResult {
     fn from(answer: SweepAnswer) -> SweepResult {
-        todo!()
+        SweepResult { reaped: ReapResult { reaped: answer.reaped, spared: answer.spared, failed: answer.failed }, adopted: answer.adopted }
     }
 }
 
 /// `rt.close()` (runtime.ts:1217-1275, spec U16-U17).
 pub async fn close(ctx: &dyn PublicCtx) -> Result<(), HostError> {
-    todo!()
+    for step in [
+        CloseStep::MarkClosing,
+        CloseStep::ClearRootsRecheck,
+        CloseStep::RunHeldAtClose,
+        CloseStep::AwaitCopiesMoving,
+        CloseStep::StopSweep,
+        CloseStep::AwaitSweeping,
+        CloseStep::StopDiskWatch,
+        CloseStep::CloseIdle,
+        CloseStep::CloseAlerts,
+        CloseStep::CloseSlates,
+        CloseStep::CloseAgentsReader,
+        CloseStep::SettleDaemonSyncs,
+        CloseStep::SettleKeptWrites,
+        CloseStep::SettleAgentAsks,
+    ] {
+        ctx.close_step(step).await?;
+    }
+    // Spawned so a kept agent's reap runs to the end even when the wait below gives up on it.
+    let exits: Vec<_> = ctx.kept_agents().iter().map(|id| tokio::task::spawn_local(ctx.reap_kept(id))).collect();
+    if !exits.is_empty() {
+        let _ = tokio::time::timeout(Duration::from_millis(KEPT_CLOSE_WAIT_MS), futures::future::join_all(exits)).await;
+    }
+    for step in [
+        CloseStep::StopMachineReadings,
+        CloseStep::ClosePipes,
+        CloseStep::CloseLocal,
+        CloseStep::ClosePlaceDoor,
+        CloseStep::MarkClosed,
+        CloseStep::CancelBeat,
+        CloseStep::CancelTimers,
+        CloseStep::StopPrPolls,
+        CloseStep::CloseGoneWatch,
+        CloseStep::AwaitTicking,
+        CloseStep::FreeOwnBuilders,
+        CloseStep::FlushTranscripts,
+        CloseStep::AwaitTranscriptWrites,
+    ] {
+        ctx.close_step(step).await?;
+    }
+    Ok(())
 }
 
 /// What `harnesses.list` reads (runtime.ts:1078-1097, spec U7).
@@ -200,7 +393,41 @@ pub async fn harnesses_list(
     origin: Option<Caller>,
     at: Option<CatalogAt>,
 ) -> Result<Vec<serde_json::Map<String, serde_json::Value>>, HostError> {
-    todo!()
+    let prefs = ctx.preferences().await?;
+    let entry = match workspace_id {
+        Some(id) => {
+            let origin = if ctx.talks_to_tree_on(&id, origin.as_ref()) { None } else { origin };
+            ctx.entry_of(&id, origin).await?
+        }
+        None => match at {
+            Some(CatalogAt { project: Some(project), .. }) => ctx.project_home(&project, origin).await?,
+            Some(CatalogAt { computer: Some(computer), .. }) => ctx.computer_home(&computer, origin).await?,
+            _ => None,
+        },
+    };
+    let lists = ctx.agent_lists(entry.as_ref()).await?;
+    let project = entry.as_ref().map(|e| e.1.as_str()).filter(|id| prefs.project_defaults.contains_key(*id));
+    let agent = ctx.default_agent_of(&prefs, entry.as_ref());
+    let mut out = Vec::with_capacity(lists.len());
+    for c in &lists {
+        let own = prefs.agent_defaults.get(c.harness.as_str());
+        let mut row = ctx.shaped(c, &prefs, project);
+        if own.is_some() || project.is_some() {
+            let unshaped = HarnessCatalogUnshaped {
+                models: c.models.clone(),
+                legacy_models: c.legacy_models.clone(),
+                efforts: c.efforts.clone(),
+                permission_modes: c.permission_modes.clone(),
+            };
+            let value = serde_json::to_value(unshaped).map_err(|e| HostError::new(e.to_string()))?;
+            row.insert("unshaped".into(), value);
+        }
+        if c.harness == agent {
+            row.insert("isDefault".into(), serde_json::Value::Bool(true));
+        }
+        out.push(row);
+    }
+    Ok(out)
 }
 
 /// What `status.list` and `status.history` read (spec U5-U6).
@@ -221,12 +448,15 @@ pub async fn status_list(
     o: Option<wsp_core::status::StatusListOptions>,
     origin: Option<Caller>,
 ) -> Result<Vec<wsp_wire::views::workspace_more::WorkspaceStatus>, HostError> {
-    todo!()
+    let rows = ctx.probe_list(o).await?;
+    let shown: HashSet<String> = ctx.listed_for(origin.as_ref()).into_iter().collect();
+    Ok(rows.into_iter().filter(|row| shown.contains(&row.id)).collect())
 }
 
 /// `status.history(workspaceId, origin)` (spec U6).
 pub async fn status_history(ctx: &dyn StatusCtx, workspace_id: &str, origin: Option<Caller>) -> Result<Vec<serde_json::Value>, HostError> {
-    todo!()
+    ctx.refuse_named(workspace_id, origin.as_ref())?;
+    ctx.history(workspace_id).await
 }
 
 /// What `watchPlaceSys` refuses this computer with when it reads nothing of itself (runtime.ts:1053).
