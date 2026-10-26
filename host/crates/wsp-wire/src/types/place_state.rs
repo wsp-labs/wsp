@@ -37,7 +37,7 @@ pub const WAKE_ACT: &str = "Wake";
 // ---- Hand-written below: the functions of the unit.
 
 // place-state.ts:51 at a3b870a6e
-// export const AGENTS_ON: WorkspaceAgents = { spawn: true, maxMachines: 3, maxDepth: 2 };
-/// What a workspace's agents may do before a person sets it: spawn, at most 3 machines, 2 levels deep.
+// export const AGENTS_ON: WorkspaceAgents = { maxMachines: 3, maxDepth: 2 };
+/// What a workspace's agents may do before a person sets it: at most 3 machines, 2 levels deep.
 pub const AGENTS_ON: crate::views::workspace::WorkspaceAgents =
-    crate::views::workspace::WorkspaceAgents { spawn: true, max_machines: JsInt(JsNumber(3.0)), max_depth: JsInt(JsNumber(2.0)) };
+    crate::views::workspace::WorkspaceAgents { max_machines: JsInt(JsNumber(3.0)), max_depth: JsInt(JsNumber(2.0)) };

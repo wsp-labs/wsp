@@ -197,8 +197,6 @@ impl PlaceCapSet {
 #[serde(rename_all = "camelCase")]
 pub struct PlaceSettingsSpawn {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub spawn: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub max_machines: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub max_depth: Option<JsInt>,
@@ -220,7 +218,6 @@ impl Check for PlaceSettingsSpawn {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        crate::types::keys::opt_key::<bool>(obj, "spawn", &mut out);
         crate::types::keys::opt_key_with::<JsInt>(obj, "maxMachines", &mut out, Self::rule_max_machines);
         crate::types::keys::opt_key_with::<JsInt>(obj, "maxDepth", &mut out, Self::rule_max_depth);
         Some(out)
@@ -230,7 +227,6 @@ impl Check for PlaceSettingsSpawn {
         match path.split_first() {
             None => Some(crate::types::check::Zod::Word("object")),
             Some((key, rest)) => match key.as_str()? {
-                "spawn" => <Option<bool> as Check>::describe(rest),
                 "maxMachines" => <Option<i64> as Check>::describe(rest),
                 "maxDepth" => <Option<i64> as Check>::describe(rest),
                 _ => None,
@@ -578,8 +574,8 @@ pub enum PlaceSettingWord {
     Nap,
     #[serde(rename = "turn-limit")]
     TurnLimit,
-    #[serde(rename = "spawn")]
-    Spawn,
+    #[serde(rename = "max-machines")]
+    MaxMachines,
     #[serde(rename = "max-depth")]
     MaxDepth,
 }
@@ -595,7 +591,7 @@ impl Check for PlaceSettingWord {
                 "delete-after",
                 "nap",
                 "turn-limit",
-                "spawn",
+                "max-machines",
                 "max-depth",
             ]),
         )
@@ -781,21 +777,6 @@ pub enum MacKind {
 impl Check for MacKind {
     fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
         crate::types::check::leaf(path, crate::types::check::Zod::Options(&["macbook", "imac", "mac-mini", "mac-studio", "mac-pro"]))
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum PlaceViewEngine {
-    #[serde(rename = "none")]
-    None,
-    #[serde(rename = "docker")]
-    Docker,
-    #[serde(rename = "podman")]
-    Podman,
-}
-impl Check for PlaceViewEngine {
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        crate::types::check::leaf(path, crate::types::check::Zod::Options(&["none", "docker", "podman"]))
     }
 }
 

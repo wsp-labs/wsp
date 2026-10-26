@@ -254,9 +254,6 @@ pub(super) fn runtime_op_check(op: &RuntimeOp) -> Result<(), SchemaError> {
         RuntimeOp::WorkspacesMergeIn { .. } => Ok(()),
         RuntimeOp::WorkspacesDelete { .. } => Ok(()),
         RuntimeOp::WorkspacesForget { .. } => Ok(()),
-        RuntimeOp::WorkspacesSnapshot { .. } => Ok(()),
-        RuntimeOp::ProjectGoldensList { .. } => Ok(()),
-        RuntimeOp::ProjectGoldensRemove { .. } => Ok(()),
         RuntimeOp::WorkspacesTouch { .. } => Ok(()),
         RuntimeOp::DaemonOpen { .. } => Ok(()),
         RuntimeOp::SysSubscribe { .. } => Ok(()),
@@ -494,25 +491,6 @@ pub(super) fn runtime_op_check(op: &RuntimeOp) -> Result<(), SchemaError> {
             }
             Ok(())
         }
-        RuntimeOp::InitStart { .. } => Ok(()),
-        RuntimeOp::InitAnswer { .. } => Ok(()),
-        RuntimeOp::InitStep { at, .. } => {
-            num_at_least(at.as_f64(), 0.0).map_err(|e| e.under("at"))?;
-            Ok(())
-        }
-        RuntimeOp::InitDraft { at, .. } => {
-            text_at_least(at, 1).map_err(|e| e.under("at"))?;
-            text_at_most(at, 64).map_err(|e| e.under("at"))?;
-            Ok(())
-        }
-        RuntimeOp::InitRetry { .. } => Ok(()),
-        RuntimeOp::InitBuild { .. } => Ok(()),
-        RuntimeOp::InitSignInCode { code, .. } => {
-            text_at_least(code, 1).map_err(|e| e.under("code"))?;
-            text_at_most(code, 256).map_err(|e| e.under("code"))?;
-            Ok(())
-        }
-        RuntimeOp::InitCancel { .. } => Ok(()),
         RuntimeOp::PreferencesGet { .. } => Ok(()),
         RuntimeOp::PreferencesSet { patch, .. } => {
             patch.check().map_err(|e| e.under("patch"))?;
@@ -555,12 +533,6 @@ pub(super) fn runtime_op_check(op: &RuntimeOp) -> Result<(), SchemaError> {
         RuntimeOp::ImageGet { .. } => Ok(()),
         RuntimeOp::ImageBuild { place, .. } => {
             text_at_least(place, 1).map_err(|e| e.under("place"))?;
-            Ok(())
-        }
-        RuntimeOp::ImageExport { dest, passphrase, .. } => {
-            text_at_least(dest, 1).map_err(|e| e.under("dest"))?;
-            text_at_least(passphrase, 12).map_err(|e| e.under("passphrase"))?;
-            text_at_most(passphrase, 256).map_err(|e| e.under("passphrase"))?;
             Ok(())
         }
         RuntimeOp::SlatesGet { .. } => Ok(()),

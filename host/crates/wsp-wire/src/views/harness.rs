@@ -602,16 +602,18 @@ pub struct StartPicks {
 }
 
 /// Why `start_picks` refused: wire's `listed` refusal (kind `usage`, its message word for word), or a fast asked of a
-/// model with no fast mode (kind `invalid`, `no_fast_line` of that model's label).
+/// model with no fast mode (kind `invalid`, `no_fast_line` of that model's label, no `offered`). `offered` is how many
+/// options the refused list held (helpers.ts:49).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PickRefusal {
     pub message: String,
     pub kind: &'static str,
+    pub offered: Option<usize>,
 }
 
 impl From<ListedRefusal> for PickRefusal {
     fn from(refusal: ListedRefusal) -> Self {
-        PickRefusal { message: refusal.message, kind: refusal.kind }
+        PickRefusal { message: refusal.message, kind: refusal.kind, offered: Some(refusal.offered) }
     }
 }
 
@@ -697,7 +699,7 @@ fn checked_against(catalog: &HarnessCatalog, picks: &StartPicks, model: Option<&
     let fast_on = model_of(catalog, model.or(runs_on));
     if picks.fast == Some(true) {
         if let Some(m) = fast_on.filter(|m| m.fast != Some(true)) {
-            return Err(PickRefusal { message: no_fast_line(&m.label), kind: "invalid" });
+            return Err(PickRefusal { message: no_fast_line(&m.label), kind: "invalid", offered: None });
         }
     }
     Ok(())

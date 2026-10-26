@@ -34,8 +34,6 @@ use serde::{Deserialize, Serialize};
 //   /** The release this host is, which is the release this page is: a desktop shell attached to a host it did not
 //    * start reads it to tell whether the two halves were built apart. */
 //   version: string;
-//   /** The family the person's terminal draws with, when the saved recipe ticks its row; the terminal pane defaults to it. */
-//   terminalFont?: string;
 //   /** The state file this host serves; the page keeps what it remembers (the workspace open last) under it. A page
 //    * served beyond loopback carries none, so every stranger's page remembers under one empty slot. */
 //   statePath?: string;
@@ -52,8 +50,6 @@ pub struct BootPayload {
     pub ws_path: String,
     pub paired: bool,
     pub version: String,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub terminal_font: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub state_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]

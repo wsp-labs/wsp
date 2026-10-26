@@ -281,15 +281,9 @@ fn with_catalog_keys(mut row: Value) -> Value {
     row
 }
 
-/// `PickRefusal` as `pickRefusal` reads a thrown pick error. The wire's refusal does not carry how many options it
-/// offered; the only one the table clause tells apart is an effort list that is empty, which says "takes no effort".
+/// `PickRefusal` as `pickRefusal` reads a thrown pick error.
 fn pick_error_of(refusal: PickRefusal) -> PickError {
-    let offered = match refusal.kind {
-        "invalid" => None,
-        _ if refusal.message.ends_with(" takes no effort") => Some(0),
-        _ => Some(1),
-    };
-    PickError { message: refusal.message, kind: Some(refusal.kind.to_owned()), offered }
+    PickError { message: refusal.message, kind: Some(refusal.kind.to_owned()), offered: refusal.offered.map(|n| n as _) }
 }
 
 /// `projectDefaultsOf(client)` (turns-help.ts:220): `projects.defaults`, its `defaults` as a map of project id to
