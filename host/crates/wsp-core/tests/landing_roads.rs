@@ -56,7 +56,7 @@ fn deps(m: Option<Rc<RecMachine>>, home: &str, lands: &Lands) -> LandingDeps {
         }),
         computer_name: "hetzner".into(),
         clone_env: None,
-        now: Rc::new(|| 1_761_386_400_000),
+        now: Rc::new(|| 1_792_922_400_000),
     }
 }
 

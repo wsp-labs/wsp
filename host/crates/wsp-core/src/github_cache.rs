@@ -31,19 +31,19 @@ pub struct MemoryGitHubCache {
 
 impl GitHubCache for MemoryGitHubCache {
     fn get(&self, key: &str) -> Option<GitHubCacheEntry> {
-        todo!()
+        self.held.borrow().get(key).cloned()
     }
 
     fn set(&self, key: &str, entry: GitHubCacheEntry) {
-        todo!()
+        self.held.borrow_mut().insert(key.to_string(), entry);
     }
 
     fn delete(&self, key: &str) {
-        todo!()
+        self.held.borrow_mut().shift_remove(key);
     }
 }
 
 /// github-cache.ts:18.
 pub fn memory_github_cache() -> Rc<dyn GitHubCache> {
-    todo!()
+    Rc::new(MemoryGitHubCache::default())
 }
