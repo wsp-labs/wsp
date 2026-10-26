@@ -294,7 +294,17 @@ async fn failure_notes_keep_an_empty_first_line_and_the_packed_line_prints_zero(
     let lines: Log = Arc::default();
     let heard = lines.clone();
     let pack: PackFiles = Arc::new(|_| {
-        Box::pin(async { Ok(PackedFiles { tar: vec![], bytes: 123, unpacked: 0, skipped: vec![], files: Some(0), stood: Some(vec![]) }) })
+        Box::pin(async {
+            Ok(PackedFiles {
+                tar: vec![],
+                bytes: 123,
+                unpacked: 0,
+                skipped: vec![],
+                files: Some(0),
+                stood: Some(vec![]),
+                ..Default::default()
+            })
+        })
     });
     let _ = provision_files(
         &common::handle(&m),

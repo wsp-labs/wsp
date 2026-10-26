@@ -211,6 +211,7 @@ fn packing(files: &[(&str, &str)]) -> Packing {
                 skipped: vec![],
                 files: Some(travels.len() as u64),
                 stood: Some(stood),
+                ..Default::default()
             })
         });
         fut
