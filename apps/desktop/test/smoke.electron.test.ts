@@ -98,8 +98,9 @@ function seedLocalWorkspace(home: string): void {
 
 /** The project a fixture host's workspaces are copies of: a repo on the provider computer that host serves, which
  * is what wsp add records. A workspace is one project's copy, so a host holding none refuses to make one. */
-async function seedProject(host: HostHandle): Promise<void> {
-  await host.addProject("https://github.com/dev/first.git", "default");
+async function seedWorkspace(runtime: Runtime): ReturnType<Runtime["workspaces"]["create"]> {
+  const project = await runtime.projects.add({ source: "https://github.com/dev/first.git", on: "default" });
+  return runtime.workspaces.create({ project: project.id, name: "first" });
 }
 
 /** A record of a host on the account under the launch's own wsp home, as wsp hosts leaves one: the list the shell
@@ -1262,8 +1263,7 @@ describe.runIf(SMOKE)("desktop app (built)", { timeout: 60_000 }, () => {
     });
     const runtime = testRuntime(true, {}, { claude });
     existing = await startHost({ runtime, webDir: workspaceAsset("web"), port: 0 });
-    await seedProject(existing);
-    const first = await existing.createWorkspace("first");
+    const first = await seedWorkspace(runtime);
     launched = await launch({ WSP_HOME: undefined }, home => seedServingLock(join(home, ".wsp"), { port: existing!.port, token: existing!.authToken }));
     const { app } = launched;
     const win = await windowAt(app, APP_URL);
@@ -1363,9 +1363,9 @@ describe.runIf(SMOKE)("desktop app (built)", { timeout: 60_000 }, () => {
 
   it("a right-click on a workspace row builds the native menu from the workspace registry through the bridge", async () => {
     // A host over the stub backend with one workspace, serving the built web app, so the sidebar has a row to right-click.
-    existing = await startHost({ runtime: testRuntime(true), webDir: workspaceAsset("web"), port: 0 });
-    await seedProject(existing);
-    const first = await existing.createWorkspace("first");
+    const runtime = testRuntime(true);
+    existing = await startHost({ runtime, webDir: workspaceAsset("web"), port: 0 });
+    const first = await seedWorkspace(runtime);
     launched = await launch({ WSP_HOME: undefined }, home => seedServingLock(join(home, ".wsp"), { port: existing!.port, token: existing!.authToken }));
     const win = await windowAt(launched.app, APP_URL);
     const row = `[data-row-id='ws:${first.id}']`;

@@ -29,7 +29,6 @@ const box = {
   default: false,
   present: true,
   takesForks: true,
-  engine: "docker",
   os: "Ubuntu 24.04",
   shape: { cpu: 2, memMb: 4096 },
   diskFreeBytes: 40_802_189_312,
@@ -92,20 +91,6 @@ describe("makeApi wrappers", () => {
     // A config the wire type does not vouch for is not applied: the pane would paint with a value it never checked.
     ScriptedSocket.reply = f => ({ id: f["id"], ok: true, config: { ...config, backgroundOpacity: 2 } });
     await expect(read("dark")).rejects.toThrow();
-  });
-
-  it("initGet and initBuild carry the place the card asks about, and the job names the place its build went to", async () => {
-    const { api, lastSent } = await connect();
-    const setup = { keys: { solari: true }, home: "/Users/dev", agents: [], pricing: null, place: { id: "box", name: "box" }, job: null };
-    ScriptedSocket.reply = f => ({ id: f["id"], ok: true, setup });
-    expect((await api.initGet!({ on: "box" })).place).toEqual({ id: "box", name: "box" });
-    expect(lastSent()).toEqual({ id: expect.any(Number), op: "init.get", on: "box" });
-    await api.initGet!();
-    expect(lastSent()).toEqual({ id: expect.any(Number), op: "init.get" });
-    const job = { id: "j1", road: "manual", phase: "building", keys: { solari: true }, step: 5, stoppable: true, screens: [], rows: [], progress: { done: 0, total: 0 }, log: [], place: { id: "box", name: "box" } };
-    ScriptedSocket.reply = f => ({ id: f["id"], ok: true, job });
-    expect((await api.initBuild!({ on: "box" })).place).toEqual({ id: "box", name: "box" });
-    expect(lastSent()).toEqual({ id: expect.any(Number), op: "init.build", on: "box" });
   });
 
   it("serversIcon asks the host for a host's icon and takes only an inline image of a kind the host keeps", async () => {
@@ -179,9 +164,8 @@ describe("makeApi wrappers", () => {
     await api.createWorkspace("pr_1", "beta", { size: { cpu: 2, memMb: 8192 } });
     expect(lastSent()).toEqual({ id: expect.any(Number), op: "workspaces.create", project: "pr_1", name: "beta", cpu: 2, memMb: 8192 });
     expect(RuntimeRequest.safeParse(lastSent()).success).toBe(true);
-    await api.createWorkspace("pr_1", "beta", { golden: "snap_1", size: { cpu: 2, memMb: 8192 } });
-    expect(lastSent()).toEqual({ id: expect.any(Number), op: "workspaces.create", project: "pr_1", name: "beta", golden: "snap_1", cpu: 2, memMb: 8192 });
-    expect(RuntimeRequest.safeParse(lastSent()).success).toBe(true);
+    // No client names an image: a create that carries one reads as one that does not.
+    expect(RuntimeRequest.parse({ id: 1, op: "workspaces.create", project: "pr_1", name: "beta", golden: "snap_1" })).toEqual({ id: 1, op: "workspaces.create", project: "pr_1", name: "beta" });
   });
 
   it("sends no frame the runtime would refuse: every op this client has is one the runtime serves", async () => {
@@ -296,19 +280,6 @@ describe("makeApi wrappers", () => {
     ScriptedSocket.reply = f => ({ id: f["id"], ok: true, lineage: { ...lineage, head: 1 }, existingWorkspaces: "untouched" });
     expect(await api.rollbackSnapshot(1)).toEqual({ lineage: { ...lineage, head: 1 }, existingWorkspaces: "untouched" });
     expect(lastSent()).toEqual({ id: expect.any(Number), op: "snapshots.rollback", version: 1 });
-  });
-
-  it("snapshotWorkspace and listProjectGoldens send their ops and parse the replies; a reply without the list is refused", async () => {
-    const { api, lastSent } = await connect();
-    const golden = { snapshotId: "snap_p", projects: [{ name: "proj", dest: "/root/work/proj", importedAt: "2026-09-06T10:01:00.000Z" }], golden: "snap_g", version: 1, workspaceId: "ws_1", workspaceName: "task", createdAt: "2026-09-06T10:06:00.000Z" };
-    ScriptedSocket.reply = f => ({ id: f["id"], ok: true, projectGolden: golden });
-    expect(await api.snapshotWorkspace!("ws_1")).toEqual(golden);
-    expect(lastSent()).toEqual({ id: expect.any(Number), op: "workspaces.snapshot", workspaceId: "ws_1" });
-    ScriptedSocket.reply = f => ({ id: f["id"], ok: true, projectGoldens: [golden] });
-    expect(await api.listProjectGoldens!()).toEqual([golden]);
-    expect(lastSent()).toEqual({ id: expect.any(Number), op: "projectGoldens.list" });
-    ScriptedSocket.reply = f => ({ id: f["id"], ok: true });
-    await expect(api.listProjectGoldens!()).rejects.toThrow();
   });
 
   it("a rejected op surfaces the runtime's error message", async () => {

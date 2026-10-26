@@ -69,7 +69,7 @@
 // stands, closed with its checks kept).
 import { useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import { DAEMON_UPDATING, DEFAULT_PREFERENCES, DEFAULT_THEME, DESKTOP_MAC_CLASS, DESKTOP_WCO_CLASS, GOLDEN_STAGE_WORDS, SIGN_IN_OPEN_STATE, THEME_PRESETS, vaultOverCapLine, type HarnessCatalog, type ProjectIcon, type SessionEvent, type SessionView, type TerminalConfig, type WorkspaceView } from "@wsp/protocol";
+import { DAEMON_UPDATING, DEFAULT_PREFERENCES, DEFAULT_THEME, DESKTOP_MAC_CLASS, DESKTOP_WCO_CLASS, THEME_PRESETS, vaultOverCapLine, type HarnessCatalog, type ProjectIcon, type SessionEvent, type SessionView, type TerminalConfig, type WorkspaceView } from "@wsp/protocol";
 import { statusOf } from "../workspace-status";
 import { TooltipProvider } from "../../src/components/ui/tooltip";
 import type { Api, ProtocolEvent } from "../../src/protocol/client";
@@ -693,8 +693,6 @@ const api: Api = {
   },
   getGolden: async () => undefined,
   hostTerminalConfig: async () => TRANSLUCENT,
-  listProjectGoldens: async () => [],
-  snapshotWorkspace: async id => ({ snapshotId: "snap_taken", projects: PROJECTS, golden: "snap_g", workspaceId: id, workspaceName: "api", createdAt: new Date().toISOString() }),
 };
 
 /** A Ghostty config with a background-opacity under 1, the shape whose translucency belongs to the canvas alone, and a
@@ -750,7 +748,7 @@ if (params.get("places") === "1") {
   useStore.setState({
     places: [
       { id: "p_here", kind: "computer", name: "zingzy-mbp", default: true, present: true, shape: { cpu: 10, memMb: 16384 }, diskFreeBytes: 210_000_000_000, takesForks: false },
-      { id: "p_hetzner", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true, engine: "docker", shape: { cpu: 2, memMb: 4096 }, diskFreeBytes: 38_000_000_000, forks: { running: 0, room: 3 } },
+      { id: "p_hetzner", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true, shape: { cpu: 2, memMb: 4096 }, diskFreeBytes: 38_000_000_000, forks: { running: 0, room: 3 } },
       // The worst row the detail draws: a computer away with a login on its record and the longest refusal ssh
       // hands back, which is the line that used to push the table past the card it sits in.
       {
@@ -843,53 +841,6 @@ const settingsGroup = params.get("settings");
 const settingsShown = settingsGroup === "general" || settingsGroup === "appearance";
 if (settingsShown) openSettingsGroup(settingsGroup);
 if (settingsGroup === "computer") openComputerSettings("p_hetzner");
-// ?init=building puts the init job mid-build on the store, as its events would, so the collapsed cloud row's progress
-// line can be measured and photographed; the fixture's golden is none, so the row is there.
-if (params.get("init") === "building") {
-  useStore.setState({
-    initJob: {
-      id: "init_1",
-      road: "manual",
-      phase: "building",
-      keys: { solari: true },
-      step: 0,
-      stoppable: true,
-      screens: [],
-      rows: [
-        { id: "stage/creating", kind: "stage", label: GOLDEN_STAGE_WORDS.creating, state: "done", ms: 14_000 },
-        { id: "stage/deploying-daemon", kind: "stage", label: GOLDEN_STAGE_WORDS["deploying-daemon"], state: "running", detail: "node v22", lines: ["apt-get install -y git curl", "node v22"] },
-        { id: "stage/applying-setup", kind: "stage", label: GOLDEN_STAGE_WORDS["applying-setup"], state: "waiting" },
-        { id: "stage/ready", kind: "stage", label: GOLDEN_STAGE_WORDS.ready, state: "waiting" },
-      ],
-      progress: { done: 1, total: 4 },
-      log: [],
-    },
-  });
-}
-// ?init=waiting puts the job at a sign-in whose page waits for the person, two of four stages over, so the button's
-// paused spinner and its words can be measured.
-if (params.get("init") === "waiting") {
-  useStore.setState({
-    initJob: {
-      id: "init_1",
-      road: "manual",
-      phase: "signing-in",
-      keys: { solari: true },
-      step: 0,
-      stoppable: true,
-      screens: [],
-      rows: [
-        { id: "stage/creating", kind: "stage", label: GOLDEN_STAGE_WORDS.creating, state: "done", ms: 14_000 },
-        { id: "stage/deploying-daemon", kind: "stage", label: GOLDEN_STAGE_WORDS["deploying-daemon"], state: "done", ms: 40_000 },
-        { id: "sign-in/gh", kind: "sign-in", tool: "gh", label: "GitHub CLI login", state: SIGN_IN_OPEN_STATE, page: "https://github.com/login/device", code: "8F4A-C21B" },
-        { id: "stage/ready", kind: "stage", label: GOLDEN_STAGE_WORDS.ready, state: "waiting" },
-      ],
-      progress: { done: 2, total: 4 },
-      needsYou: { what: "sign in to GitHub CLI login", since: Date.now() },
-      log: [],
-    },
-  });
-}
 // The meter's tick for the running machine, so its row's second line reads cost, rate and countdown together.
 useStore.getState().applyEvent({ type: "workspace.cost", workspaceId: "ws_a", phase: "running", rateUsdPerHour: 0.11, awakeMs: 2 * 3_600_000, accruedUsd: 0.29, at: new Date().toISOString() });
 // ?panel=closed shuts the right panel, which at a phone's width covers the thread it opens over.

@@ -52,13 +52,6 @@ export function providerMark(provider: string): ProviderMark | undefined {
   return PROVIDER_MARKS.find(m => m.provider === provider);
 }
 
-const BY_TOOL: ReadonlyMap<string, BrandMark> = new Map(BRAND_MARKS.flatMap(m => m.tools.map(t => [t, m] as const)));
-
-/** A catalog CLI's mark by its id; nothing where it takes the neutral glyph. */
-export function toolMark(id: string): BrandMark | undefined {
-  return BY_TOOL.get(id);
-}
-
 const hostOf = (word: string): string | undefined => {
   if (!/^https?:\/\//i.test(word)) return undefined;
   try {

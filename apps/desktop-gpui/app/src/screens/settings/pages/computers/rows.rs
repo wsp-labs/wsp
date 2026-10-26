@@ -20,7 +20,7 @@ use super::words::{
 use crate::screens::dialogs::layer;
 use crate::screens::settings::model::{req, At, GroupId, Reread};
 use crate::screens::settings::page::{CardData, Ctx, DialogBuild, Item};
-use crate::ui::{size, text, ActivePalette, AlertDialog, Button, Refusal, Row, Select, SelectItem, SelectState, Stepper, Switch};
+use crate::ui::{size, text, ActivePalette, AlertDialog, Button, Refusal, Row, Select, SelectItem, SelectState, Stepper};
 
 /// A select a page keeps across frames: its state and the words it offers.
 struct Picker {
@@ -428,31 +428,20 @@ fn with_reset(row: Row, reset: Option<impl Fn(&ClickEvent, &mut Window, &mut App
     }
 }
 
-/// `SpawnCard`: whether a thread here may open threads of its own, and how far.
+/// `SpawnCard`: how many levels deep a thread here may open threads of its own.
 pub fn spawn_card(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App) -> Option<CardData> {
     let spawn = place.spawn.as_ref()?;
     let set_spawn = place.settings.as_ref().and_then(|s| s.spawn.as_ref());
-    let machines = (place.takes_forks == Some(true)).then_some(spawn.max_machines);
-    let note = w::spawn_line(spawn.max_depth.get(), machines);
-    let (acts, id) = (ctx.acts.clone(), place.id.clone());
-    let switch = Switch::new("agents-start-agents", spawn.spawn)
-        .on_change(move |on, _, cx| set_ask(&acts, &id, json!({ "spawn": { "spawn": *on } }), cx));
-    let reset = set_spawn.filter(|s| s.spawn.is_some() || s.max_machines.is_some()).map(|_| reset_on(ctx, &place.id, "spawn"));
-    let mut card = CardData::new("computer-spawn").head(w::THREADS_HERE).item(Item::row(
-        "agents-start-agents",
-        w::SPAWN_TITLE,
-        Some(&note),
-        move |row| with_reset(row.control(switch), reset),
-    ));
-    if spawn.spawn {
-        let control =
-            sent_stepper(ctx, place, "levels-deep", spawn.max_depth.get(), None, |n| json!({ "spawn": { "maxDepth": n } }), window, cx)
-                .into_any_element();
-        let reset = set_spawn.and_then(|s| s.max_depth).map(|_| reset_on(ctx, &place.id, "max-depth"));
-        card =
-            card.item(Item::row("levels-deep", w::LEVELS_TITLE, Some(w::LEVELS_LINE), move |row| with_reset(row.control(control), reset)));
-    }
-    Some(card)
+    let control =
+        sent_stepper(ctx, place, "levels-deep", spawn.max_depth.get(), None, |n| json!({ "spawn": { "maxDepth": n } }), window, cx)
+            .into_any_element();
+    let reset = set_spawn.and_then(|s| s.max_depth).map(|_| reset_on(ctx, &place.id, "max-depth"));
+    Some(CardData::new("computer-spawn").head(w::THREADS_HERE).item(Item::row(
+        "levels-deep",
+        w::LEVELS_TITLE,
+        Some(w::LEVELS_LINE),
+        move |row| with_reset(row.control(control), reset),
+    )))
 }
 
 /// `AgentsLink`: a computer's agents, tool servers and skills live on the Agents page.

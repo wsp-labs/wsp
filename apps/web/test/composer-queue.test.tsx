@@ -342,7 +342,7 @@ describe("composer queue", () => {
     api.listWorkspaces = async () => [box];
     api.getWorkspace = async () => box;
     api.listHarnesses = async workspaceId => (workspaceId === WS ? [onBox] : [table]);
-    useStore.setState({ places: [{ id: "p_2", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true, engine: "docker", buildsImages: true }] });
+    useStore.setState({ places: [{ id: "p_2", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true, buildsImages: true }] });
     await setup(api);
     emit({ type: "session.start", ...scope, prompt: "go" });
     emit({ type: "session.delta", ...scope, kind: "text", text: "on it" });

@@ -66,14 +66,6 @@
               "diskFreeBytes": {
                 "type": "integer"
               },
-              "engine": {
-                "type": "string",
-                "enum": [
-                  "none",
-                  "docker",
-                  "podman"
-                ]
-              },
               "copies": {
                 "type": "string",
                 "enum": [
@@ -816,9 +808,6 @@
                   "spawn": {
                     "type": "object",
                     "properties": {
-                      "spawn": {
-                        "type": "boolean"
-                      },
                       "maxMachines": {
                         "type": "integer",
                         "minimum": 0
@@ -890,9 +879,6 @@
               "spawn": {
                 "type": "object",
                 "properties": {
-                  "spawn": {
-                    "$ref": "#/properties/computers/items/properties/settings/properties/spawn/properties/spawn"
-                  },
                   "maxMachines": {
                     "$ref": "#/properties/computers/items/properties/settings/properties/spawn/properties/maxMachines"
                   },
@@ -901,7 +887,6 @@
                   }
                 },
                 "required": [
-                  "spawn",
                   "maxMachines",
                   "maxDepth"
                 ],
@@ -1202,14 +1187,6 @@
               "diskFreeBytes": {
                 "type": "integer"
               },
-              "engine": {
-                "type": "string",
-                "enum": [
-                  "none",
-                  "docker",
-                  "podman"
-                ]
-              },
               "copies": {
                 "type": "string",
                 "enum": [
@@ -1952,9 +1929,6 @@
                   "spawn": {
                     "type": "object",
                     "properties": {
-                      "spawn": {
-                        "type": "boolean"
-                      },
                       "maxMachines": {
                         "type": "integer",
                         "minimum": 0
@@ -2026,9 +2000,6 @@
               "spawn": {
                 "type": "object",
                 "properties": {
-                  "spawn": {
-                    "$ref": "#/properties/computers/items/properties/settings/properties/spawn/properties/spawn"
-                  },
                   "maxMachines": {
                     "$ref": "#/properties/computers/items/properties/settings/properties/spawn/properties/maxMachines"
                   },
@@ -2037,7 +2008,6 @@
                   }
                 },
                 "required": [
-                  "spawn",
                   "maxMachines",
                   "maxDepth"
                 ],

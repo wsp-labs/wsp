@@ -22,9 +22,6 @@ function marked(host: string, rest: string): string {
  * golden would read as one. */
 export const goldenName = (host: string, golden: string, version: number): string => marked(host, `${golden}-v${version}`);
 
-/** A project golden's snapshot: the workspace's project as it stood, stamped by the clock that took it. */
-export const projectSnapshotName = (host: string, project: string, stamp: string): string => marked(host, `project-${project}-${stamp}`);
-
 /** The host that made this snapshot or template, or undefined when the name carries no wsp mark. */
 export function nameOwner(name: string | undefined): string | undefined {
   return name === undefined ? undefined : MARKED.exec(name)?.[1];

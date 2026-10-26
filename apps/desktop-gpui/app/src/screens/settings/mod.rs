@@ -370,7 +370,7 @@ impl SettingsScreen {
                 }
             }
             Arrival::Read(read) => match *read {
-                Read::Preferences(Ok(p)) => self.preferences_landed(p, cx),
+                Read::Preferences(Ok(p)) => self.preferences_landed(*p, cx),
                 read => {
                     if let Some(said) = refusal(&read) {
                         self.notice = Some((said.into(), Said::Failed));

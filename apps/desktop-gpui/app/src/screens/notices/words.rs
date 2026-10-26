@@ -46,28 +46,9 @@ pub fn gone(name: &str, reason: &str) -> String {
     format!("{name} is gone: {reason}")
 }
 
-pub fn image_not_built(said: Option<&str>) -> String {
-    match said {
-        Some(said) => format!("The image was not built: {said}"),
-        None => "The image was not built".to_owned(),
-    }
-}
-
-pub fn image_sealed(version: Option<u64>) -> String {
-    match version {
-        Some(v) => format!("Image v{v} sealed"),
-        None => "Image sealed".to_owned(),
-    }
-}
-
 /// `exitLine`.
 pub fn exit_line(code: Option<i64>) -> Option<String> {
     code.map(|c| format!("exit {c}"))
-}
-
-/// `initNeedsYouLine`.
-pub fn init_needs_you(what: &str) -> String {
-    format!("wsp needs you: {what}")
 }
 
 /// `setupNeedsYouLine`.

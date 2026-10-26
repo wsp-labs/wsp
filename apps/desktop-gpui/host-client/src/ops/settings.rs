@@ -15,7 +15,6 @@ ops! {
     "snapshots.list" => SnapshotsListRequest => Lineage,
     "snapshots.rollback" => SnapshotsRollbackRequest => protocol::SnapshotRollbackResult,
     "snapshots.storage" => SnapshotsStorageRequest => Storage,
-    "projectGoldens.list" => ProjectGoldensListRequest => ProjectGoldens,
     "preferences.get" => PreferencesGetRequest => PreferencesReply,
     "preferences.set" => PreferencesSetRequest => PreferencesSet,
     "recipes.list" => RecipesListRequest => Recipes,
@@ -87,12 +86,6 @@ pub struct Lineage {
 #[derive(Debug, Deserialize)]
 pub struct Storage {
     pub storage: Option<protocol::SnapshotStorage>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectGoldens {
-    pub project_goldens: Vec<protocol::ProjectGolden>,
 }
 
 #[derive(Debug, Deserialize)]

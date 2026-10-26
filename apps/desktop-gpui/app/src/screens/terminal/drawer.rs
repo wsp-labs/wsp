@@ -15,7 +15,6 @@ use gpui_kit::{
 use wsp_host_client::protocol::{self, CapabilitiesGetRequest, WorkspaceOut, WorkspaceStatus, WorkspacesListRequest};
 use wsp_host_client::Failure;
 
-use super::boot;
 use super::font_card;
 use super::groups::{Direction, Place as SplitAt, Ui};
 use super::hub::{self, Key};
@@ -160,7 +159,6 @@ impl Drawer {
         let dark = cx.theme().is_dark();
         let choices = Choices {
             family: hub::font(cx),
-            detected: boot::detected_font(cx),
             size_from_file: look::size_from_file(cx),
             zoom: mode.key().workspace_id().and_then(|w| hub::zoom(w, cx)).unwrap_or(0.),
             ..Choices::default()
@@ -409,12 +407,11 @@ impl Drawer {
         cx.notify();
     }
 
-    /// Follows what changes a look from outside: the font card, the detected font, the size preference, the zoom keys,
+    /// Follows what changes a look from outside: the font card, the size preference, the zoom keys,
     /// the theme.
     fn follow_look(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let wanted = Choices {
             family: hub::font(cx),
-            detected: boot::detected_font(cx),
             size_from_file: look::size_from_file(cx),
             zoom: self.mode.key().workspace_id().and_then(|w| hub::zoom(w, cx)).unwrap_or(0.),
             ..self.choices.clone()
@@ -784,9 +781,8 @@ impl Drawer {
             cx.notify();
             return;
         }
-        let detected = self.choices.detected.clone();
         let value = hub::font(cx).unwrap_or_default();
-        let input = cx.new(|cx| InputState::new(window, cx).placeholder(font_card::placeholder(detected.as_deref())).default_value(value));
+        let input = cx.new(|cx| InputState::new(window, cx).placeholder(font_card::placeholder()).default_value(value));
         self._font_events = Some(cx.subscribe_in(&input, window, |this, input, event: &InputEvent, _, cx| {
             if matches!(event, InputEvent::Blur | InputEvent::PressEnter { .. }) {
                 let family = input.read(cx).value().to_string();
@@ -1095,7 +1091,7 @@ impl Drawer {
                         this.close_font_card(cx);
                     }
                 }))
-                .child(font_card::card(input, self.choices.detected.as_deref(), cx))
+                .child(font_card::card(input, cx))
         });
         let active_lost = self.view(&ui.active_terminal_id).and_then(|v| v.read(cx).session().read(cx).lost().cloned());
         let cover = match words::title(pane) {
@@ -1156,7 +1152,7 @@ impl Drawer {
                             this.close_font_card(cx);
                         }
                     }))
-                    .child(font_card::card(input, self.choices.detected.as_deref(), cx))
+                    .child(font_card::card(input, cx))
             });
             div()
                 .relative()

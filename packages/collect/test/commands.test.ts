@@ -74,7 +74,7 @@ describe("guardCommands", () => {
         guard("starship"),
         guard("eza"),
         guard("diskbloom"),
-        "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: starship, eza, diskbloom. Tick them in wsp init to install them.",
+        "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: starship, eza, diskbloom.",
         GUARD_END,
         "",
         'eval "$(starship init zsh)"',
@@ -98,12 +98,12 @@ describe("guardCommands", () => {
   it("names each plugin left out on its own note line, after the no-ops and before the silenced line; plugins alone still get a block", () => {
     expect(guardCommands("plugins=(git)\n", [], ["eza"])).toBe([GUARD_BEGIN, "# plugin eza left out: eza is not on the image", GUARD_END, "", "plugins=(git)", ""].join("\n"));
     expect(guardCommands("plugins=(git)\ndiskbloom\n", ["diskbloom"], ["eza", "gcloud"])).toBe(
-      [GUARD_BEGIN, guard("diskbloom"), "# plugin eza left out: eza is not on the image", "# plugin gcloud left out: gcloud is not on the image", "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: diskbloom. Tick them in wsp init to install them.", GUARD_END, "", "plugins=(git)", "diskbloom", ""].join("\n"),
+      [GUARD_BEGIN, guard("diskbloom"), "# plugin eza left out: eza is not on the image", "# plugin gcloud left out: gcloud is not on the image", "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: diskbloom.", GUARD_END, "", "plugins=(git)", "diskbloom", ""].join("\n"),
     );
   });
 
   it("keeps the file's line endings", () => {
-    expect(guardCommands("diskbloom\r\n", ["diskbloom"])).toBe(`${GUARD_BEGIN}\r\ndiskbloom() { if (unset -f diskbloom; command -v diskbloom) >/dev/null 2>&1; then unset -f diskbloom; diskbloom "$@"; else return 127; fi; }\r\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: diskbloom. Tick them in wsp init to install them.\r\n${GUARD_END}\r\n\r\ndiskbloom\r\n`);
+    expect(guardCommands("diskbloom\r\n", ["diskbloom"])).toBe(`${GUARD_BEGIN}\r\ndiskbloom() { if (unset -f diskbloom; command -v diskbloom) >/dev/null 2>&1; then unset -f diskbloom; diskbloom "$@"; else return 127; fi; }\r\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: diskbloom.\r\n${GUARD_END}\r\n\r\ndiskbloom\r\n`);
   });
 });
 

@@ -3,7 +3,7 @@
 // after a write and never on a timer; a discard and a commit sent down that same road; a commit message drafted by
 // the workspace's own agent with no thread; and the viewed marks kept on the workspace's record.
 import { afterEach, describe, expect, it } from "vitest";
-import { agentsOffRefusal, threadElsewhereLine, noChangeLine, cleanCheckoutLine, DRAFT_NOTES, type AdapterEvent, type Caller, type DaemonFrame, type DaemonResponse, type EventUnion, type TurnResult } from "@wsp/protocol";
+import { threadElsewhereLine, noChangeLine, cleanCheckoutLine, DRAFT_NOTES, type AdapterEvent, type DaemonFrame, type DaemonResponse, type EventUnion, type TurnResult } from "@wsp/protocol";
 import { CHECKOUT_TTL_MS, createRuntime, type HarnessAdapter, type HarnessAdapterFactory, type Runtime } from "../src/runtime.js";
 import type { DaemonChannel, DaemonChannelOptions } from "../src/daemon-channel.js";
 import { memoryStore, type Store } from "../src/store.js";
@@ -102,7 +102,7 @@ async function withWorkspace(
     ...(o.clock !== undefined ? { clock: o.clock } : {}),
   });
   const project = await projectOn(rt, undefined, undefined, { base: "main" });
-  const ws = await createOn(rt, { project: project.id, golden: "snap_g", name: "cart", ...(o.agents === true ? { agents: { spawn: true, maxMachines: 2, maxDepth: 2 } } : o.agents === false ? { agents: { spawn: false } } : {}) });
+  const ws = await createOn(rt, { project: project.id, golden: "snap_g", name: "cart", ...(o.agents === true ? { agents: { maxMachines: 2, maxDepth: 2 } } : {}) });
   backend.machines[0]!.previewUrl = async () => ({ url: "http://127.0.0.1:7070", token: "e", expiresAt: Date.now() + 3_600_000 });
   return { backend, id: ws.id, name: ws.name };
 }
@@ -247,15 +247,6 @@ describe("a discard and a commit", () => {
     await expect(rt!.workspaces.commit({ workspaceId: id, message: "m", threadId: "5c2d0e14-0000-4000-8000-000000000000" })).rejects.toThrow(cleanCheckoutLine("thread 5c2d0e14"));
   });
 
-  it("is refused to a thread whose workspace lets its agents do nothing, by the act's own word", async () => {
-    const daemon = fakeDaemon();
-    const { id, name } = await withWorkspace(daemon, { agents: false });
-    const thread: Caller = { origin: "here", by: { kind: "thread", threadId: "thr_1", workspaceId: id, rootThreadId: "thr_1" } };
-    await expect(rt!.workspaces.commit({ workspaceId: id, message: "m", paths: ["a.ts"] }, thread)).rejects.toThrow(agentsOffRefusal(name, "commit"));
-    // The draft is the commit's first half and runs the agent's command line, so it is held by the same word.
-    await expect(rt!.workspaces.commitDraft({ workspaceId: id, paths: ["a.ts"] }, thread)).rejects.toThrow(agentsOffRefusal(name, "commit"));
-    expect(daemon.frames).toEqual([]);
-  });
 });
 
 describe("a drafted commit message", () => {

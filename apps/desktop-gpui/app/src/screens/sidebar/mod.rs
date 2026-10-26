@@ -198,10 +198,6 @@ pub(crate) struct Around {
     pub places: Vec<Value>,
     /// Shared, so a frame that reads them clones a pointer.
     pub preferences: Option<Rc<Value>>,
-    /// Shared, so the notices tell a new read from the one they last saw by its pointer, as the web's store does.
-    pub job: Option<Rc<Value>>,
-    /// How many `job.needs-you` pushes it took, so the notices say each one as the web's rule for the push does.
-    pub needs_pushed: u64,
     /// Workspace id to its kind: a folder's thread is deleted, a cloud's forgotten.
     pub kinds: HashMap<String, String>,
     /// Every workspace record, by id.
@@ -678,13 +674,6 @@ impl Sidebar {
                 self.update_in_background(cx);
             }
             Change::Places(places) => self.around.places = places,
-            Change::Job(job) => self.around.job = job.map(Rc::new),
-            Change::JobNeed(need) => {
-                let mut job = self.around.job.as_deref().cloned().unwrap_or_else(|| json!({}));
-                job["needsYou"] = need;
-                self.around.job = Some(Rc::new(job));
-                self.around.needs_pushed += 1;
-            }
             Change::Workspaces(w) => self.take_workspaces(&w),
             Change::WorkspaceDeleted(id) => {
                 self.rows.retain(|r| r.workspace_id != id);
@@ -911,7 +900,6 @@ impl Sidebar {
     fn take(&mut self, s: Snapshot) -> Value {
         self.rows = s.sessions;
         self.around.places = s.places;
-        self.around.job = s.job.map(Rc::new);
         if !s.statuses.is_empty() {
             self.around.statuses = s.statuses.into_iter().filter_map(|st| Some((st.get("id")?.as_str()?.to_owned(), st))).collect();
         }
@@ -1135,13 +1123,7 @@ impl Sidebar {
         let places = &self.around.places;
         let kind = |p: &Value| p.get("kind").and_then(Value::as_str).unwrap_or_default().to_owned();
         let setting_up = places.iter().any(|p| p.get("setup").is_some_and(|s| !s.is_null()));
-        let job_running = self
-            .around
-            .job
-            .as_ref()
-            .and_then(|j| j.get("phase").and_then(Value::as_str))
-            .is_some_and(|phase| !matches!(phase, "done" | "cancelled"));
-        !places.is_empty() && !places.iter().any(|p| kind(p) == "provider") && !setting_up && !job_running
+        !places.is_empty() && !places.iter().any(|p| kind(p) == "provider") && !setting_up
     }
 
     fn thread(&self, key: &str) -> Option<&Thread> {
