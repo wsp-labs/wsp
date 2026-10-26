@@ -24,6 +24,10 @@ pub const NAME_MIN: usize = 16;
 /// `LEFT_MAX` (activity-table.ts:15): the widest the names and kinds stand, whatever the terminal.
 pub const LEFT_MAX: usize = 72;
 
+/// The deepest indent a row is given: the name column never stands wider than `LEFT_MAX`, so what a deeper row would
+/// add is cut off, and a chain of 100,000 processes does not build rows of 200,000 spaces.
+const INDENT_MAX: usize = LEFT_MAX;
+
 /// The table's two choices: `width` in cells, `None` where the line has no terminal to redraw on (the TS
 /// `Infinity`), and `wide`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -48,7 +52,27 @@ struct Node {
     p: ActivityProc,
     mem: f64,
     cpu: f64,
-    kids: Vec<Node>,
+    kids: Kids,
+}
+
+/// A node's kids. A process chain has no depth cap, so the tree is freed a level at a time, never by a call per level.
+#[derive(Default)]
+struct Kids(Vec<Node>);
+
+impl std::ops::Deref for Kids {
+    type Target = [Node];
+    fn deref(&self) -> &[Node] {
+        &self.0
+    }
+}
+
+impl Drop for Kids {
+    fn drop(&mut self) {
+        let mut pending = std::mem::take(&mut self.0);
+        while let Some(mut node) = pending.pop() {
+            pending.append(&mut std::mem::take(&mut node.kids.0));
+        }
+    }
 }
 
 fn as_entry(p: &ActivityProc) -> ProcEntry {
@@ -128,14 +152,20 @@ fn agent_below<'a>(
     if depth > limit {
         return Err(HostError::new("Maximum call stack size exceeded"));
     }
-    for k in kids.get(&p.pid.get()).into_iter().flatten() {
-        if k.kind != ProcKind::Agent {
+    let mut stack = vec![(kids.get(&p.pid.get()).into_iter().flatten(), depth)];
+    while let Some((below, at)) = stack.last_mut() {
+        let Some(k) = below.find(|k| k.kind == ProcKind::Agent) else {
+            stack.pop();
             continue;
+        };
+        if is_stretch_agent(k, kids) {
+            return Ok(Some(*k));
         }
-        let hit = if is_stretch_agent(k, kids) { Some(*k) } else { agent_below(k, kids, depth + 1, limit)? };
-        if hit.is_some() {
-            return Ok(hit);
+        let next = *at + 1;
+        if next > limit {
+            return Err(HostError::new("Maximum call stack size exceeded"));
         }
+        stack.push((kids.get(&k.pid.get()).into_iter().flatten(), next));
     }
     Ok(None)
 }
@@ -152,10 +182,36 @@ fn sorted(mut list: Vec<Node>) -> Vec<Node> {
     list
 }
 
-fn node_of(folded: Folded<ActivityProc>) -> Node {
-    let mem = folded.held.iter().fold(folded.p.memory.0, |n, q| n + q.memory.0);
-    let cpu = folded.held.iter().fold(folded.p.cpu.0, |n, q| n + q.cpu.0);
-    Node { p: folded.p, mem, cpu, kids: sorted(folded.kids.into_iter().map(node_of).collect()) }
+/// A process of the folded tree being turned into a `Node`: the figures it holds, its kids still to turn, and those turned.
+struct Turning {
+    p: ActivityProc,
+    mem: f64,
+    cpu: f64,
+    todo: std::vec::IntoIter<Folded<ActivityProc>>,
+    done: Vec<Node>,
+}
+
+/// The folded tree as nodes, kids heaviest first, with the open processes on a stack instead of a call each.
+fn node_of(root: Folded<ActivityProc>) -> Node {
+    let open = |folded: Folded<ActivityProc>| {
+        let mem = folded.held.iter().fold(folded.p.memory.0, |n, q| n + q.memory.0);
+        let cpu = folded.held.iter().fold(folded.p.cpu.0, |n, q| n + q.cpu.0);
+        Turning { p: folded.p, mem, cpu, todo: folded.kids.into_vec().into_iter(), done: Vec::new() }
+    };
+    let mut stack = vec![open(root)];
+    loop {
+        let Some(top) = stack.last_mut() else { unreachable!("the root is open until it is returned") };
+        if let Some(kid) = top.todo.next() {
+            stack.push(open(kid));
+            continue;
+        }
+        let Some(done) = stack.pop() else { unreachable!("a process is open") };
+        let node = Node { p: done.p, mem: done.mem, cpu: done.cpu, kids: Kids(sorted(done.done)) };
+        match stack.last_mut() {
+            Some(parent) => parent.done.push(node),
+            None => return node,
+        }
+    }
 }
 
 /// `treeOf` (activity-table.ts:45-71): a group's rows as a tree. Folded, every stretch agent's rows join the agent's
@@ -185,7 +241,14 @@ fn tree_of(rows: &[ActivityProc], fold: bool) -> Result<Vec<Node>, HostError> {
 
 /// `procRows` (activity-table.ts:72-85): each head's tree as rows, depth one under the head.
 fn proc_rows(heads: &[Node], wide: bool, at: &NameFacts) -> Vec<Row> {
-    fn walk(n: &Node, depth: usize, wide: bool, at: &NameFacts, out: &mut Vec<Row>) {
+    let mut out = Vec::new();
+    let mut stack = vec![heads.iter()];
+    while let Some(level) = stack.last_mut() {
+        let Some(n) = level.next() else {
+            stack.pop();
+            continue;
+        };
+        let depth = stack.len();
         let p = &n.p;
         let mut facts = at.clone();
         if p.kind == ProcKind::Agent && (!wide || !is_turn_plumbing(&p.command)) {
@@ -199,20 +262,14 @@ fn proc_rows(heads: &[Node], wide: bool, at: &NameFacts) -> Vec<Row> {
         };
         let tag = if UNTAGGED_KINDS.contains(&kind_word(p.kind)) { String::new() } else { kind_name(p.kind).to_owned() };
         out.push(Row {
-            label: format!("{}{name}{ports}", "  ".repeat(depth)),
+            label: format!("{}{name}{ports}", "  ".repeat(depth.min(INDENT_MAX))),
             tag,
             pid: p.pid.get().to_string(),
             mem: fmt_bytes(n.mem),
             cpu: cpu_word(n.cpu),
             command: if wide { p.command.clone() } else { String::new() },
         });
-        for k in &n.kids {
-            walk(k, depth + 1, wide, at, out);
-        }
-    }
-    let mut out = Vec::new();
-    for n in heads {
-        walk(n, 1, wide, at, &mut out);
+        stack.push(n.kids.iter());
     }
     out
 }
