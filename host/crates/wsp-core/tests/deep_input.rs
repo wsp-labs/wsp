@@ -73,3 +73,34 @@ fn reap_deep_body(depth: usize) {
 fn reap_run_removes_a_folder_tree_1400_deep() {
     in_child("reap_run_removes_a_folder_tree_1400_deep", 1_400, reap_deep_body);
 }
+
+// Ruling 7: past node's own RangeError (1,427 folders) the Rust answers all the same; the kernel's path length bounds the tree.
+#[test]
+fn reap_run_removes_a_folder_tree_1900_deep() {
+    in_child("reap_run_removes_a_folder_tree_1900_deep", 1_900, reap_deep_body);
+}
+
+// The same removal as rmSync's: files and links go, a link to a folder is removed and not followed, and what it pointed at stays.
+#[test]
+fn reap_run_removes_what_the_run_left_and_not_what_a_link_points_at() {
+    let root = tempfile::tempdir().expect("a folder");
+    let kept = root.path().join("kept");
+    std::fs::create_dir_all(&kept).unwrap();
+    std::fs::write(kept.join("file"), "x").unwrap();
+    let base = root.path().join("r");
+    let tree = std::path::PathBuf::from(format!("{}.d", base.display()));
+    std::fs::create_dir_all(tree.join("a/b/c")).unwrap();
+    std::fs::create_dir_all(tree.join("empty")).unwrap();
+    std::fs::write(tree.join("a/f"), "x").unwrap();
+    std::fs::write(tree.join("a/b/c/g"), "x").unwrap();
+    std::os::unix::fs::symlink(&kept, tree.join("a/link")).unwrap();
+    std::os::unix::fs::symlink("/nonexistent", tree.join("dangling")).unwrap();
+    let done = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a runtime")
+        .block_on(wsp_core::local_exec::reap::reap_run(base.to_str().unwrap(), None, 0));
+    assert_eq!(done, Ok(()));
+    assert!(!tree.exists());
+    assert_eq!(std::fs::read_to_string(kept.join("file")).unwrap(), "x");
+}
