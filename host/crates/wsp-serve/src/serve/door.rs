@@ -8,7 +8,7 @@ use std::rc::{Rc, Weak};
 use futures::future::{LocalBoxFuture, Shared};
 use futures::FutureExt;
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::{json, Value};
 use wsp_wire::wire::devices::TicketPurpose;
 use wsp_words::exit::HostError;
@@ -40,6 +40,7 @@ use wsp_words::words::computer::{device_held_refusal, is_object_frame, REQUEST_N
 use wsp_words::words::thread::{issues_line, redacted, Issue, PathPart};
 
 use super::served::{DynRuntime, Payload};
+use super::flat::Flat;
 use super::socket::{Incoming, Socket};
 use super::{Authed, NowFn, Released, ServeOptions, Signer, INVALID_JSON, NO_AUTH_TOKEN, SCANNED_SECRETS, TICKET_TTL_MS};
 use crate::serve::answer::answer_frame;
@@ -197,13 +198,13 @@ impl Socket {
         if self.handed_over.get() {
             return;
         }
-        let Some(frame) = self.read(&raw) else {
+        let Some(frame) = self.read(&raw).map(Flat::new) else {
             self.answer(None, failure(Value::Null, INVALID_JSON), None);
             self.close_unauthed();
             return;
         };
         if !is_object_frame(&frame) {
-            self.answer(Some(&frame), failure(Value::Null, REQUEST_NOT_AN_OBJECT), None);
+            self.answer(Some(&*frame), failure(Value::Null, REQUEST_NOT_AN_OBJECT), None);
             self.close_unauthed();
             return;
         }
@@ -214,29 +215,29 @@ impl Socket {
             if !asked.is_some_and(|op| THREAD_OPS.contains(&op)) {
                 let place = self.served.rt.workspaces().thread_place(&by);
                 let line = thread_op_refusal(asked.unwrap_or("that frame"), &by.thread_id, place.as_deref());
-                self.answer(Some(&frame), failure(asked_id, &line), None);
+                self.answer(Some(&*frame), failure(asked_id, &line), None);
                 return;
             }
         }
         let paired = self.road.borrow().as_paired();
         if paired && !asked.is_some_and(|op| DEVICE_OPS.contains(&op)) {
             let line = device_held_refusal(asked.unwrap_or("that frame"));
-            self.answer(Some(&frame), failure(asked_id, &line), None);
+            self.answer(Some(&*frame), failure(asked_id, &line), None);
             return;
         }
-        let msg = match parse_runtime_request(&frame) {
+        let msg = match parse_runtime_request(&*frame) {
             Ok(msg) => msg,
             Err(error) => {
                 let issue = Issue { path: error.path.iter().map(path_part).collect(), message: error.message.clone() };
-                self.answer(Some(&frame), failure(asked_id, &error.issue_text()), Some(&issues_line(&[issue])));
+                self.answer(Some(&*frame), failure(asked_id, &error.issue_text()), Some(&issues_line(&[issue])));
                 self.close_unauthed();
                 return;
             }
         };
         if self.authed() {
-            return answer_frame(self, frame, msg).await;
+            return answer_frame(self, frame.take(), msg).await;
         }
-        self.at_door(&frame, msg).await;
+        self.at_door(&*frame, msg).await;
     }
 
     /// The frames a socket not let in may send, one at a time (serve.ts:677-848, spec D12-D19).
@@ -504,11 +505,7 @@ impl Socket {
             Incoming::Binary(bytes) => Frame::Binary(bytes.as_slice()),
         };
         let text = open_frame(self.seal.borrow_mut().as_mut(), frame).ok()?;
-        let mut de = serde_json::Deserializer::from_str(&text);
-        de.disable_recursion_limit();
-        let value = Value::deserialize(&mut de).ok()?;
-        de.end().ok()?;
-        Some(value)
+        super::flat::parse(&text)
     }
 
     fn close_unauthed(&self) {
