@@ -33,3 +33,10 @@ wsp-frames = { path = "../../../daemon/crates/wsp-frames" }
 tempfile = "3"
 tokio = { version = "1", features = ["rt-multi-thread", "test-util"] }
 tokio-util = "0.7"
+
+[lints.clippy]
+result_large_err = "allow"
+type_complexity = "allow"
+arc_with_non_send_sync = "allow"
+large_enum_variant = "allow"
+too_many_arguments = "allow"

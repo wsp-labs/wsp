@@ -8,10 +8,10 @@ use async_trait::async_trait;
 use futures::future::LocalBoxFuture;
 use serde_json::{json, Value};
 
-use wsp_engine::box_backend::BoxLimits;
 use wsp_core::clock::Cancel;
 use wsp_core::types::internal::{SessionEntry, SubStartRecord, SUB_STARTS};
 use wsp_core::types::wiring::WorkspaceRecord;
+use wsp_engine::box_backend::BoxLimits;
 use wsp_machines::machines::area_error::{AreaError, AreaResult};
 use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::sub_queue::{StartedTurn, SubQueueCtx};
@@ -75,7 +75,11 @@ pub fn snapshot_of(e: &SessionEntry) -> SessionEntry {
 
 /// The first row of a workspace in the fake's table, copied.
 pub fn row_on(host: &FakeHost, workspace_id: &str) -> Option<SessionEntry> {
-    host.sessions.borrow().values().find(|s| s.view.workspace_id == workspace_id).map(snapshot_of)
+    host.sessions
+        .borrow()
+        .values()
+        .find(|s| s.view.workspace_id == workspace_id)
+        .map(snapshot_of)
 }
 
 #[async_trait(?Send)]
@@ -90,7 +94,9 @@ impl SubQueueCtx for FakeHost {
         self.sessions.borrow().get(turn_id).map(snapshot_of)
     }
     fn set_session(&self, turn_id: &str, entry: SessionEntry) {
-        self.sessions.borrow_mut().insert(turn_id.to_string(), entry);
+        self.sessions
+            .borrow_mut()
+            .insert(turn_id.to_string(), entry);
     }
     fn update_session(&self, turn_id: &str, f: &mut dyn FnMut(&mut SessionEntry)) {
         if let Some(e) = self.sessions.borrow_mut().get_mut(turn_id) {
@@ -103,10 +109,13 @@ impl SubQueueCtx for FakeHost {
     fn place_id_of(&self, record: &WorkspaceRecord) -> Option<String> {
         record.place.clone()
     }
-    /// A running record on a cloud holds a slot; a napping, released or queued one does not.
+    /// phaseHoldsSlot (place-state.ts:87): every phase but napping, gone and released, and a queued record still waiting with `queue`.
     fn holds_slot(&self, record: &WorkspaceRecord) -> bool {
-        let phase = serde_json::to_value(&record.phase).unwrap();
-        phase == json!("running") || phase == json!("waking") || phase == json!("pausing")
+        let phase = serde_json::to_value(record.phase).unwrap();
+        let free = ["napping", "gone", "released"]
+            .iter()
+            .any(|p| phase == json!(p));
+        !free && !(phase == json!("queued") && record.queue.is_some())
     }
     fn place_name_of(&self, place_id: &str) -> Option<String> {
         (place_id == "box").then(|| "Boat".to_string())
@@ -156,7 +165,10 @@ impl SubQueueCtx for FakeHost {
         entry
     }
     fn record_cell(&self, workspace_id: &str) -> Option<Rc<RefCell<WorkspaceRecord>>> {
-        self.live.borrow().get(workspace_id).map(|e| e.borrow().record.clone())
+        self.live
+            .borrow()
+            .get(workspace_id)
+            .map(|e| e.borrow().record.clone())
     }
     async fn drop_workspace(&self, workspace_id: &str) -> AreaResult<()> {
         self.call("drop_workspace", &[workspace_id]);
@@ -166,9 +178,20 @@ impl SubQueueCtx for FakeHost {
         }
         Ok(())
     }
-    fn notify_failed(&self, view: &SessionView, turn_id: &str, notify: &[String], _by: Option<&ThreadScope>, _road: Option<&Value>, error: &str) {
+    fn notify_failed(
+        &self,
+        view: &SessionView,
+        turn_id: &str,
+        notify: &[String],
+        _by: Option<&ThreadScope>,
+        _road: Option<&Value>,
+        error: &str,
+    ) {
         let targets = notify.join(",");
-        self.call("notify_failed", &[&view.workspace_id, turn_id, &targets, error]);
+        self.call(
+            "notify_failed",
+            &[&view.workspace_id, turn_id, &targets, error],
+        );
     }
     fn push_head(&self, thread_id: &str) {
         self.call("push_head", &[thread_id]);
@@ -181,7 +204,14 @@ impl SubQueueCtx for FakeHost {
         if let Some(Err(e)) = self.next("put_start") {
             return Err(e);
         }
-        self.store.borrow_mut().entry(SUB_STARTS.to_string()).or_default().insert(record.workspace_id.clone(), serde_json::to_value(record).unwrap());
+        self.store
+            .borrow_mut()
+            .entry(SUB_STARTS.to_string())
+            .or_default()
+            .insert(
+                record.workspace_id.clone(),
+                serde_json::to_value(record).unwrap(),
+            );
         Ok(())
     }
     async fn delete_start(&self, workspace_id: &str) -> AreaResult<()> {
@@ -192,19 +222,40 @@ impl SubQueueCtx for FakeHost {
         Ok(())
     }
     async fn list_starts(&self) -> AreaResult<Vec<SubStartRecord>> {
-        Ok(self.store.borrow().get(SUB_STARTS).map(|c| c.values().map(|v| serde_json::from_value(v.clone()).unwrap()).collect()).unwrap_or_default())
+        Ok(self
+            .store
+            .borrow()
+            .get(SUB_STARTS)
+            .map(|c| {
+                c.values()
+                    .map(|v| serde_json::from_value(v.clone()).unwrap())
+                    .collect()
+            })
+            .unwrap_or_default())
     }
     /// By default the machine stands at once: the record runs on a new machine of the backend's, and the start is
     /// posted. A scripted error is the stand-up's failure; a scripted `"never"` holds it until the gate in
     /// `stand_up_gate` opens.
-    async fn stand_up_queued(&self, record: &Rc<RefCell<WorkspaceRecord>>, posted: Rc<dyn Fn()>, waited: bool) -> AreaResult<()> {
+    async fn stand_up_queued(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        posted: Rc<dyn Fn()>,
+        waited: bool,
+    ) -> AreaResult<()> {
         let id = record.borrow().id.clone();
-        self.call("stand_up_queued", &[&id, if waited { "waited" } else { "at once" }]);
+        self.call(
+            "stand_up_queued",
+            &[&id, if waited { "waited" } else { "at once" }],
+        );
         posted();
         match self.next("stand_up_queued") {
             Some(Err(e)) => return Err(e),
             Some(Ok(Value::String(s))) if s == "gate" => {
-                let g = self.stand_up_gate.borrow().clone().expect("a gate to wait on");
+                let g = self
+                    .stand_up_gate
+                    .borrow()
+                    .clone()
+                    .expect("a gate to wait on");
                 let _ = g.acquire().await;
             }
             _ => {}
@@ -221,13 +272,29 @@ impl SubQueueCtx for FakeHost {
         self.live.borrow_mut().insert(id, entry);
         Ok(())
     }
-    async fn start_turn(&self, workspace_id: &str, o: serde_json::Map<String, Value>, origin: Option<Caller>) -> AreaResult<StartedTurn> {
+    async fn start_turn(
+        &self,
+        workspace_id: &str,
+        o: serde_json::Map<String, Value>,
+        origin: Option<Caller>,
+    ) -> AreaResult<StartedTurn> {
         let as_ = o.get("as").cloned().unwrap_or(Value::Null);
-        self.call("start_turn", &[workspace_id, &serde_json::to_string(&Value::Object(o.clone())).unwrap(), &caller_words(origin.as_ref())]);
+        self.call(
+            "start_turn",
+            &[
+                workspace_id,
+                &serde_json::to_string(&Value::Object(o.clone())).unwrap(),
+                &caller_words(origin.as_ref()),
+            ],
+        );
         if let Some(Err(e)) = self.next("start_turn") {
             return Err(e);
         }
-        Ok(StartedTurn { id: as_["turnId"].as_str().unwrap_or("").to_string(), workspace_id: workspace_id.to_string(), turn_id: as_["turnId"].as_str().unwrap_or("").to_string() })
+        Ok(StartedTurn {
+            id: as_["turnId"].as_str().unwrap_or("").to_string(),
+            workspace_id: workspace_id.to_string(),
+            turn_id: as_["turnId"].as_str().unwrap_or("").to_string(),
+        })
     }
     async fn cut_off(&self, entry: &Entry) {
         self.call("cut_off", &[&entry_id(entry)]);

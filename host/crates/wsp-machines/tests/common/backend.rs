@@ -8,7 +8,10 @@ use async_trait::async_trait;
 use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 use wsp_engine::errors::Result as EngineResult;
-use wsp_engine::machine::{BackendPricing, Capabilities, Machine, MachineBackend, MachineListRow, MachineSpec, Size, SnapshotStoragePricing, Waiting, WireSnapshotStoragePricing};
+use wsp_engine::machine::{
+    BackendPricing, Capabilities, Machine, MachineBackend, MachineListRow, MachineSpec, Size,
+    SnapshotStoragePricing, Waiting, WireSnapshotStoragePricing,
+};
 
 use super::places::obj;
 
@@ -19,11 +22,20 @@ impl BackendPricing for Free {
         0.0
     }
     fn default_size(&self) -> Size {
-        Size { cpu: 2.0, mem_mb: 4096.0 }
+        Size {
+            cpu: 2.0,
+            mem_mb: 4096.0,
+        }
     }
     fn snapshot_storage(&self) -> SnapshotStoragePricing {
-        let wire: WireSnapshotStoragePricing = serde_json::from_value(json!({ "freeGb": 0, "usdPerGbMonth": 0, "billedFrom": "" })).expect("a pricing");
-        SnapshotStoragePricing { wire, free_named: None, usd_per_named_month: None }
+        let wire: WireSnapshotStoragePricing =
+            serde_json::from_value(json!({ "freeGb": 0, "usdPerGbMonth": 0, "billedFrom": "" }))
+                .expect("a pricing");
+        SnapshotStoragePricing {
+            wire,
+            free_named: None,
+            usd_per_named_month: None,
+        }
     }
 }
 
@@ -43,13 +55,21 @@ impl MachineBackend for Tagged {
     fn logins(&self) -> Option<String> {
         Some(self.tag.clone())
     }
-    async fn create(&self, _spec: MachineSpec, _waiting: Option<Waiting>, _sent: Option<String>) -> EngineResult<Arc<dyn Machine>> {
+    async fn create(
+        &self,
+        _spec: MachineSpec,
+        _waiting: Option<Waiting>,
+        _sent: Option<String>,
+    ) -> EngineResult<Arc<dyn Machine>> {
         unreachable!("nothing is created here")
     }
     async fn get(&self, _id: &str) -> EngineResult<Arc<dyn Machine>> {
         unreachable!("nothing is read here")
     }
-    async fn list(&self, _labels: Option<&IndexMap<String, String>>) -> EngineResult<Vec<MachineListRow>> {
+    async fn list(
+        &self,
+        _labels: Option<&IndexMap<String, String>>,
+    ) -> EngineResult<Vec<MachineListRow>> {
         Ok(Vec::new())
     }
     async fn delete_snapshot(&self, _id: &str) -> EngineResult<()> {
@@ -58,7 +78,9 @@ impl MachineBackend for Tagged {
 }
 
 pub fn tagged(tag: &str) -> Arc<dyn MachineBackend> {
-    Arc::new(Tagged { tag: tag.to_string() })
+    Arc::new(Tagged {
+        tag: tag.to_string(),
+    })
 }
 
 /// What a computer that keeps no image says it forks with, with its logins folder where given.

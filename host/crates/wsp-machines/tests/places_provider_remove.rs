@@ -19,8 +19,9 @@ use wsp_engine::cancel::Cancel;
 use wsp_engine::errors::{EngineError, ErrorKind, Result as EResult, WspError};
 use wsp_engine::labels::{OWNER_LABEL, WSP_LABEL};
 use wsp_engine::machine::{
-    BackendOffers, BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineKind, MachineLife, MachineListRow,
-    MachineSpec, MachineState, RunOptions, Size, SnapshotOptions, SnapshotRow, SnapshotStoragePricing, WireSnapshotStoragePricing, Waiting,
+    BackendOffers, BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend,
+    MachineKind, MachineLife, MachineListRow, MachineSpec, MachineState, RunOptions, Size,
+    SnapshotOptions, SnapshotRow, SnapshotStoragePricing, Waiting, WireSnapshotStoragePricing,
 };
 use wsp_machines::places::provider_remove::{remove_provider, ProviderImages, ProviderRemove};
 use wsp_machines::places::types::{HeldImage, KillConfirm, PlaceKeyForgetter, PlaceResult};
@@ -30,7 +31,8 @@ use wsp_wire::views::place_more::PlaceRemoved;
 use wsp_words::exit::Kind;
 use wsp_words::place_word::provider_key_name;
 use wsp_words::words::places::{
-    provider_images_kept_line, provider_kept_line, provider_key_refused, provider_left_words, provider_unlisted_line, LeftThere,
+    provider_images_kept_line, provider_kept_line, provider_key_refused, provider_left_words,
+    provider_unlisted_line, LeftThere,
 };
 use wsp_words::words::thread::refusal_line;
 
@@ -44,7 +46,15 @@ const STILL: &str = "Boat's key is also read from /work/acme/.env.";
 // The provider: test/stub-backend.ts's machines and snapshots, each call counted and each answer overridable.
 
 fn error(kind: ErrorKind, status: u16, message: &str) -> EngineError {
-    EngineError::Provider(WspError { kind, status, code: None, message: message.to_string(), request_id: None, window: None, said: None })
+    EngineError::Provider(WspError {
+        kind,
+        status,
+        code: None,
+        message: message.to_string(),
+        request_id: None,
+        window: None,
+        said: None,
+    })
 }
 
 fn missing() -> EngineError {
@@ -127,7 +137,12 @@ impl Machine for FakeMachine {
         Err(unused())
     }
 
-    async fn snapshot(&self, _name: &str, _life: MachineLife, _opts: SnapshotOptions) -> EResult<String> {
+    async fn snapshot(
+        &self,
+        _name: &str,
+        _life: MachineLife,
+        _opts: SnapshotOptions,
+    ) -> EResult<String> {
         Err(unused())
     }
 
@@ -180,7 +195,10 @@ impl Machine for FakeMachine {
 }
 
 fn unused() -> EngineError {
-    EngineError::Other { message: "the fake provider runs nothing".to_string(), code: None }
+    EngineError::Other {
+        message: "the fake provider runs nothing".to_string(),
+        code: None,
+    }
 }
 
 fn tells_once(flag: &AtomicBool) -> bool {
@@ -225,7 +243,10 @@ impl FakeBox {
 
     fn make(&self, owner: &str) -> Arc<FakeMachine> {
         let n = self.seq.fetch_add(1, Ordering::SeqCst) + 1;
-        let labels = IndexMap::from([(WSP_LABEL.to_string(), "1".to_string()), (OWNER_LABEL.to_string(), owner.to_string())]);
+        let labels = IndexMap::from([
+            (WSP_LABEL.to_string(), "1".to_string()),
+            (OWNER_LABEL.to_string(), owner.to_string()),
+        ]);
         let made = Arc::new(FakeMachine {
             id: format!("m{n}"),
             labels,
@@ -244,11 +265,21 @@ impl FakeBox {
     }
 
     fn machine(&self, id: &str) -> Option<Arc<FakeMachine>> {
-        self.machines.lock().unwrap().iter().find(|m| m.id == id).cloned()
+        self.machines
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|m| m.id == id)
+            .cloned()
     }
 
     fn alive(&self) -> usize {
-        self.machines.lock().unwrap().iter().filter(|m| !m.killed()).count()
+        self.machines
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|m| !m.killed())
+            .count()
     }
 
     fn made(&self) -> usize {
@@ -260,12 +291,22 @@ impl FakeBox {
         machines
             .iter()
             .filter(|m| !m.killed())
-            .map(|m| MachineListRow { id: m.id.clone(), state: MachineState::Running, labels: m.labels.clone(), size: None })
+            .map(|m| MachineListRow {
+                id: m.id.clone(),
+                state: MachineState::Running,
+                labels: m.labels.clone(),
+                size: None,
+            })
             .collect()
     }
 
     fn snapshot_ids(&self) -> Vec<String> {
-        self.snapshots.lock().unwrap().iter().map(|r| r.id.clone()).collect()
+        self.snapshots
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|r| r.id.clone())
+            .collect()
     }
 
     fn save_snapshot(&self, id: &str) {
@@ -280,7 +321,10 @@ impl FakeBox {
         self.snapshots.lock().unwrap().push(row);
     }
 
-    fn on_list(&self, hook: impl Fn(&FakeBox, usize) -> Option<EResult<Vec<MachineListRow>>> + Send + Sync + 'static) {
+    fn on_list(
+        &self,
+        hook: impl Fn(&FakeBox, usize) -> Option<EResult<Vec<MachineListRow>>> + Send + Sync + 'static,
+    ) {
         *self.list_hook.lock().unwrap() = Some(Arc::new(hook));
     }
 
@@ -325,12 +369,19 @@ impl BackendPricing for FakePricing {
     }
 
     fn default_size(&self) -> Size {
-        Size { cpu: 2.0, mem_mb: 4096.0 }
+        Size {
+            cpu: 2.0,
+            mem_mb: 4096.0,
+        }
     }
 
     fn snapshot_storage(&self) -> SnapshotStoragePricing {
         SnapshotStoragePricing {
-            wire: WireSnapshotStoragePricing { free_gb: JsNumber(0.0), usd_per_gb_month: JsNumber(0.0), billed_from: "2026-01-01".to_string() },
+            wire: WireSnapshotStoragePricing {
+                free_gb: JsNumber(0.0),
+                usd_per_gb_month: JsNumber(0.0),
+                billed_from: "2026-01-01".to_string(),
+            },
             free_named: None,
             usd_per_named_month: None,
         }
@@ -365,10 +416,18 @@ impl MachineBackend for FakeBox {
     }
 
     fn offers(&self) -> BackendOffers {
-        BackendOffers { list_snapshots: true, ..BackendOffers::default() }
+        BackendOffers {
+            list_snapshots: true,
+            ..BackendOffers::default()
+        }
     }
 
-    async fn create(&self, _spec: MachineSpec, _waiting: Option<Waiting>, _sent: Option<String>) -> EResult<Arc<dyn Machine>> {
+    async fn create(
+        &self,
+        _spec: MachineSpec,
+        _waiting: Option<Waiting>,
+        _sent: Option<String>,
+    ) -> EResult<Arc<dyn Machine>> {
         Err(unused())
     }
 
@@ -388,7 +447,10 @@ impl MachineBackend for FakeBox {
         }
     }
 
-    async fn list(&self, labels: Option<&IndexMap<String, String>>) -> EResult<Vec<MachineListRow>> {
+    async fn list(
+        &self,
+        labels: Option<&IndexMap<String, String>>,
+    ) -> EResult<Vec<MachineListRow>> {
         let nth = self.lists.fetch_add(1, Ordering::SeqCst) + 1;
         self.list_labels.lock().unwrap().push(labels.cloned());
         let hook = self.list_hook.lock().unwrap().clone();
@@ -475,20 +537,42 @@ impl Run {
             alive: Cell::new(None),
             snapshots: RefCell::new(Vec::new()),
         });
-        Run { boat, held, rows: Rc::new(RefCell::new(Vec::new())), dropped: Rc::new(RefCell::new(Vec::new())) }
+        Run {
+            boat,
+            held,
+            rows: Rc::new(RefCell::new(Vec::new())),
+            dropped: Rc::new(RefCell::new(Vec::new())),
+        }
     }
 
     /// This host's image sealed at Boat, and the wired cloud's own record at another provider (imagesAt).
     fn hold_images(&self) {
         self.boat.save_snapshot(SNAPSHOT);
-        self.rows.borrow_mut().push(("box".to_string(), HeldImage { id: SNAPSHOT.to_string(), template_id: None }));
-        self.rows.borrow_mut().push(("solari".to_string(), HeldImage { id: "snap_solari".to_string(), template_id: None }));
+        self.rows.borrow_mut().push((
+            "box".to_string(),
+            HeldImage {
+                id: SNAPSHOT.to_string(),
+                template_id: None,
+            },
+        ));
+        self.rows.borrow_mut().push((
+            "solari".to_string(),
+            HeldImage {
+                id: "snap_solari".to_string(),
+                template_id: None,
+            },
+        ));
     }
 
     fn images(&self) -> ProviderImages {
         let rows = Rc::clone(&self.rows);
         let held = move || {
-            let mine: Vec<HeldImage> = rows.borrow().iter().filter(|(provider, _)| provider == "box").map(|(_, image)| image.clone()).collect();
+            let mine: Vec<HeldImage> = rows
+                .borrow()
+                .iter()
+                .filter(|(provider, _)| provider == "box")
+                .map(|(_, image)| image.clone())
+                .collect();
             done(mine)
         };
         let rows = Rc::clone(&self.rows);
@@ -498,11 +582,18 @@ impl Run {
             dropped.borrow_mut().push(id);
             done(())
         };
-        ProviderImages { held: Rc::new(held), drop: Rc::new(drop) }
+        ProviderImages {
+            held: Rc::new(held),
+            drop: Rc::new(drop),
+        }
     }
 
     fn record_ids(&self) -> Vec<String> {
-        self.rows.borrow().iter().map(|(_, image)| image.id.clone()).collect()
+        self.rows
+            .borrow()
+            .iter()
+            .map(|(_, image)| image.id.clone())
+            .collect()
     }
 
     async fn remove(&self, known: Vec<String>, with_images: bool) -> PlaceResult<PlaceRemoved> {
@@ -512,7 +603,10 @@ impl Run {
             owner: OWNER.to_string(),
             known,
             forget_key: Some(Rc::clone(&self.held) as Rc<dyn PlaceKeyForgetter>),
-            confirm: Some(KillConfirm { grace_ms: Some(20), poll_ms: Some(1) }),
+            confirm: Some(KillConfirm {
+                grace_ms: Some(20),
+                poll_ms: Some(1),
+            }),
             images: with_images.then(|| self.images()),
         })
         .await
@@ -523,12 +617,27 @@ fn ids(machines: &[Arc<FakeMachine>]) -> Vec<String> {
     machines.iter().map(|m| m.id.clone()).collect()
 }
 
-fn answer_of(removed: bool, deleted: i64, snapshots: Option<i64>, note: Option<String>) -> PlaceRemoved {
-    PlaceRemoved { removed, took: None, swept: Vec::new(), note, deleted: Some(JsInt::from(deleted)), snapshots: snapshots.map(JsInt::from) }
+fn answer_of(
+    removed: bool,
+    deleted: i64,
+    snapshots: Option<i64>,
+    note: Option<String>,
+) -> PlaceRemoved {
+    PlaceRemoved {
+        removed,
+        took: None,
+        swept: Vec::new(),
+        note,
+        deleted: Some(JsInt::from(deleted)),
+        snapshots: snapshots.map(JsInt::from),
+    }
 }
 
 fn left(id: &str, said: String) -> LeftThere {
-    LeftThere { id: id.to_string(), said }
+    LeftThere {
+        id: id.to_string(),
+        said,
+    }
 }
 
 fn boat_name() -> String {
@@ -550,10 +659,19 @@ fn deletes_every_marked_machine_then_forgets_the_key() {
         let answer = run.remove(known, false).await.expect("removes");
         assert_eq!(answer, answer_of(true, 2, None, None));
         assert!(ours.iter().all(|m| m.killed()));
-        assert!(!other.killed(), "another host's machine on the same account is not this host's to delete");
+        assert!(
+            !other.killed(),
+            "another host's machine on the same account is not this host's to delete"
+        );
         assert_eq!(run.held.forgot(), vec!["box"]);
         assert_eq!(run.held.alive_at_forget(), Some(1));
-        assert_eq!(run.boat.list_labels.lock().unwrap()[0], Some(IndexMap::from([(OWNER_LABEL.to_string(), OWNER.to_string())])));
+        assert_eq!(
+            run.boat.list_labels.lock().unwrap()[0],
+            Some(IndexMap::from([(
+                OWNER_LABEL.to_string(),
+                OWNER.to_string()
+            )]))
+        );
     });
 }
 
@@ -567,7 +685,11 @@ fn names_a_machine_that_stays_and_keeps_the_key() {
         stubborn.on_kill(Kill::Ignores);
 
         let answer = run.remove(known.clone(), false).await.expect("answers");
-        let note = provider_kept_line(&boat_name(), 1.0, &[left(&stubborn.id, provider_left_words::running("running"))]);
+        let note = provider_kept_line(
+            &boat_name(),
+            1.0,
+            &[left(&stubborn.id, provider_left_words::running("running"))],
+        );
         assert_eq!(answer, answer_of(false, 1, None, Some(note)));
         let said = answer.note.clone().unwrap();
         assert!(said.contains(&format!("{} (still running after three asks)", stubborn.id)));
@@ -591,7 +713,13 @@ fn deletes_a_known_id_the_listing_missed() {
         let known = ids(&ours);
         ours[2].killed.store(true, Ordering::SeqCst);
         let missed = ours[1].id.clone();
-        run.boat.on_list(move |b, _| Some(Ok(b.rows().into_iter().filter(|r| r.id != missed).collect())));
+        run.boat.on_list(move |b, _| {
+            Some(Ok(b
+                .rows()
+                .into_iter()
+                .filter(|r| r.id != missed)
+                .collect()))
+        });
 
         let answer = run.remove(known, false).await.expect("removes");
         assert_eq!(answer, answer_of(true, 2, None, None));
@@ -622,7 +750,10 @@ fn one_404_from_a_copy_is_not_gone() {
         let answer = run.remove(known, false).await.expect("removes");
         assert_eq!(answer, answer_of(true, 2, None, None));
         assert_eq!(run.boat.alive(), 0);
-        assert!(ours[0].killed(), "the machine that read gone once was still running, and is deleted");
+        assert!(
+            ours[0].killed(),
+            "the machine that read gone once was still running, and is deleted"
+        );
         assert_eq!(run.held.alive_at_forget(), Some(0));
     });
 }
@@ -663,9 +794,17 @@ fn names_a_machine_still_showing_after_the_last_listing() {
         });
 
         let answer = run.remove(known, false).await.expect("answers");
-        assert_eq!(run.boat.lists(), 5, "the first listing and three more each delete what they found; the fifth is named");
+        assert_eq!(
+            run.boat.lists(),
+            5,
+            "the first listing and three more each delete what they found; the fifth is named"
+        );
         let late = run.boat.machines.lock().unwrap().last().cloned().unwrap();
-        let note = provider_kept_line(&boat_name(), 4.0, &[left(&late.id, provider_left_words::LATE.to_string())]);
+        let note = provider_kept_line(
+            &boat_name(),
+            4.0,
+            &[left(&late.id, provider_left_words::LATE.to_string())],
+        );
         assert_eq!(answer, answer_of(false, 4, None, Some(note)));
         assert_eq!(late.kills(), 0);
         assert!(!late.killed());
@@ -683,23 +822,50 @@ fn says_a_machine_that_could_not_be_read_names_five_and_counts_the_rest() {
 
         let answer = run.remove(known.clone(), false).await.expect("answers");
         let note = answer.note.clone().expect("a note");
-        assert_eq!((answer.removed, answer.deleted, answer.snapshots), (false, Some(JsInt::from(0)), None));
-        assert!(note.contains(&format!("({})", provider_left_words::unread("Too Many Requests"))));
+        assert_eq!(
+            (answer.removed, answer.deleted, answer.snapshots),
+            (false, Some(JsInt::from(0)), None)
+        );
+        assert!(note.contains(&format!(
+            "({})",
+            provider_left_words::unread("Too Many Requests")
+        )));
         assert!(!note.contains("would not"));
         assert!(note.starts_with("7 machines wsp made at Boat are not gone: "));
         assert!(note.contains(" and 2 more."));
-        assert_eq!(known.iter().filter(|id| note.contains(id.as_str())).count(), 5);
-        let expected = provider_kept_line(&boat_name(), 0.0, &named_in(&note, &known, provider_left_words::unread("Too Many Requests")));
+        assert_eq!(
+            known.iter().filter(|id| note.contains(id.as_str())).count(),
+            5
+        );
+        let expected = provider_kept_line(
+            &boat_name(),
+            0.0,
+            &named_in(
+                &note,
+                &known,
+                provider_left_words::unread("Too Many Requests"),
+            ),
+        );
         assert_eq!(note, expected);
         assert_eq!(run.held.forgot(), Vec::<String>::new());
     });
 }
 
 fn named_in(note: &str, known: &[String], said: String) -> Vec<LeftThere> {
-    let mut named: Vec<(usize, &String)> = known.iter().filter_map(|id| note.find(&format!("{id} (")).map(|at| (at, id))).collect();
+    let mut named: Vec<(usize, &String)> = known
+        .iter()
+        .filter_map(|id| note.find(&format!("{id} (")).map(|at| (at, id)))
+        .collect();
     named.sort();
-    let mut rows: Vec<LeftThere> = named.into_iter().map(|(_, id)| left(id, said.clone())).collect();
-    let unnamed: Vec<LeftThere> = known.iter().filter(|id| !rows.iter().any(|r| &r.id == *id)).map(|id| left(id, said.clone())).collect();
+    let mut rows: Vec<LeftThere> = named
+        .into_iter()
+        .map(|(_, id)| left(id, said.clone()))
+        .collect();
+    let unnamed: Vec<LeftThere> = known
+        .iter()
+        .filter(|id| !rows.iter().any(|r| &r.id == *id))
+        .map(|id| left(id, said.clone()))
+        .collect();
     rows.extend(unnamed);
     rows
 }
@@ -710,7 +876,8 @@ fn refuses_in_two_halves_when_the_key_is_refused() {
         let run = Run::new(None);
         let ours = run.boat.make_ours(1);
         let known = ids(&ours);
-        run.boat.on_list(|_, _| Some(Err(error(ErrorKind::Auth, 401, "unauthorized"))));
+        run.boat
+            .on_list(|_, _| Some(Err(error(ErrorKind::Auth, 401, "unauthorized"))));
 
         let err = run.remove(known, false).await.expect_err("refused");
         let refused = provider_key_refused(&boat_name(), "unauthorized");
@@ -722,7 +889,11 @@ fn refuses_in_two_halves_when_the_key_is_refused() {
         assert_eq!(err.kind, Some(Kind::Auth));
         assert_eq!(err.fix.as_deref(), Some(refused.fix.as_str()));
         assert_eq!(run.held.forgot(), Vec::<String>::new());
-        assert_eq!((ours[0].kills(), ours[0].killed(), run.boat.gets()), (0, false, 0), "nothing deleted and nothing read");
+        assert_eq!(
+            (ours[0].kills(), ours[0].killed(), run.boat.gets()),
+            (0, false, 0),
+            "nothing deleted and nothing read"
+        );
     });
 }
 
@@ -734,14 +905,27 @@ fn tells_an_unread_machine_from_an_undeleted_one() {
         let known = ids(&ours);
         let (unread, undeleted) = (&ours[0], &ours[1]);
         let unread_id = unread.id.clone();
-        run.boat.on_get(move |b, id| (id == unread_id && b.machine(id).is_some_and(|m| m.killed())).then(rate_limited));
+        run.boat.on_get(move |b, id| {
+            (id == unread_id && b.machine(id).is_some_and(|m| m.killed())).then(rate_limited)
+        });
         undeleted.on_kill(Kill::Fails(server_error()));
 
         let answer = run.remove(known, false).await.expect("answers");
         let note = answer.note.clone().expect("a note");
-        assert_eq!((answer.removed, answer.deleted), (false, Some(JsInt::from(0))));
-        assert!(note.contains(&format!("{} ({})", unread.id, provider_left_words::unread("Too Many Requests"))));
-        assert!(note.contains(&format!("{} ({})", undeleted.id, provider_left_words::undeleted("Internal Server Error"))));
+        assert_eq!(
+            (answer.removed, answer.deleted),
+            (false, Some(JsInt::from(0)))
+        );
+        assert!(note.contains(&format!(
+            "{} ({})",
+            unread.id,
+            provider_left_words::unread("Too Many Requests")
+        )));
+        assert!(note.contains(&format!(
+            "{} ({})",
+            undeleted.id,
+            provider_left_words::undeleted("Internal Server Error")
+        )));
         assert_eq!(run.held.forgot(), Vec::<String>::new());
     });
 }
@@ -752,7 +936,8 @@ fn says_a_failed_relist_with_how_many_went() {
         let run = Run::new(None);
         let ours = run.boat.make_ours(2);
         let known = ids(&ours);
-        run.boat.on_list(|_, nth| (nth == 2).then(|| Err(server_error())));
+        run.boat
+            .on_list(|_, nth| (nth == 2).then(|| Err(server_error())));
 
         let answer = run.remove(known, false).await.expect("answers");
         let note = provider_unlisted_line(&boat_name(), 2.0, "Internal Server Error");
@@ -782,7 +967,8 @@ fn a_failed_relist_with_nothing_deleted_drops_the_count() {
         let ours = run.boat.make_ours(1);
         let known = ids(&ours);
         ours[0].killed.store(true, Ordering::SeqCst);
-        run.boat.on_list(|_, nth| (nth == 2).then(|| Err(rate_limited())));
+        run.boat
+            .on_list(|_, nth| (nth == 2).then(|| Err(rate_limited())));
 
         let answer = run.remove(known, false).await.expect("answers");
         let note = provider_unlisted_line(&boat_name(), 0.0, "Too Many Requests");
@@ -810,9 +996,16 @@ fn deletes_each_image_snapshot_before_the_key() {
         assert_eq!(run.held.forgot(), vec!["box"]);
         assert_eq!(run.held.snapshots_at_forget(), Vec::<String>::new());
         assert_eq!(run.boat.snapshot_ids(), Vec::<String>::new());
-        assert_eq!(*run.boat.deleted_snapshots.lock().unwrap(), vec![SNAPSHOT.to_string()]);
+        assert_eq!(
+            *run.boat.deleted_snapshots.lock().unwrap(),
+            vec![SNAPSHOT.to_string()]
+        );
         assert_eq!(*run.dropped.borrow(), vec![SNAPSHOT.to_string()]);
-        assert_eq!(run.record_ids(), vec!["snap_solari".to_string()], "another provider's image keeps its record");
+        assert_eq!(
+            run.record_ids(),
+            vec!["snap_solari".to_string()],
+            "another provider's image keeps its record"
+        );
         assert_eq!(solari.snapshot_ids(), vec!["snap_solari".to_string()]);
         assert!(solari.deleted_snapshots.lock().unwrap().is_empty());
     });
@@ -825,16 +1018,27 @@ fn names_a_snapshot_that_stays_and_keeps_its_record() {
         run.hold_images();
         let ours = run.boat.make_ours(1);
         let known = ids(&ours);
-        run.boat.on_snapshot_delete(SnapshotDelete::Fails(server_error()));
+        run.boat
+            .on_snapshot_delete(SnapshotDelete::Fails(server_error()));
 
         let answer = run.remove(known.clone(), true).await.expect("answers");
-        let note = provider_images_kept_line(&boat_name(), 1.0, &[left(SNAPSHOT, provider_left_words::undeleted("Internal Server Error"))]);
+        let note = provider_images_kept_line(
+            &boat_name(),
+            1.0,
+            &[left(
+                SNAPSHOT,
+                provider_left_words::undeleted("Internal Server Error"),
+            )],
+        );
         assert_eq!(answer, answer_of(false, 1, None, Some(note)));
         assert!(answer.note.clone().unwrap().contains(SNAPSHOT));
         assert_eq!(run.held.forgot(), Vec::<String>::new());
         assert_eq!(run.boat.snapshot_ids(), vec![SNAPSHOT.to_string()]);
         assert!(run.dropped.borrow().is_empty());
-        assert_eq!(run.record_ids(), vec![SNAPSHOT.to_string(), "snap_solari".to_string()]);
+        assert_eq!(
+            run.record_ids(),
+            vec![SNAPSHOT.to_string(), "snap_solari".to_string()]
+        );
 
         run.boat.on_snapshot_delete(SnapshotDelete::Takes);
         let again = run.remove(known, true).await.expect("finishes");
@@ -855,9 +1059,17 @@ fn a_snapshot_still_listed_after_its_window_is_named() {
         run.boat.on_snapshot_delete(SnapshotDelete::Lingers);
 
         let answer = run.remove(Vec::new(), true).await.expect("answers");
-        let note = provider_images_kept_line(&boat_name(), 0.0, &[left(SNAPSHOT, provider_left_words::listed(20.0))]);
+        let note = provider_images_kept_line(
+            &boat_name(),
+            0.0,
+            &[left(SNAPSHOT, provider_left_words::listed(20.0))],
+        );
         assert_eq!(answer, answer_of(false, 0, None, Some(note)));
-        assert_eq!(run.record_ids(), vec![SNAPSHOT.to_string(), "snap_solari".to_string()], "a still-listed snapshot keeps its record");
+        assert_eq!(
+            run.record_ids(),
+            vec![SNAPSHOT.to_string(), "snap_solari".to_string()],
+            "a still-listed snapshot keeps its record"
+        );
         assert!(run.dropped.borrow().is_empty());
         assert_eq!(run.held.forgot(), Vec::<String>::new());
     });
@@ -868,7 +1080,8 @@ fn a_snapshot_the_provider_lost_is_dropped_and_counted() {
     block(async {
         let run = Run::new(None);
         run.hold_images();
-        run.boat.on_snapshot_delete(SnapshotDelete::Fails(missing()));
+        run.boat
+            .on_snapshot_delete(SnapshotDelete::Fails(missing()));
 
         let answer = run.remove(Vec::new(), true).await.expect("removes");
         assert_eq!(answer, answer_of(true, 0, Some(1), None));
@@ -893,7 +1106,11 @@ fn never_runs_more_than_four_deletes_at_once() {
         assert_eq!(run.boat.most_kills_at_once(), 4);
         let mut first_four = run.boat.kill_starts()[..4].to_vec();
         first_four.sort();
-        assert_eq!(first_four, known[..4].to_vec(), "each worker takes the next id off one queue in order");
+        assert_eq!(
+            first_four,
+            known[..4].to_vec(),
+            "each worker takes the next id off one queue in order"
+        );
         let mut every = run.boat.kill_starts();
         every.sort();
         let mut want = known;
@@ -909,10 +1126,15 @@ fn a_relist_failure_after_a_left_machine_answers_the_kept_line() {
         let ours = run.boat.make_ours(1);
         let known = ids(&ours);
         ours[0].on_kill(Kill::Ignores);
-        run.boat.on_list(|_, nth| (nth == 2).then(|| Err(server_error())));
+        run.boat
+            .on_list(|_, nth| (nth == 2).then(|| Err(server_error())));
 
         let answer = run.remove(known, false).await.expect("answers");
-        let note = provider_kept_line(&boat_name(), 0.0, &[left(&ours[0].id, provider_left_words::running("running"))]);
+        let note = provider_kept_line(
+            &boat_name(),
+            0.0,
+            &[left(&ours[0].id, provider_left_words::running("running"))],
+        );
         assert_eq!(answer, answer_of(false, 0, None, Some(note)));
         assert_eq!(run.held.forgot(), Vec::<String>::new());
     });
@@ -926,7 +1148,10 @@ fn a_first_listing_that_fails_passes_through() {
         let known = ids(&ours);
         run.boat.on_list(|_, _| Some(Err(server_error())));
 
-        let err = run.remove(known, false).await.expect_err("fails as it came");
+        let err = run
+            .remove(known, false)
+            .await
+            .expect_err("fails as it came");
         assert_eq!(err.message, "Internal Server Error");
         assert_eq!((ours[0].kills(), run.boat.gets()), (0, 0));
         assert_eq!(run.held.forgot(), Vec::<String>::new());
@@ -941,12 +1166,18 @@ fn the_answer_sets_deleted_and_never_took() {
         let known = ids(&ours);
         let answer = run.remove(known, false).await.expect("removes");
         assert_eq!(answer.took, None);
-        assert_eq!(serde_json::to_value(&answer).unwrap(), json!({ "removed": true, "swept": [], "deleted": 1 }));
+        assert_eq!(
+            serde_json::to_value(&answer).unwrap(),
+            json!({ "removed": true, "swept": [], "deleted": 1 })
+        );
 
         let empty = Run::new(None);
         let none = empty.remove(Vec::new(), false).await.expect("removes");
         assert_eq!(none.took, None);
-        assert_eq!(serde_json::to_value(&none).unwrap(), json!({ "removed": true, "swept": [], "deleted": 0 }));
+        assert_eq!(
+            serde_json::to_value(&none).unwrap(),
+            json!({ "removed": true, "swept": [], "deleted": 0 })
+        );
 
         let kept = Run::new(None);
         let stays = kept.boat.make_ours(1);

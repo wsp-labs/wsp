@@ -4,6 +4,8 @@
 //! runtime-golden-import.test.ts and runtime-builders.test.ts that reach these roads, at the seam of the shared
 //! `World`: every command, stage, road and context call lands in `w.log` in order, as one line. The record's import is
 //! read through `entry.builder.import` (wsp-core's `BuilderRecord.import` is an empty stand-in).
+#![allow(clippy::await_holding_refcell_ref)]
+
 mod images_support;
 use images_support::*;
 
@@ -24,7 +26,9 @@ use wsp_machines::images::golden::upgrade::UpgradeRequest;
 use wsp_machines::images::golden::GoldenArea;
 use wsp_machines::images::{BuilderRef, ImageError};
 use wsp_wire::types::js_number::JsNumber;
-use wsp_wire::views::golden_image::{GoldenBaseTool, GoldenLeftBehind, GoldenLogin, GoldenManifest, GoldenMissingTool, GoldenRetired};
+use wsp_wire::views::golden_image::{
+    GoldenBaseTool, GoldenLeftBehind, GoldenLogin, GoldenManifest, GoldenMissingTool, GoldenRetired,
+};
 use wsp_wire::views::workspace::DaemonReachView;
 use wsp_wire::wire::machine_link::PreviewReach;
 
@@ -41,7 +45,10 @@ fn said(e: &ImageError) -> String {
 }
 
 fn other(message: &str) -> EngineError {
-    EngineError::Other { message: message.into(), code: None }
+    EngineError::Other {
+        message: message.into(),
+        code: None,
+    }
 }
 
 fn area(w: &Rc<World>) -> Rc<GoldenArea> {
@@ -49,11 +56,21 @@ fn area(w: &Rc<World>) -> Rc<GoldenArea> {
 }
 
 fn retired() -> Vec<GoldenRetired> {
-    vec![GoldenRetired { id: "shell/bashrc".into(), name: "~/.bashrc".into() }]
+    vec![GoldenRetired {
+        id: "shell/bashrc".into(),
+        name: "~/.bashrc".into(),
+    }]
 }
 
 fn ask() -> UpgradeRequest {
-    UpgradeRequest { recipe: Some(recipe("true")), delta: GoldenDelta { retired_on_image: retired(), ..Default::default() }, ..Default::default() }
+    UpgradeRequest {
+        recipe: Some(recipe("true")),
+        delta: GoldenDelta {
+            retired_on_image: retired(),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
 }
 
 /// A world with one sealed version of `default` at the wired provider.
@@ -69,13 +86,21 @@ fn two_versions() -> GoldenManifest {
 }
 
 fn sealed_two(builder_kept: bool) -> SealResult {
-    SealResult { manifest: two_versions(), version: version(2, "snap_v2", None), builder_kept, vault: None }
+    SealResult {
+        manifest: two_versions(),
+        version: version(2, "snap_v2", None),
+        builder_kept,
+        vault: None,
+    }
 }
 
 /// What the seal answers, and the fork the update would make where no builder was kept.
 fn fork_world() -> Rc<World> {
     let w = head_world();
-    w.roads.upgraded.borrow_mut().push_back(Ok(engine_builder(FakeMachine::new("f1"))));
+    w.roads
+        .upgraded
+        .borrow_mut()
+        .push_back(Ok(engine_builder(FakeMachine::new("f1"))));
     w.seals.borrow_mut().push_back(Ok(sealed_two(true)));
     w
 }
@@ -88,13 +113,22 @@ fn kept_world() -> (Rc<World>, BuilderRef, Arc<FakeMachine>) {
 }
 
 /// A builder kept since a seal of `version` at `at`, its machine answering exec as the test scripts.
-fn kept(w: &World, id: &str, life: BuilderLife, at: &str, version: u32) -> (BuilderRef, Arc<FakeMachine>) {
+fn kept(
+    w: &World,
+    id: &str,
+    life: BuilderLife,
+    at: &str,
+    version: u32,
+) -> (BuilderRef, Arc<FakeMachine>) {
     let m = FakeMachine::new(id);
     let b = live_builder(id, "default", "boat", life);
     {
         let mut x = b.borrow_mut();
         x.builder = engine_builder(m.clone());
-        x.record.sealed = Some(Sealed { at: at.into(), version });
+        x.record.sealed = Some(Sealed {
+            at: at.into(),
+            version,
+        });
     }
     w.add_builder(b.clone());
     (b, m)
@@ -116,7 +150,12 @@ const FORK_FLOW: [&str; 5] = [
     "seal_entry f1 keep=true logins=0 copy=",
 ];
 
-const OPENING: [&str; 4] = ["ready", "stage_of default boat false", "expire_grace", "refresh_builders"];
+const OPENING: [&str; 4] = [
+    "ready",
+    "stage_of default boat false",
+    "expire_grace",
+    "refresh_builders",
+];
 
 fn flow(w: &World, tail: &[&str]) -> Vec<String> {
     let mut v: Vec<String> = OPENING.iter().map(|s| s.to_string()).collect();
@@ -135,11 +174,24 @@ fn upgrade_refuses_without_a_head() {
         assert!(matches!(&err, ImageError::Host(h) if h.kind.is_none()));
         // Refused before anything boots: not even the stage listener is made.
         assert_eq!(w.log(), ["ready"]);
-        let err = area(&w).upgrade(UpgradeRequest { name: Some("other".into()), ..ask() }).await.unwrap_err();
+        let err = area(&w)
+            .upgrade(UpgradeRequest {
+                name: Some("other".into()),
+                ..ask()
+            })
+            .await
+            .unwrap_err();
         assert_eq!(said(&err), "no golden named \"other\" to update");
         // A copy with no head is none.
-        w.store.seed("goldens", "boat/empty", json!({"head": 1, "versions": []}));
-        let err = area(&w).upgrade(UpgradeRequest { name: Some("empty".into()), ..ask() }).await.unwrap_err();
+        w.store
+            .seed("goldens", "boat/empty", json!({"head": 1, "versions": []}));
+        let err = area(&w)
+            .upgrade(UpgradeRequest {
+                name: Some("empty".into()),
+                ..ask()
+            })
+            .await
+            .unwrap_err();
         assert_eq!(said(&err), "no golden named \"empty\" to update");
         assert!(w.lines("expire_grace").is_empty() && w.lines("claim").is_empty());
     });
@@ -150,7 +202,13 @@ fn upgrade_refuses_without_a_head() {
 fn upgrade_refuses_without_a_recipe_first() {
     run(async {
         let w = World::new();
-        let err = area(&w).upgrade(UpgradeRequest { recipe: None, ..ask() }).await.unwrap_err();
+        let err = area(&w)
+            .upgrade(UpgradeRequest {
+                recipe: None,
+                ..ask()
+            })
+            .await
+            .unwrap_err();
         assert_eq!(said(&err), "this runtime has no golden recipe; the host wires one (setup + smoke) before the wizard can run");
         assert_eq!(w.log(), ["ready"]);
     });
@@ -164,8 +222,15 @@ fn upgrade_sweeps_expired_builders_and_stages_each_failure() {
         *w.expired.borrow_mut() = Some(Ok(Expired {
             reaped: vec![],
             failed: vec![
-                ReapFailure { id: Some("b8".into()), message: "could not stop: 502 Bad Gateway; stays recorded, retried next sweep".into() },
-                ReapFailure { id: Some("b9".into()), message: "boom".into() },
+                ReapFailure {
+                    id: Some("b8".into()),
+                    message: "could not stop: 502 Bad Gateway; stays recorded, retried next sweep"
+                        .into(),
+                },
+                ReapFailure {
+                    id: Some("b9".into()),
+                    message: "boom".into(),
+                },
             ],
         }));
         area(&w).upgrade(ask()).await.unwrap();
@@ -209,7 +274,16 @@ fn upgrade_takes_a_builder_kept_at_the_heads_version_in_its_window() {
         let (_, second) = kept(&w, "b_second", BuilderLife::Own, IN_WINDOW, 1);
         let got = area(&w).upgrade(ask()).await.unwrap();
         assert_eq!(got.road, UpgradeRoad::Builder);
-        for m in [&d_foreign, &d_held, &d_stale, &d_name, &d_place, &d_version, &d_unsealed, &second] {
+        for m in [
+            &d_foreign,
+            &d_held,
+            &d_stale,
+            &d_name,
+            &d_place,
+            &d_version,
+            &d_unsealed,
+            &second,
+        ] {
             assert!(m.execs().is_empty(), "{} was touched", m.id);
         }
         assert_eq!(first.execs(), ["true"]);
@@ -254,10 +328,19 @@ fn a_kept_builder_is_marked_building_before_its_first_exec() {
         let cancelled = timer(&w, "b1");
         // What the record on the store, the timer and the map hold at the moment the first exec arrives.
         let seen: Rc<RefCell<Option<(Option<Value>, bool, bool)>>> = Rc::new(RefCell::new(None));
-        let (store, timers, flag, into) = (w.store.clone(), w.grace_timers.clone(), cancelled.clone(), seen.clone());
+        let (store, timers, flag, into) = (
+            w.store.clone(),
+            w.grace_timers.clone(),
+            cancelled.clone(),
+            seen.clone(),
+        );
         *m.on_exec.borrow_mut() = Some(Rc::new(move |cmd: &str| {
             if cmd == "true" {
-                *into.borrow_mut() = Some((store.doc("builders", "b1"), flag.get(), timers.borrow().contains_key("b1")));
+                *into.borrow_mut() = Some((
+                    store.doc("builders", "b1"),
+                    flag.get(),
+                    timers.borrow().contains_key("b1"),
+                ));
             }
         }));
         area(&w).upgrade(ask()).await.unwrap();
@@ -280,7 +363,10 @@ fn a_kept_builder_that_does_not_answer_is_killed_and_the_update_forks() {
     run(async {
         for answer in [Err(other("502 Bad Gateway")), Ok(exec_exit(1, "", "no"))] {
             let (w, _, m) = kept_world();
-            w.roads.upgraded.borrow_mut().push_back(Ok(engine_builder(FakeMachine::new("f1"))));
+            w.roads
+                .upgraded
+                .borrow_mut()
+                .push_back(Ok(engine_builder(FakeMachine::new("f1"))));
             m.answer(answer);
             let got = area(&w).upgrade(ask()).await.unwrap();
             assert_eq!(got.road, UpgradeRoad::Fork);
@@ -310,7 +396,10 @@ fn a_kept_builder_takes_the_delta_and_carries_the_heads_snapshot() {
         let left = json!([{"id": "agents/claude", "path": "~/.claude/settings.json", "note": "hook left behind: /opt/homebrew/bin/terminal-notifier"}]);
         let mut head = version(1, "snap_v1", None);
         head.smoke.cmd = "codex --version".into();
-        head.base = Some(vec![GoldenBaseTool { name: "node".into(), version: "22.23.2".into() }]);
+        head.base = Some(vec![GoldenBaseTool {
+            name: "node".into(),
+            version: "22.23.2".into(),
+        }]);
         head.missing_tools = Some(serde_json::from_value(missing.clone()).unwrap());
         head.left_behind = Some(serde_json::from_value(left.clone()).unwrap());
         let mut held = manifest(&[(1, "snap_v1", None)]);
@@ -319,22 +408,46 @@ fn a_kept_builder_takes_the_delta_and_carries_the_heads_snapshot() {
         let got = area(&w).upgrade(ask()).await.unwrap();
         assert_eq!(
             got,
-            GoldenUpgradeResult { manifest: two_versions(), version: version(2, "snap_v2", None), road: UpgradeRoad::Builder, previous_dropped: false, builder_kept: true }
+            GoldenUpgradeResult {
+                manifest: two_versions(),
+                version: version(2, "snap_v2", None),
+                road: UpgradeRoad::Builder,
+                previous_dropped: false,
+                builder_kept: true
+            }
         );
         assert_eq!(
             w.log(),
             flow(
                 &w,
-                &["stage creating your builder from v1, kept since the save", "road apply_delta b1", "hold b1", "stage ready ", "seal_entry b1 keep=true logins=0 copy="]
+                &[
+                    "stage creating your builder from v1, kept since the save",
+                    "road apply_delta b1",
+                    "hold b1",
+                    "stage ready ",
+                    "seal_entry b1 keep=true logins=0 copy="
+                ]
             )
         );
         let asks = w.roads.delta_asks.borrow();
         assert_eq!(asks.len(), 1);
         assert_eq!(asks[0].setup, "true");
         assert_eq!(asks[0].previous_smoke, "codex --version");
-        assert_eq!(asks[0].previous_base, Some(vec![GoldenBaseTool { name: "node".into(), version: "22.23.2".into() }]));
-        assert_eq!(asks[0].previous_missing, Some(serde_json::from_value::<Vec<GoldenMissingTool>>(missing).unwrap()));
-        assert_eq!(asks[0].previous_left_behind, Some(serde_json::from_value::<Vec<GoldenLeftBehind>>(left).unwrap()));
+        assert_eq!(
+            asks[0].previous_base,
+            Some(vec![GoldenBaseTool {
+                name: "node".into(),
+                version: "22.23.2".into()
+            }])
+        );
+        assert_eq!(
+            asks[0].previous_missing,
+            Some(serde_json::from_value::<Vec<GoldenMissingTool>>(missing).unwrap())
+        );
+        assert_eq!(
+            asks[0].previous_left_behind,
+            Some(serde_json::from_value::<Vec<GoldenLeftBehind>>(left).unwrap())
+        );
         // The record and the builder both: the setup the delta made, the head's snapshot as the parent, what the image
         // retired; the builder sealed as the head, so its next version descends from the head's snapshot.
         let x = b.borrow();
@@ -348,14 +461,24 @@ fn a_kept_builder_takes_the_delta_and_carries_the_heads_snapshot() {
         assert_eq!(x.builder.parent_snapshot_id.as_deref(), Some("snap_v1"));
         assert_eq!(x.builder.retired, Some(retired()));
         assert_eq!(x.life, BuilderLife::Own);
-        assert_eq!(x.recipe.as_ref().map(|r| r.setup.clone()), Some("true".to_string()));
+        assert_eq!(
+            x.recipe.as_ref().map(|r| r.setup.clone()),
+            Some("true".to_string())
+        );
         drop(x);
 
         // A head that carries none of them passes none.
         let (w, _, _) = kept_world();
         area(&w).upgrade(ask()).await.unwrap();
         let asks = w.roads.delta_asks.borrow();
-        assert_eq!((asks[0].previous_smoke.as_str(), asks[0].previous_base.clone(), asks[0].previous_missing.clone()), ("true", None, None));
+        assert_eq!(
+            (
+                asks[0].previous_smoke.as_str(),
+                asks[0].previous_base.clone(),
+                asks[0].previous_missing.clone()
+            ),
+            ("true", None, None)
+        );
         assert_eq!(asks[0].previous_left_behind, None);
     });
 }
@@ -390,7 +513,10 @@ fn a_kept_builder_whose_delta_fails_is_killed_and_staged_failed() {
         *w.roads.kill_fails.borrow_mut() = Some(other("502 Bad Gateway"));
         let err = area(&w).upgrade(ask()).await.unwrap_err();
         assert_eq!(said(&err), words);
-        assert_eq!(w.lines("stage failed"), [format!("stage failed {words}; 502 Bad Gateway")]);
+        assert_eq!(
+            w.lines("stage failed"),
+            [format!("stage failed {words}; 502 Bad Gateway")]
+        );
         assert_eq!(w.lines("forget_if_gone"), ["forget_if_gone b1"]);
     });
 }
@@ -400,7 +526,11 @@ fn recipe_with_size() -> GoldenRecipe {
         cpu: Some(JsNumber::from(4.0)),
         mem_mb: Some(JsNumber::from(8192.0)),
         envs: Some([("A".to_string(), "1".to_string())].into_iter().collect()),
-        labels: Some([("team".to_string(), "x".to_string())].into_iter().collect()),
+        labels: Some(
+            [("team".to_string(), "x".to_string())]
+                .into_iter()
+                .collect(),
+        ),
         ..recipe("true")
     }
 }
@@ -410,7 +540,13 @@ fn recipe_with_size() -> GoldenRecipe {
 fn the_fork_road_claims_the_bare_builder_key_and_settles() {
     run(async {
         let w = fork_world();
-        let got = area(&w).upgrade(UpgradeRequest { recipe: Some(recipe_with_size()), ..ask() }).await.unwrap();
+        let got = area(&w)
+            .upgrade(UpgradeRequest {
+                recipe: Some(recipe_with_size()),
+                ..ask()
+            })
+            .await
+            .unwrap();
         assert_eq!(got.road, UpgradeRoad::Fork);
         assert_eq!(w.log(), flow(&w, &FORK_FLOW));
         let asks = w.roads.upgrade_asks.borrow();
@@ -420,11 +556,30 @@ fn the_fork_road_claims_the_bare_builder_key_and_settles() {
         assert_eq!(asks[0].delta.retired_on_image, retired());
         assert_eq!(asks[0].size.cpu, Some(JsNumber::from(4.0)));
         assert_eq!(asks[0].size.mem_mb, Some(JsNumber::from(8192.0)));
-        assert_eq!(asks[0].size.envs, Some([("A".to_string(), "1".to_string())].into_iter().collect()));
+        assert_eq!(
+            asks[0].size.envs,
+            Some([("A".to_string(), "1".to_string())].into_iter().collect())
+        );
         let labels: Vec<_> = asks[0].size.labels.clone().unwrap().into_iter().collect();
-        assert_eq!(labels, [("team".to_string(), "x".to_string()), ("wsp-builder".to_string(), "1".to_string())]);
+        assert_eq!(
+            labels,
+            [
+                ("team".to_string(), "x".to_string()),
+                ("wsp-builder".to_string(), "1".to_string())
+            ]
+        );
         // The recipe is kept on the entry the fork settled as.
-        assert_eq!(w.builders.borrow().get("f1").unwrap().borrow().recipe.as_ref().map(|r| r.setup.clone()), Some("true".to_string()));
+        assert_eq!(
+            w.builders
+                .borrow()
+                .get("f1")
+                .unwrap()
+                .borrow()
+                .recipe
+                .as_ref()
+                .map(|r| r.setup.clone()),
+            Some("true".to_string())
+        );
         drop(asks);
 
         // No size in the recipe asks for none; the claim is the bare name at the place the image stands.
@@ -433,7 +588,10 @@ fn the_fork_road_claims_the_bare_builder_key_and_settles() {
         w.with_door().computer("spoo", "Spoo", Some(spoo));
         w.put_image_now(&sealed_image("default", 1, "h", Some("spoo")));
         w.put_copy_now("spoo", "default", &manifest(&[(1, "snap_v1", None)]));
-        w.roads.upgraded.borrow_mut().push_back(Ok(engine_builder(FakeMachine::new("f1"))));
+        w.roads
+            .upgraded
+            .borrow_mut()
+            .push_back(Ok(engine_builder(FakeMachine::new("f1"))));
         w.seals.borrow_mut().push_back(Ok(sealed_two(true)));
         area(&w).upgrade(ask()).await.unwrap();
         assert_eq!(
@@ -451,7 +609,14 @@ fn the_fork_road_claims_the_bare_builder_key_and_settles() {
             ]
         );
         let asks = w.roads.upgrade_asks.borrow();
-        assert_eq!((asks[0].size.cpu, asks[0].size.mem_mb, asks[0].size.envs.clone()), (None, None, None));
+        assert_eq!(
+            (
+                asks[0].size.cpu,
+                asks[0].size.mem_mb,
+                asks[0].size.envs.clone()
+            ),
+            (None, None, None)
+        );
     });
 }
 
@@ -460,19 +625,38 @@ fn the_fork_road_claims_the_bare_builder_key_and_settles() {
 fn the_fork_road_forgets_a_gone_placeholder_when_it_fails() {
     run(async {
         let w = head_world();
-        *w.placeholder_made.borrow_mut() = Some(live_builder("p1", "default", "boat", BuilderLife::Own));
-        w.roads.upgraded.borrow_mut().push_back(Err(ImageError::Host(plain_error("the fork was refused"))));
+        *w.placeholder_made.borrow_mut() =
+            Some(live_builder("p1", "default", "boat", BuilderLife::Own));
+        w.roads
+            .upgraded
+            .borrow_mut()
+            .push_back(Err(ImageError::Host(plain_error("the fork was refused"))));
         let err = area(&w).upgrade(ask()).await.unwrap_err();
         assert_eq!(said(&err), "the fork was refused");
         assert_eq!(
             w.log(),
-            flow(&w, &["claim builder/default @boat", "recording_creates default boat import=h1 stop=false", "road upgrade_builder", "forget_if_gone p1"])
+            flow(
+                &w,
+                &[
+                    "claim builder/default @boat",
+                    "recording_creates default boat import=h1 stop=false",
+                    "road upgrade_builder",
+                    "forget_if_gone p1"
+                ]
+            )
         );
         // No machine was made, so there is no placeholder to forget, and nothing is sealed.
         let w = head_world();
-        w.roads.upgraded.borrow_mut().push_back(Err(ImageError::Host(plain_error("the fork was refused"))));
+        w.roads
+            .upgraded
+            .borrow_mut()
+            .push_back(Err(ImageError::Host(plain_error("the fork was refused"))));
         area(&w).upgrade(ask()).await.unwrap_err();
-        assert!(w.lines("forget_if_gone").is_empty() && w.lines("settle_builder").is_empty() && w.lines("seal_entry").is_empty());
+        assert!(
+            w.lines("forget_if_gone").is_empty()
+                && w.lines("settle_builder").is_empty()
+                && w.lines("seal_entry").is_empty()
+        );
     });
 }
 
@@ -488,13 +672,34 @@ fn the_update_seals_keeping_the_builder_with_the_logins() {
         for given in [Some(logins()), None] {
             let n = given.as_ref().map(|l| l.len()).unwrap_or(0);
             let (w, b, _) = kept_world();
-            area(&w).upgrade(UpgradeRequest { logins: given.clone(), ..ask() }).await.unwrap();
-            assert_eq!(w.lines("seal_entry"), [format!("seal_entry b1 keep=true logins={n} copy=")]);
-            assert_eq!(b.borrow().recipe.as_ref().map(|r| r.smoke.clone()), Some("true".to_string()));
+            area(&w)
+                .upgrade(UpgradeRequest {
+                    logins: given.clone(),
+                    ..ask()
+                })
+                .await
+                .unwrap();
+            assert_eq!(
+                w.lines("seal_entry"),
+                [format!("seal_entry b1 keep=true logins={n} copy=")]
+            );
+            assert_eq!(
+                b.borrow().recipe.as_ref().map(|r| r.smoke.clone()),
+                Some("true".to_string())
+            );
 
             let w = fork_world();
-            area(&w).upgrade(UpgradeRequest { logins: given, ..ask() }).await.unwrap();
-            assert_eq!(w.lines("seal_entry"), [format!("seal_entry f1 keep=true logins={n} copy=")]);
+            area(&w)
+                .upgrade(UpgradeRequest {
+                    logins: given,
+                    ..ask()
+                })
+                .await
+                .unwrap();
+            assert_eq!(
+                w.lines("seal_entry"),
+                [format!("seal_entry f1 keep=true logins={n} copy=")]
+            );
         }
     });
 }
@@ -507,17 +712,40 @@ fn keep_previous_false_keeps_a_version_workspaces_stand_on() {
         w.add_workspace("w_a", "alpha", "snap_v1");
         w.add_workspace("w_b", "beta", "snap_v1");
         w.add_workspace("w_c", "elsewhere", "snap_v9");
-        let got = area(&w).upgrade(UpgradeRequest { keep_previous: Some(false), ..ask() }).await.unwrap();
-        assert_eq!(w.warned.lines(), ["golden default v1 kept: alpha, beta still on it"]);
+        let got = area(&w)
+            .upgrade(UpgradeRequest {
+                keep_previous: Some(false),
+                ..ask()
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            w.warned.lines(),
+            ["golden default v1 kept: alpha, beta still on it"]
+        );
         assert!(!got.previous_dropped);
         assert_eq!(got.manifest, two_versions());
-        assert!(w.lines("drop_image").is_empty() && w.lines("put_copy").is_empty() && w.lines("drop_copy_recipe").is_empty());
+        assert!(
+            w.lines("drop_image").is_empty()
+                && w.lines("put_copy").is_empty()
+                && w.lines("drop_copy_recipe").is_empty()
+        );
 
         // Only a false keepPrevious drops anything, and only a false one warns.
         for keep in [None, Some(true)] {
             let (w, _, _) = kept_world();
-            let got = area(&w).upgrade(UpgradeRequest { keep_previous: keep, ..ask() }).await.unwrap();
-            assert!(!got.previous_dropped && w.warned.lines().is_empty() && w.lines("drop_image").is_empty());
+            let got = area(&w)
+                .upgrade(UpgradeRequest {
+                    keep_previous: keep,
+                    ..ask()
+                })
+                .await
+                .unwrap();
+            assert!(
+                !got.previous_dropped
+                    && w.warned.lines().is_empty()
+                    && w.lines("drop_image").is_empty()
+            );
         }
     });
 }
@@ -528,18 +756,43 @@ fn keep_previous_false_drops_the_head_and_its_recipe() {
     run(async {
         let (w, _, _) = kept_world();
         w.put_recipe_now("boat", "default", 2);
-        let got = area(&w).upgrade(UpgradeRequest { keep_previous: Some(false), ..ask() }).await.unwrap();
+        let got = area(&w)
+            .upgrade(UpgradeRequest {
+                keep_previous: Some(false),
+                ..ask()
+            })
+            .await
+            .unwrap();
         let only_two = manifest(&[(2, "snap_v2", None)]);
         assert_eq!(
             got,
-            GoldenUpgradeResult { manifest: only_two.clone(), version: version(2, "snap_v2", None), road: UpgradeRoad::Builder, previous_dropped: true, builder_kept: true }
+            GoldenUpgradeResult {
+                manifest: only_two.clone(),
+                version: version(2, "snap_v2", None),
+                road: UpgradeRoad::Builder,
+                previous_dropped: true,
+                builder_kept: true
+            }
         );
         // The builder road keeps its builder: nothing is killed.
         let log = w.log();
-        let at = log.iter().position(|l| l.starts_with("seal_entry")).unwrap();
-        assert_eq!(log[at + 1..], ["drop_image snap_v1", "put_copy boat default", "drop_copy_recipe boat default 1"]);
+        let at = log
+            .iter()
+            .position(|l| l.starts_with("seal_entry"))
+            .unwrap();
+        assert_eq!(
+            log[at + 1..],
+            [
+                "drop_image snap_v1",
+                "put_copy boat default",
+                "drop_copy_recipe boat default 1"
+            ]
+        );
         assert_eq!(w.copy_now("boat", "default"), Some(only_two));
-        assert!(w.recipe_now("boat", "default", 1).is_none() && w.recipe_now("boat", "default", 2).is_some());
+        assert!(
+            w.recipe_now("boat", "default", 1).is_none()
+                && w.recipe_now("boat", "default", 2).is_some()
+        );
         assert!(w.warned.lines().is_empty());
     });
 }
@@ -551,18 +804,31 @@ fn keep_previous_false_on_the_fork_road_kills_the_kept_builder_first() {
         let w = fork_world();
         w.put_recipe_now("boat", "default", 2);
         let cancelled = timer(&w, "f1");
-        let got = area(&w).upgrade(UpgradeRequest { keep_previous: Some(false), ..ask() }).await.unwrap();
+        let got = area(&w)
+            .upgrade(UpgradeRequest {
+                keep_previous: Some(false),
+                ..ask()
+            })
+            .await
+            .unwrap();
         assert_eq!(got.road, UpgradeRoad::Fork);
         assert!(got.previous_dropped);
         // A snapshot with forks under it cannot be deleted: the builder forked from it goes first, window or not.
         assert!(!got.builder_kept);
         assert!(cancelled.get() && !w.grace_timers.borrow().contains_key("f1"));
         let log = w.log();
-        let at = log.iter().position(|l| l.starts_with("seal_entry")).unwrap();
+        let at = log
+            .iter()
+            .position(|l| l.starts_with("seal_entry"))
+            .unwrap();
         assert_eq!(
             log[at + 1..],
             [
-                "road kill_until_gone f1", "forget_builder f1", "drop_image snap_v1", "put_copy boat default", "drop_copy_recipe boat default 1"
+                "road kill_until_gone f1",
+                "forget_builder f1",
+                "drop_image snap_v1",
+                "put_copy boat default",
+                "drop_copy_recipe boat default 1"
             ]
         );
         assert!(!w.builders.borrow().contains_key("f1"));
@@ -570,9 +836,18 @@ fn keep_previous_false_on_the_fork_road_kills_the_kept_builder_first() {
 
         // A seal that kept no builder leaves nothing to kill.
         let w = head_world();
-        w.roads.upgraded.borrow_mut().push_back(Ok(engine_builder(FakeMachine::new("f1"))));
+        w.roads
+            .upgraded
+            .borrow_mut()
+            .push_back(Ok(engine_builder(FakeMachine::new("f1"))));
         w.seals.borrow_mut().push_back(Ok(sealed_two(false)));
-        let got = area(&w).upgrade(UpgradeRequest { keep_previous: Some(false), ..ask() }).await.unwrap();
+        let got = area(&w)
+            .upgrade(UpgradeRequest {
+                keep_previous: Some(false),
+                ..ask()
+            })
+            .await
+            .unwrap();
         assert!(got.previous_dropped && !got.builder_kept);
         assert!(w.lines("road kill_until_gone").is_empty() && w.lines("forget_builder").is_empty());
     });
@@ -584,7 +859,13 @@ fn keep_previous_false_fails_the_update_where_the_builder_will_not_die() {
     run(async {
         let w = fork_world();
         *w.roads.kill_fails.borrow_mut() = Some(other("502 Bad Gateway"));
-        let err = area(&w).upgrade(UpgradeRequest { keep_previous: Some(false), ..ask() }).await.unwrap_err();
+        let err = area(&w)
+            .upgrade(UpgradeRequest {
+                keep_previous: Some(false),
+                ..ask()
+            })
+            .await
+            .unwrap_err();
         assert_eq!(said(&err), "502 Bad Gateway");
         assert!(w.lines("drop_image").is_empty() && w.lines("forget_builder").is_empty());
         assert!(w.warned.lines().is_empty());
@@ -597,14 +878,33 @@ fn a_failed_drop_warns_and_keeps_the_copy() {
     run(async {
         let (w, _, _) = kept_world();
         w.put_recipe_now("boat", "default", 2);
-        w.drop_image_fails.borrow_mut().insert("snap_v1".into(), ImageError::Engine(provider_error(ErrorKind::Conflict, 409, "SnapshotHasChildren")));
-        let got = area(&w).upgrade(UpgradeRequest { keep_previous: Some(false), ..ask() }).await.unwrap();
-        assert_eq!(w.warned.lines(), ["golden default v1 kept: its snapshot was not deleted (SnapshotHasChildren)"]);
+        w.drop_image_fails.borrow_mut().insert(
+            "snap_v1".into(),
+            ImageError::Engine(provider_error(
+                ErrorKind::Conflict,
+                409,
+                "SnapshotHasChildren",
+            )),
+        );
+        let got = area(&w)
+            .upgrade(UpgradeRequest {
+                keep_previous: Some(false),
+                ..ask()
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            w.warned.lines(),
+            ["golden default v1 kept: its snapshot was not deleted (SnapshotHasChildren)"]
+        );
         assert!(!got.previous_dropped);
         // The copy as the seal left it, and nothing written after.
         assert_eq!(got.manifest, two_versions());
         assert!(w.lines("put_copy").is_empty() && w.lines("drop_copy_recipe").is_empty());
-        assert!(w.recipe_now("boat", "default", 1).is_some() && w.recipe_now("boat", "default", 2).is_some());
+        assert!(
+            w.recipe_now("boat", "default", 1).is_some()
+                && w.recipe_now("boat", "default", 2).is_some()
+        );
     });
 }
 
@@ -616,14 +916,30 @@ fn upgrade_answers_in_the_ts_key_order() {
         let got = area(&w).upgrade(ask()).await.unwrap();
         let v = serde_json::to_value(&got).unwrap();
         let keys: Vec<&String> = v.as_object().unwrap().keys().collect();
-        assert_eq!(keys, ["manifest", "version", "road", "previousDropped", "builderKept"]);
-        assert_eq!((&v["road"], &v["previousDropped"], &v["builderKept"]), (&json!("builder"), &json!(false), &json!(true)));
+        assert_eq!(
+            keys,
+            [
+                "manifest",
+                "version",
+                "road",
+                "previousDropped",
+                "builderKept"
+            ]
+        );
+        assert_eq!(
+            (&v["road"], &v["previousDropped"], &v["builderKept"]),
+            (&json!("builder"), &json!(false), &json!(true))
+        );
         assert_eq!(v["version"]["version"], json!(2));
     });
 }
 
 fn reach() -> PreviewReach {
-    PreviewReach { url: "https://m1-7070.preview.example/?pt_token=edge".into(), token: "edge".into(), expires_at: JsNumber::from(1_800_000_000_000.0) }
+    PreviewReach {
+        url: "https://m1-7070.preview.example/?pt_token=edge".into(),
+        token: "edge".into(),
+        expires_at: JsNumber::from(1_800_000_000_000.0),
+    }
 }
 
 // U9: golden.ts:418-428, runtime-builders.test.ts:106
@@ -638,7 +954,15 @@ fn builder_reach_refreshes_the_preview_token_and_names_the_daemon_token() {
         let want: DaemonReachView =
             serde_json::from_value(json!({"url": "https://m1-7070.preview.example/?pt_token=edge", "expiresAt": 1_800_000_000_000.0, "daemonToken": "token-b1"})).unwrap();
         assert_eq!(got, want);
-        assert_eq!(w.log(), ["ready", "refresh_builders", "refuse_untouchable b1", "road refresh_preview_token b1 7070"]);
+        assert_eq!(
+            w.log(),
+            [
+                "ready",
+                "refresh_builders",
+                "refuse_untouchable b1",
+                "road refresh_preview_token b1 7070"
+            ]
+        );
         // Kept on the entry, for the next ask to hold.
         assert_eq!(b.borrow().reach, Some(reach()));
 
@@ -669,7 +993,10 @@ fn builder_reach_refuses_unknown_and_untouchable() {
             *w.roads.reach.borrow_mut() = Some(Ok(reach()));
             let err = area(&w).builder_reach("b1").await.unwrap_err();
             assert_eq!(said(&err), "b1 is untouchable");
-            assert_eq!(w.log(), ["ready", "refresh_builders", "refuse_untouchable b1"]);
+            assert_eq!(
+                w.log(),
+                ["ready", "refresh_builders", "refuse_untouchable b1"]
+            );
         }
     });
 }
@@ -679,12 +1006,24 @@ fn builder_reach_refuses_unknown_and_untouchable() {
 fn builders_lists_every_view_in_map_order() {
     run(async {
         let w = World::new();
-        for (id, name, life) in [("b3", "default", BuilderLife::Own), ("b1", "other", BuilderLife::Reusable), ("b2", "default", BuilderLife::Foreign)] {
+        for (id, name, life) in [
+            ("b3", "default", BuilderLife::Own),
+            ("b1", "other", BuilderLife::Reusable),
+            ("b2", "default", BuilderLife::Foreign),
+        ] {
             w.add_builder(live_builder(id, name, "boat", life));
         }
         let got = area(&w).builders().await.unwrap();
-        let listed: Vec<(String, String)> = got.iter().map(|v| (v.id.clone(), v.name.clone())).collect();
-        assert_eq!(listed, [("b3".to_string(), "default".to_string()), ("b1".to_string(), "other".to_string()), ("b2".to_string(), "default".to_string())]);
+        let listed: Vec<(String, String)> =
+            got.iter().map(|v| (v.id.clone(), v.name.clone())).collect();
+        assert_eq!(
+            listed,
+            [
+                ("b3".to_string(), "default".to_string()),
+                ("b1".to_string(), "other".to_string()),
+                ("b2".to_string(), "default".to_string())
+            ]
+        );
         assert_eq!(w.log(), ["ready", "refresh_builders"]);
         // None held: none listed.
         let w = World::new();
@@ -693,18 +1032,27 @@ fn builders_lists_every_view_in_map_order() {
 }
 
 fn labelled(w: &World, id: &str, labels: &[(&str, &str)]) {
-    w.runtime_backend.machines.borrow_mut().insert(id.into(), Ok(FakeMachine::labelled(id, labels)));
+    w.runtime_backend
+        .machines
+        .borrow_mut()
+        .insert(id.into(), Ok(FakeMachine::labelled(id, labels)));
 }
 
 // U11: golden.ts:444-454, runtime-golden-import.test.ts:194
 #[test]
 fn kill_takes_an_unrecorded_machine_only_when_it_wears_this_owners_builder_label() {
     run(async {
-        for labels in [vec![("wsp-owner", "owner-1"), ("wsp-builder", "1")], vec![("wsp-owner", "owner-1"), ("wsp-smoke", "1")]] {
+        for labels in [
+            vec![("wsp-owner", "owner-1"), ("wsp-builder", "1")],
+            vec![("wsp-owner", "owner-1"), ("wsp-smoke", "1")],
+        ] {
             let w = World::new();
             labelled(&w, "m9", &labels);
             area(&w).kill("m9").await.unwrap();
-            assert_eq!(w.log(), ["ready", "refresh_builders", "road kill_until_gone m9"]);
+            assert_eq!(
+                w.log(),
+                ["ready", "refresh_builders", "road kill_until_gone m9"]
+            );
         }
         // Another state's machine, a workspace of this one, a builder label that is not "1", a machine with no labels.
         for labels in [
@@ -721,8 +1069,14 @@ fn kill_takes_an_unrecorded_machine_only_when_it_wears_this_owners_builder_label
             assert!(w.lines("road kill_until_gone").is_empty());
         }
         let w = World::new();
-        w.runtime_backend.machines.borrow_mut().insert("m9".into(), Ok(FakeMachine::new("m9")));
-        assert_eq!(said(&area(&w).kill("m9").await.unwrap_err()), "no such builder: m9");
+        w.runtime_backend
+            .machines
+            .borrow_mut()
+            .insert("m9".into(), Ok(FakeMachine::new("m9")));
+        assert_eq!(
+            said(&area(&w).kill("m9").await.unwrap_err()),
+            "no such builder: m9"
+        );
     });
 }
 
@@ -735,8 +1089,14 @@ fn kill_refuses_a_missing_machine_as_no_such_builder() {
         assert_eq!(said(&err), "no such builder: m_gone");
         assert_eq!(w.log(), ["ready", "refresh_builders"]);
         let w = World::new();
-        w.runtime_backend.machines.borrow_mut().insert("m_gone".into(), Err(missing("machine m_gone is gone")));
-        assert_eq!(said(&area(&w).kill("m_gone").await.unwrap_err()), "no such builder: m_gone");
+        w.runtime_backend
+            .machines
+            .borrow_mut()
+            .insert("m_gone".into(), Err(missing("machine m_gone is gone")));
+        assert_eq!(
+            said(&area(&w).kill("m_gone").await.unwrap_err()),
+            "no such builder: m_gone"
+        );
         assert!(w.lines("road kill_until_gone").is_empty());
     });
 }
@@ -746,7 +1106,10 @@ fn kill_refuses_a_missing_machine_as_no_such_builder() {
 fn kill_fails_with_the_providers_own_read_failure() {
     run(async {
         let w = World::new();
-        w.runtime_backend.machines.borrow_mut().insert("m5".into(), Err(provider_error(ErrorKind::Transient, 502, "502 Bad Gateway")));
+        w.runtime_backend.machines.borrow_mut().insert(
+            "m5".into(),
+            Err(provider_error(ErrorKind::Transient, 502, "502 Bad Gateway")),
+        );
         let err = area(&w).kill("m5").await.unwrap_err();
         assert_eq!(said(&err), "502 Bad Gateway");
         assert!(w.lines("road kill_until_gone").is_empty());
@@ -764,7 +1127,15 @@ fn kill_kills_and_forgets_a_recorded_builder_even_while_building() {
             b.borrow_mut().record.building = Some(true);
             w.add_builder(b);
             area(&w).kill("b1").await.unwrap();
-            assert_eq!(w.log(), ["ready", "refresh_builders", "road kill_until_gone b1", "forget_builder b1"]);
+            assert_eq!(
+                w.log(),
+                [
+                    "ready",
+                    "refresh_builders",
+                    "road kill_until_gone b1",
+                    "forget_builder b1"
+                ]
+            );
             assert!(!w.builders.borrow().contains_key("b1"));
         }
         // A record with no place is the wired provider's; one at a place this host has no backend for cannot be reached.
@@ -778,12 +1149,17 @@ fn kill_kills_and_forgets_a_recorded_builder_even_while_building() {
         w.add_builder(live_builder("b1", "default", "ghost", BuilderLife::Own));
         let err = area(&w).kill("b1").await.unwrap_err();
         assert_eq!(said(&err), "no place ghost");
-        assert!(w.lines("road kill_until_gone").is_empty() && w.builders.borrow().contains_key("b1"));
+        assert!(
+            w.lines("road kill_until_gone").is_empty() && w.builders.borrow().contains_key("b1")
+        );
         // A kill that fails keeps the builder recorded.
         let w = World::new();
         w.add_builder(live_builder("b1", "default", "boat", BuilderLife::Own));
         *w.roads.kill_fails.borrow_mut() = Some(other("502 Bad Gateway"));
-        assert_eq!(said(&area(&w).kill("b1").await.unwrap_err()), "502 Bad Gateway");
+        assert_eq!(
+            said(&area(&w).kill("b1").await.unwrap_err()),
+            "502 Bad Gateway"
+        );
         assert!(w.lines("forget_builder").is_empty() && w.builders.borrow().contains_key("b1"));
     });
 }
@@ -797,7 +1173,10 @@ fn kill_refuses_a_foreign_or_held_builder() {
             w.add_builder(live_builder("b1", "default", "boat", life));
             let err = area(&w).kill("b1").await.unwrap_err();
             assert_eq!(said(&err), "b1 is untouchable");
-            assert_eq!(w.log(), ["ready", "refresh_builders", "refuse_untouchable b1"]);
+            assert_eq!(
+                w.log(),
+                ["ready", "refresh_builders", "refuse_untouchable b1"]
+            );
             assert!(w.builders.borrow().contains_key("b1"));
         }
         // Any other life is not asked about.

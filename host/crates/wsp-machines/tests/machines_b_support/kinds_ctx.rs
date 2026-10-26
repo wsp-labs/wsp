@@ -14,38 +14,38 @@ use futures::future::LocalBoxFuture;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Map, Value};
 
-use wsp_engine::errors::EngineError;
-use wsp_engine::machine::{
-    BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineLife, MachineListRow, MachineOffers, MachineSpec,
-    MachineState, RunOptions, SnapshotOptions, Waiting,
-};
-use wsp_core::clock::Cancel;
+use wsp_adapters::codex::command::{AccountModels, BrokerMode, CodexBroker};
+use wsp_adapters::pending::CodexClaims;
 use wsp_core::types::internal::{EndThread, ImportLanded, ImportReport};
 use wsp_core::types::internal::{KindModule, PortRoute};
 use wsp_core::types::pending::MachineExecOptions;
 use wsp_core::types::wiring::{
-    LiveWorkspace, Local, PackedProject, PackedState, ProjectBundler, ProjectImportOptions, StageReport, StateRequest, WorkspaceRecord,
+    LiveWorkspace, Local, PackedProject, PackedState, ProjectBundler, ProjectImportOptions,
+    StageReport, StateRequest, WorkspaceRecord,
 };
-use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_engine::errors::EngineError;
+use wsp_engine::link_backend::{LinkAsk, MachineLink};
+use wsp_engine::machine::{
+    BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineLife,
+    MachineListRow, MachineOffers, MachineSpec, MachineState, RunOptions, SnapshotOptions, Waiting,
+};
+use wsp_engine::place_machine::PlaceFolderMachine;
+use wsp_machines::machines::area_error::AreaResult;
 use wsp_machines::machines::brokered::{ClaudePlaceholderKind, Placeholders};
-use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::kinds::{BrokerSaid, KindsArea, KindsCtx};
+use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::thread_ends::OwedEnd;
 use wsp_machines::places::types::FolderComputer;
-use wsp_adapters::codex::command::{AccountModels, BrokerMode, CodexBroker};
-use wsp_adapters::pending::CodexClaims;
-use wsp_engine::link_backend::{LinkAsk, MachineLink};
-use wsp_engine::place_machine::PlaceFolderMachine;
 use wsp_wire::types::agents_report::AgentSignInState;
-use wsp_wire::wire::runtime::{BrokerStatus, BrokerStatusClaude, BrokerStatusCodex};
+use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::shell_quote::shell_line;
 use wsp_wire::views::golden_image::MachineKind;
-use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::views::harness::McpServerSpec;
 use wsp_wire::views::project_bundle::{ProjectImportResult, ProjectImportStage, ProjectPlan};
 use wsp_wire::views::workspace::{DaemonReachView, ProjectView, WorkspaceProject};
 use wsp_wire::views::workspace_more::WorktreeFolder;
 use wsp_wire::wire::machine_link::PreviewReach;
+use wsp_wire::wire::runtime::{BrokerStatus, BrokerStatusClaude, BrokerStatusCodex};
 use wsp_words::exit::{HostError, Kind};
 
 use super::*;
@@ -60,7 +60,12 @@ pub fn host_error(message: &str, kind: Option<Kind>) -> HostError {
 
 /// What the fake broker says of an agent it adds no key for.
 pub fn unbrokered(harness: &str) -> Option<HostError> {
-    (harness != "claude" && harness != "codex").then(|| host_error(&format!("{harness} does not run on a cloud machine yet: wsp keeps no key there"), Some(Kind::Usage)))
+    (harness != "claude" && harness != "codex").then(|| {
+        host_error(
+            &format!("{harness} does not run on a cloud machine yet: wsp keeps no key there"),
+            Some(Kind::Usage),
+        )
+    })
 }
 
 /// What the fake broker refuses a codex launch with when it names no login.
@@ -84,11 +89,20 @@ pub struct LocalShell {
 
 impl LocalShell {
     pub fn new(cwd: &Path, path_first: Option<&Path>) -> Arc<LocalShell> {
-        Arc::new(LocalShell { cwd: cwd.to_path_buf(), path_first: path_first.map(|p| p.to_path_buf()), log: Mutex::new(Vec::new()) })
+        Arc::new(LocalShell {
+            cwd: cwd.to_path_buf(),
+            path_first: path_first.map(|p| p.to_path_buf()),
+            log: Mutex::new(Vec::new()),
+        })
     }
     /// Every command run, in order.
     pub fn ran(&self) -> Vec<String> {
-        self.log.lock().unwrap().iter().map(|(c, _)| c.clone()).collect()
+        self.log
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(c, _)| c.clone())
+            .collect()
     }
     /// The timeout each command was run with, in order.
     pub fn timeouts(&self) -> Vec<Option<u64>> {
@@ -109,32 +123,64 @@ impl Machine for LocalShell {
         MachineKind::Sandbox
     }
     async fn exec(&self, cmd: &str, opts: ExecOptions) -> Result<ExecResult, EngineError> {
-        self.log.lock().unwrap().push((cmd.to_string(), opts.timeout_ms));
+        self.log
+            .lock()
+            .unwrap()
+            .push((cmd.to_string(), opts.timeout_ms));
         let mut c = Command::new("sh");
         c.arg("-c").arg(cmd).current_dir(&self.cwd);
         if let Some(first) = &self.path_first {
-            c.env("PATH", format!("{}:{}", first.display(), std::env::var("PATH").unwrap_or_default()));
+            c.env(
+                "PATH",
+                format!(
+                    "{}:{}",
+                    first.display(),
+                    std::env::var("PATH").unwrap_or_default()
+                ),
+            );
         }
-        c.stdin(if opts.stdin.is_some() { Stdio::piped() } else { Stdio::null() }).stdout(Stdio::piped()).stderr(Stdio::piped());
+        c.stdin(if opts.stdin.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
         let mut child = c.spawn().map_err(|e| engine_error(&e.to_string()))?;
         if let Some(bytes) = &opts.stdin {
             let mut stdin = child.stdin.take().expect("a piped stdin");
-            stdin.write_all(bytes).map_err(|e| engine_error(&e.to_string()))?;
+            stdin
+                .write_all(bytes)
+                .map_err(|e| engine_error(&e.to_string()))?;
         }
-        let out = child.wait_with_output().map_err(|e| engine_error(&e.to_string()))?;
+        let out = child
+            .wait_with_output()
+            .map_err(|e| engine_error(&e.to_string()))?;
         let code = out.status.code().unwrap_or(-1) as i64;
-        Ok(ExecResult { exit_code: code.into(), stdout: String::from_utf8_lossy(&out.stdout).into_owned(), stderr: String::from_utf8_lossy(&out.stderr).into_owned() })
+        Ok(ExecResult {
+            exit_code: code.into(),
+            stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+        })
     }
     async fn run(&self, script: &str, _opts: RunOptions) -> Result<ExecResult, EngineError> {
         self.exec(script, ExecOptions::default()).await
     }
-    async fn snapshot(&self, _name: &str, _life: MachineLife, _opts: SnapshotOptions) -> Result<String, EngineError> {
+    async fn snapshot(
+        &self,
+        _name: &str,
+        _life: MachineLife,
+        _opts: SnapshotOptions,
+    ) -> Result<String, EngineError> {
         not_here()
     }
     async fn pause(&self, _wait_ms: Option<u64>) -> Result<(), EngineError> {
         not_here()
     }
-    async fn resume(&self, _signal: Option<&wsp_engine::cancel::Cancel>) -> Result<(), EngineError> {
+    async fn resume(
+        &self,
+        _signal: Option<&wsp_engine::cancel::Cancel>,
+    ) -> Result<(), EngineError> {
         not_here()
     }
     async fn kill(&self) -> Result<(), EngineError> {
@@ -165,7 +211,9 @@ impl MachineBackend for PlainBackend {
     fn capabilities(&self) -> Capabilities {
         let mut caps = boat_capabilities();
         caps.images = self.images;
-        caps.pause_mode = self.disk.then_some(wsp_wire::wire::capabilities::PauseMode::Disk);
+        caps.pause_mode = self
+            .disk
+            .then_some(wsp_wire::wire::capabilities::PauseMode::Disk);
         caps
     }
     fn pricing(&self) -> Arc<dyn BackendPricing> {
@@ -174,13 +222,21 @@ impl MachineBackend for PlainBackend {
     fn names_workspace(&self) -> bool {
         self.names
     }
-    async fn create(&self, _spec: MachineSpec, _waiting: Option<Waiting>, _sent: Option<String>) -> Result<Arc<dyn Machine>, EngineError> {
+    async fn create(
+        &self,
+        _spec: MachineSpec,
+        _waiting: Option<Waiting>,
+        _sent: Option<String>,
+    ) -> Result<Arc<dyn Machine>, EngineError> {
         not_here()
     }
     async fn get(&self, _id: &str) -> Result<Arc<dyn Machine>, EngineError> {
         not_here()
     }
-    async fn list(&self, _labels: Option<&IndexMap<String, String>>) -> Result<Vec<MachineListRow>, EngineError> {
+    async fn list(
+        &self,
+        _labels: Option<&IndexMap<String, String>>,
+    ) -> Result<Vec<MachineListRow>, EngineError> {
         Ok(Vec::new())
     }
     async fn delete_snapshot(&self, _id: &str) -> Result<(), EngineError> {
@@ -196,7 +252,12 @@ pub struct SilentLink;
 
 #[async_trait(?Send)]
 impl MachineLink for SilentLink {
-    async fn request(&self, _op: &str, _params: Map<String, Value>, _ask: LinkAsk) -> Result<Map<String, Value>, EngineError> {
+    async fn request(
+        &self,
+        _op: &str,
+        _params: Map<String, Value>,
+        _ask: LinkAsk,
+    ) -> Result<Map<String, Value>, EngineError> {
         Err(engine_error("the silent link answers nothing"))
     }
     async fn forward(&self, _place_port: u16) -> Result<u16, EngineError> {
@@ -275,7 +336,11 @@ impl World {
             state_path: None,
             local: None,
             default_dir: None,
-            released: Arc::new(PlainBackend { images: false, disk: false, names: false }),
+            released: Arc::new(PlainBackend {
+                images: false,
+                disk: false,
+                names: false,
+            }),
             place_names: IndexMap::from([("box".to_string(), "Boat".to_string())]),
             wired: "default".to_string(),
             projects: IndexMap::new(),
@@ -290,7 +355,16 @@ impl World {
             local_road: None,
             machine_exec: None,
             hello: None,
-            local_wiring: Some(LocalWiring { home: "/home/me".to_string(), home_dir: "/home/me".to_string(), env: IndexMap::new(), roots_path: None, daemon_road: true, restart: false, here_daemon: None, scratch: "/tmp/wsp-local".to_string() }),
+            local_wiring: Some(LocalWiring {
+                home: "/home/me".to_string(),
+                home_dir: "/home/me".to_string(),
+                env: IndexMap::new(),
+                roots_path: None,
+                daemon_road: true,
+                restart: false,
+                here_daemon: None,
+                scratch: "/tmp/wsp-local".to_string(),
+            }),
             agents_wsp_mcp: None,
             agents_here_url: None,
             login_user: "root".to_string(),
@@ -325,7 +399,13 @@ pub fn kinds_with(set: impl FnOnce(&mut World)) -> (Rc<FakeHost>, Rc<KindsArea>)
 pub fn joined_door(name: &str, home: &str, tools: bool) -> Door {
     Door {
         name: name.to_string(),
-        folder: Some(FolderSpec { id: format!("{name}-machine"), home: home.to_string(), cpu: 2, mem_mb: 4096, tools }),
+        folder: Some(FolderSpec {
+            id: format!("{name}-machine"),
+            home: home.to_string(),
+            cpu: 2,
+            mem_mb: 4096,
+            tools,
+        }),
         joined: true,
         forward_port: 41_000,
         ..Door::default()
@@ -370,7 +450,8 @@ pub fn record_of(id: &str, extra: Value, without: &[&str]) -> Value {
 pub fn reports() -> (Rc<RefCell<Vec<(String, String)>>>, StageReport) {
     let seen = Rc::new(RefCell::new(Vec::new()));
     let keep = seen.clone();
-    let report: StageReport = Rc::new(move |stage, line, _| keep.borrow_mut().push((word_of(&stage), line.to_string())));
+    let report: StageReport =
+        Rc::new(move |stage, line, _| keep.borrow_mut().push((word_of(&stage), line.to_string())));
     (seen, report)
 }
 
@@ -398,27 +479,69 @@ fn real(path: &Path) -> PathBuf {
 }
 
 fn git_in(dir: &Path, args: &[&str]) {
-    let out = Command::new("git").arg("-C").arg(dir).args(args).output().expect("git runs");
-    assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(args)
+        .output()
+        .expect("git runs");
+    assert!(
+        out.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
 
 impl CloneRig {
     pub fn new() -> CloneRig {
         let origin_dir = tempfile::tempdir().unwrap();
         let origin = real(origin_dir.path());
-        let out = Command::new("git").args(["init", "-q"]).arg(&origin).output().expect("git runs");
+        let out = Command::new("git")
+            .args(["init", "-q"])
+            .arg(&origin)
+            .output()
+            .expect("git runs");
         assert!(out.status.success());
         std::fs::write(origin.join("README.md"), "spoo\n").unwrap();
         git_in(&origin, &["add", "."]);
-        git_in(&origin, &["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "one"]);
+        git_in(
+            &origin,
+            &[
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                "commit",
+                "-qm",
+                "one",
+            ],
+        );
         let bin = tempfile::tempdir().unwrap();
         let log = bin.path().join("calls.log");
-        let real_git = String::from_utf8(Command::new("sh").args(["-c", "command -v git"]).output().unwrap().stdout).unwrap().trim().to_string();
-        let record = |name: &str| format!(r#"printf '%s\t%s\n' "${{GIT_TERMINAL_PROMPT:-unset}}" "$(printf '%s\037' {name} "$@")" >> '{}'"#, log.display());
+        let real_git = String::from_utf8(
+            Command::new("sh")
+                .args(["-c", "command -v git"])
+                .output()
+                .unwrap()
+                .stdout,
+        )
+        .unwrap()
+        .trim()
+        .to_string();
+        let record = |name: &str| {
+            format!(
+                r#"printf '%s\t%s\n' "${{GIT_TERMINAL_PROMPT:-unset}}" "$(printf '%s\037' {name} "$@")" >> '{}'"#,
+                log.display()
+            )
+        };
         // An url naming "missing" fails the way a clone of a repo that is not there does, and one naming "private"
         // the way a signed-out one does; a clone that fails leaves behind the folder above its own that it made.
         let pick = r#"case "$URL" in *missing*|*private*) mkdir -p "$(dirname "$4")";; esac; case "$URL" in *missing*) echo "fatal: repository '$URL' does not exist" >&2; exit 128;; *private*) echo "remote: Repository not found." >&2; echo "fatal: repository '$URL' not found" >&2; exit 128;; esac"#;
-        let clone = format!(r#"exec '{}' clone -q '{}' "$4""#, real_git, origin.display());
+        let clone = format!(
+            r#"exec '{}' clone -q '{}' "$4""#,
+            real_git,
+            origin.display()
+        );
         let git = format!("#!/bin/sh\n{}\nif [ \"$1\" = clone ]; then URL=\"$3\"; {pick}; {clone}; fi\nexec '{}' \"$@\"\n", record("git"), real_git);
         let gh = format!("#!/bin/sh\n{}\nURL=\"$3\"; {pick}; {clone}\n", record("gh"));
         for (name, text) in [("git", git), ("gh", gh)] {
@@ -427,7 +550,13 @@ impl CloneRig {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
         }
-        CloneRig { origin, bin, log, folders: RefCell::new(Vec::new()), _origin: origin_dir }
+        CloneRig {
+            origin,
+            bin,
+            log,
+            folders: RefCell::new(Vec::new()),
+            _origin: origin_dir,
+        }
     }
 
     /// A path under the rig's one folder, as the TS `into(...parts)` joins under `here()`: the folder stands, the
@@ -448,19 +577,34 @@ impl CloneRig {
 
     /// Every run of the fake git and gh, in order.
     pub fn calls(&self) -> Vec<Run> {
-        let Ok(text) = std::fs::read_to_string(&self.log) else { return Vec::new() };
+        let Ok(text) = std::fs::read_to_string(&self.log) else {
+            return Vec::new();
+        };
         text.trim()
             .lines()
             .map(|line| {
-                let (prompt, argv) = line.split_once('\t').expect("a tab between the prompt and the argv");
-                Run { prompt: prompt.to_string(), argv: argv.split('\u{1f}').filter(|w| !w.is_empty()).map(|w| w.to_string()).collect() }
+                let (prompt, argv) = line
+                    .split_once('\t')
+                    .expect("a tab between the prompt and the argv");
+                Run {
+                    prompt: prompt.to_string(),
+                    argv: argv
+                        .split('\u{1f}')
+                        .filter(|w| !w.is_empty())
+                        .map(|w| w.to_string())
+                        .collect(),
+                }
             })
             .collect()
     }
 
     /// The last word of every clone run, which is the folder it was told to clone into.
     pub fn clone_targets(&self) -> Vec<String> {
-        self.calls().into_iter().filter(|c| c.argv.get(1).map(|w| w == "clone").unwrap_or(false) || c.argv[0] == "gh").map(|c| c.argv.last().unwrap().clone()).collect()
+        self.calls()
+            .into_iter()
+            .filter(|c| c.argv.get(1).map(|w| w == "clone").unwrap_or(false) || c.argv[0] == "gh")
+            .map(|c| c.argv.last().unwrap().clone())
+            .collect()
     }
 }
 
@@ -475,13 +619,18 @@ pub fn held_record(e: &Entry) -> WorkspaceRecord {
 
 /// Puts the worktree the TS test wrote as JSON on an entry's record.
 pub fn set_worktree(e: &Entry, tree: Value) {
-    let tree: WorktreeFolder = serde_json::from_value(tree).expect("the worktree reads as the TS writes it");
+    let tree: WorktreeFolder =
+        serde_json::from_value(tree).expect("the worktree reads as the TS writes it");
     e.borrow().record.borrow_mut().worktree = Some(tree);
 }
 
 /// The wire word of a stage or any other enum that serializes as one string.
 pub fn word_of<T: serde::Serialize>(word: &T) -> String {
-    serde_json::to_value(word).unwrap().as_str().expect("a word").to_string()
+    serde_json::to_value(word)
+        .unwrap()
+        .as_str()
+        .expect("a word")
+        .to_string()
 }
 
 pub async fn dropped_of(m: &dyn KindModule, e: &Entry) -> Result<(), HostError> {
@@ -504,19 +653,36 @@ pub async fn daemon_version_of(m: &dyn KindModule, e: &Entry) -> Result<Option<u
     asked.await
 }
 
-pub async fn import_of(m: &dyn KindModule, e: &Entry, o: ProjectImportOptions, report: ImportReport) -> Result<ImportLanded, HostError> {
+pub async fn import_of(
+    m: &dyn KindModule,
+    e: &Entry,
+    o: ProjectImportOptions,
+    report: ImportReport,
+) -> Result<ImportLanded, HostError> {
     let asked = m.import(&e.borrow(), o, report);
     asked.await
 }
 
-pub async fn land_project_of(m: &dyn KindModule, e: &Entry, project: ProjectView, report: StageReport) -> Result<(), HostError> {
+pub async fn land_project_of(
+    m: &dyn KindModule,
+    e: &Entry,
+    project: ProjectView,
+    report: StageReport,
+) -> Result<(), HostError> {
     let asked = m.land_project(&e.borrow(), project, report);
     asked.await
 }
 
 /// The port a place forwards; a module that answers no route fails here.
-pub async fn port_reach_of(m: &dyn KindModule, e: &Entry, port: u16, standing: bool) -> Result<PortRoute, HostError> {
-    let asked = m.port_reach(&e.borrow(), port, standing).expect("a place forwards the port");
+pub async fn port_reach_of(
+    m: &dyn KindModule,
+    e: &Entry,
+    port: u16,
+    standing: bool,
+) -> Result<PortRoute, HostError> {
+    let asked = m
+        .port_reach(&e.borrow(), port, standing)
+        .expect("a place forwards the port");
     asked.await
 }
 
@@ -535,7 +701,9 @@ pub struct FakeBundler {
 
 impl FakeBundler {
     pub fn new() -> Rc<FakeBundler> {
-        Rc::new(FakeBundler { plans: Mutex::new(0) })
+        Rc::new(FakeBundler {
+            plans: Mutex::new(0),
+        })
     }
     pub fn plans(&self) -> u32 {
         *self.plans.lock().unwrap()
@@ -558,7 +726,12 @@ impl ProjectBundler for FakeBundler {
             agents: Vec::new(),
         })
     }
-    async fn pack(&self, _carry: &[String], _rewrite: &[String], _provider: bool) -> Result<PackedProject, HostError> {
+    async fn pack(
+        &self,
+        _carry: &[String],
+        _rewrite: &[String],
+        _provider: bool,
+    ) -> Result<PackedProject, HostError> {
         Err(host_error("the fake bundler packs nothing", None))
     }
     async fn pack_state(&self, _req: StateRequest) -> Result<PackedState, HostError> {
@@ -591,7 +764,11 @@ pub fn import_words(o: &ProjectImportOptions) -> String {
 pub fn import_report() -> (Rc<RefCell<Vec<(String, String)>>>, ImportReport) {
     let seen = Rc::new(RefCell::new(Vec::new()));
     let keep = seen.clone();
-    let report: ImportReport = Rc::new(move |stage: ProjectImportStage, line: &str, _: Option<(u64, u64)>| keep.borrow_mut().push((word_of(&stage), line.to_string())));
+    let report: ImportReport = Rc::new(
+        move |stage: ProjectImportStage, line: &str, _: Option<(u64, u64)>| {
+            keep.borrow_mut().push((word_of(&stage), line.to_string()))
+        },
+    );
     (seen, report)
 }
 
@@ -627,7 +804,12 @@ impl Machine for PreviewMachine {
     async fn run(&self, script: &str, opts: RunOptions) -> Result<ExecResult, EngineError> {
         self.0.run(script, opts).await
     }
-    async fn snapshot(&self, name: &str, life: MachineLife, opts: SnapshotOptions) -> Result<String, EngineError> {
+    async fn snapshot(
+        &self,
+        name: &str,
+        life: MachineLife,
+        opts: SnapshotOptions,
+    ) -> Result<String, EngineError> {
         self.0.snapshot(name, life, opts).await
     }
     async fn pause(&self, wait_ms: Option<u64>) -> Result<(), EngineError> {
@@ -649,7 +831,11 @@ impl Machine for PreviewMachine {
         self.0.upload_url(path).await
     }
     async fn preview_url(&self, _port: u16) -> Result<PreviewReach, EngineError> {
-        Ok(PreviewReach { url: "http://127.0.0.1:1/".to_string(), token: "preview".to_string(), expires_at: 9_999_999_999_999.0.into() })
+        Ok(PreviewReach {
+            url: "http://127.0.0.1:1/".to_string(),
+            token: "preview".to_string(),
+            expires_at: 9_999_999_999_999.0.into(),
+        })
     }
     async fn daemon_answers(&self, timeout_ms: Option<u64>) -> Result<bool, EngineError> {
         self.0.daemon_answers(timeout_ms).await
@@ -660,20 +846,34 @@ impl Machine for PreviewMachine {
     async fn daemon_exits(&self) -> Result<Option<String>, EngineError> {
         self.0.daemon_exits().await
     }
-    async fn put_bytes(&self, path: &str, bytes: &[u8], timeout_ms: Option<u64>) -> Result<Option<wsp_engine::machine::BytesLanded>, EngineError> {
+    async fn put_bytes(
+        &self,
+        path: &str,
+        bytes: &[u8],
+        timeout_ms: Option<u64>,
+    ) -> Result<Option<wsp_engine::machine::BytesLanded>, EngineError> {
         self.0.put_bytes(path, bytes, timeout_ms).await
     }
-    async fn read_bytes(&self, path: &str, size: Option<u64>, timeout_ms: Option<u64>) -> Result<Vec<u8>, EngineError> {
+    async fn read_bytes(
+        &self,
+        path: &str,
+        size: Option<u64>,
+        timeout_ms: Option<u64>,
+    ) -> Result<Vec<u8>, EngineError> {
         self.0.read_bytes(path, size, timeout_ms).await
     }
 }
 
 /// `put_live` on a machine whose preview route answers: the fake machine is still the one the backend holds.
 pub fn put_live_preview(host: &FakeHost, record: Value, machine: Arc<FakeMachine>) -> Entry {
-    let record: WorkspaceRecord = serde_json::from_value(record).expect("the record reads as the TS writes it");
+    let record: WorkspaceRecord =
+        serde_json::from_value(record).expect("the record reads as the TS writes it");
     let id = record.id.clone();
     host.backend.add(machine.clone());
-    let entry = live_entry(Rc::new(RefCell::new(record)), Arc::new(PreviewMachine(machine)));
+    let entry = live_entry(
+        Rc::new(RefCell::new(record)),
+        Arc::new(PreviewMachine(machine)),
+    );
     host.live.borrow_mut().insert(id, entry.clone());
     entry
 }
@@ -682,7 +882,12 @@ pub fn put_live_preview(host: &FakeHost, record: Value, machine: Arc<FakeMachine
 // The context.
 
 fn door_of(place: &str) -> Door {
-    world(|w| w.doors.get(place).cloned().unwrap_or_else(|| Door { name: place.to_string(), ..Door::default() }))
+    world(|w| {
+        w.doors.get(place).cloned().unwrap_or_else(|| Door {
+            name: place.to_string(),
+            ..Door::default()
+        })
+    })
 }
 
 #[async_trait(?Send)]
@@ -714,13 +919,19 @@ impl KindsCtx for FakeHost {
         world(|w| w.released.clone())
     }
     fn place_name(&self, place: &str) -> String {
-        world(|w| w.place_names.get(place).cloned().unwrap_or_else(|| place.to_string()))
+        world(|w| {
+            w.place_names
+                .get(place)
+                .cloned()
+                .unwrap_or_else(|| place.to_string())
+        })
     }
     fn wired_place(&self) -> String {
         world(|w| w.wired.clone())
     }
     fn project_held(&self, id: &str) -> ProjectView {
-        world(|w| w.projects.get(id).cloned()).unwrap_or_else(|| panic!("the test held no project {id}"))
+        world(|w| w.projects.get(id).cloned())
+            .unwrap_or_else(|| panic!("the test held no project {id}"))
     }
     fn checkout_of(&self, record: &WorkspaceRecord) -> String {
         match record.worktree.as_ref().map(|t| t.path.clone()) {
@@ -759,8 +970,18 @@ impl KindsCtx for FakeHost {
     fn door_logins_of(&self, place: &str) -> Option<String> {
         door_of(place).logins
     }
-    fn door_vault_at(&self, place: &str, vault: &IndexMap<String, String>) -> Option<IndexMap<String, String>> {
-        door_of(place).vault_drops.map(|drops| vault.iter().filter(|(k, _)| !drops.contains(k)).map(|(k, v)| (k.clone(), v.clone())).collect())
+    fn door_vault_at(
+        &self,
+        place: &str,
+        vault: &IndexMap<String, String>,
+    ) -> Option<IndexMap<String, String>> {
+        door_of(place).vault_drops.map(|drops| {
+            vault
+                .iter()
+                .filter(|(k, _)| !drops.contains(k))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect()
+        })
     }
     fn door_sign_ins_at(&self, place: &str) -> Option<IndexMap<String, AgentSignInState>> {
         door_of(place).sign_ins
@@ -777,12 +998,31 @@ impl KindsCtx for FakeHost {
                 stdout: v["stdout"].as_str().unwrap_or("").to_string(),
                 stderr: v["stderr"].as_str().unwrap_or("").to_string(),
             }),
-            None => Ok(ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() }),
+            None => Ok(ExecResult {
+                exit_code: 0.into(),
+                stdout: String::new(),
+                stderr: String::new(),
+            }),
         }
     }
-    async fn door_forward(&self, place: &str, port: u16, pane: Option<(String, String)>, standing: bool) -> AreaResult<u16> {
-        let pane = pane.map(|(workspace_id, name)| json!({ "workspaceId": workspace_id, "name": name }));
-        self.call("door_forward", &[place, &port.to_string(), &serde_json::to_string(&pane).unwrap(), &standing.to_string()]);
+    async fn door_forward(
+        &self,
+        place: &str,
+        port: u16,
+        pane: Option<(String, String)>,
+        standing: bool,
+    ) -> AreaResult<u16> {
+        let pane =
+            pane.map(|(workspace_id, name)| json!({ "workspaceId": workspace_id, "name": name }));
+        self.call(
+            "door_forward",
+            &[
+                place,
+                &port.to_string(),
+                &serde_json::to_string(&pane).unwrap(),
+                &standing.to_string(),
+            ],
+        );
         if let Some(Err(e)) = self.next("door_forward") {
             return Err(e);
         }
@@ -809,7 +1049,9 @@ impl KindsCtx for FakeHost {
                 futures::future::pending::<()>().await;
                 unreachable!()
             }
-            Some(answer) => answer.map(|v| serde_json::from_value(v).expect("the scripted status reads as the TS writes it")),
+            Some(answer) => answer.map(|v| {
+                serde_json::from_value(v).expect("the scripted status reads as the TS writes it")
+            }),
             None => Err(failed("no status scripted")),
         }
     }
@@ -817,7 +1059,10 @@ impl KindsCtx for FakeHost {
         self.call("broker_codex_claims", &[]);
         match self.next("broker_codex_claims") {
             Some(Ok(v)) => Ok(Some(CodexClaims {
-                account_id: v["accountId"].as_str().expect("scripted claims name an account").to_string(),
+                account_id: v["accountId"]
+                    .as_str()
+                    .expect("scripted claims name an account")
+                    .to_string(),
                 plan_type: v["planType"].as_str().map(String::from),
                 user_id: v["userId"].as_str().map(String::from),
                 fedramp: v["fedramp"].as_bool(),
@@ -831,13 +1076,27 @@ impl KindsCtx for FakeHost {
     }
     /// A cloud record with no place or at a provider place.
     fn is_brokered(&self, record: &WorkspaceRecord) -> bool {
-        record.kind == wsp_wire::views::workspace_kind::WorkspaceKind::Cloud && record.place.as_ref().map(|p| world(|w| w.provider_places.contains(p))).unwrap_or(true)
+        record.kind == wsp_wire::views::workspace_kind::WorkspaceKind::Cloud
+            && record
+                .place
+                .as_ref()
+                .map(|p| world(|w| w.provider_places.contains(p)))
+                .unwrap_or(true)
     }
     fn codex_broker_of(&self, said: &BrokerSaid) -> Option<CodexBroker> {
-        let codex = said.status.as_ref().and_then(|s| s.codex.clone());
+        let codex = said.status.as_ref().and_then(|s| s.codex);
         match (codex, &said.claims) {
-            (Some(BrokerStatusCodex::Key), _) => Some(CodexBroker { mode: BrokerMode::Apikey, providers: None }),
-            (Some(_), Some(claims)) => Some(CodexBroker { mode: BrokerMode::Chatgpt { claims: claims.clone(), models: None }, providers: None }),
+            (Some(BrokerStatusCodex::Key), _) => Some(CodexBroker {
+                mode: BrokerMode::Apikey,
+                providers: None,
+            }),
+            (Some(_), Some(claims)) => Some(CodexBroker {
+                mode: BrokerMode::Chatgpt {
+                    claims: claims.clone(),
+                    models: None,
+                },
+                providers: None,
+            }),
             _ => None,
         }
     }
@@ -849,23 +1108,46 @@ impl KindsCtx for FakeHost {
     }
     fn placeholders_of(&self, said: &BrokerSaid, token: &str) -> Placeholders {
         let status = said.status.as_ref();
-        let claude_kind = match status.and_then(|s| s.claude.clone()) {
+        let claude_kind = match status.and_then(|s| s.claude) {
             Some(BrokerStatusClaude::Key) => ClaudePlaceholderKind::Key,
             Some(BrokerStatusClaude::Gateway) => ClaudePlaceholderKind::Gateway,
             _ => ClaudePlaceholderKind::Token,
         };
-        let vault = if status.and_then(|s| s.codex.clone()) == Some(BrokerStatusCodex::Key) { IndexMap::from([("OPENAI_API_KEY".to_string(), format!("sk-wsp-{token}"))]) } else { IndexMap::new() };
-        Placeholders { claude_token: token.to_string(), claude_kind, vault }
+        let vault = if status.and_then(|s| s.codex) == Some(BrokerStatusCodex::Key) {
+            IndexMap::from([("OPENAI_API_KEY".to_string(), format!("sk-wsp-{token}"))])
+        } else {
+            IndexMap::new()
+        };
+        Placeholders {
+            claude_token: token.to_string(),
+            claude_kind,
+            vault,
+        }
     }
     fn brokered_env(&self, token: &str, record: &WorkspaceRecord) -> IndexMap<String, String> {
         let mut env = IndexMap::from([("GH_TOKEN".to_string(), token.to_string())]);
         if let Some(b) = &record.branch_of_record {
-            env.insert("WSP_BRANCH_OF_RECORD".to_string(), format!("{}/{}@{}", b.owner, b.name, b.branch));
+            env.insert(
+                "WSP_BRANCH_OF_RECORD".to_string(),
+                format!("{}/{}@{}", b.owner, b.name, b.branch),
+            );
         }
         env
     }
-    fn land_on_record(&self, entry: &LiveWorkspace, project: ProjectView, lines: Option<Vec<String>>) -> LocalBoxFuture<'static, AreaResult<()>> {
-        self.call("land_on_record", &[&entry.record.borrow().id, &project.id, &serde_json::to_string(&lines).unwrap()]);
+    fn land_on_record(
+        &self,
+        entry: &LiveWorkspace,
+        project: ProjectView,
+        lines: Option<Vec<String>>,
+    ) -> LocalBoxFuture<'static, AreaResult<()>> {
+        self.call(
+            "land_on_record",
+            &[
+                &entry.record.borrow().id,
+                &project.id,
+                &serde_json::to_string(&lines).unwrap(),
+            ],
+        );
         let answer = self.next("land_on_record");
         Box::pin(async move {
             match answer {
@@ -880,9 +1162,21 @@ impl KindsCtx for FakeHost {
         self.call("clone_lines", &[&serde_json::to_string(&o).unwrap()]);
         let remote = o["remote"].as_str().expect("a remote").to_string();
         let checkout = o["checkout"].as_str().expect("a checkout").to_string();
-        let branch = o.get("branch").and_then(|b| b.as_str()).map(|b| b.to_string());
-        let parent = checkout.rsplit_once('/').map(|(d, _)| d.to_string()).unwrap_or_default();
-        let mut lines = vec!["set -e".to_string(), format!("mkdir -p {}", wsp_wire::types::shell_quote::shell_quote(&parent))];
+        let branch = o
+            .get("branch")
+            .and_then(|b| b.as_str())
+            .map(|b| b.to_string());
+        let parent = checkout
+            .rsplit_once('/')
+            .map(|(d, _)| d.to_string())
+            .unwrap_or_default();
+        let mut lines = vec![
+            "set -e".to_string(),
+            format!(
+                "mkdir -p {}",
+                wsp_wire::types::shell_quote::shell_quote(&parent)
+            ),
+        ];
         let mut words = vec!["git", "clone"];
         if o.get("brokered").is_some() {
             words.extend(["--depth", "1"]);
@@ -908,8 +1202,15 @@ impl KindsCtx for FakeHost {
     fn has_deploy(&self) -> bool {
         world(|w| w.deploy)
     }
-    async fn deploy_daemon(&self, machine: &Arc<dyn Machine>, token: Option<String>) -> AreaResult<()> {
-        self.call("deploy_daemon", &[machine.id(), token.as_deref().unwrap_or("none")]);
+    async fn deploy_daemon(
+        &self,
+        machine: &Arc<dyn Machine>,
+        token: Option<String>,
+    ) -> AreaResult<()> {
+        self.call(
+            "deploy_daemon",
+            &[machine.id(), token.as_deref().unwrap_or("none")],
+        );
         Ok(())
     }
     async fn local_daemon_road(&self) -> Option<AreaResult<DaemonReachView>> {
@@ -918,10 +1219,20 @@ impl KindsCtx for FakeHost {
     fn machine_exec_opts(&self) -> Option<MachineExecOptions> {
         world(|w| w.machine_exec.clone())
     }
-    fn copy_import(&self, entry: &LiveWorkspace, o: ProjectImportOptions, _report: ImportReport) -> LocalBoxFuture<'static, AreaResult<ImportLanded>> {
+    fn copy_import(
+        &self,
+        entry: &LiveWorkspace,
+        o: ProjectImportOptions,
+        _report: ImportReport,
+    ) -> LocalBoxFuture<'static, AreaResult<ImportLanded>> {
         let id = entry.record.borrow().id.clone();
         self.call("copy_import", &[&id, &import_words(&o)]);
-        let project = WorkspaceProject { name: "copied".to_string(), dest: o.dest.clone(), imported_at: "2025-10-09T08:53:20.000Z".to_string(), size: None };
+        let project = WorkspaceProject {
+            name: "copied".to_string(),
+            dest: o.dest.clone(),
+            imported_at: "2025-10-09T08:53:20.000Z".to_string(),
+            size: None,
+        };
         let result = ProjectImportResult {
             dest: o.dest,
             files: 1.0.into(),
@@ -932,7 +1243,12 @@ impl KindsCtx for FakeHost {
             agents: Vec::new(),
             project,
         };
-        Box::pin(async move { Ok(ImportLanded { result, done: format!("copied {id}") }) })
+        Box::pin(async move {
+            Ok(ImportLanded {
+                result,
+                done: format!("copied {id}"),
+            })
+        })
     }
     fn hello_version(&self, entry: &LiveWorkspace) -> LocalBoxFuture<'static, Option<u32>> {
         self.call("hello_version", &[&entry.record.borrow().id]);
@@ -943,16 +1259,35 @@ impl KindsCtx for FakeHost {
         world(|w| w.local_wiring.is_some())
     }
     fn local_backend(&self) -> Option<Arc<dyn MachineBackend>> {
-        world(|w| w.local_wiring.as_ref().map(|_| self.backend.clone() as Arc<dyn MachineBackend>))
+        world(|w| {
+            w.local_wiring
+                .as_ref()
+                .map(|_| self.backend.clone() as Arc<dyn MachineBackend>)
+        })
     }
     fn local_home(&self, agent: &str) -> String {
-        world(|w| w.local_wiring.as_ref().map(|l| format!("{}/.{agent}", l.home)).unwrap_or_default())
+        world(|w| {
+            w.local_wiring
+                .as_ref()
+                .map(|l| format!("{}/.{agent}", l.home))
+                .unwrap_or_default()
+        })
     }
     fn local_home_dir(&self) -> String {
-        world(|w| w.local_wiring.as_ref().map(|l| l.home_dir.clone()).unwrap_or_default())
+        world(|w| {
+            w.local_wiring
+                .as_ref()
+                .map(|l| l.home_dir.clone())
+                .unwrap_or_default()
+        })
     }
     fn local_env(&self) -> IndexMap<String, String> {
-        world(|w| w.local_wiring.as_ref().map(|l| l.env.clone()).unwrap_or_default())
+        world(|w| {
+            w.local_wiring
+                .as_ref()
+                .map(|l| l.env.clone())
+                .unwrap_or_default()
+        })
     }
     fn local_roots_path(&self) -> Option<String> {
         world(|w| w.local_wiring.as_ref().and_then(|l| l.roots_path.clone()))
@@ -964,10 +1299,20 @@ impl KindsCtx for FakeHost {
         world(|w| w.local_wiring.as_ref().is_some_and(|l| l.restart))
     }
     async fn here_daemon_version(&self) -> Option<AreaResult<Option<u32>>> {
-        world(|w| w.local_wiring.as_ref().and_then(|l| l.here_daemon).map(|v| Ok(Some(v))))
+        world(|w| {
+            w.local_wiring
+                .as_ref()
+                .and_then(|l| l.here_daemon)
+                .map(|v| Ok(Some(v)))
+        })
     }
     fn local_scratch(&self) -> String {
-        world(|w| w.local_wiring.as_ref().map(|l| l.scratch.clone()).unwrap_or_default())
+        world(|w| {
+            w.local_wiring
+                .as_ref()
+                .map(|l| l.scratch.clone())
+                .unwrap_or_default()
+        })
     }
     fn agents_wsp_mcp(&self) -> Option<McpServerSpec> {
         world(|w| w.agents_wsp_mcp.clone())
@@ -979,8 +1324,20 @@ impl KindsCtx for FakeHost {
         self.call("door_login_user", &[place]);
         Ok(world(|w| w.login_user.clone()))
     }
-    async fn end_thread(&self, place: &str, thread_id: &str, o: EndThread) -> AreaResult<Option<String>> {
-        self.call("end_thread", &[place, thread_id, &format!("remove={} away={}", o.remove, o.away)]);
+    async fn end_thread(
+        &self,
+        place: &str,
+        thread_id: &str,
+        o: EndThread,
+    ) -> AreaResult<Option<String>> {
+        self.call(
+            "end_thread",
+            &[
+                place,
+                thread_id,
+                &format!("remove={} away={}", o.remove, o.away),
+            ],
+        );
         Ok(None)
     }
     async fn end_owed(&self, place: &str, thread_id: &str) -> AreaResult<Option<OwedEnd>> {
@@ -989,9 +1346,12 @@ impl KindsCtx for FakeHost {
     }
     fn sleep(&self, ms: f64) -> futures::future::LocalBoxFuture<'static, ()> {
         let (tx, rx) = futures::channel::oneshot::channel::<()>();
-        let _cancel = self.clock.schedule(ms, Box::new(move || {
-            let _ = tx.send(());
-        }));
+        let _cancel = self.clock.schedule(
+            ms,
+            Box::new(move || {
+                let _ = tx.send(());
+            }),
+        );
         Box::pin(async move {
             let _ = rx.await;
         })

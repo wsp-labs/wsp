@@ -16,7 +16,9 @@ use serde_json::{json, Map, Value};
 use wsp_core::clock::{Cancel, Clock, Timer};
 use wsp_core::devices::{HeldDevice, MintMore};
 use wsp_core::reach::{ReachError, ReachStats};
-use wsp_core::types::pending::{BlobMark, DaemonReach, DeviceDoor, IssuedCode, PairedDevice, Store};
+use wsp_core::types::pending::{
+    BlobMark, DaemonReach, DeviceDoor, IssuedCode, PairedDevice, Store,
+};
 use wsp_core::types::wiring::{HereDaemon, PlaceBackends};
 use wsp_engine::link_backend::MachineLink;
 use wsp_engine::machine::MachineBackend;
@@ -30,11 +32,11 @@ use wsp_store::keys::{new_place_key_pair, PlaceKeyPair};
 use wsp_wire::types::recipe_file::RecipeFile;
 use wsp_wire::views::place::{PlaceSetupEvent, PlaceSync, PlaceSyncEvent};
 use wsp_wire::views::place_more::{PlaceHolds, PlaceRemovedTook, PlaceView};
-use wsp_wire::wire::place_link::PlaceReport;
-use wsp_words::exit::HostError;
 use wsp_wire::views::workspace_more::ThreadScope;
 use wsp_wire::wire::daemon::DaemonLinkStatus;
 use wsp_wire::wire::devices::{DeviceVia, DeviceView};
+use wsp_wire::wire::place_link::PlaceReport;
+use wsp_words::exit::HostError;
 
 pub type Fails = Result<(), HostError>;
 
@@ -42,13 +44,20 @@ pub type Fails = Result<(), HostError>;
 
 /// The fixture the oracle wrote, read once per test.
 pub fn oracle() -> Value {
-    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/oracle/places_b.json")).expect("the places b oracle fixture");
+    let text = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/oracle/places_b.json"
+    ))
+    .expect("the places b oracle fixture");
     serde_json::from_str(&text).expect("the oracle parses")
 }
 
 /// A JSON pointer into the oracle, panicking with the path where nothing stands there.
 pub fn at(path: &str) -> Value {
-    oracle().pointer(path).cloned().unwrap_or_else(|| panic!("nothing in the oracle at {path}"))
+    oracle()
+        .pointer(path)
+        .cloned()
+        .unwrap_or_else(|| panic!("nothing in the oracle at {path}"))
 }
 
 /// `DAEMON_VERSION` as the oracle's TS read it.
@@ -123,16 +132,32 @@ pub struct MemStore {
 
 impl MemStore {
     pub fn doc(&self, collection: &str, id: &str) -> Option<Value> {
-        self.docs.borrow().get(collection).and_then(|c| c.get(id).cloned())
+        self.docs
+            .borrow()
+            .get(collection)
+            .and_then(|c| c.get(id).cloned())
     }
     pub fn all(&self, collection: &str) -> Vec<Value> {
-        self.docs.borrow().get(collection).map(|c| c.values().cloned().collect()).unwrap_or_default()
+        self.docs
+            .borrow()
+            .get(collection)
+            .map(|c| c.values().cloned().collect())
+            .unwrap_or_default()
     }
     pub fn seed(&self, collection: &str, id: &str, v: Value) {
-        self.docs.borrow_mut().entry(collection.to_string()).or_default().insert(id.to_string(), v);
+        self.docs
+            .borrow_mut()
+            .entry(collection.to_string())
+            .or_default()
+            .insert(id.to_string(), v);
     }
     pub fn writes_to(&self, prefix: &str) -> Vec<String> {
-        self.writes.borrow().iter().filter(|w| w.contains(prefix)).cloned().collect()
+        self.writes
+            .borrow()
+            .iter()
+            .filter(|w| w.contains(prefix))
+            .cloned()
+            .collect()
     }
 }
 
@@ -145,7 +170,9 @@ impl Store for MemStore {
         if let Some(said) = self.fail_writes.borrow_mut().shift_remove(collection) {
             return Err(HostError::new(said));
         }
-        self.writes.borrow_mut().push(format!("put {collection}/{id}"));
+        self.writes
+            .borrow_mut()
+            .push(format!("put {collection}/{id}"));
         self.seed(collection, id, value);
         Ok(())
     }
@@ -153,10 +180,17 @@ impl Store for MemStore {
         Ok(self.all(collection))
     }
     async fn keys(&self, collection: &str) -> Result<Vec<String>, HostError> {
-        Ok(self.docs.borrow().get(collection).map(|c| c.keys().cloned().collect()).unwrap_or_default())
+        Ok(self
+            .docs
+            .borrow()
+            .get(collection)
+            .map(|c| c.keys().cloned().collect())
+            .unwrap_or_default())
     }
     async fn delete(&self, collection: &str, id: &str) -> Result<(), HostError> {
-        self.writes.borrow_mut().push(format!("delete {collection}/{id}"));
+        self.writes
+            .borrow_mut()
+            .push(format!("delete {collection}/{id}"));
         if let Some(c) = self.docs.borrow_mut().get_mut(collection) {
             c.shift_remove(id);
         }
@@ -194,7 +228,10 @@ impl DeviceDoor for FakeDevices {
         let code = format!("CODE{}", self.issued.borrow().len() + 1);
         self.issued.borrow_mut().push(code.clone());
         self.good.borrow_mut().insert(code.clone());
-        Ok(IssuedCode { code, expires_at: now + ttl_ms as i64 })
+        Ok(IssuedCode {
+            code,
+            expires_at: now + ttl_ms as i64,
+        })
     }
     async fn redeem(&self, _: &str, _: &str, _: i64) -> Result<Option<PairedDevice>, HostError> {
         Ok(None)
@@ -205,15 +242,30 @@ impl DeviceDoor for FakeDevices {
     }
     async fn admit(&self, name: &str, _now: i64) -> Result<PairedDevice, HostError> {
         self.admitted.borrow_mut().push(name.to_string());
-        Ok(PairedDevice { device_id: format!("d_{name}"), device_token: format!("token-{name}"), device: device_view(name) })
+        Ok(PairedDevice {
+            device_id: format!("d_{name}"),
+            device_token: format!("token-{name}"),
+            device: device_view(name),
+        })
     }
-    async fn admit_account(&self, _name: &str, _via: DeviceVia, _now: i64) -> Result<PairedDevice, HostError> {
+    async fn admit_account(
+        &self,
+        _name: &str,
+        _via: DeviceVia,
+        _now: i64,
+    ) -> Result<PairedDevice, HostError> {
         Err(HostError::new("no account here"))
     }
     async fn refuses(&self, _fingerprint: &str) -> Result<bool, HostError> {
         Ok(false)
     }
-    async fn mint(&self, _name: &str, _scope: ThreadScope, _now: i64, _more: MintMore) -> Result<PairedDevice, HostError> {
+    async fn mint(
+        &self,
+        _name: &str,
+        _scope: ThreadScope,
+        _now: i64,
+        _more: MintMore,
+    ) -> Result<PairedDevice, HostError> {
         Err(HostError::new("no scoped tokens here"))
     }
     async fn revoke_asides(&self) -> Result<(), HostError> {
@@ -244,14 +296,23 @@ pub struct FakeClock {
 
 impl FakeClock {
     pub fn new(now: u64) -> Rc<Self> {
-        Rc::new(FakeClock { now: Cell::new(now as i64), timers: Rc::new(RefCell::new(Vec::new())), next: Cell::new(0) })
+        Rc::new(FakeClock {
+            now: Cell::new(now as i64),
+            timers: Rc::new(RefCell::new(Vec::new())),
+            next: Cell::new(0),
+        })
     }
     pub fn advance(&self, ms: u64) {
         let until = self.now.get() + ms as i64;
         loop {
             let due = {
                 let mut timers = self.timers.borrow_mut();
-                let pick = timers.iter().enumerate().filter(|(_, t)| t.0 <= until && t.2.is_some()).min_by_key(|(_, t)| (t.0, t.1)).map(|(i, _)| i);
+                let pick = timers
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, t)| t.0 <= until && t.2.is_some())
+                    .min_by_key(|(_, t)| (t.0, t.1))
+                    .map(|(i, _)| i);
                 pick.map(|i| {
                     let at = timers[i].0;
                     (at, timers[i].2.take().unwrap())
@@ -268,7 +329,11 @@ impl FakeClock {
         self.now.set(until);
     }
     pub fn pending(&self) -> usize {
-        self.timers.borrow().iter().filter(|t| t.2.is_some()).count()
+        self.timers
+            .borrow()
+            .iter()
+            .filter(|t| t.2.is_some())
+            .count()
     }
 }
 
@@ -279,7 +344,9 @@ impl Clock for FakeClock {
     fn schedule(&self, run: Timer, ms: i64) -> Cancel {
         let id = self.next.get();
         self.next.set(id + 1);
-        self.timers.borrow_mut().push((self.now.get() + ms, id, Some(run)));
+        self.timers
+            .borrow_mut()
+            .push((self.now.get() + ms, id, Some(run)));
         let timers = self.timers.clone();
         Rc::new(move || {
             if let Some(t) = timers.borrow_mut().iter_mut().find(|t| t.1 == id) {
@@ -334,9 +401,25 @@ impl Default for FakeRecording {
         FakeRecording {
             log: RefCell::new(Vec::new()),
             projects: RefCell::new(Vec::new()),
-            holds: RefCell::new(PlaceHolds { forks: vec![], projects: vec![], unsaved: vec![], away: None, images: None }),
-            dropped: RefCell::new(Ok(PlaceRemovedTook { forks: vec![], projects: vec![], away: None, images: None })),
-            forgotten: RefCell::new(PlaceRemovedTook { forks: vec![], projects: vec![], away: None, images: None }),
+            holds: RefCell::new(PlaceHolds {
+                forks: vec![],
+                projects: vec![],
+                unsaved: vec![],
+                away: None,
+                images: None,
+            }),
+            dropped: RefCell::new(Ok(PlaceRemovedTook {
+                forks: vec![],
+                projects: vec![],
+                away: None,
+                images: None,
+            })),
+            forgotten: RefCell::new(PlaceRemovedTook {
+                forks: vec![],
+                projects: vec![],
+                away: None,
+                images: None,
+            }),
             running: RefCell::new(IndexMap::new()),
             machines: RefCell::new(None),
             sub_holds: RefCell::new(None),
@@ -411,7 +494,10 @@ impl PlaceRecording for FakeRecording {
         Ok(())
     }
     async fn spent_today(&self, _places: &[PlaceView]) -> Option<PlaceResult<Vec<SpentToday>>> {
-        self.spent.borrow().clone().map(|r| r.map_err(HostError::new))
+        self.spent
+            .borrow()
+            .clone()
+            .map(|r| r.map_err(HostError::new))
     }
     async fn sign_in(&self, _: &str, _: &str, _: SignInEmit) -> Option<PlaceResult<SignInHandle>> {
         None
@@ -419,7 +505,11 @@ impl PlaceRecording for FakeRecording {
     async fn mint_here(&self, _: &str, _: SignInEmit) -> Option<PlaceResult<SignInHandle>> {
         None
     }
-    async fn sign_in_line(&self, _: &str, _: &str) -> Option<PlaceResult<wsp_wire::types::agents_report::SignInLine>> {
+    async fn sign_in_line(
+        &self,
+        _: &str,
+        _: &str,
+    ) -> Option<PlaceResult<wsp_wire::types::agents_report::SignInLine>> {
         None
     }
     fn stores_on(&self, _place_id: &str, _home: &str) -> Option<IndexMap<String, String>> {
@@ -428,17 +518,32 @@ impl PlaceRecording for FakeRecording {
     async fn login_here(&self, _: &str) -> Option<PlaceResult<Option<Vec<u8>>>> {
         None
     }
-    async fn add_folder(&self, _: &str, _: &str, _: &wsp_wire::types::recipe_file::RecipeFileFoldersValue, _: Option<&FolderMove>, _: Option<Rc<dyn Fn(&str)>>) -> Option<PlaceResult<HeldRow>> {
+    async fn add_folder(
+        &self,
+        _: &str,
+        _: &str,
+        _: &wsp_wire::types::recipe_file::RecipeFileFoldersValue,
+        _: Option<&FolderMove>,
+        _: Option<Rc<dyn Fn(&str)>>,
+    ) -> Option<PlaceResult<HeldRow>> {
         None
     }
-    async fn folder_remote(&self, _: &wsp_wire::types::recipe_file::RecipeFileFoldersValue) -> Option<PlaceResult<Option<String>>> {
+    async fn folder_remote(
+        &self,
+        _: &wsp_wire::types::recipe_file::RecipeFileFoldersValue,
+    ) -> Option<PlaceResult<Option<String>>> {
         None
     }
     async fn remove_folder(&self, place_id: &str, project_id: &str) -> PlaceResult<()> {
         self.note(format!("removeFolder {place_id} {project_id}"));
         Ok(())
     }
-    async fn folder_look(&self, project_id: &str, _: &wsp_wire::types::recipe_file::RecipeFileFoldersValue, _: &wsp_wire::types::recipe_file::RecipeFileFoldersValue) -> PlaceResult<()> {
+    async fn folder_look(
+        &self,
+        project_id: &str,
+        _: &wsp_wire::types::recipe_file::RecipeFileFoldersValue,
+        _: &wsp_wire::types::recipe_file::RecipeFileFoldersValue,
+    ) -> PlaceResult<()> {
         self.note(format!("folderLook {project_id}"));
         Ok(())
     }
@@ -480,7 +585,10 @@ impl ViewsSetup for FakeSetup {
     }
     fn link_to(&self, place_id: &str) -> Arc<dyn MachineLink> {
         self.note(format!("linkTo {place_id}"));
-        self.link.borrow().clone().expect("a test that reaches link_to sets FakeSetup.link")
+        self.link
+            .borrow()
+            .clone()
+            .expect("a test that reaches link_to sets FakeSetup.link")
     }
 }
 
@@ -512,23 +620,60 @@ impl ManageSetup for FakeSetup {
         self.note(format!("setupFrame {}", event.place_id));
         self.setup_frames.borrow_mut().push(event);
     }
-    async fn start_setup(&self, place_id: &str, add_id: &str, picks: Option<SetupPicks>, row: Option<String>) -> PlaceResult<SetupStarted> {
-        self.note(format!("startSetup {place_id} {add_id} picks={} recipe={} row={}", picks.as_ref().map(|p| p.picks.name.clone()).unwrap_or("-".into()), picks.as_ref().and_then(|p| p.recipe.clone()).unwrap_or("-".into()), row.unwrap_or("-".into())));
+    async fn start_setup(
+        &self,
+        place_id: &str,
+        add_id: &str,
+        picks: Option<SetupPicks>,
+        row: Option<String>,
+    ) -> PlaceResult<SetupStarted> {
+        self.note(format!(
+            "startSetup {place_id} {add_id} picks={} recipe={} row={}",
+            picks
+                .as_ref()
+                .map(|p| p.picks.name.clone())
+                .unwrap_or("-".into()),
+            picks
+                .as_ref()
+                .and_then(|p| p.recipe.clone())
+                .unwrap_or("-".into()),
+            row.unwrap_or("-".into())
+        ));
         Ok(self.started.borrow().clone())
     }
-    async fn started_or_said(&self, place_id: &str, add_id: &str, picks: SetupPicks) -> PlaceResult<SetupStarted> {
-        self.note(format!("startedOrSaid {place_id} {add_id} picks={} recipe={}", picks.picks.name, picks.recipe.unwrap_or("-".into())));
+    async fn started_or_said(
+        &self,
+        place_id: &str,
+        add_id: &str,
+        picks: SetupPicks,
+    ) -> PlaceResult<SetupStarted> {
+        self.note(format!(
+            "startedOrSaid {place_id} {add_id} picks={} recipe={}",
+            picks.picks.name,
+            picks.recipe.unwrap_or("-".into())
+        ));
         Ok(self.started.borrow().clone())
     }
     fn clear_sync_timers(&self) {
         self.note("clearSyncTimers");
     }
-    async fn sync_of(&self, record: &PlaceRecord, resolved: Option<&Resolved>) -> PlaceResult<Option<SyncRead>> {
-        self.note(format!("syncOf {} resolved={}", record.id, resolved.is_some()));
+    async fn sync_of(
+        &self,
+        record: &PlaceRecord,
+        resolved: Option<&Resolved>,
+    ) -> PlaceResult<Option<SyncRead>> {
+        self.note(format!(
+            "syncOf {} resolved={}",
+            record.id,
+            resolved.is_some()
+        ));
         Ok(self.syncs.borrow().get(&record.id).cloned())
     }
     async fn mark_sync(&self, place_id: &str, sync: PlaceSync) -> PlaceResult<()> {
-        self.note(format!("markSync {place_id} {}", serde_json::to_string(&sync).unwrap()));
+        self.note(format!(
+            "markSync {place_id} {}",
+            serde_json::to_string(&sync).unwrap()
+        ));
         Ok(())
     }
     fn sync_soon(&self, place_id: &str, after_ms: u64) {
@@ -544,6 +689,8 @@ pub struct FakeLinks {
     pub backends: RefCell<IndexMap<String, Arc<dyn MachineBackend>>>,
     pub forking: RefCell<IndexMap<String, Result<Arc<dyn MachineBackend>, String>>>,
     pub asked: RefCell<Vec<String>>,
+    /// A computer slower than one round trip: its read of what it forks with never answers.
+    pub slow: std::cell::Cell<bool>,
 }
 
 #[async_trait(?Send)]
@@ -553,10 +700,15 @@ impl LinkReads for FakeLinks {
     }
     async fn forking_backend(&self, place_id: &str) -> PlaceResult<Arc<dyn MachineBackend>> {
         self.asked.borrow_mut().push(place_id.to_string());
+        if self.slow.get() {
+            futures::future::pending::<()>().await;
+        }
         match self.forking.borrow().get(place_id) {
             Some(Ok(b)) => Ok(b.clone()),
             Some(Err(e)) => Err(HostError::new(e.clone())),
-            None => Err(HostError::new(format!("{place_id} has not said what it forks with"))),
+            None => Err(HostError::new(format!(
+                "{place_id} has not said what it forks with"
+            ))),
         }
     }
     fn folder_computer(&self, _place_id: &str) -> Option<FolderComputer> {
@@ -566,14 +718,21 @@ impl LinkReads for FakeLinks {
 
 /// A daemon reach answering each op with what `answer` says, every request written down with its params.
 pub struct FakeReach {
-    pub answer: RefCell<Box<dyn Fn(&str, &Map<String, Value>) -> Result<Map<String, Value>, ReachError>>>,
+    pub answer:
+        RefCell<Box<dyn Fn(&str, &Map<String, Value>) -> Result<Map<String, Value>, ReachError>>>,
     pub asked: RefCell<Vec<(String, Value)>>,
     pub closed: Cell<bool>,
 }
 
 impl FakeReach {
-    pub fn new(answer: impl Fn(&str, &Map<String, Value>) -> Result<Map<String, Value>, ReachError> + 'static) -> Rc<Self> {
-        Rc::new(FakeReach { answer: RefCell::new(Box::new(answer)), asked: RefCell::new(Vec::new()), closed: Cell::new(false) })
+    pub fn new(
+        answer: impl Fn(&str, &Map<String, Value>) -> Result<Map<String, Value>, ReachError> + 'static,
+    ) -> Rc<Self> {
+        Rc::new(FakeReach {
+            answer: RefCell::new(Box::new(answer)),
+            asked: RefCell::new(Vec::new()),
+            closed: Cell::new(false),
+        })
     }
     /// Answers `ping`, `exec` (exit 0, nothing said) and `place.leave` (`swept`), refusing the rest.
     pub fn answering(swept: Vec<&'static str>) -> Rc<Self> {
@@ -585,14 +744,24 @@ impl FakeReach {
         })
     }
     pub fn ops(&self) -> Vec<String> {
-        self.asked.borrow().iter().map(|(op, _)| op.clone()).collect()
+        self.asked
+            .borrow()
+            .iter()
+            .map(|(op, _)| op.clone())
+            .collect()
     }
 }
 
 #[async_trait(?Send)]
 impl DaemonReach for FakeReach {
-    async fn request(&self, op: &str, params: Map<String, Value>) -> Result<Map<String, Value>, ReachError> {
-        self.asked.borrow_mut().push((op.to_string(), Value::Object(params.clone())));
+    async fn request(
+        &self,
+        op: &str,
+        params: Map<String, Value>,
+    ) -> Result<Map<String, Value>, ReachError> {
+        self.asked
+            .borrow_mut()
+            .push((op.to_string(), Value::Object(params.clone())));
         (self.answer.borrow())(op, &params)
     }
     async fn ready(&self) -> Result<(), ReachError> {
@@ -611,7 +780,12 @@ impl DaemonReach for FakeReach {
 
 /// What a refused frame answers with.
 pub fn reach_err(message: impl Into<String>) -> ReachError {
-    ReachError { message: message.into(), kind: None, status: None, code: None }
+    ReachError {
+        message: message.into(),
+        kind: None,
+        status: None,
+        code: None,
+    }
 }
 
 /// The record `admit` lists for a device of that name.
@@ -645,7 +819,11 @@ impl LinkSocket for FakeSocket {
     }
     fn off_close(&self, _id: u64) {}
     /// Slice b's tests never attach a socket; a link they need goes in with `link()`.
-    fn connect(self: Rc<Self>, _seal: Option<wsp_store::keys::Seal>, _on_event: Rc<dyn Fn(&wsp_wire::wire::daemon_events::DaemonEvent)>) -> Rc<dyn DaemonReach> {
+    fn connect(
+        self: Rc<Self>,
+        _seal: Option<wsp_store::keys::Seal>,
+        _on_event: Rc<dyn Fn(&wsp_wire::wire::daemon_events::DaemonEvent)>,
+    ) -> Rc<dyn DaemonReach> {
         FakeReach::answering(vec![])
     }
 }
@@ -655,7 +833,15 @@ pub fn link(d: &Door, place_id: &str, reach: Rc<FakeReach>) -> (Rc<FakeSocket>, 
     let socket = Rc::new(FakeSocket::default());
     let cancelled = Rc::new(Cell::new(false));
     let c = cancelled.clone();
-    d.ctx.live.borrow_mut().insert(place_id.to_string(), Live { socket: socket.clone(), reach, seen: Box::new(move || c.set(true)), forward: None });
+    d.ctx.live.borrow_mut().insert(
+        place_id.to_string(),
+        Live {
+            socket: socket.clone(),
+            reach,
+            seen: Box::new(move || c.set(true)),
+            forward: None,
+        },
+    );
     (socket, cancelled)
 }
 
@@ -683,25 +869,48 @@ road!(Undo, PlaceUndoer, fn undo(&self, login: &PlaceLogin, script: &str) -> Pla
 pub struct Sudo(pub Box<dyn Fn(&PlaceLogin, Option<&str>, SudoVerb, &str) -> PlaceResult<String>>);
 #[async_trait(?Send)]
 impl PlaceSudo for Sudo {
-    async fn sudo_over(&self, login: &PlaceLogin, sudo_password: Option<&str>, verb: SudoVerb, name: &str) -> PlaceResult<String> {
+    async fn sudo_over(
+        &self,
+        login: &PlaceLogin,
+        sudo_password: Option<&str>,
+        verb: SudoVerb,
+        name: &str,
+    ) -> PlaceResult<String> {
         (self.0)(login, sudo_password, verb, name)
     }
 }
 
-pub struct RunOverRoad(pub Box<dyn Fn(&PlaceLogin, &str, u64, Option<&str>) -> PlaceResult<RunOver>>, pub RefCell<Vec<String>>);
+pub struct RunOverRoad(
+    pub Box<dyn Fn(&PlaceLogin, &str, u64, Option<&str>) -> PlaceResult<RunOver>>,
+    pub RefCell<Vec<String>>,
+);
 #[async_trait(?Send)]
 impl PlaceRunOver for RunOverRoad {
-    async fn run_over(&self, login: &PlaceLogin, script: &str, timeout_ms: u64, sudo_password: Option<&str>) -> PlaceResult<RunOver> {
+    async fn run_over(
+        &self,
+        login: &PlaceLogin,
+        script: &str,
+        timeout_ms: u64,
+        sudo_password: Option<&str>,
+    ) -> PlaceResult<RunOver> {
         self.1.borrow_mut().push(script.to_string());
         (self.0)(login, script, timeout_ms, sudo_password)
     }
 }
 
 /// The installer: runs `then` with the request and the stage, the door's context in reach so it can land a join.
-pub struct Install(pub Box<dyn Fn(PlaceInstallRequest, PlaceStaging) -> LocalFut<'static, PlaceResult<PlaceInstalled>>>);
+pub struct Install(
+    pub  Box<
+        dyn Fn(PlaceInstallRequest, PlaceStaging) -> LocalFut<'static, PlaceResult<PlaceInstalled>>,
+    >,
+);
 #[async_trait(?Send)]
 impl PlaceInstaller for Install {
-    async fn install(&self, req: PlaceInstallRequest, stage: PlaceStaging) -> PlaceResult<PlaceInstalled> {
+    async fn install(
+        &self,
+        req: PlaceInstallRequest,
+        stage: PlaceStaging,
+    ) -> PlaceResult<PlaceInstalled> {
         (self.0)(req, stage).await
     }
 }
@@ -713,8 +922,19 @@ pub struct Back {
 }
 #[async_trait(?Send)]
 impl PlaceBackHolder for Back {
-    async fn hold(&self, login: &PlaceLogin, back: wsp_wire::views::place::PlaceBack, on: BackOn, _moved: Option<Rc<dyn Fn(wsp_wire::views::place::PlaceBack)>>) -> PlaceResult<wsp_wire::views::place::PlaceBack> {
-        self.log.borrow_mut().push(format!("hold {} {} {}", login.ssh, on.home, on.computer.map(|c| c.id).unwrap_or_default()));
+    async fn hold(
+        &self,
+        login: &PlaceLogin,
+        back: wsp_wire::views::place::PlaceBack,
+        on: BackOn,
+        _moved: Option<Rc<dyn Fn(wsp_wire::views::place::PlaceBack)>>,
+    ) -> PlaceResult<wsp_wire::views::place::PlaceBack> {
+        self.log.borrow_mut().push(format!(
+            "hold {} {} {}",
+            login.ssh,
+            on.home,
+            on.computer.map(|c| c.id).unwrap_or_default()
+        ));
         Ok(back)
     }
     fn release(&self, login: &PlaceLogin) {
@@ -738,30 +958,74 @@ pub struct Provision {
 }
 #[async_trait(?Send)]
 impl PlaceProvisioner for Provision {
-    async fn setup(&self, _: &RecipeFile, _: SetupOn, _: Option<&IndexSet<wsp_wire::views::place::PlaceSetupStep>>) -> PlaceResult<wsp_engine::provision::ProvisionPlan> {
+    async fn setup(
+        &self,
+        _: &RecipeFile,
+        _: SetupOn,
+        _: Option<&IndexSet<wsp_wire::views::place::PlaceSetupStep>>,
+    ) -> PlaceResult<wsp_engine::provision::ProvisionPlan> {
         Err(HostError::new("no setup in these tests"))
     }
-    async fn floor(&self, _machine: Rc<dyn wsp_engine::machine::Machine>, home: &str, _stage: wsp_engine::provision::ProvisionStage) -> PlaceResult<Vec<wsp_wire::views::place::PlaceProvisionRow>> {
+    async fn floor(
+        &self,
+        _machine: Rc<dyn wsp_engine::machine::Machine>,
+        home: &str,
+        _stage: wsp_engine::provision::ProvisionStage,
+    ) -> PlaceResult<Vec<wsp_wire::views::place::PlaceProvisionRow>> {
         self.log.borrow_mut().push(format!("floor {home}"));
         if let Some(f) = self.on_floor.borrow().as_ref() {
             f();
         }
-        self.floor_rows.borrow().clone().unwrap_or(Ok(vec![])).map_err(HostError::new)
+        self.floor_rows
+            .borrow()
+            .clone()
+            .unwrap_or(Ok(vec![]))
+            .map_err(HostError::new)
     }
-    async fn step(&self, _: Rc<dyn wsp_engine::machine::Machine>, _: &wsp_engine::provision::ProvisionPlan, _: &wsp_engine::provision::EngineStep, _: &wsp_engine::provision::SetupRun, _: wsp_engine::provision::ProvisionStage, _: &wsp_engine::provision::ProvisionOn) -> PlaceResult<Vec<wsp_wire::views::place::PlaceProvisionRow>> {
+    async fn step(
+        &self,
+        _: Rc<dyn wsp_engine::machine::Machine>,
+        _: &wsp_engine::provision::ProvisionPlan,
+        _: &wsp_engine::provision::EngineStep,
+        _: &wsp_engine::provision::SetupRun,
+        _: wsp_engine::provision::ProvisionStage,
+        _: &wsp_engine::provision::ProvisionOn,
+    ) -> PlaceResult<Vec<wsp_wire::views::place::PlaceProvisionRow>> {
         Err(HostError::new("no steps in these tests"))
     }
     fn has_undo(&self) -> bool {
         self.undos.borrow().is_some()
     }
-    async fn undo(&self, _before: &RecipeFile, removed: &[RemovedRow], home: &str, _stores: Option<&IndexMap<String, String>>) -> PlaceResult<Vec<PlaceUndo>> {
-        self.log.borrow_mut().push(format!("undo {home} {}", removed.iter().map(|r| format!("{}/{}", r.kind, r.name)).collect::<Vec<_>>().join(",")));
+    async fn undo(
+        &self,
+        _before: &RecipeFile,
+        removed: &[RemovedRow],
+        home: &str,
+        _stores: Option<&IndexMap<String, String>>,
+    ) -> PlaceResult<Vec<PlaceUndo>> {
+        self.log.borrow_mut().push(format!(
+            "undo {home} {}",
+            removed
+                .iter()
+                .map(|r| format!("{}/{}", r.kind, r.name))
+                .collect::<Vec<_>>()
+                .join(",")
+        ));
         Ok(self.undos.borrow().clone().unwrap_or_default())
     }
     fn has_project_servers(&self) -> bool {
         false
     }
-    async fn project_servers(&self, _: Rc<dyn wsp_engine::machine::Machine>, _: &RecipeFile, _: &str, _: &str, _: wsp_engine::provision::ProvisionStage, _: &wsp_engine::provision::ProvisionOn, _: Option<&str>) -> PlaceResult<Vec<wsp_wire::views::place::PlaceProvisionRow>> {
+    async fn project_servers(
+        &self,
+        _: Rc<dyn wsp_engine::machine::Machine>,
+        _: &RecipeFile,
+        _: &str,
+        _: &str,
+        _: wsp_engine::provision::ProvisionStage,
+        _: &wsp_engine::provision::ProvisionOn,
+        _: Option<&str>,
+    ) -> PlaceResult<Vec<wsp_wire::views::place::PlaceProvisionRow>> {
         Ok(vec![])
     }
     fn has_estimate(&self) -> bool {
@@ -831,7 +1095,10 @@ impl Default for Seed {
             mark: None,
             pending: vec![],
             host_key: new_place_key_pair(),
-            provider: Some(WiredProvider { id: "boat".into(), rate_usd_per_hour: 0.25 }),
+            provider: Some(WiredProvider {
+                id: "boat".into(),
+                rate_usd_per_hour: 0.25,
+            }),
             providers: None,
             wiring: Box::new(|_| {}),
             opts: Box::new(|_| {}),
@@ -930,7 +1197,10 @@ pub fn door(f: impl FnOnce(&mut Seed)) -> Door {
         devices: devices.clone(),
         wiring,
         recording: recording.clone(),
-        providers: providers.map(|p| Rc::new(move || p.clone() as Rc<dyn PlaceBackends>) as Rc<dyn Fn() -> Rc<dyn PlaceBackends>>),
+        providers: providers.map(|p| {
+            Rc::new(move || p.clone() as Rc<dyn PlaceBackends>)
+                as Rc<dyn Fn() -> Rc<dyn PlaceBackends>>
+        }),
         on_daemon_event: None,
         on_stage: Some(Rc::new(move |e| s2.borrow_mut().push(e.clone()))),
         on_setup: Some(Rc::new(move |e| s1.borrow_mut().push(e.clone()))),
@@ -963,10 +1233,34 @@ pub fn door(f: impl FnOnce(&mut Seed)) -> Door {
         }
     }
     let views = PlaceViewsArea::new(ctx.clone(), records.clone(), setup.clone(), links.clone());
-    let manage = ManageDoor::new(ctx.clone(), records.clone(), setup.clone(), views.clone(), links.clone());
+    let manage = ManageDoor::new(
+        ctx.clone(),
+        records.clone(),
+        setup.clone(),
+        views.clone(),
+        links.clone(),
+    );
     let e = events.clone();
-    std::mem::forget(ctx.watch(Rc::new(move |ev: &PlaceEvent| e.borrow_mut().push(ev.clone()))));
-    Door { ctx, records, views, manage, store, clock, devices, recording, setup, links, host_key: seed.host_key, events, setups, stages, naps }
+    std::mem::forget(ctx.watch(Rc::new(move |ev: &PlaceEvent| {
+        e.borrow_mut().push(ev.clone())
+    })));
+    Door {
+        ctx,
+        records,
+        views,
+        manage,
+        store,
+        clock,
+        devices,
+        recording,
+        setup,
+        links,
+        host_key: seed.host_key,
+        events,
+        setups,
+        stages,
+        naps,
+    }
 }
 
 impl Door {
@@ -1018,7 +1312,10 @@ pub fn picks(name: &str, plugins: &[&str]) -> RecipeFile {
 
 /// Runs a test body on a current-thread runtime with a `LocalSet`, as the host runs (spec 03).
 pub fn run<F: std::future::Future<Output = ()>>(f: F) {
-    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
     tokio::task::LocalSet::new().block_on(&rt, f);
 }
 
@@ -1032,7 +1329,8 @@ pub struct StubBackend {
     pub rate: f64,
     pub default: (f64, f64),
     pub offers: wsp_engine::machine::BackendOffers,
-    pub limits: std::sync::Mutex<Option<Result<Option<wsp_wire::views::place_more::CloudLimits>, String>>>,
+    pub limits:
+        std::sync::Mutex<Option<Result<Option<wsp_wire::views::place_more::CloudLimits>, String>>>,
     pub capacity: std::sync::Mutex<Option<Result<Value, String>>>,
     pub snapshots: std::sync::Mutex<Option<Result<Vec<Value>, String>>>,
     pub asked: std::sync::Mutex<Vec<String>>,
@@ -1073,11 +1371,17 @@ impl wsp_engine::machine::BackendPricing for StubPricing {
         self.rate
     }
     fn default_size(&self) -> wsp_engine::machine::Size {
-        wsp_engine::machine::Size { cpu: self.default.0, mem_mb: self.default.1 }
+        wsp_engine::machine::Size {
+            cpu: self.default.0,
+            mem_mb: self.default.1,
+        }
     }
     fn snapshot_storage(&self) -> wsp_engine::machine::SnapshotStoragePricing {
         wsp_engine::machine::SnapshotStoragePricing {
-            wire: serde_json::from_value(json!({ "freeGb": 0, "usdPerGbMonth": 0, "billedFrom": "" })).unwrap(),
+            wire: serde_json::from_value(
+                json!({ "freeGb": 0, "usdPerGbMonth": 0, "billedFrom": "" }),
+            )
+            .unwrap(),
             free_named: None,
             usd_per_named_month: None,
         }
@@ -1085,7 +1389,10 @@ impl wsp_engine::machine::BackendPricing for StubPricing {
 }
 
 fn refused<T>(what: &str) -> wsp_engine::errors::Result<T> {
-    Err(wsp_engine::EngineError::Other { message: format!("{what} is not on this stub"), code: None })
+    Err(wsp_engine::EngineError::Other {
+        message: format!("{what} is not on this stub"),
+        code: None,
+    })
 }
 
 #[async_trait(?Send)]
@@ -1094,28 +1401,47 @@ impl MachineBackend for StubBackend {
         serde_json::from_value(self.capabilities.clone()).expect("capabilities")
     }
     fn pricing(&self) -> Arc<dyn wsp_engine::machine::BackendPricing> {
-        Arc::new(StubPricing { rate: self.rate, default: self.default })
+        Arc::new(StubPricing {
+            rate: self.rate,
+            default: self.default,
+        })
     }
     fn offers(&self) -> wsp_engine::machine::BackendOffers {
-        self.offers.clone()
+        self.offers
     }
-    async fn create(&self, _: wsp_engine::machine::MachineSpec, _: Option<wsp_engine::machine::Waiting>, _: Option<String>) -> wsp_engine::errors::Result<Arc<dyn wsp_engine::machine::Machine>> {
+    async fn create(
+        &self,
+        _: wsp_engine::machine::MachineSpec,
+        _: Option<wsp_engine::machine::Waiting>,
+        _: Option<String>,
+    ) -> wsp_engine::errors::Result<Arc<dyn wsp_engine::machine::Machine>> {
         refused("create")
     }
-    async fn get(&self, _: &str) -> wsp_engine::errors::Result<Arc<dyn wsp_engine::machine::Machine>> {
+    async fn get(
+        &self,
+        _: &str,
+    ) -> wsp_engine::errors::Result<Arc<dyn wsp_engine::machine::Machine>> {
         refused("get")
     }
-    async fn list(&self, _: Option<&IndexMap<String, String>>) -> wsp_engine::errors::Result<Vec<wsp_engine::machine::MachineListRow>> {
+    async fn list(
+        &self,
+        _: Option<&IndexMap<String, String>>,
+    ) -> wsp_engine::errors::Result<Vec<wsp_engine::machine::MachineListRow>> {
         refused("list")
     }
     async fn delete_snapshot(&self, _: &str) -> wsp_engine::errors::Result<()> {
         refused("delete_snapshot")
     }
-    async fn place_limits(&self) -> wsp_engine::errors::Result<Option<wsp_wire::views::place_more::CloudLimits>> {
+    async fn place_limits(
+        &self,
+    ) -> wsp_engine::errors::Result<Option<wsp_wire::views::place_more::CloudLimits>> {
         self.note("placeLimits");
         match self.limits.lock().unwrap().clone() {
             Some(Ok(l)) => Ok(l),
-            Some(Err(e)) => Err(wsp_engine::EngineError::Other { message: e, code: None }),
+            Some(Err(e)) => Err(wsp_engine::EngineError::Other {
+                message: e,
+                code: None,
+            }),
             None => refused("place_limits"),
         }
     }
@@ -1123,15 +1449,30 @@ impl MachineBackend for StubBackend {
         self.note("capacity");
         match self.capacity.lock().unwrap().clone() {
             Some(Ok(c)) => Ok(serde_json::from_value(c).expect("capacity")),
-            Some(Err(e)) => Err(wsp_engine::EngineError::Other { message: e, code: None }),
+            Some(Err(e)) => Err(wsp_engine::EngineError::Other {
+                message: e,
+                code: None,
+            }),
             None => refused("capacity"),
         }
     }
-    async fn list_snapshots(&self, ids: Option<&[String]>) -> wsp_engine::errors::Result<Vec<wsp_engine::machine::SnapshotRow>> {
-        self.note(&format!("listSnapshots {}", ids.map(|i| i.join(",")).unwrap_or_default()));
+    async fn list_snapshots(
+        &self,
+        ids: Option<&[String]>,
+    ) -> wsp_engine::errors::Result<Vec<wsp_engine::machine::SnapshotRow>> {
+        self.note(&format!(
+            "listSnapshots {}",
+            ids.map(|i| i.join(",")).unwrap_or_default()
+        ));
         match self.snapshots.lock().unwrap().clone() {
-            Some(Ok(rows)) => Ok(rows.into_iter().map(|r| serde_json::from_value(r).expect("snapshot row")).collect()),
-            Some(Err(e)) => Err(wsp_engine::EngineError::Other { message: e, code: None }),
+            Some(Ok(rows)) => Ok(rows
+                .into_iter()
+                .map(|r| serde_json::from_value(r).expect("snapshot row"))
+                .collect()),
+            Some(Err(e)) => Err(wsp_engine::EngineError::Other {
+                message: e,
+                code: None,
+            }),
             None => refused("list_snapshots"),
         }
     }
@@ -1141,17 +1482,30 @@ impl MachineBackend for StubBackend {
 
 /// The link a `PlaceMachine` rides, answering each frame with what `answer` says; every frame written down.
 pub struct FakeMachineLink {
-    pub answer: Box<dyn Fn(&str, &Map<String, Value>) -> Result<Map<String, Value>, String> + Send + Sync>,
+    pub answer:
+        Box<dyn Fn(&str, &Map<String, Value>) -> Result<Map<String, Value>, String> + Send + Sync>,
     pub asked: std::sync::Mutex<Vec<(String, Value)>>,
 }
 
 impl FakeMachineLink {
-    pub fn new(answer: impl Fn(&str, &Map<String, Value>) -> Result<Map<String, Value>, String> + Send + Sync + 'static) -> Arc<Self> {
-        Arc::new(FakeMachineLink { answer: Box::new(answer), asked: std::sync::Mutex::new(Vec::new()) })
+    pub fn new(
+        answer: impl Fn(&str, &Map<String, Value>) -> Result<Map<String, Value>, String>
+            + Send
+            + Sync
+            + 'static,
+    ) -> Arc<Self> {
+        Arc::new(FakeMachineLink {
+            answer: Box::new(answer),
+            asked: std::sync::Mutex::new(Vec::new()),
+        })
     }
     /// Every exec answers exit 0 with `stdout`.
     pub fn exec_says(stdout: &'static str) -> Arc<Self> {
-        FakeMachineLink::new(move |_, _| Ok(obj(json!({ "exitCode": 0, "stdout": stdout, "stderr": "", "truncated": false }))))
+        FakeMachineLink::new(move |_, _| {
+            Ok(obj(
+                json!({ "exitCode": 0, "stdout": stdout, "stderr": "", "truncated": false }),
+            ))
+        })
     }
     pub fn ops(&self) -> Vec<(String, Value)> {
         self.asked.lock().unwrap().clone()
@@ -1160,11 +1514,25 @@ impl FakeMachineLink {
 
 #[async_trait(?Send)]
 impl MachineLink for FakeMachineLink {
-    async fn request(&self, op: &str, params: Map<String, Value>, _ask: wsp_engine::link_backend::LinkAsk) -> wsp_engine::errors::Result<Map<String, Value>> {
-        self.asked.lock().unwrap().push((op.to_string(), Value::Object(params.clone())));
-        (self.answer)(op, &params).map_err(|message| wsp_engine::EngineError::Other { message, code: None })
+    async fn request(
+        &self,
+        op: &str,
+        params: Map<String, Value>,
+        _ask: wsp_engine::link_backend::LinkAsk,
+    ) -> wsp_engine::errors::Result<Map<String, Value>> {
+        self.asked
+            .lock()
+            .unwrap()
+            .push((op.to_string(), Value::Object(params.clone())));
+        (self.answer)(op, &params).map_err(|message| wsp_engine::EngineError::Other {
+            message,
+            code: None,
+        })
     }
     async fn forward(&self, _place_port: u16) -> wsp_engine::errors::Result<u16> {
-        Err(wsp_engine::EngineError::Other { message: "no forward on this fake".into(), code: None })
+        Err(wsp_engine::EngineError::Other {
+            message: "no forward on this fake".into(),
+            code: None,
+        })
     }
 }

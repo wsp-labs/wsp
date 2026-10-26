@@ -17,11 +17,9 @@ use std::rc::Rc;
 use futures::future::{LocalBoxFuture, Shared};
 use indexmap::IndexMap;
 
-use wsp_core::types::internal::{BuilderLife, BuilderRecord, PrepareStoppedError};
-use wsp_core::types::wiring::GoldenRecipe;
-use wsp_engine::errors::EngineError;
+use wsp_core::types::internal::PrepareStoppedError;
+use wsp_engine::errors::{EngineError, ErrorKind};
 use wsp_words::exit::{HostError, Kind};
-use wsp_wire::wire::machine_link::PreviewReach;
 
 pub use engine::EngineBuilder;
 
@@ -33,30 +31,87 @@ pub enum ImageError {
     Host(HostError),
     Engine(EngineError),
     Stopped(PrepareStoppedError),
-    SnapshotFailed { message: String, builder_state: String },
+    SnapshotFailed {
+        message: String,
+        builder_state: String,
+    },
 }
 
 impl ImageError {
     /// `e instanceof Error ? e.message : String(e)`.
     pub fn message(&self) -> String {
-        todo!()
+        match self {
+            ImageError::Host(e) => e.message.clone(),
+            ImageError::Engine(e) => e.to_string(),
+            ImageError::Stopped(e) => e.message(),
+            ImageError::SnapshotFailed { message, .. } => message.clone(),
+        }
     }
     /// The kind stamped on it: the host error's, the engine error's kind word, `snapshotFailed`; none for a stop.
     pub fn kind(&self) -> Option<Kind> {
-        todo!()
+        match self {
+            ImageError::Host(e) => e.kind.clone(),
+            ImageError::Engine(e) => engine_kind_word(e).map(Kind::parse),
+            ImageError::Stopped(_) => None,
+            ImageError::SnapshotFailed { .. } => Some(Kind::SnapshotFailed),
+        }
     }
     /// engine errors.ts `isMissing`: the engine's reading, or a host error of kind `missing`.
     pub fn is_missing(&self) -> bool {
-        todo!()
+        match self {
+            ImageError::Host(e) => e.kind == Some(Kind::Missing),
+            ImageError::Engine(e) => wsp_engine::errors::is_missing(e),
+            _ => false,
+        }
     }
     /// engine link-backend.ts `isPlaceAbsent`.
     pub fn is_place_absent(&self) -> bool {
-        todo!()
+        match self {
+            ImageError::Engine(e) => wsp_engine::link_backend::is_place_absent(e),
+            _ => false,
+        }
     }
     /// The same words and kind as a `HostError`, at the area's edge.
     pub fn into_host(self) -> HostError {
-        todo!()
+        match self {
+            ImageError::Host(e) => e,
+            ImageError::Engine(e) => {
+                let mut host = HostError::new(e.to_string());
+                host.kind = engine_kind_word(&e).map(Kind::parse);
+                host.status = e.status().map(f64::from);
+                host.code = e.code().map(str::to_string);
+                host
+            }
+            ImageError::Stopped(e) => HostError::new(e.message()),
+            ImageError::SnapshotFailed { message, .. } => {
+                HostError::with_kind(message, Kind::SnapshotFailed)
+            }
+        }
     }
+}
+
+/// The TS `kind` word an engine error carries: its provider kind, or the kind of its own variant.
+fn engine_kind_word(e: &EngineError) -> Option<&'static str> {
+    let word = match e {
+        EngineError::NotFirstLife { .. } => "notFirstLife",
+        EngineError::VaultTooLarge { .. } => "vaultTooLarge",
+        EngineError::Exists { .. } => "exists",
+        EngineError::NoProvider { .. } => "noProvider",
+        EngineError::Invalid { .. } => "invalid",
+        EngineError::PlaceAbsent { .. } => "absent",
+        other => match other.kind()? {
+            ErrorKind::Concurrency => "concurrency",
+            ErrorKind::StartLimit => "startLimit",
+            ErrorKind::Plan => "plan",
+            ErrorKind::Missing => "missing",
+            ErrorKind::Conflict => "conflict",
+            ErrorKind::SnapshotUnavailable => "snapshotUnavailable",
+            ErrorKind::Transient => "transient",
+            ErrorKind::Auth => "auth",
+            ErrorKind::Unknown => "unknown",
+        },
+    };
+    Some(word)
 }
 
 impl From<HostError> for ImageError {

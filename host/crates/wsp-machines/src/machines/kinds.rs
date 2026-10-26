@@ -2,7 +2,7 @@
 //! Port of packages/runtime/src/machines/kinds.ts at 65f6b89c7: the roads every kind of workspace shares and the
 //! table of kind modules. Specs: spec/kinds_roads.md and spec/kinds_table.md.
 use std::cell::RefCell;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -23,6 +23,7 @@ use wsp_wire::views::workspace::{DaemonReachView, ProjectView};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::wire::runtime::BrokerStatus;
 use wsp_words::exit::HostError;
+use wsp_words::words::computer::no_kind_line;
 
 use crate::machines::area_error::AreaResult;
 use crate::machines::brokered::Placeholders;
@@ -74,11 +75,21 @@ pub trait KindsCtx {
     fn door_folder_computer(&self, place: &str) -> Option<FolderComputer>;
     fn door_joined(&self, place: &str) -> bool;
     fn door_logins_of(&self, place: &str) -> Option<String>;
-    fn door_vault_at(&self, place: &str, vault: &IndexMap<String, String>) -> Option<IndexMap<String, String>>;
+    fn door_vault_at(
+        &self,
+        place: &str,
+        vault: &IndexMap<String, String>,
+    ) -> Option<IndexMap<String, String>>;
     fn door_sign_ins_at(&self, place: &str) -> Option<IndexMap<String, AgentSignInState>>;
     fn door_github_from_vault(&self, place: &str) -> bool;
     async fn door_exec(&self, place: &str, cmd: &str, timeout_ms: u64) -> AreaResult<ExecResult>;
-    async fn door_forward(&self, place: &str, port: u16, pane: Option<(String, String)>, standing: bool) -> AreaResult<u16>;
+    async fn door_forward(
+        &self,
+        place: &str,
+        port: u16,
+        pane: Option<(String, String)>,
+        standing: bool,
+    ) -> AreaResult<u16>;
     async fn door_report_daemon_version(&self, place: &str) -> Option<u32>;
     /// `opts.vault?.()`.
     fn vault(&self) -> IndexMap<String, String>;
@@ -101,19 +112,33 @@ pub trait KindsCtx {
     /// brokered.ts `brokeredEnv(token, branchOfRecord, publicMarketplaces(ctx))`.
     fn brokered_env(&self, token: &str, record: &WorkspaceRecord) -> IndexMap<String, String>;
     /// branch-of-record.ts `landOnRecord(ctx, entry, project, lines)`. The answer owns what it read of the entry.
-    fn land_on_record(&self, entry: &LiveWorkspace, project: ProjectView, lines: Option<Vec<String>>) -> LocalBoxFuture<'static, AreaResult<()>>;
+    fn land_on_record(
+        &self,
+        entry: &LiveWorkspace,
+        project: ProjectView,
+        lines: Option<Vec<String>>,
+    ) -> LocalBoxFuture<'static, AreaResult<()>>;
     /// project-landing.ts `cloneLines(...)` as the TS object it takes.
     fn clone_lines(&self, o: Value) -> Vec<String>;
     async fn daemon_token_of(&self, machine: &Arc<dyn Machine>) -> AreaResult<Option<String>>;
     fn forget_daemon_token(&self, machine_id: &str);
     fn has_deploy(&self) -> bool;
-    async fn deploy_daemon(&self, machine: &Arc<dyn Machine>, token: Option<String>) -> AreaResult<()>;
+    async fn deploy_daemon(
+        &self,
+        machine: &Arc<dyn Machine>,
+        token: Option<String>,
+    ) -> AreaResult<()>;
     /// The local wiring's daemon road, where it wired one.
     async fn local_daemon_road(&self) -> Option<AreaResult<DaemonReachView>>;
     /// `opts.machineExec`, merged under the caller's keys by `exec_factory_for`.
     fn machine_exec_opts(&self) -> Option<MachineExecOptions>;
     /// The copy import of a fork; the answer owns what it read of the entry.
-    fn copy_import(&self, entry: &LiveWorkspace, o: ProjectImportOptions, report: ImportReport) -> LocalBoxFuture<'static, AreaResult<ImportLanded>>;
+    fn copy_import(
+        &self,
+        entry: &LiveWorkspace,
+        o: ProjectImportOptions,
+        report: ImportReport,
+    ) -> LocalBoxFuture<'static, AreaResult<ImportLanded>>;
     /// The daemon's hello version; the answer owns what it read of the entry.
     fn hello_version(&self, entry: &LiveWorkspace) -> LocalBoxFuture<'static, Option<u32>>;
     /// Whether the host wired the local road (`local !== undefined`), which the local kind needs.
@@ -143,7 +168,12 @@ pub trait KindsCtx {
     /// The folder computer's machine's `loginOf().user` (`PlaceFolderMachine.loginOf`).
     async fn door_login_user(&self, place: &str) -> AreaResult<String>;
     /// The thread-ends area's `end` and `owed` on a place.
-    async fn end_thread(&self, place: &str, thread_id: &str, o: EndThread) -> AreaResult<Option<String>>;
+    async fn end_thread(
+        &self,
+        place: &str,
+        thread_id: &str,
+        o: EndThread,
+    ) -> AreaResult<Option<String>>;
     async fn end_owed(&self, place: &str, thread_id: &str) -> AreaResult<Option<OwedEnd>>;
     fn now_ms(&self) -> f64 {
         self.now()
@@ -156,21 +186,51 @@ pub trait KindsCtx {
 /// kinds.ts:29 `kindsArea(ctx)`.
 pub struct KindsArea {
     pub(crate) ctx: Rc<dyn KindsCtx>,
-    pub(crate) me: Weak<KindsArea>,
     /// kinds.ts:321.
     pub machine_reading: RefCell<IndexSet<usize>>,
     pub(crate) modules: RefCell<IndexMap<String, Option<Rc<dyn KindModule>>>>,
     pub(crate) broker_said: RefCell<BrokerSaid>,
 }
 
+/// The key a kind's module is held under in `KindsArea::modules`.
+fn kind_word(kind: WorkspaceKind) -> &'static str {
+    match kind {
+        WorkspaceKind::Cloud => "cloud",
+        WorkspaceKind::Local => "local",
+        WorkspaceKind::Place => "place",
+    }
+}
+
 impl KindsArea {
     pub fn new(ctx: Rc<dyn KindsCtx>) -> Rc<KindsArea> {
-        todo!()
+        Rc::new_cyclic(|me| {
+            let mut modules: IndexMap<String, Option<Rc<dyn KindModule>>> = IndexMap::new();
+            modules.insert(
+                kind_word(WorkspaceKind::Cloud).to_string(),
+                Some(Rc::new(table::CloudKind { area: me.clone() })),
+            );
+            let local = ctx
+                .has_local()
+                .then(|| Rc::new(table::LocalKind { area: me.clone() }) as Rc<dyn KindModule>);
+            modules.insert(kind_word(WorkspaceKind::Local).to_string(), local);
+            let place = ctx
+                .has_place_door()
+                .then(|| Rc::new(table::PlaceKind { area: me.clone() }) as Rc<dyn KindModule>);
+            modules.insert(kind_word(WorkspaceKind::Place).to_string(), place);
+            KindsArea {
+                ctx,
+                machine_reading: RefCell::default(),
+                modules: RefCell::new(modules),
+                broker_said: RefCell::default(),
+            }
+        })
     }
 
     /// kinds.ts:509 (roads rule 21).
     pub fn module_of(&self, kind: WorkspaceKind) -> Result<Rc<dyn KindModule>, HostError> {
-        todo!()
+        let word = kind_word(kind);
+        let found = self.modules.borrow().get(word).cloned().flatten();
+        found.ok_or_else(|| HostError::new(no_kind_line(word)))
     }
 }
 
