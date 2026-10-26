@@ -4,19 +4,16 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use base64::engine::general_purpose::{STANDARD, URL_SAFE};
+use base64::Engine;
 use indexmap::{IndexMap, IndexSet};
+use serde_json::{Map, Value};
 use wsp_core::clock::Clock;
+use wsp_store::own_file::write_own;
+use wsp_words::js::utf16;
 
 use super::parts::SecretHandle;
 
-// slate-runs.ts:132
-// /** Where "Always in this thread" is kept. The host backs it with the slate record's consents; the default is memory. */
-// export interface RunApprovals {
-//   has(threadId: string, key: string): boolean;
-//   allow(threadId: string, key: string): void;
-//   revoke(threadId: string, key: string): void;
-//   list(threadId: string): string[];
-// }
 /// Where "Always in this thread" is kept. The slate area backs it with the record; the default is memory.
 pub trait RunApprovals {
     fn has(&self, thread_id: &str, key: &str) -> bool;
@@ -25,21 +22,8 @@ pub trait RunApprovals {
     fn list(&self, thread_id: &str) -> Vec<String>;
 }
 
-// slate-runs.ts:197
-// export interface SlateSecrets {
-//   /** The person typed it. An empty text clears it. */
-//   set(threadId: string, name: string, plaintext: string, opts?: { keep?: boolean }): SecretHandle;
-//   clear(threadId: string, name: string): SecretHandle;
-//   handle(threadId: string, name: string): SecretHandle;
-//   /** One secret, or every secret of the thread: a dropped declaration, "Forget secrets", a deleted thread. */
-//   forget(threadId: string, name?: string): void;
-//   /** Every filled secret of the thread replaced by `[secret:name]`, exact, base64 and URL-encoded. */
-//   scrub(threadId: string, text: string): string;
-//   /** The plaintext, for a tool run's arguments at the moment of the call and nowhere else. */
-//   plaintext(threadId: string, name: string): string | undefined;
-// }
+/// The person typed it; an empty text clears it.
 pub trait SlateSecrets {
-    /// The person typed it; an empty text clears it.
     fn set(&self, thread_id: &str, name: &str, plaintext: &str, keep: bool) -> SecretHandle;
     fn clear(&self, thread_id: &str, name: &str) -> SecretHandle;
     fn handle(&self, thread_id: &str, name: &str) -> SecretHandle;
@@ -49,62 +33,69 @@ pub trait SlateSecrets {
     fn plaintext(&self, thread_id: &str, name: &str) -> Option<String>;
 }
 
-// slate-runs.ts:499
-// /** Every text a command could print a secret as: itself, base64 (standard and URL-safe, padded or not, and the
-//  * stable middle of the secret inside a longer base64 run such as a Basic header), and URL-encoded. */
-// function secretForms(text: string): string[] {
-//   const forms = new Set<string>([text]);
-//   const bytes = Buffer.from(text, "utf8");
-//   const b64 = (b: Buffer): string[] => {
-//     const std = b.toString("base64");
-//     const url = std.replace(/\+/g, "-").replace(/\//g, "_");
-//     return [std, std.replace(/=+$/, ""), url, url.replace(/=+$/, "")];
-//   };
-//   for (const f of b64(bytes)) forms.add(f);
-//   for (const shift of [0, 1, 2]) {
-//     const all = Buffer.concat([Buffer.alloc(shift), bytes]).toString("base64");
-//     const from = shift === 0 ? 0 : 4;
-//     const to = Math.floor((shift + bytes.length) / 3) * 4;
-//     const middle = all.slice(from, to);
-//     if (middle.length < 8) continue;
-//     forms.add(middle);
-//     forms.add(middle.replace(/\+/g, "-").replace(/\//g, "_"));
-//   }
-//   const url = encodeURIComponent(text);
-//   forms.add(url);
-//   forms.add(url.replace(/%[0-9A-F]{2}/g, m => m.toLowerCase()));
-//   forms.add(url.replace(/%20/g, "+"));
-//   forms.delete("");
-//   return [...forms];
-// }
 pub fn secret_forms(text: &str) -> Vec<String> {
-    todo!()
+    let mut forms: IndexSet<String> = IndexSet::new();
+    forms.insert(text.to_string());
+    let bytes = text.as_bytes();
+    let std = STANDARD.encode(bytes);
+    let url = URL_SAFE.encode(bytes);
+    for f in [std.clone(), std.trim_end_matches('=').to_string(), url.clone(), url.trim_end_matches('=').to_string()] {
+        forms.insert(f);
+    }
+    for shift in [0usize, 1, 2] {
+        let mut padded = vec![0u8; shift];
+        padded.extend_from_slice(bytes);
+        let all = STANDARD.encode(&padded);
+        let from = if shift == 0 { 0 } else { 4 };
+        let to = ((shift + bytes.len()) / 3 * 4).min(all.len());
+        if from >= to {
+            continue;
+        }
+        let middle = &all[from..to];
+        if middle.len() < 8 {
+            continue;
+        }
+        forms.insert(middle.to_string());
+        forms.insert(middle.replace('+', "-").replace('/', "_"));
+    }
+    let encoded = encode_uri_component(text);
+    forms.insert(encoded.clone());
+    forms.insert(lower_escapes(&encoded));
+    forms.insert(encoded.replace("%20", "+"));
+    forms.shift_remove("");
+    forms.into_iter().collect()
+}
+
+fn lower_escapes(encoded: &str) -> String {
+    let mut out = String::with_capacity(encoded.len());
+    let mut chars = encoded.chars();
+    while let Some(c) = chars.next() {
+        out.push(c);
+        if c == '%' {
+            for _ in 0..2 {
+                if let Some(h) = chars.next() {
+                    out.push(h.to_ascii_lowercase());
+                }
+            }
+        }
+    }
+    out
 }
 
 /// JS `encodeURIComponent` over a valid string: everything but `A-Za-z0-9-_.!~*'()` as `%XX` of its UTF-8 bytes,
 /// uppercase hex.
 pub fn encode_uri_component(text: &str) -> String {
-    todo!()
+    let mut out = String::with_capacity(text.len());
+    for &b in text.as_bytes() {
+        if b.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
 }
 
-// slate-runs.ts:527
-// class DefaultApprovals implements RunApprovals {
-//   private readonly allowed = new Map<string, Set<string>>();
-//   has(threadId: string, key: string): boolean {
-//     return this.allowed.get(threadId)?.has(key) ?? false;
-//   }
-//   allow(threadId: string, key: string): void {
-//     const keys = this.allowed.get(threadId) ?? new Set<string>();
-//     keys.add(key);
-//     this.allowed.set(threadId, keys);
-//   }
-//   revoke(threadId: string, key: string): void {
-//     this.allowed.get(threadId)?.delete(key);
-//   }
-//   list(threadId: string): string[] {
-//     return [...(this.allowed.get(threadId) ?? [])];
-//   }
-// }
 #[derive(Default)]
 pub struct DefaultApprovals {
     allowed: RefCell<IndexMap<String, IndexSet<String>>>,
@@ -112,16 +103,18 @@ pub struct DefaultApprovals {
 
 impl RunApprovals for DefaultApprovals {
     fn has(&self, thread_id: &str, key: &str) -> bool {
-        todo!()
+        self.allowed.borrow().get(thread_id).is_some_and(|keys| keys.contains(key))
     }
     fn allow(&self, thread_id: &str, key: &str) {
-        todo!()
+        self.allowed.borrow_mut().entry(thread_id.to_string()).or_default().insert(key.to_string());
     }
     fn revoke(&self, thread_id: &str, key: &str) {
-        todo!()
+        if let Some(keys) = self.allowed.borrow_mut().get_mut(thread_id) {
+            keys.shift_remove(key);
+        }
     }
     fn list(&self, thread_id: &str) -> Vec<String> {
-        todo!()
+        self.allowed.borrow().get(thread_id).map_or_else(Vec::new, |keys| keys.iter().cloned().collect())
     }
 }
 
@@ -140,103 +133,133 @@ pub struct Secrets {
     pub(crate) held: RefCell<IndexMap<String, IndexMap<String, Kept>>>,
 }
 
-// slate-runs.ts:545
-// function createSecrets(file: string | undefined, now: () => number): SlateSecrets {
-//   const held = new Map<string, Map<string, Kept>>();
-//   if (file !== undefined && existsSync(file)) {
-//     try {
-//       const read = JSON.parse(readFileSync(file, "utf8")) as Record<string, Record<string, { text: string; at: number }>>;
-//       for (const [threadId, names] of Object.entries(read)) {
-//         held.set(threadId, new Map(Object.entries(names).map(([name, k]) => [name, { text: k.text, at: k.at, keep: true }])));
-//       }
-//     } catch {
-//       // An unreadable file holds nothing this host can use; the slates ask for their secrets again.
-//     }
-//   }
-//   const save = (): void => {
-//     if (file === undefined) return;
-//     const out: Record<string, Record<string, { text: string; at: number }>> = {};
-//     for (const [threadId, names] of held) {
-//       for (const [name, k] of names) if (k.keep) (out[threadId] ??= {})[name] = { text: k.text, at: k.at };
-//     }
-//     writeOwn(dirname(file), basename(file), JSON.stringify(out));
-//   };
-//   const handle = (threadId: string, name: string): SecretHandle => {
-//     const k = held.get(threadId)?.get(name);
-//     return k === undefined ? { secret: true, set: false, len: 0, at: null } : { secret: true, set: true, len: k.text.length, at: k.at };
-//   };
-//   const forget = (threadId: string, name?: string): void => {
-//     const names = held.get(threadId);
-//     if (names === undefined) return;
-//     const kept = name === undefined ? [...names.values()].some(k => k.keep) : names.get(name)?.keep === true;
-//     if (name === undefined) held.delete(threadId);
-//     else names.delete(name);
-//     if (kept) save();
-//   };
 /// Reads the kept ones back from `file` at once.
 pub fn create_secrets(file: Option<PathBuf>, clock: Rc<dyn Clock>) -> Rc<Secrets> {
-    todo!()
+    let mut held: IndexMap<String, IndexMap<String, Kept>> = IndexMap::new();
+    if let Some(path) = file.as_ref().filter(|p| p.exists()) {
+        if let Some(read) = std::fs::read_to_string(path).ok().and_then(|text| serde_json::from_str::<Value>(&text).ok()) {
+            if let Value::Object(threads) = read {
+                for (thread_id, names) in threads {
+                    let mut kept = IndexMap::new();
+                    if let Value::Object(names) = names {
+                        for (name, k) in names {
+                            let (Some(text), Some(at)) = (k.get("text").and_then(Value::as_str), k.get("at").and_then(Value::as_i64))
+                            else {
+                                break;
+                            };
+                            kept.insert(name, Kept { text: text.to_string(), at, keep: true });
+                        }
+                    }
+                    held.insert(thread_id, kept);
+                }
+            }
+        }
+    }
+    Rc::new(Secrets { file, clock, held: RefCell::new(held) })
 }
 
 impl Secrets {
     /// Writes the kept secrets, compact, through `write_own`; nothing without a file.
     pub fn save(&self) {
-        todo!()
+        let Some(file) = self.file.as_ref() else {
+            return;
+        };
+        let mut out = Map::new();
+        for (thread_id, names) in self.held.borrow().iter() {
+            let mut kept = Map::new();
+            for (name, k) in names.iter().filter(|(_, k)| k.keep) {
+                kept.insert(name.clone(), serde_json::json!({ "text": k.text, "at": k.at }));
+            }
+            if !kept.is_empty() {
+                out.insert(thread_id.clone(), Value::Object(kept));
+            }
+        }
+        let (Some(dir), Some(name)) = (file.parent(), file.file_name().and_then(|n| n.to_str())) else {
+            return;
+        };
+        let _ = write_own(dir, name, serde_json::to_string(&Value::Object(out)).unwrap_or_default());
+    }
+
+    fn held_kept(&self, thread_id: &str, name: &str) -> bool {
+        self.held.borrow().get(thread_id).and_then(|names| names.get(name)).is_some_and(|k| k.keep)
     }
 }
 
-// slate-runs.ts:577
-//   return {
-//     set(threadId, name, plaintext, opts) {
-//       if (plaintext === "") {
-//         forget(threadId, name);
-//         return handle(threadId, name);
-//       }
-//       const names = held.get(threadId) ?? new Map<string, Kept>();
-//       const was = names.get(name)?.keep === true;
-//       const keep = opts?.keep === true;
-//       names.set(name, { text: plaintext, at: now(), keep });
-//       held.set(threadId, names);
-//       if (keep || was) save();
-//       return handle(threadId, name);
-//     },
-//     clear(threadId, name) {
-//       forget(threadId, name);
-//       return handle(threadId, name);
-//     },
-//     handle,
-//     forget,
-//     scrub(threadId, text) {
-//       const names = held.get(threadId);
-//       if (names === undefined || text === "") return text;
-//       const forms: [string, string][] = [];
-//       for (const [name, k] of names) for (const f of secretForms(k.text)) forms.push([f, `[secret:${name}]`]);
-//       forms.sort((a, b) => b[0].length - a[0].length);
-//       let out = text;
-//       for (const [form, mark] of forms) if (out.includes(form)) out = out.split(form).join(mark);
-//       return out;
-//     },
-//     plaintext(threadId, name) {
-//       return held.get(threadId)?.get(name)?.text;
-//     },
-//   };
 impl SlateSecrets for Secrets {
     fn set(&self, thread_id: &str, name: &str, plaintext: &str, keep: bool) -> SecretHandle {
-        todo!()
+        if plaintext.is_empty() {
+            self.forget(thread_id, Some(name));
+            return self.handle(thread_id, name);
+        }
+        let was = self.held_kept(thread_id, name);
+        let at = self.clock.now();
+        self.held
+            .borrow_mut()
+            .entry(thread_id.to_string())
+            .or_default()
+            .insert(name.to_string(), Kept { text: plaintext.to_string(), at, keep });
+        if keep || was {
+            self.save();
+        }
+        self.handle(thread_id, name)
     }
     fn clear(&self, thread_id: &str, name: &str) -> SecretHandle {
-        todo!()
+        self.forget(thread_id, Some(name));
+        self.handle(thread_id, name)
     }
     fn handle(&self, thread_id: &str, name: &str) -> SecretHandle {
-        todo!()
+        match self.held.borrow().get(thread_id).and_then(|names| names.get(name)) {
+            None => SecretHandle { secret: true, set: false, len: 0, at: None },
+            Some(k) => SecretHandle { secret: true, set: true, len: utf16::len(&k.text) as i64, at: Some(k.at) },
+        }
     }
     fn forget(&self, thread_id: &str, name: Option<&str>) {
-        todo!()
+        let kept = {
+            let mut held = self.held.borrow_mut();
+            let Some(names) = held.get_mut(thread_id) else {
+                return;
+            };
+            match name {
+                None => {
+                    let kept = names.values().any(|k| k.keep);
+                    held.shift_remove(thread_id);
+                    kept
+                }
+                Some(name) => {
+                    let kept = names.get(name).is_some_and(|k| k.keep);
+                    names.shift_remove(name);
+                    kept
+                }
+            }
+        };
+        if kept {
+            self.save();
+        }
     }
     fn scrub(&self, thread_id: &str, text: &str) -> String {
-        todo!()
+        let held = self.held.borrow();
+        let Some(names) = held.get(thread_id) else {
+            return text.to_string();
+        };
+        if text.is_empty() {
+            return text.to_string();
+        }
+        let mut forms: Vec<(String, String)> = Vec::new();
+        for (name, k) in names {
+            for f in secret_forms(&k.text) {
+                forms.push((f, format!("[secret:{name}]")));
+            }
+        }
+        forms.sort_by(|a, b| utf16::len(&b.0).cmp(&utf16::len(&a.0)));
+        let mut out = text.to_string();
+        for (form, mark) in &forms {
+            if out.contains(form.as_str()) {
+                out = out.replace(form.as_str(), mark);
+            }
+        }
+        out
     }
     fn plaintext(&self, thread_id: &str, name: &str) -> Option<String> {
-        todo!()
+        self.held.borrow().get(thread_id).and_then(|names| names.get(name)).map(|k| k.text.clone())
     }
 }
