@@ -363,7 +363,7 @@ fn the_ports_list_stops_one_and_its_pane_is_told_once() {
 
         assert_eq!(pane.reach("k1", p1 as u32, "ws1").await.unwrap(), p1);
         assert!(connects(p1).await);
-        assert_eq!(pane.ports.list(), vec![view("ws1", p1, "spoo-ts", T0), v2, v3]);
+        assert_eq!(pane.ports.list(), vec![v2, v3, view("ws1", p1, "spoo-ts", T0)]);
     });
 }
 
