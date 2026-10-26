@@ -64,13 +64,28 @@ pub trait ManageSetup: ViewsSetup {
     /// `setupFrame(event)` (setup.ts:208).
     fn setup_frame(&self, event: PlaceSetupEvent);
     /// `startSetup(placeId, addId, picks, row)`.
-    async fn start_setup(&self, place_id: &str, add_id: &str, picks: Option<SetupPicks>, row: Option<String>) -> PlaceResult<SetupStarted>;
+    async fn start_setup(
+        &self,
+        place_id: &str,
+        add_id: &str,
+        picks: Option<SetupPicks>,
+        row: Option<String>,
+    ) -> PlaceResult<SetupStarted>;
     /// `startedOrSaid(placeId, addId, picks)`.
-    async fn started_or_said(&self, place_id: &str, add_id: &str, picks: SetupPicks) -> PlaceResult<SetupStarted>;
+    async fn started_or_said(
+        &self,
+        place_id: &str,
+        add_id: &str,
+        picks: SetupPicks,
+    ) -> PlaceResult<SetupStarted>;
     /// Cancels and clears every `syncTimers` entry.
     fn clear_sync_timers(&self);
     /// `syncOf(record, resolved)`.
-    async fn sync_of(&self, record: &PlaceRecord, resolved: Option<&Resolved>) -> PlaceResult<Option<SyncRead>>;
+    async fn sync_of(
+        &self,
+        record: &PlaceRecord,
+        resolved: Option<&Resolved>,
+    ) -> PlaceResult<Option<SyncRead>>;
     /// `markSync(placeId, sync)`.
     async fn mark_sync(&self, place_id: &str, sync: PlaceSync) -> PlaceResult<()>;
     /// `syncSoon(placeId, afterMs)`.
@@ -90,7 +105,21 @@ pub struct ManageDoor {
 }
 
 impl ManageDoor {
-    pub fn new(ctx: Rc<PlaceDoorContext>, records: Rc<PlaceRecordsArea>, setup: Rc<dyn ManageSetup>, views: Rc<PlaceViewsArea>, links: Rc<dyn LinkReads>) -> Rc<Self> {
-        Rc::new(ManageDoor { ctx, records, setup, views, links, watches: RefCell::new(IndexMap::new()), next_watch: Cell::new(0) })
+    pub fn new(
+        ctx: Rc<PlaceDoorContext>,
+        records: Rc<PlaceRecordsArea>,
+        setup: Rc<dyn ManageSetup>,
+        views: Rc<PlaceViewsArea>,
+        links: Rc<dyn LinkReads>,
+    ) -> Rc<Self> {
+        Rc::new(ManageDoor {
+            ctx,
+            records,
+            setup,
+            views,
+            links,
+            watches: RefCell::new(IndexMap::new()),
+            next_watch: Cell::new(0),
+        })
     }
 }

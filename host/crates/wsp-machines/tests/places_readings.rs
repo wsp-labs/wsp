@@ -10,8 +10,8 @@ use serde_json::json;
 use wsp_machines::places::readings::{PlaceReadings, Reader};
 use wsp_machines::places::types::PlaceEvent;
 use wsp_wire::wire::daemon_events::DaemonEvent;
-use wsp_wire::wire::machine_link::SysSample;
 use wsp_wire::wire::machine_link::no_such_place_refusal;
+use wsp_wire::wire::machine_link::SysSample;
 
 use common::places::*;
 
@@ -25,12 +25,20 @@ fn sample(at: i64) -> SysSample {
 fn reader() -> (Reader, Rc<RefCell<Vec<SysSample>>>) {
     let got = Rc::new(RefCell::new(Vec::new()));
     let g = Rc::clone(&got);
-    (Rc::new(move |s: &SysSample| g.borrow_mut().push(s.clone())), got)
+    (
+        Rc::new(move |s: &SysSample| g.borrow_mut().push(s.clone())),
+        got,
+    )
 }
 
 fn scene_with(version: i64, script: Script) -> (Scene, Rc<FakeSocket>, Rc<PlaceReadings>) {
     let scene = Scene::new(SceneOpts::default());
-    let socket = scene.linked("p_spoo", "spoo", report("spoo", json!({ "daemonVersion": version })), script);
+    let socket = scene.linked(
+        "p_spoo",
+        "spoo",
+        report("spoo", json!({ "daemonVersion": version })),
+        script,
+    );
     let readings = PlaceReadings::new(Rc::clone(&scene.ctx));
     (scene, socket, readings)
 }
@@ -42,13 +50,25 @@ fn heard(readings: &PlaceReadings, at: i64) {
 #[test]
 fn the_context_takes_the_ts_defaults() {
     let scene = Scene::new(SceneOpts::default());
-    assert_eq!([scene.ctx.seen_every_ms, scene.ctx.dial_wait_ms, scene.ctx.frame_wait_ms, scene.ctx.relink_wait_ms], [60_000, 20_000, 300_000, 120_000]);
+    assert_eq!(
+        [
+            scene.ctx.seen_every_ms,
+            scene.ctx.dial_wait_ms,
+            scene.ctx.frame_wait_ms,
+            scene.ctx.relink_wait_ms
+        ],
+        [60_000, 20_000, 300_000, 120_000]
+    );
     assert!(scene.ctx.live.borrow().is_empty());
     assert!(scene.ctx.kept.borrow().is_empty());
     assert!(scene.ctx.backends.borrow().is_empty());
     assert!(scene.ctx.forwards.borrow().is_empty());
     assert!(scene.ctx.asking.borrow().is_empty());
-    let set = Scene::new(SceneOpts { relink_wait_ms: Some(300), frame_wait_ms: Some(50), ..SceneOpts::default() });
+    let set = Scene::new(SceneOpts {
+        relink_wait_ms: Some(300),
+        frame_wait_ms: Some(50),
+        ..SceneOpts::default()
+    });
     assert_eq!([set.ctx.frame_wait_ms, set.ctx.relink_wait_ms], [50, 300]);
 }
 
@@ -56,17 +76,38 @@ fn the_context_takes_the_ts_defaults() {
 fn sign_ins_here_reads_the_record_as_it_stands() {
     let scene = Scene::new(SceneOpts::default());
     assert_eq!(scene.ctx.sign_ins_here("p_none", None), None);
-    scene.records.keep(record("p_spoo", "spoo", report("spoo", json!({ "agents": ["claude", "codex"], "logins": [] }))));
+    scene.records.keep(record(
+        "p_spoo",
+        "spoo",
+        report(
+            "spoo",
+            json!({ "agents": ["claude", "codex"], "logins": [] }),
+        ),
+    ));
     let words = |s: &Scene| serde_json::to_value(s.ctx.sign_ins_here("p_spoo", None)).unwrap();
-    assert_eq!(words(&scene), json!({ "claude": "vault-key", "codex": "none" }));
+    assert_eq!(
+        words(&scene),
+        json!({ "claude": "vault-key", "codex": "none" })
+    );
     let mut moved = scene.records.get("p_spoo");
     moved.report.logins = Some(vec!["codex/auth.json".into()]);
     scene.records.keep(moved);
-    assert_eq!(words(&scene), json!({ "claude": "vault-key", "codex": "signed-in" }));
+    assert_eq!(
+        words(&scene),
+        json!({ "claude": "vault-key", "codex": "signed-in" })
+    );
     scene.vault.borrow_mut().clear();
-    assert_eq!(words(&scene), json!({ "claude": "none", "codex": "signed-in" }));
-    let only = scene.ctx.sign_ins_here("p_spoo", Some(&["codex".to_string()]));
-    assert_eq!(serde_json::to_value(only).unwrap(), json!({ "codex": "signed-in" }));
+    assert_eq!(
+        words(&scene),
+        json!({ "claude": "none", "codex": "signed-in" })
+    );
+    let only = scene
+        .ctx
+        .sign_ins_here("p_spoo", Some(&["codex".to_string()]));
+    assert_eq!(
+        serde_json::to_value(only).unwrap(),
+        json!({ "codex": "signed-in" })
+    );
 }
 
 #[test]
@@ -76,7 +117,12 @@ fn emit_reaches_a_watcher_added_during_it_and_skips_one_removed() {
     let ctx = Rc::clone(&scene.ctx);
     let late_off: Rc<RefCell<Option<Box<dyn FnOnce()>>>> = Rc::new(RefCell::new(None));
     let second_off: Rc<RefCell<Option<Box<dyn FnOnce()>>>> = Rc::new(RefCell::new(None));
-    let (o1, c1, l1, s1) = (Rc::clone(&order), Rc::clone(&ctx), Rc::clone(&late_off), Rc::clone(&second_off));
+    let (o1, c1, l1, s1) = (
+        Rc::clone(&order),
+        Rc::clone(&ctx),
+        Rc::clone(&late_off),
+        Rc::clone(&second_off),
+    );
     let _first = ctx.watch(Rc::new(move |_e: &PlaceEvent| {
         o1.borrow_mut().push("first");
         if let Some(off) = s1.borrow_mut().take() {
@@ -84,15 +130,24 @@ fn emit_reaches_a_watcher_added_during_it_and_skips_one_removed() {
         }
         if l1.borrow().is_none() {
             let o = Rc::clone(&o1);
-            *l1.borrow_mut() = Some(c1.watch(Rc::new(move |_e: &PlaceEvent| o.borrow_mut().push("added during"))));
+            *l1.borrow_mut() = Some(c1.watch(Rc::new(move |_e: &PlaceEvent| {
+                o.borrow_mut().push("added during")
+            })));
         }
     }));
     let o2 = Rc::clone(&order);
-    *second_off.borrow_mut() = Some(ctx.watch(Rc::new(move |_e: &PlaceEvent| o2.borrow_mut().push("removed before its turn"))));
-    let absent: PlaceEvent = PlaceEvent::Absent(serde_json::from_value(json!({ "placeId": "p_spoo" })).unwrap());
+    *second_off.borrow_mut() = Some(ctx.watch(Rc::new(move |_e: &PlaceEvent| {
+        o2.borrow_mut().push("removed before its turn")
+    })));
+    let absent: PlaceEvent =
+        PlaceEvent::Absent(serde_json::from_value(json!({ "placeId": "p_spoo" })).unwrap());
     ctx.emit(&absent);
     assert_eq!(*order.borrow(), vec!["first", "added during"]);
-    assert_eq!(scene.events.borrow().len(), 1, "the scene's own watcher, registered first, heard it once");
+    assert_eq!(
+        scene.events.borrow().len(),
+        1,
+        "the scene's own watcher, registered first, heard it once"
+    );
 }
 
 #[test]
@@ -108,8 +163,14 @@ fn readers_ride_one_watch_and_each_sample_reaches_each_once() {
         let (_scene, socket, readings) = scene_with(CURRENT, answers_ok());
         let (page, page_got) = reader();
         let (pane, pane_got) = reader();
-        let _a = readings.watch("p_spoo", page).await.expect("the page reads");
-        let _b = readings.watch("p_spoo", pane).await.expect("the pane reads");
+        let _a = readings
+            .watch("p_spoo", page)
+            .await
+            .expect("the page reads");
+        let _b = readings
+            .watch("p_spoo", pane)
+            .await
+            .expect("the pane reads");
         assert_eq!(socket.reach.asked("sys.watch"), 1);
         heard(&readings, 1);
         heard(&readings, 2);
@@ -152,12 +213,19 @@ fn readers_are_held_while_away_and_asked_on_the_next_link() {
         heard(&readings, 1);
         scene.away("p_spoo", &socket);
         let (late, late_got) = reader();
-        let _b = readings.watch("p_spoo", late).await.expect("a reader while away is held");
+        let _b = readings
+            .watch("p_spoo", late)
+            .await
+            .expect("a reader while away is held");
         let again = scene.live("p_spoo", answers_ok());
         readings.linked("p_spoo");
         settle().await;
         assert_eq!(again.reach.asked("sys.watch"), 1);
-        assert_eq!(socket.reach.asked("sys.watch"), 1, "nothing was asked of the link that went");
+        assert_eq!(
+            socket.reach.asked("sys.watch"),
+            1,
+            "nothing was asked of the link that went"
+        );
         heard(&readings, 2);
         assert_eq!(*page_got.borrow(), vec![sample(1), sample(2)]);
         assert_eq!(*late_got.borrow(), vec![sample(2)]);
@@ -195,7 +263,13 @@ fn a_daemon_before_unwatch_is_never_asked_twice() {
         let (page2, page2_got) = reader();
         let _keep = readings.watch("p_spoo", page2).await.unwrap();
         settle().await;
-        assert_eq!([socket.reach.asked("sys.watch"), socket.reach.asked("sys.unwatch")], [1, 0]);
+        assert_eq!(
+            [
+                socket.reach.asked("sys.watch"),
+                socket.reach.asked("sys.unwatch")
+            ],
+            [1, 0]
+        );
         heard(&readings, 2);
         assert_eq!(*page_got.borrow(), Vec::<SysSample>::new());
         assert_eq!(*page2_got.borrow(), vec![sample(2)]);
@@ -207,14 +281,24 @@ fn a_watch_in_flight_when_the_link_drops_stays_held() {
     block(async {
         let hangs = Rc::new(std::cell::Cell::new(true));
         let h = Rc::clone(&hangs);
-        let script: Script = Rc::new(move |op, _| if op == "sys.watch" && h.get() { Reply::Hang } else { Reply::Ok(obj(json!({ "ok": true }))) });
+        let script: Script = Rc::new(move |op, _| {
+            if op == "sys.watch" && h.get() {
+                Reply::Hang
+            } else {
+                Reply::Ok(obj(json!({ "ok": true })))
+            }
+        });
         let (scene, socket, readings) = scene_with(CURRENT, script);
         let (page, page_got) = reader();
         let r = Rc::clone(&readings);
-        let pending = tokio::task::spawn_local(async move { r.watch("p_spoo", page).await.map(|_| ()) });
+        let pending =
+            tokio::task::spawn_local(async move { r.watch("p_spoo", page).await.map(|_| ()) });
         until("the watch went up", || socket.reach.asked("sys.watch") == 1).await;
         scene.away("p_spoo", &socket);
-        assert!(pending.await.unwrap().is_ok(), "an answer lost with its link is no refusal");
+        assert!(
+            pending.await.unwrap().is_ok(),
+            "an answer lost with its link is no refusal"
+        );
         hangs.set(false);
         let again = scene.live("p_spoo", answers_ok());
         readings.linked("p_spoo");
@@ -233,7 +317,9 @@ fn a_refusal_is_said_and_the_next_reader_asks_again() {
         let script: Script = Rc::new(move |op, _| {
             if op == "sys.watch" && r.get() > 0 {
                 r.set(r.get() - 1);
-                Reply::Ok(obj(json!({ "ok": false, "error": "this computer reads no load" })))
+                Reply::Ok(obj(
+                    json!({ "ok": false, "error": "this computer reads no load" }),
+                ))
             } else {
                 Reply::Ok(obj(json!({ "ok": true })))
             }
@@ -243,7 +329,10 @@ fn a_refusal_is_said_and_the_next_reader_asks_again() {
         let refused = readings.watch("p_spoo", page).await.err().expect("refused");
         assert_eq!(refused.message, "this computer reads no load");
         let (pane, pane_got) = reader();
-        let _ok = readings.watch("p_spoo", pane).await.expect("the next reader asks again");
+        let _ok = readings
+            .watch("p_spoo", pane)
+            .await
+            .expect("the next reader asks again");
         assert_eq!(socket.reach.asked("sys.watch"), 2);
         heard(&readings, 1);
         assert_eq!(*pane_got.borrow(), vec![sample(1)]);
@@ -255,8 +344,15 @@ fn an_unknown_place_is_refused_with_the_places_there_are() {
     block(async {
         let (_scene, socket, readings) = scene_with(CURRENT, answers_ok());
         let (page, _) = reader();
-        let refused = readings.watch("p_nowhere", page).await.err().expect("refused");
-        assert_eq!(refused.message, no_such_place_refusal("p_nowhere", &["spoo".to_string()]));
+        let refused = readings
+            .watch("p_nowhere", page)
+            .await
+            .err()
+            .expect("refused");
+        assert_eq!(
+            refused.message,
+            no_such_place_refusal("p_nowhere", &["spoo".to_string()])
+        );
         assert_eq!(socket.reach.frames.borrow().len(), 0);
     });
 }
@@ -264,10 +360,20 @@ fn an_unknown_place_is_refused_with_the_places_there_are() {
 #[test]
 fn a_refused_reader_is_released_and_leaves_no_watch() {
     block(async {
-        let script: Script = Rc::new(|op, _| if op == "sys.watch" { Reply::Err("no load here".into()) } else { Reply::Ok(obj(json!({ "ok": true }))) });
+        let script: Script = Rc::new(|op, _| {
+            if op == "sys.watch" {
+                Reply::Err("no load here".into())
+            } else {
+                Reply::Ok(obj(json!({ "ok": true })))
+            }
+        });
         let (_scene, socket, readings) = scene_with(CURRENT, script);
         let (page, page_got) = reader();
-        let refused = readings.watch("p_spoo", page).await.err().expect("a rejected frame on the live link is a refusal");
+        let refused = readings
+            .watch("p_spoo", page)
+            .await
+            .err()
+            .expect("a rejected frame on the live link is a refusal");
         assert_eq!(refused.message, "no load here");
         heard(&readings, 1);
         assert_eq!(*page_got.borrow(), Vec::<SysSample>::new());
@@ -312,9 +418,19 @@ fn heard_passes_samples_alone_to_a_snapshot_of_readers() {
             .await
             .unwrap();
         let g2 = Rc::clone(&got);
-        let off = readings.watch("p_spoo", Rc::new(move |_s: &SysSample| g2.borrow_mut().push("second"))).await.unwrap();
+        let off = readings
+            .watch(
+                "p_spoo",
+                Rc::new(move |_s: &SysSample| g2.borrow_mut().push("second")),
+            )
+            .await
+            .unwrap();
         *second_off.borrow_mut() = Some(off);
-        readings.heard("p_spoo", &serde_json::from_value(json!({ "type": "daemon.hello", "root": "/", "version": 1 })).unwrap());
+        readings.heard(
+            "p_spoo",
+            &serde_json::from_value(json!({ "type": "daemon.hello", "root": "/", "version": 1 }))
+                .unwrap(),
+        );
         assert!(got.borrow().is_empty());
         heard(&readings, 1);
         assert_eq!(*got.borrow(), vec!["first", "second"]);
@@ -333,7 +449,14 @@ fn a_release_after_the_link_was_replaced_sends_nothing() {
         let again = scene.live("p_spoo", answers_ok());
         off();
         settle().await;
-        assert_eq!([socket.reach.asked("sys.unwatch"), again.reach.asked("sys.unwatch"), again.reach.asked("sys.watch")], [0, 0, 0]);
+        assert_eq!(
+            [
+                socket.reach.asked("sys.unwatch"),
+                again.reach.asked("sys.unwatch"),
+                again.reach.asked("sys.watch")
+            ],
+            [0, 0, 0]
+        );
     });
 }
 
@@ -345,10 +468,18 @@ fn a_daemon_too_old_to_stop_keeps_its_watch_running() {
         let off = readings.watch("p_spoo", a).await.unwrap();
         off();
         settle().await;
-        assert_eq!(socket.reach.asked("sys.unwatch"), 0, "a daemon this old cannot be told to stop");
+        assert_eq!(
+            socket.reach.asked("sys.unwatch"),
+            0,
+            "a daemon this old cannot be told to stop"
+        );
         let (b, _) = reader();
         let _keep = readings.watch("p_spoo", b).await.unwrap();
-        assert_eq!(socket.reach.asked("sys.watch"), 1, "and the watch it still sends is ridden, not asked again");
+        assert_eq!(
+            socket.reach.asked("sys.watch"),
+            1,
+            "and the watch it still sends is ridden, not asked again"
+        );
         drop(scene);
     });
 }

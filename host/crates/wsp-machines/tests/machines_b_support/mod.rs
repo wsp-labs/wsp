@@ -17,28 +17,31 @@ use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Value};
 use tokio::sync::Semaphore;
 
-use wsp_engine::box_backend::BoxLimits;
-use wsp_engine::lifecycle::{Workspace, WorkspaceHooks, WorkspaceInitial};
-use wsp_engine::errors::EngineError;
-use wsp_engine::machine::{
-    BackendPricing, Capabilities, ExecOptions, ExecResult, Lifecycle, LifecycleBudgets, Machine, MachineBackend, MachineKind, MachineLife,
-    MachineListRow, MachineOffers, MachineSpec, MachineState, RunOptions, Size, SnapshotOptions, SnapshotStoragePricing, Waiting, BackendOffers, RootDisk,
-};
 use wsp_core::clock::Cancel;
-use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
-use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
-use wsp_machines::machines::area_error::{AreaError, AreaResult};
+use wsp_core::types::internal::SessionEntry;
+use wsp_core::types::wiring::{LiveWorkspace, WorkspaceRecord};
+use wsp_engine::box_backend::BoxLimits;
+use wsp_engine::errors::EngineError;
+use wsp_engine::lifecycle::{Workspace, WorkspaceHooks, WorkspaceInitial};
+use wsp_engine::machine::{
+    BackendOffers, BackendPricing, Capabilities, ExecOptions, ExecResult, Lifecycle,
+    LifecycleBudgets, Machine, MachineBackend, MachineKind, MachineLife, MachineListRow,
+    MachineOffers, MachineSpec, MachineState, RootDisk, RunOptions, Size, SnapshotOptions,
+    SnapshotStoragePricing, Waiting,
+};
+use wsp_machines::machines::area_error::AreaError;
 use wsp_machines::machines::machines::Entry;
 use wsp_wire::views::session::SessionView;
-use wsp_wire::views::workspace::DaemonReachView;
-use wsp_words::exit::HostError;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Running a test on one thread, as the host runs.
 
 /// Runs a test body on a current-thread runtime inside a `LocalSet`, so `spawn_local` works as the host's tasks do.
 pub fn run<F: Future<Output = ()>>(body: F) {
-    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
     let local = tokio::task::LocalSet::new();
     local.block_on(&rt, body);
 }
@@ -61,7 +64,11 @@ pub struct FakeClock {
 
 impl FakeClock {
     pub fn new(start: f64) -> Rc<FakeClock> {
-        Rc::new(FakeClock { now: Cell::new(start), seq: Cell::new(0), timers: RefCell::new(Vec::new()) })
+        Rc::new(FakeClock {
+            now: Cell::new(start),
+            seq: Cell::new(0),
+            timers: RefCell::new(Vec::new()),
+        })
     }
     pub fn now(&self) -> f64 {
         self.now.get()
@@ -69,7 +76,9 @@ impl FakeClock {
     pub fn schedule(self: &Rc<Self>, ms: f64, f: Box<dyn FnOnce()>) -> Cancel {
         let id = self.seq.get() + 1;
         self.seq.set(id);
-        self.timers.borrow_mut().push((self.now.get() + ms.max(0.0), id, Some(f)));
+        self.timers
+            .borrow_mut()
+            .push((self.now.get() + ms.max(0.0), id, Some(f)));
         let me = Rc::downgrade(self);
         Rc::new(move || {
             if let Some(c) = me.upgrade() {
@@ -95,7 +104,10 @@ impl FakeClock {
         loop {
             let next = {
                 let t = self.timers.borrow();
-                t.iter().filter(|x| x.0 <= end).min_by(|a, b| a.0.partial_cmp(&b.0).unwrap().then(a.1.cmp(&b.1))).map(|x| (x.0, x.1))
+                t.iter()
+                    .filter(|x| x.0 <= end)
+                    .min_by(|a, b| a.0.partial_cmp(&b.0).unwrap().then(a.1.cmp(&b.1)))
+                    .map(|x| (x.0, x.1))
             };
             let Some((at, id)) = next else { break };
             self.now.set(at.max(self.now.get()));
@@ -120,7 +132,11 @@ impl FakeClock {
 /// How a rule answers a command.
 #[derive(Clone)]
 pub enum Reply {
-    Out { code: i64, stdout: String, stderr: String },
+    Out {
+        code: i64,
+        stdout: String,
+        stderr: String,
+    },
     Fail(String),
     /// Waits for the gate to open, then answers the inner reply.
     Gated(Arc<Semaphore>, Box<Reply>),
@@ -129,11 +145,19 @@ pub enum Reply {
 }
 
 pub fn ok(stdout: &str) -> Reply {
-    Reply::Out { code: 0, stdout: stdout.to_string(), stderr: String::new() }
+    Reply::Out {
+        code: 0,
+        stdout: stdout.to_string(),
+        stderr: String::new(),
+    }
 }
 
 pub fn exit(code: i64, stderr: &str) -> Reply {
-    Reply::Out { code, stdout: String::new(), stderr: stderr.to_string() }
+    Reply::Out {
+        code,
+        stdout: String::new(),
+        stderr: stderr.to_string(),
+    }
 }
 
 type Rule = Box<dyn Fn(&str) -> Option<Reply> + Send + Sync>;
@@ -177,7 +201,11 @@ impl FakeMachine {
             killed: Mutex::new(false),
             kill_fails: Mutex::new(None),
             paused: Mutex::new(false),
-            offers: Mutex::new(MachineOffers { put_bytes: true, read_bytes: true, ..MachineOffers::default() }),
+            offers: Mutex::new(MachineOffers {
+                put_bytes: true,
+                read_bytes: true,
+                ..MachineOffers::default()
+            }),
             daemon_answers: Mutex::new(VecDeque::new()),
             daemon_exits: Mutex::new(VecDeque::new()),
             start_daemon: Mutex::new(VecDeque::new()),
@@ -209,7 +237,17 @@ impl FakeMachine {
         let mut r = r;
         loop {
             match r {
-                Reply::Out { code, stdout, stderr } => return Ok(ExecResult { exit_code: code.into(), stdout, stderr }),
+                Reply::Out {
+                    code,
+                    stdout,
+                    stderr,
+                } => {
+                    return Ok(ExecResult {
+                        exit_code: code.into(),
+                        stdout,
+                        stderr,
+                    })
+                }
                 Reply::Fail(m) => return Err(engine_error(&m)),
                 Reply::Gated(g, inner) => {
                     let _p = g.acquire().await.unwrap();
@@ -223,7 +261,10 @@ impl FakeMachine {
 
 /// An engine error with these words and no kind.
 pub fn engine_error(message: &str) -> EngineError {
-    EngineError::Other { message: message.to_string(), code: None }
+    EngineError::Other {
+        message: message.to_string(),
+        code: None,
+    }
 }
 
 #[async_trait(?Send)]
@@ -234,11 +275,21 @@ impl Machine for FakeMachine {
     fn kind(&self) -> MachineKind {
         MachineKind::Sandbox
     }
-    async fn preview_url(&self, _port: u16) -> Result<wsp_wire::wire::machine_link::PreviewReach, EngineError> {
+    async fn preview_url(
+        &self,
+        _port: u16,
+    ) -> Result<wsp_wire::wire::machine_link::PreviewReach, EngineError> {
         if !self.offers().preview_url {
-            return Err(EngineError::Other { message: "not on this road".to_string(), code: None });
+            return Err(EngineError::Other {
+                message: "not on this road".to_string(),
+                code: None,
+            });
         }
-        Ok(wsp_wire::wire::machine_link::PreviewReach { url: "http://127.0.0.1:1/".to_string(), token: "preview".to_string(), expires_at: 9_999_999_999_999.0.into() })
+        Ok(wsp_wire::wire::machine_link::PreviewReach {
+            url: "http://127.0.0.1:1/".to_string(),
+            token: "preview".to_string(),
+            expires_at: 9_999_999_999_999.0.into(),
+        })
     }
     fn offers(&self) -> MachineOffers {
         *self.offers.lock().unwrap()
@@ -251,14 +302,22 @@ impl Machine for FakeMachine {
     async fn run(&self, script: &str, _opts: RunOptions) -> Result<ExecResult, EngineError> {
         self.exec(script, ExecOptions::default()).await
     }
-    async fn snapshot(&self, _name: &str, _life: MachineLife, _opts: SnapshotOptions) -> Result<String, EngineError> {
+    async fn snapshot(
+        &self,
+        _name: &str,
+        _life: MachineLife,
+        _opts: SnapshotOptions,
+    ) -> Result<String, EngineError> {
         Ok(format!("snap_{}", self.id))
     }
     async fn pause(&self, _wait_ms: Option<u64>) -> Result<(), EngineError> {
         *self.paused.lock().unwrap() = true;
         Ok(())
     }
-    async fn resume(&self, _signal: Option<&wsp_engine::cancel::Cancel>) -> Result<(), EngineError> {
+    async fn resume(
+        &self,
+        _signal: Option<&wsp_engine::cancel::Cancel>,
+    ) -> Result<(), EngineError> {
         *self.paused.lock().unwrap() = false;
         Ok(())
     }
@@ -270,7 +329,11 @@ impl Machine for FakeMachine {
         Ok(())
     }
     async fn state(&self) -> Result<MachineState, EngineError> {
-        Ok(if *self.killed.lock().unwrap() { MachineState::Gone } else { MachineState::Running })
+        Ok(if *self.killed.lock().unwrap() {
+            MachineState::Gone
+        } else {
+            MachineState::Running
+        })
     }
     async fn download_url(&self, path: &str) -> Result<String, EngineError> {
         Ok(format!("https://files.test/{}", path))
@@ -299,11 +362,24 @@ impl Machine for FakeMachine {
             None => Ok(None),
         }
     }
-    async fn put_bytes(&self, path: &str, bytes: &[u8], _timeout_ms: Option<u64>) -> Result<Option<wsp_engine::machine::BytesLanded>, EngineError> {
-        self.files.lock().unwrap().push((path.to_string(), bytes.to_vec()));
+    async fn put_bytes(
+        &self,
+        path: &str,
+        bytes: &[u8],
+        _timeout_ms: Option<u64>,
+    ) -> Result<Option<wsp_engine::machine::BytesLanded>, EngineError> {
+        self.files
+            .lock()
+            .unwrap()
+            .push((path.to_string(), bytes.to_vec()));
         Ok(None)
     }
-    async fn read_bytes(&self, path: &str, _size: Option<u64>, _timeout_ms: Option<u64>) -> Result<Vec<u8>, EngineError> {
+    async fn read_bytes(
+        &self,
+        path: &str,
+        _size: Option<u64>,
+        _timeout_ms: Option<u64>,
+    ) -> Result<Vec<u8>, EngineError> {
         let gated = self.readable.lock().unwrap().get(path).cloned();
         if let Some(r) = gated {
             self.reply(r).await?;
@@ -329,11 +405,18 @@ impl BackendPricing for FakePricing {
         }
     }
     fn default_size(&self) -> Size {
-        Size { cpu: 2.0, mem_mb: 4096.0 }
+        Size {
+            cpu: 2.0,
+            mem_mb: 4096.0,
+        }
     }
     fn snapshot_storage(&self) -> SnapshotStoragePricing {
         SnapshotStoragePricing {
-            wire: wsp_wire::wire::machine_link::SnapshotStoragePricing { free_gb: 0.0.into(), usd_per_gb_month: 0.0.into(), billed_from: "named".to_string() },
+            wire: wsp_wire::wire::machine_link::SnapshotStoragePricing {
+                free_gb: 0.0.into(),
+                usd_per_gb_month: 0.0.into(),
+                billed_from: "named".to_string(),
+            },
             free_named: None,
             usd_per_named_month: None,
         }
@@ -349,13 +432,25 @@ pub struct FakeLifecycle {
 #[async_trait(?Send)]
 impl Lifecycle for FakeLifecycle {
     fn budgets(&self) -> LifecycleBudgets {
-        LifecycleBudgets { wake_attempts: 1.into(), daemon_answers_ms: self.daemon_answers_ms.into(), resume_asks: None }
+        LifecycleBudgets {
+            wake_attempts: 1.into(),
+            daemon_answers_ms: self.daemon_answers_ms.into(),
+            resume_asks: None,
+        }
     }
     fn has_backstop(&self) -> bool {
         true
     }
-    async fn backstop(&self, machine: &dyn Machine, until_ms: i64, exact: bool) -> Result<(), EngineError> {
-        self.backstops.lock().unwrap().push((machine.id().to_string(), until_ms, exact));
+    async fn backstop(
+        &self,
+        machine: &dyn Machine,
+        until_ms: i64,
+        exact: bool,
+    ) -> Result<(), EngineError> {
+        self.backstops
+            .lock()
+            .unwrap()
+            .push((machine.id().to_string(), until_ms, exact));
         Ok(())
     }
     fn disk_kept_ms(&self) -> Option<u64> {
@@ -381,7 +476,11 @@ impl FakeBackend {
             capabilities: Mutex::new(boat_capabilities()),
             limits: Mutex::new(None),
             limits_reads: Mutex::new(0),
-            lifecycle: Arc::new(FakeLifecycle { daemon_answers_ms: 900_000.0, disk_kept_ms: Mutex::new(None), backstops: Mutex::new(Vec::new()) }),
+            lifecycle: Arc::new(FakeLifecycle {
+                daemon_answers_ms: 900_000.0,
+                disk_kept_ms: Mutex::new(None),
+                backstops: Mutex::new(Vec::new()),
+            }),
             root_disks: Mutex::new(IndexMap::new()),
         })
     }
@@ -393,7 +492,12 @@ impl FakeBackend {
 
 /// Boat's capabilities as the stub plays it: a stop that snapshots the disk and the four classes.
 pub fn boat_capabilities() -> Capabilities {
-    let size = |cpu: f64, mem: f64, rate: f64| wsp_wire::wire::capabilities::MachineSizeOffer { cpu: cpu.into(), mem_mb: mem.into(), rate_usd_per_hour: rate.into(), name: None };
+    let size = |cpu: f64, mem: f64, rate: f64| wsp_wire::wire::capabilities::MachineSizeOffer {
+        cpu: cpu.into(),
+        mem_mb: mem.into(),
+        rate_usd_per_hour: rate.into(),
+        name: None,
+    };
     Capabilities {
         live_clone_forks: false,
         pause_mode: Some(wsp_wire::wire::capabilities::PauseMode::Disk),
@@ -410,7 +514,12 @@ pub fn boat_capabilities() -> Capabilities {
         copies: false,
         own_network: false,
         sizes_last: false,
-        sizes: vec![size(2.0, 4096.0, 0.018), size(4.0, 8192.0, 0.036), size(8.0, 16384.0, 0.072), size(16.0, 32768.0, 0.2)],
+        sizes: vec![
+            size(2.0, 4096.0, 0.018),
+            size(4.0, 8192.0, 0.036),
+            size(8.0, 16384.0, 0.072),
+            size(16.0, 32768.0, 0.2),
+        ],
     }
 }
 
@@ -426,12 +535,25 @@ impl MachineBackend for FakeBackend {
         Some(self.lifecycle.clone())
     }
     fn offers(&self) -> BackendOffers {
-        BackendOffers { limits: self.limits.lock().unwrap().is_some(), root_disk_of: !self.root_disks.lock().unwrap().is_empty(), ..BackendOffers::default() }
+        BackendOffers {
+            limits: self.limits.lock().unwrap().is_some(),
+            root_disk_of: !self.root_disks.lock().unwrap().is_empty(),
+            ..BackendOffers::default()
+        }
     }
     fn root_disk_of(&self, size: Size) -> Option<RootDisk> {
-        self.root_disks.lock().unwrap().get(&format!("{}x{}", size.cpu, size.mem_mb)).cloned()
+        self.root_disks
+            .lock()
+            .unwrap()
+            .get(&format!("{}x{}", size.cpu, size.mem_mb))
+            .cloned()
     }
-    async fn create(&self, spec: MachineSpec, _waiting: Option<Waiting>, _sent: Option<String>) -> Result<Arc<dyn Machine>, EngineError> {
+    async fn create(
+        &self,
+        spec: MachineSpec,
+        _waiting: Option<Waiting>,
+        _sent: Option<String>,
+    ) -> Result<Arc<dyn Machine>, EngineError> {
         self.creates.lock().unwrap().push(spec);
         let n = self.machines.lock().unwrap().len() + 1;
         let m = FakeMachine::new(&format!("bx_{n}"));
@@ -439,10 +561,21 @@ impl MachineBackend for FakeBackend {
         Ok(m)
     }
     async fn get(&self, id: &str) -> Result<Arc<dyn Machine>, EngineError> {
-        let found = self.machines.lock().unwrap().iter().find(|m| m.id == id).cloned();
-        found.map(|m| m as Arc<dyn Machine>).ok_or_else(|| engine_error(&format!("machine {id} is gone")))
+        let found = self
+            .machines
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|m| m.id == id)
+            .cloned();
+        found
+            .map(|m| m as Arc<dyn Machine>)
+            .ok_or_else(|| engine_error(&format!("machine {id} is gone")))
     }
-    async fn list(&self, _labels: Option<&IndexMap<String, String>>) -> Result<Vec<MachineListRow>, EngineError> {
+    async fn list(
+        &self,
+        _labels: Option<&IndexMap<String, String>>,
+    ) -> Result<Vec<MachineListRow>, EngineError> {
         Ok(Vec::new())
     }
     async fn delete_snapshot(&self, _id: &str) -> Result<(), EngineError> {
@@ -450,7 +583,11 @@ impl MachineBackend for FakeBackend {
     }
     async fn limits(&self) -> Result<BoxLimits, EngineError> {
         *self.limits_reads.lock().unwrap() += 1;
-        self.limits.lock().unwrap().clone().ok_or_else(|| engine_error("no limits"))
+        self.limits
+            .lock()
+            .unwrap()
+            .clone()
+            .ok_or_else(|| engine_error("no limits"))
     }
 }
 
@@ -463,8 +600,25 @@ pub fn paid() -> BoxLimits {
         plan_usd: Some(20.0),
         machines_at_once: Some(100.0),
         active_boxes: None,
-        starts: Some(StartWindows { minute: StartCount { used: 0.0, limit: 12.0 }, hour: StartCount { used: 9.0, limit: 60.0 }, day: StartCount { used: 187.0, limit: 200.0 } }),
-        sizes: vec![BoxClassType::Small, BoxClassType::Default, BoxClassType::Large],
+        starts: Some(StartWindows {
+            minute: StartCount {
+                used: 0.0,
+                limit: 12.0,
+            },
+            hour: StartCount {
+                used: 9.0,
+                limit: 60.0,
+            },
+            day: StartCount {
+                used: 187.0,
+                limit: 200.0,
+            },
+        }),
+        sizes: vec![
+            BoxClassType::Small,
+            BoxClassType::Default,
+            BoxClassType::Large,
+        ],
         can_start: true,
         start_blocked_reason: None,
         credit_balance_hours: None,
@@ -476,7 +630,15 @@ pub fn paid() -> BoxLimits {
 pub fn caller(thread: &str, workspace: &str, root: &str) -> wsp_wire::views::workspace::Caller {
     use wsp_wire::views::workspace::{Caller, ThreadLit};
     use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
-    Caller::Scoped { origin: WorkspaceOrigin::Here, by: ThreadScope { kind: ThreadLit, thread_id: thread.to_string(), workspace_id: workspace.to_string(), root_thread_id: root.to_string() } }
+    Caller::Scoped {
+        origin: WorkspaceOrigin::Here,
+        by: ThreadScope {
+            kind: ThreadLit,
+            thread_id: thread.to_string(),
+            workspace_id: workspace.to_string(),
+            root_thread_id: root.to_string(),
+        },
+    }
 }
 
 /// A caller in words, for keeping it on a call: `<thread>@<workspace>`, `road` for a bare road, `none`.
@@ -507,12 +669,20 @@ pub fn live_entry(record: Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine
         move_hook: None,
         retire: None,
     };
-    let ws = Rc::new(Workspace::new(machine.clone(), hooks, WorkspaceInitial::default()));
+    let ws = Rc::new(Workspace::new(
+        machine.clone(),
+        hooks,
+        WorkspaceInitial::default(),
+    ));
     live_entry_on(record, machine, ws)
 }
 
 /// An entry for a record on a machine, sharing the workspace another entry made (`attach` on a held workspace).
-pub fn live_entry_on(record: Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>, ws: Rc<Workspace>) -> Entry {
+pub fn live_entry_on(
+    record: Rc<RefCell<WorkspaceRecord>>,
+    machine: Arc<dyn Machine>,
+    ws: Rc<Workspace>,
+) -> Entry {
     Rc::new(RefCell::new(LiveWorkspace {
         record,
         opens_thread: None,
@@ -610,24 +780,40 @@ impl FakeHost {
 
     /// Keeps a call by name.
     pub fn call(&self, name: &str, args: &[&str]) {
-        self.calls.borrow_mut().push((name.to_string(), args.iter().map(|a| a.to_string()).collect()));
+        self.calls.borrow_mut().push((
+            name.to_string(),
+            args.iter().map(|a| a.to_string()).collect(),
+        ));
     }
     /// The calls of a name, in order.
     pub fn calls_of(&self, name: &str) -> Vec<Vec<String>> {
-        self.calls.borrow().iter().filter(|(n, _)| n == name).map(|(_, a)| a.clone()).collect()
+        self.calls
+            .borrow()
+            .iter()
+            .filter(|(n, _)| n == name)
+            .map(|(_, a)| a.clone())
+            .collect()
     }
     /// The next scripted answer of a name, if any.
     pub fn next(&self, name: &str) -> Option<Result<Value, AreaError>> {
-        self.scripted.borrow_mut().get_mut(name).and_then(|q| q.pop_front())
+        self.scripted
+            .borrow_mut()
+            .get_mut(name)
+            .and_then(|q| q.pop_front())
     }
     /// Scripts the next answer of a name.
     pub fn script(&self, name: &str, answer: Result<Value, AreaError>) {
-        self.scripted.borrow_mut().entry(name.to_string()).or_default().push_back(answer);
+        self.scripted
+            .borrow_mut()
+            .entry(name.to_string())
+            .or_default()
+            .push_back(answer);
     }
 
     /// A live entry for a record read off the TS JSON, on a machine of the fake backend.
     pub fn put_live(&self, record: Value, machine: Arc<FakeMachine>) -> Entry {
-        let record: WorkspaceRecord = serde_json::from_value(record).expect("the record reads as the TS writes it");
+        let record: WorkspaceRecord =
+            serde_json::from_value(record).expect("the record reads as the TS writes it");
         let id = record.id.clone();
         self.backend.add(machine.clone());
         let entry = live_entry(Rc::new(RefCell::new(record)), machine);
@@ -646,39 +832,77 @@ impl FakeHost {
     }
     /// The record as last persisted, as JSON.
     pub fn stored(&self, id: &str) -> Option<Value> {
-        self.store.borrow().get("workspaces").and_then(|c| c.get(id)).cloned()
+        self.store
+            .borrow()
+            .get("workspaces")
+            .and_then(|c| c.get(id))
+            .cloned()
     }
     pub fn persist_now(&self, record: &WorkspaceRecord) {
         let v = serde_json::to_value(record).unwrap();
-        self.store.borrow_mut().entry("workspaces".to_string()).or_default().insert(record.id.clone(), v);
+        self.store
+            .borrow_mut()
+            .entry("workspaces".to_string())
+            .or_default()
+            .insert(record.id.clone(), v);
     }
     pub fn blob(&self, collection: &str, key: &str) -> Option<Vec<u8>> {
-        self.blobs.borrow().get(&(collection.to_string(), key.to_string())).cloned()
+        self.blobs
+            .borrow()
+            .get(&(collection.to_string(), key.to_string()))
+            .cloned()
     }
     /// Emits on the fake bus: listeners of the type, then `"*"`, inline.
     pub fn emit_now(&self, event: Value) {
         self.events.borrow_mut().push(event.clone());
         let kind = event["type"].as_str().unwrap_or("").to_string();
-        let ls: Vec<_> = self.listeners.borrow().iter().filter(|(k, _)| *k == kind).map(|(_, f)| f.clone()).collect();
+        let ls: Vec<_> = self
+            .listeners
+            .borrow()
+            .iter()
+            .filter(|(k, _)| *k == kind)
+            .map(|(_, f)| f.clone())
+            .collect();
         for f in ls {
             f(&event);
         }
-        let all: Vec<_> = self.listeners.borrow().iter().filter(|(k, _)| k == "*").map(|(_, f)| f.clone()).collect();
+        let all: Vec<_> = self
+            .listeners
+            .borrow()
+            .iter()
+            .filter(|(k, _)| k == "*")
+            .map(|(_, f)| f.clone())
+            .collect();
         for f in all {
             f(&event);
         }
     }
     pub fn events_of(&self, kind: &str) -> Vec<Value> {
-        self.events.borrow().iter().filter(|e| e["type"] == kind).cloned().collect()
+        self.events
+            .borrow()
+            .iter()
+            .filter(|e| e["type"] == kind)
+            .cloned()
+            .collect()
     }
     /// A session row for a thread on a workspace, as a turn leaves one.
-    pub fn put_row(&self, turn_id: &str, workspace_id: &str, thread_id: &str, started_at: f64, claude_session_id: Option<&str>) {
+    pub fn put_row(
+        &self,
+        turn_id: &str,
+        workspace_id: &str,
+        thread_id: &str,
+        started_at: f64,
+        claude_session_id: Option<&str>,
+    ) {
         let view: SessionView = serde_json::from_value(json!({
             "id": turn_id, "workspaceId": workspace_id, "harness": "claude", "status": "completed", "threadId": thread_id,
             "startedAt": started_at, "claudeSessionId": claude_session_id, "prompt": "Fix the flaky upload test",
         }))
         .unwrap();
-        self.sessions.borrow_mut().insert(turn_id.to_string(), queue_ctx::session_entry(view, turn_id.to_string()));
+        self.sessions.borrow_mut().insert(
+            turn_id.to_string(),
+            queue_ctx::session_entry(view, turn_id.to_string()),
+        );
     }
     pub fn spawn_local(&self, f: LocalBoxFuture<'static, ()>) {
         tokio::task::spawn_local(f);
@@ -704,7 +928,8 @@ pub const PUSHED_SHA: &str = "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e";
 /// sub-fixture.ts `PUSHED`: the branch pushed, three commits on the lead's.
 pub const PUSHED: &str = "branch wsp/fix-the-flaky-upload-test\npushed 9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e\nunpushed 0\nchanged 0\ncommits 3\n";
 /// sub-fixture.ts `UNPUSHED`: two commits nobody pushed and three files changed.
-pub const UNPUSHED: &str = "branch wsp/fix-the-flaky-upload-test\npushed none\nunpushed 2\nchanged 3\n";
+pub const UNPUSHED: &str =
+    "branch wsp/fix-the-flaky-upload-test\npushed none\nunpushed 2\nchanged 3\n";
 pub const MIN: f64 = 60_000.0;
 
 /// A machine answering the result read with `read` and the session's pack as `session` says (sub-fixture.ts
@@ -715,7 +940,13 @@ pub fn answering(m: &FakeMachine, read: Reply, session: Option<Vec<u8>>, thread:
         None => m.answer("gzip -c", ok("nofile\n")),
         Some(bytes) => {
             let at = format!("/tmp/wsp-session-{thread}.gz");
-            m.answer("gzip -c", ok(&format!("path /root/.claude-cfg/projects/-root-web/s2.jsonl\nsize {}\n", bytes.len())));
+            m.answer(
+                "gzip -c",
+                ok(&format!(
+                    "path /root/.claude-cfg/projects/-root-web/s2.jsonl\nsize {}\n",
+                    bytes.len()
+                )),
+            );
             m.read_bytes_bytes.lock().unwrap().insert(at, bytes);
         }
     }
@@ -736,8 +967,8 @@ pub fn ready<T: 'static>(v: T) -> LocalBoxFuture<'static, T> {
     async move { v }.boxed_local()
 }
 
+pub mod kinds_ctx;
 pub mod life_ctx;
 pub mod queue_ctx;
-pub mod spawn_ctx;
 pub mod reach_ctx;
-pub mod kinds_ctx;
+pub mod spawn_ctx;

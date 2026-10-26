@@ -10,9 +10,14 @@ use std::sync::{Mutex, MutexGuard};
 use indexmap::IndexMap;
 use tokio::net::TcpStream;
 use wsp_machines::places::helpers::{listen_near, Forward, ForwardConn, OnConn};
-use wsp_machines::places::pane_ports::{ForwardEvent, PaneAsker, PaneForwards, PaneOnConn, PanePorts, PanePortsDeps};
+use wsp_machines::places::pane_ports::{
+    ForwardEvent, PaneAsker, PaneForwards, PaneOnConn, PanePorts, PanePortsDeps,
+};
 use wsp_wire::wire::limits::{PortForward, PortForwardKind, RelayPort, FORWARD_MAX_PER_TARGET};
-use wsp_wire::wire::place_link::{pane_forward_cap_line, pane_forward_floor_line, pane_forward_gone_line, pane_forward_quiet_line, pane_forward_stopped_line};
+use wsp_wire::wire::place_link::{
+    pane_forward_cap_line, pane_forward_floor_line, pane_forward_gone_line,
+    pane_forward_quiet_line, pane_forward_stopped_line,
+};
 use wsp_words::exit::{HostError, Kind};
 
 use common::places::*;
@@ -24,12 +29,20 @@ fn serial() -> MutexGuard<'static, ()> {
 }
 
 fn free_port() -> u16 {
-    TcpListener::bind("127.0.0.1:0").expect("a port").local_addr().expect("an address").port()
+    TcpListener::bind("127.0.0.1:0")
+        .expect("a port")
+        .local_addr()
+        .expect("an address")
+        .port()
 }
 
 fn free_ports(n: usize) -> Vec<u16> {
-    let held: Vec<TcpListener> = (0..n).map(|_| TcpListener::bind("127.0.0.1:0").expect("a port")).collect();
-    held.iter().map(|l| l.local_addr().expect("an address").port()).collect()
+    let held: Vec<TcpListener> = (0..n)
+        .map(|_| TcpListener::bind("127.0.0.1:0").expect("a port"))
+        .collect();
+    held.iter()
+        .map(|l| l.local_addr().expect("an address").port())
+        .collect()
 }
 
 /// A port with the `n - 1` above it free too, so a walk up from it is exact.
@@ -73,11 +86,20 @@ async fn gone(port: u16) -> bool {
 }
 
 fn asker(workspace_id: &str, name: &str) -> PaneAsker {
-    PaneAsker { workspace_id: workspace_id.to_string(), name: name.to_string() }
+    PaneAsker {
+        workspace_id: workspace_id.to_string(),
+        name: name.to_string(),
+    }
 }
 
 fn view(workspace_id: &str, port: u16, name: &str, at: i64) -> PortForward {
-    PortForward { workspace_id: workspace_id.to_string(), port: RelayPort((port as i64).into()), started_at: iso(at), name: name.to_string(), kind: PortForwardKind::Url }
+    PortForward {
+        workspace_id: workspace_id.to_string(),
+        port: RelayPort((port as i64).into()),
+        started_at: iso(at),
+        name: name.to_string(),
+        kind: PortForwardKind::Url,
+    }
 }
 
 fn open(v: &PortForward) -> ForwardEvent {
@@ -85,7 +107,10 @@ fn open(v: &PortForward) -> ForwardEvent {
 }
 
 fn close(workspace_id: &str, port: u16) -> ForwardEvent {
-    ForwardEvent::Close { workspace_id: workspace_id.to_string(), port }
+    ForwardEvent::Close {
+        workspace_id: workspace_id.to_string(),
+        port,
+    }
 }
 
 fn refused(got: Result<u16, HostError>, line: String) {
@@ -100,7 +125,9 @@ struct FakeConn {
 
 impl FakeConn {
     fn new() -> Rc<FakeConn> {
-        Rc::new(FakeConn { destroyed: Cell::new(false) })
+        Rc::new(FakeConn {
+            destroyed: Cell::new(false),
+        })
     }
 }
 
@@ -128,10 +155,15 @@ impl Pane {
     fn new() -> Pane {
         let clock = TestClock::new();
         let forwards = Rc::new(RefCell::new(IndexMap::new()));
-        let ports = PanePorts::new(PanePortsDeps { forwards: Rc::clone(&forwards), clock: clock.clone() });
+        let ports = PanePorts::new(PanePortsDeps {
+            forwards: Rc::clone(&forwards),
+            clock: clock.clone(),
+        });
         let events = Rc::new(RefCell::new(Vec::new()));
         let log = Rc::clone(&events);
-        let _ = ports.on(Rc::new(move |e: &ForwardEvent| log.borrow_mut().push(e.clone())));
+        let _ = ports.on(Rc::new(move |e: &ForwardEvent| {
+            log.borrow_mut().push(e.clone())
+        }));
         let accepted = Rc::new(Cell::new(0));
         let streams = Rc::new(RefCell::new(Vec::new()));
         let (count, keep) = (Rc::clone(&accepted), Rc::clone(&streams));
@@ -140,16 +172,42 @@ impl Pane {
             keep.borrow_mut().push(stream);
             used();
         });
-        Pane { clock, forwards, ports, events, accepted, streams, on_conn }
+        Pane {
+            clock,
+            forwards,
+            ports,
+            events,
+            accepted,
+            streams,
+            on_conn,
+        }
     }
 
     async fn reach(&self, key: &str, port: u32, workspace_id: &str) -> Result<u16, HostError> {
-        let name = if workspace_id == "ws1" { "spoo-ts" } else { "elsewhere" };
-        self.ports.reach(key, port, asker(workspace_id, name), Rc::clone(&self.on_conn)).await
+        let name = if workspace_id == "ws1" {
+            "spoo-ts"
+        } else {
+            "elsewhere"
+        };
+        self.ports
+            .reach(
+                key,
+                port,
+                asker(workspace_id, name),
+                Rc::clone(&self.on_conn),
+            )
+            .await
     }
 
     fn conns(&self, key: &str) -> Conns {
-        Rc::clone(&self.forwards.borrow().get(key).expect("a forward under the key").conns)
+        Rc::clone(
+            &self
+                .forwards
+                .borrow()
+                .get(key)
+                .expect("a forward under the key")
+                .conns,
+        )
     }
 
     fn keys(&self) -> Vec<String> {
@@ -174,7 +232,10 @@ fn opens_at_the_asked_number_and_says_so() {
         assert_eq!(pane.keys(), vec!["k".to_string()]);
         assert_eq!(pane.forwards.borrow()["k"].local_port, p);
         assert!(connects(p).await);
-        until("the connection reached the pane's handler", || pane.accepted.get() == 1).await;
+        until("the connection reached the pane's handler", || {
+            pane.accepted.get() == 1
+        })
+        .await;
         assert_eq!(pane.streams.borrow().len(), 1);
     });
 }
@@ -197,7 +258,10 @@ fn stands_while_the_pane_keeps_asking_and_goes_once_it_stops() {
         assert!(gone(p).await);
         assert!(pane.ports.list().is_empty());
         assert!(pane.keys().is_empty());
-        assert_eq!(pane.events(), vec![open(&view("ws1", p, "spoo-ts", T0)), close("ws1", p)]);
+        assert_eq!(
+            pane.events(),
+            vec![open(&view("ws1", p, "spoo-ts", T0)), close("ws1", p)]
+        );
         assert_eq!(pane.clock.pending(), 0);
         assert_eq!(pane.reach("k", p as u32, "ws1").await.unwrap(), p);
         assert!(connects(p).await);
@@ -219,11 +283,20 @@ fn goes_after_a_quiet_hour_tells_the_pane_once_and_opens_again() {
         }
         assert!(gone(p).await);
         assert!(pane.ports.list().is_empty());
-        assert_eq!(pane.events(), vec![open(&view("ws1", p, "spoo-ts", T0)), close("ws1", p)]);
-        refused(pane.reach("k", p as u32, "ws1").await, pane_forward_quiet_line(p as i64));
+        assert_eq!(
+            pane.events(),
+            vec![open(&view("ws1", p, "spoo-ts", T0)), close("ws1", p)]
+        );
+        refused(
+            pane.reach("k", p as u32, "ws1").await,
+            pane_forward_quiet_line(p as i64),
+        );
         assert_eq!(pane.reach("k", p as u32, "ws1").await.unwrap(), p);
         assert!(connects(p).await);
-        assert_eq!(pane.ports.list(), vec![view("ws1", p, "spoo-ts", T0 + 3_600_000)]);
+        assert_eq!(
+            pane.ports.list(),
+            vec![view("ws1", p, "spoo-ts", T0 + 3_600_000)]
+        );
     });
 }
 
@@ -248,7 +321,10 @@ fn an_open_connection_holds_it_past_the_hold() {
         pane.clock.pass(1).await;
         assert!(gone(p).await);
         assert!(pane.ports.list().is_empty());
-        assert_eq!(pane.events(), vec![open(&view("ws1", p, "spoo-ts", T0)), close("ws1", p)]);
+        assert_eq!(
+            pane.events(),
+            vec![open(&view("ws1", p, "spoo-ts", T0)), close("ws1", p)]
+        );
         assert!(!conn.destroyed.get());
         assert_eq!(pane.reach("k", p as u32, "ws1").await.unwrap(), p);
     });
@@ -265,8 +341,13 @@ fn a_connection_moves_the_quiet_hour() {
             pane.clock.pass(60_000).await;
             assert_eq!(pane.reach("k", p as u32, "ws1").await.unwrap(), p);
             if minute == 30 {
-                let client = TcpStream::connect(("127.0.0.1", p)).await.expect("a connection");
-                until("the connection reached the pane's handler", || pane.accepted.get() == 1).await;
+                let client = TcpStream::connect(("127.0.0.1", p))
+                    .await
+                    .expect("a connection");
+                until("the connection reached the pane's handler", || {
+                    pane.accepted.get() == 1
+                })
+                .await;
                 drop(client);
             }
         }
@@ -274,8 +355,14 @@ fn a_connection_moves_the_quiet_hour() {
         assert_eq!(pane.events(), vec![open(&view("ws1", p, "spoo-ts", T0))]);
         pane.clock.pass(60_000).await;
         assert!(gone(p).await);
-        assert_eq!(pane.events(), vec![open(&view("ws1", p, "spoo-ts", T0)), close("ws1", p)]);
-        refused(pane.reach("k", p as u32, "ws1").await, pane_forward_quiet_line(p as i64));
+        assert_eq!(
+            pane.events(),
+            vec![open(&view("ws1", p, "spoo-ts", T0)), close("ws1", p)]
+        );
+        refused(
+            pane.reach("k", p as u32, "ws1").await,
+            pane_forward_quiet_line(p as i64),
+        );
     });
 }
 
@@ -285,18 +372,30 @@ fn refuses_a_port_below_1024_or_above_65535() {
     block(async {
         let pane = Pane::new();
         for bad in [80u32, 1023, 65_536] {
-            refused(pane.reach("k", bad, "ws1").await, pane_forward_floor_line(bad as i64));
+            refused(
+                pane.reach("k", bad, "ws1").await,
+                pane_forward_floor_line(bad as i64),
+            );
         }
         assert!(pane.ports.list().is_empty());
         assert!(pane.keys().is_empty());
         assert!(pane.events().is_empty());
 
         let _top = TcpListener::bind(("127.0.0.1", 65_535));
-        let e = pane.reach("k", 65_535, "ws1").await.expect_err("65535 passes the floor and finds no free number");
-        assert_eq!(e.message, "no port from 65535 to 65555 is free on this computer");
+        let e = pane
+            .reach("k", 65_535, "ws1")
+            .await
+            .expect_err("65535 passes the floor and finds no free number");
+        assert_eq!(
+            e.message,
+            "no port from 65535 to 65555 is free on this computer"
+        );
 
         let _bottom = TcpListener::bind(("127.0.0.1", 1024));
-        let local = pane.reach("k", 1024, "ws1").await.expect("1024 passes the floor");
+        let local = pane
+            .reach("k", 1024, "ws1")
+            .await
+            .expect("1024 passes the floor");
         assert!(local > 1024 && local <= 1044, "{local}");
         assert_eq!(pane.ports.list(), vec![view("ws1", local, "spoo-ts", T0)]);
     });
@@ -310,19 +409,36 @@ fn refuses_the_seventeenth_for_one_workspace_and_not_another() {
         let cap = FORWARD_MAX_PER_TARGET as usize;
         let ports = free_ports(cap + 3);
         for (i, p) in ports[..cap].iter().enumerate() {
-            assert_eq!(pane.reach(&format!("k{i}"), *p as u32, "ws1").await.unwrap(), *p);
+            assert_eq!(
+                pane.reach(&format!("k{i}"), *p as u32, "ws1")
+                    .await
+                    .unwrap(),
+                *p
+            );
         }
-        refused(pane.reach("k16", ports[cap] as u32, "ws1").await, pane_forward_cap_line("spoo-ts", FORWARD_MAX_PER_TARGET));
+        refused(
+            pane.reach("k16", ports[cap] as u32, "ws1").await,
+            pane_forward_cap_line("spoo-ts", FORWARD_MAX_PER_TARGET),
+        );
         assert!(!connects(ports[cap]).await);
         assert_eq!(pane.ports.list().len(), cap);
         assert_eq!(pane.forwards.borrow().len(), cap);
 
-        assert_eq!(pane.reach("o", ports[cap + 1] as u32, "ws2").await.unwrap(), ports[cap + 1]);
+        assert_eq!(
+            pane.reach("o", ports[cap + 1] as u32, "ws2").await.unwrap(),
+            ports[cap + 1]
+        );
         assert_eq!(pane.ports.list().len(), cap + 1);
 
         assert!(pane.ports.stop("ws1", ports[0]));
-        assert_eq!(pane.reach("k16", ports[cap] as u32, "ws1").await.unwrap(), ports[cap]);
-        refused(pane.reach("k17", ports[cap + 2] as u32, "ws1").await, pane_forward_cap_line("spoo-ts", FORWARD_MAX_PER_TARGET));
+        assert_eq!(
+            pane.reach("k16", ports[cap] as u32, "ws1").await.unwrap(),
+            ports[cap]
+        );
+        refused(
+            pane.reach("k17", ports[cap + 2] as u32, "ws1").await,
+            pane_forward_cap_line("spoo-ts", FORWARD_MAX_PER_TARGET),
+        );
         assert!(!connects(ports[cap + 2]).await);
     });
 }
@@ -337,12 +453,18 @@ fn the_ports_list_stops_one_and_its_pane_is_told_once() {
         assert_eq!(pane.reach("k1", p1 as u32, "ws1").await.unwrap(), p1);
         assert_eq!(pane.reach("k2", p2 as u32, "ws1").await.unwrap(), p2);
         assert_eq!(pane.reach("k3", p3 as u32, "ws2").await.unwrap(), p3);
-        let (v1, v2, v3) = (view("ws1", p1, "spoo-ts", T0), view("ws1", p2, "spoo-ts", T0), view("ws2", p3, "elsewhere", T0));
+        let (v1, v2, v3) = (
+            view("ws1", p1, "spoo-ts", T0),
+            view("ws1", p2, "spoo-ts", T0),
+            view("ws2", p3, "elsewhere", T0),
+        );
         assert_eq!(pane.ports.list(), vec![v1.clone(), v2.clone(), v3.clone()]);
         assert_eq!(pane.ports.standing("k2", p2 as u32).unwrap(), p2);
 
         let conn = FakeConn::new();
-        pane.conns("k1").borrow_mut().insert("t1".to_string(), conn.clone());
+        pane.conns("k1")
+            .borrow_mut()
+            .insert("t1".to_string(), conn.clone());
         assert!(pane.ports.stop("ws1", p1));
         assert!(conn.destroyed.get());
         assert!(gone(p1).await);
@@ -351,19 +473,28 @@ fn the_ports_list_stops_one_and_its_pane_is_told_once() {
         let told = vec![open(&v1), open(&v2), open(&v3), close("ws1", p1)];
         assert_eq!(pane.events(), told);
 
-        let e = pane.ports.standing("k1", p1 as u32).expect_err("a forward that does not stand");
+        let e = pane
+            .ports
+            .standing("k1", p1 as u32)
+            .expect_err("a forward that does not stand");
         assert_eq!(e.message, pane_forward_gone_line(p1 as i64));
         assert_eq!(e.kind, Some(Kind::Usage));
         assert!(gone(p1).await);
         assert_eq!(pane.events(), told);
 
-        refused(pane.reach("k1", p1 as u32, "ws1").await, pane_forward_stopped_line(p1 as i64));
+        refused(
+            pane.reach("k1", p1 as u32, "ws1").await,
+            pane_forward_stopped_line(p1 as i64),
+        );
         assert!(gone(p1).await);
         assert_eq!(pane.events(), told);
 
         assert_eq!(pane.reach("k1", p1 as u32, "ws1").await.unwrap(), p1);
         assert!(connects(p1).await);
-        assert_eq!(pane.ports.list(), vec![v2, v3, view("ws1", p1, "spoo-ts", T0)]);
+        assert_eq!(
+            pane.ports.list(),
+            vec![v2, v3, view("ws1", p1, "spoo-ts", T0)]
+        );
     });
 }
 
@@ -404,14 +535,19 @@ fn a_stop_after_the_hold_leaves_no_line() {
         let p = free_port();
         assert_eq!(pane.reach("k", p as u32, "ws1").await.unwrap(), p);
         let conn = FakeConn::new();
-        pane.conns("k").borrow_mut().insert("t1".to_string(), conn.clone());
+        pane.conns("k")
+            .borrow_mut()
+            .insert("t1".to_string(), conn.clone());
         pane.clock.pass(130_000).await;
         assert_eq!(pane.ports.list().len(), 1);
 
         assert!(pane.ports.stop("ws1", p));
         assert!(conn.destroyed.get());
         assert!(gone(p).await);
-        assert_eq!(pane.events(), vec![open(&view("ws1", p, "spoo-ts", T0)), close("ws1", p)]);
+        assert_eq!(
+            pane.events(),
+            vec![open(&view("ws1", p, "spoo-ts", T0)), close("ws1", p)]
+        );
         assert_eq!(pane.reach("k", p as u32, "ws1").await.unwrap(), p);
         assert!(connects(p).await);
     });
@@ -429,7 +565,9 @@ fn close_keeps_a_newer_forward_under_the_same_key() {
         let older = {
             let mut forwards = pane.forwards.borrow_mut();
             let newer = forwards.shift_remove("other").expect("the second forward");
-            forwards.insert("k".to_string(), newer).expect("the first forward")
+            forwards
+                .insert("k".to_string(), newer)
+                .expect("the first forward")
         };
 
         assert!(pane.ports.stop("ws1", p1));
@@ -451,14 +589,22 @@ fn a_held_forward_is_held_again_without_the_checks() {
         let cap = FORWARD_MAX_PER_TARGET as usize;
         let ports = free_ports(cap);
         for (i, p) in ports.iter().enumerate() {
-            assert_eq!(pane.reach(&format!("k{i}"), *p as u32, "ws1").await.unwrap(), *p);
+            assert_eq!(
+                pane.reach(&format!("k{i}"), *p as u32, "ws1")
+                    .await
+                    .unwrap(),
+                *p
+            );
         }
         pane.clock.pass(100_000).await;
         assert_eq!(pane.reach("k0", 80, "ws1").await.unwrap(), ports[0]);
         assert_eq!(pane.ports.list().len(), cap);
 
         pane.clock.pass(100_000).await;
-        assert_eq!(pane.ports.list(), vec![view("ws1", ports[0], "spoo-ts", T0)]);
+        assert_eq!(
+            pane.ports.list(),
+            vec![view("ws1", ports[0], "spoo-ts", T0)]
+        );
         assert!(connects(ports[0]).await);
         pane.clock.pass(20_000).await;
         assert!(gone(ports[0]).await);
@@ -476,7 +622,10 @@ fn a_timer_for_a_closed_forward_does_nothing() {
         pane.clock.pass(60_000).await;
         assert!(pane.ports.stop("ws1", p));
         assert_eq!(pane.clock.pending(), 0);
-        refused(pane.reach("k", p as u32, "ws1").await, pane_forward_stopped_line(p as i64));
+        refused(
+            pane.reach("k", p as u32, "ws1").await,
+            pane_forward_stopped_line(p as i64),
+        );
         assert_eq!(pane.reach("k", p as u32, "ws1").await.unwrap(), p);
         let reopened = view("ws1", p, "spoo-ts", T0 + 60_000);
         assert_eq!(pane.ports.list(), vec![reopened.clone()]);
@@ -484,7 +633,14 @@ fn a_timer_for_a_closed_forward_does_nothing() {
         pane.clock.pass(60_000).await;
         assert_eq!(pane.ports.list(), vec![reopened.clone()]);
         assert!(connects(p).await);
-        assert_eq!(pane.events(), vec![open(&view("ws1", p, "spoo-ts", T0)), close("ws1", p), open(&reopened)]);
+        assert_eq!(
+            pane.events(),
+            vec![
+                open(&view("ws1", p, "spoo-ts", T0)),
+                close("ws1", p),
+                open(&reopened)
+            ]
+        );
 
         pane.clock.pass(60_000).await;
         assert!(gone(p).await);
@@ -514,11 +670,21 @@ fn on_answers_an_unsubscribe() {
         let _second = pane.ports.on(tag("b"));
         let p = free_port();
         assert_eq!(pane.reach("k", p as u32, "ws1").await.unwrap(), p);
-        assert_eq!(*log.borrow(), vec![format!("a:open:{p}"), format!("b:open:{p}")]);
+        assert_eq!(
+            *log.borrow(),
+            vec![format!("a:open:{p}"), format!("b:open:{p}")]
+        );
 
         first();
         assert!(pane.ports.stop("ws1", p));
-        assert_eq!(*log.borrow(), vec![format!("a:open:{p}"), format!("b:open:{p}"), format!("b:close:{p}")]);
+        assert_eq!(
+            *log.borrow(),
+            vec![
+                format!("a:open:{p}"),
+                format!("b:open:{p}"),
+                format!("b:close:{p}")
+            ]
+        );
         assert_eq!(pane.events().len(), 2);
     });
 }
@@ -577,9 +743,16 @@ fn listen_near_holds_both_loopbacks() {
         let addrs: Vec<String> = listeners.iter().map(|l| l.addr.to_string()).collect();
         if has_v6() {
             assert_eq!(addrs, vec![format!("127.0.0.1:{p}"), format!("[::1]:{p}")]);
-            TcpStream::connect(("::1", p)).await.expect("a connection on ::1");
-            TcpStream::connect(("127.0.0.1", p)).await.expect("a connection on 127.0.0.1");
-            until("both connections reached the handler", || accepted.get() == 2).await;
+            TcpStream::connect(("::1", p))
+                .await
+                .expect("a connection on ::1");
+            TcpStream::connect(("127.0.0.1", p))
+                .await
+                .expect("a connection on 127.0.0.1");
+            until("both connections reached the handler", || {
+                accepted.get() == 2
+            })
+            .await;
         } else {
             assert_eq!(addrs, vec![format!("127.0.0.1:{p}")]);
         }
@@ -595,14 +768,31 @@ fn listen_near_says_no_port_is_free() {
     let _only = serial();
     block(async {
         let p = run_of(21);
-        let blockers: Vec<TcpListener> = (0..=20).map(|i| TcpListener::bind(("127.0.0.1", p + i)).expect("a number taken")).collect();
+        let blockers: Vec<TcpListener> = (0..=20)
+            .map(|i| TcpListener::bind(("127.0.0.1", p + i)).expect("a number taken"))
+            .collect();
         let (on_conn, _accepted, _streams) = counting();
-        let e = listen_near(p, Rc::clone(&on_conn)).await.err().expect("no number free");
-        assert_eq!(e.message, format!("no port from {p} to {} is free on this computer", p as u32 + 20));
+        let e = listen_near(p, Rc::clone(&on_conn))
+            .await
+            .err()
+            .expect("no number free");
+        assert_eq!(
+            e.message,
+            format!(
+                "no port from {p} to {} is free on this computer",
+                p as u32 + 20
+            )
+        );
         drop(blockers);
 
         let _top = TcpListener::bind(("127.0.0.1", 65_535));
-        let e = listen_near(65_535, on_conn).await.err().expect("no number free at the top");
-        assert_eq!(e.message, "no port from 65535 to 65555 is free on this computer");
+        let e = listen_near(65_535, on_conn)
+            .await
+            .err()
+            .expect("no number free at the top");
+        assert_eq!(
+            e.message,
+            "no port from 65535 to 65555 is free on this computer"
+        );
     });
 }

@@ -39,7 +39,13 @@ pub struct World {
 }
 
 fn names(v: &Value) -> HashSet<String> {
-    v.as_array().map(|a| a.iter().map(|x| x.as_str().expect("a name").to_string()).collect()).unwrap_or_default()
+    v.as_array()
+        .map(|a| {
+            a.iter()
+                .map(|x| x.as_str().expect("a name").to_string())
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 impl World {
@@ -50,7 +56,12 @@ impl World {
 
     pub fn new(seed: &Value, world: &Value, answers: Vec<Answer>) -> Rc<World> {
         let log = Log::default();
-        let logs = StoreLogs { get: true, put: true, delete: true, ..Default::default() };
+        let logs = StoreLogs {
+            get: true,
+            put: true,
+            delete: true,
+            ..Default::default()
+        };
         let store = MemStore::seeded(&json!({ OWED: seed }), log.clone(), logs);
         Rc::new(World {
             log,
@@ -66,7 +77,14 @@ impl World {
 
     /// `ThreadEnds` over the fakes of this world, as `threadEnds(ctx, door)` is built in the oracle.
     pub fn ends(self: &Rc<Self>) -> Rc<ThreadEnds> {
-        ThreadEnds::new(Rc::new(FakeRuntime { world: Rc::clone(self) }), Rc::new(FakeDoor { world: Rc::clone(self) }))
+        ThreadEnds::new(
+            Rc::new(FakeRuntime {
+                world: Rc::clone(self),
+            }),
+            Rc::new(FakeDoor {
+                world: Rc::clone(self),
+            }),
+        )
     }
 
     /// The next `store_get` reads its row at once and answers only once the returned sender is used (or dropped).
@@ -78,7 +96,11 @@ impl World {
 
     /// The log entries whose first word is one of `kinds`, in order.
     pub fn log_of(&self, kinds: &[&str]) -> Vec<Value> {
-        self.log.take().into_iter().filter(|e| kinds.iter().any(|k| e[0] == *k)).collect()
+        self.log
+            .take()
+            .into_iter()
+            .filter(|e| kinds.iter().any(|k| e[0] == *k))
+            .collect()
     }
 }
 
@@ -136,11 +158,27 @@ pub struct FakeDoor {
 
 #[async_trait(?Send)]
 impl ThreadEndsDoor for FakeDoor {
-    async fn exec(&self, place_id: &str, script: &str, timeout_ms: u64) -> Result<ExecResult, HostError> {
-        self.world.log.push(json!(["door.exec", place_id, script, { "timeoutMs": timeout_ms }]));
-        let answer = self.world.answers.borrow_mut().pop_front().unwrap_or(Answer::Exit(0, ""));
+    async fn exec(
+        &self,
+        place_id: &str,
+        script: &str,
+        timeout_ms: u64,
+    ) -> Result<ExecResult, HostError> {
+        self.world
+            .log
+            .push(json!(["door.exec", place_id, script, { "timeoutMs": timeout_ms }]));
+        let answer = self
+            .world
+            .answers
+            .borrow_mut()
+            .pop_front()
+            .unwrap_or(Answer::Exit(0, ""));
         match answer {
-            Answer::Exit(code, stderr) => Ok(ExecResult { exit_code: JsInt::from(code), stdout: String::new(), stderr: stderr.to_string() }),
+            Answer::Exit(code, stderr) => Ok(ExecResult {
+                exit_code: JsInt::from(code),
+                stdout: String::new(),
+                stderr: stderr.to_string(),
+            }),
             Answer::Throws => Err(HostError::new("no answer")),
             Answer::Hangs => std::future::pending::<Result<ExecResult, HostError>>().await,
         }
@@ -152,7 +190,11 @@ impl ThreadEndsDoor for FakeDoor {
     }
 
     fn name_of(&self, place_id: &str) -> String {
-        if place_id == "p1" { "hetzner".to_string() } else { place_id.to_string() }
+        if place_id == "p1" {
+            "hetzner".to_string()
+        } else {
+            place_id.to_string()
+        }
     }
 }
 
@@ -160,11 +202,20 @@ impl ThreadEndsDoor for FakeDoor {
 pub async fn finish(world: &World, scene: &Value) {
     common::flush().await;
     common::assert_log(scene, &world.log.take());
-    assert_eq!(world.store.table(OWED), scene["rows"], "scene {:?}: store rows", scene["name"]);
+    assert_eq!(
+        world.store.table(OWED),
+        scene["rows"],
+        "scene {:?}: store rows",
+        scene["name"]
+    );
 }
 
 /// The scenes whose act is one `end` on `p1`/`t1` and its answer.
-pub async fn end_scene(name: &str, answers: Vec<Answer>, ask: wsp_machines::machines::thread_ends::EndAsk) {
+pub async fn end_scene(
+    name: &str,
+    answers: Vec<Answer>,
+    ask: wsp_machines::machines::thread_ends::EndAsk,
+) {
     let fixture = common::fixture("thread_ends");
     let scene = common::scene(&fixture, name);
     let world = World::of_scene(scene, answers);
@@ -176,11 +227,19 @@ pub async fn end_scene(name: &str, answers: Vec<Answer>, ask: wsp_machines::mach
 
 /// What the oracle's `log.push(["answer", ...])` writes for an `owed` answer.
 pub fn owed_answer(owed: &Option<wsp_machines::machines::thread_ends::OwedEnd>) -> Value {
-    if owed.is_none() { Value::Null } else { json!("paid-promise") }
+    if owed.is_none() {
+        Value::Null
+    } else {
+        json!("paid-promise")
+    }
 }
 
 /// `void o?.paid.then(() => log.push(["paid", label]))`.
-pub fn note_paid(world: &World, owed: Option<wsp_machines::machines::thread_ends::OwedEnd>, label: &'static str) {
+pub fn note_paid(
+    world: &World,
+    owed: Option<wsp_machines::machines::thread_ends::OwedEnd>,
+    label: &'static str,
+) {
     if let Some(owed) = owed {
         let log = world.log.clone();
         tokio::task::spawn_local(async move {

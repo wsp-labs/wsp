@@ -17,7 +17,9 @@ use wsp_wire::types::place_state::CLOUD_CAP_DEFAULT;
 use wsp_wire::types::sub_thread::SUB_DROPPED_LINE;
 use wsp_wire::views::session::{SessionStatus, SessionView, ThreadCapWait, ThreadCapWaitWhy};
 use wsp_wire::views::workspace::{road_of, scope_of, Caller, WorkspacePhase};
-use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin, WorkspaceViewQueue, WorkspaceViewQueueWhy};
+use wsp_wire::views::workspace_more::{
+    ThreadScope, WorkspaceOrigin, WorkspaceViewQueue, WorkspaceViewQueueWhy,
+};
 use wsp_words::date_parse::date_parse;
 use wsp_words::exit::HostError;
 use wsp_words::js_date::iso_string;
@@ -40,7 +42,22 @@ pub const QUEUE_MINUTE_READ_MS: f64 = 10_000.0;
 /// sub-queue.ts:25. How long a queued record waits for its first turn.
 pub const QUEUE_START_WAIT_MS: f64 = 30_000.0;
 /// sub-queue.ts:29. What of a start rides the written record, in this order.
-pub const KEPT: [&str; 14] = ["prompt", "harness", "model", "effort", "permissionMode", "access", "contextWindow", "fast", "startedBy", "requestId", "attempt", "title", "cwd", "attachments"];
+pub const KEPT: [&str; 14] = [
+    "prompt",
+    "harness",
+    "model",
+    "effort",
+    "permissionMode",
+    "access",
+    "contextWindow",
+    "fast",
+    "startedBy",
+    "requestId",
+    "attempt",
+    "title",
+    "cwd",
+    "attachments",
+];
 
 /// The handle a started turn answers (`SessionHandle`): what the queue hands its caller.
 #[derive(Clone, Debug, PartialEq)]
@@ -103,16 +120,34 @@ pub trait SubQueueCtx {
     /// `ctx.drop(id)`: the record goes.
     async fn drop_workspace(&self, workspace_id: &str) -> AreaResult<()>;
     /// `notifyEnd({view, turnId}, notify, tellAs({notifyBy?, notifyRoad?}), {status: "failed", error})`.
-    fn notify_failed(&self, view: &SessionView, turn_id: &str, notify: &[String], by: Option<&ThreadScope>, road: Option<&Value>, error: &str);
+    fn notify_failed(
+        &self,
+        view: &SessionView,
+        turn_id: &str,
+        notify: &[String],
+        by: Option<&ThreadScope>,
+        road: Option<&Value>,
+        error: &str,
+    );
     fn push_head(&self, thread_id: &str);
     async fn rows_sent(&self);
     async fn put_start(&self, record: &SubStartRecord) -> AreaResult<()>;
     async fn delete_start(&self, workspace_id: &str) -> AreaResult<()>;
     async fn list_starts(&self) -> AreaResult<Vec<SubStartRecord>>;
     /// The sub-spawn area's `standUpQueued`.
-    async fn stand_up_queued(&self, record: &Rc<RefCell<WorkspaceRecord>>, posted: Rc<dyn Fn()>, waited: bool) -> AreaResult<()>;
+    async fn stand_up_queued(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        posted: Rc<dyn Fn()>,
+        waited: bool,
+    ) -> AreaResult<()>;
     /// `sessionsApi.start(workspaceId, o, origin)`.
-    async fn start_turn(&self, workspace_id: &str, o: serde_json::Map<String, Value>, origin: Option<Caller>) -> AreaResult<StartedTurn>;
+    async fn start_turn(
+        &self,
+        workspace_id: &str,
+        o: serde_json::Map<String, Value>,
+        origin: Option<Caller>,
+    ) -> AreaResult<StartedTurn>;
     async fn cut_off(&self, entry: &Entry);
     async fn unfork(&self, entry: &Entry) -> AreaResult<()>;
     fn now(&self) -> f64;
@@ -188,7 +223,14 @@ fn id_of(entry: &Entry) -> String {
 }
 
 fn since_of(entry: &Entry) -> String {
-    entry.borrow().record.borrow().queue.as_ref().map(|q| q.since.clone()).unwrap_or_default()
+    entry
+        .borrow()
+        .record
+        .borrow()
+        .queue
+        .as_ref()
+        .map(|q| q.since.clone())
+        .unwrap_or_default()
 }
 
 fn name_of(entry: &Entry) -> String {
@@ -196,7 +238,10 @@ fn name_of(entry: &Entry) -> String {
 }
 
 fn default_machines() -> f64 {
-    CLOUD_CAP_DEFAULT.iter().find(|(key, _)| *key == "machines").map_or(3.0, |(_, value)| *value)
+    CLOUD_CAP_DEFAULT
+        .iter()
+        .find(|(key, _)| *key == "machines")
+        .map_or(3.0, |(_, value)| *value)
 }
 
 fn queue_why_of(why: Option<ThreadCapWaitWhy>) -> WorkspaceViewQueueWhy {
@@ -253,7 +298,10 @@ fn new_row(view: SessionView, turn_id: String) -> SessionEntry {
 
 /// The start options a held record keeps: the KEPT keys the first turn asked, in KEPT order.
 fn opts_from(asked: &serde_json::Map<String, Value>) -> Result<SubStartOpts, HostError> {
-    let kept: serde_json::Map<String, Value> = KEPT.iter().filter_map(|key| asked.get(*key).map(|v| (key.to_string(), v.clone()))).collect();
+    let kept: serde_json::Map<String, Value> = KEPT
+        .iter()
+        .filter_map(|key| asked.get(*key).map(|v| (key.to_string(), v.clone())))
+        .collect();
     serde_json::from_value(Value::Object(kept)).map_err(|e| HostError::new(e.to_string()))
 }
 
@@ -299,7 +347,11 @@ impl SubQueueArea {
             let (phase, since, id) = {
                 let record = record_of(&entry);
                 let rec = record.borrow();
-                (rec.phase, rec.queue.as_ref().map(|q| q.since.clone()), rec.id.clone())
+                (
+                    rec.phase,
+                    rec.queue.as_ref().map(|q| q.since.clone()),
+                    rec.id.clone(),
+                )
             };
             if let (WorkspacePhase::Queued, Some(since)) = (phase, since) {
                 found.push((since, id, entry));
@@ -315,11 +367,16 @@ impl SubQueueArea {
     }
 
     fn is_held(&self, workspace_id: &str, h: &Rc<Held>) -> bool {
-        self.held.borrow().get(workspace_id).is_some_and(|x| Rc::ptr_eq(x, h))
+        self.held
+            .borrow()
+            .get(workspace_id)
+            .is_some_and(|x| Rc::ptr_eq(x, h))
     }
 
     fn is_live_as(&self, workspace_id: &str, entry: &Entry) -> bool {
-        self.ctx.live(workspace_id).is_some_and(|live| Rc::ptr_eq(&live, entry))
+        self.ctx
+            .live(workspace_id)
+            .is_some_and(|live| Rc::ptr_eq(&live, entry))
     }
 
     /// sub-queue.ts:70 (rule 3).
@@ -327,17 +384,34 @@ impl SubQueueArea {
         let mut running = 0usize;
         for entry in self.ctx.live_all() {
             let snap = snapshot(&record_of(&entry));
-            if self.ctx.place_id_of(&snap).as_deref() == Some(place_id) && self.ctx.holds_slot(&snap) {
+            if self.ctx.place_id_of(&snap).as_deref() == Some(place_id)
+                && self.ctx.holds_slot(&snap)
+            {
                 running += 1;
             }
         }
-        let starting: Vec<(String, String)> = self.starting.borrow().iter().map(|(id, (place, _))| (id.clone(), place.clone())).collect();
-        let starting_here = starting.iter().filter(|(id, place)| place == place_id && self.ctx.live(id).is_none()).count();
+        let starting: Vec<(String, String)> = self
+            .starting
+            .borrow()
+            .iter()
+            .map(|(id, (place, _))| (id.clone(), place.clone()))
+            .collect();
+        let starting_here = starting
+            .iter()
+            .filter(|(id, place)| place == place_id && self.ctx.live(id).is_none())
+            .count();
         ThreadCapWait {
             place_id: place_id.to_string(),
-            place: self.ctx.place_name_of(place_id).unwrap_or_else(|| provider_key_name(place_id)),
+            place: self
+                .ctx
+                .place_name_of(place_id)
+                .unwrap_or_else(|| provider_key_name(place_id)),
             running: JsInt(JsNumber((running + starting_here) as f64)),
-            at_once: JsInt(JsNumber(self.ctx.machines_at(place_id).unwrap_or_else(default_machines))),
+            at_once: JsInt(JsNumber(
+                self.ctx
+                    .machines_at(place_id)
+                    .unwrap_or_else(default_machines),
+            )),
             why: Some(ThreadCapWaitWhy::Slot),
         }
     }
@@ -348,16 +422,36 @@ impl SubQueueArea {
         if mine.running.as_f64() >= mine.at_once.as_f64() {
             return Some(mine);
         }
-        if let (Some(at_once), Some(active)) = (limits.and_then(|l| l.machines_at_once), limits.and_then(|l| l.active_boxes)) {
+        if let (Some(at_once), Some(active)) = (
+            limits.and_then(|l| l.machines_at_once),
+            limits.and_then(|l| l.active_boxes),
+        ) {
             if active >= at_once {
-                return Some(ThreadCapWait { running: JsInt(JsNumber(active)), at_once: JsInt(JsNumber(at_once)), ..mine });
+                return Some(ThreadCapWait {
+                    running: JsInt(JsNumber(active)),
+                    at_once: JsInt(JsNumber(at_once)),
+                    ..mine
+                });
             }
         }
-        if let Some(minute) = limits.and_then(|l| l.starts.as_ref()).map(|starts| &starts.minute) {
-            let starting_here = self.starting.borrow().values().filter(|(place, posted)| place == place_id && !posted).count();
+        if let Some(minute) = limits
+            .and_then(|l| l.starts.as_ref())
+            .map(|starts| &starts.minute)
+        {
+            let starting_here = self
+                .starting
+                .borrow()
+                .values()
+                .filter(|(place, posted)| place == place_id && !posted)
+                .count();
             let used = minute.used + starting_here as f64;
             if used >= minute.limit {
-                return Some(ThreadCapWait { running: JsInt(JsNumber(used)), at_once: JsInt(JsNumber(minute.limit)), why: Some(ThreadCapWaitWhy::Minute), ..mine });
+                return Some(ThreadCapWait {
+                    running: JsInt(JsNumber(used)),
+                    at_once: JsInt(JsNumber(minute.limit)),
+                    why: Some(ThreadCapWaitWhy::Minute),
+                    ..mine
+                });
             }
         }
         None
@@ -368,13 +462,18 @@ impl SubQueueArea {
         if let Some(wait) = self.wait_on(place_id, limits) {
             return Some(wait);
         }
-        let ahead = self.queued().into_iter().find(|entry| self.place_of(entry).as_deref() == Some(place_id) && self.last_wait.borrow().contains_key(&id_of(entry)))?;
+        let ahead = self.queued().into_iter().find(|entry| {
+            self.place_of(entry).as_deref() == Some(place_id)
+                && self.last_wait.borrow().contains_key(&id_of(entry))
+        })?;
         self.last_wait.borrow().get(&id_of(&ahead)).cloned()
     }
 
     /// sub-queue.ts:106 (rule 6).
     pub fn claim_start(&self, workspace_id: &str, place_id: &str) -> StartClaim {
-        self.starting.borrow_mut().insert(workspace_id.to_string(), (place_id.to_string(), false));
+        self.starting
+            .borrow_mut()
+            .insert(workspace_id.to_string(), (place_id.to_string(), false));
         let (posted_me, posted_id) = (self.me.clone(), workspace_id.to_string());
         let posted: Rc<dyn Fn()> = Rc::new(move || {
             if let Some(area) = posted_me.upgrade() {
@@ -396,25 +495,47 @@ impl SubQueueArea {
     pub fn cloud_full(&self, place_id: &str, limits: Option<&BoxLimits>) -> ThreadCapWait {
         match limits.and_then(|l| l.machines_at_once) {
             None => self.slots(place_id),
-            Some(at_once) => ThreadCapWait { running: JsInt(JsNumber(at_once)), at_once: JsInt(JsNumber(at_once)), ..self.slots(place_id) },
+            Some(at_once) => ThreadCapWait {
+                running: JsInt(JsNumber(at_once)),
+                at_once: JsInt(JsNumber(at_once)),
+                ..self.slots(place_id)
+            },
         }
     }
 
     /// sub-queue.ts:127 (rule 8).
-    pub async fn enqueue(&self, record: &Rc<RefCell<WorkspaceRecord>>, wait: Option<ThreadCapWait>, refused: bool) -> AreaResult<()> {
-        let line: Vec<f64> = self.queued().iter().map(|entry| date_parse(&since_of(entry))).collect();
+    pub async fn enqueue(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        wait: Option<ThreadCapWait>,
+        refused: bool,
+    ) -> AreaResult<()> {
+        let line: Vec<f64> = self
+            .queued()
+            .iter()
+            .map(|entry| date_parse(&since_of(entry)))
+            .collect();
         let now = self.ctx.now();
-        let at = if refused && !line.is_empty() { line[0] - 1.0 } else { now.max(line.last().copied().unwrap_or(0.0) + 1.0) };
+        let at = if refused && !line.is_empty() {
+            line[0] - 1.0
+        } else {
+            now.max(line.last().copied().unwrap_or(0.0) + 1.0)
+        };
         let since = iso_string(at).unwrap_or_default();
         let id = record.borrow().id.clone();
         if refused {
-            self.refused_until.borrow_mut().insert(id.clone(), now + QUEUE_SLOT_READ_MS);
+            self.refused_until
+                .borrow_mut()
+                .insert(id.clone(), now + QUEUE_SLOT_READ_MS);
         }
         self.queued_at.borrow_mut().insert(id.clone(), now);
         {
             let mut rec = record.borrow_mut();
             rec.phase = WorkspacePhase::Queued;
-            rec.queue = Some(WorkspaceViewQueue { since, why: queue_why_of(wait.as_ref().and_then(|w| w.why)) });
+            rec.queue = Some(WorkspaceViewQueue {
+                since,
+                why: queue_why_of(wait.as_ref().and_then(|w| w.why)),
+            });
             rec.machine_id = String::new();
         }
         if let Some(wait) = &wait {
@@ -423,7 +544,8 @@ impl SubQueueArea {
         self.attach_queued(record, wait.as_ref());
         self.persist_cell(record).await?;
         let view = self.ctx.view(&snapshot(record));
-        self.ctx.emit(json!({ "type": "workspace.created", "workspace": view }));
+        self.ctx
+            .emit(json!({ "type": "workspace.created", "workspace": view }));
         drop(self.pump_queue());
         Ok(())
     }
@@ -433,7 +555,11 @@ impl SubQueueArea {
     }
 
     /// sub-queue.ts:143 (rule 9).
-    pub fn attach_queued(&self, record: &Rc<RefCell<WorkspaceRecord>>, wait: Option<&ThreadCapWait>) {
+    pub fn attach_queued(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        wait: Option<&ThreadCapWait>,
+    ) {
         let said = match wait {
             None => format!("{} is waiting for a machine", record.borrow().name),
             Some(wait) => cap_wait_line(wait),
@@ -447,9 +573,17 @@ impl SubQueueArea {
         let mut view = serde_json::Map::new();
         view.insert("id".into(), json!(r.turn_id));
         view.insert("workspaceId".into(), json!(r.workspace_id));
-        view.insert("harness".into(), json!(r.opts.harness.clone().unwrap_or_default()));
+        view.insert(
+            "harness".into(),
+            json!(r.opts.harness.clone().unwrap_or_default()),
+        );
         view.insert("status".into(), json!("running"));
-        let started_by = r.opts.started_by.as_ref().and_then(|by| serde_json::to_value(by).ok()).unwrap_or_else(|| json!("person"));
+        let started_by = r
+            .opts
+            .started_by
+            .as_ref()
+            .and_then(|by| serde_json::to_value(by).ok())
+            .unwrap_or_else(|| json!("person"));
         view.insert("startedBy".into(), started_by);
         view.insert("threadId".into(), json!(r.thread_id));
         if let Ok(Value::Object(tree)) = serde_json::to_value(&r.tree) {
@@ -462,9 +596,13 @@ impl SubQueueArea {
             view.insert("titleSource".into(), json!("person"));
         }
         if let Some(wait) = wait {
-            view.insert("capped".into(), serde_json::to_value(wait).unwrap_or(Value::Null));
+            view.insert(
+                "capped".into(),
+                serde_json::to_value(wait).unwrap_or(Value::Null),
+            );
         }
-        let view: SessionView = serde_json::from_value(Value::Object(view)).expect("a held start's row reads as a session view");
+        let view: SessionView = serde_json::from_value(Value::Object(view))
+            .expect("a held start's row reads as a session view");
         let mut row = new_row(view, r.turn_id.clone());
         row.queued = true;
         row.launch = Some(h.gone.clone());
@@ -474,7 +612,12 @@ impl SubQueueArea {
         self.ctx.set_session(&r.turn_id, row);
         self.ctx.emit(json!({ "type": "session.held", "workspaceId": r.workspace_id, "threadId": r.thread_id }));
         if let Some(wait) = wait {
-            self.ctx.record(capped_event(&r.workspace_id, &r.turn_id, &r.thread_id, wait));
+            self.ctx.record(capped_event(
+                &r.workspace_id,
+                &r.turn_id,
+                &r.thread_id,
+                wait,
+            ));
         }
     }
 
@@ -486,7 +629,10 @@ impl SubQueueArea {
         }
         .boxed_local()
         .shared();
-        let name = self.ctx.live(&record.workspace_id).map_or_else(|| record.workspace_id.clone(), |entry| name_of(&entry));
+        let name = self
+            .ctx
+            .live(&record.workspace_id)
+            .map_or_else(|| record.workspace_id.clone(), |entry| name_of(&entry));
         let left: Box<dyn FnOnce()> = Box::new(move || {
             let _ = tx.send(());
         });
@@ -509,10 +655,17 @@ impl SubQueueArea {
     }
 
     /// sub-queue.ts:183 (rule 11).
-    pub fn hold_queued(&self, at: HoldAsk, origin: Option<&Caller>) -> LocalBoxFuture<'static, Result<StartedTurn, HostError>> {
+    pub fn hold_queued(
+        &self,
+        at: HoldAsk,
+        origin: Option<&Caller>,
+    ) -> LocalBoxFuture<'static, Result<StartedTurn, HostError>> {
         let ws = at.workspace_id.clone();
         if self.held.borrow().contains_key(&ws) {
-            let name = self.ctx.live(&ws).map_or_else(|| ws.clone(), |entry| name_of(&entry));
+            let name = self
+                .ctx
+                .live(&ws)
+                .map_or_else(|| ws.clone(), |entry| name_of(&entry));
             return ready(Err(sub_waiting_refusal(&name))).boxed_local();
         }
         if self.ctx.live(&ws).is_none() {
@@ -522,10 +675,11 @@ impl SubQueueArea {
             Ok(opts) => opts,
             Err(e) => return ready(Err(e)).boxed_local(),
         };
-        let tree = match serde_json::from_value::<SubTree>(Value::Object(at.tree.into_iter().collect())) {
-            Ok(tree) => tree,
-            Err(e) => return ready(Err(HostError::new(e.to_string()))).boxed_local(),
-        };
+        let tree =
+            match serde_json::from_value::<SubTree>(Value::Object(at.tree.into_iter().collect())) {
+                Ok(tree) => tree,
+                Err(e) => return ready(Err(HostError::new(e.to_string()))).boxed_local(),
+            };
         let record = SubStartRecord {
             workspace_id: ws.clone(),
             thread_id: at.thread_id,
@@ -560,7 +714,11 @@ impl SubQueueArea {
         let tell: Box<dyn FnOnce(ThreadCapWait)> = Box::new(move |wait| {
             if let Some(on_held) = on_held {
                 if let Some(row) = tell_ctx.session(&turn) {
-                    on_held(HeldTold { view: row.view, turn_id: turn.clone(), wait });
+                    on_held(HeldTold {
+                        view: row.view,
+                        turn_id: turn.clone(),
+                        wait,
+                    });
                 }
             }
         });
@@ -583,7 +741,10 @@ impl SubQueueArea {
                     Err(e) => {
                         let line = format!("the held start was not written down: {}", e.message());
                         if let Err(x) = area.drop_held(&h, &line, true).await {
-                            area.ctx.warn(&format!("workspace {ws}: the held start was not dropped: {}", x.message()));
+                            area.ctx.warn(&format!(
+                                "workspace {ws}: the held start was not dropped: {}",
+                                x.message()
+                            ));
                         }
                     }
                 }
@@ -610,12 +771,26 @@ impl SubQueueArea {
     /// sub-queue.ts:228 `tellFailed`: the thread's targets hear a spawn that failed as its turn's end.
     fn tell_failed(&self, r: &SubStartRecord, view: &SessionView, reason: &str) {
         let Some(notify) = &r.notify else { return };
-        let road = r.road.map(|road| serde_json::to_value(road).unwrap_or(Value::Null));
-        self.ctx.notify_failed(view, &r.turn_id, notify, r.by.as_ref(), road.as_ref(), reason);
+        let road = r
+            .road
+            .map(|road| serde_json::to_value(road).unwrap_or(Value::Null));
+        self.ctx.notify_failed(
+            view,
+            &r.turn_id,
+            notify,
+            r.by.as_ref(),
+            road.as_ref(),
+            reason,
+        );
     }
 
     /// sub-queue.ts:234 (rule 14).
-    pub(crate) async fn drop_held(&self, h: &Rc<Held>, reason: &str, failed_spawn: bool) -> AreaResult<()> {
+    pub(crate) async fn drop_held(
+        &self,
+        h: &Rc<Held>,
+        reason: &str,
+        failed_spawn: bool,
+    ) -> AreaResult<()> {
         let r = h.record.clone();
         if !self.is_held(&r.workspace_id, h) {
             return Ok(());
@@ -634,7 +809,12 @@ impl SubQueueArea {
     }
 
     /// sub-queue.ts:250 (rule 15).
-    pub(crate) async fn fail_first(&self, h: &Rc<Held>, record: &Rc<RefCell<WorkspaceRecord>>, e: AreaError) -> AreaResult<()> {
+    pub(crate) async fn fail_first(
+        &self,
+        h: &Rc<Held>,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        e: AreaError,
+    ) -> AreaResult<()> {
         let r = h.record.clone();
         let why = e.failure_words();
         self.forget(&r.workspace_id);
@@ -677,17 +857,28 @@ impl SubQueueArea {
 
     /// sub-queue.ts:280 (rule 16).
     pub async fn drop_queued(&self, turn_id: &str) -> bool {
-        let found = self.held.borrow().values().find(|h| h.record.turn_id == turn_id).cloned();
+        let found = self
+            .held
+            .borrow()
+            .values()
+            .find(|h| h.record.turn_id == turn_id)
+            .cloned();
         let Some(h) = found else { return false };
         if let Err(e) = self.stop(&h, SUB_DROPPED_LINE).await {
-            self.ctx.warn(&format!("the held start {turn_id} was not stopped: {}", e.message()));
+            self.ctx.warn(&format!(
+                "the held start {turn_id} was not stopped: {}",
+                e.message()
+            ));
         }
         true
     }
 
     /// sub-queue.ts:287 `stop`: a record whose machine is being made only marks the stop; else the start drops now.
     async fn stop(&self, h: &Rc<Held>, reason: &str) -> AreaResult<()> {
-        let has_queue = self.ctx.live(&h.record.workspace_id).is_some_and(|entry| record_of(&entry).borrow().queue.is_some());
+        let has_queue = self
+            .ctx
+            .live(&h.record.workspace_id)
+            .is_some_and(|entry| record_of(&entry).borrow().queue.is_some());
         if has_queue {
             self.drop_held(h, reason, false).await
         } else {
@@ -705,7 +896,8 @@ impl SubQueueArea {
             async move {
                 if let Some(area) = me.upgrade() {
                     if let Err(e) = area.stop(&h, &line).await {
-                        area.ctx.warn(&format!("the held start was not stopped: {}", e.message()));
+                        area.ctx
+                            .warn(&format!("the held start was not stopped: {}", e.message()));
                     }
                 }
                 let gone = h.gone.clone();
@@ -727,7 +919,10 @@ impl SubQueueArea {
             let outcome = area.pump_loop().await;
             *area.pumping.borrow_mut() = None;
             if let Err(e) = outcome {
-                area.ctx.warn(&format!("the queue of held spawns did not move: {}", e.failure_words()));
+                area.ctx.warn(&format!(
+                    "the queue of held spawns did not move: {}",
+                    e.failure_words()
+                ));
             }
         }
         .boxed_local();
@@ -775,28 +970,49 @@ impl SubQueueArea {
 
     /// sub-queue.ts:332-333: a record's drop time, from when it was queued here or its `since`.
     fn due_of(&self, entry: &Entry) -> f64 {
-        let queued = self.queued_at.borrow().get(&id_of(entry)).copied().unwrap_or_else(|| date_parse(&since_of(entry)));
+        let queued = self
+            .queued_at
+            .borrow()
+            .get(&id_of(entry))
+            .copied()
+            .unwrap_or_else(|| date_parse(&since_of(entry)));
         queued + QUEUE_START_WAIT_MS
     }
 
     /// sub-queue.ts:332 (rule 20).
     pub(crate) async fn pump_once(&self) -> AreaResult<bool> {
         let line = self.queued();
-        let startless: Vec<Entry> = line.iter().filter(|entry| !self.held.borrow().contains_key(&id_of(entry))).cloned().collect();
+        let startless: Vec<Entry> = line
+            .iter()
+            .filter(|entry| !self.held.borrow().contains_key(&id_of(entry)))
+            .cloned()
+            .collect();
         for entry in &startless {
             if self.ctx.now() < self.due_of(entry) {
                 continue;
             }
             let id = id_of(entry);
-            self.ctx.warn(&format!("workspace {id}: its first turn never came, so its queued spawn is dropped"));
+            self.ctx.warn(&format!(
+                "workspace {id}: its first turn never came, so its queued spawn is dropped"
+            ));
             self.forget(&id);
             self.ctx.drop_workspace(&id).await?;
             return Ok(true);
         }
-        let head = line.iter().find_map(|entry| self.held.borrow().get(&id_of(entry)).cloned().map(|h| (entry.clone(), h)));
+        let head = line.iter().find_map(|entry| {
+            self.held
+                .borrow()
+                .get(&id_of(entry))
+                .cloned()
+                .map(|h| (entry.clone(), h))
+        });
         let Some((head, h)) = head else {
             self.disarm();
-            if let Some(earliest) = startless.iter().map(|entry| self.due_of(entry)).reduce(f64::min) {
+            if let Some(earliest) = startless
+                .iter()
+                .map(|entry| self.due_of(entry))
+                .reduce(f64::min)
+            {
                 self.arm(earliest - self.ctx.now());
             }
             return Ok(false);
@@ -830,11 +1046,18 @@ impl SubQueueArea {
             }
             return Ok(true);
         };
-        for entry in line.iter().filter(|entry| self.place_of(entry).as_deref() == Some(place_id.as_str())) {
+        for entry in line
+            .iter()
+            .filter(|entry| self.place_of(entry).as_deref() == Some(place_id.as_str()))
+        {
             let id = id_of(entry);
-            let Some(x) = self.held.borrow().get(&id).cloned() else { continue };
+            let Some(x) = self.held.borrow().get(&id).cloned() else {
+                continue;
+            };
             let said = self.last_wait.borrow().get(&id).cloned();
-            if said.as_ref().is_some_and(|said| said.running == wait.running && said.at_once == wait.at_once && said.why == wait.why) {
+            if said.as_ref().is_some_and(|said| {
+                said.running == wait.running && said.at_once == wait.at_once && said.why == wait.why
+            }) {
                 continue;
             }
             self.last_wait.borrow_mut().insert(id.clone(), wait.clone());
@@ -842,17 +1065,30 @@ impl SubQueueArea {
                 fire(&x.tell, wait.clone());
             }
             let turn = x.record.turn_id.clone();
-            self.ctx.update_session(&turn, &mut |row| row.view.capped = Some(wait.clone()));
+            self.ctx
+                .update_session(&turn, &mut |row| row.view.capped = Some(wait.clone()));
             let record = record_of(entry);
-            let differs = record.borrow().queue.as_ref().is_none_or(|q| Some(cap_why_of(q.why)) != wait.why);
+            let differs = record
+                .borrow()
+                .queue
+                .as_ref()
+                .is_none_or(|q| Some(cap_why_of(q.why)) != wait.why);
             if differs {
                 let since = since_of(entry);
-                record.borrow_mut().queue = Some(WorkspaceViewQueue { since, why: queue_why_of(wait.why) });
+                record.borrow_mut().queue = Some(WorkspaceViewQueue {
+                    since,
+                    why: queue_why_of(wait.why),
+                });
                 self.persist_cell(&record).await?;
             }
-            self.ctx.record(capped_event(&id, &turn, &x.record.thread_id, &wait));
+            self.ctx
+                .record(capped_event(&id, &turn, &x.record.thread_id, &wait));
         }
-        let next = if wait.why == Some(ThreadCapWaitWhy::Minute) { QUEUE_MINUTE_READ_MS } else { QUEUE_SLOT_READ_MS };
+        let next = if wait.why == Some(ThreadCapWaitWhy::Minute) {
+            QUEUE_MINUTE_READ_MS
+        } else {
+            QUEUE_SLOT_READ_MS
+        };
         self.arm(next);
         Ok(false)
     }
@@ -868,13 +1104,16 @@ impl SubQueueArea {
         let claim = self.claim_start(&id, &place_id);
         let turn = h.record.turn_id.clone();
         if self.ctx.session(&turn).is_some() {
-            self.ctx.update_session(&turn, &mut |row| row.view.capped = None);
+            self.ctx
+                .update_session(&turn, &mut |row| row.view.capped = None);
             self.ctx.emit(json!({ "type": "session.held", "workspaceId": id, "threadId": h.record.thread_id }));
         }
         let waiting_view = self.ctx.session(&turn).map(|row| row.view);
         let attempt: AreaResult<Option<StartedTurn>> = async {
             self.persist_cell(&record).await?;
-            self.ctx.stand_up_queued(&record, claim.posted.clone(), waited).await?;
+            self.ctx
+                .stand_up_queued(&record, claim.posted.clone(), waited)
+                .await?;
             (claim.release)();
             if !self.is_held(&id, &h) {
                 return Ok(None);
@@ -884,7 +1123,10 @@ impl SubQueueArea {
                 if let Some(standing) = self.ctx.live(&id) {
                     self.ctx.cut_off(&standing).await;
                     if let Err(e) = self.ctx.unfork(&standing).await {
-                        self.ctx.warn(&format!("workspace {id}: its machine was not deleted after the stop: {}", e.failure_words()));
+                        self.ctx.warn(&format!(
+                            "workspace {id}: its machine was not deleted after the stop: {}",
+                            e.failure_words()
+                        ));
                     }
                 }
                 self.drop_held(&h, &reason, false).await?;
@@ -896,14 +1138,20 @@ impl SubQueueArea {
             self.ctx.delete_start(&id).await?;
             let r = h.record.clone();
             let origin = match (&r.by, r.road) {
-                (Some(by), road) => Some(Caller::Scoped { origin: road.unwrap_or(WorkspaceOrigin::Here), by: by.clone() }),
+                (Some(by), road) => Some(Caller::Scoped {
+                    origin: road.unwrap_or(WorkspaceOrigin::Here),
+                    by: by.clone(),
+                }),
                 (None, road) => road.map(Caller::Road),
             };
             let mut o = options_map(&r.opts);
             if let Some(notify) = &r.notify {
                 o.insert("notify".into(), json!(notify));
             }
-            o.insert("as".into(), json!({ "threadId": r.thread_id, "turnId": r.turn_id }));
+            o.insert(
+                "as".into(),
+                json!({ "threadId": r.thread_id, "turnId": r.turn_id }),
+            );
             self.ctx.start_turn(&id, o, origin).await.map(Some)
         }
         .await;
@@ -914,14 +1162,24 @@ impl SubQueueArea {
                 fire(&h.started, handle);
                 return;
             }
-            Err(e) => self.let_through_failed(&entry, &h, &claim, e, waiting_view).await,
+            Err(e) => {
+                self.let_through_failed(&entry, &h, &claim, e, waiting_view)
+                    .await
+            }
         }
         drop(self.pump_queue());
     }
 
     /// The catch of sub-queue.ts:413-441: a stop drops, a cap refusal queues again, any other failure fails the first
     /// start or tells the caller.
-    async fn let_through_failed(&self, entry: &Entry, h: &Rc<Held>, claim: &StartClaim, e: AreaError, waiting_view: Option<SessionView>) {
+    async fn let_through_failed(
+        &self,
+        entry: &Entry,
+        h: &Rc<Held>,
+        claim: &StartClaim,
+        e: AreaError,
+        waiting_view: Option<SessionView>,
+    ) {
         (claim.release)();
         let id = id_of(entry);
         let record = record_of(entry);
@@ -929,7 +1187,10 @@ impl SubQueueArea {
         if let Some(reason) = stopped {
             if self.is_held(&id, h) {
                 if let Err(x) = self.drop_held(h, &reason, false).await {
-                    self.ctx.warn(&format!("workspace {id}: the stopped start was not dropped: {}", x.message()));
+                    self.ctx.warn(&format!(
+                        "workspace {id}: the stopped start was not dropped: {}",
+                        x.message()
+                    ));
                 }
                 return;
             }
@@ -940,17 +1201,26 @@ impl SubQueueArea {
             let limits = self.ctx.limits_of(&snap).await.ok().flatten();
             let wait = self.cloud_full(&place_id, limits.as_ref());
             if let Err(x) = self.enqueue(&record, Some(wait.clone()), true).await {
-                self.ctx.warn(&format!("workspace {id}: the refused spawn was not queued again: {}", x.message()));
+                self.ctx.warn(&format!(
+                    "workspace {id}: the refused spawn was not queued again: {}",
+                    x.message()
+                ));
             }
             let turn = h.record.turn_id.clone();
-            self.ctx.update_session(&turn, &mut |row| row.view.capped = Some(wait.clone()));
+            self.ctx
+                .update_session(&turn, &mut |row| row.view.capped = Some(wait.clone()));
             return;
         }
         let why = e.failure_words();
-        self.ctx.warn(&format!("workspace {id}: the held spawn did not start: {why}"));
+        self.ctx.warn(&format!(
+            "workspace {id}: the held spawn did not start: {why}"
+        ));
         if self.is_held(&id, h) {
             if let Err(x) = self.fail_first(h, &record, e).await {
-                self.ctx.warn(&format!("workspace {id}: the failed first start was not recorded: {}", x.message()));
+                self.ctx.warn(&format!(
+                    "workspace {id}: the failed first start was not recorded: {}",
+                    x.message()
+                ));
             }
         } else {
             if let Some(view) = waiting_view {
@@ -962,14 +1232,28 @@ impl SubQueueArea {
 
     /// sub-queue.ts:454 (rule 22).
     pub async fn resume_queue(&self) -> AreaResult<()> {
-        let kept: IndexMap<String, SubStartRecord> = self.ctx.list_starts().await?.into_iter().map(|r| (r.workspace_id.clone(), r)).collect();
+        let kept: IndexMap<String, SubStartRecord> = self
+            .ctx
+            .list_starts()
+            .await?
+            .into_iter()
+            .map(|r| (r.workspace_id.clone(), r))
+            .collect();
         for id in kept.keys() {
-            let queued = self.ctx.live(id).is_some_and(|entry| record_of(&entry).borrow().phase == WorkspacePhase::Queued);
+            let queued = self
+                .ctx
+                .live(id)
+                .is_some_and(|entry| record_of(&entry).borrow().phase == WorkspacePhase::Queued);
             if !queued {
                 self.ctx.delete_start(id).await?;
             }
         }
-        let queued_now: Vec<Entry> = self.ctx.live_all().into_iter().filter(|entry| record_of(entry).borrow().phase == WorkspacePhase::Queued).collect();
+        let queued_now: Vec<Entry> = self
+            .ctx
+            .live_all()
+            .into_iter()
+            .filter(|entry| record_of(entry).borrow().phase == WorkspacePhase::Queued)
+            .collect();
         for entry in queued_now {
             let id = id_of(&entry);
             let Some(r) = kept.get(&id).cloned() else {
@@ -979,12 +1263,17 @@ impl SubQueueArea {
             let cell = record_of(&entry);
             let needs_queue = cell.borrow().queue.is_none();
             if needs_queue {
-                cell.borrow_mut().queue = Some(WorkspaceViewQueue { since: r.at.clone(), why: WorkspaceViewQueueWhy::Slot });
+                cell.borrow_mut().queue = Some(WorkspaceViewQueue {
+                    since: r.at.clone(),
+                    why: WorkspaceViewQueueWhy::Slot,
+                });
                 self.persist_cell(&cell).await?;
             }
             let place_id = self.place_of(&entry).unwrap_or_default();
             let limits = self.ctx.limits_of(&snapshot(&cell)).await.ok().flatten();
-            let wait = self.wait_on(&place_id, limits.as_ref()).unwrap_or_else(|| self.slots(&place_id));
+            let wait = self
+                .wait_on(&place_id, limits.as_ref())
+                .unwrap_or_else(|| self.slots(&place_id));
             self.last_wait.borrow_mut().insert(id, wait);
             self.hold_of(r);
         }
@@ -1010,13 +1299,19 @@ impl SubQueueArea {
                 if let Some(own) = own {
                     self.forget(id);
                     fire0(&own.left);
-                    fire(&own.failed, HostError::new(deleted_before_start_line(&own.name)));
+                    fire(
+                        &own.failed,
+                        HostError::new(deleted_before_start_line(&own.name)),
+                    );
                     let ctx = self.ctx.clone();
                     let gone_id = id.clone();
                     self.ctx.spawn(
                         async move {
                             if let Err(e) = ctx.delete_start(&gone_id).await {
-                                ctx.warn(&format!("workspace {gone_id}: its held start was not deleted: {}", e.message()));
+                                ctx.warn(&format!(
+                                    "workspace {gone_id}: its held start was not deleted: {}",
+                                    e.message()
+                                ));
                             }
                         }
                         .boxed_local(),
@@ -1024,14 +1319,23 @@ impl SubQueueArea {
                 }
                 let held: Vec<Rc<Held>> = self.held.borrow().values().cloned().collect();
                 for h in held {
-                    let lead = self.ctx.live(&h.record.workspace_id).and_then(|entry| record_of(&entry).borrow().lead.clone());
+                    let lead = self
+                        .ctx
+                        .live(&h.record.workspace_id)
+                        .and_then(|entry| record_of(&entry).borrow().lead.clone());
                     if lead.is_some_and(|lead| lead.workspace_id == *id) {
                         let me = self.me.clone();
                         self.ctx.spawn(
                             async move {
                                 if let Some(area) = me.upgrade() {
-                                    if let Err(e) = area.drop_held(&h, "its lead's folder was deleted", false).await {
-                                        area.ctx.warn(&format!("the held start was not dropped: {}", e.message()));
+                                    if let Err(e) = area
+                                        .drop_held(&h, "its lead's folder was deleted", false)
+                                        .await
+                                    {
+                                        area.ctx.warn(&format!(
+                                            "the held start was not dropped: {}",
+                                            e.message()
+                                        ));
                                     }
                                 }
                             }
@@ -1041,7 +1345,14 @@ impl SubQueueArea {
                 }
             }
         }
-        if matches!(kind, "workspace.napped" | "workspace.deleted" | "workspace.gone" | "workspace.released" | "place.changed") {
+        if matches!(
+            kind,
+            "workspace.napped"
+                | "workspace.deleted"
+                | "workspace.gone"
+                | "workspace.released"
+                | "place.changed"
+        ) {
             drop(self.pump_queue());
         }
     }

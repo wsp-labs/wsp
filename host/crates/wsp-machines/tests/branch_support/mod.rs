@@ -18,8 +18,12 @@ use wsp_core::clock::Clock;
 use wsp_core::devices::{MintMore, PairedDevice};
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_engine::errors::EngineError;
-use wsp_engine::machine::{ExecOptions, Machine, MachineKind, MachineLife, MachineState, RunOptions, SnapshotOptions};
-use wsp_machines::projects::branch_of_record::{BranchCtx, BranchOfRecordArea, MarketplaceFile, OnRecordEntry};
+use wsp_engine::machine::{
+    ExecOptions, Machine, MachineKind, MachineLife, MachineState, RunOptions, SnapshotOptions,
+};
+use wsp_machines::projects::branch_of_record::{
+    BranchCtx, BranchOfRecordArea, MarketplaceFile, OnRecordEntry,
+};
 use wsp_wire::types::js_number::JsInt;
 use wsp_wire::views::workspace::{BranchOfRecord, ProjectView};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
@@ -52,7 +56,11 @@ pub fn rejects(message: &str) -> Reply {
 }
 
 pub fn exec_result(code: i64, stdout: &str, stderr: &str) -> ExecResult {
-    ExecResult { exit_code: JsInt::from(code), stdout: stdout.to_string(), stderr: stderr.to_string() }
+    ExecResult {
+        exit_code: JsInt::from(code),
+        stdout: stdout.to_string(),
+        stderr: stderr.to_string(),
+    }
 }
 
 struct Scripted {
@@ -83,7 +91,10 @@ pub struct EnvRun {
 pub struct StubMachine(pub String);
 
 fn nothing<T>() -> Result<T, EngineError> {
-    Err(EngineError::Other { message: "the stub machine answers nothing".to_string(), code: None })
+    Err(EngineError::Other {
+        message: "the stub machine answers nothing".to_string(),
+        code: None,
+    })
 }
 
 #[async_trait(?Send)]
@@ -100,13 +111,21 @@ impl Machine for StubMachine {
     async fn run(&self, _script: &str, _opts: RunOptions) -> Result<ExecResult, EngineError> {
         nothing()
     }
-    async fn snapshot(&self, _name: &str, _life: MachineLife, _opts: SnapshotOptions) -> Result<String, EngineError> {
+    async fn snapshot(
+        &self,
+        _name: &str,
+        _life: MachineLife,
+        _opts: SnapshotOptions,
+    ) -> Result<String, EngineError> {
         nothing()
     }
     async fn pause(&self, _wait_ms: Option<u64>) -> Result<(), EngineError> {
         nothing()
     }
-    async fn resume(&self, _signal: Option<&wsp_engine::cancel::Cancel>) -> Result<(), EngineError> {
+    async fn resume(
+        &self,
+        _signal: Option<&wsp_engine::cancel::Cancel>,
+    ) -> Result<(), EngineError> {
         nothing()
     }
     async fn kill(&self) -> Result<(), EngineError> {
@@ -158,7 +177,10 @@ impl FakeCtx {
             warned: Warned::default(),
             home: "/home/zing".to_string(),
             wired: "pl_here".to_string(),
-            place_names: RefCell::new(IndexMap::from([("pl_boat".to_string(), "Boat".to_string()), ("pl_here".to_string(), "This Mac".to_string())])),
+            place_names: RefCell::new(IndexMap::from([
+                ("pl_boat".to_string(), "Boat".to_string()),
+                ("pl_here".to_string(), "This Mac".to_string()),
+            ])),
             scripts: RefCell::default(),
             exec_log: RefCell::default(),
             persisted: RefCell::default(),
@@ -179,18 +201,36 @@ impl FakeCtx {
 
     /// Answers the exact command text. A later script for the same command wins.
     pub fn script(&self, cmd: &str, reply: Reply) {
-        self.scripts.borrow_mut().insert(0, Scripted { cmd: cmd.to_string(), reply, gate: None });
+        self.scripts.borrow_mut().insert(
+            0,
+            Scripted {
+                cmd: cmd.to_string(),
+                reply,
+                gate: None,
+            },
+        );
     }
 
     /// Answers the command only once the gate opens; the command is logged when it is asked.
     pub fn script_held(&self, cmd: &str, reply: Reply) -> Rc<Semaphore> {
         let gate = Rc::new(Semaphore::new(0));
-        self.scripts.borrow_mut().insert(0, Scripted { cmd: cmd.to_string(), reply, gate: Some(gate.clone()) });
+        self.scripts.borrow_mut().insert(
+            0,
+            Scripted {
+                cmd: cmd.to_string(),
+                reply,
+                gate: Some(gate.clone()),
+            },
+        );
         gate
     }
 
     pub fn commands(&self) -> Vec<String> {
-        self.exec_log.borrow().iter().map(|(c, _)| c.clone()).collect()
+        self.exec_log
+            .borrow()
+            .iter()
+            .map(|(c, _)| c.clone())
+            .collect()
     }
 
     pub fn mints(&self) -> Vec<Mint> {
@@ -215,7 +255,9 @@ impl FakeCtx {
     }
 
     pub fn put_file(&self, path: &str, text: &str) {
-        self.files.borrow_mut().insert(path.to_string(), text.to_string());
+        self.files
+            .borrow_mut()
+            .insert(path.to_string(), text.to_string());
     }
 
     /// A catalog agent's marketplace file: `path` as the catalog writes it (`~/...`), and the repos its text names, one
@@ -223,7 +265,12 @@ impl FakeCtx {
     pub fn marketplace(&self, path: &str) {
         self.marketplaces.borrow_mut().push(MarketplaceFile {
             path: path.to_string(),
-            github_repos: Rc::new(|text: &str| text.split_whitespace().filter(|w| w.contains('/')).map(str::to_string).collect()),
+            github_repos: Rc::new(|text: &str| {
+                text.split_whitespace()
+                    .filter(|w| w.contains('/'))
+                    .map(str::to_string)
+                    .collect()
+            }),
         });
     }
 
@@ -234,12 +281,21 @@ impl FakeCtx {
 
 /// What `brokered_git_env` returns here: the token and the branch it was asked for.
 pub fn env_of(token: &str, branch: Option<&str>) -> IndexMap<String, String> {
-    IndexMap::from([("WSP_FAKE_TOKEN".to_string(), token.to_string()), ("WSP_FAKE_BRANCH".to_string(), branch.unwrap_or("").to_string())])
+    IndexMap::from([
+        ("WSP_FAKE_TOKEN".to_string(), token.to_string()),
+        (
+            "WSP_FAKE_BRANCH".to_string(),
+            branch.unwrap_or("").to_string(),
+        ),
+    ])
 }
 
 /// What `on_record_lines` returns here, whatever the arguments, as two lines.
 pub fn on_record_of(checkout: &str, branch: &str, origin: &str, held: bool) -> Vec<String> {
-    vec![format!("on-record {checkout} {branch} {origin} held={held}"), "echo on-record-end".to_string()]
+    vec![
+        format!("on-record {checkout} {branch} {origin} held={held}"),
+        "echo on-record-end".to_string(),
+    ]
 }
 
 #[async_trait(?Send)]
@@ -254,8 +310,15 @@ impl BranchCtx for FakeCtx {
         true
     }
     async fn exec_here(&self, cmd: &str, timeout_ms: u64) -> Result<ExecResult, HostError> {
-        self.exec_log.borrow_mut().push((cmd.to_string(), timeout_ms));
-        let found = self.scripts.borrow().iter().find(|s| s.cmd == cmd).map(|s| (s.reply.clone(), s.gate.clone()));
+        self.exec_log
+            .borrow_mut()
+            .push((cmd.to_string(), timeout_ms));
+        let found = self
+            .scripts
+            .borrow()
+            .iter()
+            .find(|s| s.cmd == cmd)
+            .map(|s| (s.reply.clone(), s.gate.clone()));
         let (reply, gate) = found.unwrap_or((fails(1, "gh: Not Found (HTTP 404)"), None));
         if let Some(gate) = gate {
             gate.acquire().await.expect("the gate stays open").forget();
@@ -273,14 +336,29 @@ impl BranchCtx for FakeCtx {
     fn live_records(&self) -> Vec<Rc<RefCell<WorkspaceRecord>>> {
         self.live.borrow().clone()
     }
-    async fn mint(&self, name: &str, scope: ThreadScope, now: i64, more: MintMore) -> Result<PairedDevice, HostError> {
+    async fn mint(
+        &self,
+        name: &str,
+        scope: ThreadScope,
+        now: i64,
+        more: MintMore,
+    ) -> Result<PairedDevice, HostError> {
         self.events.borrow_mut().push(format!("mint {name}"));
         let n = self.minted.get() + 1;
         self.minted.set(n);
-        self.mints.borrow_mut().push(Mint { name: name.to_string(), scope: serde_json::to_value(&scope).expect("a scope writes"), now, more });
+        self.mints.borrow_mut().push(Mint {
+            name: name.to_string(),
+            scope: serde_json::to_value(&scope).expect("a scope writes"),
+            now,
+            more,
+        });
         let id = format!("dev_{n}");
         let view = serde_json::from_value(json!({ "id": id, "name": name, "createdAt": "2023-11-14T22:13:20.000Z", "lastSeenAt": "2023-11-14T22:13:20.000Z" })).expect("a device view");
-        Ok(PairedDevice { device_id: id, device_token: format!("tok_{n}"), device: view })
+        Ok(PairedDevice {
+            device_id: id,
+            device_token: format!("tok_{n}"),
+            device: view,
+        })
     }
     async fn revoke(&self, id: &str) -> Result<bool, HostError> {
         self.events.borrow_mut().push(format!("revoke {id}"));
@@ -291,11 +369,22 @@ impl BranchCtx for FakeCtx {
         }
     }
     fn turn_road_of(&self, record: &WorkspaceRecord) -> MintMore {
-        let road = if record.kind == WorkspaceKind::Cloud { WorkspaceOrigin::Relayed } else { WorkspaceOrigin::Here };
-        MintMore { road: Some(road), aside: false }
+        let road = if record.kind == WorkspaceKind::Cloud {
+            WorkspaceOrigin::Relayed
+        } else {
+            WorkspaceOrigin::Here
+        };
+        MintMore {
+            road: Some(road),
+            aside: false,
+        }
     }
     fn place_name(&self, place: &str) -> String {
-        self.place_names.borrow().get(place).cloned().unwrap_or_else(|| place.to_string())
+        self.place_names
+            .borrow()
+            .get(place)
+            .cloned()
+            .unwrap_or_else(|| place.to_string())
     }
     fn wired(&self) -> String {
         self.wired.clone()
@@ -305,22 +394,53 @@ impl BranchCtx for FakeCtx {
     }
     async fn read_file(&self, path: &str) -> Result<String, HostError> {
         self.read_log.borrow_mut().push(path.to_string());
-        self.files.borrow().get(path).cloned().ok_or_else(|| HostError::new(format!("ENOENT: no such file or directory, open '{path}'")))
+        self.files.borrow().get(path).cloned().ok_or_else(|| {
+            HostError::new(format!("ENOENT: no such file or directory, open '{path}'"))
+        })
     }
     fn marketplace_files(&self) -> Vec<MarketplaceFile> {
         self.marketplaces.borrow().clone()
     }
-    fn brokered_git_env(&self, token: &str, of_record: Option<&BranchOfRecord>) -> IndexMap<String, String> {
+    fn brokered_git_env(
+        &self,
+        token: &str,
+        of_record: Option<&BranchOfRecord>,
+    ) -> IndexMap<String, String> {
         env_of(token, of_record.map(|r| r.branch.as_str()))
     }
-    fn on_record_lines(&self, checkout: &str, of_record: &BranchOfRecord, origin: &str, held: bool) -> Vec<String> {
-        self.on_record_calls.borrow_mut().push((checkout.to_string(), of_record.branch.clone(), origin.to_string(), held));
+    fn on_record_lines(
+        &self,
+        checkout: &str,
+        of_record: &BranchOfRecord,
+        origin: &str,
+        held: bool,
+    ) -> Vec<String> {
+        self.on_record_calls.borrow_mut().push((
+            checkout.to_string(),
+            of_record.branch.clone(),
+            origin.to_string(),
+            held,
+        ));
         on_record_of(checkout, &of_record.branch, origin, held)
     }
-    async fn env_exec(&self, machine: Arc<dyn Machine>, script: &str, env: IndexMap<String, String>, timeout_ms: u64) -> Result<ExecResult, HostError> {
+    async fn env_exec(
+        &self,
+        machine: Arc<dyn Machine>,
+        script: &str,
+        env: IndexMap<String, String>,
+        timeout_ms: u64,
+    ) -> Result<ExecResult, HostError> {
         self.events.borrow_mut().push("env_exec".to_string());
-        self.env_runs.borrow_mut().push(EnvRun { machine: machine.id().to_string(), script: script.to_string(), env, timeout_ms });
-        self.env_replies.borrow_mut().pop_front().unwrap_or_else(|| Ok(exec_result(0, "", "")))
+        self.env_runs.borrow_mut().push(EnvRun {
+            machine: machine.id().to_string(),
+            script: script.to_string(),
+            env,
+            timeout_ms,
+        });
+        self.env_replies
+            .borrow_mut()
+            .pop_front()
+            .unwrap_or_else(|| Ok(exec_result(0, "", "")))
     }
 }
 
@@ -367,11 +487,24 @@ pub fn branch_of(v: Value) -> BranchOfRecord {
 }
 
 /// A live workspace on the context: the record shared with the context's live map, and its entry.
-pub fn entry_of(ctx: &FakeCtx, extra: Value, opens_thread: Option<&str>, of_record_held: bool) -> (Rc<RefCell<WorkspaceRecord>>, OnRecordEntry) {
+pub fn entry_of(
+    ctx: &FakeCtx,
+    extra: Value,
+    opens_thread: Option<&str>,
+    of_record_held: bool,
+) -> (Rc<RefCell<WorkspaceRecord>>, OnRecordEntry) {
     let shared = Rc::new(RefCell::new(record(extra)));
     ctx.live.borrow_mut().push(shared.clone());
     let machine: Arc<dyn Machine> = Arc::new(StubMachine("bx_1".to_string()));
-    (shared.clone(), OnRecordEntry { record: shared, opens_thread: opens_thread.map(str::to_string), of_record_held, machine })
+    (
+        shared.clone(),
+        OnRecordEntry {
+            record: shared,
+            opens_thread: opens_thread.map(str::to_string),
+            of_record_held,
+            machine,
+        },
+    )
 }
 
 /// The project a land reads: acme/web at `/root/web`.

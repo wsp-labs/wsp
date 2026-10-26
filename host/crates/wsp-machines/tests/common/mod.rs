@@ -14,9 +14,9 @@ use async_trait::async_trait;
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 
-use wsp_core::types::pending::{BlobMark, Clock, Store};
 use wsp_core::clock::{Cancel, Timer};
 use wsp_core::ids::Ids;
+use wsp_core::types::pending::{BlobMark, Clock, Store};
 use wsp_wire::types::js_number::JsNumber;
 use wsp_words::exit::HostError;
 
@@ -28,8 +28,11 @@ pub const DEAD_PID: u32 = 99_999_999;
 
 /// `tests/fixtures/oracle/<name>.json`, parsed.
 pub fn fixture(name: &str) -> Value {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/oracle").join(format!("{name}.json"));
-    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("fixture {}: {e}", path.display()));
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/oracle")
+        .join(format!("{name}.json"));
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("fixture {}: {e}", path.display()));
     serde_json::from_str(&text).unwrap_or_else(|e| panic!("fixture {}: {e}", path.display()))
 }
 
@@ -37,7 +40,10 @@ pub fn fixture(name: &str) -> Value {
 pub fn scenes(fixture: &Value) -> &Vec<Value> {
     match fixture {
         Value::Array(rows) => rows,
-        Value::Object(o) => o.get("scenes").and_then(Value::as_array).expect("fixture has scenes"),
+        Value::Object(o) => o
+            .get("scenes")
+            .and_then(Value::as_array)
+            .expect("fixture has scenes"),
         _ => panic!("fixture is neither an array nor an object"),
     }
 }
@@ -70,7 +76,9 @@ pub fn pid_of(name: &str) -> u32 {
         "self" => std::process::id(),
         "alive" => std::os::unix::process::parent_id(),
         "dead" => DEAD_PID,
-        other => other.parse().unwrap_or_else(|_| panic!("pid name {other:?}")),
+        other => other
+            .parse()
+            .unwrap_or_else(|_| panic!("pid name {other:?}")),
     }
 }
 
@@ -129,7 +137,10 @@ pub async fn flush() {
 
 /// Runs a scene on one thread with a `LocalSet`, as the host's owner thread runs (chapter 03, Proposal 2).
 pub fn run_local<F: std::future::Future<Output = ()>>(f: F) {
-    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("runtime");
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
     let local = tokio::task::LocalSet::new();
     local.block_on(&rt, f);
 }
@@ -143,7 +154,11 @@ pub struct FakeClock {
 
 impl FakeClock {
     pub fn new(start: i64) -> Rc<Self> {
-        Rc::new(FakeClock { now: RefCell::new(start), seq: RefCell::new(0), timers: Rc::new(RefCell::new(IndexMap::new())) })
+        Rc::new(FakeClock {
+            now: RefCell::new(start),
+            seq: RefCell::new(0),
+            timers: Rc::new(RefCell::new(IndexMap::new())),
+        })
     }
 
     pub fn advance(&self, ms: i64) {
@@ -151,10 +166,18 @@ impl FakeClock {
         loop {
             let next = {
                 let timers = self.timers.borrow();
-                timers.iter().filter(|(_, (at, _))| *at <= target).min_by_key(|(id, (at, _))| (*at, **id)).map(|(id, (at, _))| (*id, *at))
+                timers
+                    .iter()
+                    .filter(|(_, (at, _))| *at <= target)
+                    .min_by_key(|(id, (at, _))| (*at, **id))
+                    .map(|(id, (at, _))| (*id, *at))
             };
             let Some((id, at)) = next else { break };
-            let run = self.timers.borrow_mut().shift_remove(&id).and_then(|(_, f)| f);
+            let run = self
+                .timers
+                .borrow_mut()
+                .shift_remove(&id)
+                .and_then(|(_, f)| f);
             *self.now.borrow_mut() = at;
             if let Some(run) = run {
                 run();
@@ -246,13 +269,24 @@ impl MemStore {
                 }
             }
         }
-        Rc::new(MemStore { rows: RefCell::new(rows), blobs: RefCell::new(IndexMap::new()), log, logs })
+        Rc::new(MemStore {
+            rows: RefCell::new(rows),
+            blobs: RefCell::new(IndexMap::new()),
+            log,
+            logs,
+        })
     }
 
     /// One collection as `[[key, row], ...]`, pids named, as the oracles write `rows(...)`.
     pub fn table(&self, collection: &str) -> Value {
         let rows = self.rows.borrow();
-        Value::Array(rows.get(collection).into_iter().flatten().map(|(k, v)| json!([k, scrub_pids(v)])).collect())
+        Value::Array(
+            rows.get(collection)
+                .into_iter()
+                .flatten()
+                .map(|(k, v)| json!([k, scrub_pids(v)]))
+                .collect(),
+        )
     }
 }
 
@@ -278,14 +312,24 @@ impl Store for MemStore {
         if self.logs.get {
             self.log.push(json!(["store.get", collection, id]));
         }
-        Ok(self.rows.borrow().get(collection).and_then(|t| t.get(id)).cloned())
+        Ok(self
+            .rows
+            .borrow()
+            .get(collection)
+            .and_then(|t| t.get(id))
+            .cloned())
     }
 
     async fn put(&self, collection: &str, id: &str, value: Value) -> Result<(), HostError> {
         if self.logs.put {
-            self.log.push(json!(["store.put", collection, id, scrub_pids(&value)]));
+            self.log
+                .push(json!(["store.put", collection, id, scrub_pids(&value)]));
         }
-        self.rows.borrow_mut().entry(collection.to_string()).or_default().insert(id.to_string(), value);
+        self.rows
+            .borrow_mut()
+            .entry(collection.to_string())
+            .or_default()
+            .insert(id.to_string(), value);
         Ok(())
     }
 
@@ -293,11 +337,21 @@ impl Store for MemStore {
         if self.logs.list {
             self.log.push(json!(["store.list", collection]));
         }
-        Ok(self.rows.borrow().get(collection).map(|t| t.values().cloned().collect()).unwrap_or_default())
+        Ok(self
+            .rows
+            .borrow()
+            .get(collection)
+            .map(|t| t.values().cloned().collect())
+            .unwrap_or_default())
     }
 
     async fn keys(&self, collection: &str) -> Result<Vec<String>, HostError> {
-        Ok(self.rows.borrow().get(collection).map(|t| t.keys().cloned().collect()).unwrap_or_default())
+        Ok(self
+            .rows
+            .borrow()
+            .get(collection)
+            .map(|t| t.keys().cloned().collect())
+            .unwrap_or_default())
     }
 
     async fn delete(&self, collection: &str, id: &str) -> Result<(), HostError> {
@@ -314,14 +368,28 @@ impl Store for MemStore {
         if self.logs.blobs {
             self.log.push(json!(["store.getBlob", collection, id]));
         }
-        Ok(self.blobs.borrow().get(collection).and_then(|t| t.get(id)).cloned())
+        Ok(self
+            .blobs
+            .borrow()
+            .get(collection)
+            .and_then(|t| t.get(id))
+            .cloned())
     }
 
     async fn put_blob(&self, collection: &str, id: &str, bytes: Vec<u8>) -> Result<(), HostError> {
         if self.logs.blobs {
-            self.log.push(json!(["store.putBlob", collection, id, String::from_utf8_lossy(&bytes)]));
+            self.log.push(json!([
+                "store.putBlob",
+                collection,
+                id,
+                String::from_utf8_lossy(&bytes)
+            ]));
         }
-        self.blobs.borrow_mut().entry(collection.to_string()).or_default().insert(id.to_string(), bytes);
+        self.blobs
+            .borrow_mut()
+            .entry(collection.to_string())
+            .or_default()
+            .insert(id.to_string(), bytes);
         Ok(())
     }
 
@@ -336,7 +404,15 @@ impl Store for MemStore {
     }
 
     async fn stat_blob(&self, collection: &str, id: &str) -> Result<Option<BlobMark>, HostError> {
-        Ok(self.blobs.borrow().get(collection).and_then(|t| t.get(id)).map(|b| BlobMark { bytes: JsNumber(b.len() as f64), at: JsNumber(0.0) }))
+        Ok(self
+            .blobs
+            .borrow()
+            .get(collection)
+            .and_then(|t| t.get(id))
+            .map(|b| BlobMark {
+                bytes: JsNumber(b.len() as f64),
+                at: JsNumber(0.0),
+            }))
     }
 }
 
@@ -344,23 +420,54 @@ impl Store for MemStore {
 /// saw. Their place against the area's calls follows JavaScript's microtask order (the TS resumes the act after a
 /// detached task's first steps; a Rust `spawn_local` runs after the act), so they are compared as a list of their own.
 pub const MARKERS: &[&str] = &[
-    "answer", "answered", "rejected", "mark", "paid", "joined", "same", "during", "after", "unread", "unreadAt", "revivedAt",
-    "of", "turnRuns", "isHeldAway after", "inflight inside", "waiting", "settled before the deploy ends", "settled after",
+    "answer",
+    "answered",
+    "rejected",
+    "mark",
+    "paid",
+    "joined",
+    "same",
+    "during",
+    "after",
+    "unread",
+    "unreadAt",
+    "revivedAt",
+    "of",
+    "turnRuns",
+    "isHeldAway after",
+    "inflight inside",
+    "waiting",
+    "settled before the deploy ends",
+    "settled after",
 ];
 
 fn is_marker(entry: &Value) -> bool {
-    entry.get(0).and_then(Value::as_str).is_some_and(|name| MARKERS.contains(&name))
+    entry
+        .get(0)
+        .and_then(Value::as_str)
+        .is_some_and(|name| MARKERS.contains(&name))
 }
 
 /// Asserts a scene's log equals the fixture's: the area's calls in strict order, entry by entry, so a failure names
 /// the first that differs; the act's own markers (`MARKERS`) in their own order.
 pub fn assert_log(scene: &Value, got: &[Value]) {
     let want = scene["log"].as_array().expect("scene has a log");
-    let (want_marks, want_calls): (Vec<&Value>, Vec<&Value>) = want.iter().partition(|e| is_marker(e));
+    let (want_marks, want_calls): (Vec<&Value>, Vec<&Value>) =
+        want.iter().partition(|e| is_marker(e));
     let (got_marks, got_calls): (Vec<&Value>, Vec<&Value>) = got.iter().partition(|e| is_marker(e));
     for (i, (w, g)) in want_calls.iter().zip(got_calls.iter()).enumerate() {
         assert_eq!(g, w, "scene {:?}: call {i} differs", scene["name"]);
     }
-    assert_eq!(got_calls.len(), want_calls.len(), "scene {:?}: calls differ in number; got {:#?}", scene["name"], got_calls);
-    assert_eq!(got_marks, want_marks, "scene {:?}: the act's markers differ", scene["name"]);
+    assert_eq!(
+        got_calls.len(),
+        want_calls.len(),
+        "scene {:?}: calls differ in number; got {:#?}",
+        scene["name"],
+        got_calls
+    );
+    assert_eq!(
+        got_marks, want_marks,
+        "scene {:?}: the act's markers differ",
+        scene["name"]
+    );
 }

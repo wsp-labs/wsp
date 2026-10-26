@@ -15,23 +15,30 @@ use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::types::recipe_file::{RecipeFile, NO_RECIPE};
 use wsp_wire::types::shell_quote::shell_quote;
-use wsp_wire::views::place::{
-    PlaceProvisionRow, PlaceProvisionRowOutcome, PlaceSetAlso, PlaceSetupEvent, PlaceSetupState, PlaceSetupStep, PlaceSync, PlaceSyncEvent, PlaceSyncState,
-};
 use wsp_wire::views::place::{PendingComputer, PlaceSetup};
+use wsp_wire::views::place::{
+    PlaceProvisionRow, PlaceProvisionRowOutcome, PlaceSetAlso, PlaceSetupEvent, PlaceSetupState,
+    PlaceSetupStep, PlaceSync, PlaceSyncEvent, PlaceSyncState,
+};
 use wsp_wire::views::place_kind::PlaceKind;
-use wsp_wire::views::place_more::{PlaceChangedEvent, PlaceSettingWord, PlaceSettings, PlaceSettingsAsk, PlaceSettingsSpawn, PlaceView};
+use wsp_wire::views::place_more::{
+    PlaceChangedEvent, PlaceSettingWord, PlaceSettings, PlaceSettingsAsk, PlaceSettingsSpawn,
+    PlaceView,
+};
 use wsp_wire::views::place_setup_words::PlaceEstimate;
 use wsp_wire::wire::machine_link::no_such_place_refusal;
 use wsp_wire::wire::place_link::two_places_refusal;
 use wsp_words::exit::{usage_refusal, HostError, Kind};
 use wsp_words::place_state::{place_set_refusal, place_setting_dropped};
-use wsp_words::place_word::{place_rename_refusal, place_ssh_other_refusal, place_ssh_refusal, place_ssh_unchecked_refusal, PlaceRef};
+use wsp_words::place_word::{
+    place_rename_refusal, place_ssh_other_refusal, place_ssh_refusal, place_ssh_unchecked_refusal,
+    PlaceRef,
+};
 use wsp_words::project_path::place_provision_paths;
 use wsp_words::recipe_file::recipe_counts;
 use wsp_words::views::place_setup_words::{
-    no_pending_refusal, nothing_to_skip_line, pending_not_joined_fix, pending_not_joined_line, place_no_picks_line, CHOOSE_FIX, SETUP_LOG_TAIL_BYTES,
-    SKIPPED_FOR_NOW,
+    no_pending_refusal, nothing_to_skip_line, pending_not_joined_fix, pending_not_joined_line,
+    place_no_picks_line, CHOOSE_FIX, SETUP_LOG_TAIL_BYTES, SKIPPED_FOR_NOW,
 };
 
 use super::{ManageDoor, SetupPicks, SetupStarted};
@@ -39,7 +46,8 @@ use crate::places::helpers::{pending_view, setup_outcome, LOG_READ_MS, NO_ESTIMA
 use crate::places::records::{PlaceRecordsArea, Reached};
 use crate::places::setup::{host_of, iso_at};
 use crate::places::types::{
-    applied_view, HeldApplied, HeldRow, PlaceEvent, PlaceLogin, PlaceRecord, PlaceRecordRoad, PlaceResult, PlaceSetUp, Resolved, SetUpAsk,
+    applied_view, HeldApplied, HeldRow, PlaceEvent, PlaceLogin, PlaceRecord, PlaceRecordRoad,
+    PlaceResult, PlaceSetUp, Resolved, SetUpAsk,
 };
 
 /// The usage fix a name that matches no computer carries (manage.ts:458,500 and others).
@@ -74,7 +82,11 @@ fn place_ref(view: &PlaceView) -> PlaceRef {
         PlaceKind::Computer => "computer",
         PlaceKind::Provider => "provider",
     };
-    PlaceRef { id: view.id.clone(), name: view.name.clone(), kind: Some(kind.to_string()) }
+    PlaceRef {
+        id: view.id.clone(),
+        name: view.name.clone(),
+        kind: Some(kind.to_string()),
+    }
 }
 
 /// The step a row or a wait is named by, as its wire word (`step` in ` [<step>] `, manage.ts:833).
@@ -87,23 +99,40 @@ fn step_word(step: PlaceSetupStep) -> String {
 
 impl ManageDoor {
     /// F1 (:124-135).
-    pub async fn follow_to(&self, place_id: &str, recipe: &str) -> PlaceResult<Option<PlaceRecord>> {
-        let before: Rc<std::cell::RefCell<Option<PlaceRecord>>> = Rc::new(std::cell::RefCell::new(None));
+    pub async fn follow_to(
+        &self,
+        place_id: &str,
+        recipe: &str,
+    ) -> PlaceResult<Option<PlaceRecord>> {
+        let before: Rc<std::cell::RefCell<Option<PlaceRecord>>> =
+            Rc::new(std::cell::RefCell::new(None));
         let (seen, given) = (Rc::clone(&before), recipe.to_string());
         let moved = self
             .records
             .change(place_id, move |now: PlaceRecord| {
                 *seen.borrow_mut() = Some(now.clone());
                 if given == NO_RECIPE {
-                    Some(PlaceRecord { recipe: Some(given), sync: None, ..now })
+                    Some(PlaceRecord {
+                        recipe: Some(given),
+                        sync: None,
+                        ..now
+                    })
                 } else {
-                    Some(PlaceRecord { recipe: Some(given), ..now })
+                    Some(PlaceRecord {
+                        recipe: Some(given),
+                        ..now
+                    })
                 }
             })
             .await?;
         let before = before.borrow().clone();
         if recipe == NO_RECIPE && before.as_ref().is_some_and(|b| b.sync.is_some()) {
-            self.setup.sync_frame(PlaceSyncEvent { place_id: place_id.to_string(), sync: None, line: None, applied: None });
+            self.setup.sync_frame(PlaceSyncEvent {
+                place_id: place_id.to_string(),
+                sync: None,
+                line: None,
+                applied: None,
+            });
         }
         if recipe != NO_RECIPE {
             self.setup.sync_soon(place_id, 0);
@@ -121,7 +150,11 @@ impl ManageDoor {
 
     /// S5 (:140-145).
     pub async fn same_computer_over(&self, record: &PlaceRecord, ssh: &str) -> PlaceResult<()> {
-        let login = PlaceLogin { ssh: ssh.to_string(), key_path: record.road.as_ref().and_then(|r| r.key_path.clone()), host_key: None };
+        let login = PlaceLogin {
+            ssh: ssh.to_string(),
+            key_path: record.road.as_ref().and_then(|r| r.key_path.clone()),
+            host_key: None,
+        };
         match self.records.reached_over(record, &login, None).await? {
             Reached::Same => Ok(()),
             Reached::Unread { unread, .. } => {
@@ -144,7 +177,11 @@ impl ManageDoor {
             room.insert(record.id.clone(), self.views.forks_of(record).await);
         }
         let rows = self.views.rows_of(&held).await?;
-        let providers: Vec<PlaceView> = rows.iter().filter(|r| r.kind == PlaceKind::Provider).cloned().collect();
+        let providers: Vec<PlaceView> = rows
+            .iter()
+            .filter(|r| r.kind == PlaceKind::Provider)
+            .cloned()
+            .collect();
         let spent = match self.ctx.recording.spent_today(&providers).await {
             Some(Ok(spent)) => spent,
             _ => Vec::new(),
@@ -169,9 +206,23 @@ impl ManageDoor {
     }
 
     /// S1-S10 (:439-492).
-    pub async fn set(self: &Rc<Self>, place_id: &str, set: PlaceSettingsAsk, reset: Vec<PlaceSettingWord>, also: PlaceSetAlso) -> PlaceResult<PlaceView> {
-        let marked = self.records.mark_held().await?.unwrap_or_else(|| HERE_PLACE_ID.to_string());
-        let record = if place_id == HERE_PLACE_ID { None } else { self.records.record_of(place_id).await? };
+    pub async fn set(
+        self: &Rc<Self>,
+        place_id: &str,
+        set: PlaceSettingsAsk,
+        reset: Vec<PlaceSettingWord>,
+        also: PlaceSetAlso,
+    ) -> PlaceResult<PlaceView> {
+        let marked = self
+            .records
+            .mark_held()
+            .await?
+            .unwrap_or_else(|| HERE_PLACE_ID.to_string());
+        let record = if place_id == HERE_PLACE_ID {
+            None
+        } else {
+            self.records.record_of(place_id).await?
+        };
         let row = if place_id == HERE_PLACE_ID {
             self.views.here_row(&marked)
         } else if let Some(record) = &record {
@@ -181,13 +232,24 @@ impl ManageDoor {
         } else {
             let mut held = vec![(self.ctx.wiring.here)().name];
             held.extend(self.records.records().await?.into_iter().map(|r| r.name));
-            held.extend(self.records.provider_ids().iter().map(|id| wsp_words::place_word::provider_key_name(id)));
-            return Err(HostError::with_kind(no_such_place_refusal(place_id, &held), Kind::Usage));
+            held.extend(
+                self.records
+                    .provider_ids()
+                    .iter()
+                    .map(|id| wsp_words::place_word::provider_key_name(id)),
+            );
+            return Err(HostError::with_kind(
+                no_such_place_refusal(place_id, &held),
+                Kind::Usage,
+            ));
         };
         let renamed = also.name.as_deref().map(|name| name.trim().to_string());
         let ssh = also.ssh.as_deref().map(|ssh| ssh.trim().to_string());
         let spawn = set.spawn.clone();
-        let settles = (renamed.is_none() && ssh.is_none() && also.recipe.is_none()) || spawn.is_some() || gives_any(&set) || !reset.is_empty();
+        let settles = (renamed.is_none() && ssh.is_none() && also.recipe.is_none())
+            || spawn.is_some()
+            || gives_any(&set)
+            || !reset.is_empty();
         if settles {
             if let Some(refused) = place_set_refusal(&row, &set, &reset) {
                 return Err(HostError::with_kind(refused, Kind::Usage));
@@ -211,8 +273,17 @@ impl ManageDoor {
             }
         }
         if also.recipe.is_some() && record.is_none() {
-            let names: Vec<String> = self.records.records().await?.into_iter().map(|r| r.name).collect();
-            return Err(HostError::with_kind(no_such_place_refusal(place_id, &names), Kind::Usage));
+            let names: Vec<String> = self
+                .records
+                .records()
+                .await?
+                .into_iter()
+                .map(|r| r.name)
+                .collect();
+            return Err(HostError::with_kind(
+                no_such_place_refusal(place_id, &names),
+                Kind::Usage,
+            ));
         }
         if let (Some(ssh), Some(record)) = (&ssh, &record) {
             if PlaceRecordsArea::login_of(record).map(|l| l.ssh) != Some(ssh.clone()) {
@@ -220,7 +291,11 @@ impl ManageDoor {
             }
         }
         if settles {
-            let (records, store, place) = (Rc::clone(&self.records), Rc::clone(&self.ctx.store), place_id.to_string());
+            let (records, store, place) = (
+                Rc::clone(&self.records),
+                Rc::clone(&self.ctx.store),
+                place_id.to_string(),
+            );
             let switch = spawn.clone();
             let given = set.clone();
             let reset_words = reset.clone();
@@ -252,7 +327,9 @@ impl ManageDoor {
                     if let Some(sp) = switch {
                         let old = held.spawn.clone();
                         next.spawn = Some(PlaceSettingsSpawn {
-                            max_machines: sp.max_machines.or(old.as_ref().and_then(|o| o.max_machines)),
+                            max_machines: sp
+                                .max_machines
+                                .or(old.as_ref().and_then(|o| o.max_machines)),
                             max_depth: sp.max_depth.or(old.as_ref().and_then(|o| o.max_depth)),
                         });
                     }
@@ -262,9 +339,18 @@ impl ManageDoor {
                     if holds_none(&next) {
                         store.delete(crate::places::types::CAPS, &place).await?;
                     } else {
-                        store.put(crate::places::types::CAPS, &place, to_value(&next).map_err(|e| HostError::new(e.to_string()))?).await?;
+                        store
+                            .put(
+                                crate::places::types::CAPS,
+                                &place,
+                                to_value(&next).map_err(|e| HostError::new(e.to_string()))?,
+                            )
+                            .await?;
                     }
-                    self.records.settings_held.borrow_mut().insert(place.clone(), next);
+                    self.records
+                        .settings_held
+                        .borrow_mut()
+                        .insert(place.clone(), next);
                     Ok::<(), HostError>(())
                 }))
                 .await?;
@@ -286,7 +372,10 @@ impl ManageDoor {
                         next.name = name;
                     }
                     if let Some(ssh) = new_ssh {
-                        next.road = Some(PlaceRecordRoad { ssh: Some(ssh), ..now.road.clone().unwrap_or_default() });
+                        next.road = Some(PlaceRecordRoad {
+                            ssh: Some(ssh),
+                            ..now.road.clone().unwrap_or_default()
+                        });
                     }
                     Some(next)
                 })
@@ -303,9 +392,18 @@ impl ManageDoor {
             }
         }
         if let (Some(moved_now), Some(was), Some(new_ssh)) = (&moved, &was, &ssh) {
-            if was.ssh != *new_ssh && moved_now.road.as_ref().and_then(|r| r.back.clone()).is_some() {
+            if was.ssh != *new_ssh
+                && moved_now
+                    .road
+                    .as_ref()
+                    .and_then(|r| r.back.clone())
+                    .is_some()
+            {
                 let others = self.records.records().await?;
-                let shared = others.iter().any(|r| r.id != place_id && PlaceRecordsArea::login_of(r).is_some_and(|l| l.ssh == was.ssh));
+                let shared = others.iter().any(|r| {
+                    r.id != place_id
+                        && PlaceRecordsArea::login_of(r).is_some_and(|l| l.ssh == was.ssh)
+                });
                 if !shared {
                     if let Some(holder) = self.ctx.wiring.back.clone() {
                         holder.release(was);
@@ -324,31 +422,54 @@ impl ManageDoor {
             None => row,
         };
         let ids = self.records.row_ids().await?;
-        let place = self.records.with_limits(self.records.with_cap(view, &ids).await?);
-        self.ctx.emit(&PlaceEvent::Changed(PlaceChangedEvent { place: place.clone() }));
+        let place = self
+            .records
+            .with_limits(self.records.with_cap(view, &ids).await?);
+        self.ctx.emit(&PlaceEvent::Changed(PlaceChangedEvent {
+            place: place.clone(),
+        }));
         Ok(place)
     }
 
     /// L3 (:722).
     pub async fn find(&self, reference: &str) -> PlaceResult<Vec<PlaceRecord>> {
-        Ok(self.records.records().await?.into_iter().filter(|r| r.id == reference || r.name == reference).collect())
+        Ok(self
+            .records
+            .records()
+            .await?
+            .into_iter()
+            .filter(|r| r.id == reference || r.name == reference)
+            .collect())
     }
 
     /// P1 (:724).
     pub async fn pending(&self) -> PlaceResult<Vec<PendingComputer>> {
-        Ok(self.views.pending_records().await?.iter().map(pending_view).collect())
-    }
-
-    /// P2 (:726-733).
-    pub async fn choose(&self, reference: &str, choices: RecipeFile, recipe: Option<String>) -> PlaceResult<PendingComputer> {
-        let found = self
+        Ok(self
             .views
             .pending_records()
             .await?
-            .into_iter()
-            .find(|p| p.view.id == reference || p.view.address == reference || p.view.place_id.as_deref() == Some(reference));
+            .iter()
+            .map(pending_view)
+            .collect())
+    }
+
+    /// P2 (:726-733).
+    pub async fn choose(
+        &self,
+        reference: &str,
+        choices: RecipeFile,
+        recipe: Option<String>,
+    ) -> PlaceResult<PendingComputer> {
+        let found = self.views.pending_records().await?.into_iter().find(|p| {
+            p.view.id == reference
+                || p.view.address == reference
+                || p.view.place_id.as_deref() == Some(reference)
+        });
         let Some(mut next) = found else {
-            return Err(usage_refusal(&no_pending_refusal(reference), "Run wsp computers to read the adds still pending."));
+            return Err(usage_refusal(
+                &no_pending_refusal(reference),
+                "Run wsp computers to read the adds still pending.",
+            ));
         };
         next.view.choices = choices;
         next.view.recipe = recipe;
@@ -358,44 +479,83 @@ impl ManageDoor {
 
     /// P3 (:735-755).
     pub async fn set_up(&self, reference: &str, o: SetUpAsk) -> PlaceResult<PlaceSetUp> {
-        let add_id = o.add_id.clone().unwrap_or_else(|| format!("a_{}", hex::encode(OsIds.bytes(6))));
+        let add_id = o
+            .add_id
+            .clone()
+            .unwrap_or_else(|| format!("a_{}", hex::encode(OsIds.bytes(6))));
         let held = self.records.records().await?;
         let pend = self.views.pending_records().await?.into_iter().find(|p| {
             p.view.id == reference
                 || p.view.address == reference
                 || p.view.name.as_deref() == Some(reference)
-                || p.view.place_id.as_deref().is_some_and(|pid| pid == reference || self.ctx.kept.borrow().get(pid).is_some_and(|r| r.name == reference))
+                || p.view.place_id.as_deref().is_some_and(|pid| {
+                    pid == reference
+                        || self
+                            .ctx
+                            .kept
+                            .borrow()
+                            .get(pid)
+                            .is_some_and(|r| r.name == reference)
+                })
         });
         if let Some(pend) = &pend {
             if pend.view.place_id.is_none() {
-                let name = pend.view.name.clone().unwrap_or_else(|| pend.view.address.clone());
-                return Err(usage_refusal(&pending_not_joined_line(&name), &pending_not_joined_fix(&pend.view.address)));
+                let name = pend
+                    .view
+                    .name
+                    .clone()
+                    .unwrap_or_else(|| pend.view.address.clone());
+                return Err(usage_refusal(
+                    &pending_not_joined_line(&name),
+                    &pending_not_joined_fix(&pend.view.address),
+                ));
             }
         }
         let found: Vec<PlaceRecord> = match pend.as_ref().and_then(|p| p.view.place_id.clone()) {
             Some(pid) => held.iter().filter(|r| r.id == pid).cloned().collect(),
-            None => held.iter().filter(|r| r.id == reference || r.name == reference).cloned().collect(),
+            None => held
+                .iter()
+                .filter(|r| r.id == reference || r.name == reference)
+                .cloned()
+                .collect(),
         };
         if found.len() > 1 {
             let ids: Vec<String> = found.iter().map(|r| r.id.clone()).collect();
-            return Err(usage_refusal(&two_places_refusal(reference, &ids), "Name it by its id."));
+            return Err(usage_refusal(
+                &two_places_refusal(reference, &ids),
+                "Name it by its id.",
+            ));
         }
         let Some(record) = found.first().cloned() else {
             let names: Vec<String> = held.iter().map(|r| r.name.clone()).collect();
-            return Err(usage_refusal(&no_such_place_refusal(reference, &names), NAMED_FIX));
+            return Err(usage_refusal(
+                &no_such_place_refusal(reference, &names),
+                NAMED_FIX,
+            ));
         };
         let default = self.records.default_id().await?;
         if self.setup.is_setting(&record.id) && o.choices.is_none() && o.recipe.is_none() {
             if let Some(setup) = record.setup.clone() {
-                return Ok(PlaceSetUp { add_id: setup.add_id.clone(), place: self.views.view_of(&record, default.as_deref()), setup: Some(setup), said: None });
+                return Ok(PlaceSetUp {
+                    add_id: setup.add_id.clone(),
+                    place: self.views.view_of(&record, default.as_deref()),
+                    setup: Some(setup),
+                    said: None,
+                });
             }
         }
         let choices = match &o.choices {
             Some(choices) => Some(choices.clone()),
-            None => pend.as_ref().filter(|p| recipe_counts(&p.view.choices).values().any(|n| *n > 0)).map(|p| p.view.choices.clone()),
+            None => pend
+                .as_ref()
+                .filter(|p| recipe_counts(&p.view.choices).values().any(|n| *n > 0))
+                .map(|p| p.view.choices.clone()),
         };
         if choices.is_none() && record.picks.is_none() {
-            return Err(usage_refusal(&place_no_picks_line(&record.name), CHOOSE_FIX));
+            return Err(usage_refusal(
+                &place_no_picks_line(&record.name),
+                CHOOSE_FIX,
+            ));
         }
         if let Some(pend) = &pend {
             self.views.drop_pending(&pend.view.id).await?;
@@ -406,21 +566,44 @@ impl ManageDoor {
             None => None,
         };
         let given = choices.map(|picks| SetupPicks { picks, recipe });
-        let started: SetupStarted = self.setup.start_setup(&record.id, &add_id, given, o.row.clone()).await?;
-        let now = self.records.record_of(&record.id).await?.unwrap_or_else(|| record.clone());
+        let started: SetupStarted = self
+            .setup
+            .start_setup(&record.id, &add_id, given, o.row.clone())
+            .await?;
+        let now = self
+            .records
+            .record_of(&record.id)
+            .await?
+            .unwrap_or_else(|| record.clone());
         let default = self.records.default_id().await?;
-        Ok(PlaceSetUp { add_id, place: self.views.view_of(&now, default.as_deref()), setup: started.setup, said: started.said })
+        Ok(PlaceSetUp {
+            add_id,
+            place: self.views.view_of(&now, default.as_deref()),
+            setup: started.setup,
+            said: started.said,
+        })
     }
 
     /// F2 (:757-761).
     pub async fn follow(&self, place_id: &str, recipe: &str) -> PlaceResult<PlaceView> {
         let Some(held) = self.records.record_of(place_id).await? else {
-            let names: Vec<String> = self.records.records().await?.into_iter().map(|r| r.name).collect();
-            return Err(HostError::with_kind(no_such_place_refusal(place_id, &names), Kind::Usage));
+            let names: Vec<String> = self
+                .records
+                .records()
+                .await?
+                .into_iter()
+                .map(|r| r.name)
+                .collect();
+            return Err(HostError::with_kind(
+                no_such_place_refusal(place_id, &names),
+                Kind::Usage,
+            ));
         };
         let written = self.follow_to(place_id, recipe).await?;
         let default = self.records.default_id().await?;
-        Ok(self.views.view_of(&written.unwrap_or(held), default.as_deref()))
+        Ok(self
+            .views
+            .view_of(&written.unwrap_or(held), default.as_deref()))
     }
 
     /// F3 (:763-781).
@@ -446,8 +629,21 @@ impl ManageDoor {
             }
             names.push(record.name.clone());
             if !self.setup.is_setting(&record.id) && !self.setup.is_syncing(&record.id) {
-                let since = record.sync.as_ref().map(|s| s.since.clone()).unwrap_or_else(|| iso_at(self.ctx.clock.now() as u64));
-                self.setup.mark_sync(&record.id, PlaceSync { state: PlaceSyncState::Behind, changes: read.change_keys.clone(), since }).await?;
+                let since = record
+                    .sync
+                    .as_ref()
+                    .map(|s| s.since.clone())
+                    .unwrap_or_else(|| iso_at(self.ctx.clock.now() as u64));
+                self.setup
+                    .mark_sync(
+                        &record.id,
+                        PlaceSync {
+                            state: PlaceSyncState::Behind,
+                            changes: read.change_keys.clone(),
+                            since,
+                        },
+                    )
+                    .await?;
             }
             self.setup.sync_soon(&record.id, after_ms);
         }
@@ -459,7 +655,9 @@ impl ManageDoor {
         let mut out: IndexMap<String, Vec<String>> = IndexMap::new();
         for record in self.records.records().await? {
             if let Some(recipe) = record.recipe.as_deref().filter(|r| *r != NO_RECIPE) {
-                out.entry(recipe.to_string()).or_default().push(record.name.clone());
+                out.entry(recipe.to_string())
+                    .or_default()
+                    .push(record.name.clone());
             }
         }
         Ok(out)
@@ -468,27 +666,64 @@ impl ManageDoor {
     /// SK1-SK4 (:789-813).
     pub async fn skip(&self, place_id: &str, row: &str) -> PlaceResult<PlaceView> {
         let Some(held) = self.records.record_of(place_id).await? else {
-            let names: Vec<String> = self.records.records().await?.into_iter().map(|r| r.name).collect();
-            return Err(usage_refusal(&no_such_place_refusal(place_id, &names), NAMED_FIX));
+            let names: Vec<String> = self
+                .records
+                .records()
+                .await?
+                .into_iter()
+                .map(|r| r.name)
+                .collect();
+            return Err(usage_refusal(
+                &no_such_place_refusal(place_id, &names),
+                NAMED_FIX,
+            ));
         };
         if let Some(live) = self.setup.skipper(&format!("{place_id}/{row}")) {
             live().await?;
         } else {
-            let waits = held.setup.as_ref().is_some_and(|s| s.waiting.iter().any(|w| w.row == row));
-            let failed = held.applied.as_ref().is_some_and(|a| a.rows.iter().any(|r| r.row.id == row && r.row.outcome == PlaceProvisionRowOutcome::Failed));
+            let waits = held
+                .setup
+                .as_ref()
+                .is_some_and(|s| s.waiting.iter().any(|w| w.row == row));
+            let failed = held.applied.as_ref().is_some_and(|a| {
+                a.rows
+                    .iter()
+                    .any(|r| r.row.id == row && r.row.outcome == PlaceProvisionRowOutcome::Failed)
+            });
             if !waits && !failed {
-                return Err(usage_refusal(&nothing_to_skip_line(row, &held.name), "Skip a row the computer's page shows waiting or failed."));
+                return Err(usage_refusal(
+                    &nothing_to_skip_line(row, &held.name),
+                    "Skip a row the computer's page shows waiting or failed.",
+                ));
             }
             let stamp = iso_at(self.ctx.clock.now() as u64);
             let row_id = row.to_string();
             self.records
                 .change(place_id, move |now: PlaceRecord| {
-                    let failed_now = now.applied.as_ref().and_then(|a| a.rows.iter().find(|r| r.row.id == row_id && r.row.outcome == PlaceProvisionRowOutcome::Failed).cloned());
-                    let step = failed_now.as_ref().and_then(|r| r.row.step).or_else(|| now.applied.as_ref().and_then(|a| a.rows.iter().find(|r| r.row.id == row_id)).and_then(|r| r.row.step));
+                    let failed_now = now.applied.as_ref().and_then(|a| {
+                        a.rows
+                            .iter()
+                            .find(|r| {
+                                r.row.id == row_id
+                                    && r.row.outcome == PlaceProvisionRowOutcome::Failed
+                            })
+                            .cloned()
+                    });
+                    let step = failed_now.as_ref().and_then(|r| r.row.step).or_else(|| {
+                        now.applied
+                            .as_ref()
+                            .and_then(|a| a.rows.iter().find(|r| r.row.id == row_id))
+                            .and_then(|r| r.row.step)
+                    });
                     let label = failed_now
                         .as_ref()
                         .map(|r| r.row.label.clone())
-                        .or_else(|| now.setup.as_ref().and_then(|s| s.waiting.iter().find(|w| w.row == row_id)).map(|w| w.label.clone()))
+                        .or_else(|| {
+                            now.setup
+                                .as_ref()
+                                .and_then(|s| s.waiting.iter().find(|w| w.row == row_id))
+                                .map(|w| w.label.clone())
+                        })
                         .unwrap_or_else(|| row_id.clone());
                     let skipped = HeldRow {
                         row: PlaceProvisionRow {
@@ -507,23 +742,50 @@ impl ManageDoor {
                         pick: None,
                         created_at: None,
                     };
-                    let mut rows: Vec<HeldRow> = now.applied.as_ref().map(|a| a.rows.iter().filter(|r| r.row.id != row_id).cloned().collect()).unwrap_or_default();
+                    let mut rows: Vec<HeldRow> = now
+                        .applied
+                        .as_ref()
+                        .map(|a| {
+                            a.rows
+                                .iter()
+                                .filter(|r| r.row.id != row_id)
+                                .cloned()
+                                .collect()
+                        })
+                        .unwrap_or_default();
                     rows.push(skipped);
                     let applied = match now.applied.clone() {
                         Some(applied) => HeldApplied { rows, ..applied },
-                        None => HeldApplied { hash: String::new(), at: stamp.clone(), rows, items: None },
+                        None => HeldApplied {
+                            hash: String::new(),
+                            at: stamp.clone(),
+                            rows,
+                            items: None,
+                        },
                     };
                     let setup = now.setup.clone().map(|s| PlaceSetup {
-                        waiting: s.waiting.iter().filter(|w| w.row != row_id).cloned().collect(),
+                        waiting: s
+                            .waiting
+                            .iter()
+                            .filter(|w| w.row != row_id)
+                            .cloned()
+                            .collect(),
                         ..s
                     });
-                    Some(PlaceRecord { setup: setup.or(now.setup.clone()), applied: Some(applied), ..now })
+                    Some(PlaceRecord {
+                        setup: setup.or(now.setup.clone()),
+                        applied: Some(applied),
+                        ..now
+                    })
                 })
                 .await?;
             let now = self.records.record_of(place_id).await?;
             if let Some(setup) = now.as_ref().and_then(|n| n.setup.clone()) {
                 if setup.state != PlaceSetupState::Running {
-                    let applied = now.as_ref().and_then(|n| n.applied.as_ref()).map(applied_view);
+                    let applied = now
+                        .as_ref()
+                        .and_then(|n| n.applied.as_ref())
+                        .map(applied_view);
                     let (end, said) = setup_outcome(&setup, applied.as_ref());
                     self.setup.setup_frame(PlaceSetupEvent {
                         add_id: setup.add_id.clone(),
@@ -544,29 +806,41 @@ impl ManageDoor {
     }
 
     /// ES1 (:815-824).
-    pub async fn estimate(&self, reference: &str, choices: RecipeFile) -> PlaceResult<PlaceEstimate> {
+    pub async fn estimate(
+        &self,
+        reference: &str,
+        choices: RecipeFile,
+    ) -> PlaceResult<PlaceEstimate> {
         let Some(provision) = self.ctx.wiring.provision.clone() else {
             return Err(HostError::new(NO_ESTIMATE_LINE));
         };
         if !provision.has_estimate() {
             return Err(HostError::new(NO_ESTIMATE_LINE));
         }
-        let pending = self
-            .views
-            .pending_records()
-            .await?
-            .into_iter()
-            .find(|p| p.view.id == reference || p.view.address == reference || p.view.name.as_deref() == Some(reference) || p.view.place_id.as_deref() == Some(reference));
+        let pending = self.views.pending_records().await?.into_iter().find(|p| {
+            p.view.id == reference
+                || p.view.address == reference
+                || p.view.name.as_deref() == Some(reference)
+                || p.view.place_id.as_deref() == Some(reference)
+        });
         let place_id = match pending.and_then(|p| p.view.place_id) {
             Some(place_id) => Some(place_id),
-            None => self.records.records().await?.into_iter().find(|r| r.id == reference || r.name == reference).map(|r| r.id),
+            None => self
+                .records
+                .records()
+                .await?
+                .into_iter()
+                .find(|r| r.id == reference || r.name == reference)
+                .map(|r| r.id),
         };
         let disk = match &place_id {
             Some(place_id) => self.records.record_of(place_id).await?.map(|r| r.report),
             None => None,
         };
         let sized = provision.estimate(&choices).await?;
-        let disk_size = disk.as_ref().and_then(|d| d.disk_size_bytes.map(|j| j.as_f64() as u64));
+        let disk_size = disk
+            .as_ref()
+            .and_then(|d| d.disk_size_bytes.map(|j| j.as_f64() as u64));
         Ok(PlaceEstimate {
             needed_bytes: JsInt(JsNumber(sized.bytes as f64)),
             kept_bytes: JsInt(JsNumber(owned_floor_bytes(disk_size) as f64)),
@@ -576,25 +850,63 @@ impl ManageDoor {
     }
 
     /// LG1 (:826-837).
-    pub async fn setup_log(&self, place_id: &str, step: Option<PlaceSetupStep>) -> PlaceResult<Vec<String>> {
+    pub async fn setup_log(
+        &self,
+        place_id: &str,
+        step: Option<PlaceSetupStep>,
+    ) -> PlaceResult<Vec<String>> {
         let Some(held) = self.records.record_of(place_id).await? else {
-            let names: Vec<String> = self.records.records().await?.into_iter().map(|r| r.name).collect();
-            return Err(usage_refusal(&no_such_place_refusal(place_id, &names), NAMED_FIX));
+            let names: Vec<String> = self
+                .records
+                .records()
+                .await?
+                .into_iter()
+                .map(|r| r.name)
+                .collect();
+            return Err(usage_refusal(
+                &no_such_place_refusal(place_id, &names),
+                NAMED_FIX,
+            ));
         };
         let Some(home) = held.report.login.get("HOME").cloned() else {
             return Ok(Vec::new());
         };
         let machine = PlaceMachine::new(self.setup.link_to(place_id), &held.name, &home);
         let log = place_provision_paths(&home).log;
-        let cmd = format!("tail -c {SETUP_LOG_TAIL_BYTES} {} 2>/dev/null", shell_quote(&log));
-        let read = machine.exec(&cmd, ExecOptions { timeout_ms: Some(LOG_READ_MS), idempotency_key: None, stdin: None }).await.map_err(|e| host_of(&e))?;
-        let lines: Vec<String> = read.stdout.split('\n').filter(|line| !line.is_empty()).map(str::to_string).collect();
-        let whole: Vec<String> = if read.stdout.len() >= SETUP_LOG_TAIL_BYTES { lines.into_iter().skip(1).collect() } else { lines };
+        let cmd = format!(
+            "tail -c {SETUP_LOG_TAIL_BYTES} {} 2>/dev/null",
+            shell_quote(&log)
+        );
+        let read = machine
+            .exec(
+                &cmd,
+                ExecOptions {
+                    timeout_ms: Some(LOG_READ_MS),
+                    idempotency_key: None,
+                    stdin: None,
+                },
+            )
+            .await
+            .map_err(|e| host_of(&e))?;
+        let lines: Vec<String> = read
+            .stdout
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(str::to_string)
+            .collect();
+        let whole: Vec<String> = if read.stdout.len() >= SETUP_LOG_TAIL_BYTES {
+            lines.into_iter().skip(1).collect()
+        } else {
+            lines
+        };
         Ok(match step {
             None => whole,
             Some(step) => {
                 let marker = format!(" [{}] ", step_word(step));
-                whole.into_iter().filter(|line| line.contains(&marker)).collect()
+                whole
+                    .into_iter()
+                    .filter(|line| line.contains(&marker))
+                    .collect()
             }
         })
     }
@@ -610,7 +922,10 @@ impl ManageDoor {
             let moved = self
                 .records
                 .change(&record.id, move |now: PlaceRecord| {
-                    (now.recipe.as_deref() == Some(wanted.as_str())).then(|| PlaceRecord { recipe: Some(NO_RECIPE.to_string()), ..now })
+                    (now.recipe.as_deref() == Some(wanted.as_str())).then(|| PlaceRecord {
+                        recipe: Some(NO_RECIPE.to_string()),
+                        ..now
+                    })
                 })
                 .await?;
             if moved.is_some() {
@@ -623,7 +938,11 @@ impl ManageDoor {
 
     /// F6 (:849).
     pub async fn picks_of(&self, place_id: &str) -> PlaceResult<Option<RecipeFile>> {
-        Ok(self.records.record_of(place_id).await?.and_then(|r| r.picks))
+        Ok(self
+            .records
+            .record_of(place_id)
+            .await?
+            .and_then(|r| r.picks))
     }
 
     /// C1 (:851-854): answers the id `off` takes.
@@ -660,7 +979,12 @@ impl ManageDoor {
         for key in keys {
             let forward = self.ctx.forwards.borrow_mut().shift_remove(&key);
             if let Some(forward) = forward {
-                let conns: Vec<_> = forward.conns.borrow_mut().drain(..).map(|(_, conn)| conn).collect();
+                let conns: Vec<_> = forward
+                    .conns
+                    .borrow_mut()
+                    .drain(..)
+                    .map(|(_, conn)| conn)
+                    .collect();
                 for conn in conns {
                     conn.destroy();
                 }

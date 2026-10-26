@@ -17,12 +17,12 @@ use wsp_core::types::pending::Clock;
 use wsp_core::types::wiring::{WorkspaceRecord, DAEMON_LACKS_AGAIN_MS, DAEMON_REVIVE_AGAIN_MS};
 use wsp_engine::land_bytes::lands_bytes;
 use wsp_engine::machine::MachineBackend;
+use wsp_wire::types::js_number::JsNumber;
+use wsp_wire::views::session::SessionStatus;
 use wsp_wire::views::session::{SessionView, ThreadCapWait};
 use wsp_wire::views::workspace::{Caller, ReachState, WorkspacePhase};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::views::workspace_more::{WorkspaceStatus, WorkspaceViewDaemonRefusedAt};
-use wsp_wire::types::js_number::JsNumber;
-use wsp_wire::views::session::SessionStatus;
 use wsp_wire::wire::daemon_version::DAEMON_VERSION;
 use wsp_wire::wire::events_union::EventUnion;
 use wsp_wire::wire::runtime::SessionStartOutcome;
@@ -33,7 +33,10 @@ use wsp_words::js::utf16::tail;
 use wsp_words::js_date::iso_string;
 use wsp_words::projects::runs_in_folder;
 use wsp_words::words::computer::{machine_lacks_line, machine_never_answered, thread_word};
-use wsp_words::words::thread::{DAEMON_INSTALLING, DAEMON_INSTALL_FAILED, DAEMON_RESTARTING, DAEMON_RESTART_FAILED, DAEMON_UPDATE_FAILED, DAEMON_UPDATING};
+use wsp_words::words::thread::{
+    DAEMON_INSTALLING, DAEMON_INSTALL_FAILED, DAEMON_RESTARTING, DAEMON_RESTART_FAILED,
+    DAEMON_UPDATE_FAILED, DAEMON_UPDATING,
+};
 
 use super::machines::{Entry, Ids, Row, Unreached};
 
@@ -69,7 +72,12 @@ pub trait DaemonRuntime {
     fn daemon_notes(&self) -> Rc<RefCell<IndexMap<String, String>>>;
     /// `ctx.state.closed`.
     fn closed(&self) -> bool;
-    async fn sessions_start(&self, workspace_id: &str, ask: DetachedStart, origin: Option<&Caller>) -> Result<Started, HostError>;
+    async fn sessions_start(
+        &self,
+        workspace_id: &str,
+        ask: DetachedStart,
+        origin: Option<&Caller>,
+    ) -> Result<Started, HostError>;
     async fn push_status(&self, entry: &Entry) -> Result<(), HostError>;
     async fn persist(&self, record: &WorkspaceRecord) -> Result<(), HostError>;
     fn served_by_its_computer(&self, entry: &Entry) -> Option<String>;
@@ -118,7 +126,10 @@ async fn answered<T>(rx: oneshot::Receiver<T>) -> T {
 }
 
 /// Runs a keyed run's synchronous part now, as an async function does, then keeps it running on the local task set.
-fn start<T: Clone + 'static>(join: Shared<LocalBoxFuture<'static, T>>, forget: Box<dyn FnOnce()>) -> Shared<LocalBoxFuture<'static, T>> {
+fn start<T: Clone + 'static>(
+    join: Shared<LocalBoxFuture<'static, T>>,
+    forget: Box<dyn FnOnce()>,
+) -> Shared<LocalBoxFuture<'static, T>> {
     let mut first = join.clone();
     let _ = (&mut first).now_or_never();
     let keep = join.clone();
@@ -137,7 +148,10 @@ fn forget_join<T>(map: &RefCell<IndexMap<String, Join<T>>>, key: &str, seq: u64)
 }
 
 fn kind_word(kind: &WorkspaceKind) -> String {
-    serde_json::to_value(kind).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default()
+    serde_json::to_value(kind)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_string))
+        .unwrap_or_default()
 }
 
 fn snapshot(entry: &Entry) -> WorkspaceRecord {
@@ -148,10 +162,16 @@ fn machine_id_of(entry: &Entry) -> String {
     entry.borrow().machine.id().to_string()
 }
 
-fn turn_on_sessions(sessions: &RefCell<IndexMap<String, Row>>, workspace_id: &str, count_queued: bool) -> bool {
+fn turn_on_sessions(
+    sessions: &RefCell<IndexMap<String, Row>>,
+    workspace_id: &str,
+    count_queued: bool,
+) -> bool {
     sessions.borrow().values().any(|row| {
         let row = row.borrow();
-        row.view.workspace_id == workspace_id && matches!(row.view.status, SessionStatus::Running) && (count_queued || !row.queued)
+        row.view.workspace_id == workspace_id
+            && matches!(row.view.status, SessionStatus::Running)
+            && (count_queued || !row.queued)
     })
 }
 
@@ -192,7 +212,13 @@ impl DaemonArea {
     }
 
     /// `sendDetached` (daemon.ts:14), spec rule 1.
-    pub async fn send_detached(self: &Rc<Self>, workspace_id: &str, prompt: &str, thread: Option<&str>, origin: Option<&Caller>) -> Result<DetachedSend, HostError> {
+    pub async fn send_detached(
+        self: &Rc<Self>,
+        workspace_id: &str,
+        prompt: &str,
+        thread: Option<&str>,
+        origin: Option<&Caller>,
+    ) -> Result<DetachedSend, HostError> {
         let request_id = self.rt.ids().uuid();
         let (queued_tx, queued_rx) = oneshot::channel::<String>();
         let queued_tx = Rc::new(RefCell::new(Some(queued_tx)));
@@ -201,21 +227,25 @@ impl DaemonArea {
         let closed = Rc::new(Cell::new(false));
         {
             let (queued_tx, closed, id) = (queued_tx.clone(), closed.clone(), request_id.clone());
-            self.listeners.borrow_mut().push(Box::new(move |event: &EventUnion| {
-                if closed.get() {
-                    return true;
-                }
-                let EventUnion::SessionQueued(queued) = event else { return false };
-                if queued.event.request_id.as_deref() != Some(id.as_str()) {
-                    return false;
-                }
-                let harness = queued.event.harness.clone();
-                let sender = queued_tx.borrow_mut().take();
-                if let Some(sender) = sender {
-                    let _ = sender.send(harness);
-                }
-                true
-            }));
+            self.listeners
+                .borrow_mut()
+                .push(Box::new(move |event: &EventUnion| {
+                    if closed.get() {
+                        return true;
+                    }
+                    let EventUnion::SessionQueued(queued) = event else {
+                        return false;
+                    };
+                    if queued.event.request_id.as_deref() != Some(id.as_str()) {
+                        return false;
+                    }
+                    let harness = queued.event.harness.clone();
+                    let sender = queued_tx.borrow_mut().take();
+                    if let Some(sender) = sender {
+                        let _ = sender.send(harness);
+                    }
+                    true
+                }));
         }
         let on_held_tx = held_tx.clone();
         let on_held: Box<dyn Fn(SessionView, ThreadCapWait)> = Box::new(move |view, wait| {
@@ -226,7 +256,12 @@ impl DaemonArea {
         });
         let (started_tx, started_rx) = oneshot::channel::<Result<Started, HostError>>();
         let rt = self.rt.clone();
-        let ask = DetachedStart { prompt: prompt.to_string(), thread: thread.map(str::to_string), request_id: request_id.clone(), on_held };
+        let ask = DetachedStart {
+            prompt: prompt.to_string(),
+            thread: thread.map(str::to_string),
+            request_id: request_id.clone(),
+            on_held,
+        };
         let caller = origin.cloned();
         let ws = workspace_id.to_string();
         let thread_said = thread_word(thread.unwrap_or(""));
@@ -234,7 +269,10 @@ impl DaemonArea {
             let answer = rt.sessions_start(&ws, ask, caller.as_ref()).await;
             if started_tx.is_canceled() {
                 if let Err(e) = &answer {
-                    rt.warn(&format!("a message waiting in thread {thread_said} was not sent: {}", e.message));
+                    rt.warn(&format!(
+                        "a message waiting in thread {thread_said} was not sent: {}",
+                        e.message
+                    ));
                 }
             }
             let _ = started_tx.send(answer);
@@ -253,9 +291,19 @@ impl DaemonArea {
                     _ => DetachedOutcome::Started,
                 };
                 let view = started.view;
-                Ok(DetachedSend { outcome, thread_id: view.thread_id.clone().unwrap_or(view.id.clone()), harness: view.harness.clone(), capped: None })
+                Ok(DetachedSend {
+                    outcome,
+                    thread_id: view.thread_id.clone().unwrap_or(view.id.clone()),
+                    harness: view.harness.clone(),
+                    capped: None,
+                })
             }
-            First::Queued(harness) => Ok(DetachedSend { outcome: DetachedOutcome::Queued, thread_id: thread.unwrap_or("").to_string(), harness, capped: None }),
+            First::Queued(harness) => Ok(DetachedSend {
+                outcome: DetachedOutcome::Queued,
+                thread_id: thread.unwrap_or("").to_string(),
+                harness,
+                capped: None,
+            }),
             First::Held(view, wait) => Ok(DetachedSend {
                 outcome: DetachedOutcome::Held,
                 thread_id: view.thread_id.clone().unwrap_or(view.id.clone()),
@@ -266,7 +314,12 @@ impl DaemonArea {
     }
 
     /// `toFirstThread` (daemon.ts:48), spec rule 2.
-    pub async fn to_first_thread(self: &Rc<Self>, workspace_id: &str, prompt: &str, origin: Option<&Caller>) -> Result<DetachedSend, HostError> {
+    pub async fn to_first_thread(
+        self: &Rc<Self>,
+        workspace_id: &str,
+        prompt: &str,
+        origin: Option<&Caller>,
+    ) -> Result<DetachedSend, HostError> {
         let first = {
             let sessions = self.rt.sessions();
             let rows = sessions.borrow();
@@ -277,7 +330,9 @@ impl DaemonArea {
                     continue;
                 }
                 let at = view.started_at.map_or(0.0, |at| at.0);
-                let earlier = first.as_ref().is_none_or(|best| at < best.started_at.map_or(0.0, |best_at| best_at.0));
+                let earlier = first
+                    .as_ref()
+                    .is_none_or(|best| at < best.started_at.map_or(0.0, |best_at| best_at.0));
                 if earlier {
                     first = Some(view);
                 }
@@ -285,7 +340,8 @@ impl DaemonArea {
             first
         };
         let thread = first.and_then(|view| view.thread_id);
-        self.send_detached(workspace_id, prompt, thread.as_deref(), origin).await
+        self.send_detached(workspace_id, prompt, thread.as_deref(), origin)
+            .await
     }
 
     /// `noteDaemon` (daemon.ts:54): sets or clears the note, then pushes the row.
@@ -317,8 +373,16 @@ impl DaemonArea {
     }
 
     /// `rootsWrite` (daemon.ts:72), spec rule 4: each write of a machine's roots starts after the last one settled.
-    fn roots_write(self: &Rc<Self>, machine_id: &str, work: LocalBoxFuture<'static, Result<(), HostError>>) -> LocalBoxFuture<'static, Result<(), HostError>> {
-        let prev = self.roots_writes.borrow().get(machine_id).map(|(_, tail)| tail.clone());
+    fn roots_write(
+        self: &Rc<Self>,
+        machine_id: &str,
+        work: LocalBoxFuture<'static, Result<(), HostError>>,
+    ) -> LocalBoxFuture<'static, Result<(), HostError>> {
+        let prev = self
+            .roots_writes
+            .borrow()
+            .get(machine_id)
+            .map(|(_, tail)| tail.clone());
         let (tx, rx) = oneshot::channel::<Result<(), HostError>>();
         let body: LocalBoxFuture<'static, ()> = async move {
             if let Some(prev) = prev {
@@ -329,7 +393,9 @@ impl DaemonArea {
         .boxed_local();
         let seq = self.next_seq();
         let tail = body.shared();
-        self.roots_writes.borrow_mut().insert(machine_id.to_string(), (seq, tail.clone()));
+        self.roots_writes
+            .borrow_mut()
+            .insert(machine_id.to_string(), (seq, tail.clone()));
         let me = Rc::downgrade(self);
         let key = machine_id.to_string();
         drop(start(
@@ -365,7 +431,13 @@ impl DaemonArea {
             if other.machine_id != record.machine_id {
                 continue;
             }
-            for dest in [self.rt.project_path(&other.project), self.rt.checkout_of(&other)].into_iter().chain(other.landed.clone().unwrap_or_default()) {
+            for dest in [
+                self.rt.project_path(&other.project),
+                self.rt.checkout_of(&other),
+            ]
+            .into_iter()
+            .chain(other.landed.clone().unwrap_or_default())
+            {
                 if !dests.contains(&dest) {
                     dests.push(dest);
                 }
@@ -378,13 +450,21 @@ impl DaemonArea {
         }
         if let Err(e) = written.await {
             let machine = machine_id_of(entry);
-            self.rt.warn(&format!("browsable folders for {} not written on {machine}: {}", record.id, tail(&e.message, 200)));
+            self.rt.warn(&format!(
+                "browsable folders for {} not written on {machine}: {}",
+                record.id,
+                tail(&e.message, 200)
+            ));
         }
         Ok(())
     }
 
     /// `writeDaemonRoots` (daemon.ts:88), spec rule 5.
-    pub async fn write_daemon_roots(self: &Rc<Self>, entry: &Entry, strict: bool) -> Result<(), HostError> {
+    pub async fn write_daemon_roots(
+        self: &Rc<Self>,
+        entry: &Entry,
+        strict: bool,
+    ) -> Result<(), HostError> {
         let machine_id = snapshot(entry).machine_id;
         let me = self.clone();
         let work_entry = entry.clone();
@@ -406,19 +486,24 @@ impl DaemonArea {
         let tx = Rc::new(RefCell::new(Some(tx)));
         let ws = workspace_id.to_string();
         let sessions = self.rt.sessions();
-        self.listeners.borrow_mut().push(Box::new(move |event: &EventUnion| {
-            if !matches!(event, EventUnion::SessionDone(_) | EventUnion::SessionEnd(_)) {
-                return false;
-            }
-            if turn_on_sessions(&sessions, &ws, false) {
-                return false;
-            }
-            let sender = tx.borrow_mut().take();
-            if let Some(sender) = sender {
-                let _ = sender.send(());
-            }
-            true
-        }));
+        self.listeners
+            .borrow_mut()
+            .push(Box::new(move |event: &EventUnion| {
+                if !matches!(
+                    event,
+                    EventUnion::SessionDone(_) | EventUnion::SessionEnd(_)
+                ) {
+                    return false;
+                }
+                if turn_on_sessions(&sessions, &ws, false) {
+                    return false;
+                }
+                let sender = tx.borrow_mut().take();
+                if let Some(sender) = sender {
+                    let _ = sender.send(());
+                }
+                true
+            }));
         let _ = rx.await;
     }
 
@@ -442,7 +527,9 @@ impl DaemonArea {
     pub async fn deploy_daemon_on(&self, entry: &Entry) -> Result<Option<String>, HostError> {
         let record = snapshot(entry);
         let module = self.rt.module_of(&kind_word(&record.kind));
-        let deploy = module.deploy_daemon(&entry.borrow()).ok_or_else(|| HostError::new("this kind has no daemon to deploy"))?;
+        let deploy = module
+            .deploy_daemon(&entry.borrow())
+            .ok_or_else(|| HostError::new("this kind has no daemon to deploy"))?;
         match deploy.await {
             Ok(detail) => {
                 self.forget_refusal(entry).await?;
@@ -451,7 +538,11 @@ impl DaemonArea {
             Err(e) => {
                 if let Some(lacks) = machine_lacks_line(&e) {
                     let at = iso_string(self.rt.clock().now() as f64).unwrap_or_default();
-                    let refused = WorkspaceViewDaemonRefusedAt { machine_id: machine_id_of(entry), at, why: lacks };
+                    let refused = WorkspaceViewDaemonRefusedAt {
+                        machine_id: machine_id_of(entry),
+                        at,
+                        why: lacks,
+                    };
                     entry.borrow().record.borrow_mut().daemon_refused_at = Some(refused);
                     self.rt.persist(&snapshot(entry)).await?;
                 } else if !machine_never_answered(&e) {
@@ -473,10 +564,15 @@ impl DaemonArea {
     }
 
     /// `lacksSaid` (daemon.ts:174), spec rule 9.
-    async fn lacks_said(&self, entry: &Entry) -> Result<Option<WorkspaceViewDaemonRefusedAt>, HostError> {
+    async fn lacks_said(
+        &self,
+        entry: &Entry,
+    ) -> Result<Option<WorkspaceViewDaemonRefusedAt>, HostError> {
         let record = entry.borrow().record.clone();
         let refused = record.borrow().daemon_refused_at.clone();
-        let Some(refused) = refused else { return Ok(None) };
+        let Some(refused) = refused else {
+            return Ok(None);
+        };
         if refused.machine_id == machine_id_of(entry) {
             return Ok(Some(refused));
         }
@@ -486,9 +582,17 @@ impl DaemonArea {
     }
 
     /// `syncDaemon` (daemon.ts:190), spec rule 10; joined per machine. It never rejects for a deploy that failed.
-    pub fn sync_daemon(self: &Rc<Self>, entry: &Entry) -> LocalBoxFuture<'static, Result<(), HostError>> {
+    pub fn sync_daemon(
+        self: &Rc<Self>,
+        entry: &Entry,
+    ) -> LocalBoxFuture<'static, Result<(), HostError>> {
         let key = machine_id_of(entry);
-        if let Some(held) = self.daemon_syncs.borrow().get(&key).map(|(_, join)| join.clone()) {
+        if let Some(held) = self
+            .daemon_syncs
+            .borrow()
+            .get(&key)
+            .map(|(_, join)| join.clone())
+        {
             return held.boxed_local();
         }
         let seq = self.next_seq();
@@ -502,7 +606,9 @@ impl DaemonArea {
         }
         .boxed_local();
         let join = body.shared();
-        self.daemon_syncs.borrow_mut().insert(key.clone(), (seq, join.clone()));
+        self.daemon_syncs
+            .borrow_mut()
+            .insert(key.clone(), (seq, join.clone()));
         let me = Rc::downgrade(self);
         let forget_key = key.clone();
         let join = start(
@@ -542,7 +648,13 @@ impl DaemonArea {
         let version = version_read.await?;
         let Some(version) = version else {
             let now = self.rt.clock().now() as f64;
-            self.unread_at.borrow_mut().insert(id.clone(), MachineMoment { machine_id: key.clone(), at: JsNumber(now) });
+            self.unread_at.borrow_mut().insert(
+                id.clone(),
+                MachineMoment {
+                    machine_id: key.clone(),
+                    at: JsNumber(now),
+                },
+            );
             let seconds = self.rt.daemon_hello_timeout_ms() as f64 / 1000.0;
             self.rt.warn(&format!("daemon on {key} (workspace {id}): version not read within {} s; asking again at the next reach probe", number_string(seconds)));
             return Ok(());
@@ -552,13 +664,19 @@ impl DaemonArea {
             return Ok(());
         }
         if self.turn_on_machine(&id) {
-            self.rt.warn(&format!("daemon on {key} (workspace {id}): update waits for the running turn"));
+            self.rt.warn(&format!(
+                "daemon on {key} (workspace {id}): update waits for the running turn"
+            ));
         }
         self.when_no_turn_runs(&id).await;
         if entry.borrow().record.borrow().phase != WorkspacePhase::Running {
             return Ok(());
         }
-        let note = if placing { DAEMON_INSTALLING } else { DAEMON_UPDATING };
+        let note = if placing {
+            DAEMON_INSTALLING
+        } else {
+            DAEMON_UPDATING
+        };
         self.note_daemon(entry, Some(note)).await?;
         while self.turn_on_machine(&id) {
             self.when_no_turn_runs(&id).await;
@@ -578,9 +696,21 @@ impl DaemonArea {
             if entry.borrow().record.borrow().phase != WorkspacePhase::Running {
                 return Ok(());
             }
-            let verb = if placing { "not installed" } else { "not updated" };
-            self.rt.warn(&format!("daemon on {} (workspace {id}) {verb}: {}", machine_id_of(entry), e.message));
-            let fallback = if placing { DAEMON_INSTALL_FAILED } else { DAEMON_UPDATE_FAILED };
+            let verb = if placing {
+                "not installed"
+            } else {
+                "not updated"
+            };
+            self.rt.warn(&format!(
+                "daemon on {} (workspace {id}) {verb}: {}",
+                machine_id_of(entry),
+                e.message
+            ));
+            let fallback = if placing {
+                DAEMON_INSTALL_FAILED
+            } else {
+                DAEMON_UPDATE_FAILED
+            };
             let line = machine_lacks_line(&e).unwrap_or_else(|| fallback.to_string());
             self.flash_daemon(entry, &line).await?;
         }
@@ -590,7 +720,11 @@ impl DaemonArea {
     /// `daemonSettled` (daemon.ts:262), spec rule 11.
     pub async fn daemon_settled(&self, entry: &Entry) {
         let (id, key) = (snapshot(entry).id, machine_id_of(entry));
-        let sync = self.daemon_syncs.borrow().get(&key).map(|(_, join)| join.clone());
+        let sync = self
+            .daemon_syncs
+            .borrow()
+            .get(&key)
+            .map(|(_, join)| join.clone());
         if let Some(sync) = sync {
             if !self.turn_on_machine(&id) {
                 let _ = sync.await;
@@ -629,7 +763,9 @@ impl DaemonArea {
 
     /// `reviveDaemon` (daemon.ts:292), spec rule 13: starts its work and returns.
     pub fn revive_daemon(self: &Rc<Self>, entry: &Entry, reach: ReachState) {
-        if reach != ReachState::NoDaemon || entry.borrow().record.borrow().phase != WorkspacePhase::Running {
+        if reach != ReachState::NoDaemon
+            || entry.borrow().record.borrow().phase != WorkspacePhase::Running
+        {
             return;
         }
         if !self.can_deploy(entry) || self.unreached_of(entry).is_some() {
@@ -641,11 +777,23 @@ impl DaemonArea {
             return;
         }
         let now = self.rt.clock().now() as f64;
-        let recent = self.revived_at.borrow().get(&record.id).is_some_and(|last| last.machine_id == key && now - last.at.0 < DAEMON_REVIVE_AGAIN_MS as f64);
+        let recent = self
+            .revived_at
+            .borrow()
+            .get(&record.id)
+            .is_some_and(|last| {
+                last.machine_id == key && now - last.at.0 < DAEMON_REVIVE_AGAIN_MS as f64
+            });
         if recent {
             return;
         }
-        self.revived_at.borrow_mut().insert(record.id.clone(), MachineMoment { machine_id: key.clone(), at: JsNumber(now) });
+        self.revived_at.borrow_mut().insert(
+            record.id.clone(),
+            MachineMoment {
+                machine_id: key.clone(),
+                at: JsNumber(now),
+            },
+        );
         let seq = self.next_seq();
         let me = Rc::downgrade(self);
         let work_entry = entry.clone();
@@ -656,7 +804,9 @@ impl DaemonArea {
         }
         .boxed_local();
         let join = body.shared();
-        self.daemon_revivals.borrow_mut().insert(key.clone(), (seq, join.clone()));
+        self.daemon_revivals
+            .borrow_mut()
+            .insert(key.clone(), (seq, join.clone()));
         let me = Rc::downgrade(self);
         let forget_key = key.clone();
         drop(start(
@@ -688,7 +838,10 @@ impl DaemonArea {
             if entry.borrow().record.borrow().phase != WorkspacePhase::Running {
                 return Ok(());
             }
-            self.rt.warn(&format!("daemon on {key} (workspace {id}) not restarted: {}", e.message));
+            self.rt.warn(&format!(
+                "daemon on {key} (workspace {id}) not restarted: {}",
+                e.message
+            ));
             self.flash_daemon(entry, DAEMON_RESTART_FAILED).await?;
         }
         Ok(())
@@ -713,7 +866,10 @@ impl DaemonArea {
             return;
         }
         let now = self.rt.clock().now() as f64;
-        if polled.phase != WorkspacePhase::Running || polled.reach.state != ReachState::Reachable || now - unread.at.0 < DAEMON_REVIVE_AGAIN_MS as f64 {
+        if polled.phase != WorkspacePhase::Running
+            || polled.reach.state != ReachState::Reachable
+            || now - unread.at.0 < DAEMON_REVIVE_AGAIN_MS as f64
+        {
             return;
         }
         drop(self.sync_daemon(entry));

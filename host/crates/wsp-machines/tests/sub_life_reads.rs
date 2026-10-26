@@ -10,13 +10,14 @@ use std::sync::Arc;
 use serde_json::{json, Value};
 
 use machines_b_support::*;
-use wsp_engine::machine::MachineBackend;
 use wsp_core::types::wiring::WorkspaceRecord;
+use wsp_engine::machine::MachineBackend;
 use wsp_machines::machines::sub_life::*;
 use wsp_words::exit::HostError;
 
 fn fixture() -> Value {
-    let at = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/machines_b/sub_life_reads.json");
+    let at =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/machines_b/sub_life_reads.json");
     serde_json::from_str(&std::fs::read_to_string(at).unwrap()).unwrap()
 }
 
@@ -51,8 +52,17 @@ fn constants_hold_the_ts_values() {
 #[test]
 fn result_command_is_byte_for_byte_the_ts_line() {
     for c in fixture()["commands"].as_array().unwrap() {
-        let got = sub_result_command(c["folder"].as_str().unwrap(), c["branch"].as_str().unwrap(), c["baseSha"].as_str().unwrap());
-        assert_eq!(got, c["command"].as_str().unwrap(), "folder {}", c["folder"]);
+        let got = sub_result_command(
+            c["folder"].as_str().unwrap(),
+            c["branch"].as_str().unwrap(),
+            c["baseSha"].as_str().unwrap(),
+        );
+        assert_eq!(
+            got,
+            c["command"].as_str().unwrap(),
+            "folder {}",
+            c["folder"]
+        );
     }
 }
 
@@ -63,7 +73,10 @@ fn parses_every_answer_as_the_ts_does() {
         let got = sub_result_of(stdout, B, AT);
         let want = &p["result"];
         match got {
-            None => assert!(want.is_null(), "{stdout:?} answered none, the TS answered {want}"),
+            None => assert!(
+                want.is_null(),
+                "{stdout:?} answered none, the TS answered {want}"
+            ),
             Some(r) => assert_eq!(text(&r), serde_json::to_string(want).unwrap(), "{stdout:?}"),
         }
     }
@@ -80,13 +93,28 @@ struct Remote {
 }
 
 fn git(at: &Path, args: &[&str]) -> String {
-    let out = Command::new("git").arg("-C").arg(at).args(["-c", "user.name=t", "-c", "user.email=t@t"]).args(args).output().unwrap();
-    assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(at)
+        .args(["-c", "user.name=t", "-c", "user.email=t@t"])
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     String::from_utf8(out.stdout).unwrap().trim().to_string()
 }
 
 fn sh(at: &Path, line: &str) -> String {
-    let out = Command::new("sh").arg("-c").arg(line).current_dir(at).output().unwrap();
+    let out = Command::new("sh")
+        .arg("-c")
+        .arg(line)
+        .current_dir(at)
+        .output()
+        .unwrap();
     String::from_utf8(out.stdout).unwrap()
 }
 
@@ -106,20 +134,46 @@ fn remote() -> Remote {
     git(&src, &["add", "g"]);
     git(&src, &["commit", "-qm", "pr"]);
     let bare = root.join("remote.git");
-    assert!(Command::new("git").args(["clone", "-q", "--bare"]).arg(&src).arg(&bare).status().unwrap().success());
+    assert!(Command::new("git")
+        .args(["clone", "-q", "--bare"])
+        .arg(&src)
+        .arg(&bare)
+        .status()
+        .unwrap()
+        .success());
     let folder = root.join("web");
     std::fs::create_dir(&folder).unwrap();
     let head = git(&src, &["rev-parse", "HEAD"]);
-    Remote { url: format!("file://{}", bare.display()), folder, head, root, _dir: dir }
+    Remote {
+        url: format!("file://{}", bare.display()),
+        folder,
+        head,
+        root,
+        _dir: dir,
+    }
 }
 
 /// One of the fixture's preambles, its placeholders filled.
 fn preamble(which: &str, repo: &str, head: &str, start: &str) -> Vec<String> {
-    fixture()["preambles"][which].as_array().unwrap().iter().map(|l| l.as_str().unwrap().replace("{REPO}", repo).replace("{HEAD}", head).replace("{START}", start)).collect()
+    fixture()["preambles"][which]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| {
+            l.as_str()
+                .unwrap()
+                .replace("{REPO}", repo)
+                .replace("{HEAD}", head)
+                .replace("{START}", start)
+        })
+        .collect()
 }
 
 fn read(folder: &Path, base: &str) -> wsp_wire::views::sub_row::SubResult {
-    let stdout = sh(folder, &sub_result_command(folder.to_str().unwrap(), B, base));
+    let stdout = sh(
+        folder,
+        &sub_result_command(folder.to_str().unwrap(), B, base),
+    );
     sub_result_of(&stdout, B, AT).expect("the read carries counts")
 }
 
@@ -130,19 +184,46 @@ fn counts_only_the_commits_made_on_the_machine_not_the_history_it_started_from()
     for line in preamble("brokered", &r.url, &r.head, "") {
         sh(&r.folder, &line);
     }
-    sh(&r.folder, &format!("git fetch -q --deepen=4 origin {}", r.head));
+    sh(
+        &r.folder,
+        &format!("git fetch -q --deepen=4 origin {}", r.head),
+    );
     assert_eq!(sh(&r.folder, "git rev-list --count HEAD").trim(), "5");
     let first = read(&r.folder, &r.head);
-    assert_eq!((first.unpushed.get(), first.changed.get(), first.pushed_sha.clone()), (0, 0, None));
+    assert_eq!(
+        (
+            first.unpushed.get(),
+            first.changed.get(),
+            first.pushed_sha.clone()
+        ),
+        (0, 0, None)
+    );
     std::fs::write(r.folder.join("h"), "review\n").unwrap();
     git(&r.folder, &["add", "h"]);
     git(&r.folder, &["commit", "-qm", "review notes"]);
     let second = read(&r.folder, &r.head);
-    assert_eq!((second.unpushed.get(), second.changed.get(), second.pushed_sha.clone()), (1, 0, None));
+    assert_eq!(
+        (
+            second.unpushed.get(),
+            second.changed.get(),
+            second.pushed_sha.clone()
+        ),
+        (1, 0, None)
+    );
     git(&r.folder, &["push", "-q", "-u", "origin", B]);
     let third = read(&r.folder, &r.head);
-    assert_eq!((third.unpushed.get(), third.changed.get(), third.commits.get()), (0, 0, 1));
-    assert_eq!(third.pushed_sha.as_deref(), Some(git(&r.folder, &["rev-parse", "HEAD"]).as_str()));
+    assert_eq!(
+        (
+            third.unpushed.get(),
+            third.changed.get(),
+            third.commits.get()
+        ),
+        (0, 0, 1)
+    );
+    assert_eq!(
+        third.pushed_sha.as_deref(),
+        Some(git(&r.folder, &["rev-parse", "HEAD"]).as_str())
+    );
 }
 
 #[test]
@@ -150,7 +231,15 @@ fn still_answers_on_a_new_machine_that_fetched_its_pushed_branch_and_not_the_com
     let r = remote();
     let src = r.root.join("src");
     let start = git(&src, &["rev-parse", "HEAD~1"]);
-    git(&src, &["push", "-q", r.root.join("remote.git").to_str().unwrap(), &format!("HEAD:refs/heads/{B}")]);
+    git(
+        &src,
+        &[
+            "push",
+            "-q",
+            r.root.join("remote.git").to_str().unwrap(),
+            &format!("HEAD:refs/heads/{B}"),
+        ],
+    );
     // The resume preamble's git lines with the branch pushed, as the TS writes them.
     for line in preamble("resumed", &r.url, "", &start) {
         sh(&r.folder, &line);
@@ -163,12 +252,28 @@ fn still_answers_on_a_new_machine_that_fetched_its_pushed_branch_and_not_the_com
 #[test]
 fn pack_and_land_commands_are_byte_for_byte_the_ts_lines() {
     let f = fixture();
-    let file_of = |v: &Value| SessionFile { folder: v["folder"].as_str().unwrap().to_string(), name: v["name"].as_str().unwrap().to_string(), depth: v["depth"].as_u64().unwrap() as u32 };
+    let file_of = |v: &Value| SessionFile {
+        folder: v["folder"].as_str().unwrap().to_string(),
+        name: v["name"].as_str().unwrap().to_string(),
+        depth: v["depth"].as_u64().unwrap() as u32,
+    };
     for p in f["packs"].as_array().unwrap() {
-        assert_eq!(sub_session_pack_command(&file_of(&p["file"]), p["to"].as_str().unwrap()), p["command"].as_str().unwrap());
+        assert_eq!(
+            sub_session_pack_command(&file_of(&p["file"]), p["to"].as_str().unwrap()),
+            p["command"].as_str().unwrap()
+        );
     }
     for l in f["lands"].as_array().unwrap() {
-        assert_eq!(sub_session_land_command(&file_of(&l["file"]), l["path"].as_str().unwrap(), l["from"].as_str().unwrap()), l["command"].as_str().unwrap(), "path {}", l["path"]);
+        assert_eq!(
+            sub_session_land_command(
+                &file_of(&l["file"]),
+                l["path"].as_str().unwrap(),
+                l["from"].as_str().unwrap()
+            ),
+            l["command"].as_str().unwrap(),
+            "path {}",
+            l["path"]
+        );
     }
 }
 
@@ -178,8 +283,18 @@ fn rows_read_as_the_ts_rows() {
         let record = record_of_fixture(r["record"].clone());
         let got = sub_row_of(&record);
         match got {
-            None => assert!(r["row"].is_null(), "no row for {}, the TS has {}", r["record"], r["row"]),
-            Some(row) => assert_eq!(text(&row), serde_json::to_string(&r["row"]).unwrap(), "record {}", r["record"]),
+            None => assert!(
+                r["row"].is_null(),
+                "no row for {}, the TS has {}",
+                r["record"],
+                r["row"]
+            ),
+            Some(row) => assert_eq!(
+                text(&row),
+                serde_json::to_string(&r["row"]).unwrap(),
+                "record {}",
+                r["record"]
+            ),
         }
     }
 }
@@ -204,13 +319,24 @@ impl MachineBackend for NoLife {
     fn pricing(&self) -> Arc<dyn wsp_engine::machine::BackendPricing> {
         Arc::new(FakePricing)
     }
-    async fn create(&self, _: wsp_engine::machine::MachineSpec, _: Option<wsp_engine::machine::Waiting>, _: Option<String>) -> Result<Arc<dyn wsp_engine::machine::Machine>, wsp_engine::errors::EngineError> {
+    async fn create(
+        &self,
+        _: wsp_engine::machine::MachineSpec,
+        _: Option<wsp_engine::machine::Waiting>,
+        _: Option<String>,
+    ) -> Result<Arc<dyn wsp_engine::machine::Machine>, wsp_engine::errors::EngineError> {
         unreachable!()
     }
-    async fn get(&self, _: &str) -> Result<Arc<dyn wsp_engine::machine::Machine>, wsp_engine::errors::EngineError> {
+    async fn get(
+        &self,
+        _: &str,
+    ) -> Result<Arc<dyn wsp_engine::machine::Machine>, wsp_engine::errors::EngineError> {
         unreachable!()
     }
-    async fn list(&self, _: Option<&indexmap::IndexMap<String, String>>) -> Result<Vec<wsp_engine::machine::MachineListRow>, wsp_engine::errors::EngineError> {
+    async fn list(
+        &self,
+        _: Option<&indexmap::IndexMap<String, String>>,
+    ) -> Result<Vec<wsp_engine::machine::MachineListRow>, wsp_engine::errors::EngineError> {
         Ok(vec![])
     }
     async fn delete_snapshot(&self, _: &str) -> Result<(), wsp_engine::errors::EngineError> {
@@ -237,6 +363,10 @@ fn disk_keep_reads_as_the_ts_reads() {
         };
         let stopped = k["stoppedAt"].as_f64();
         assert_eq!(disk_kept_ms(&ctx, &record), k["keptMs"].as_f64(), "{k}");
-        assert_eq!(disk_kept_until(&ctx, &record, stopped), k["until"].as_f64(), "{k}");
+        assert_eq!(
+            disk_kept_until(&ctx, &record, stopped),
+            k["until"].as_f64(),
+            "{k}"
+        );
     }
 }

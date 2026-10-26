@@ -21,25 +21,31 @@ use wsp_core::ids::{Ids, OsIds};
 use wsp_engine::child_exec::CHILD_TIMED_OUT;
 use wsp_engine::errors::EngineError;
 use wsp_engine::machine::MachineBackend;
-use wsp_store::keys::{fresh_ephemeral, make_seal, seal_keys, shared_secret, sign_place_bytes, PlaceKeyPair, Side};
+use wsp_store::keys::{
+    fresh_ephemeral, make_seal, seal_keys, shared_secret, sign_place_bytes, PlaceKeyPair, Side,
+};
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::place_state::{AGENTS_ON, DELETE_AFTER_MS, NAP_AFTER_MS};
 use wsp_wire::types::place_word::HERE_PLACE_ID;
-use wsp_wire::views::place::{PlaceAddJob, PlaceAddJobState, PlaceBack, PlaceCapSet, PlaceSettingWord, PlaceSettingsSpawn, PlaceViewSize, PlaceViewSizeDefault};
+use wsp_wire::views::place::{
+    PlaceAddJob, PlaceAddJobState, PlaceBack, PlaceCapSet, PlaceSettingWord, PlaceSettingsSpawn,
+    PlaceViewSize, PlaceViewSizeDefault,
+};
 use wsp_wire::views::place_kind::PlaceKind;
 use wsp_wire::views::place_more::{CloudLimits, PlaceSettings, PlaceView};
 use wsp_wire::views::workspace::{agents_from, WorkspaceAgentsPatch};
 use wsp_wire::wire::capabilities::MachineSizeOffer;
 use wsp_wire::wire::daemon_version::DAEMON_VERSION;
 use wsp_wire::wire::place_link::{
-    held_place_file, place_file_names, place_link_transcript, place_refusal_transcript, LinkEphemerals, LinkRole, PlaceAuthRefusal, PlacePublicKey, PlaceSignature,
+    held_place_file, place_file_names, place_link_transcript, place_refusal_transcript,
+    LinkEphemerals, LinkRole, PlaceAuthRefusal, PlacePublicKey, PlaceSignature,
     PLACE_LINK_NONCE_BYTES,
 };
 use wsp_words::exit::{refusal_parts, HostError};
 use wsp_words::place_state::{place_cap_of, place_takes, place_turn_limit, setting_for};
 use wsp_words::project_path::held_place_script;
-use wsp_words::workspace_state::{ssh_road_of, PlaceRoad as WordsRoad};
 use wsp_words::words::base::last_line;
+use wsp_words::workspace_state::{ssh_road_of, PlaceRoad as WordsRoad};
 
 use async_trait::async_trait;
 
@@ -48,8 +54,9 @@ use super::helpers::{bounded, shared_login_file, ADDS_KEPT, UPDATE_POLL_MS};
 use super::link::LinkRecords;
 use super::setup::{RecordMove, SetupRecords};
 use super::types::{
-    is_place_login_refused, place_record_of, BackComputer, BackOn, PlaceChallenge, PlaceLogin, PlaceRecord, PlaceResult, RowId, RunOver,
-    SudoVerb, CAPS, DEFAULT_COLLECTION, DEFAULT_ID, PLACES,
+    is_place_login_refused, place_record_of, BackComputer, BackOn, PlaceChallenge, PlaceLogin,
+    PlaceRecord, PlaceResult, RowId, RunOver, SudoVerb, CAPS, DEFAULT_COLLECTION, DEFAULT_ID,
+    PLACES,
 };
 
 /// A boxed local future: what a chain runs.
@@ -86,7 +93,10 @@ pub struct Chain {
 
 impl Chain {
     pub fn new() -> Self {
-        Chain { turn: Arc::new(tokio::sync::Mutex::new(())), runs: Cell::new(0) }
+        Chain {
+            turn: Arc::new(tokio::sync::Mutex::new(())),
+            runs: Cell::new(0),
+        }
     }
 
     /// Runs `write` in its turn and answers what it answered.
@@ -120,7 +130,10 @@ impl Drop for Queued<'_> {
         self.chain.runs.set(left);
         if left == 0 {
             let mut turns = self.keyed.turns.borrow_mut();
-            if turns.get(&self.key).is_some_and(|held| Rc::ptr_eq(held, &self.chain)) {
+            if turns
+                .get(&self.key)
+                .is_some_and(|held| Rc::ptr_eq(held, &self.chain))
+            {
                 turns.shift_remove(&self.key);
             }
         }
@@ -135,20 +148,33 @@ pub struct KeyTurn<'a> {
 
 impl KeyedChain {
     pub fn new() -> Self {
-        KeyedChain { turns: RefCell::new(IndexMap::new()) }
+        KeyedChain {
+            turns: RefCell::new(IndexMap::new()),
+        }
     }
 
     /// Queues behind the runs already on `key` and holds the key until the answer is dropped.
     pub async fn enter(&self, key: &str) -> KeyTurn<'_> {
         let chain = {
             let mut turns = self.turns.borrow_mut();
-            let chain = Rc::clone(turns.entry(key.to_string()).or_insert_with(|| Rc::new(Chain::new())));
+            let chain = Rc::clone(
+                turns
+                    .entry(key.to_string())
+                    .or_insert_with(|| Rc::new(Chain::new())),
+            );
             chain.runs.set(chain.runs.get() + 1);
             chain
         };
-        let queued = Queued { keyed: self, key: key.to_string(), chain: Rc::clone(&chain) };
+        let queued = Queued {
+            keyed: self,
+            key: key.to_string(),
+            chain: Rc::clone(&chain),
+        };
         let turn = Arc::clone(&chain.turn).lock_owned().await;
-        KeyTurn { _turn: turn, _queued: queued }
+        KeyTurn {
+            _turn: turn,
+            _queued: queued,
+        }
     }
 
     pub async fn run<T: 'static>(&self, key: &str, write: LocalFut<'_, T>) -> T {
@@ -230,7 +256,11 @@ pub(super) fn has_keys(settings: &PlaceSettings) -> bool {
 
 /// The cap set `placeCapOf` reads off a place's settings.
 pub(super) fn cap_set(settings: &PlaceSettings) -> PlaceCapSet {
-    PlaceCapSet { threads: settings.threads, machines: settings.machines, spend_per_day_usd: settings.spend_per_day_usd }
+    PlaceCapSet {
+        threads: settings.threads,
+        machines: settings.machines,
+        spend_per_day_usd: settings.spend_per_day_usd,
+    }
 }
 
 /// A row with only what every row carries: the rest is the caller's to add.
@@ -343,7 +373,12 @@ impl PlaceRecordsArea {
 
     /// R4 (:46).
     pub fn wired_provider(&self) -> Option<String> {
-        self.ctx.wiring.provider.as_ref().and_then(|provider| provider()).map(|wired| wired.id)
+        self.ctx
+            .wiring
+            .provider
+            .as_ref()
+            .and_then(|provider| provider())
+            .map(|wired| wired.id)
     }
 
     /// R5 (:50-56).
@@ -354,7 +389,10 @@ impl PlaceRecordsArea {
         match wired {
             None => {
                 let table_wired = table.as_ref().map(|table| table.wired());
-                listed.into_iter().filter(|id| Some(id) != table_wired.as_ref()).collect()
+                listed
+                    .into_iter()
+                    .filter(|id| Some(id) != table_wired.as_ref())
+                    .collect()
             }
             Some(wired) if listed.contains(&wired) => listed,
             Some(wired) => vec![wired],
@@ -363,13 +401,23 @@ impl PlaceRecordsArea {
 
     /// R6 (:58).
     pub fn provider_backend(&self, place_id: &str) -> Option<Arc<dyn MachineBackend>> {
-        self.ctx.opts.providers.as_ref().and_then(|table| table().backend(place_id))
+        self.ctx
+            .opts
+            .providers
+            .as_ref()
+            .and_then(|table| table().backend(place_id))
     }
 
     /// R7 (:61-65).
     pub fn provider_rate(&self, place_id: &str) -> Option<f64> {
         if self.wired_provider().as_deref() == Some(place_id) {
-            return self.ctx.wiring.provider.as_ref().and_then(|provider| provider()).map(|wired| wired.rate_usd_per_hour);
+            return self
+                .ctx
+                .wiring
+                .provider
+                .as_ref()
+                .and_then(|provider| provider())
+                .map(|wired| wired.rate_usd_per_hour);
         }
         self.provider_backend(place_id).map(|at| {
             let pricing = at.pricing();
@@ -379,15 +427,30 @@ impl PlaceRecordsArea {
 
     /// R8 (:69).
     pub fn provider_sizes(&self, place_id: &str) -> Vec<MachineSizeOffer> {
-        self.provider_backend(place_id).map(|at| at.capabilities().sizes).unwrap_or_default()
+        self.provider_backend(place_id)
+            .map(|at| at.capabilities().sizes)
+            .unwrap_or_default()
     }
 
     /// R9 (:72-78): sets `buildsImages`, `build` and `buildStopped` on `row` as the rule says, nothing else.
-    pub fn image_facts(&self, row: &mut PlaceView, place_id: &str, backend: Option<&Arc<dyn MachineBackend>>) {
+    pub fn image_facts(
+        &self,
+        row: &mut PlaceView,
+        place_id: &str,
+        backend: Option<&Arc<dyn MachineBackend>>,
+    ) {
         if let Some(at) = backend {
-            row.builds_images = Some(wsp_wire::wire::capabilities::builds_images(&at.capabilities()));
+            row.builds_images = Some(wsp_wire::wire::capabilities::builds_images(
+                &at.capabilities(),
+            ));
         }
-        if let Some(build) = self.ctx.opts.copy_build.as_ref().and_then(|copy| copy(place_id)) {
+        if let Some(build) = self
+            .ctx
+            .opts
+            .copy_build
+            .as_ref()
+            .and_then(|copy| copy(place_id))
+        {
             row.build = Some(build.line);
             if build.stopped {
                 row.build_stopped = Some(true);
@@ -397,20 +460,37 @@ impl PlaceRecordsArea {
 
     /// R2 (:79-82).
     pub async fn record_of(&self, place_id: &str) -> PlaceResult<Option<PlaceRecord>> {
-        Ok(self.ctx.store.get(PLACES, place_id).await?.as_ref().and_then(place_record_of))
+        Ok(self
+            .ctx
+            .store
+            .get(PLACES, place_id)
+            .await?
+            .as_ref()
+            .and_then(place_record_of))
     }
 
     /// R3 (:83-86).
     pub async fn settings_of(&self, place_id: &str) -> PlaceResult<PlaceSettings> {
         let doc = self.ctx.store.get(CAPS, place_id).await?;
-        Ok(doc.and_then(|doc| serde_json::from_value(doc).ok()).unwrap_or_else(no_settings))
+        Ok(doc
+            .and_then(|doc| serde_json::from_value(doc).ok())
+            .unwrap_or_else(no_settings))
     }
 
     /// R10 (:90-94).
     pub async fn row_ids(&self) -> PlaceResult<Vec<RowId>> {
-        let mut ids = vec![RowId { id: HERE_PLACE_ID.to_string(), kind: PlaceKind::Computer }];
-        ids.extend(self.records().await?.into_iter().map(|r| RowId { id: r.id, kind: PlaceKind::Computer }));
-        ids.extend(self.provider_ids().into_iter().map(|id| RowId { id, kind: PlaceKind::Provider }));
+        let mut ids = vec![RowId {
+            id: HERE_PLACE_ID.to_string(),
+            kind: PlaceKind::Computer,
+        }];
+        ids.extend(self.records().await?.into_iter().map(|r| RowId {
+            id: r.id,
+            kind: PlaceKind::Computer,
+        }));
+        ids.extend(self.provider_ids().into_iter().map(|id| RowId {
+            id,
+            kind: PlaceKind::Provider,
+        }));
         Ok(ids)
     }
 
@@ -433,17 +513,25 @@ impl PlaceRecordsArea {
             out.nap_ms = Some(setting_for(None, settings.nap_ms.as_ref(), &fallback));
             out.nap_default = Some(JsInt::from(nap_default as i64));
         }
-        out.turn_limit_ms = Some(place_turn_limit(&out.kind, &settings).map(|ms| JsInt::from(ms as i64)));
-        out.turn_limit_default = Some(place_turn_limit(&out.kind, &no_settings()).map(|ms| JsInt::from(ms as i64)));
+        out.turn_limit_ms =
+            Some(place_turn_limit(&out.kind, &settings).map(|ms| JsInt::from(ms as i64)));
+        out.turn_limit_default =
+            Some(place_turn_limit(&out.kind, &no_settings()).map(|ms| JsInt::from(ms as i64)));
         out.spawn = Some(agents_from(None, &spawn_patch(settings.spawn.as_ref())));
         out.spawn_default = Some(AGENTS_ON);
-        out.running = Some(JsInt::from(self.ctx.recording.running_on(&out.id, ids).await? as i64));
+        out.running = Some(JsInt::from(
+            self.ctx.recording.running_on(&out.id, ids).await? as i64,
+        ));
         if place_takes(&out, &PlaceSettingWord::Size) {
             let id = out.id.clone();
             self.size_facts(&mut out, &id, &settings);
         }
         if place_takes(&out, &PlaceSettingWord::DeleteAfter) {
-            out.delete_after_ms = Some(settings.delete_after_ms.unwrap_or(JsInt::from(DELETE_AFTER_MS as i64)));
+            out.delete_after_ms = Some(
+                settings
+                    .delete_after_ms
+                    .unwrap_or(JsInt::from(DELETE_AFTER_MS as i64)),
+            );
         }
         Ok(out)
     }
@@ -452,7 +540,9 @@ impl PlaceRecordsArea {
     pub fn with_limits(&self, row: PlaceView) -> PlaceView {
         if matches!(row.kind, PlaceKind::Provider) {
             if let Some(backend) = self.provider_backend(&row.id) {
-                if backend.offers().place_limits && self.limits_asking.borrow_mut().insert(row.id.clone()) {
+                if backend.offers().place_limits
+                    && self.limits_asking.borrow_mut().insert(row.id.clone())
+                {
                     if let Some(area) = self.me.upgrade() {
                         let id = row.id.clone();
                         tokio::task::spawn_local(async move {
@@ -484,22 +574,40 @@ impl PlaceRecordsArea {
 
     /// R13 (:141-145): sets `size` and `sizeDefault` on `row`.
     pub fn size_facts(&self, row: &mut PlaceView, place_id: &str, settings: &PlaceSettings) {
-        let fallback = self.provider_backend(place_id).map(|at| at.pricing().default_size());
+        let fallback = self
+            .provider_backend(place_id)
+            .map(|at| at.pricing().default_size());
         let size = settings
             .size
             .as_ref()
-            .map(|size| PlaceViewSize { cpu: size.cpu, mem_mb: size.mem_mb })
-            .or_else(|| fallback.map(|size| PlaceViewSize { cpu: js_int(size.cpu), mem_mb: js_int(size.mem_mb) }));
+            .map(|size| PlaceViewSize {
+                cpu: size.cpu,
+                mem_mb: size.mem_mb,
+            })
+            .or_else(|| {
+                fallback.map(|size| PlaceViewSize {
+                    cpu: js_int(size.cpu),
+                    mem_mb: js_int(size.mem_mb),
+                })
+            });
         if let Some(size) = size {
             row.size = Some(size);
         }
         if let Some(default) = fallback {
-            row.size_default = Some(PlaceViewSizeDefault { cpu: js_int(default.cpu), mem_mb: js_int(default.mem_mb) });
+            row.size_default = Some(PlaceViewSizeDefault {
+                cpu: js_int(default.cpu),
+                mem_mb: js_int(default.mem_mb),
+            });
         }
     }
 
     /// R14 (:148-158).
-    pub async fn until_daemon_version(&self, place_id: &str, from: u32, wait_ms: u64) -> PlaceResult<u32> {
+    pub async fn until_daemon_version(
+        &self,
+        place_id: &str,
+        from: u32,
+        wait_ms: u64,
+    ) -> PlaceResult<u32> {
         let clock = Rc::clone(&self.ctx.clock);
         let until = clock.now() + wait_ms as i64;
         loop {
@@ -544,7 +652,10 @@ impl PlaceRecordsArea {
     }
 
     /// R17 (:177-189). `install` is the in-flight install's login and back, where one is.
-    pub fn with_road(record: PlaceRecord, install: Option<(&Option<PlaceLogin>, &Option<PlaceBack>)>) -> PlaceRecord {
+    pub fn with_road(
+        record: PlaceRecord,
+        install: Option<(&Option<PlaceLogin>, &Option<PlaceBack>)>,
+    ) -> PlaceRecord {
         let Some((Some(login), back)) = install else {
             return record;
         };
@@ -566,7 +677,11 @@ impl PlaceRecordsArea {
 
     /// R19 (:194-197).
     pub fn login_of(record: &PlaceRecord) -> Option<PlaceLogin> {
-        let road = record.road.as_ref().map(|road| WordsRoad { ssh: road.ssh.clone(), from: road.from.clone(), back: road.back.clone() });
+        let road = record.road.as_ref().map(|road| WordsRoad {
+            ssh: road.ssh.clone(),
+            from: road.from.clone(),
+            back: road.back.clone(),
+        });
         let ssh = ssh_road_of(road.as_ref())?;
         Some(PlaceLogin {
             ssh,
@@ -576,12 +691,22 @@ impl PlaceRecordsArea {
     }
 
     /// R20 (:201-202).
-    pub async fn root_over(&self, login: &PlaceLogin, sudo_password: Option<&str>, verb: SudoVerb, name: &str) -> PlaceResult<Option<String>> {
+    pub async fn root_over(
+        &self,
+        login: &PlaceLogin,
+        sudo_password: Option<&str>,
+        verb: SudoVerb,
+        name: &str,
+    ) -> PlaceResult<Option<String>> {
         let Some(sudo) = self.ctx.wiring.sudo_over.as_ref() else {
             return Ok(None);
         };
         let said = sudo.sudo_over(login, sudo_password, verb, name).await?;
-        Ok(if said == "taken" { sudo_password.map(str::to_string) } else { None })
+        Ok(if said == "taken" {
+            sudo_password.map(str::to_string)
+        } else {
+            None
+        })
     }
 
     /// R21 (:209-217).
@@ -589,50 +714,90 @@ impl PlaceRecordsArea {
         let Some(dial) = self.ctx.wiring.dial.as_ref() else {
             return true;
         };
-        bounded(&*self.ctx.clock, dial.dial(login), self.ctx.dial_wait_ms, &format!("ssh {}", login.ssh)).await.is_ok()
+        bounded(
+            &*self.ctx.clock,
+            dial.dial(login),
+            self.ctx.dial_wait_ms,
+            &format!("ssh {}", login.ssh),
+        )
+        .await
+        .is_ok()
     }
 
     /// R22 (:223-240).
-    pub async fn reached_over(&self, record: &PlaceRecord, login: &PlaceLogin, sudo_password: Option<&str>) -> PlaceResult<Reached> {
+    pub async fn reached_over(
+        &self,
+        record: &PlaceRecord,
+        login: &PlaceLogin,
+        sudo_password: Option<&str>,
+    ) -> PlaceResult<Reached> {
         let Some(run_over) = self.ctx.wiring.run_over.clone() else {
-            return Ok(Reached::Unread { unread: "this host holds no ssh road to read it over".into(), refused: false });
+            return Ok(Reached::Unread {
+                unread: "this host holds no ssh road to read it over".into(),
+                refused: false,
+            });
         };
         let Some(home) = record.report.login.get("HOME") else {
-            return Ok(Reached::Unread { unread: format!("{} never said where its home is", record.name), refused: false });
+            return Ok(Reached::Unread {
+                unread: format!("{} never said where its home is", record.name),
+                refused: false,
+            });
         };
         let wait = self.ctx.dial_wait_ms;
         let script = held_place_script(home);
         let work = run_over.run_over(login, &script, wait, sudo_password);
-        let read: RunOver = match bounded(&*self.ctx.clock, work, wait, &format!("ssh {}", login.ssh)).await {
-            Ok(read) => read,
-            Err(e) => return Ok(Reached::Unread { unread: refusal_parts(&e).said, refused: is_place_login_refused(&e) }),
-        };
+        let read: RunOver =
+            match bounded(&*self.ctx.clock, work, wait, &format!("ssh {}", login.ssh)).await {
+                Ok(read) => read,
+                Err(e) => {
+                    return Ok(Reached::Unread {
+                        unread: refusal_parts(&e).said,
+                        refused: is_place_login_refused(&e),
+                    })
+                }
+            };
         if read.exit_code == CHILD_TIMED_OUT {
             let seconds = (wait as f64 / 1000.0).round() as u64;
-            return Ok(Reached::Unread { unread: format!("the read timed out after {seconds}s"), refused: false });
+            return Ok(Reached::Unread {
+                unread: format!("the read timed out after {seconds}s"),
+                refused: false,
+            });
         }
         if read.exit_code != 0 {
-            let unread = last_line(&read.stderr).unwrap_or_else(|| format!("the read exited {}", read.exit_code));
-            return Ok(Reached::Unread { unread, refused: false });
+            let unread = last_line(&read.stderr)
+                .unwrap_or_else(|| format!("the read exited {}", read.exit_code));
+            return Ok(Reached::Unread {
+                unread,
+                refused: false,
+            });
         }
         let file = held_place_file(&read.stdout);
         let host_public_key = self.ctx.wiring.host_key.public_key.clone();
-        if place_file_names(file.as_ref(), std::slice::from_ref(&record.id), &host_public_key) {
+        if place_file_names(
+            file.as_ref(),
+            std::slice::from_ref(&record.id),
+            &host_public_key,
+        ) {
             return Ok(Reached::Same);
         }
-        let other = self
-            .records()
-            .await?
-            .into_iter()
-            .find(|r| r.id != record.id && place_file_names(file.as_ref(), std::slice::from_ref(&r.id), &host_public_key));
-        Ok(Reached::Other { other: other.map(|r| r.name) })
+        let other = self.records().await?.into_iter().find(|r| {
+            r.id != record.id
+                && place_file_names(file.as_ref(), std::slice::from_ref(&r.id), &host_public_key)
+        });
+        Ok(Reached::Other {
+            other: other.map(|r| r.name),
+        })
     }
 
     /// R18 (:244-247): the login and back of the first install whose join became `place_id`.
-    pub fn road_of_install(&self, place_id: &str) -> Option<(Option<PlaceLogin>, Option<PlaceBack>)> {
+    pub fn road_of_install(
+        &self,
+        place_id: &str,
+    ) -> Option<(Option<PlaceLogin>, Option<PlaceBack>)> {
         self.awaiting.borrow().values().find_map(|waiting| {
             let waiting = waiting.borrow();
-            (waiting.place_id.as_deref() == Some(place_id)).then(|| (waiting.login.clone(), waiting.back.clone()))
+            (waiting.place_id.as_deref() == Some(place_id))
+                .then(|| (waiting.login.clone(), waiting.back.clone()))
         })
     }
 
@@ -663,7 +828,8 @@ impl PlaceRecordsArea {
                     let (ssh, to) = (ssh.clone(), to.clone());
                     let _ = area
                         .change(&id, move |now| {
-                            let same = Self::login_of(&now).is_some_and(|held| held.ssh == ssh) && now.road.is_some();
+                            let same = Self::login_of(&now).is_some_and(|held| held.ssh == ssh)
+                                && now.road.is_some();
                             if !same {
                                 return None;
                             }
@@ -677,7 +843,13 @@ impl PlaceRecordsArea {
                 }
             });
         });
-        let on = BackOn { home, computer: Some(BackComputer { id: record.id.clone(), name: record.name.clone() }) };
+        let on = BackOn {
+            home,
+            computer: Some(BackComputer {
+                id: record.id.clone(),
+                name: record.name.clone(),
+            }),
+        };
         let mut hold = async move {
             let _ = holder.hold(&login, back, on, Some(moved)).await;
         }
@@ -693,15 +865,29 @@ impl PlaceRecordsArea {
     pub async fn keep(&self, record: PlaceRecord) -> PlaceResult<PlaceRecord> {
         let install = self.road_of_install(&record.id);
         let held = Self::with_road(record, install.as_ref().map(|(login, back)| (login, back)));
-        self.ctx.kept.borrow_mut().insert(held.id.clone(), held.clone());
-        self.ctx.store.put(PLACES, &held.id, store_doc(&held).map_err(|e| HostError::new(e.to_string()))?).await?;
+        self.ctx
+            .kept
+            .borrow_mut()
+            .insert(held.id.clone(), held.clone());
+        self.ctx
+            .store
+            .put(
+                PLACES,
+                &held.id,
+                store_doc(&held).map_err(|e| HostError::new(e.to_string()))?,
+            )
+            .await?;
         Ok(held)
     }
 
     /// R29 (:277-280).
     pub async fn default_id(&self) -> PlaceResult<Option<String>> {
         let held = self.ctx.store.get(DEFAULT_COLLECTION, DEFAULT_ID).await?;
-        Ok(held.as_ref().and_then(|held| held.get("placeId")).and_then(Value::as_str).map(str::to_string))
+        Ok(held
+            .as_ref()
+            .and_then(|held| held.get("placeId"))
+            .and_then(Value::as_str)
+            .map(str::to_string))
     }
 
     /// R30 (:282-287).
@@ -713,7 +899,16 @@ impl PlaceRecordsArea {
     pub async fn mark_default(&self, place_id: &str) -> PlaceResult<()> {
         let store = Rc::clone(&self.ctx.store);
         let place_id = place_id.to_string();
-        self.in_turn(Box::pin(async move { store.put(DEFAULT_COLLECTION, DEFAULT_ID, json!({ "placeId": place_id })).await })).await
+        self.in_turn(Box::pin(async move {
+            store
+                .put(
+                    DEFAULT_COLLECTION,
+                    DEFAULT_ID,
+                    json!({ "placeId": place_id }),
+                )
+                .await
+        }))
+        .await
     }
 
     /// R32 (:290-294).
@@ -721,12 +916,19 @@ impl PlaceRecordsArea {
         let Some(marked) = self.default_id().await? else {
             return Ok(None);
         };
-        let held = marked == HERE_PLACE_ID || self.provider_ids().contains(&marked) || self.records().await?.iter().any(|r| r.id == marked);
+        let held = marked == HERE_PLACE_ID
+            || self.provider_ids().contains(&marked)
+            || self.records().await?.iter().any(|r| r.id == marked);
         Ok(held.then_some(marked))
     }
 
     /// R33 (:303-321).
-    pub fn challenge(host_key: &PlaceKeyPair, subject: &str, their_nonce: &str, their_ephemeral: Option<&str>) -> Option<PlaceChallenge> {
+    pub fn challenge(
+        host_key: &PlaceKeyPair,
+        subject: &str,
+        their_nonce: &str,
+        their_ephemeral: Option<&str>,
+    ) -> Option<PlaceChallenge> {
         let their_ephemeral = their_ephemeral?;
         let nonce_bytes = OsIds.bytes(PLACE_LINK_NONCE_BYTES as usize);
         let nonce = base64::engine::general_purpose::STANDARD.encode(nonce_bytes);
@@ -734,10 +936,28 @@ impl PlaceRecordsArea {
         let secret = shared_secret(&mine, their_ephemeral).ok()?;
         let signature = sign_place_bytes(
             &host_key.private_key_pem,
-            &place_link_transcript(LinkRole::Host, subject, their_nonce, &nonce, LinkEphemerals { challenger: their_ephemeral, answerer: &mine_public }),
+            &place_link_transcript(
+                LinkRole::Host,
+                subject,
+                their_nonce,
+                &nonce,
+                LinkEphemerals {
+                    challenger: their_ephemeral,
+                    answerer: &mine_public,
+                },
+            ),
         )
         .ok()?;
-        let expect = place_link_transcript(LinkRole::Place, subject, &nonce, their_nonce, LinkEphemerals { challenger: &mine_public, answerer: their_ephemeral });
+        let expect = place_link_transcript(
+            LinkRole::Place,
+            subject,
+            &nonce,
+            their_nonce,
+            LinkEphemerals {
+                challenger: &mine_public,
+                answerer: their_ephemeral,
+            },
+        );
         Some(PlaceChallenge {
             nonce,
             host_public_key: host_key.public_key.clone(),
@@ -749,14 +969,32 @@ impl PlaceRecordsArea {
     }
 
     /// R34 (:325-328).
-    pub fn signed_refusal(host_key: &PlaceKeyPair, place_id: &str, place_nonce: &str, sentence: &str) -> PlaceAuthRefusal {
-        let signature = sign_place_bytes(&host_key.private_key_pem, &place_refusal_transcript(place_id, place_nonce, sentence)).unwrap_or_default();
-        PlaceAuthRefusal { host_public_key: wire_public_key(&host_key.public_key), signature: wire_signature(&signature) }
+    pub fn signed_refusal(
+        host_key: &PlaceKeyPair,
+        place_id: &str,
+        place_nonce: &str,
+        sentence: &str,
+    ) -> PlaceAuthRefusal {
+        let signature = sign_place_bytes(
+            &host_key.private_key_pem,
+            &place_refusal_transcript(place_id, place_nonce, sentence),
+        )
+        .unwrap_or_default();
+        PlaceAuthRefusal {
+            host_public_key: wire_public_key(&host_key.public_key),
+            signature: wire_signature(&signature),
+        }
     }
 
     /// R27 (:330-332).
     pub async fn write_seen(&self, place_id: &str, at: u64) -> PlaceResult<()> {
-        self.change(place_id, move |now| Some(PlaceRecord { last_seen_at: iso(at), ..now })).await?;
+        self.change(place_id, move |now| {
+            Some(PlaceRecord {
+                last_seen_at: iso(at),
+                ..now
+            })
+        })
+        .await?;
         Ok(())
     }
 
@@ -767,7 +1005,11 @@ impl PlaceRecordsArea {
     }
 
     /// R26 (:349-354), runtime invariant 6: the one road a record changes by.
-    pub async fn change(&self, place_id: &str, mv: impl FnOnce(PlaceRecord) -> Option<PlaceRecord>) -> PlaceResult<Option<PlaceRecord>> {
+    pub async fn change(
+        &self,
+        place_id: &str,
+        mv: impl FnOnce(PlaceRecord) -> Option<PlaceRecord>,
+    ) -> PlaceResult<Option<PlaceRecord>> {
         let _turn = self.record_turns.enter(place_id).await;
         let Some(now) = self.record_of(place_id).await? else {
             return Ok(None);
@@ -779,7 +1021,11 @@ impl PlaceRecordsArea {
     }
 
     /// R28 (:359-365).
-    pub async fn login_listed(&self, place_id: &str, agent: &str) -> PlaceResult<Option<PlaceRecord>> {
+    pub async fn login_listed(
+        &self,
+        place_id: &str,
+        agent: &str,
+    ) -> PlaceResult<Option<PlaceRecord>> {
         let file = shared_login_file(agent);
         self.change(place_id, move |now| {
             let listed = now.report.logins.clone()?;
@@ -790,7 +1036,13 @@ impl PlaceRecordsArea {
             let mut logins = listed;
             logins.push(file);
             logins.sort_by(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
-            Some(PlaceRecord { report: wsp_wire::wire::place_link::PlaceReport { logins: Some(logins), ..now.report.clone() }, ..now })
+            Some(PlaceRecord {
+                report: wsp_wire::wire::place_link::PlaceReport {
+                    logins: Some(logins),
+                    ..now.report.clone()
+                },
+                ..now
+            })
         })
         .await
     }
@@ -852,7 +1104,10 @@ impl LinkRecords for PlaceRecordsArea {
     async fn default_id(&self) -> PlaceResult<Option<String>> {
         PlaceRecordsArea::default_id(self).await
     }
-    async fn in_turn(&self, write: Box<dyn FnOnce() -> futures::future::LocalBoxFuture<'static, PlaceResult<()>>>) -> PlaceResult<()> {
+    async fn in_turn(
+        &self,
+        write: Box<dyn FnOnce() -> futures::future::LocalBoxFuture<'static, PlaceResult<()>>>,
+    ) -> PlaceResult<()> {
         PlaceRecordsArea::in_turn(self, write()).await
     }
     async fn mark_default(&self, place_id: &str) -> PlaceResult<()> {
@@ -861,10 +1116,25 @@ impl LinkRecords for PlaceRecordsArea {
     async fn mark_held(&self) -> PlaceResult<Option<String>> {
         PlaceRecordsArea::mark_held(self).await
     }
-    fn challenge(&self, subject: &str, their_nonce: &str, their_ephemeral: Option<&str>) -> Option<PlaceChallenge> {
-        PlaceRecordsArea::challenge(&self.ctx.wiring.host_key, subject, their_nonce, their_ephemeral)
+    fn challenge(
+        &self,
+        subject: &str,
+        their_nonce: &str,
+        their_ephemeral: Option<&str>,
+    ) -> Option<PlaceChallenge> {
+        PlaceRecordsArea::challenge(
+            &self.ctx.wiring.host_key,
+            subject,
+            their_nonce,
+            their_ephemeral,
+        )
     }
-    fn signed_refusal(&self, place_id: &str, place_nonce: &str, sentence: &str) -> PlaceAuthRefusal {
+    fn signed_refusal(
+        &self,
+        place_id: &str,
+        place_nonce: &str,
+        sentence: &str,
+    ) -> PlaceAuthRefusal {
         PlaceRecordsArea::signed_refusal(&self.ctx.wiring.host_key, place_id, place_nonce, sentence)
     }
     async fn write_seen(&self, place_id: &str, at: u64) -> PlaceResult<()> {

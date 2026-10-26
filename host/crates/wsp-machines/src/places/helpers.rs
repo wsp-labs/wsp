@@ -18,12 +18,12 @@ use indexmap::{IndexMap, IndexSet};
 use sha2::{Digest, Sha256};
 use tokio::net::{TcpListener, TcpStream};
 use wsp_catalog::catalog::catalog_agents;
+use wsp_catalog::catalog::shared_on;
 use wsp_catalog::signin::{key_env_of, mints_token, SignIn};
 use wsp_catalog::signin_rows::{shared_file_in, SHARED_LOGINS};
-use wsp_catalog::catalog::shared_on;
 use wsp_core::place_forward::PlaceForward;
-use wsp_core::types::pending::{Clock, DaemonReach};
 use wsp_core::recipe_sync::RecipeChange;
+use wsp_core::types::pending::{Clock, DaemonReach};
 use wsp_engine::provision::ProvisionPlan;
 use wsp_engine::ssh_backend::{plain_path, ssh_store_vars};
 use wsp_store::keys::node_base64;
@@ -31,12 +31,18 @@ use wsp_wire::types::agents_report::AgentSignInState;
 use wsp_wire::types::recipe_file::{RecipeFile, RecipeSignIn};
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::views::golden_image::agent_of_row;
-use wsp_wire::views::place::{sign_in_of_row, PendingComputer, PlaceApplied, PlaceProvisionRow, PlaceProvisionRowOutcome, PlaceSetup, PlaceSetupStep, PlaceSync, SetupEnd, GITHUB_ROW};
+use wsp_wire::views::place::{
+    sign_in_of_row, PendingComputer, PlaceApplied, PlaceProvisionRow, PlaceProvisionRowOutcome,
+    PlaceSetup, PlaceSetupStep, PlaceSync, SetupEnd, GITHUB_ROW,
+};
 use wsp_wire::wire::limits::is_plain_path;
 use wsp_wire::wire::place_link::PlaceReport;
 use wsp_words::exit::HostError;
 use wsp_words::recipe_file::{recipe_canon, AgentOption, RecipeOptions, ResolvedRecipe};
-use wsp_words::views::place_setup_words::{copied_from_line, important_failures, key_held_line, token_held_line, wait_line, SIGNED_IN_THERE};
+use wsp_words::views::place_setup_words::{
+    copied_from_line, important_failures, key_held_line, token_held_line, wait_line,
+    SIGNED_IN_THERE,
+};
 use wsp_words::words::base::plural;
 
 use super::types::{PlaceInstalled, PlaceLogin, PlaceWiring};
@@ -62,7 +68,10 @@ pub fn landed_on(rows: &[PlaceProvisionRow], row: &LandedRow) -> Option<Vec<Plac
         return Some(out);
     };
     let stood = &rows[at];
-    if !matches!(stood.outcome, PlaceProvisionRowOutcome::Skipped | PlaceProvisionRowOutcome::Failed) {
+    if !matches!(
+        stood.outcome,
+        PlaceProvisionRowOutcome::Skipped | PlaceProvisionRowOutcome::Failed
+    ) {
         return None;
     }
     let mut landed = row.row.clone();
@@ -77,7 +86,12 @@ pub fn landed_on(rows: &[PlaceProvisionRow], row: &LandedRow) -> Option<Vec<Plac
 
 /// `work`'s answer, or after `ms` on `clock` the error `"{what} was not answered in {round(ms / 1000)}s"`; the
 /// timer is cancelled once `work` settles (helpers.ts:56).
-pub async fn bounded<T>(clock: &dyn Clock, work: impl Future<Output = Result<T, HostError>>, ms: u64, what: &str) -> Result<T, HostError> {
+pub async fn bounded<T>(
+    clock: &dyn Clock,
+    work: impl Future<Output = Result<T, HostError>>,
+    ms: u64,
+    what: &str,
+) -> Result<T, HostError> {
     let (fire, fired) = oneshot::channel::<()>();
     let cancel = clock.schedule(
         Box::new(move || {
@@ -90,7 +104,10 @@ pub async fn bounded<T>(clock: &dyn Clock, work: impl Future<Output = Result<T, 
     cancel();
     match outcome {
         Either::Left((answer, _)) => answer,
-        Either::Right(_) => Err(HostError::new(format!("{what} was not answered in {}s", (ms + 500) / 1000))),
+        Either::Right(_) => Err(HostError::new(format!(
+            "{what} was not answered in {}s",
+            (ms + 500) / 1000
+        ))),
     }
 }
 
@@ -109,7 +126,10 @@ pub const PLACE_BAD_KEY_REFUSAL: &str = "that join sent a key this host cannot v
 pub fn place_home_refusal(said: Option<&str>) -> String {
     let what = match said {
         None | Some("") => "no home folder".to_string(),
-        Some(said) => format!("{}, which is not a plain path", serde_json::to_string(said).unwrap_or_default()),
+        Some(said) => format!(
+            "{}, which is not a plain path",
+            serde_json::to_string(said).unwrap_or_default()
+        ),
     };
     format!("that computer reported {what} for its login, so nothing on it could be reached; wsp holds a machine's home to a plain absolute path")
 }
@@ -118,24 +138,40 @@ pub fn place_home_refusal(said: Option<&str>) -> String {
 /// a harness's store folder kept only where plain.
 pub fn taken_report(report: &PlaceReport) -> Result<PlaceReport, HostError> {
     let Some(home) = report.login.get("HOME").filter(|home| is_plain_path(home)) else {
-        return Err(HostError::new(place_home_refusal(report.login.get("HOME").map(String::as_str))));
+        return Err(HostError::new(place_home_refusal(
+            report.login.get("HOME").map(String::as_str),
+        )));
     };
     let mut login = report.login.clone();
     login.insert("HOME".to_string(), home.clone());
-    login.insert("PATH".to_string(), plain_path(report.login.get("PATH").map(String::as_str)));
+    login.insert(
+        "PATH".to_string(),
+        plain_path(report.login.get("PATH").map(String::as_str)),
+    );
     for name in ssh_store_vars() {
-        if login.get(&name).is_some_and(|folder| !is_plain_path(folder)) {
+        if login
+            .get(&name)
+            .is_some_and(|folder| !is_plain_path(folder))
+        {
             login.shift_remove(&name);
         }
     }
-    Ok(PlaceReport { login, ..report.clone() })
+    Ok(PlaceReport {
+        login,
+        ..report.clone()
+    })
 }
 
 /// The agents on a computer as this host knows them (helpers.ts:123).
 pub fn agents_on(report_agents: &[String], rows: &[PlaceProvisionRow]) -> Vec<String> {
     let found: Vec<String> = rows
         .iter()
-        .filter(|r| matches!(r.outcome, PlaceProvisionRowOutcome::Installed | PlaceProvisionRowOutcome::Present))
+        .filter(|r| {
+            matches!(
+                r.outcome,
+                PlaceProvisionRowOutcome::Installed | PlaceProvisionRowOutcome::Present
+            )
+        })
         .filter_map(|r| agent_of_row(&r.id))
         .collect();
     let mut out: IndexSet<String> = report_agents.iter().cloned().collect();
@@ -159,17 +195,31 @@ pub fn sign_ins_of(
     let logins = report_logins?;
     let signed_there: Vec<String> = rows
         .iter()
-        .filter(|r| r.note.as_deref() == Some(SIGNED_IN_THERE) && matches!(r.outcome, PlaceProvisionRowOutcome::Installed | PlaceProvisionRowOutcome::Present))
+        .filter(|r| {
+            r.note.as_deref() == Some(SIGNED_IN_THERE)
+                && matches!(
+                    r.outcome,
+                    PlaceProvisionRowOutcome::Installed | PlaceProvisionRowOutcome::Present
+                )
+        })
         .filter_map(|r| sign_in_of_row(&r.id))
         .collect();
-    let owned = if agents.is_none() { agents_on(report_agents, rows) } else { Vec::new() };
+    let owned = if agents.is_none() {
+        agents_on(report_agents, rows)
+    } else {
+        Vec::new()
+    };
     let mut words = IndexMap::new();
     for id in agents.unwrap_or(&owned) {
         let signed = match shared_login_file(id) {
             Some(file) => logins.contains(&file),
             None => signed_there.contains(id),
         };
-        let word = if signed { AgentSignInState::SignedIn } else { vault_sign_in(id, vault) };
+        let word = if signed {
+            AgentSignInState::SignedIn
+        } else {
+            vault_sign_in(id, vault)
+        };
         words.insert(id.clone(), word);
     }
     Some(words)
@@ -186,7 +236,10 @@ fn shared_files() -> Vec<String> {
 }
 
 fn agent_sign_in(agent_id: &str) -> Option<&'static SignIn> {
-    catalog_agents().into_iter().find(|a| a.id == agent_id).map(|a| &a.sign_in)
+    catalog_agents()
+        .into_iter()
+        .find(|a| a.id == agent_id)
+        .map(|a| &a.sign_in)
 }
 
 /// How long the read of which shared logins stand on a computer gets (helpers.ts:166).
@@ -206,7 +259,11 @@ pub fn shared_logins_script(logins: &str) -> String {
 /// already (helpers.ts:179).
 pub fn relisted_logins(listed: &[String], found: &[String]) -> Option<Vec<String>> {
     let shared = shared_files();
-    let mut next: Vec<String> = listed.iter().filter(|f| !shared.contains(f)).cloned().collect();
+    let mut next: Vec<String> = listed
+        .iter()
+        .filter(|f| !shared.contains(f))
+        .cloned()
+        .collect();
     next.extend(found.iter().filter(|f| shared.contains(f)).cloned());
     next.sort_by(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
     (next.as_slice() != listed).then_some(next)
@@ -215,8 +272,12 @@ pub fn relisted_logins(listed: &[String], found: &[String]) -> Option<Vec<String
 /// `vault-key` where this host's vault holds the agent's token or key, else `none` (helpers.ts:186).
 pub fn vault_sign_in(agent_id: &str, vault: &IndexMap<String, String>) -> AgentSignInState {
     let sign_in = agent_sign_in(agent_id);
-    let token = sign_in.and_then(mints_token).and_then(|t| vault.get(&t.token_env));
-    let key = sign_in.and_then(key_env_of).is_some_and(|name| vault.contains_key(name));
+    let token = sign_in
+        .and_then(mints_token)
+        .and_then(|t| vault.get(&t.token_env));
+    let key = sign_in
+        .and_then(key_env_of)
+        .is_some_and(|name| vault.contains_key(name));
     if token.is_some() || key {
         AgentSignInState::VaultKey
     } else {
@@ -225,12 +286,19 @@ pub fn vault_sign_in(agent_id: &str, vault: &IndexMap<String, String>) -> AgentS
 }
 
 /// What a sign-in row says the vault hands an agent's turns on a computer picked `way` (helpers.ts:195).
-pub fn vault_held_line(agent_id: &str, vault: &IndexMap<String, String>, way: Option<RecipeSignIn>, here: &str) -> String {
+pub fn vault_held_line(
+    agent_id: &str,
+    vault: &IndexMap<String, String>,
+    way: Option<RecipeSignIn>,
+    here: &str,
+) -> String {
     let sign_in = agent_sign_in(agent_id);
     let Some(token) = sign_in.and_then(mints_token) else {
         return copied_from_line(here);
     };
-    let key = sign_in.and_then(key_env_of).is_some_and(|name| vault.contains_key(name));
+    let key = sign_in
+        .and_then(key_env_of)
+        .is_some_and(|name| vault.contains_key(name));
     if (matches!(way, Some(RecipeSignIn::Key)) && key) || !vault.contains_key(&token.token_env) {
         key_held_line(here)
     } else {
@@ -240,14 +308,19 @@ pub fn vault_held_line(agent_id: &str, vault: &IndexMap<String, String>, way: Op
 
 /// The vault as a computer's picks hand it to the turns there (helpers.ts:205): a token dropped for an agent picked
 /// to take its key where the key is held.
-pub fn picked_vault(vault: &IndexMap<String, String>, picks: Option<&RecipeFile>) -> IndexMap<String, String> {
+pub fn picked_vault(
+    vault: &IndexMap<String, String>,
+    picks: Option<&RecipeFile>,
+) -> IndexMap<String, String> {
     let mut dropped: Vec<&str> = Vec::new();
     for (name, row) in picks.into_iter().flat_map(|p| p.agents.iter()) {
         if !matches!(row.signin, Some(RecipeSignIn::Key)) {
             continue;
         }
         let sign_in = agent_sign_in(&name.0);
-        if let (Some(token), Some(key)) = (sign_in.and_then(mints_token), sign_in.and_then(key_env_of)) {
+        if let (Some(token), Some(key)) =
+            (sign_in.and_then(mints_token), sign_in.and_then(key_env_of))
+        {
             if vault.contains_key(key) {
                 dropped.push(&token.token_env);
             }
@@ -256,35 +329,60 @@ pub fn picked_vault(vault: &IndexMap<String, String>, picks: Option<&RecipeFile>
     if dropped.is_empty() {
         return vault.clone();
     }
-    vault.iter().filter(|(name, _)| !dropped.contains(&name.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect()
+    vault
+        .iter()
+        .filter(|(name, _)| !dropped.contains(&name.as_str()))
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect()
 }
 
 /// The picks a computer can be set up from, as this host can serve them (helpers.ts:217).
-pub fn servable_options(options: &RecipeOptions, vault: &IndexMap<String, String>, held: &IndexSet<String>) -> RecipeOptions {
+pub fn servable_options(
+    options: &RecipeOptions,
+    vault: &IndexMap<String, String>,
+    held: &IndexSet<String>,
+) -> RecipeOptions {
     let agents = options
         .agents
         .iter()
         .map(|a| {
             let offers_vault = a.signins.iter().any(|w| matches!(w, RecipeSignIn::Vault));
-            if offers_vault && !matches!(vault_sign_in(&a.id, vault), AgentSignInState::VaultKey) && !held.contains(&a.id) {
-                AgentOption { signins: a.signins.iter().filter(|w| !matches!(w, RecipeSignIn::Vault)).cloned().collect(), ..a.clone() }
+            if offers_vault
+                && !matches!(vault_sign_in(&a.id, vault), AgentSignInState::VaultKey)
+                && !held.contains(&a.id)
+            {
+                AgentOption {
+                    signins: a
+                        .signins
+                        .iter()
+                        .filter(|w| !matches!(w, RecipeSignIn::Vault))
+                        .cloned()
+                        .collect(),
+                    ..a.clone()
+                }
             } else {
                 a.clone()
             }
         })
         .collect();
-    RecipeOptions { agents, ..options.clone() }
+    RecipeOptions {
+        agents,
+        ..options.clone()
+    }
 }
 
 /// The agent homes on this computer, as `agents.homesHere` answers them.
-pub type HomesHere = Rc<dyn Fn() -> LocalBoxFuture<'static, Result<IndexMap<String, String>, HostError>>>;
+pub type HomesHere =
+    Rc<dyn Fn() -> LocalBoxFuture<'static, Result<IndexMap<String, String>, HostError>>>;
 
 /// The login an agent shares into every thread, as this computer holds it; `None` where missing or empty
 /// (helpers.ts:224).
 pub async fn login_here(homes: HomesHere, agent_id: &str) -> Option<Vec<u8>> {
     let shared = shared_on(agent_id)?;
     let home = homes().await.ok()?.get(agent_id).cloned()?;
-    let held = tokio::fs::read(Path::new(&home).join(&shared.file)).await.ok()?;
+    let held = tokio::fs::read(Path::new(&home).join(&shared.file))
+        .await
+        .ok()?;
     (!held.is_empty()).then_some(held)
 }
 
@@ -304,7 +402,11 @@ pub trait LinkSocket {
     fn off_close(&self, id: u64);
     /// The daemon road over this socket: wsp-core's `connect_daemon` with the seal and the event callback
     /// (link.ts:170). On the socket so the attach can be driven over a fake one.
-    fn connect(self: Rc<Self>, seal: Option<wsp_store::keys::Seal>, on_event: Rc<dyn Fn(&wsp_wire::wire::daemon_events::DaemonEvent)>) -> Rc<dyn DaemonReach>;
+    fn connect(
+        self: Rc<Self>,
+        seal: Option<wsp_store::keys::Seal>,
+        on_event: Rc<dyn Fn(&wsp_wire::wire::daemon_events::DaemonEvent)>,
+    ) -> Rc<dyn DaemonReach>;
 }
 
 /// The forward a place's panes ride, opened at the first pane that asks (helpers.ts:243).
@@ -358,7 +460,10 @@ pub type OnConn = Rc<dyn Fn(tokio::net::TcpStream)>;
 const NEAR_PORTS: u16 = 20;
 
 /// Listens on `port` on both loopback families, or on the first free one up to 20 above it (helpers.ts:262).
-pub async fn listen_near(port: u16, on_conn: OnConn) -> Result<(Vec<Rc<LoopbackListener>>, u16), HostError> {
+pub async fn listen_near(
+    port: u16,
+    on_conn: OnConn,
+) -> Result<(Vec<Rc<LoopbackListener>>, u16), HostError> {
     let last = port.saturating_add(NEAR_PORTS);
     for at in port..=last {
         let v4_addr = SocketAddr::from(([127, 0, 0, 1], at));
@@ -367,12 +472,25 @@ pub async fn listen_near(port: u16, on_conn: OnConn) -> Result<(Vec<Rc<LoopbackL
         };
         let v6_addr = SocketAddr::from((Ipv6Addr::LOCALHOST, at));
         match TcpListener::bind(v6_addr).await {
-            Ok(v6) => return Ok((vec![serve(v4, v4_addr, Rc::clone(&on_conn)), serve(v6, v6_addr, on_conn)], at)),
-            Err(e) if e.kind() != ErrorKind::AddrInUse => return Ok((vec![serve(v4, v4_addr, on_conn)], at)),
+            Ok(v6) => {
+                return Ok((
+                    vec![
+                        serve(v4, v4_addr, Rc::clone(&on_conn)),
+                        serve(v6, v6_addr, on_conn),
+                    ],
+                    at,
+                ))
+            }
+            Err(e) if e.kind() != ErrorKind::AddrInUse => {
+                return Ok((vec![serve(v4, v4_addr, on_conn)], at))
+            }
             Err(_) => drop(v4),
         }
     }
-    Err(HostError::new(format!("no port from {port} to {} is free on this computer", u32::from(port) + u32::from(NEAR_PORTS))))
+    Err(HostError::new(format!(
+        "no port from {port} to {} is free on this computer",
+        u32::from(port) + u32::from(NEAR_PORTS)
+    )))
 }
 
 /// Accepts until closed; closing drops the listener at once, so the port is free when close returns.
@@ -392,7 +510,10 @@ fn serve(listener: TcpListener, addr: SocketAddr, on_conn: OnConn) -> Rc<Loopbac
         drop(listener);
         stop.abort();
     });
-    Rc::new(LoopbackListener { addr, close: RefCell::new(Some(close)) })
+    Rc::new(LoopbackListener {
+        addr,
+        close: RefCell::new(Some(close)),
+    })
 }
 
 /// The next connection the slot's listener accepts; none once it is closed or fails.
@@ -434,7 +555,11 @@ pub async fn box_said(wiring: &PlaceWiring, installed: &PlaceInstalled) -> Vec<S
     let (Some(log), Some(ssh)) = (wiring.log.as_ref(), installed.ssh.as_ref()) else {
         return Vec::new();
     };
-    let login = PlaceLogin { ssh: ssh.clone(), key_path: installed.ssh_key_path.clone(), host_key: None };
+    let login = PlaceLogin {
+        ssh: ssh.clone(),
+        key_path: installed.ssh_key_path.clone(),
+        host_key: None,
+    };
     log.log(&login).await.unwrap_or_default()
 }
 
@@ -481,19 +606,32 @@ pub struct SyncJob {
 }
 
 /// How a setup came out (helpers.ts:359).
-pub fn setup_outcome(setup: &PlaceSetup, applied: Option<&PlaceApplied>) -> (SetupEnd, Option<String>) {
+pub fn setup_outcome(
+    setup: &PlaceSetup,
+    applied: Option<&PlaceApplied>,
+) -> (SetupEnd, Option<String>) {
     let mut said: Vec<String> = setup.waiting.iter().map(wait_line).collect();
-    said.extend(important_failures(applied).iter().map(|r| format!("{}: {}", r.label, r.note.as_deref().unwrap_or("failed"))));
+    said.extend(
+        important_failures(applied)
+            .iter()
+            .map(|r| format!("{}: {}", r.label, r.note.as_deref().unwrap_or("failed"))),
+    );
     if !said.is_empty() {
         return (SetupEnd::NeedsYou, Some(said.join("; ")));
     }
-    let missed = applied.map_or(0, |a| a.rows.iter().filter(|r| r.outcome == PlaceProvisionRowOutcome::Failed).count());
+    let missed = applied.map_or(0, |a| {
+        a.rows
+            .iter()
+            .filter(|r| r.outcome == PlaceProvisionRowOutcome::Failed)
+            .count()
+    });
     let said = (missed > 0).then(|| format!("{} did not install", plural(missed as f64, "row")));
     (SetupEnd::Ready, said)
 }
 
 /// The refusal an estimate gets on a runtime whose provisioner weighs nothing (helpers.ts:367).
-pub const NO_ESTIMATE_LINE: &str = "this runtime weighs no picks; the host that serves the app wires the reader";
+pub const NO_ESTIMATE_LINE: &str =
+    "this runtime weighs no picks; the host that serves the app wires the reader";
 pub const LOG_READ_MS: u64 = 10_000;
 pub const UNDO_MS: u64 = 300_000;
 pub const SIGN_IN_SLACK_MS: u64 = 5_000;
@@ -511,7 +649,10 @@ pub fn cli_first(plan: &ProvisionPlan, ids: &[String]) -> ProvisionPlan {
                 break;
             }
             chain.insert(0, i);
-            at = clis[i].after.as_ref().and_then(|after| clis.iter().position(|s| s.id == *after));
+            at = clis[i]
+                .after
+                .as_ref()
+                .and_then(|after| clis.iter().position(|s| s.id == *after));
         }
         first.extend(chain);
     }
@@ -520,13 +661,23 @@ pub fn cli_first(plan: &ProvisionPlan, ids: &[String]) -> ProvisionPlan {
     }
     let mut steps = head.to_vec();
     steps.extend(first.iter().map(|&i| clis[i].clone()));
-    steps.extend(clis.iter().enumerate().filter(|(i, _)| !first.contains(i)).map(|(_, s)| s.clone()));
-    ProvisionPlan { steps, ..plan.clone() }
+    steps.extend(
+        clis.iter()
+            .enumerate()
+            .filter(|(i, _)| !first.contains(i))
+            .map(|(_, s)| s.clone()),
+    );
+    ProvisionPlan {
+        steps,
+        ..plan.clone()
+    }
 }
 
 /// A setup row the engine read off that computer (helpers.ts:400).
 pub fn engine_row(r: &PlaceProvisionRow) -> bool {
-    r.step.is_some_and(|step| !matches!(step, PlaceSetupStep::Signins | PlaceSetupStep::Folders)) && r.id != GITHUB_ROW
+    r.step
+        .is_some_and(|step| !matches!(step, PlaceSetupStep::Signins | PlaceSetupStep::Folders))
+        && r.id != GITHUB_ROW
 }
 
 pub const INSTALLS: &str = "installs";
@@ -541,7 +692,10 @@ pub fn first_line_of(e: &HostError) -> String {
 
 /// The hash of what a computer was set up with (helpers.ts:413).
 pub fn picks_hash(picks: &RecipeFile) -> String {
-    let canon = recipe_canon(&ResolvedRecipe { file: picks.clone(), items: IndexMap::new() });
+    let canon = recipe_canon(&ResolvedRecipe {
+        file: picks.clone(),
+        items: IndexMap::new(),
+    });
     hex::encode(Sha256::digest(canon.as_bytes()))
 }
 

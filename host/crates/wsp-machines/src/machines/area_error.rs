@@ -72,7 +72,10 @@ impl AreaError {
 }
 
 fn engine_kind_word(kind: ErrorKind) -> String {
-    serde_json::to_value(kind).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default()
+    serde_json::to_value(kind)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_string))
+        .unwrap_or_default()
 }
 
 impl From<HostError> for AreaError {

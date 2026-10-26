@@ -5,16 +5,19 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use futures::future::{FutureExt, LocalBoxFuture};
 use futures::channel::oneshot;
+use futures::future::{FutureExt, LocalBoxFuture};
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Value};
 
-use wsp_core::types::internal::{absent_machine, dead_machine, gone_log_line, is_absent_machine, pid_alive, BuilderLife, BuilderRecord, HeldBy, KindModule, LiveBuilder, StoredBuilder, HELD_TTL_MS, BUILDERS, WORKSPACES};
+use wsp_core::types::internal::{
+    absent_machine, dead_machine, gone_log_line, is_absent_machine, pid_alive, BuilderLife,
+    BuilderRecord, HeldBy, LiveBuilder, StoredBuilder, BUILDERS, HELD_TTL_MS, WORKSPACES,
+};
 use wsp_core::types::pending::{Builder, Sighting};
 use wsp_core::types::wiring::{FoundMachine, WorkspaceRecord};
 use wsp_engine::errors::{is_missing, EngineError};
-use wsp_engine::machine::{BackendPricing, Machine, MachineBackend, MachineState};
+use wsp_engine::machine::{Machine, MachineBackend, MachineState};
 use wsp_engine::orphans::date_parse;
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::golden_image::MachineKind;
@@ -32,7 +35,9 @@ use crate::machines::machines::Entry;
 pub const LOAD_READS_MS: u64 = 1_500;
 
 /// A provider read out, shared by the load's timer and the late load (boot.ts:149 `asked`).
-pub type Asked = futures::future::Shared<futures::future::LocalBoxFuture<'static, Result<Arc<dyn Machine>, HostError>>>;
+pub type Asked = futures::future::Shared<
+    futures::future::LocalBoxFuture<'static, Result<Arc<dyn Machine>, HostError>>,
+>;
 
 /// The load's one deadline and every read still out at it, by record id (boot.ts:21).
 pub struct LoadReads {
@@ -74,7 +79,10 @@ fn state_word(state: Option<MachineState>) -> &'static str {
 }
 
 /// One read of a machine's id as `sightMachine` makes it: the state, with the handle where the provider had one (boot.ts:146).
-async fn sight(at: &Arc<dyn MachineBackend>, id: &str) -> Result<(MachineState, Option<Arc<dyn Machine>>), EngineError> {
+async fn sight(
+    at: &Arc<dyn MachineBackend>,
+    id: &str,
+) -> Result<(MachineState, Option<Arc<dyn Machine>>), EngineError> {
     for _ in 0..GONE_READS {
         match at.get(id).await {
             Ok(machine) => {
@@ -100,19 +108,41 @@ impl BootArea {
             return true;
         }
         let wired = self.rt.places().wired();
-        let at = self.rt.places().backend(place.unwrap_or(&wired)).or_else(|| self.rt.door_backend_of(place.unwrap_or(&wired)));
+        let at = self
+            .rt
+            .places()
+            .backend(place.unwrap_or(&wired))
+            .or_else(|| self.rt.door_backend_of(place.unwrap_or(&wired)));
         at.is_some_and(|at| at.capabilities().snapshots_any_life)
     }
 
     /// `lifeOf` (boot.ts:49), spec rule 3. `labels` are the machine's provider labels.
-    pub fn life_of(&self, stored: &StoredBuilder, labels: Option<&IndexMap<String, String>>, sealable: bool) -> BuilderLife {
-        self.life_from(stored.held_by.as_ref(), stored.building == Some(true), labels, sealable)
+    pub fn life_of(
+        &self,
+        stored: &StoredBuilder,
+        labels: Option<&IndexMap<String, String>>,
+        sealable: bool,
+    ) -> BuilderLife {
+        self.life_from(
+            stored.held_by.as_ref(),
+            stored.building == Some(true),
+            labels,
+            sealable,
+        )
     }
 
     /// `lifeOf` over the record's fields: the first rule that holds decides (boot.ts:49-61).
-    fn life_from(&self, holder: Option<&HeldBy>, building: bool, labels: Option<&IndexMap<String, String>>, sealable: bool) -> BuilderLife {
+    fn life_from(
+        &self,
+        holder: Option<&HeldBy>,
+        building: bool,
+        labels: Option<&IndexMap<String, String>>,
+        sealable: bool,
+    ) -> BuilderLife {
         let owner = self.rt.owner();
-        let foreign = labels.and_then(|l| l.get(wsp_engine::labels::OWNER_LABEL)).is_some_and(|label| *label != owner);
+        let foreign = labels
+            .and_then(|l| l.get(wsp_engine::labels::OWNER_LABEL))
+            .is_some_and(|label| *label != owner);
         let held = holder.is_some_and(|h| {
             let mine = h.host == self.config.host_id && h.pid == std::process::id();
             let beat_age = self.rt.clock().now() as f64 - date_parse(&h.heartbeat);
@@ -134,11 +164,16 @@ impl BootArea {
     fn live_builder_of(&self, record: BuilderRecord, machine: Arc<dyn Machine>) -> LiveBuilder {
         let sealable = self.sealable_at(record.place.as_deref(), record.first_life);
         let labels = machine.labels().cloned();
-        let life = self.life_from(record.held_by.as_ref(), record.building == Some(true), labels.as_ref(), sealable);
+        let life = self.life_from(
+            record.held_by.as_ref(),
+            record.building == Some(true),
+            labels.as_ref(),
+            sealable,
+        );
         LiveBuilder {
             builder: Builder {
                 machine,
-                kind: record.kind.clone(),
+                kind: record.kind,
                 base_template: record.base_template.clone(),
                 setup_sha: record.setup_sha.clone(),
                 created_at: record.created_at.clone(),
@@ -161,14 +196,22 @@ impl BootArea {
     async fn admit(self: &Rc<Self>, stored: StoredBuilder) -> Result<(), HostError> {
         let wired = self.rt.places().wired();
         let place = stored.place.clone().unwrap_or(wired);
-        let at = match self.rt.places().backend(&place).or_else(|| self.rt.door_backend_of(&place)) {
+        let at = match self
+            .rt
+            .places()
+            .backend(&place)
+            .or_else(|| self.rt.door_backend_of(&place))
+        {
             Some(at) => at,
             None => return Ok(()),
         };
         let machine = match at.get(&stored.id).await {
             Ok(machine) => self.rt.observed(machine),
             Err(e) => {
-                if matches!(e, EngineError::PlaceAbsent { .. } | EngineError::NoProvider { .. }) {
+                if matches!(
+                    e,
+                    EngineError::PlaceAbsent { .. } | EngineError::NoProvider { .. }
+                ) {
                     return Ok(());
                 }
                 if !is_missing(&e) {
@@ -194,14 +237,17 @@ impl BootArea {
             None => {
                 let shape = self.rt.shape_of(&machine).await;
                 let default = at.pricing().default_size();
-                let asked = WorkspaceSize { cpu: JsNumber(default.cpu), mem_mb: JsNumber(default.mem_mb) };
+                let asked = WorkspaceSize {
+                    cpu: JsNumber(default.cpu),
+                    mem_mb: JsNumber(default.mem_mb),
+                };
                 self.rt.size_built(shape.as_ref(), asked)
             }
         };
         let record = BuilderRecord {
             id: stored.id.clone(),
             name: stored.name.clone(),
-            kind: stored.kind.clone(),
+            kind: stored.kind,
             base_template: stored.base_template.clone(),
             setup_sha: stored.setup_sha.clone(),
             created_at: stored.created_at.clone(),
@@ -218,12 +264,22 @@ impl BootArea {
             place: stored.place.clone(),
         };
         if stored.first_life == Some(true) && !first_life {
-            self.rt.store().put(BUILDERS, &record.id, serde_json::to_value(&record).unwrap_or(Value::Null)).await?;
+            self.rt
+                .store()
+                .put(
+                    BUILDERS,
+                    &record.id,
+                    serde_json::to_value(&record).unwrap_or(Value::Null),
+                )
+                .await?;
         }
         let id = record.id.clone();
         let sealed_at = stored.sealed.as_ref().map(|s| s.at.clone());
         let live = self.live_builder_of(record, machine);
-        self.rt.builders().borrow_mut().insert(id.clone(), Rc::new(RefCell::new(live)));
+        self.rt
+            .builders()
+            .borrow_mut()
+            .insert(id.clone(), Rc::new(RefCell::new(live)));
         if let Some(at) = sealed_at {
             self.rt.arm_grace(&id, &at);
         }
@@ -239,13 +295,14 @@ impl BootArea {
             None => {
                 let area = self.clone();
                 let key = id.clone();
-                let read: futures::future::Shared<LocalBoxFuture<'static, Result<(), String>>> = async move {
-                    let out = area.admit(stored).await.map_err(|e| e.message);
-                    area.admitting.borrow_mut().shift_remove(&key);
-                    out
-                }
-                .boxed_local()
-                .shared();
+                let read: futures::future::Shared<LocalBoxFuture<'static, Result<(), String>>> =
+                    async move {
+                        let out = area.admit(stored).await.map_err(|e| e.message);
+                        area.admitting.borrow_mut().shift_remove(&key);
+                        out
+                    }
+                    .boxed_local()
+                    .shared();
                 self.admitting.borrow_mut().insert(id, read.clone());
                 read
             }
@@ -258,7 +315,10 @@ impl BootArea {
         let pass = self.passes.get() + 1;
         self.passes.set(pass);
         let area = self.clone();
-        let refresh: futures::future::Shared<LocalBoxFuture<'static, Result<(), String>>> = async move { area.refresh_now(pass).await.map_err(|e| e.message) }.boxed_local().shared();
+        let refresh: futures::future::Shared<LocalBoxFuture<'static, Result<(), String>>> =
+            async move { area.refresh_now(pass).await.map_err(|e| e.message) }
+                .boxed_local()
+                .shared();
         *self.latest.borrow_mut() = Some(refresh.clone());
         refresh.await.map_err(HostError::new)
     }
@@ -271,7 +331,8 @@ impl BootArea {
             if pass != self.passes.get() {
                 return self.await_latest().await;
             }
-            let stored: StoredBuilder = serde_json::from_value(raw).map_err(|e| HostError::new(e.to_string()))?;
+            let stored: StoredBuilder =
+                serde_json::from_value(raw).map_err(|e| HostError::new(e.to_string()))?;
             seen.insert(stored.id.clone());
             let current = self.rt.builders().borrow().get(&stored.id).cloned();
             match current {
@@ -279,7 +340,12 @@ impl BootArea {
                 Some(current) => {
                     let (life, machine, record_size, first) = {
                         let c = current.borrow();
-                        (c.life, c.builder.machine.clone(), c.record.size.clone(), c.builder.first_life)
+                        (
+                            c.life,
+                            c.builder.machine.clone(),
+                            c.record.size.clone(),
+                            c.builder.first_life,
+                        )
                     };
                     if life != BuilderLife::Own {
                         let mut record = stored.clone();
@@ -290,11 +356,14 @@ impl BootArea {
                         let record_live = BuilderRecord {
                             id: record.id.clone(),
                             name: record.name.clone(),
-                            kind: record.kind.clone(),
+                            kind: record.kind,
                             base_template: record.base_template.clone(),
                             setup_sha: record.setup_sha.clone(),
                             created_at: record.created_at.clone(),
-                            size: record.size.clone().unwrap_or(WorkspaceSize { cpu: JsNumber(0.0), mem_mb: JsNumber(0.0) }),
+                            size: record.size.clone().unwrap_or(WorkspaceSize {
+                                cpu: JsNumber(0.0),
+                                mem_mb: JsNumber(0.0),
+                            }),
                             stream_url: record.stream_url.clone(),
                             first_life: record.first_life == Some(true),
                             held_by: record.held_by.clone(),
@@ -319,7 +388,13 @@ impl BootArea {
         if pass != self.passes.get() {
             return self.await_latest().await;
         }
-        let snapshot: Vec<(String, BuilderLife)> = self.rt.builders().borrow().iter().map(|(id, b)| (id.clone(), b.borrow().life)).collect();
+        let snapshot: Vec<(String, BuilderLife)> = self
+            .rt
+            .builders()
+            .borrow()
+            .iter()
+            .map(|(id, b)| (id.clone(), b.borrow().life))
+            .collect();
         for (id, life) in snapshot {
             if !seen.contains(&id) && life != BuilderLife::Own {
                 self.rt.builders().borrow_mut().shift_remove(&id);
@@ -338,7 +413,14 @@ impl BootArea {
     }
 
     /// `readWithin` (boot.ts:149), spec rule 8: at the load, a read still out at the deadline holds the record and is kept.
-    async fn read_within(&self, at: &Arc<dyn MachineBackend>, stored: &WorkspaceRecord, load: Option<&Rc<LoadReads>>, held: &dyn Fn(HostError) -> Arc<dyn Machine>, asked: Asked) -> Result<Arc<dyn Machine>, HostError> {
+    async fn read_within(
+        &self,
+        at: &Arc<dyn MachineBackend>,
+        stored: &WorkspaceRecord,
+        load: Option<&Rc<LoadReads>>,
+        held: &dyn Fn(HostError) -> Arc<dyn Machine>,
+        asked: Asked,
+    ) -> Result<Arc<dyn Machine>, HostError> {
         let Some(load) = load else { return asked.await };
         let _ = at;
         let (tx, rx) = oneshot::channel::<()>();
@@ -371,12 +453,20 @@ impl BootArea {
         let _ = read.clone().await;
         let raw = self.rt.store().get(WORKSPACES, id).await;
         match raw {
-            Ok(Some(raw)) if !self.rt.closed() => match self.hydrate_workspace(raw, None, None, Some(read)).await {
-                Ok(entry) => landed = entry,
-                Err(e) => self.rt.warn(&format!("workspace {id} was not loaded once its provider answered: {}", e.message)),
-            },
+            Ok(Some(raw)) if !self.rt.closed() => {
+                match self.hydrate_workspace(raw, None, None, Some(read)).await {
+                    Ok(entry) => landed = entry,
+                    Err(e) => self.rt.warn(&format!(
+                        "workspace {id} was not loaded once its provider answered: {}",
+                        e.message
+                    )),
+                }
+            }
             Ok(_) => {}
-            Err(e) => self.rt.warn(&format!("workspace {id} was not loaded once its provider answered: {}", e.message)),
+            Err(e) => self.rt.warn(&format!(
+                "workspace {id} was not loaded once its provider answered: {}",
+                e.message
+            )),
         }
         self.rt.rereading().borrow_mut().shift_remove(id);
         if !self.rt.closed() && self.is_held_away(id) {
@@ -392,7 +482,8 @@ impl BootArea {
             None => true,
             Some(entry) => {
                 let machine = entry.borrow().machine.clone();
-                is_absent_machine(machine.as_ref()) && entry.borrow().record.borrow().phase != WorkspacePhase::Queued
+                is_absent_machine(machine.as_ref())
+                    && entry.borrow().record.borrow().phase != WorkspacePhase::Queued
             }
         }
     }
@@ -413,19 +504,36 @@ impl BootArea {
         out
     }
 
-    async fn reread_held_now(self: &Rc<Self>, id: &str, by: GoneSeenBy, entry: &Entry) -> Result<(), HostError> {
+    async fn reread_held_now(
+        self: &Rc<Self>,
+        id: &str,
+        by: GoneSeenBy,
+        entry: &Entry,
+    ) -> Result<(), HostError> {
         let snapshot = entry.borrow().record.borrow().clone();
         let machine_id = snapshot.machine_id.clone();
         let at = self.rt.backend_for(&snapshot);
         let seen = sight(&at, &machine_id).await;
-        let Ok((state, machine)) = seen else { return Ok(()) };
-        if self.rt.closed() || !self.rt.live().borrow().get(id).is_some_and(|live| Rc::ptr_eq(live, entry)) {
+        let Ok((state, machine)) = seen else {
+            return Ok(());
+        };
+        if self.rt.closed()
+            || !self
+                .rt
+                .live()
+                .borrow()
+                .get(id)
+                .is_some_and(|live| Rc::ptr_eq(live, entry))
+        {
             return Ok(());
         }
         if let Some(machine) = machine {
             let raw = self.rt.store().get(WORKSPACES, id).await?;
             if let Some(raw) = raw {
-                let found = FoundMachine { sighting: Sighting::default(), machine };
+                let found = FoundMachine {
+                    sighting: Sighting::default(),
+                    machine,
+                };
                 let again = self.hydrate_workspace(raw, Some(found), None, None).await?;
                 if let Some(again) = again {
                     self.rt.sync_daemon(&again);
@@ -435,9 +543,15 @@ impl BootArea {
             return Ok(());
         }
         let answer = self.held_answers.borrow().get(id).cloned();
-        let sighting = GoneSighting { by, at: self.rt.clock().now() as f64, answer };
+        let sighting = GoneSighting {
+            by,
+            at: self.rt.clock().now() as f64,
+            answer,
+        };
         let words = gone_words(&machine_id, Some(&sighting));
-        let attached = self.rt.attach(&entry.borrow().record.clone(), dead_machine(&machine_id));
+        let attached = self
+            .rt
+            .attach(&entry.borrow().record.clone(), dead_machine(&machine_id));
         self.rt.mark_gone(&attached, &machine_id, &words).await?;
         Ok(())
     }
@@ -450,9 +564,15 @@ impl BootArea {
         load: Option<Rc<LoadReads>>,
         asked: Option<Asked>,
     ) -> Result<Option<Entry>, HostError> {
-        if let Some(word) = raw.get("kind").and_then(Value::as_str).filter(|k| !matches!(*k, "cloud" | "local" | "place")) {
+        if let Some(word) = raw
+            .get("kind")
+            .and_then(Value::as_str)
+            .filter(|k| !matches!(*k, "cloud" | "local" | "place"))
+        {
             let id = raw.get("id").and_then(Value::as_str).unwrap_or_default();
-            self.rt.warn(&format!("workspace {id} is left as it was: no module wired for {word}"));
+            self.rt.warn(&format!(
+                "workspace {id} is left as it was: no module wired for {word}"
+            ));
             return Ok(None);
         }
         let stored: WorkspaceRecord = record_of(raw)?;
@@ -461,33 +581,47 @@ impl BootArea {
             self.rt.attach_queued(&Rc::new(RefCell::new(stored)));
             return Ok(None);
         }
-        if stored.phase == WorkspacePhase::Released || stored.sub.as_ref().is_some_and(|s| s.cloud_gone == Some(true)) {
+        if stored.phase == WorkspacePhase::Released
+            || stored
+                .sub
+                .as_ref()
+                .is_some_and(|s| s.cloud_gone == Some(true))
+        {
             let copy = Rc::new(RefCell::new(stored.clone()));
             self.rt.attach(&copy, dead_machine(&stored.machine_id));
             return Ok(None);
         }
-        let module = self.rt.module_of(kind_key(stored.kind.clone()));
+        let module = self.rt.module_of(kind_key(stored.kind));
         let at = match module.backend(&stored) {
             Ok(at) => at,
             Err(e) => {
-                self.rt.warn(&format!("workspace {id} is left as it was: {}", e.message));
+                self.rt
+                    .warn(&format!("workspace {id} is left as it was: {}", e.message));
                 return Ok(None);
             }
         };
         let golden_kind = if stored.golden.is_empty() {
             MachineKind::Sandbox
         } else {
-            self.rt.image_kind(&stored.golden).await.ok().flatten().unwrap_or(MachineKind::Sandbox)
+            self.rt
+                .image_kind(&stored.golden)
+                .await
+                .ok()
+                .flatten()
+                .unwrap_or(MachineKind::Sandbox)
         };
         let absent = Rc::new(Cell::new(false));
         let machine_id = stored.machine_id.clone();
         let held_away: Rc<dyn Fn(HostError) -> Arc<dyn Machine>> = {
             let absent = absent.clone();
             let machine_id = machine_id.clone();
-            let golden_kind = golden_kind.clone();
             Rc::new(move |refusal: HostError| {
                 absent.set(true);
-                absent_machine(&machine_id, golden_kind.clone(), Arc::new(move || host_to_engine(refusal.clone())))
+                absent_machine(
+                    &machine_id,
+                    golden_kind,
+                    Arc::new(move || host_to_engine(refusal.clone())),
+                )
             })
         };
         let mut missing: Option<String> = None;
@@ -498,17 +632,24 @@ impl BootArea {
                     Some(asked) => asked,
                     None => {
                         let (backend, id_for_read) = (at.clone(), machine_id.clone());
-                        async move { backend.get(&id_for_read).await.map_err(host_to_engine_back) }.boxed_local().shared()
+                        async move { backend.get(&id_for_read).await.map_err(host_to_engine_back) }
+                            .boxed_local()
+                            .shared()
                     }
                 };
-                match self.read_within(&at, &stored, load.as_ref(), held_away.as_ref(), read).await {
+                match self
+                    .read_within(&at, &stored, load.as_ref(), held_away.as_ref(), read)
+                    .await
+                {
                     Ok(machine) => machine,
                     Err(e) => {
                         if !is_missing_host(&e) {
                             held_away(e)
                         } else if stored.phase != WorkspacePhase::Gone {
                             let said = said_of(&e);
-                            self.held_answers.borrow_mut().insert(id.clone(), said.clone());
+                            self.held_answers
+                                .borrow_mut()
+                                .insert(id.clone(), said.clone());
                             held_away(HostError::new(gone_unconfirmed_line(&machine_id, &said)))
                         } else {
                             missing = Some(said_of(&e));
@@ -530,7 +671,9 @@ impl BootArea {
         };
         let phase = match at_provider {
             None => stored.phase,
-            Some(_) if stored.phase == WorkspacePhase::Gone => at_provider.and_then(wsp_core::status::phase_leaving_gone).unwrap_or(WorkspacePhase::Gone),
+            Some(_) if stored.phase == WorkspacePhase::Gone => at_provider
+                .and_then(wsp_core::status::phase_leaving_gone)
+                .unwrap_or(WorkspacePhase::Gone),
             Some(MachineState::Gone) => WorkspacePhase::Gone,
             Some(MachineState::Paused) => WorkspacePhase::Napping,
             Some(MachineState::Running) => WorkspacePhase::Running,
@@ -545,13 +688,19 @@ impl BootArea {
         let mut record = stored.clone();
         record.phase = phase;
         if let Some(url) = machine.stream_url() {
-            record.screen = Some(wsp_wire::views::workspace::WorkspaceViewScreen { stream_url: url.to_string() });
+            record.screen = Some(wsp_wire::views::workspace::WorkspaceViewScreen {
+                stream_url: url.to_string(),
+            });
         }
         if phase == WorkspacePhase::Gone {
             record.gone = Some(match &stored.gone {
                 Some(gone) => gone.clone(),
                 None => {
-                    let sighting = GoneSighting { by: GoneSeenBy::RecordLoad, at: self.rt.clock().now() as f64, answer: missing.clone() };
+                    let sighting = GoneSighting {
+                        by: GoneSeenBy::RecordLoad,
+                        at: self.rt.clock().now() as f64,
+                        answer: missing.clone(),
+                    };
                     gone_words(&stored.machine_id, Some(&sighting))
                 }
             });
@@ -562,11 +711,16 @@ impl BootArea {
             record.disk_gone = None;
         }
         let paused_at = if phase == WorkspacePhase::Napping {
-            machine.seen().and_then(|s| s.paused_at.clone()).map(|p| date_parse(&p)).unwrap_or(f64::NAN)
+            machine
+                .seen()
+                .and_then(|s| s.paused_at.clone())
+                .map(|p| date_parse(&p))
+                .unwrap_or(f64::NAN)
         } else {
             f64::NAN
         };
-        let nap_moved = paused_at.is_finite() && stored.napped_at.as_ref().map(|n| n.0) != Some(paused_at);
+        let nap_moved =
+            paused_at.is_finite() && stored.napped_at.as_ref().map(|n| n.0) != Some(paused_at);
         if nap_moved {
             record.napped_at = Some(JsNumber(paused_at));
         }
@@ -605,17 +759,25 @@ fn record_of(raw: Value) -> Result<WorkspaceRecord, HostError> {
         Value::Object(row) => row,
         other => return serde_json::from_value(other).map_err(|e| HostError::new(e.to_string())),
     };
-    for (key, fill) in [("createdAt", Value::String(String::new())), ("spec", json!({})), ("size", json!({"cpu": 1, "memMb": 1})), ("firstLife", json!(true))] {
+    for (key, fill) in [
+        ("createdAt", Value::String(String::new())),
+        ("spec", json!({})),
+        ("size", json!({"cpu": 1, "memMb": 1})),
+        ("firstLife", json!(true)),
+    ] {
         row.entry(key.to_string()).or_insert(fill);
     }
     if let Some(Value::Object(worktree)) = row.get_mut("worktree") {
-        worktree.entry("path".to_string()).or_insert_with(|| json!(""));
+        worktree
+            .entry("path".to_string())
+            .or_insert_with(|| json!(""));
     }
     if let Some(Value::Object(sub)) = row.get_mut("sub") {
         for key in ["on", "repo", "branch", "folder"] {
             sub.entry(key.to_string()).or_insert_with(|| json!(""));
         }
-        sub.entry("base".to_string()).or_insert_with(|| json!({"branch": "", "sha": ""}));
+        sub.entry("base".to_string())
+            .or_insert_with(|| json!({"branch": "", "sha": ""}));
     }
     serde_json::from_value(Value::Object(row)).map_err(|e| HostError::new(e.to_string()))
 }

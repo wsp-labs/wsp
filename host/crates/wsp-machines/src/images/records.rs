@@ -10,7 +10,10 @@ use async_trait::async_trait;
 use indexmap::IndexSet;
 use serde::Serialize;
 
-use wsp_core::types::internal::{copy_key, recipe_key, NamedWorkspace, GOLDENS, GOLDEN_RECIPES, IMAGES, WORKSPACES, WORKSPACE_NAMES};
+use wsp_core::types::internal::{
+    copy_key, recipe_key, NamedWorkspace, GOLDENS, GOLDEN_RECIPES, IMAGES, WORKSPACES,
+    WORKSPACE_NAMES,
+};
 use wsp_core::types::pending::{Clock, Store};
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_engine::exec_detached::put::INLINE_EXEC_MS;
@@ -77,7 +80,10 @@ fn json_of<T: Serialize>(value: &T) -> serde_json::Value {
     serde_json::to_value(value).expect("a record serializes as JSON")
 }
 
-fn set_look<T: serde::de::DeserializeOwned>(slot: &mut Option<T>, value: Option<serde_json::Value>) {
+fn set_look<T: serde::de::DeserializeOwned>(
+    slot: &mut Option<T>,
+    value: Option<serde_json::Value>,
+) {
     match value {
         None => *slot = None,
         Some(v) => {
@@ -104,7 +110,12 @@ impl RecordsArea {
             kind: Some(r.kind),
             golden: r.golden.clone(),
             created_at: r.created_at.clone(),
-            project: ProjectRef { id: project.id, name: project.name, path: project.path, computer: project.computer },
+            project: ProjectRef {
+                id: project.id,
+                name: project.name,
+                path: project.path,
+                computer: project.computer,
+            },
             folder: self.ctx.module_folder(r),
             home: self.ctx.home_of(r),
             claude_session_id: r.claude_session_id.clone(),
@@ -119,14 +130,21 @@ impl RecordsArea {
             daemon_refused_at: r.daemon_refused_at.clone(),
             wake_refused: r.wake_refused.clone(),
             disk_gone: r.disk_gone.clone(),
-            agents: self.ctx.agents_of(r).and_then(|v| serde_json::from_value(v).ok()),
+            agents: self
+                .ctx
+                .agents_of(r)
+                .and_then(|v| serde_json::from_value(v).ok()),
             parent_thread_id: r.parent_thread_id.clone(),
             root_thread_id: r.root_thread_id.clone(),
             parent_workspace_id: r.parent_workspace_id.clone(),
             place: r.place.clone(),
             worktree: r.worktree.clone(),
             provider: self.ctx.provider_of(r),
-            pause_mode: self.ctx.backend_for(r).ok().and_then(|b| b.capabilities().pause_mode),
+            pause_mode: self
+                .ctx
+                .backend_for(r)
+                .ok()
+                .and_then(|b| b.capabilities().pause_mode),
             from: r.from.clone(),
             review: r.review.clone(),
             branch_of_record: r.branch_of_record.clone(),
@@ -134,7 +152,12 @@ impl RecordsArea {
     }
 
     /// records.ts:129-133 (R3): `None` leaves, `Some(None)` clears, `Some(Some(v))` sets the look fact, as its JSON.
-    pub fn put_look(&self, r: &mut WorkspaceRecord, key: LookKey, value: Option<Option<serde_json::Value>>) {
+    pub fn put_look(
+        &self,
+        r: &mut WorkspaceRecord,
+        key: LookKey,
+        value: Option<Option<serde_json::Value>>,
+    ) {
         let Some(value) = value else { return };
         match key {
             LookKey::Theme => set_look(&mut r.theme, value),
@@ -147,7 +170,11 @@ impl RecordsArea {
         self.ctx.bump_generation(&r.id);
         let store = self.ctx.store();
         store.put(WORKSPACES, &r.id, json_of(r)).await?;
-        let name = NamedWorkspace { workspace_id: r.id.clone(), name: r.name.clone(), project: Some(r.project.clone()) };
+        let name = NamedWorkspace {
+            workspace_id: r.id.clone(),
+            name: r.name.clone(),
+            project: Some(r.project.clone()),
+        };
         store.put(WORKSPACE_NAMES, &r.id, json_of(&name)).await
     }
 
@@ -165,12 +192,30 @@ impl RecordsArea {
     }
 
     /// records.ts:157-170 (R7, R8).
-    pub async fn read_memory(&self, record: &mut WorkspaceRecord, machine: Arc<dyn Machine>, sizes: &[MachineSizeOffer]) -> bool {
-        let outcome: Result<Option<u64>, String> = match machine.exec(MEM_READ, ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() }).await {
+    pub async fn read_memory(
+        &self,
+        record: &mut WorkspaceRecord,
+        machine: Arc<dyn Machine>,
+        sizes: &[MachineSizeOffer],
+    ) -> bool {
+        let outcome: Result<Option<u64>, String> = match machine
+            .exec(
+                MEM_READ,
+                ExecOptions {
+                    timeout_ms: Some(INLINE_EXEC_MS),
+                    ..Default::default()
+                },
+            )
+            .await
+        {
             Ok(res) if res.exit_code.get() == 0 => Ok(mem_mb_of(&read_values(&res.stdout))),
             Ok(res) => {
                 let stderr = js::js_trim(&res.stderr);
-                let tail = if stderr.is_empty() { String::new() } else { format!(": {}", js::utf16::tail(stderr, 200)) };
+                let tail = if stderr.is_empty() {
+                    String::new()
+                } else {
+                    format!(": {}", js::utf16::tail(stderr, 200))
+                };
                 Err(format!("exit {}{tail}", res.exit_code.get()))
             }
             Err(e) => Err(e.to_string()),
@@ -188,7 +233,9 @@ impl RecordsArea {
                 return false;
             }
         };
-        let offered = sizes.iter().find(|s| (s.mem_mb.0 - count).abs() <= s.mem_mb.0 / 16.0);
+        let offered = sizes
+            .iter()
+            .find(|s| (s.mem_mb.0 - count).abs() <= s.mem_mb.0 / 16.0);
         let largest = sizes.iter().map(|s| s.mem_mb.0).fold(0.0, f64::max);
         let mem = match offered {
             Some(s) => s.mem_mb.0,
@@ -201,34 +248,85 @@ impl RecordsArea {
 
     /// records.ts:173 (R9).
     pub fn forked_from(&self, snapshot_id: &str) -> Vec<String> {
-        self.ctx.live_records().iter().filter(|r| r.borrow().golden == snapshot_id).map(|r| r.borrow().name.clone()).collect()
+        self.ctx
+            .live_records()
+            .iter()
+            .filter(|r| r.borrow().golden == snapshot_id)
+            .map(|r| r.borrow().name.clone())
+            .collect()
     }
 
     /// records.ts:179 (R10).
-    pub async fn copy_of(&self, place: &str, name: &str) -> Result<Option<GoldenManifest>, HostError> {
-        let stored = self.ctx.store().get(GOLDENS, &copy_key(place, name)).await?;
+    pub async fn copy_of(
+        &self,
+        place: &str,
+        name: &str,
+    ) -> Result<Option<GoldenManifest>, HostError> {
+        let stored = self
+            .ctx
+            .store()
+            .get(GOLDENS, &copy_key(place, name))
+            .await?;
         Ok(stored.and_then(|v| serde_json::from_value(v).ok()))
     }
 
     /// records.ts:181 (R10).
-    pub async fn put_copy(&self, place: &str, name: &str, manifest: &GoldenManifest) -> Result<(), HostError> {
-        self.ctx.store().put(GOLDENS, &copy_key(place, name), json_of(manifest)).await
+    pub async fn put_copy(
+        &self,
+        place: &str,
+        name: &str,
+        manifest: &GoldenManifest,
+    ) -> Result<(), HostError> {
+        self.ctx
+            .store()
+            .put(GOLDENS, &copy_key(place, name), json_of(manifest))
+            .await
     }
 
     /// records.ts:182-184 (R10).
-    pub async fn copy_recipe_of(&self, place: &str, name: &str, version: u32) -> Result<Option<RecipeDigest>, HostError> {
-        let stored = self.ctx.store().get(GOLDEN_RECIPES, &copy_key(place, &recipe_key(name, version))).await?;
+    pub async fn copy_recipe_of(
+        &self,
+        place: &str,
+        name: &str,
+        version: u32,
+    ) -> Result<Option<RecipeDigest>, HostError> {
+        let stored = self
+            .ctx
+            .store()
+            .get(GOLDEN_RECIPES, &copy_key(place, &recipe_key(name, version)))
+            .await?;
         Ok(stored.and_then(|v| serde_json::from_value(v).ok()))
     }
 
     /// records.ts:185-186 (R10).
-    pub async fn put_copy_recipe(&self, place: &str, name: &str, version: u32, digest: &RecipeDigest) -> Result<(), HostError> {
-        self.ctx.store().put(GOLDEN_RECIPES, &copy_key(place, &recipe_key(name, version)), json_of(digest)).await
+    pub async fn put_copy_recipe(
+        &self,
+        place: &str,
+        name: &str,
+        version: u32,
+        digest: &RecipeDigest,
+    ) -> Result<(), HostError> {
+        self.ctx
+            .store()
+            .put(
+                GOLDEN_RECIPES,
+                &copy_key(place, &recipe_key(name, version)),
+                json_of(digest),
+            )
+            .await
     }
 
     /// records.ts:187-190 (R10).
-    pub async fn drop_copy_recipe(&self, place: &str, name: &str, version: u32) -> Result<(), HostError> {
-        self.ctx.store().delete(GOLDEN_RECIPES, &copy_key(place, &recipe_key(name, version))).await
+    pub async fn drop_copy_recipe(
+        &self,
+        place: &str,
+        name: &str,
+        version: u32,
+    ) -> Result<(), HostError> {
+        self.ctx
+            .store()
+            .delete(GOLDEN_RECIPES, &copy_key(place, &recipe_key(name, version)))
+            .await
     }
 
     /// records.ts:226-228 (R11).
@@ -242,7 +340,9 @@ impl RecordsArea {
         let store = self.ctx.store();
         let mut ids = IndexSet::new();
         for raw in store.list(GOLDENS).await? {
-            let Ok(manifest) = serde_json::from_value::<GoldenManifest>(raw) else { continue };
+            let Ok(manifest) = serde_json::from_value::<GoldenManifest>(raw) else {
+                continue;
+            };
             for v in manifest.versions {
                 ids.insert(v.snapshot_id);
                 if let Some(template) = v.template_id {
@@ -260,11 +360,23 @@ impl RecordsArea {
     pub async fn image_of(&self, snapshot_id: &str) -> Result<ImageOf, HostError> {
         let store = self.ctx.store();
         for raw in store.list(GOLDENS).await? {
-            let Ok(manifest) = serde_json::from_value::<GoldenManifest>(raw) else { continue };
-            if let Some(version) = manifest.versions.into_iter().find(|v| v.snapshot_id == snapshot_id) {
-                return Ok(ImageOf { golden: snapshot_id.to_string(), version: Some(version) });
+            let Ok(manifest) = serde_json::from_value::<GoldenManifest>(raw) else {
+                continue;
+            };
+            if let Some(version) = manifest
+                .versions
+                .into_iter()
+                .find(|v| v.snapshot_id == snapshot_id)
+            {
+                return Ok(ImageOf {
+                    golden: snapshot_id.to_string(),
+                    version: Some(version),
+                });
             }
         }
-        Ok(ImageOf { golden: snapshot_id.to_string(), version: None })
+        Ok(ImageOf {
+            golden: snapshot_id.to_string(),
+            version: None,
+        })
     }
 }

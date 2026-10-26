@@ -15,7 +15,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use indexmap::{IndexMap, IndexSet};
 
-use wsp_core::types::internal::{BuilderLife, BuilderRecord, KindModule, Reopened};
+use wsp_core::types::internal::{KindModule, Reopened};
 use wsp_core::types::pending::{Clock, Store};
 use wsp_core::types::wiring::{FoundMachine, GoneOutcome, PlaceBackends, WorkspaceRecord};
 use wsp_engine::machine::{Machine, MachineBackend};
@@ -36,7 +36,11 @@ use super::machines::{Entry, Ids, Row, ThreadOn};
 /// The turn, workspace and thread key of a held row (boot.ts `threadKeyOf`).
 fn row_keys(s: &Row) -> (String, String, String) {
     let e = s.borrow();
-    (e.turn_id.clone(), e.view.workspace_id.clone(), wsp_wire::views::session::thread_key_of(&e.view))
+    (
+        e.turn_id.clone(),
+        e.view.workspace_id.clone(),
+        wsp_wire::views::session::thread_key_of(&e.view),
+    )
 }
 
 /// A computer a project can live on, by its row in the places table (boot.ts:1038).
@@ -120,7 +124,13 @@ pub trait BootRuntime {
     fn builders(&self) -> crate::images::Builders;
     fn projects_held(&self) -> Rc<RefCell<IndexMap<String, ProjectView>>>;
     /// `ctx.bootWork`: what a starting host still has out on each machine.
-    fn boot_work(&self) -> Rc<RefCell<IndexMap<String, futures::future::Shared<futures::future::LocalBoxFuture<'static, ()>>>>>;
+    fn boot_work(
+        &self,
+    ) -> Rc<
+        RefCell<
+            IndexMap<String, futures::future::Shared<futures::future::LocalBoxFuture<'static, ()>>>,
+        >,
+    >;
     /// `ctx.rereading` (the machines area's set).
     fn rereading(&self) -> Rc<RefCell<IndexSet<String>>>;
     fn viewed_marks(&self) -> Rc<RefCell<IndexMap<String, IndexMap<String, String>>>>;
@@ -133,7 +143,12 @@ pub trait BootRuntime {
     // The machines area.
     fn observed(&self, machine: Arc<dyn Machine>) -> Arc<dyn Machine>;
     fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry;
-    async fn mark_gone(&self, entry: &Entry, machine_id: &str, reason: &str) -> Result<GoneOutcome, HostError>;
+    async fn mark_gone(
+        &self,
+        entry: &Entry,
+        machine_id: &str,
+        reason: &str,
+    ) -> Result<GoneOutcome, HostError>;
     fn idle_touch(&self, workspace_id: &str);
     fn sync_daemon(&self, entry: &Entry);
     fn backend_for(&self, record: &WorkspaceRecord) -> Arc<dyn MachineBackend>;
@@ -145,7 +160,10 @@ pub trait BootRuntime {
     /// The place door's `backendOf(place)`, where the places table has none.
     fn door_backend_of(&self, place: &str) -> Option<Arc<dyn MachineBackend>>;
     /// `imageOf(golden).version?.kind`.
-    async fn image_kind(&self, golden: &str) -> Result<Option<wsp_wire::views::golden_image::MachineKind>, HostError>;
+    async fn image_kind(
+        &self,
+        golden: &str,
+    ) -> Result<Option<wsp_wire::views::golden_image::MachineKind>, HostError>;
     fn attach_queued(&self, record: &Rc<RefCell<WorkspaceRecord>>);
 
     // The start's other steps (boot.ts:343-618), in the order ready() calls them.
@@ -160,11 +178,23 @@ pub trait BootRuntime {
     fn wake_at(&self, thread_id: &str, until: f64);
     fn resume_on_reset(&self, thread_id: &str, at: f64);
     /// `ctx.settleCut(row, reason, line, stopped, unreached)`: `line` gets the end's time.
-    fn settle_cut(&self, row: &Row, reason: &str, line: &dyn Fn(f64) -> String, stopped: Option<bool>, unreached: Option<bool>);
+    fn settle_cut(
+        &self,
+        row: &Row,
+        reason: &str,
+        line: &dyn Fn(f64) -> String,
+        stopped: Option<bool>,
+        unreached: Option<bool>,
+    );
     /// The per-workspace chain's write, which swallows its failure; `mark` awaits it, `ready` does not.
     async fn persist_sessions(&self, workspace_id: &str);
     /// `turnWritten(await ctx.openThread(ws, thread), turn).changes`.
-    async fn turn_changes_written(&self, workspace_id: &str, thread_id: &str, turn_id: &str) -> Result<bool, HostError>;
+    async fn turn_changes_written(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        turn_id: &str,
+    ) -> Result<bool, HostError>;
     async fn read_turn_changes(&self, entry: &Entry, ask: CardAsk) -> Result<bool, HostError>;
     async fn reattach(&self, row: &Row, again: bool) -> Reopened;
     async fn devices(&self) -> Result<Vec<ScopedDevice>, HostError>;
@@ -188,9 +218,19 @@ pub trait BootRuntime {
     fn drives_thread(&self, thread_id: Option<&str>, caller: Option<&Caller>) -> bool;
     fn acts_on(&self, record: &WorkspaceRecord, caller: Option<&Caller>) -> bool;
     fn talks_to_its_tree(&self, caller: Option<&Caller>) -> bool;
-    fn refuse_relayed(&self, record: &WorkspaceRecord, origin: Option<&Caller>, act: Option<&str>, thread: Option<&str>) -> Result<(), HostError>;
+    fn refuse_relayed(
+        &self,
+        record: &WorkspaceRecord,
+        origin: Option<&Caller>,
+        act: Option<&str>,
+        thread: Option<&str>,
+    ) -> Result<(), HostError>;
     /// `ctx.workspaces.resolve(ref, origin)`: the id it names.
-    async fn resolve_workspace(&self, reference: &str, origin: Option<&Caller>) -> Result<String, HostError>;
+    async fn resolve_workspace(
+        &self,
+        reference: &str,
+        origin: Option<&Caller>,
+    ) -> Result<String, HostError>;
     /// `placeDoor.rows()`, or `None` with no place door wired.
     async fn place_rows(&self) -> Option<Vec<ComputerRow>>;
     /// `goldenHead(await ctx.copyOf(await ctx.imagePlace("default"), "default"))?.snapshotId`.
@@ -226,7 +266,12 @@ pub trait BootRuntime {
     /// and the harness's catalog label (boot.ts:1010-1011).
     fn account_key_on(&self, entry: &Entry, harness: &str) -> String;
     /// `ctx.sessionsApi.start(ws, {prompt: LIMIT_RESUME_PROMPT, thread, afterLimit})`.
-    async fn resume_turn(&self, workspace_id: &str, thread_id: &str, after_limit: f64) -> Result<(), HostError>;
+    async fn resume_turn(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        after_limit: f64,
+    ) -> Result<(), HostError>;
 }
 
 /// The boot area: the state boot.ts keeps in its closure.
@@ -234,9 +279,18 @@ pub struct BootArea {
     pub(crate) rt: Rc<dyn BootRuntime>,
     pub(crate) config: BootConfig,
     /// `hydrated`: the one start.
-    pub(crate) hydrated: RefCell<Option<futures::future::Shared<futures::future::LocalBoxFuture<'static, Result<(), String>>>>>,
+    pub(crate) hydrated: RefCell<
+        Option<
+            futures::future::Shared<futures::future::LocalBoxFuture<'static, Result<(), String>>>,
+        >,
+    >,
     /// `admitting`: one read per stored builder at a time.
-    pub(crate) admitting: RefCell<IndexMap<String, futures::future::Shared<futures::future::LocalBoxFuture<'static, Result<(), String>>>>>,
+    pub(crate) admitting: RefCell<
+        IndexMap<
+            String,
+            futures::future::Shared<futures::future::LocalBoxFuture<'static, Result<(), String>>>,
+        >,
+    >,
     /// `passes` and `latest`: the newest builders listing wins.
     pub(crate) passes: std::cell::Cell<u64>,
     /// `heldAnswers`: what the provider said to the load's read of a record now held.
@@ -248,9 +302,14 @@ pub struct BootArea {
     pub(crate) rows_gone: RefCell<IndexMap<String, (String, Option<String>)>>,
     pub(crate) rows_queued: std::cell::Cell<bool>,
     /// `rowsOut`: the last link of the rows chain, each push waits for the one before it.
-    pub(crate) rows_out: RefCell<Option<futures::future::Shared<futures::future::LocalBoxFuture<'static, ()>>>>,
+    pub(crate) rows_out:
+        RefCell<Option<futures::future::Shared<futures::future::LocalBoxFuture<'static, ()>>>>,
     /// `latest`: the newest builders pass, which an older pass that a newer one overtook hands its caller.
-    pub(crate) latest: RefCell<Option<futures::future::Shared<futures::future::LocalBoxFuture<'static, Result<(), String>>>>>,
+    pub(crate) latest: RefCell<
+        Option<
+            futures::future::Shared<futures::future::LocalBoxFuture<'static, Result<(), String>>>,
+        >,
+    >,
 }
 
 impl BootArea {
@@ -276,15 +335,27 @@ impl BootArea {
     /// The `*` listener (boot.ts:873), boot_rows.md rule 8: the wiring calls it for every event in emit order.
     pub fn on_event(self: &Rc<Self>, event: &EventUnion) {
         let kind = wsp_core::types::events::event_type(event);
-        let Ok(e) = serde_json::to_value(event) else { return };
-        let text = |key: &str| e.get(key).and_then(serde_json::Value::as_str).map(str::to_string);
+        let Ok(e) = serde_json::to_value(event) else {
+            return;
+        };
+        let text = |key: &str| {
+            e.get(key)
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        };
         match kind {
             "thread.head" => {
-                let (Some(ws), Some(thread)) = (text("workspaceId"), text("threadId")) else { return };
+                let (Some(ws), Some(thread)) = (text("workspaceId"), text("threadId")) else {
+                    return;
+                };
                 self.row_moved(&ws, &thread);
                 for s in self.held_rows() {
                     let (turn, row_ws, key) = row_keys(&s);
-                    let behind = self.rt.stopped_behind(&s).and_then(|b| b.get("threadId").and_then(serde_json::Value::as_str).map(str::to_string));
+                    let behind = self.rt.stopped_behind(&s).and_then(|b| {
+                        b.get("threadId")
+                            .and_then(serde_json::Value::as_str)
+                            .map(str::to_string)
+                    });
                     let told = self.told_behind.borrow().contains(&turn);
                     if told && behind.as_deref() == Some(thread.as_str()) {
                         self.row_moved(&row_ws, &key);
@@ -297,13 +368,23 @@ impl BootArea {
                 }
             }
             "thread.marked" => {
-                let Some(ws) = text("workspaceId") else { return };
-                for thread in e.get("threadIds").and_then(serde_json::Value::as_array).into_iter().flatten().filter_map(serde_json::Value::as_str) {
+                let Some(ws) = text("workspaceId") else {
+                    return;
+                };
+                for thread in e
+                    .get("threadIds")
+                    .and_then(serde_json::Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(serde_json::Value::as_str)
+                {
                     self.row_moved(&ws, thread);
                 }
             }
             "workspace.napped" | "workspace.woken" | "workspace.upgraded" => {
-                let Some(ws) = text("workspaceId") else { return };
+                let Some(ws) = text("workspaceId") else {
+                    return;
+                };
                 for s in self.held_rows() {
                     let (_, row_ws, key) = row_keys(&s);
                     if row_ws == ws {
@@ -312,7 +393,9 @@ impl BootArea {
                 }
             }
             "session.start" => {
-                let (Some(turn), Some(session)) = (text("turnId"), text("sessionId")) else { return };
+                let (Some(turn), Some(session)) = (text("turnId"), text("sessionId")) else {
+                    return;
+                };
                 if turn != session {
                     if let Some(ws) = text("workspaceId") {
                         self.row_gone(&turn, &ws, text("threadId").as_deref());
@@ -320,7 +403,9 @@ impl BootArea {
                 }
             }
             "session.end" => {
-                let (Some(turn), Some(session)) = (text("turnId"), text("sessionId")) else { return };
+                let (Some(turn), Some(session)) = (text("turnId"), text("sessionId")) else {
+                    return;
+                };
                 let held = self.held_rows().iter().any(|s| row_keys(s).0 == turn);
                 if !held {
                     if let Some(ws) = text("workspaceId") {
@@ -334,7 +419,8 @@ impl BootArea {
                 }
                 for s in self.held_rows() {
                     let (turn, row_ws, key) = row_keys(&s);
-                    let running = s.borrow().view.status == wsp_wire::views::session::SessionStatus::Running;
+                    let running =
+                        s.borrow().view.status == wsp_wire::views::session::SessionStatus::Running;
                     let told = self.told_behind.borrow().contains(&turn);
                     if running && (told || self.rt.stopped_behind(&s).is_some()) {
                         self.row_moved(&row_ws, &key);
@@ -342,12 +428,24 @@ impl BootArea {
                 }
             }
             "session.delta" => {
-                let Some(thread) = text("threadId") else { return };
-                let Some(ws) = text("workspaceId") else { return };
+                let Some(thread) = text("threadId") else {
+                    return;
+                };
+                let Some(ws) = text("workspaceId") else {
+                    return;
+                };
                 let moves = if text("kind").as_deref() == Some("tool_use") {
-                    text("toolName").is_some_and(|tool| wsp_words::wsp_tools::threads_followed(&tool, &text("text").unwrap_or_default()).is_some())
+                    text("toolName").is_some_and(|tool| {
+                        wsp_words::wsp_tools::threads_followed(
+                            &tool,
+                            &text("text").unwrap_or_default(),
+                        )
+                        .is_some()
+                    })
                 } else {
-                    text("kind").as_deref() == Some("tool_result") && text("turnId").is_some_and(|turn| self.told_behind.borrow().contains(&turn))
+                    text("kind").as_deref() == Some("tool_result")
+                        && text("turnId")
+                            .is_some_and(|turn| self.told_behind.borrow().contains(&turn))
                 };
                 if moves {
                     self.row_moved(&ws, &thread);

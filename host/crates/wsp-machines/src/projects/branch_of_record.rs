@@ -32,7 +32,8 @@ use wsp_words::js::to_number;
 use wsp_words::projects::{clone_on_machine_failed_line, CloneFailed};
 use wsp_words::start::owner_repo_of;
 use wsp_words::sub_thread::{
-    branch_of_record_unread_refusal, brokered_git_hub_only_refusal, clone_no_thread_refusal, fork_head_gone_refusal, fork_not_pushable_refusal, sub_branch_of,
+    branch_of_record_unread_refusal, brokered_git_hub_only_refusal, clone_no_thread_refusal,
+    fork_head_gone_refusal, fork_not_pushable_refusal, sub_branch_of,
 };
 use wsp_words::words::base::last_line;
 
@@ -87,7 +88,13 @@ pub trait BranchCtx {
     /// The live records, in map order (`ctx.live`).
     fn live_records(&self) -> Vec<Rc<RefCell<WorkspaceRecord>>>;
     /// `ctx.deviceDoor.mint`.
-    async fn mint(&self, name: &str, scope: ThreadScope, now: i64, more: MintMore) -> Result<PairedDevice, HostError>;
+    async fn mint(
+        &self,
+        name: &str,
+        scope: ThreadScope,
+        now: i64,
+        more: MintMore,
+    ) -> Result<PairedDevice, HostError>;
     /// `ctx.deviceDoor.revoke`.
     async fn revoke(&self, id: &str) -> Result<bool, HostError>;
     /// `ctx.moduleOf(kind).turnRoad`, as the mint's road.
@@ -103,11 +110,27 @@ pub trait BranchCtx {
     /// Every catalog agent's marketplace file, where it names GitHub repos.
     fn marketplace_files(&self) -> Vec<MarketplaceFile>;
     /// project-landing.ts `brokeredGitEnv(token, ofRecord)`.
-    fn brokered_git_env(&self, token: &str, of_record: Option<&BranchOfRecord>) -> IndexMap<String, String>;
+    fn brokered_git_env(
+        &self,
+        token: &str,
+        of_record: Option<&BranchOfRecord>,
+    ) -> IndexMap<String, String>;
     /// project-landing.ts `onRecordLines(o)`.
-    fn on_record_lines(&self, checkout: &str, of_record: &BranchOfRecord, origin: &str, held: bool) -> Vec<String>;
+    fn on_record_lines(
+        &self,
+        checkout: &str,
+        of_record: &BranchOfRecord,
+        origin: &str,
+        held: bool,
+    ) -> Vec<String>;
     /// engine `envExec(machine, script, env, { timeoutMs })`.
-    async fn env_exec(&self, machine: Arc<dyn Machine>, script: &str, env: IndexMap<String, String>, timeout_ms: u64) -> Result<ExecResult, HostError>;
+    async fn env_exec(
+        &self,
+        machine: Arc<dyn Machine>,
+        script: &str,
+        env: IndexMap<String, String>,
+        timeout_ms: u64,
+    ) -> Result<ExecResult, HostError>;
 }
 
 /// The marketplaces read held per host (branch-of-record.ts:77).
@@ -134,7 +157,10 @@ pub fn brokered_start(broker_ready: bool, provider: bool) -> bool {
 }
 
 fn is_commit(word: &str) -> bool {
-    word.len() == 40 && word.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    word.len() == 40
+        && word
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 /// branch-of-record.ts:31-34 (B3).
@@ -143,7 +169,10 @@ pub fn sha_of(repo: &str, word: Option<&str>) -> Result<String, HostError> {
         Some(word) if is_commit(word) => Ok(word.to_string()),
         _ => {
             let said = json_stringify(&serde_json::Value::String(word.unwrap_or("").to_string()));
-            Err(branch_of_record_unread_refusal(repo, &format!("no commit in {said}")))
+            Err(branch_of_record_unread_refusal(
+                repo,
+                &format!("no commit in {said}"),
+            ))
         }
     }
 }
@@ -155,7 +184,10 @@ pub fn id_of(repo: &str, word: Option<&str>) -> Result<i64, HostError> {
         return Ok(id as i64);
     }
     let said = json_stringify(&serde_json::Value::String(word.unwrap_or("").to_string()));
-    Err(branch_of_record_unread_refusal(repo, &format!("no repository id in {said}")))
+    Err(branch_of_record_unread_refusal(
+        repo,
+        &format!("no repository id in {said}"),
+    ))
 }
 
 /// branch-of-record.ts:43-47 (B4).
@@ -164,11 +196,21 @@ pub fn github_repo_of(remote: &str, project: &str, on: &str) -> Result<String, H
     github
         .then(|| owner_repo_of(remote))
         .flatten()
-        .ok_or_else(|| brokered_git_hub_only_refusal(project, &remote_host(remote).unwrap_or_else(|| remote.to_string()), on))
+        .ok_or_else(|| {
+            brokered_git_hub_only_refusal(
+                project,
+                &remote_host(remote).unwrap_or_else(|| remote.to_string()),
+                on,
+            )
+        })
 }
 
 /// branch-of-record.ts:124-133 (B9).
-pub fn free_branch_name(live: &[Rc<RefCell<WorkspaceRecord>>], wanted: &str, heads: Option<&str>) -> String {
+pub fn free_branch_name(
+    live: &[Rc<RefCell<WorkspaceRecord>>],
+    wanted: &str,
+    heads: Option<&str>,
+) -> String {
     let mut taken: HashSet<String> = HashSet::new();
     for record in live {
         let record = record.borrow();
@@ -176,7 +218,11 @@ pub fn free_branch_name(live: &[Rc<RefCell<WorkspaceRecord>>], wanted: &str, hea
         taken.extend(record.sub.as_ref().map(|s| s.branch.clone()));
     }
     for line in heads.unwrap_or("").split('\n') {
-        if let Some(branch) = line.split('\t').nth(1).and_then(|r| r.strip_prefix("refs/heads/")) {
+        if let Some(branch) = line
+            .split('\t')
+            .nth(1)
+            .and_then(|r| r.strip_prefix("refs/heads/"))
+        {
             taken.insert(branch.to_string());
         }
     }
@@ -202,7 +248,11 @@ pub struct NamedAsk {
 
 impl BranchOfRecordArea {
     pub fn new(ctx: Rc<dyn BranchCtx>) -> Rc<BranchOfRecordArea> {
-        Rc::new(BranchOfRecordArea { ctx, public_read_at: RefCell::default(), marketplaces: RefCell::default() })
+        Rc::new(BranchOfRecordArea {
+            ctx,
+            public_read_at: RefCell::default(),
+            marketplaces: RefCell::default(),
+        })
     }
 
     /// branch-of-record.ts:24-29 (B2).
@@ -212,21 +262,36 @@ impl BranchOfRecordArea {
         let cmd = format!("GH_PROMPT_DISABLED=1 {}", shell_line(&words));
         let read = match self.ctx.exec_here(&cmd, INLINE_EXEC_MS).await {
             Ok(read) => read,
-            Err(e) => ExecResult { exit_code: JsInt::from(-1), stdout: String::new(), stderr: e.message },
+            Err(e) => ExecResult {
+                exit_code: JsInt::from(-1),
+                stdout: String::new(),
+                stderr: e.message,
+            },
         };
         let code = read.exit_code.get();
         if code != 0 {
             let why = last_line(&read.stderr).unwrap_or_else(|| format!("gh exited {code}"));
             return Err(branch_of_record_unread_refusal(repo, &why));
         }
-        let text = read.stdout.strip_suffix("\r\n").or_else(|| read.stdout.strip_suffix('\n')).unwrap_or(read.stdout.as_str());
+        let text = read
+            .stdout
+            .strip_suffix("\r\n")
+            .or_else(|| read.stdout.strip_suffix('\n'))
+            .unwrap_or(read.stdout.as_str());
         Ok(text.split('\t').map(str::to_string).collect())
     }
 
     /// branch-of-record.ts:51-55 (B5).
-    pub async fn repo_of_record(&self, remote: &str, project: &str, on: &str) -> Result<RepoOfRecord, HostError> {
+    pub async fn repo_of_record(
+        &self,
+        remote: &str,
+        project: &str,
+        on: &str,
+    ) -> Result<RepoOfRecord, HostError> {
         let repo = github_repo_of(remote, project, on)?;
-        let answer = self.gh_here(&repo, &["api", &format!("repos/{repo}"), "--jq", REPO_JQ]).await?;
+        let answer = self
+            .gh_here(&repo, &["api", &format!("repos/{repo}"), "--jq", REPO_JQ])
+            .await?;
         let repo_id = id_of(&repo, answer.first().map(String::as_str))?;
         Ok(RepoOfRecord {
             repo_id,
@@ -237,18 +302,34 @@ impl BranchOfRecordArea {
     }
 
     /// branch-of-record.ts:62-72 (B6).
-    pub async fn reread_public(&self, workspace_id: &str, entry: &OnRecordEntry) -> Result<(), HostError> {
+    pub async fn reread_public(
+        &self,
+        workspace_id: &str,
+        entry: &OnRecordEntry,
+    ) -> Result<(), HostError> {
         let of_record = entry.record.borrow().branch_of_record.clone();
         let now = self.ctx.clock().now();
-        let Some(of_record) = of_record.filter(|r| r.public.is_some()) else { return Ok(()) };
+        let Some(of_record) = of_record.filter(|r| r.public.is_some()) else {
+            return Ok(());
+        };
         let last = self.public_read_at.borrow().get(workspace_id).copied();
         if last.is_some_and(|at| now - at < PUBLIC_REREAD_MS) {
             return Ok(());
         }
-        self.public_read_at.borrow_mut().insert(workspace_id.to_string(), now);
+        self.public_read_at
+            .borrow_mut()
+            .insert(workspace_id.to_string(), now);
         let label = format!("{}/{}", of_record.owner, of_record.name);
         let hidden = self
-            .gh_here(&label, &["api", &format!("repositories/{}", of_record.repo_id.get()), "--jq", ".private"])
+            .gh_here(
+                &label,
+                &[
+                    "api",
+                    &format!("repositories/{}", of_record.repo_id.get()),
+                    "--jq",
+                    ".private",
+                ],
+            )
             .await
             .ok()
             .and_then(|answer| answer.into_iter().next());
@@ -270,7 +351,11 @@ impl BranchOfRecordArea {
 
     /// branch-of-record.ts:80 (B7).
     pub fn public_marketplaces(&self) -> Vec<String> {
-        self.marketplaces.borrow().as_ref().map(|held| held.repos.borrow().clone()).unwrap_or_default()
+        self.marketplaces
+            .borrow()
+            .as_ref()
+            .map(|held| held.repos.borrow().clone())
+            .unwrap_or_default()
     }
 
     /// branch-of-record.ts:86-101 (B7).
@@ -289,15 +374,24 @@ impl BranchOfRecordArea {
             return;
         }
         let (tx, rx) = oneshot::channel::<()>();
-        let cancel = self.ctx.clock().schedule(Box::new(move || {
-            let _ = tx.send(());
-        }), MARKETPLACES_WAIT_MS);
+        let cancel = self.ctx.clock().schedule(
+            Box::new(move || {
+                let _ = tx.send(());
+            }),
+            MARKETPLACES_WAIT_MS,
+        );
         let _ = select(held.read.clone(), rx).await;
         cancel();
     }
 
-    fn start_marketplaces_read(self: &Rc<Self>, now: i64, held: Option<&MarketplacesRead>) -> MarketplacesRead {
-        let repos = Rc::new(RefCell::new(held.map(|h| h.repos.borrow().clone()).unwrap_or_default()));
+    fn start_marketplaces_read(
+        self: &Rc<Self>,
+        now: i64,
+        held: Option<&MarketplacesRead>,
+    ) -> MarketplacesRead {
+        let repos = Rc::new(RefCell::new(
+            held.map(|h| h.repos.borrow().clone()).unwrap_or_default(),
+        ));
         let landing = repos.clone();
         let this = self.clone();
         let work: LocalBoxFuture<'static, ()> = async move {
@@ -305,7 +399,12 @@ impl BranchOfRecordArea {
             let checks = found.into_iter().map(|repo| {
                 let this = this.clone();
                 async move {
-                    let answer = this.gh_here(&repo, &["api", &format!("repos/{repo}"), "--jq", ".private"]).await;
+                    let answer = this
+                        .gh_here(
+                            &repo,
+                            &["api", &format!("repos/{repo}"), "--jq", ".private"],
+                        )
+                        .await;
                     match answer.ok().and_then(|a| a.into_iter().next()) {
                         Some(hidden) if hidden == "false" => Some(repo),
                         _ => None,
@@ -318,14 +417,23 @@ impl BranchOfRecordArea {
         .boxed_local();
         let read = work.shared();
         tokio::task::spawn_local(read.clone());
-        MarketplacesRead { at: now, repos, read, first: held.is_none() }
+        MarketplacesRead {
+            at: now,
+            repos,
+            read,
+            first: held.is_none(),
+        }
     }
 
     /// branch-of-record.ts:103-107 (B7).
     pub async fn marketplace_repos(&self) -> Vec<String> {
         let home = self.ctx.home_dir();
         let reads = self.ctx.marketplace_files().into_iter().map(|file| {
-            let path = format!("{}/{}", home.trim_end_matches('/'), file.path.strip_prefix("~/").unwrap_or(&file.path));
+            let path = format!(
+                "{}/{}",
+                home.trim_end_matches('/'),
+                file.path.strip_prefix("~/").unwrap_or(&file.path)
+            );
             let ctx = self.ctx.clone();
             async move {
                 match ctx.read_file(&path).await {
@@ -344,9 +452,26 @@ impl BranchOfRecordArea {
     }
 
     /// branch-of-record.ts:113-119 (B8).
-    pub async fn pull_request_of_record(&self, remote: &str, number: u64, project: &str, on: &str, pushes: bool) -> Result<BranchOfRecord, HostError> {
+    pub async fn pull_request_of_record(
+        &self,
+        remote: &str,
+        number: u64,
+        project: &str,
+        on: &str,
+        pushes: bool,
+    ) -> Result<BranchOfRecord, HostError> {
         let repo = github_repo_of(remote, project, on)?;
-        let answer = self.gh_here(&repo, &["api", &format!("repos/{repo}/pulls/{number}"), "--jq", PULL_JQ]).await?;
+        let answer = self
+            .gh_here(
+                &repo,
+                &[
+                    "api",
+                    &format!("repos/{repo}/pulls/{number}"),
+                    "--jq",
+                    PULL_JQ,
+                ],
+            )
+            .await?;
         let field = |i: usize| answer.get(i).map(String::as_str);
         let id = field(0);
         if id.is_none_or(str::is_empty) {
@@ -354,7 +479,10 @@ impl BranchOfRecordArea {
         }
         let owner = field(1);
         if pushes && field(5) != id && field(4) != Some("true") {
-            return Err(fork_not_pushable_refusal(owner.unwrap_or(""), number as f64));
+            return Err(fork_not_pushable_refusal(
+                owner.unwrap_or(""),
+                number as f64,
+            ));
         }
         let repo_id = id_of(&repo, id)?;
         let start_sha = sha_of(&repo, field(6))?;
@@ -376,15 +504,37 @@ impl BranchOfRecordArea {
             None
         } else {
             let base = o.base.as_deref().unwrap_or("HEAD");
-            self.gh_here(&owner_repo, &["api", &format!("repos/{owner_repo}/commits/{base}"), "--jq", ".sha"]).await?.into_iter().next()
+            self.gh_here(
+                &owner_repo,
+                &[
+                    "api",
+                    &format!("repos/{owner_repo}/commits/{base}"),
+                    "--jq",
+                    ".sha",
+                ],
+            )
+            .await?
+            .into_iter()
+            .next()
         };
-        let heads_cmd = format!("GIT_TERMINAL_PROMPT=0 {}", shell_line(&["git", "ls-remote", "--heads", o.remote.as_str()]));
+        let heads_cmd = format!(
+            "GIT_TERMINAL_PROMPT=0 {}",
+            shell_line(&["git", "ls-remote", "--heads", o.remote.as_str()])
+        );
         let heads = match self.ctx.exec_here(&heads_cmd, INLINE_EXEC_MS).await {
             Ok(read) if read.exit_code.get() == 0 => Some(read.stdout),
             _ => None,
         };
-        let branch = free_branch_name(&self.ctx.live_records(), &sub_branch_of(&o.name), heads.as_deref());
-        let start_sha = if o.carried { None } else { Some(sha_of(&owner_repo, tip.as_deref())?) };
+        let branch = free_branch_name(
+            &self.ctx.live_records(),
+            &sub_branch_of(&o.name),
+            heads.as_deref(),
+        );
+        let start_sha = if o.carried {
+            None
+        } else {
+            Some(sha_of(&owner_repo, tip.as_deref())?)
+        };
         Ok(BranchOfRecord {
             repo_id: JsInt::from(repo.repo_id),
             owner: repo.owner,
@@ -396,9 +546,18 @@ impl BranchOfRecordArea {
     }
 
     /// branch-of-record.ts:152-162 (B11): `run` gets the git environment carrying the token.
-    pub async fn with_op_token<T>(&self, entry: &OnRecordEntry, op: &str, run: impl FnOnce(IndexMap<String, String>) -> LocalBoxFuture<'static, Result<T, HostError>>) -> Result<T, HostError> {
+    pub async fn with_op_token<T>(
+        &self,
+        entry: &OnRecordEntry,
+        op: &str,
+        run: impl FnOnce(IndexMap<String, String>) -> LocalBoxFuture<'static, Result<T, HostError>>,
+    ) -> Result<T, HostError> {
         let snapshot = entry.record.borrow().clone();
-        let Some(thread_id) = snapshot.parent_thread_id.clone().or_else(|| entry.opens_thread.clone()) else {
+        let Some(thread_id) = snapshot
+            .parent_thread_id
+            .clone()
+            .or_else(|| entry.opens_thread.clone())
+        else {
             return Err(clone_no_thread_refusal(&snapshot.name));
         };
         let scope = ThreadScope {
@@ -408,24 +567,48 @@ impl BranchOfRecordArea {
             root_thread_id: snapshot.root_thread_id.clone().unwrap_or(thread_id),
         };
         let more = self.ctx.turn_road_of(&snapshot);
-        let minted = self.ctx.mint(&format!("op {op}"), scope, self.ctx.clock().now(), more).await?;
+        let minted = self
+            .ctx
+            .mint(&format!("op {op}"), scope, self.ctx.clock().now(), more)
+            .await?;
         let of_record = entry.record.borrow().branch_of_record.clone();
-        let result = run(self.ctx.brokered_git_env(&minted.device_token, of_record.as_ref())).await;
+        let result = run(self
+            .ctx
+            .brokered_git_env(&minted.device_token, of_record.as_ref()))
+        .await;
         if let Err(e) = self.ctx.revoke(&minted.device_id).await {
-            self.ctx.warn(&format!("the {op} token of {} was not taken away: {}", snapshot.name, e.message));
+            self.ctx.warn(&format!(
+                "the {op} token of {} was not taken away: {}",
+                snapshot.name, e.message
+            ));
         }
         result
     }
 
     /// branch-of-record.ts:167-179 (B12).
-    pub async fn land_on_record(&self, entry: &OnRecordEntry, project: &ProjectView, clone: Option<&[String]>) -> Result<(), HostError> {
-        let of_record = entry.record.borrow().branch_of_record.clone().expect("a landing names its branch of record");
+    pub async fn land_on_record(
+        &self,
+        entry: &OnRecordEntry,
+        project: &ProjectView,
+        clone: Option<&[String]>,
+    ) -> Result<(), HostError> {
+        let of_record = entry
+            .record
+            .borrow()
+            .branch_of_record
+            .clone()
+            .expect("a landing names its branch of record");
         let lines = match clone {
             Some(lines) => lines.to_vec(),
             None => {
                 let origin = owner_repo_of(&project.remote).unwrap_or_default();
                 let mut lines = vec!["set -e".to_string()];
-                lines.extend(self.ctx.on_record_lines(&project.path, &of_record, &origin, entry.of_record_held));
+                lines.extend(self.ctx.on_record_lines(
+                    &project.path,
+                    &of_record,
+                    &origin,
+                    entry.of_record_held,
+                ));
                 lines
             }
         };
@@ -433,19 +616,33 @@ impl BranchOfRecordArea {
         let ctx = self.ctx.clone();
         let machine = entry.machine.clone();
         let ran = self
-            .with_op_token(entry, "clone", move |env| async move { ctx.env_exec(machine, &script, env, CLONE_MS).await }.boxed_local())
+            .with_op_token(entry, "clone", move |env| {
+                async move { ctx.env_exec(machine, &script, env, CLONE_MS).await }.boxed_local()
+            })
             .await?;
         if ran.exit_code.get() != 0 {
             return Err(match clone {
                 None => {
                     let said = last_line(&ran.stderr).or_else(|| last_line(&ran.stdout));
-                    HostError::new(said.unwrap_or_else(|| format!("git exited {}", ran.exit_code.get())))
+                    HostError::new(
+                        said.unwrap_or_else(|| format!("git exited {}", ran.exit_code.get())),
+                    )
                 }
                 Some(_) => {
-                    let said = if ran.stderr.is_empty() { ran.stdout.clone() } else { ran.stderr.clone() };
-                    let place = entry.record.borrow().place.clone().unwrap_or_else(|| self.ctx.wired());
+                    let said = if ran.stderr.is_empty() {
+                        ran.stdout.clone()
+                    } else {
+                        ran.stderr.clone()
+                    };
+                    let place = entry
+                        .record
+                        .borrow()
+                        .place
+                        .clone()
+                        .unwrap_or_else(|| self.ctx.wired());
                     HostError::new(clone_on_machine_failed_line(&CloneFailed {
-                        repo: owner_repo_of(&project.remote).unwrap_or_else(|| project.remote.clone()),
+                        repo: owner_repo_of(&project.remote)
+                            .unwrap_or_else(|| project.remote.clone()),
                         on: self.ctx.place_name(&place),
                         exit_code: ran.exit_code.get() as i32,
                         said,
@@ -460,7 +657,10 @@ impl BranchOfRecordArea {
         };
         let snapshot = {
             let mut record = entry.record.borrow_mut();
-            record.branch_of_record = Some(BranchOfRecord { start_sha: Some(at), ..of_record });
+            record.branch_of_record = Some(BranchOfRecord {
+                start_sha: Some(at),
+                ..of_record
+            });
             record.clone()
         };
         self.ctx.persist(&snapshot).await

@@ -17,12 +17,22 @@ use wsp_core::clock::Timer;
 use wsp_core::host_id::template_host;
 use wsp_core::idle::backstop_ms;
 use wsp_core::types::harness::login_env_on;
-use wsp_core::types::internal::{fingerprint, pid_alive, DroppedMachine, NamedWorkspace, PendingCreate, CREATES, DROPPED, KEY_PURPOSE_MAX, LOST_CREATE_MS, WORKSPACE_NAMES};
+use wsp_core::types::internal::{
+    fingerprint, pid_alive, DroppedMachine, NamedWorkspace, PendingCreate, CREATES, DROPPED,
+    KEY_PURPOSE_MAX, LOST_CREATE_MS, WORKSPACE_NAMES,
+};
 use wsp_core::types::pending::Clock;
-use wsp_core::types::wiring::{set_hostname, GoldenExec, StageSaid, WorkspaceRecord, WorkspaceSpec};
+use wsp_core::types::wiring::{
+    set_hostname, GoldenExec, StageSaid, WorkspaceRecord, WorkspaceSpec,
+};
 use wsp_engine::errors::{is_missing, EngineError};
-use wsp_engine::machine::{Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineState, ProviderBoxState, RunOptions, Waiting};
-use wsp_engine::machine_context::render::{apply_machine_context, ApplyContextOptions, GoldenPick, WorkspaceName};
+use wsp_engine::machine::{
+    Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineState, ProviderBoxState,
+    RunOptions, Waiting,
+};
+use wsp_engine::machine_context::render::{
+    apply_machine_context, ApplyContextOptions, GoldenPick, WorkspaceName,
+};
 use wsp_engine::orphans::{date_parse, strays, ReapFailure, ReapReason, ReapedMachine, StrayRead};
 use wsp_engine::snapshot_names::name_owner;
 use wsp_wire::types::js_number::JsNumber;
@@ -61,14 +71,32 @@ impl Claimed {
     pub fn backend(&self) -> Arc<dyn MachineBackend> {
         Arc::new(Relay {
             inner: self.at.clone(),
-            hook: Rc::new(ClaimHook { area: self.area.clone(), purpose: self.purpose.clone(), place: self.place.clone(), mine: self.mine.clone() }),
+            hook: Rc::new(ClaimHook {
+                area: self.area.clone(),
+                purpose: self.purpose.clone(),
+                place: self.place.clone(),
+                mine: self.mine.clone(),
+            }),
         })
     }
 
     /// machines.ts:201: holds the purpose, runs `keyed_create`, claims every box a waiting line names and the machine
     /// answered into `inflight`, each once.
-    pub async fn create(&self, spec: MachineSpec, waiting: Option<Waiting>) -> Result<Arc<dyn Machine>, HostError> {
-        claimed_create(&self.area, &self.at, &self.purpose, self.place.as_deref(), &self.mine, spec, waiting).await
+    pub async fn create(
+        &self,
+        spec: MachineSpec,
+        waiting: Option<Waiting>,
+    ) -> Result<Arc<dyn Machine>, HostError> {
+        claimed_create(
+            &self.area,
+            &self.at,
+            &self.purpose,
+            self.place.as_deref(),
+            &self.mine,
+            spec,
+            waiting,
+        )
+        .await
     }
 }
 
@@ -92,7 +120,9 @@ async fn claimed_create(
             w(line, box_);
         }
     });
-    let made = area.keyed_create(at, purpose, spec, Some(claim), false, place).await;
+    let made = area
+        .keyed_create(at, purpose, spec, Some(claim), false, place)
+        .await;
     let out = match made {
         Ok(machine) => {
             area.claim(mine, machine.id());
@@ -107,8 +137,18 @@ async fn claimed_create(
 /// The backend a claim's create goes through, for `Relay`.
 #[async_trait(?Send)]
 pub(crate) trait BackendHook {
-    async fn create(&self, inner: &Arc<dyn MachineBackend>, spec: MachineSpec, waiting: Option<Waiting>, sent: Option<String>) -> Result<Arc<dyn Machine>, EngineError>;
-    async fn get(&self, inner: &Arc<dyn MachineBackend>, id: &str) -> Result<Arc<dyn Machine>, EngineError>;
+    async fn create(
+        &self,
+        inner: &Arc<dyn MachineBackend>,
+        spec: MachineSpec,
+        waiting: Option<Waiting>,
+        sent: Option<String>,
+    ) -> Result<Arc<dyn Machine>, EngineError>;
+    async fn get(
+        &self,
+        inner: &Arc<dyn MachineBackend>,
+        id: &str,
+    ) -> Result<Arc<dyn Machine>, EngineError>;
 }
 
 struct ClaimHook {
@@ -120,10 +160,30 @@ struct ClaimHook {
 
 #[async_trait(?Send)]
 impl BackendHook for ClaimHook {
-    async fn create(&self, inner: &Arc<dyn MachineBackend>, spec: MachineSpec, waiting: Option<Waiting>, _sent: Option<String>) -> Result<Arc<dyn Machine>, EngineError> {
-        claimed_create(&self.area, inner, &self.purpose, self.place.as_deref(), &self.mine, spec, waiting).await.map_err(host_to_engine)
+    async fn create(
+        &self,
+        inner: &Arc<dyn MachineBackend>,
+        spec: MachineSpec,
+        waiting: Option<Waiting>,
+        _sent: Option<String>,
+    ) -> Result<Arc<dyn Machine>, EngineError> {
+        claimed_create(
+            &self.area,
+            inner,
+            &self.purpose,
+            self.place.as_deref(),
+            &self.mine,
+            spec,
+            waiting,
+        )
+        .await
+        .map_err(host_to_engine)
     }
-    async fn get(&self, inner: &Arc<dyn MachineBackend>, id: &str) -> Result<Arc<dyn Machine>, EngineError> {
+    async fn get(
+        &self,
+        inner: &Arc<dyn MachineBackend>,
+        id: &str,
+    ) -> Result<Arc<dyn Machine>, EngineError> {
         inner.get(id).await
     }
 }
@@ -135,10 +195,20 @@ struct ObserveBackend {
 
 #[async_trait(?Send)]
 impl BackendHook for ObserveBackend {
-    async fn create(&self, inner: &Arc<dyn MachineBackend>, spec: MachineSpec, _waiting: Option<Waiting>, _sent: Option<String>) -> Result<Arc<dyn Machine>, EngineError> {
+    async fn create(
+        &self,
+        inner: &Arc<dyn MachineBackend>,
+        spec: MachineSpec,
+        _waiting: Option<Waiting>,
+        _sent: Option<String>,
+    ) -> Result<Arc<dyn Machine>, EngineError> {
         Ok(self.area.observed(inner.create(spec, None, None).await?))
     }
-    async fn get(&self, inner: &Arc<dyn MachineBackend>, id: &str) -> Result<Arc<dyn Machine>, EngineError> {
+    async fn get(
+        &self,
+        inner: &Arc<dyn MachineBackend>,
+        id: &str,
+    ) -> Result<Arc<dyn Machine>, EngineError> {
         Ok(self.area.observed(inner.get(id).await?))
     }
 }
@@ -175,32 +245,55 @@ impl MachineBackend for Relay {
     fn offers(&self) -> wsp_engine::machine::BackendOffers {
         self.inner.offers()
     }
-    fn root_disk_of(&self, size: wsp_engine::machine::Size) -> Option<wsp_engine::machine::RootDisk> {
+    fn root_disk_of(
+        &self,
+        size: wsp_engine::machine::Size,
+    ) -> Option<wsp_engine::machine::RootDisk> {
         self.inner.root_disk_of(size)
     }
 
-    async fn create(&self, spec: MachineSpec, waiting: Option<Waiting>, sent: Option<String>) -> Result<Arc<dyn Machine>, EngineError> {
+    async fn create(
+        &self,
+        spec: MachineSpec,
+        waiting: Option<Waiting>,
+        sent: Option<String>,
+    ) -> Result<Arc<dyn Machine>, EngineError> {
         self.hook.create(&self.inner, spec, waiting, sent).await
     }
     async fn get(&self, id: &str) -> Result<Arc<dyn Machine>, EngineError> {
         self.hook.get(&self.inner, id).await
     }
-    async fn list(&self, labels: Option<&IndexMap<String, String>>) -> Result<Vec<wsp_engine::machine::MachineListRow>, EngineError> {
+    async fn list(
+        &self,
+        labels: Option<&IndexMap<String, String>>,
+    ) -> Result<Vec<wsp_engine::machine::MachineListRow>, EngineError> {
         self.inner.list(labels).await
     }
     async fn delete_snapshot(&self, id: &str) -> Result<(), EngineError> {
         self.inner.delete_snapshot(id).await
     }
-    async fn on_computer(&self, cmd: &str, timeout_ms: Option<u64>) -> Result<ExecResult, EngineError> {
+    async fn on_computer(
+        &self,
+        cmd: &str,
+        timeout_ms: Option<u64>,
+    ) -> Result<ExecResult, EngineError> {
         self.inner.on_computer(cmd, timeout_ms).await
     }
     async fn create_request(&self, spec: &MachineSpec) -> Result<String, EngineError> {
         self.inner.create_request(spec).await
     }
-    async fn replay_create(&self, key: &str, bytes: &str, made_at: &str) -> Result<Option<Arc<dyn Machine>>, EngineError> {
+    async fn replay_create(
+        &self,
+        key: &str,
+        bytes: &str,
+        made_at: &str,
+    ) -> Result<Option<Arc<dyn Machine>>, EngineError> {
         self.inner.replay_create(key, bytes, made_at).await
     }
-    async fn named_after(&self, names: &BTreeSet<String>) -> Result<Vec<wsp_engine::machine::NamedMachine>, EngineError> {
+    async fn named_after(
+        &self,
+        names: &BTreeSet<String>,
+    ) -> Result<Vec<wsp_engine::machine::NamedMachine>, EngineError> {
         self.inner.named_after(names).await
     }
     async fn check_key(&self) -> Result<serde_json::Value, EngineError> {
@@ -215,13 +308,19 @@ impl MachineBackend for Relay {
     async fn limits(&self) -> Result<wsp_engine::box_backend::BoxLimits, EngineError> {
         self.inner.limits().await
     }
-    async fn list_snapshots(&self, ids: Option<&[String]>) -> Result<Vec<wsp_engine::machine::SnapshotRow>, EngineError> {
+    async fn list_snapshots(
+        &self,
+        ids: Option<&[String]>,
+    ) -> Result<Vec<wsp_engine::machine::SnapshotRow>, EngineError> {
         self.inner.list_snapshots(ids).await
     }
     async fn promote_snapshot(&self, snapshot_id: &str, name: &str) -> Result<String, EngineError> {
         self.inner.promote_snapshot(snapshot_id, name).await
     }
-    async fn get_template(&self, id: &str) -> Result<wsp_engine::machine::TemplateRow, EngineError> {
+    async fn get_template(
+        &self,
+        id: &str,
+    ) -> Result<wsp_engine::machine::TemplateRow, EngineError> {
         self.inner.get_template(id).await
     }
     async fn list_templates(&self) -> Result<Vec<wsp_engine::machine::TemplateRow>, EngineError> {
@@ -235,8 +334,18 @@ impl MachineBackend for Relay {
 /// What a machine's `exec` and `run` do around the provider's own call (`observed` and `watched`).
 #[async_trait(?Send)]
 pub(crate) trait ExecHook {
-    async fn exec(&self, inner: &Arc<dyn Machine>, cmd: &str, opts: ExecOptions) -> Result<ExecResult, EngineError>;
-    async fn run(&self, inner: &Arc<dyn Machine>, script: &str, opts: RunOptions) -> Result<ExecResult, EngineError>;
+    async fn exec(
+        &self,
+        inner: &Arc<dyn Machine>,
+        cmd: &str,
+        opts: ExecOptions,
+    ) -> Result<ExecResult, EngineError>;
+    async fn run(
+        &self,
+        inner: &Arc<dyn Machine>,
+        script: &str,
+        opts: RunOptions,
+    ) -> Result<ExecResult, EngineError>;
 }
 
 /// A machine whose exec and run go through a hook; every other member is the provider's own, bound to it.
@@ -290,7 +399,12 @@ impl Machine for Around {
     async fn run(&self, script: &str, opts: RunOptions) -> Result<ExecResult, EngineError> {
         self.hook.run(&self.inner, script, opts).await
     }
-    async fn snapshot(&self, name: &str, life: wsp_engine::machine::MachineLife, opts: wsp_engine::machine::SnapshotOptions) -> Result<String, EngineError> {
+    async fn snapshot(
+        &self,
+        name: &str,
+        life: wsp_engine::machine::MachineLife,
+        opts: wsp_engine::machine::SnapshotOptions,
+    ) -> Result<String, EngineError> {
         self.inner.snapshot(name, life, opts).await
     }
     async fn pause(&self, wait_ms: Option<u64>) -> Result<(), EngineError> {
@@ -314,16 +428,27 @@ impl Machine for Around {
     async fn framed(&self) -> Result<Arc<dyn wsp_engine::machine::Framing>, EngineError> {
         self.inner.framed().await
     }
-    async fn resume_at(&self, cpu: f64, mem_mb: u64, signal: Option<&wsp_engine::cancel::Cancel>) -> Result<(), EngineError> {
+    async fn resume_at(
+        &self,
+        cpu: f64,
+        mem_mb: u64,
+        signal: Option<&wsp_engine::cancel::Cancel>,
+    ) -> Result<(), EngineError> {
         self.inner.resume_at(cpu, mem_mb, signal).await
     }
-    async fn preview_url(&self, port: u16) -> Result<wsp_engine::machine::PreviewReach, EngineError> {
+    async fn preview_url(
+        &self,
+        port: u16,
+    ) -> Result<wsp_engine::machine::PreviewReach, EngineError> {
         self.inner.preview_url(port).await
     }
     async fn daemon_answers(&self, timeout_ms: Option<u64>) -> Result<bool, EngineError> {
         self.inner.daemon_answers(timeout_ms).await
     }
-    async fn prove_road(&self, signal: Option<&wsp_engine::cancel::Cancel>) -> Result<(), EngineError> {
+    async fn prove_road(
+        &self,
+        signal: Option<&wsp_engine::cancel::Cancel>,
+    ) -> Result<(), EngineError> {
         self.inner.prove_road(signal).await
     }
     async fn start_daemon(&self) -> Result<ExecResult, EngineError> {
@@ -332,13 +457,26 @@ impl Machine for Around {
     async fn daemon_exits(&self) -> Result<Option<String>, EngineError> {
         self.inner.daemon_exits().await
     }
-    async fn put_bytes(&self, path: &str, bytes: &[u8], timeout_ms: Option<u64>) -> Result<Option<wsp_engine::machine::BytesLanded>, EngineError> {
+    async fn put_bytes(
+        &self,
+        path: &str,
+        bytes: &[u8],
+        timeout_ms: Option<u64>,
+    ) -> Result<Option<wsp_engine::machine::BytesLanded>, EngineError> {
         self.inner.put_bytes(path, bytes, timeout_ms).await
     }
-    async fn read_bytes(&self, path: &str, size: Option<u64>, timeout_ms: Option<u64>) -> Result<Vec<u8>, EngineError> {
+    async fn read_bytes(
+        &self,
+        path: &str,
+        size: Option<u64>,
+        timeout_ms: Option<u64>,
+    ) -> Result<Vec<u8>, EngineError> {
         self.inner.read_bytes(path, size, timeout_ms).await
     }
-    async fn daemon_frame(&self, frame: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Map<String, serde_json::Value>, EngineError> {
+    async fn daemon_frame(
+        &self,
+        frame: serde_json::Map<String, serde_json::Value>,
+    ) -> Result<serde_json::Map<String, serde_json::Value>, EngineError> {
         self.inner.daemon_frame(frame).await
     }
     async fn describe(&self) -> Result<wsp_wire::wire::machine_link::MachineShape, EngineError> {
@@ -367,11 +505,19 @@ impl ObserveExec {
             if self.unheard.replace(true) {
                 return;
             }
-            self.rt.warn(&format!("exec log for {} failed, its execs go on unlogged: {}", self.machine_id, msg));
+            self.rt.warn(&format!(
+                "exec log for {} failed, its execs go on unlogged: {}",
+                self.machine_id, msg
+            ));
         }
     }
 
-    async fn reported<F>(&self, cmd: &str, unlogged: bool, call: F) -> Result<ExecResult, EngineError>
+    async fn reported<F>(
+        &self,
+        cmd: &str,
+        unlogged: bool,
+        call: F,
+    ) -> Result<ExecResult, EngineError>
     where
         F: Future<Output = Result<ExecResult, EngineError>>,
     {
@@ -380,12 +526,30 @@ impl ObserveExec {
         let ms = JsNumber((self.rt.clock().now() - t0) as f64);
         match result {
             Ok(res) => {
-                let (stdout, stderr) = if unlogged { (None, None) } else { (Some(res.stdout.clone()), Some(res.stderr.clone())) };
-                self.report(GoldenExec { machine_id: self.machine_id.clone(), cmd: cmd.to_string(), ms, exit_code: Some(res.exit_code.0 .0 as i32), stdout, stderr, error: None });
+                let (stdout, stderr) = if unlogged {
+                    (None, None)
+                } else {
+                    (Some(res.stdout.clone()), Some(res.stderr.clone()))
+                };
+                self.report(GoldenExec {
+                    machine_id: self.machine_id.clone(),
+                    cmd: cmd.to_string(),
+                    ms,
+                    exit_code: Some(res.exit_code.0 .0 as i32),
+                    stdout,
+                    stderr,
+                    error: None,
+                });
                 Ok(res)
             }
             Err(e) => {
-                self.report(GoldenExec { machine_id: self.machine_id.clone(), cmd: cmd.to_string(), ms, error: Some(e.to_string()), ..Default::default() });
+                self.report(GoldenExec {
+                    machine_id: self.machine_id.clone(),
+                    cmd: cmd.to_string(),
+                    ms,
+                    error: Some(e.to_string()),
+                    ..Default::default()
+                });
                 Err(e)
             }
         }
@@ -394,12 +558,23 @@ impl ObserveExec {
 
 #[async_trait(?Send)]
 impl ExecHook for ObserveExec {
-    async fn exec(&self, inner: &Arc<dyn Machine>, cmd: &str, opts: ExecOptions) -> Result<ExecResult, EngineError> {
+    async fn exec(
+        &self,
+        inner: &Arc<dyn Machine>,
+        cmd: &str,
+        opts: ExecOptions,
+    ) -> Result<ExecResult, EngineError> {
         self.reported(cmd, false, inner.exec(cmd, opts)).await
     }
-    async fn run(&self, inner: &Arc<dyn Machine>, script: &str, opts: RunOptions) -> Result<ExecResult, EngineError> {
+    async fn run(
+        &self,
+        inner: &Arc<dyn Machine>,
+        script: &str,
+        opts: RunOptions,
+    ) -> Result<ExecResult, EngineError> {
         let unlogged = opts.unlogged;
-        self.reported(script, unlogged, inner.run(script, opts)).await
+        self.reported(script, unlogged, inner.run(script, opts))
+            .await
     }
 }
 
@@ -456,7 +631,10 @@ pub(crate) fn host_of(e: EngineError) -> HostError {
 
 /// A host error handed back to a backend call, which speaks engine errors; its words are kept.
 pub(crate) fn host_to_engine(e: HostError) -> EngineError {
-    EngineError::Other { message: e.message, code: None }
+    EngineError::Other {
+        message: e.message,
+        code: None,
+    }
 }
 
 pub(crate) fn is_missing_host(e: &HostError) -> bool {
@@ -469,7 +647,10 @@ fn parse_row<T: DeserializeOwned>(v: serde_json::Value) -> Result<T, HostError> 
 
 /// One read of a machine as `readOnce` reads it: the state its handle reported, or a state read on the handle; a 404
 /// reads as gone (golden.ts:150).
-pub(crate) async fn read_once(at: &Arc<dyn MachineBackend>, id: &str) -> Result<MachineState, EngineError> {
+pub(crate) async fn read_once(
+    at: &Arc<dyn MachineBackend>,
+    id: &str,
+) -> Result<MachineState, EngineError> {
     match at.get(id).await {
         Ok(machine) => match machine.seen().map(|s| s.state) {
             Some(state) => Ok(state),
@@ -490,7 +671,11 @@ pub(crate) async fn sleep_ms(clock: &Rc<dyn Clock>, ms: i64) {
 }
 
 /// killUntilGone (golden.ts:119): asks the kill, then reads the machine until it reads gone GONE_READS times in a row.
-async fn kill_until_gone(clock: &Rc<dyn Clock>, at: &Arc<dyn MachineBackend>, machine: &Arc<dyn Machine>) -> Result<(), HostError> {
+async fn kill_until_gone(
+    clock: &Rc<dyn Clock>,
+    at: &Arc<dyn MachineBackend>,
+    machine: &Arc<dyn Machine>,
+) -> Result<(), HostError> {
     let mut alive = MachineState::Running;
     for _ in 0..KILL_ASKS {
         if let Err(e) = machine.kill().await {
@@ -519,7 +704,14 @@ async fn kill_until_gone(clock: &Rc<dyn Clock>, at: &Arc<dyn MachineBackend>, ma
             }
         }
     }
-    Err(HostError::with_kind(format!("machine {} is still {} after three kills; it bills until reap or a kill by hand takes", machine.id(), machine_state_word(alive)), Kind::MachineAlive))
+    Err(HostError::with_kind(
+        format!(
+            "machine {} is still {} after three kills; it bills until reap or a kill by hand takes",
+            machine.id(),
+            machine_state_word(alive)
+        ),
+        Kind::MachineAlive,
+    ))
 }
 
 pub(crate) fn machine_state_word(state: MachineState) -> &'static str {
@@ -561,8 +753,19 @@ impl MachinesArea {
     }
 
     /// `claiming` without the closure: the handle a fork holds across its own awaits (see `end_claim`).
-    fn begin_claim(self: &Rc<Self>, purpose: &str, at: Arc<dyn MachineBackend>, place: Option<&str>) -> Claimed {
-        Claimed { area: self.clone(), at, purpose: purpose.to_string(), place: place.map(str::to_string), mine: Rc::default() }
+    fn begin_claim(
+        self: &Rc<Self>,
+        purpose: &str,
+        at: Arc<dyn MachineBackend>,
+        place: Option<&str>,
+    ) -> Claimed {
+        Claimed {
+            area: self.clone(),
+            at,
+            purpose: purpose.to_string(),
+            place: place.map(str::to_string),
+            mine: Rc::default(),
+        }
     }
 
     /// Every id the handle claimed leaves `inflight` once its run settles, either way (machines.ts:230).
@@ -576,7 +779,11 @@ impl MachinesArea {
 
     /// The host's id and this state's owner, each as the image name carries it (`imageMark`, machines.ts:41).
     fn image_mark_of(&self) -> String {
-        format!("{}{}", template_host(&self.config.host_id), template_host(&self.rt.owner()))
+        format!(
+            "{}{}",
+            template_host(&self.config.host_id),
+            template_host(&self.rt.owner())
+        )
     }
 
     /// The store's row for one purpose, read as the attempt it is.
@@ -587,7 +794,7 @@ impl MachinesArea {
 
     /// `forkSpec` (machines.ts:23): keys and precedence by spec rule 1; `createdAt` is the clock's now as ISO.
     pub fn fork_spec(&self, record: &WorkspaceRecord, o: ForkSpecIn<'_>) -> MachineSpec {
-        let mut spec = o.image.cloned().unwrap_or_else(|| blank_spec(o.kind.clone()));
+        let mut spec = o.image.cloned().unwrap_or_else(|| blank_spec(o.kind));
         spec.kind = o.kind;
         if let Some(binds) = record.spec.binds.as_ref().filter(|b| !b.is_empty()) {
             spec.binds = Some(binds.clone());
@@ -595,8 +802,16 @@ impl MachinesArea {
         if let Some(copy) = record.spec.copy.as_ref() {
             spec.copy = Some(copy.clone());
         }
-        let cpu = o.over.and_then(|x| x.cpu.clone()).or_else(|| record.shape.as_ref().and_then(|s| s.cpu.clone())).unwrap_or(record.size.cpu.clone());
-        let mem = o.over.and_then(|x| x.mem_mb.clone()).or_else(|| record.shape.as_ref().and_then(|s| s.mem_mb.clone())).unwrap_or(record.size.mem_mb.clone());
+        let cpu = o
+            .over
+            .and_then(|x| x.cpu)
+            .or_else(|| record.shape.as_ref().and_then(|s| s.cpu))
+            .unwrap_or(record.size.cpu);
+        let mem = o
+            .over
+            .and_then(|x| x.mem_mb)
+            .or_else(|| record.shape.as_ref().and_then(|s| s.mem_mb))
+            .unwrap_or(record.size.mem_mb);
         spec.cpu = Some(cpu);
         spec.mem_mb = Some(mem);
 
@@ -612,14 +827,25 @@ impl MachinesArea {
         let mut labels = record.spec.labels.clone().unwrap_or_default();
         labels.insert(wsp_engine::labels::WSP_LABEL.into(), "1".into());
         labels.insert(wsp_engine::labels::OWNER_LABEL.into(), self.rt.owner());
-        labels.insert(wsp_engine::labels::WORKSPACE_LABEL.into(), record.id.clone());
+        labels.insert(
+            wsp_engine::labels::WORKSPACE_LABEL.into(),
+            record.id.clone(),
+        );
         labels.insert(wsp_engine::labels::NAME_LABEL.into(), record.name.clone());
-        labels.insert(wsp_engine::labels::GOLDEN_LABEL.into(), record.golden.clone());
-        labels.insert(wsp_engine::labels::CREATED_AT_LABEL.into(), iso(self.rt.clock().now()));
+        labels.insert(
+            wsp_engine::labels::GOLDEN_LABEL.into(),
+            record.golden.clone(),
+        );
+        labels.insert(
+            wsp_engine::labels::CREATED_AT_LABEL.into(),
+            iso(self.rt.clock().now()),
+        );
         spec.labels = Some(labels);
 
         spec.on_idle = Some(MachineSpecOnIdle::Pause);
-        spec.idle_timeout_ms = Some(JsNumber(backstop_ms(self.idle_window_of(record).map(|w| w as i64)) as f64));
+        spec.idle_timeout_ms = Some(JsNumber(backstop_ms(
+            self.idle_window_of(record).map(|w| w as i64),
+        ) as f64));
         spec
     }
 
@@ -648,7 +874,10 @@ impl MachinesArea {
             };
             let _ = waiting.await;
         }
-        let hold = Hold { area: self.clone(), purpose: purpose.to_string() };
+        let hold = Hold {
+            area: self.clone(),
+            purpose: purpose.to_string(),
+        };
         Box::new(move || drop(hold))
     }
 
@@ -665,27 +894,50 @@ impl MachinesArea {
         let store = self.rt.store();
         let body = fingerprint(&spec);
         let self_pid = std::process::id();
-        let name = if purpose.encode_utf16().count() <= KEY_PURPOSE_MAX { purpose.to_string() } else { hex::encode(Sha256::digest(purpose.as_bytes())) };
+        let name = if purpose.encode_utf16().count() <= KEY_PURPOSE_MAX {
+            purpose.to_string()
+        } else {
+            hex::encode(Sha256::digest(purpose.as_bytes()))
+        };
         let mut after_corpse = after_corpse;
         loop {
             let held = self.held_attempt(purpose).await?;
-            let theirs = held.as_ref().is_some_and(|h| h.host != self.config.host_id || (h.pid != self_pid && pid_alive(h.pid as i32)));
+            let theirs = held.as_ref().is_some_and(|h| {
+                h.host != self.config.host_id || (h.pid != self_pid && pid_alive(h.pid as i32))
+            });
             let offers = at.offers().keyed_create;
-            let replay = held.as_ref().is_some_and(|h| h.body == body && !theirs && (h.request.is_some() || !offers));
+            let replay = held
+                .as_ref()
+                .is_some_and(|h| h.body == body && !theirs && (h.request.is_some() || !offers));
             let created_at = match (&held, replay) {
                 (Some(h), true) => h.created_at.clone(),
                 _ => iso(self.rt.clock().now()),
             };
             let mut stamped = spec.clone();
-            if let Some(labels) = stamped.labels.as_mut().filter(|l| l.contains_key(wsp_engine::labels::CREATED_AT_LABEL)) {
-                labels.insert(wsp_engine::labels::CREATED_AT_LABEL.into(), created_at.clone());
+            if let Some(labels) = stamped
+                .labels
+                .as_mut()
+                .filter(|l| l.contains_key(wsp_engine::labels::CREATED_AT_LABEL))
+            {
+                labels.insert(
+                    wsp_engine::labels::CREATED_AT_LABEL.into(),
+                    created_at.clone(),
+                );
             }
             let image = spec.from_snapshot.clone().or_else(|| spec.template.clone());
             let attempt = match (&held, replay) {
-                (Some(h), true) => PendingCreate { host: self.config.host_id.clone(), pid: self_pid, ..h.clone() },
+                (Some(h), true) => PendingCreate {
+                    host: self.config.host_id.clone(),
+                    pid: self_pid,
+                    ..h.clone()
+                },
                 _ => {
                     let key = format!("{name}:{}", hex::encode(self.rt.ids().bytes(8)));
-                    let request = if offers { Some(at.create_request(&stamped).await.map_err(host_of)?) } else { None };
+                    let request = if offers {
+                        Some(at.create_request(&stamped).await.map_err(host_of)?)
+                    } else {
+                        None
+                    };
                     PendingCreate {
                         key,
                         created_at: created_at.clone(),
@@ -698,10 +950,19 @@ impl MachinesArea {
                     }
                 }
             };
-            store.put(CREATES, purpose, serde_json::to_value(&attempt).unwrap_or(serde_json::Value::Null)).await?;
+            store
+                .put(
+                    CREATES,
+                    purpose,
+                    serde_json::to_value(&attempt).unwrap_or(serde_json::Value::Null),
+                )
+                .await?;
             let mut sent = stamped;
             sent.idempotency_key = Some(attempt.key.clone());
-            let machine = match at.create(sent, waiting.clone(), attempt.request.clone()).await {
+            let machine = match at
+                .create(sent, waiting.clone(), attempt.request.clone())
+                .await
+            {
                 Ok(machine) => machine,
                 Err(e) => {
                     let e = host_of(e);
@@ -725,23 +986,37 @@ impl MachinesArea {
                     after_corpse = true;
                     continue;
                 }
-                self.rt.warn(&format!("create for {purpose}: {} replayed from an earlier attempt under {}", machine.id(), attempt.key));
+                self.rt.warn(&format!(
+                    "create for {purpose}: {} replayed from an earlier attempt under {}",
+                    machine.id(),
+                    attempt.key
+                ));
             }
             return Ok(machine);
         }
     }
 
     /// `replayCreates` (machines.ts:106), spec rule 5. `known` is read once per machine found.
-    pub async fn replay_creates(self: &Rc<Self>, known: &dyn Fn() -> Vec<String>, failed: &mut Vec<ReapFailure>) -> Result<Vec<ReapedMachine>, HostError> {
+    pub async fn replay_creates(
+        self: &Rc<Self>,
+        known: &dyn Fn() -> Vec<String>,
+        failed: &mut Vec<ReapFailure>,
+    ) -> Result<Vec<ReapedMachine>, HostError> {
         let self_pid = std::process::id();
         let mut deleted = Vec::new();
         for purpose in self.rt.store().keys(CREATES).await? {
-            let Some(row) = self.held_attempt(&purpose).await? else { continue };
-            let Some(request) = row.request.clone() else { continue };
+            let Some(row) = self.held_attempt(&purpose).await? else {
+                continue;
+            };
+            let Some(request) = row.request.clone() else {
+                continue;
+            };
             if row.host != self.config.host_id {
                 continue;
             }
-            if self.holding.borrow().contains_key(&purpose) || (row.pid != self_pid && pid_alive(row.pid as i32)) {
+            if self.holding.borrow().contains_key(&purpose)
+                || (row.pid != self_pid && pid_alive(row.pid as i32))
+            {
                 continue;
             }
             let age = self.rt.clock().now() as f64 - date_parse(&row.created_at);
@@ -759,7 +1034,9 @@ impl MachinesArea {
                 continue;
             }
             let release = self.hold(&purpose).await;
-            let outcome = self.replay_row(&purpose, &row, &request, &at, known, failed).await;
+            let outcome = self
+                .replay_row(&purpose, &row, &request, &at, known, failed)
+                .await;
             release();
             match outcome? {
                 Replayed::Keep => {}
@@ -805,15 +1082,25 @@ impl MachinesArea {
             None => true,
         };
         let kept = match workspace {
-            Some(w) if !live => store.get(WORKSPACE_NAMES, w).await?.map(parse_row::<NamedWorkspace>).transpose()?,
+            Some(w) if !live => store
+                .get(WORKSPACE_NAMES, w)
+                .await?
+                .map(parse_row::<NamedWorkspace>)
+                .transpose()?,
             _ => None,
         };
-        let waits = kept.as_ref().and_then(|k| k.project.clone()).is_some_and(|p| self.rt.project_held(&p));
+        let waits = kept
+            .as_ref()
+            .and_then(|k| k.project.clone())
+            .is_some_and(|p| self.rt.project_held(&p));
         let seen_gone = machine.seen().map(|s| s.state) == Some(MachineState::Gone);
         if !seen_gone && !known().iter().any(|k| k == machine.id()) && !waits {
             if let Err(e) = self.rt.gone_stop(at, &machine).await {
                 if !is_missing_host(&e) {
-                    failed.push(ReapFailure { id: Some(machine.id().to_string()), message: format!("could not stop: {}", e.message) });
+                    failed.push(ReapFailure {
+                        id: Some(machine.id().to_string()),
+                        message: format!("could not stop: {}", e.message),
+                    });
                     return Ok(Replayed::Keep);
                 }
             }
@@ -833,8 +1120,14 @@ impl MachinesArea {
     }
 
     /// `sweepStrays` (machines.ts:159), spec rule 6.
-    pub async fn sweep_strays(self: &Rc<Self>, known: &dyn Fn() -> Vec<String>, failed: &mut Vec<ReapFailure>, at: &[Arc<dyn MachineBackend>]) -> Result<Vec<ReapedMachine>, HostError> {
-        let asking: Vec<&Arc<dyn MachineBackend>> = at.iter().filter(|b| b.offers().keyed_create).collect();
+    pub async fn sweep_strays(
+        self: &Rc<Self>,
+        known: &dyn Fn() -> Vec<String>,
+        failed: &mut Vec<ReapFailure>,
+        at: &[Arc<dyn MachineBackend>],
+    ) -> Result<Vec<ReapedMachine>, HostError> {
+        let asking: Vec<&Arc<dyn MachineBackend>> =
+            at.iter().filter(|b| b.offers().keyed_create).collect();
         if asking.is_empty() {
             return Ok(Vec::new());
         }
@@ -846,7 +1139,13 @@ impl MachinesArea {
             }
         }
         let mut names = BTreeSet::new();
-        for name in self.rt.recorded_images().await?.into_iter().chain(asked.iter().cloned()) {
+        for name in self
+            .rt
+            .recorded_images()
+            .await?
+            .into_iter()
+            .chain(asked.iter().cloned())
+        {
             if name_owner(Some(&name)).as_deref() == Some(mark.as_str()) {
                 names.insert(name);
             }
@@ -857,7 +1156,11 @@ impl MachinesArea {
         let mut deleted = Vec::new();
         for b in asking {
             let rows = b.named_after(&names).await.map_err(host_of)?;
-            let read = StrayRead { known: known().into_iter().collect(), asked: asked.clone(), now: self.rt.clock().now() };
+            let read = StrayRead {
+                known: known().into_iter().collect(),
+                asked: asked.clone(),
+                now: self.rt.clock().now(),
+            };
             for (m, age) in strays(&rows, &read) {
                 let stopped = match b.get(&m.id).await {
                     Ok(machine) => self.rt.gone_stop(b, &machine).await,
@@ -865,11 +1168,21 @@ impl MachinesArea {
                 };
                 if let Err(e) = stopped {
                     if !is_missing_host(&e) {
-                        failed.push(ReapFailure { id: Some(m.id.clone()), message: format!("could not stop: {}", e.message) });
+                        failed.push(ReapFailure {
+                            id: Some(m.id.clone()),
+                            message: format!("could not stop: {}", e.message),
+                        });
                     }
                     continue;
                 }
-                deleted.push(ReapedMachine { id: m.id.clone(), labels: None, builder: false, reason: ReapReason::Stray, age_ms: Some(age), name: Some(m.name.clone()) });
+                deleted.push(ReapedMachine {
+                    id: m.id.clone(),
+                    labels: None,
+                    builder: false,
+                    reason: ReapReason::Stray,
+                    age_ms: Some(age),
+                    name: Some(m.name.clone()),
+                });
             }
         }
         Ok(deleted)
@@ -877,7 +1190,13 @@ impl MachinesArea {
 
     /// `claiming` (machines.ts:185): `at` is `backend()` when `None`. Every id the handle claimed leaves `inflight`
     /// once `run` settles, either way.
-    pub async fn claiming<T, F>(self: &Rc<Self>, purpose: &str, run: F, at: Option<Arc<dyn MachineBackend>>, place: Option<&str>) -> Result<T, HostError>
+    pub async fn claiming<T, F>(
+        self: &Rc<Self>,
+        purpose: &str,
+        run: F,
+        at: Option<Arc<dyn MachineBackend>>,
+        place: Option<&str>,
+    ) -> Result<T, HostError>
     where
         F: for<'c> FnOnce(&'c Claimed) -> futures::future::LocalBoxFuture<'c, Result<T, HostError>>,
     {
@@ -889,14 +1208,27 @@ impl MachinesArea {
 
     /// `observed` (machines.ts:232): the machine with `exec` and `run` reported to the recipe's listener.
     pub fn observed(&self, machine: Arc<dyn Machine>) -> Arc<dyn Machine> {
-        let Some(on_exec) = self.rt.on_exec() else { return machine };
-        let hook = ObserveExec { rt: self.rt.clone(), on_exec, machine_id: machine.id().to_string(), unheard: Cell::new(false) };
-        Arc::new(Around { inner: machine, hook: Rc::new(hook) })
+        let Some(on_exec) = self.rt.on_exec() else {
+            return machine;
+        };
+        let hook = ObserveExec {
+            rt: self.rt.clone(),
+            on_exec,
+            machine_id: machine.id().to_string(),
+            unheard: Cell::new(false),
+        };
+        Arc::new(Around {
+            inner: machine,
+            hook: Rc::new(hook),
+        })
     }
 
     /// `observing` (machines.ts:302): `create` and `get` answer observed machines.
     pub fn observing(self: &Rc<Self>, backend: Arc<dyn MachineBackend>) -> Arc<dyn MachineBackend> {
-        Arc::new(Relay { inner: backend, hook: Rc::new(ObserveBackend { area: self.clone() }) })
+        Arc::new(Relay {
+            inner: backend,
+            hook: Rc::new(ObserveBackend { area: self.clone() }),
+        })
     }
 
     /// `fork` (machines.ts:307), spec rule 10. `bind` runs before the claim is released.
@@ -910,8 +1242,14 @@ impl MachinesArea {
     ) -> Result<Arc<dyn Machine>, HostError> {
         let snapshot = record.borrow().clone();
         let at = self.rt.backend_for(&snapshot);
-        let claim = self.begin_claim(&format!("workspace/{}", snapshot.id), at, snapshot.place.as_deref());
-        let out = self.fork_claimed(&claim, record, bind, over, report, reads_memory).await;
+        let claim = self.begin_claim(
+            &format!("workspace/{}", snapshot.id),
+            at,
+            snapshot.place.as_deref(),
+        );
+        let out = self
+            .fork_claimed(&claim, record, bind, over, report, reads_memory)
+            .await;
         self.end_claim(&claim);
         out
     }
@@ -928,16 +1266,39 @@ impl MachinesArea {
     ) -> Result<Arc<dyn Machine>, HostError> {
         let b = claim.backend();
         let snapshot = record.borrow().clone();
-        let image = if self.rt.keeps_images(&b) { Some(self.rt.image_of(&snapshot.golden).await?) } else { None };
+        let image = if self.rt.keeps_images(&b) {
+            Some(self.rt.image_of(&snapshot.golden).await?)
+        } else {
+            None
+        };
         let golden = image.as_ref().and_then(|i| i.version.as_ref());
-        let image_spec = image.as_ref().map(|_| image_spec_of(golden, &snapshot.golden));
-        let kind = golden.and_then(|g| g.kind.clone()).unwrap_or(MachineKind::Sandbox);
+        let image_spec = image
+            .as_ref()
+            .map(|_| image_spec_of(golden, &snapshot.golden));
+        let kind = golden.and_then(|g| g.kind).unwrap_or(MachineKind::Sandbox);
         let npm_bin = golden.and_then(|g| g.npm_bin.clone());
-        let spec = self.fork_spec(&snapshot, ForkSpecIn { kind, image: image_spec.as_ref(), over, npm_bin: npm_bin.as_deref() });
+        let spec = self.fork_spec(
+            &snapshot,
+            ForkSpecIn {
+                kind,
+                image: image_spec.as_ref(),
+                over,
+                npm_bin: npm_bin.as_deref(),
+            },
+        );
 
         let waiting: Option<Waiting> = report.clone().map(|r| {
             Arc::new(move |line: &str, box_: Option<&ProviderBoxState>| {
-                r(WorkspaceCreateStage::ForkRequested, line, Some(StageSaid { notice: None, detail: None, waiting: true, r#box: box_.cloned() }));
+                r(
+                    WorkspaceCreateStage::ForkRequested,
+                    line,
+                    Some(StageSaid {
+                        notice: None,
+                        detail: None,
+                        waiting: true,
+                        r#box: box_.cloned(),
+                    }),
+                );
             }) as Waiting
         });
         let machine = match claim.create(spec.clone(), waiting).await {
@@ -948,8 +1309,15 @@ impl MachinesArea {
                     return Err(e);
                 }
                 let place = place.unwrap_or_default();
-                let asked = spec.from_snapshot.clone().or_else(|| spec.template.clone()).unwrap_or_else(|| snapshot.golden.clone());
-                return Err(HostError::with_kind(place_holds_no_image_line(&self.rt.place_name_of(&place), &asked), Kind::Invalid));
+                let asked = spec
+                    .from_snapshot
+                    .clone()
+                    .or_else(|| spec.template.clone())
+                    .unwrap_or_else(|| snapshot.golden.clone());
+                return Err(HostError::with_kind(
+                    place_holds_no_image_line(&self.rt.place_name_of(&place), &asked),
+                    Kind::Invalid,
+                ));
             }
         };
 
@@ -959,18 +1327,40 @@ impl MachinesArea {
             let named = set_hostname(machine.as_ref(), &snapshot.name).await;
             if let Some(r) = &report {
                 match named.refused {
-                    None => r(WorkspaceCreateStage::HostnameSet, &hostname_set_line(&named.host), None),
-                    Some(detail) => r(WorkspaceCreateStage::HostnameSet, HOSTNAME_KEPT, Some(StageSaid { notice: None, detail: Some(detail), waiting: false, r#box: None })),
+                    None => r(
+                        WorkspaceCreateStage::HostnameSet,
+                        &hostname_set_line(&named.host),
+                        None,
+                    ),
+                    Some(detail) => r(
+                        WorkspaceCreateStage::HostnameSet,
+                        HOSTNAME_KEPT,
+                        Some(StageSaid {
+                            notice: None,
+                            detail: Some(detail),
+                            waiting: false,
+                            r#box: None,
+                        }),
+                    ),
                 }
             }
         }
 
-        let at_provider = self.rt.at_provider(self.rt.place_id_of(&snapshot).as_deref());
-        let golden_pick = golden.map(|g| GoldenPick { version: g.version.0 as u32, created_at: g.created_at.clone(), setup_sha: g.setup_sha.clone(), npm_bin: g.npm_bin.clone() });
+        let at_provider = self
+            .rt
+            .at_provider(self.rt.place_id_of(&snapshot).as_deref());
+        let golden_pick = golden.map(|g| GoldenPick {
+            version: g.version.0 as u32,
+            created_at: g.created_at.clone(),
+            setup_sha: g.setup_sha.clone(),
+            npm_bin: g.npm_bin.clone(),
+        });
         let context = apply_machine_context(
             &machine,
             ApplyContextOptions {
-                workspace: Some(WorkspaceName { name: snapshot.name.clone() }),
+                workspace: Some(WorkspaceName {
+                    name: snapshot.name.clone(),
+                }),
                 golden: golden_pick,
                 result: None,
                 roots: None,
@@ -982,22 +1372,43 @@ impl MachinesArea {
         )
         .await;
         if context.failure.is_some() {
-            self.rt.warn(&format!("machine context for {} on {} {}", snapshot.id, machine.id(), context.summary));
+            self.rt.warn(&format!(
+                "machine context for {} on {} {}",
+                snapshot.id,
+                machine.id(),
+                context.summary
+            ));
         }
         record.borrow_mut().npm_bin = npm_bin;
 
         let shape = self.rt.shape_of(&machine).await;
         record.borrow_mut().shape = shape.clone();
-        let asked = WorkspaceSize { cpu: spec.cpu.clone().unwrap_or(JsNumber(0.0)), mem_mb: spec.mem_mb.clone().unwrap_or(JsNumber(0.0)) };
+        let asked = WorkspaceSize {
+            cpu: spec.cpu.unwrap_or(JsNumber(0.0)),
+            mem_mb: spec.mem_mb.unwrap_or(JsNumber(0.0)),
+        };
         let built = self.rt.size_built(shape.as_ref(), asked);
         record.borrow_mut().size = built;
 
         if reads_memory && snapshot.place.is_none() {
-            let sizes: Vec<WorkspaceSize> = b.capabilities().sizes.iter().map(|s| WorkspaceSize { cpu: s.cpu.clone(), mem_mb: s.mem_mb.clone() }).collect();
+            let sizes: Vec<WorkspaceSize> = b
+                .capabilities()
+                .sizes
+                .iter()
+                .map(|s| WorkspaceSize {
+                    cpu: s.cpu,
+                    mem_mb: s.mem_mb,
+                })
+                .collect();
             self.rt.read_memory(record, &machine, &sizes).await;
         }
 
-        let screen = machine.stream_url().map(|url| wsp_wire::views::workspace::WorkspaceViewScreen { stream_url: url.to_string() });
+        let screen =
+            machine
+                .stream_url()
+                .map(|url| wsp_wire::views::workspace::WorkspaceViewScreen {
+                    stream_url: url.to_string(),
+                });
         record.borrow_mut().screen = screen;
         Ok(machine)
     }
@@ -1012,8 +1423,20 @@ impl MachinesArea {
         let at = self.rt.backend_for(&snapshot);
         let clock = self.rt.clock();
         kill_until_gone(&clock, &at, &machine).await?;
-        let mark = DroppedMachine { machine_id: id.clone(), at: iso(clock.now()) };
-        if let Err(e) = self.rt.store().put(DROPPED, &id, serde_json::to_value(&mark).unwrap_or(serde_json::Value::Null)).await {
+        let mark = DroppedMachine {
+            machine_id: id.clone(),
+            at: iso(clock.now()),
+        };
+        if let Err(e) = self
+            .rt
+            .store()
+            .put(
+                DROPPED,
+                &id,
+                serde_json::to_value(&mark).unwrap_or(serde_json::Value::Null),
+            )
+            .await
+        {
             self.rt.warn(&format!(
                 "machine {id} is gone but its mark was not stored ({}); should the provider list it running again, the sweep reports it rather than killing it",
                 e.message

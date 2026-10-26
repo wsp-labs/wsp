@@ -31,7 +31,10 @@ pub enum ImageError {
     Host(HostError),
     Engine(EngineError),
     Stopped(PrepareStoppedError),
-    SnapshotFailed { message: String, builder_state: String },
+    SnapshotFailed {
+        message: String,
+        builder_state: String,
+    },
 }
 
 impl ImageError {
@@ -80,7 +83,9 @@ impl ImageError {
                 host
             }
             ImageError::Stopped(e) => HostError::new(e.message()),
-            ImageError::SnapshotFailed { message, .. } => HostError::with_kind(message, Kind::SnapshotFailed),
+            ImageError::SnapshotFailed { message, .. } => {
+                HostError::with_kind(message, Kind::SnapshotFailed)
+            }
         }
     }
 }

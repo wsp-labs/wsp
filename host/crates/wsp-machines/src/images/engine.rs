@@ -9,7 +9,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
 
 use wsp_core::types::wiring::DeployDaemon;
 use wsp_engine::cancel::Cancel as EngineCancel;
@@ -18,10 +17,9 @@ use wsp_engine::golden_seam::GoldenImport;
 use wsp_engine::machine::{Machine, MachineBackend};
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::golden_image::{
-    GoldenBaseTool, GoldenLeftBehind, GoldenLogin, GoldenManifest, GoldenMissingTool, GoldenRetired, GoldenStage,
-    GoldenStep, GoldenVersion, MachineKind, RecipeDigest,
+    GoldenBaseTool, GoldenLeftBehind, GoldenLogin, GoldenManifest, GoldenMissingTool,
+    GoldenRetired, GoldenStage, GoldenStep, GoldenVersion, MachineKind,
 };
-use wsp_wire::wire::capabilities::WorkspaceSize;
 use wsp_wire::wire::machine_link::{PreviewReach, TemplateRow};
 
 /// golden.ts:522 `ImportLedger` and golden.ts:405 `Builder` (replaced whole, never changed in place) live in wsp-core,
@@ -191,35 +189,86 @@ pub trait GoldenRoads {
     /// golden.ts:1429.
     async fn build_golden(&self, ask: BuildGoldenAsk) -> Result<BuiltGolden, EngineError>;
     /// golden.ts:989.
-    async fn prepare_builder(&self, ask: PrepareBuilderAsk) -> Result<EngineBuilder, crate::images::ImageError>;
+    async fn prepare_builder(
+        &self,
+        ask: PrepareBuilderAsk,
+    ) -> Result<EngineBuilder, crate::images::ImageError>;
     /// golden.ts:1071.
-    async fn seal_golden(&self, builder: EngineBuilder, ask: SealGoldenAsk) -> Result<SealResult, crate::images::ImageError>;
+    async fn seal_golden(
+        &self,
+        builder: EngineBuilder,
+        ask: SealGoldenAsk,
+    ) -> Result<SealResult, crate::images::ImageError>;
     /// golden.ts:1375.
-    async fn upgrade_builder(&self, ask: UpgradeBuilderAsk) -> Result<EngineBuilder, crate::images::ImageError>;
+    async fn upgrade_builder(
+        &self,
+        ask: UpgradeBuilderAsk,
+    ) -> Result<EngineBuilder, crate::images::ImageError>;
     /// golden.ts:598.
-    async fn apply_golden_import(&self, machine: Arc<dyn Machine>, ask: ApplyImportAsk) -> Result<Applied, EngineError>;
+    async fn apply_golden_import(
+        &self,
+        machine: Arc<dyn Machine>,
+        ask: ApplyImportAsk,
+    ) -> Result<Applied, EngineError>;
     /// golden.ts:1326.
-    async fn apply_delta(&self, machine: Arc<dyn Machine>, delta: GoldenDelta, ask: ApplyDeltaAsk) -> Result<Applied, EngineError>;
+    async fn apply_delta(
+        &self,
+        machine: Arc<dyn Machine>,
+        delta: GoldenDelta,
+        ask: ApplyDeltaAsk,
+    ) -> Result<Applied, EngineError>;
     /// golden.ts:868.
     fn next_setup_sha(&self, previous: &str, setup: &str, import: &GoldenImport) -> String;
     /// golden.ts:119.
-    async fn kill_until_gone(&self, at: Arc<dyn MachineBackend>, machine: Arc<dyn Machine>, confirm: Option<KillConfirm>) -> Result<(), EngineError>;
+    async fn kill_until_gone(
+        &self,
+        at: Arc<dyn MachineBackend>,
+        machine: Arc<dyn Machine>,
+        confirm: Option<KillConfirm>,
+    ) -> Result<(), EngineError>;
     /// golden.ts `readGone`.
-    async fn read_gone(&self, at: Arc<dyn MachineBackend>, id: &str) -> Result<GoneReading, EngineError>;
+    async fn read_gone(
+        &self,
+        at: Arc<dyn MachineBackend>,
+        id: &str,
+    ) -> Result<GoneReading, EngineError>;
     /// drop-template.ts `dropTemplate`: nothing for no template id.
-    async fn drop_template(&self, at: Arc<dyn MachineBackend>, template_id: Option<&str>) -> Result<(), EngineError>;
+    async fn drop_template(
+        &self,
+        at: Arc<dyn MachineBackend>,
+        template_id: Option<&str>,
+    ) -> Result<(), EngineError>;
     /// golden.ts:291: none where the backend has no templates.
     fn templates_of(&self, at: Arc<dyn MachineBackend>) -> Option<Rc<dyn Templates>>;
     /// golden.ts:343.
-    async fn promote_version(&self, templates: Rc<dyn Templates>, snapshot_id: &str, name: &str) -> Result<Promoted, EngineError>;
+    async fn promote_version(
+        &self,
+        templates: Rc<dyn Templates>,
+        snapshot_id: &str,
+        name: &str,
+    ) -> Result<Promoted, EngineError>;
     /// golden.ts:1471.
-    fn rollback(&self, manifest: &GoldenManifest, version: u32) -> Result<GoldenManifest, EngineError>;
+    fn rollback(
+        &self,
+        manifest: &GoldenManifest,
+        version: u32,
+    ) -> Result<GoldenManifest, EngineError>;
     /// preview.ts:25.
-    async fn refresh_preview_token(&self, machine: Arc<dyn Machine>, port: u16, held: Option<PreviewReach>) -> Result<PreviewReach, EngineError>;
+    async fn refresh_preview_token(
+        &self,
+        machine: Arc<dyn Machine>,
+        port: u16,
+        held: Option<PreviewReach>,
+    ) -> Result<PreviewReach, EngineError>;
     /// image-vault.ts:52.
-    async fn import_image_vault(&self, machine: Arc<dyn Machine>, tar: Vec<u8>) -> Result<(), EngineError>;
+    async fn import_image_vault(
+        &self,
+        machine: Arc<dyn Machine>,
+        tar: Vec<u8>,
+    ) -> Result<(), EngineError>;
     /// image-vault.ts:236: the refusal's message where the archive carries a member the list does not.
-    fn refuse_foreign_members(&self, road: &str, tar: &[u8], held: &[String]) -> Result<(), String>;
+    fn refuse_foreign_members(&self, road: &str, tar: &[u8], held: &[String])
+        -> Result<(), String>;
     /// image-vault.ts:249.
     fn image_hash(&self, recipe_hash: &str, vault_sha256: Option<&str>) -> String;
 }

@@ -7,9 +7,9 @@ use async_trait::async_trait;
 use futures::future::LocalBoxFuture;
 use serde_json::{json, Value};
 
-use wsp_engine::machine::MachineBackend;
 use wsp_core::clock::Cancel;
 use wsp_core::types::wiring::WorkspaceRecord;
+use wsp_engine::machine::MachineBackend;
 use wsp_machines::machines::area_error::{AreaError, AreaResult};
 use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::sub_life::{BackendFor, SessionFile, SubLifeCtx};
@@ -27,7 +27,11 @@ impl BackendFor for FakeHost {
 
 /// Claude Code's session file on a machine (sub-fixture.ts `CLAUDE_SESSION_FILE`).
 pub fn claude_session_file(id: &str) -> SessionFile {
-    SessionFile { folder: "/root/.claude-cfg/projects".to_string(), name: format!("{id}.jsonl"), depth: 1 }
+    SessionFile {
+        folder: "/root/.claude-cfg/projects".to_string(),
+        name: format!("{id}.jsonl"),
+        depth: 1,
+    }
 }
 
 #[async_trait(?Send)]
@@ -42,10 +46,19 @@ impl SubLifeCtx for FakeHost {
         self.thread_records.borrow().clone()
     }
     fn session_views(&self) -> Vec<SessionView> {
-        self.sessions.borrow().values().map(|s| s.view.clone()).collect()
+        self.sessions
+            .borrow()
+            .values()
+            .map(|s| s.view.clone())
+            .collect()
     }
     fn latest_on(&self, thread_id: &str) -> Option<SessionView> {
-        self.sessions.borrow().values().rev().find(|s| s.view.thread_id.as_deref() == Some(thread_id)).map(|s| s.view.clone())
+        self.sessions
+            .borrow()
+            .values()
+            .rev()
+            .find(|s| s.view.thread_id.as_deref() == Some(thread_id))
+            .map(|s| s.view.clone())
     }
     fn thread_runs(&self, thread_id: &str) -> bool {
         self.running.borrow().contains(thread_id)
@@ -65,8 +78,22 @@ impl SubLifeCtx for FakeHost {
     fn session_file(&self, _entry: &Entry, harness: &str, session_id: &str) -> Option<SessionFile> {
         (harness == "claude").then(|| claude_session_file(session_id))
     }
-    async fn read_transcript(&self, workspace_id: &str, thread_id: &str, limit: usize, bytes: usize) -> AreaResult<Vec<Value>> {
-        self.call("read_transcript", &[workspace_id, thread_id, &limit.to_string(), &bytes.to_string()]);
+    async fn read_transcript(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        limit: usize,
+        bytes: usize,
+    ) -> AreaResult<Vec<Value>> {
+        self.call(
+            "read_transcript",
+            &[
+                workspace_id,
+                thread_id,
+                &limit.to_string(),
+                &bytes.to_string(),
+            ],
+        );
         match self.next("read_transcript") {
             Some(Ok(Value::Array(events))) => Ok(events),
             Some(Err(e)) => Err(e),
@@ -75,12 +102,16 @@ impl SubLifeCtx for FakeHost {
     }
     async fn put_blob(&self, collection: &str, key: &str, bytes: Vec<u8>) -> AreaResult<()> {
         self.call("put_blob", &[collection, key]);
-        self.blobs.borrow_mut().insert((collection.to_string(), key.to_string()), bytes);
+        self.blobs
+            .borrow_mut()
+            .insert((collection.to_string(), key.to_string()), bytes);
         Ok(())
     }
     async fn delete_blob(&self, collection: &str, key: &str) -> AreaResult<()> {
         self.call("delete_blob", &[collection, key]);
-        self.blobs.borrow_mut().shift_remove(&(collection.to_string(), key.to_string()));
+        self.blobs
+            .borrow_mut()
+            .shift_remove(&(collection.to_string(), key.to_string()));
         Ok(())
     }
     async fn persist(&self, record: &WorkspaceRecord) -> AreaResult<()> {
@@ -119,7 +150,13 @@ impl SubLifeCtx for FakeHost {
         self.call("idle_forget", &[workspace_id]);
     }
     async fn emit_status(&self, entry: &Entry, reach: ReachState) -> AreaResult<()> {
-        self.call("emit_status", &[&entry_id(entry), &serde_json::to_value(reach).unwrap().as_str().unwrap_or("").to_string()]);
+        self.call(
+            "emit_status",
+            &[
+                &entry_id(entry),
+                serde_json::to_value(reach).unwrap().as_str().unwrap_or(""),
+            ],
+        );
         Ok(())
     }
     fn emit(&self, event: Value) {

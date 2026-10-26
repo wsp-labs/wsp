@@ -22,7 +22,12 @@ pub trait HeldCtx {
     /// `ctx.ready()`.
     async fn ready(&self) -> Result<(), HostError>;
     /// `ctx.dropCopyRecipe` (the records area).
-    async fn drop_copy_recipe(&self, place: &str, name: &str, version: u32) -> Result<(), HostError>;
+    async fn drop_copy_recipe(
+        &self,
+        place: &str,
+        name: &str,
+        version: u32,
+    ) -> Result<(), HostError>;
 }
 
 /// `heldImages(ctx)` (held.ts:9).
@@ -51,9 +56,18 @@ impl HeldImages {
             if parts.place.unwrap_or_else(|| self.ctx.wired()) != place_id {
                 continue;
             }
-            let Some(raw) = store.get(GOLDENS, &key).await? else { continue };
-            let Ok(manifest) = serde_json::from_value::<GoldenManifest>(raw.clone()) else { continue };
-            copies.push(Copy { key, name: parts.name, raw, manifest });
+            let Some(raw) = store.get(GOLDENS, &key).await? else {
+                continue;
+            };
+            let Ok(manifest) = serde_json::from_value::<GoldenManifest>(raw.clone()) else {
+                continue;
+            };
+            copies.push(Copy {
+                key,
+                name: parts.name,
+                raw,
+                manifest,
+            });
         }
         Ok(copies)
     }
@@ -65,7 +79,12 @@ impl HeldImages {
             .copies_at(place_id)
             .await?
             .into_iter()
-            .flat_map(|c| c.manifest.versions.into_iter().map(|v| HeldImage { id: v.snapshot_id, template_id: v.template_id }))
+            .flat_map(|c| {
+                c.manifest.versions.into_iter().map(|v| HeldImage {
+                    id: v.snapshot_id,
+                    template_id: v.template_id,
+                })
+            })
             .collect();
         Ok(held)
     }
@@ -74,7 +93,11 @@ impl HeldImages {
     pub async fn drop(&self, place_id: &str, id: &str) -> Result<(), HostError> {
         let store = self.ctx.store();
         for copy in self.copies_at(place_id).await? {
-            let (gone, kept): (Vec<GoldenVersion>, Vec<GoldenVersion>) = copy.manifest.versions.into_iter().partition(|v| v.snapshot_id == id);
+            let (gone, kept): (Vec<GoldenVersion>, Vec<GoldenVersion>) = copy
+                .manifest
+                .versions
+                .into_iter()
+                .partition(|v| v.snapshot_id == id);
             if gone.is_empty() {
                 continue;
             }
@@ -89,7 +112,9 @@ impl HeldImages {
                 store.put(GOLDENS, &copy.key, manifest).await?;
             }
             for v in gone {
-                self.ctx.drop_copy_recipe(place_id, &copy.name, v.version.0 as u32).await?;
+                self.ctx
+                    .drop_copy_recipe(place_id, &copy.name, v.version.0 as u32)
+                    .await?;
             }
         }
         Ok(())

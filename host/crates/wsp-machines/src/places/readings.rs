@@ -73,14 +73,23 @@ fn is_ok(said: &Map<String, Value>) -> bool {
 
 impl PlaceReadings {
     pub fn new(ctx: Rc<PlaceDoorContext>) -> Rc<PlaceReadings> {
-        Rc::new(PlaceReadings { ctx, state: RefCell::new(ReadingsState::default()) })
+        Rc::new(PlaceReadings {
+            ctx,
+            state: RefCell::new(ReadingsState::default()),
+        })
     }
 
     /// Hands `f` every sample the computer pushes until the release runs; held while the computer is away. Fails with
     /// the daemon's refusal of the watch, or for a place this host holds no computer for (readings.ts:133).
     pub async fn watch(self: &Rc<Self>, place_id: &str, f: Reader) -> Result<Release, HostError> {
         if !self.ctx.kept.borrow().contains_key(place_id) {
-            let names: Vec<String> = self.ctx.kept.borrow().values().map(|r| r.name.clone()).collect();
+            let names: Vec<String> = self
+                .ctx
+                .kept
+                .borrow()
+                .values()
+                .map(|r| r.name.clone())
+                .collect();
             return Err(HostError::new(no_such_place_refusal(place_id, &names)));
         }
         let w = self.watched_of(place_id);
@@ -90,15 +99,27 @@ impl PlaceReadings {
         let Some(on) = self.live_reach(place_id) else {
             return Ok(release);
         };
-        let standing = w.asked.borrow().clone().filter(|a| Rc::ptr_eq(&a.on, &on)).map(|a| a.answer);
+        let standing = w
+            .asked
+            .borrow()
+            .clone()
+            .filter(|a| Rc::ptr_eq(&a.on, &on))
+            .map(|a| a.answer);
         let answer = match standing {
             Some(answer) => answer,
             None => self.ask(&w, &on),
         };
         let said = answer.await;
-        if !is_ok(&said) && self.live_reach(place_id).is_some_and(|live| Rc::ptr_eq(&live, &on)) {
+        if !is_ok(&said)
+            && self
+                .live_reach(place_id)
+                .is_some_and(|live| Rc::ptr_eq(&live, &on))
+        {
             release();
-            let error = said.get("error").and_then(Value::as_str).unwrap_or("the computer would not send its readings");
+            let error = said
+                .get("error")
+                .and_then(Value::as_str)
+                .unwrap_or("the computer would not send its readings");
             return Err(HostError::new(error));
         }
         Ok(release)
@@ -112,7 +133,11 @@ impl PlaceReadings {
         let Some(on) = self.live_reach(place_id) else {
             return;
         };
-        if w.asked.borrow().as_ref().is_some_and(|a| Rc::ptr_eq(&a.on, &on)) {
+        if w.asked
+            .borrow()
+            .as_ref()
+            .is_some_and(|a| Rc::ptr_eq(&a.on, &on))
+        {
             return;
         }
         drop(self.ask(&w, &on));
@@ -135,7 +160,12 @@ impl PlaceReadings {
 
     fn watched_of(&self, place_id: &str) -> Rc<Watched> {
         let mut state = self.state.borrow_mut();
-        Rc::clone(state.watched.entry(place_id.to_string()).or_insert_with(|| Rc::new(Watched::default())))
+        Rc::clone(
+            state
+                .watched
+                .entry(place_id.to_string())
+                .or_insert_with(|| Rc::new(Watched::default())),
+        )
     }
 
     fn next_id(&self) -> u64 {
@@ -145,15 +175,27 @@ impl PlaceReadings {
     }
 
     fn live_reach(&self, place_id: &str) -> Option<Rc<dyn DaemonReach>> {
-        self.ctx.live.borrow().get(place_id).map(|live| Rc::clone(&live.reach))
+        self.ctx
+            .live
+            .borrow()
+            .get(place_id)
+            .map(|live| Rc::clone(&live.reach))
     }
 
     fn unwatches(&self, place_id: &str) -> bool {
-        self.ctx.kept.borrow().get(place_id).is_some_and(|record| record.report.daemon_version.get() >= SYS_UNWATCH_DAEMON_VERSION)
+        self.ctx
+            .kept
+            .borrow()
+            .get(place_id)
+            .is_some_and(|record| record.report.daemon_version.get() >= SYS_UNWATCH_DAEMON_VERSION)
     }
 
     fn still_sends(&self, on: &Rc<dyn DaemonReach>) -> bool {
-        self.state.borrow().still_sending.iter().any(|link| link.upgrade().is_some_and(|live| Rc::ptr_eq(&live, on)))
+        self.state
+            .borrow()
+            .still_sending
+            .iter()
+            .any(|link| link.upgrade().is_some_and(|live| Rc::ptr_eq(&live, on)))
     }
 
     /// One `sys.watch` on `on` for this place, shared by every road that asks while it stands (readings.ts:115).
@@ -182,7 +224,11 @@ impl PlaceReadings {
             tokio::task::spawn_local(answer.clone());
             answer
         };
-        *w.asked.borrow_mut() = Some(Asked { id, on: Rc::clone(on), answer: answer.clone() });
+        *w.asked.borrow_mut() = Some(Asked {
+            id,
+            on: Rc::clone(on),
+            answer: answer.clone(),
+        });
         answer
     }
 
@@ -201,7 +247,12 @@ impl PlaceReadings {
             let mut readers = w.readers.borrow_mut();
             (readers.shift_remove(&id).is_some(), readers.is_empty())
         };
-        let current = self.state.borrow().watched.get(place_id).is_some_and(|cur| Rc::ptr_eq(cur, w));
+        let current = self
+            .state
+            .borrow()
+            .watched
+            .get(place_id)
+            .is_some_and(|cur| Rc::ptr_eq(cur, w));
         if !removed || !empty || !current {
             return;
         }
@@ -209,7 +260,10 @@ impl PlaceReadings {
         let Some(asked) = w.asked.borrow().clone() else {
             return;
         };
-        if !self.live_reach(place_id).is_some_and(|live| Rc::ptr_eq(&live, &asked.on)) {
+        if !self
+            .live_reach(place_id)
+            .is_some_and(|live| Rc::ptr_eq(&live, &asked.on))
+        {
             return;
         }
         if self.unwatches(place_id) {
@@ -218,7 +272,10 @@ impl PlaceReadings {
                 let _ = on.request("sys.unwatch", Map::new()).await;
             });
         } else {
-            self.state.borrow_mut().still_sending.push(Rc::downgrade(&asked.on));
+            self.state
+                .borrow_mut()
+                .still_sending
+                .push(Rc::downgrade(&asked.on));
         }
     }
 }

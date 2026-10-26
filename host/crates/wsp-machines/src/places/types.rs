@@ -19,19 +19,21 @@ use wsp_store::keys::{PlaceKeyPair, Seal};
 use wsp_wire::types::agents_report::{AgentSignInState, AgentsSignInEvent, SignInLine};
 use wsp_wire::types::recipe_file::{RecipeFile, RecipeFileFoldersValue};
 use wsp_wire::views::place::{
-    PendingComputer, PlaceAddJob, PlaceAddStep, PlaceApplied, PlaceBack, PlaceDialled, PlaceProvisionRow, PlaceProvisionRowOutcome, PlaceRoad,
-    PlaceSetAlso, PlaceSetup, PlaceSetupStep, PlaceStageEvent, PlaceSync, PLACE_LOGIN_REFUSED_KIND,
+    PendingComputer, PlaceAddJob, PlaceAddStep, PlaceApplied, PlaceBack, PlaceDialled,
+    PlaceProvisionRow, PlaceProvisionRowOutcome, PlaceRoad, PlaceSetAlso, PlaceSetup,
+    PlaceSetupStep, PlaceStageEvent, PlaceSync, PLACE_LOGIN_REFUSED_KIND,
 };
 use wsp_wire::views::place_more::{
-    MacKind, PlaceDial, PlaceHolds, PlaceRemoved, PlaceRemovedTook, PlaceSettingWord, PlaceSettings, PlaceSettingsAsk,
-    PlaceUpdateReply, PlaceView,
+    MacKind, PlaceDial, PlaceHolds, PlaceRemoved, PlaceRemovedTook, PlaceSettingWord,
+    PlaceSettings, PlaceSettingsAsk, PlaceUpdateReply, PlaceView,
 };
 use wsp_wire::views::place_setup_words::PlaceEstimate;
 use wsp_wire::wire::capabilities::WorkspaceSize;
 use wsp_wire::wire::daemon_events::DaemonEvent;
 use wsp_wire::wire::machine_link::{BackendFacts, SysSample};
 use wsp_wire::wire::place_link::{
-    PlaceAuthRefusal, PlaceAuthReply, PlaceAuthRequest, PlaceJoinReply, PlaceJoinRequest, PlaceProveRequest, PlaceReport,
+    PlaceAuthRefusal, PlaceAuthReply, PlaceAuthRequest, PlaceJoinReply, PlaceJoinRequest,
+    PlaceProveRequest, PlaceReport,
 };
 use wsp_words::exit::{HostError, Kind};
 use wsp_words::words::base::marked;
@@ -104,7 +106,11 @@ pub struct PlaceRecordRoad {
 impl PlaceRecordRoad {
     /// The road as a client may read it: `ssh`, `from` and `back` alone, field by field (views.ts:297-299).
     pub fn view(&self) -> PlaceRoad {
-        PlaceRoad { ssh: self.ssh.clone(), from: self.from.clone(), back: self.back.clone() }
+        PlaceRoad {
+            ssh: self.ssh.clone(),
+            from: self.from.clone(),
+            back: self.back.clone(),
+        }
     }
 }
 
@@ -160,7 +166,10 @@ pub fn made_by_setup(held: &PlaceRecord, kind: MadeKind) -> Vec<String> {
         .keys()
         .filter(|key| {
             let id = format!("plugins/{}", key.0);
-            applied.rows.iter().any(|r| r.row.id == id && r.row.outcome == PlaceProvisionRowOutcome::Installed)
+            applied
+                .rows
+                .iter()
+                .any(|r| r.row.id == id && r.row.outcome == PlaceProvisionRowOutcome::Installed)
         })
         .map(|key| key.0.clone())
         .collect()
@@ -178,14 +187,22 @@ pub fn applied_view(applied: &HeldApplied) -> PlaceApplied {
 
 /// `projectsMade(held)` (types.ts:131): the ids of `row.project` over the applied rows that name one, in row order.
 pub fn projects_made(held: &PlaceRecord) -> IndexSet<String> {
-    held.applied.iter().flat_map(|applied| applied.rows.iter()).filter_map(|r| r.row.project.as_ref().map(|p| p.id.clone())).collect()
+    held.applied
+        .iter()
+        .flat_map(|applied| applied.rows.iter())
+        .filter_map(|r| r.row.project.as_ref().map(|p| p.id.clone()))
+        .collect()
 }
 
 /// `isPlaceRecord(v)` (types.ts:133-136): an object whose `id`, `publicKey` and `name` are strings. Nothing else is
 /// checked; `place_record_of` reads such a value as a record, `None` where it is not one or does not deserialize.
 pub fn is_place_record(v: &serde_json::Value) -> bool {
-    let Some(obj) = v.as_object() else { return false };
-    ["id", "publicKey", "name"].iter().all(|key| obj.get(*key).is_some_and(serde_json::Value::is_string))
+    let Some(obj) = v.as_object() else {
+        return false;
+    };
+    ["id", "publicKey", "name"]
+        .iter()
+        .all(|key| obj.get(*key).is_some_and(serde_json::Value::is_string))
 }
 
 /// The value a store document reads as, where `is_place_record` holds and the rest deserializes.
@@ -265,7 +282,12 @@ pub struct PlaceLeaveRequest {
 /// Written before anything of wsp's is sent (types.ts:358): the undo script, the login, the key ssh answered with.
 #[async_trait(?Send)]
 pub trait BeforeDeploy {
-    async fn before_deploy(&self, undo: String, ssh: String, host_key: Option<String>) -> PlaceResult<()>;
+    async fn before_deploy(
+        &self,
+        undo: String,
+        ssh: String,
+        host_key: Option<String>,
+    ) -> PlaceResult<()>;
 }
 
 /// What one install is told (types.ts:334-359). `code` is the whole join token (`join_token(code, fingerprint)`).
@@ -304,12 +326,17 @@ pub enum StageState {
 }
 
 /// `PlaceStaging` (types.ts:379): how far one install has got. `ms` is how long the step took, said as it ends.
-pub type PlaceStaging = Rc<dyn Fn(PlaceAddStep, StageState, Option<String>, Option<String>, Option<u64>)>;
+pub type PlaceStaging =
+    Rc<dyn Fn(PlaceAddStep, StageState, Option<String>, Option<String>, Option<u64>)>;
 
 /// `PlaceInstaller` (types.ts:380).
 #[async_trait(?Send)]
 pub trait PlaceInstaller {
-    async fn install(&self, req: PlaceInstallRequest, stage: PlaceStaging) -> PlaceResult<PlaceInstalled>;
+    async fn install(
+        &self,
+        req: PlaceInstallRequest,
+        stage: PlaceStaging,
+    ) -> PlaceResult<PlaceInstalled>;
 }
 
 /// `PlaceDialler` (types.ts:274): one dial over the login; throws the road's own sentence.
@@ -353,7 +380,13 @@ pub enum SudoVerb {
 /// was tried and taken; throws the add's own refusal (a host key changed included, `is_place_host_key_changed`).
 #[async_trait(?Send)]
 pub trait PlaceSudo {
-    async fn sudo_over(&self, login: &PlaceLogin, sudo_password: Option<&str>, verb: SudoVerb, name: &str) -> PlaceResult<String>;
+    async fn sudo_over(
+        &self,
+        login: &PlaceLogin,
+        sudo_password: Option<&str>,
+        verb: SudoVerb,
+        name: &str,
+    ) -> PlaceResult<String>;
 }
 
 /// `wiring.githubToken()` (types.ts:198).
@@ -379,7 +412,13 @@ pub struct RunOver {
 /// `wiring.runOver(login, script, timeoutMs, sudoPassword)` (types.ts:204).
 #[async_trait(?Send)]
 pub trait PlaceRunOver {
-    async fn run_over(&self, login: &PlaceLogin, script: &str, timeout_ms: u64, sudo_password: Option<&str>) -> PlaceResult<RunOver>;
+    async fn run_over(
+        &self,
+        login: &PlaceLogin,
+        script: &str,
+        timeout_ms: u64,
+        sudo_password: Option<&str>,
+    ) -> PlaceResult<RunOver>;
 }
 
 /// Where a forward's place file is read (types.ts:217): the home there, and the computer it must name.
@@ -401,7 +440,13 @@ pub type DoorAt = Rc<dyn Fn() -> std::pin::Pin<Box<dyn std::future::Future<Outpu
 /// `PlaceBackHolder` (types.ts:211-223).
 #[async_trait(?Send)]
 pub trait PlaceBackHolder {
-    async fn hold(&self, login: &PlaceLogin, back: PlaceBack, on: BackOn, moved: Option<Rc<dyn Fn(PlaceBack)>>) -> PlaceResult<PlaceBack>;
+    async fn hold(
+        &self,
+        login: &PlaceLogin,
+        back: PlaceBack,
+        on: BackOn,
+        moved: Option<Rc<dyn Fn(PlaceBack)>>,
+    ) -> PlaceResult<PlaceBack>;
     fn release(&self, login: &PlaceLogin);
     fn door(&self, at: DoorAt);
     fn close(&self);
@@ -433,13 +478,46 @@ pub struct PicksWeight {
 /// `has_undo` and `has_estimate` say whether they exist, since a missing one changes the road (manage.ts:816).
 #[async_trait(?Send)]
 pub trait PlaceProvisioner {
-    async fn setup(&self, picks: &RecipeFile, on: SetupOn, only: Option<&IndexSet<PlaceSetupStep>>) -> PlaceResult<ProvisionPlan>;
-    async fn floor(&self, machine: Rc<dyn Machine>, home: &str, stage: ProvisionStage) -> PlaceResult<Vec<PlaceProvisionRow>>;
-    async fn step(&self, machine: Rc<dyn Machine>, plan: &ProvisionPlan, step: &EngineStep, run: &SetupRun, stage: ProvisionStage, on: &ProvisionOn) -> PlaceResult<Vec<PlaceProvisionRow>>;
+    async fn setup(
+        &self,
+        picks: &RecipeFile,
+        on: SetupOn,
+        only: Option<&IndexSet<PlaceSetupStep>>,
+    ) -> PlaceResult<ProvisionPlan>;
+    async fn floor(
+        &self,
+        machine: Rc<dyn Machine>,
+        home: &str,
+        stage: ProvisionStage,
+    ) -> PlaceResult<Vec<PlaceProvisionRow>>;
+    async fn step(
+        &self,
+        machine: Rc<dyn Machine>,
+        plan: &ProvisionPlan,
+        step: &EngineStep,
+        run: &SetupRun,
+        stage: ProvisionStage,
+        on: &ProvisionOn,
+    ) -> PlaceResult<Vec<PlaceProvisionRow>>;
     fn has_undo(&self) -> bool;
-    async fn undo(&self, before: &RecipeFile, removed: &[RemovedRow], home: &str, stores: Option<&IndexMap<String, String>>) -> PlaceResult<Vec<PlaceUndo>>;
+    async fn undo(
+        &self,
+        before: &RecipeFile,
+        removed: &[RemovedRow],
+        home: &str,
+        stores: Option<&IndexMap<String, String>>,
+    ) -> PlaceResult<Vec<PlaceUndo>>;
     fn has_project_servers(&self) -> bool;
-    async fn project_servers(&self, machine: Rc<dyn Machine>, picks: &RecipeFile, key: &str, path: &str, stage: ProvisionStage, on: &ProvisionOn, recipe: Option<&str>) -> PlaceResult<Vec<PlaceProvisionRow>>;
+    async fn project_servers(
+        &self,
+        machine: Rc<dyn Machine>,
+        picks: &RecipeFile,
+        key: &str,
+        path: &str,
+        stage: ProvisionStage,
+        on: &ProvisionOn,
+        recipe: Option<&str>,
+    ) -> PlaceResult<Vec<PlaceProvisionRow>>;
     fn has_estimate(&self) -> bool;
     async fn estimate(&self, picks: &RecipeFile) -> PlaceResult<PicksWeight>;
 }
@@ -540,7 +618,12 @@ pub trait PlaceRecording {
     /// Absent: `None`.
     async fn spent_today(&self, places: &[PlaceView]) -> Option<PlaceResult<Vec<SpentToday>>>;
     /// Absent: `None`.
-    async fn sign_in(&self, place_id: &str, agent: &str, emit: SignInEmit) -> Option<PlaceResult<SignInHandle>>;
+    async fn sign_in(
+        &self,
+        place_id: &str,
+        agent: &str,
+        emit: SignInEmit,
+    ) -> Option<PlaceResult<SignInHandle>>;
     /// Absent: `None`.
     async fn mint_here(&self, agent: &str, emit: SignInEmit) -> Option<PlaceResult<SignInHandle>>;
     /// Absent: `None`.
@@ -550,11 +633,26 @@ pub trait PlaceRecording {
     /// Absent: `None`; present and holding no login: `Some(Ok(None))`.
     async fn login_here(&self, agent: &str) -> Option<PlaceResult<Option<Vec<u8>>>>;
     /// Absent: `None`.
-    async fn add_folder(&self, place_id: &str, key: &str, folder: &RecipeFileFoldersValue, mv: Option<&FolderMove>, stage: Option<Rc<dyn Fn(&str)>>) -> Option<PlaceResult<HeldRow>>;
+    async fn add_folder(
+        &self,
+        place_id: &str,
+        key: &str,
+        folder: &RecipeFileFoldersValue,
+        mv: Option<&FolderMove>,
+        stage: Option<Rc<dyn Fn(&str)>>,
+    ) -> Option<PlaceResult<HeldRow>>;
     /// Absent: `None`.
-    async fn folder_remote(&self, folder: &RecipeFileFoldersValue) -> Option<PlaceResult<Option<String>>>;
+    async fn folder_remote(
+        &self,
+        folder: &RecipeFileFoldersValue,
+    ) -> Option<PlaceResult<Option<String>>>;
     async fn remove_folder(&self, place_id: &str, project_id: &str) -> PlaceResult<()>;
-    async fn folder_look(&self, project_id: &str, was: &RecipeFileFoldersValue, now: &RecipeFileFoldersValue) -> PlaceResult<()>;
+    async fn folder_look(
+        &self,
+        project_id: &str,
+        was: &RecipeFileFoldersValue,
+        now: &RecipeFileFoldersValue,
+    ) -> PlaceResult<()>;
 }
 
 /// A recipe resolved against this computer now (types.ts:514-517).
@@ -653,8 +751,15 @@ pub struct JoinAnswer {
 
 /// What `auth` answers (types.ts:543).
 pub enum AuthAnswer {
-    Reply { reply: PlaceAuthReply, expect: Vec<u8>, seal: Seal },
-    Refusal { refusal: String, signed: PlaceAuthRefusal },
+    Reply {
+        reply: PlaceAuthReply,
+        expect: Vec<u8>,
+        seal: Seal,
+    },
+    Refusal {
+        refusal: String,
+        signed: PlaceAuthRefusal,
+    },
 }
 
 /// A device token a join's prove answered (types.ts:551).
@@ -667,8 +772,13 @@ pub struct ProvedDevice {
 /// What `prove` and the join's half of it answer (types.ts:551, views.ts:330).
 #[derive(Clone, Debug, PartialEq)]
 pub enum Proved {
-    Report { report: PlaceReport, device: Option<ProvedDevice> },
-    Refusal { refusal: String },
+    Report {
+        report: PlaceReport,
+        device: Option<ProvedDevice>,
+    },
+    Refusal {
+        refusal: String,
+    },
 }
 
 /// A computer the person joined as the threads in a folder run on (types.ts:576).
@@ -756,33 +866,81 @@ pub struct PlaceSetUp {
 /// The host's side of the place link (types.ts:531-725). Each method's contract is its TS doc comment there.
 #[async_trait(?Send)]
 pub trait PlaceDoor {
-    fn answer_challenge(&self, subject: &str, nonce: &str, ephemeral: Option<&str>) -> Option<PlaceChallenge>;
-    async fn join(&self, req: PlaceJoinRequest, from: &str, now: u64) -> PlaceResult<Option<JoinAnswer>>;
+    fn answer_challenge(
+        &self,
+        subject: &str,
+        nonce: &str,
+        ephemeral: Option<&str>,
+    ) -> Option<PlaceChallenge>;
+    async fn join(
+        &self,
+        req: PlaceJoinRequest,
+        from: &str,
+        now: u64,
+    ) -> PlaceResult<Option<JoinAnswer>>;
     async fn auth(&self, req: PlaceAuthRequest, now: u64) -> PlaceResult<AuthAnswer>;
     fn host_key(&self) -> String;
-    async fn prove(&self, place_id: &str, req: PlaceProveRequest, expect: &[u8], from: &str, now: u64) -> PlaceResult<Proved>;
-    async fn attach(&self, place_id: &str, socket: Rc<dyn LinkSocket>, report: PlaceReport, from: &str, now: u64, seal: Option<Seal>) -> PlaceResult<()>;
+    async fn prove(
+        &self,
+        place_id: &str,
+        req: PlaceProveRequest,
+        expect: &[u8],
+        from: &str,
+        now: u64,
+    ) -> PlaceResult<Proved>;
+    async fn attach(
+        &self,
+        place_id: &str,
+        socket: Rc<dyn LinkSocket>,
+        report: PlaceReport,
+        from: &str,
+        now: u64,
+        seal: Option<Seal>,
+    ) -> PlaceResult<()>;
     fn link(&self, place_id: &str) -> Option<Rc<dyn DaemonReach>>;
-    fn channel(&self, place_id: &str, on_event: Rc<dyn Fn(serde_json::Map<String, serde_json::Value>)>) -> Option<Rc<dyn DaemonChannel>>;
-    async fn watch_sys(&self, place_id: &str, f: Rc<dyn Fn(SysSample)>) -> PlaceResult<Box<dyn FnOnce()>>;
+    fn channel(
+        &self,
+        place_id: &str,
+        on_event: Rc<dyn Fn(serde_json::Map<String, serde_json::Value>)>,
+    ) -> Option<Rc<dyn DaemonChannel>>;
+    async fn watch_sys(
+        &self,
+        place_id: &str,
+        f: Rc<dyn Fn(SysSample)>,
+    ) -> PlaceResult<Box<dyn FnOnce()>>;
     async fn load(&self) -> PlaceResult<()>;
     fn backend_of(&self, place_id: &str) -> Option<std::sync::Arc<dyn MachineBackend>>;
     fn folder_computer(&self, place_id: &str) -> Option<FolderComputer>;
     fn joined(&self, place_id: &str) -> bool;
-    async fn forking_backend(&self, place_id: &str) -> PlaceResult<std::sync::Arc<dyn MachineBackend>>;
+    async fn forking_backend(
+        &self,
+        place_id: &str,
+    ) -> PlaceResult<std::sync::Arc<dyn MachineBackend>>;
     fn name_of(&self, place_id: &str) -> String;
     fn settings_at(&self, place_id: &str) -> PlaceSettings;
     /// `None` no row; `Some(None)` no limit.
     fn turn_limit_at(&self, place_id: &str) -> Option<Option<u64>>;
     fn threads_at(&self, place_id: &str) -> Option<u64>;
     fn machines_at(&self, place_id: &str) -> Option<u64>;
-    fn sign_ins_at(&self, place_id: &str, agents: Option<&[String]>) -> Option<IndexMap<String, AgentSignInState>>;
+    fn sign_ins_at(
+        &self,
+        place_id: &str,
+        agents: Option<&[String]>,
+    ) -> Option<IndexMap<String, AgentSignInState>>;
     fn github_from_vault(&self, place_id: &str) -> bool;
-    fn vault_at(&self, place_id: &str, vault: &IndexMap<String, String>) -> IndexMap<String, String>;
+    fn vault_at(
+        &self,
+        place_id: &str,
+        vault: &IndexMap<String, String>,
+    ) -> IndexMap<String, String>;
     async fn login_landed(&self, place_id: &str, agent: &str) -> PlaceResult<()>;
     async fn logins_again(&self, place_id: &str) -> PlaceResult<()>;
     async fn key_landed(&self, agent: &str) -> PlaceResult<()>;
-    async fn gh_there(&self, place_id: &str, stage: ProvisionStage) -> PlaceResult<Vec<PlaceProvisionRow>>;
+    async fn gh_there(
+        &self,
+        place_id: &str,
+        stage: ProvisionStage,
+    ) -> PlaceResult<Vec<PlaceProvisionRow>>;
     fn offer_of(&self, place_id: &str) -> Option<String>;
     async fn forward(&self, place_id: &str, place_port: u16, o: ForwardAsk) -> PlaceResult<u16>;
     fn pane_forwards(&self) -> Rc<PanePorts>;
@@ -793,11 +951,23 @@ pub trait PlaceDoor {
     async fn add(&self, req: AddAsk, now: u64) -> PlaceResult<PlaceAdded>;
     async fn set_up(&self, reference: &str, o: SetUpAsk) -> PlaceResult<PlaceSetUp>;
     async fn pending(&self) -> PlaceResult<Vec<PendingComputer>>;
-    async fn choose(&self, reference: &str, choices: RecipeFile, recipe: Option<String>) -> PlaceResult<PendingComputer>;
+    async fn choose(
+        &self,
+        reference: &str,
+        choices: RecipeFile,
+        recipe: Option<String>,
+    ) -> PlaceResult<PendingComputer>;
     async fn dial(&self, place_id: &str, now: u64) -> PlaceResult<PlaceDial>;
-    async fn set(&self, place_id: &str, set: PlaceSettingsAsk, reset: Vec<PlaceSettingWord>, also: PlaceSetAlso) -> PlaceResult<PlaceView>;
+    async fn set(
+        &self,
+        place_id: &str,
+        set: PlaceSettingsAsk,
+        reset: Vec<PlaceSettingWord>,
+        also: PlaceSetAlso,
+    ) -> PlaceResult<PlaceView>;
     async fn road(&self, place_id: &str) -> PlaceResult<u16>;
-    async fn exec(&self, place_id: &str, cmd: &str, opts: PlaceExecOpts) -> PlaceResult<ExecResult>;
+    async fn exec(&self, place_id: &str, cmd: &str, opts: PlaceExecOpts)
+        -> PlaceResult<ExecResult>;
     async fn report_of(&self, place_id: &str) -> PlaceResult<Option<PlaceReport>>;
     async fn home_of(&self, place_id: &str) -> PlaceResult<Option<String>>;
     async fn list(&self, now: u64) -> PlaceResult<Vec<PlaceView>>;
@@ -811,7 +981,11 @@ pub trait PlaceDoor {
     async fn recipe_changed(&self, slug: &str, after_ms: u64) -> PlaceResult<Vec<String>>;
     async fn followers(&self) -> PlaceResult<IndexMap<String, Vec<String>>>;
     async fn skip(&self, place_id: &str, row: &str) -> PlaceResult<PlaceView>;
-    async fn setup_log(&self, place_id: &str, step: Option<PlaceSetupStep>) -> PlaceResult<Vec<String>>;
+    async fn setup_log(
+        &self,
+        place_id: &str,
+        step: Option<PlaceSetupStep>,
+    ) -> PlaceResult<Vec<String>>;
     async fn estimate(&self, reference: &str, choices: RecipeFile) -> PlaceResult<PlaceEstimate>;
     async fn unfollow(&self, slug: &str) -> PlaceResult<Vec<String>>;
     async fn picks_of(&self, place_id: &str) -> PlaceResult<Option<RecipeFile>>;
@@ -822,10 +996,12 @@ pub trait PlaceDoor {
 }
 
 /// The one refusal for a runtime served without places wired (types.ts:729).
-pub const NO_PLACE_DOOR: &str = "this runtime holds no places; the host that serves the app wires them";
+pub const NO_PLACE_DOOR: &str =
+    "this runtime holds no places; the host that serves the app wires them";
 
 /// The refusal an update gets on a runtime wired with no updater (types.ts:732).
-pub const NO_PLACE_UPDATER: &str = "this runtime carries no daemon to put on a computer; the host that serves the app wires one";
+pub const NO_PLACE_UPDATER: &str =
+    "this runtime carries no daemon to put on a computer; the host that serves the app wires one";
 
 /// `placeUpdateSlowLine(name, seconds)` (types.ts:736-737).
 pub fn place_update_slow_line(name: &str, seconds: u64) -> String {
@@ -841,7 +1017,9 @@ pub fn place_swept_over_ssh_line(name: &str) -> String {
 pub fn place_login_road_line(name: &str, at: &str, said: Option<&str>) -> String {
     match said {
         None => format!("{name} did not answer the login at {at}"),
-        Some(said) => format!("{name} ran the leave over the login at {at} and did not finish it ({said})"),
+        Some(said) => {
+            format!("{name} ran the leave over the login at {at} and did not finish it ({said})")
+        }
     }
 }
 
@@ -865,7 +1043,10 @@ pub const PLACE_PROVISIONING_MARK: &str = "placeProvisioning";
 
 /// `new PlaceHostKeyChangedError(message)` (types.ts:764): no kind.
 pub fn place_host_key_changed(message: &str) -> HostError {
-    HostError { marks: vec![PLACE_HOST_KEY_CHANGED_MARK.to_string()], ..HostError::new(message) }
+    HostError {
+        marks: vec![PLACE_HOST_KEY_CHANGED_MARK.to_string()],
+        ..HostError::new(message)
+    }
 }
 pub fn is_place_host_key_changed(e: &HostError) -> bool {
     marked(e, PLACE_HOST_KEY_CHANGED_MARK)
@@ -873,7 +1054,10 @@ pub fn is_place_host_key_changed(e: &HostError) -> bool {
 
 /// `new PlaceLoginRefusedError(message)` (types.ts:769-771): kind `PLACE_LOGIN_REFUSED_KIND`.
 pub fn place_login_refused(message: &str) -> HostError {
-    HostError { marks: vec![PLACE_LOGIN_REFUSED_MARK.to_string()], ..HostError::with_kind(message, Kind::parse(PLACE_LOGIN_REFUSED_KIND)) }
+    HostError {
+        marks: vec![PLACE_LOGIN_REFUSED_MARK.to_string()],
+        ..HostError::with_kind(message, Kind::parse(PLACE_LOGIN_REFUSED_KIND))
+    }
 }
 pub fn is_place_login_refused(e: &HostError) -> bool {
     marked(e, PLACE_LOGIN_REFUSED_MARK)
@@ -881,7 +1065,10 @@ pub fn is_place_login_refused(e: &HostError) -> bool {
 
 /// `new PlaceForksNowhereError(message)` (types.ts:775): no kind.
 pub fn place_forks_nowhere(message: &str) -> HostError {
-    HostError { marks: vec![PLACE_FORKS_NOWHERE_MARK.to_string()], ..HostError::new(message) }
+    HostError {
+        marks: vec![PLACE_FORKS_NOWHERE_MARK.to_string()],
+        ..HostError::new(message)
+    }
 }
 pub fn is_place_forks_nowhere(e: &HostError) -> bool {
     marked(e, PLACE_FORKS_NOWHERE_MARK)
@@ -889,7 +1076,10 @@ pub fn is_place_forks_nowhere(e: &HostError) -> bool {
 
 /// `new PlaceAddTakenBackError(message)` (types.ts:779): no kind.
 pub fn place_add_taken_back(message: &str) -> HostError {
-    HostError { marks: vec![PLACE_ADD_TAKEN_BACK_MARK.to_string()], ..HostError::new(message) }
+    HostError {
+        marks: vec![PLACE_ADD_TAKEN_BACK_MARK.to_string()],
+        ..HostError::new(message)
+    }
 }
 pub fn is_place_add_taken_back(e: &HostError) -> bool {
     marked(e, PLACE_ADD_TAKEN_BACK_MARK)
@@ -897,7 +1087,10 @@ pub fn is_place_add_taken_back(e: &HostError) -> bool {
 
 /// `new PlaceProvisioningError(message)` (types.ts:785-787): kind conflict.
 pub fn place_provisioning(message: &str) -> HostError {
-    HostError { marks: vec![PLACE_PROVISIONING_MARK.to_string()], ..HostError::with_kind(message, Kind::Conflict) }
+    HostError {
+        marks: vec![PLACE_PROVISIONING_MARK.to_string()],
+        ..HostError::with_kind(message, Kind::Conflict)
+    }
 }
 pub fn is_place_provisioning(e: &HostError) -> bool {
     marked(e, PLACE_PROVISIONING_MARK)

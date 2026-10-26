@@ -8,13 +8,20 @@ use futures::FutureExt;
 use futures::StreamExt;
 use indexmap::IndexMap;
 
-use wsp_adapters::port::{ExecFailure, ExecFailureKind, ExecOptions, ExecStream, ExecStreamFactory, SharedFuture, WriteOutcome};
+use wsp_adapters::port::{
+    ExecFailure, ExecFailureKind, ExecOptions, ExecStream, ExecStreamFactory, SharedFuture,
+    WriteOutcome,
+};
 use wsp_catalog::roads::GUEST_HOME;
 use wsp_core::daemon_roots::write_daemon_roots_script;
 use wsp_core::machine_exec::machine_exec_stream;
-use wsp_core::types::internal::{EndThread, FolderAdmit, ImportLanded, ImportReport, KindModule, PortRoute, ServerValuesRoad};
+use wsp_core::types::internal::{
+    EndThread, FolderAdmit, ImportLanded, ImportReport, KindModule, PortRoute, ServerValuesRoad,
+};
 use wsp_core::types::pending::{MachineExecOptions, ScopedRoad, TurnWaiting};
-use wsp_core::types::wiring::{LiveWorkspace, Local, ProjectImportOptions, StageReport, WorkspaceRecord};
+use wsp_core::types::wiring::{
+    LiveWorkspace, Local, ProjectImportOptions, StageReport, WorkspaceRecord,
+};
 use wsp_engine::exec_detached::put::{GUEST_TMP, INLINE_EXEC_MS};
 use wsp_engine::machine::{Machine, MachineBackend, Size};
 use wsp_engine::place_machine::place_folder_backend;
@@ -54,7 +61,8 @@ pub struct PlaceKind {
 
 /// The area a kind module answers for. The area holds its modules, so it is alive while any of them is asked.
 fn area_of(area: &Weak<KindsArea>) -> Rc<KindsArea> {
-    area.upgrade().expect("a kind module answers for the area that holds it")
+    area.upgrade()
+        .expect("a kind module answers for the area that holds it")
 }
 
 /// A read whose answer the module's signature cannot carry: its words go to the host's warn and the answer is none.
@@ -69,18 +77,27 @@ fn failing<T: 'static>(err: HostError) -> Local<'static, T> {
 
 /// The words of a record that stands on no computer (kinds.ts `placeOf`).
 fn no_computer(name: &str) -> HostError {
-    HostError::new(format!("{name} stands on no computer, which this host no longer holds"))
+    HostError::new(format!(
+        "{name} stands on no computer, which this host no longer holds"
+    ))
 }
 
 /// The computer a place record stands on, read off the entry.
 fn place_of_entry(entry: &LiveWorkspace) -> Result<String, HostError> {
     let record = entry.record.borrow();
-    record.place.clone().ok_or_else(|| no_computer(&record.name))
+    record
+        .place
+        .clone()
+        .ok_or_else(|| no_computer(&record.name))
 }
 
 /// The wsp server a guest's agent is handed: `wsp mcp` on the machine's own PATH (agents-read.ts:19).
 fn guest_wsp_mcp() -> McpServerSpec {
-    McpServerSpec { command: "wsp".to_string(), args: vec!["mcp".to_string()], no_slate: None }
+    McpServerSpec {
+        command: "wsp".to_string(),
+        args: vec!["mcp".to_string()],
+        no_slate: None,
+    }
 }
 
 /// A launch that refuses at once with these words, the answer of an `execStream` the kind has no road for.
@@ -100,7 +117,10 @@ struct RefusedRun(String);
 
 impl RefusedRun {
     fn failure(&self) -> ExecFailure {
-        ExecFailure { kind: ExecFailureKind::Other, message: self.0.clone() }
+        ExecFailure {
+            kind: ExecFailureKind::Other,
+            message: self.0.clone(),
+        }
     }
 }
 
@@ -129,10 +149,18 @@ impl KindModule for CloudKind {
         if !area.ctx.has_place_door() {
             return Err(HostError::new(no_kind_line("place")));
         }
-        area.ctx.door_backend_of(place).ok_or_else(|| HostError::new(place_forks_nowhere_line(&area.ctx.door_name_of(place))))
+        area.ctx
+            .door_backend_of(place)
+            .ok_or_else(|| HostError::new(place_forks_nowhere_line(&area.ctx.door_name_of(place))))
     }
-    fn exec_stream(&self, entry: &LiveWorkspace, opts: Option<MachineExecOptions>, waiting: Option<TurnWaiting>) -> Arc<dyn ExecStreamFactory> {
-        let launch: Arc<dyn ExecStreamFactory> = machine_exec_stream(entry.machine.clone(), opts.unwrap_or_default(), waiting);
+    fn exec_stream(
+        &self,
+        entry: &LiveWorkspace,
+        opts: Option<MachineExecOptions>,
+        waiting: Option<TurnWaiting>,
+    ) -> Arc<dyn ExecStreamFactory> {
+        let launch: Arc<dyn ExecStreamFactory> =
+            machine_exec_stream(entry.machine.clone(), opts.unwrap_or_default(), waiting);
         with_gh_door(launch)
     }
     fn admit_folder(&self, _record: FolderAdmit) -> Option<Local<'static, ()>> {
@@ -148,7 +176,12 @@ impl KindModule for CloudKind {
     fn home_dir(&self, _record: &WorkspaceRecord) -> Option<String> {
         Some(GUEST_HOME.to_string())
     }
-    fn env(&self, entry: &LiveWorkspace, agent_id: Option<&str>, _home_of: &dyn Fn(&str) -> String) -> IndexMap<String, String> {
+    fn env(
+        &self,
+        entry: &LiveWorkspace,
+        agent_id: Option<&str>,
+        _home_of: &dyn Fn(&str) -> String,
+    ) -> IndexMap<String, String> {
         let area = area_of(&self.area);
         let record = entry.record.borrow().clone();
         area.cloud_env(&record, agent_id)
@@ -156,7 +189,12 @@ impl KindModule for CloudKind {
     fn login_stands(&self, entry: &LiveWorkspace, agent_id: &str) -> bool {
         area_of(&self.area).place_login_stands(entry, agent_id)
     }
-    fn import(&self, entry: &LiveWorkspace, o: ProjectImportOptions, report: ImportReport) -> Local<'static, ImportLanded> {
+    fn import(
+        &self,
+        entry: &LiveWorkspace,
+        o: ProjectImportOptions,
+        report: ImportReport,
+    ) -> Local<'static, ImportLanded> {
         let area = area_of(&self.area);
         let asked = area.ctx.copy_import(entry, o, report);
         Box::pin(async move { asked.await.map_err(AreaError::into_host) })
@@ -166,7 +204,12 @@ impl KindModule for CloudKind {
         let asked = area.write_roots(entry, dests, None);
         Box::pin(async move { asked.await.map_err(AreaError::into_host) })
     }
-    fn land_project(&self, entry: &LiveWorkspace, project: ProjectView, report: StageReport) -> Local<'static, ()> {
+    fn land_project(
+        &self,
+        entry: &LiveWorkspace,
+        project: ProjectView,
+        report: StageReport,
+    ) -> Local<'static, ()> {
         let area = area_of(&self.area);
         let asked = area.clone_project(entry, project, report);
         Box::pin(async move { asked.await.map_err(AreaError::into_host) })
@@ -177,13 +220,27 @@ impl KindModule for CloudKind {
         let project = area.ctx.project_held(&project_id);
         area.project_memory_key(agent_id, &project)
     }
-    fn end_thread(&self, _entry: &LiveWorkspace, _thread_id: &str, _o: EndThread) -> Option<Local<'static, Option<String>>> {
+    fn end_thread(
+        &self,
+        _entry: &LiveWorkspace,
+        _thread_id: &str,
+        _o: EndThread,
+    ) -> Option<Local<'static, Option<String>>> {
         None
     }
-    fn end_owed(&self, _entry: &LiveWorkspace, _thread_id: &str) -> Option<Local<'static, Option<Local<'static, ()>>>> {
+    fn end_owed(
+        &self,
+        _entry: &LiveWorkspace,
+        _thread_id: &str,
+    ) -> Option<Local<'static, Option<Local<'static, ()>>>> {
         None
     }
-    fn port_reach(&self, _entry: &LiveWorkspace, _port: u16, _standing: bool) -> Option<Local<'static, PortRoute>> {
+    fn port_reach(
+        &self,
+        _entry: &LiveWorkspace,
+        _port: u16,
+        _standing: bool,
+    ) -> Option<Local<'static, PortRoute>> {
         None
     }
     fn relayed(&self, _machine_id: Option<&str>) -> bool {
@@ -215,7 +272,10 @@ impl KindModule for CloudKind {
         let area = area_of(&self.area);
         if area.ctx.served_by_its_computer(entry) {
             let name = entry.record.borrow().name.clone();
-            return failing(HostError::new(place_serves_daemon_line(&name, &area.ctx.computer_of(entry))));
+            return failing(HostError::new(place_serves_daemon_line(
+                &name,
+                &area.ctx.computer_of(entry),
+            )));
         }
         let asked = area.cloud_road(entry);
         Box::pin(async move { asked.await.map_err(AreaError::into_host) })
@@ -249,9 +309,17 @@ impl KindModule for CloudKind {
 
 impl KindModule for LocalKind {
     fn backend(&self, _record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError> {
-        area_of(&self.area).ctx.local_backend().ok_or_else(|| HostError::new(no_kind_line("local")))
+        area_of(&self.area)
+            .ctx
+            .local_backend()
+            .ok_or_else(|| HostError::new(no_kind_line("local")))
     }
-    fn exec_stream(&self, _entry: &LiveWorkspace, _opts: Option<MachineExecOptions>, _waiting: Option<TurnWaiting>) -> Arc<dyn ExecStreamFactory> {
+    fn exec_stream(
+        &self,
+        _entry: &LiveWorkspace,
+        _opts: Option<MachineExecOptions>,
+        _waiting: Option<TurnWaiting>,
+    ) -> Arc<dyn ExecStreamFactory> {
         refused("a turn on this computer cannot start: the host has not handed the kinds area its local exec road".to_string())
     }
     fn admit_folder(&self, _record: FolderAdmit) -> Option<Local<'static, ()>> {
@@ -266,16 +334,30 @@ impl KindModule for LocalKind {
     fn home_dir(&self, _record: &WorkspaceRecord) -> Option<String> {
         Some(area_of(&self.area).ctx.local_home_dir())
     }
-    fn env(&self, _entry: &LiveWorkspace, _agent_id: Option<&str>, _home_of: &dyn Fn(&str) -> String) -> IndexMap<String, String> {
+    fn env(
+        &self,
+        _entry: &LiveWorkspace,
+        _agent_id: Option<&str>,
+        _home_of: &dyn Fn(&str) -> String,
+    ) -> IndexMap<String, String> {
         area_of(&self.area).ctx.local_env()
     }
     fn login_stands(&self, _entry: &LiveWorkspace, agent_id: &str) -> bool {
         let area = area_of(&self.area);
         area.shared_login_under(&area.ctx.local_home(agent_id), agent_id)
     }
-    fn import(&self, _entry: &LiveWorkspace, o: ProjectImportOptions, report: ImportReport) -> Local<'static, ImportLanded> {
+    fn import(
+        &self,
+        _entry: &LiveWorkspace,
+        o: ProjectImportOptions,
+        report: ImportReport,
+    ) -> Local<'static, ImportLanded> {
         let area = area_of(&self.area);
-        Box::pin(async move { area.register_import(&o, &report).await.map_err(AreaError::into_host) })
+        Box::pin(async move {
+            area.register_import(&o, &report)
+                .await
+                .map_err(AreaError::into_host)
+        })
     }
     fn roots(&self, entry: &LiveWorkspace, dests: &[String]) -> Local<'static, ()> {
         let area = area_of(&self.area);
@@ -283,14 +365,26 @@ impl KindModule for LocalKind {
         let asked = area.write_roots(entry, dests, roots_path.as_deref());
         Box::pin(async move { asked.await.map_err(AreaError::into_host) })
     }
-    fn land_project(&self, _entry: &LiveWorkspace, _project: ProjectView, _report: StageReport) -> Local<'static, ()> {
+    fn land_project(
+        &self,
+        _entry: &LiveWorkspace,
+        _project: ProjectView,
+        _report: StageReport,
+    ) -> Local<'static, ()> {
         Box::pin(async { Ok(()) })
     }
     fn memory_key(&self, entry: &LiveWorkspace, agent_id: &str) -> Option<String> {
         let area = area_of(&self.area);
         let (project_id, made_tree) = {
             let record = entry.record.borrow();
-            (record.project.clone(), record.worktree.as_ref().filter(|tree| tree.made && tree.gone.is_none()).map(|tree| tree.path.clone()))
+            (
+                record.project.clone(),
+                record
+                    .worktree
+                    .as_ref()
+                    .filter(|tree| tree.made && tree.gone.is_none())
+                    .map(|tree| tree.path.clone()),
+            )
         };
         let project = area.ctx.project_held(&project_id);
         if let Some(path) = made_tree {
@@ -301,13 +395,27 @@ impl KindModule for LocalKind {
             _ => area.project_memory_key(agent_id, &project),
         }
     }
-    fn end_thread(&self, _entry: &LiveWorkspace, _thread_id: &str, _o: EndThread) -> Option<Local<'static, Option<String>>> {
+    fn end_thread(
+        &self,
+        _entry: &LiveWorkspace,
+        _thread_id: &str,
+        _o: EndThread,
+    ) -> Option<Local<'static, Option<String>>> {
         None
     }
-    fn end_owed(&self, _entry: &LiveWorkspace, _thread_id: &str) -> Option<Local<'static, Option<Local<'static, ()>>>> {
+    fn end_owed(
+        &self,
+        _entry: &LiveWorkspace,
+        _thread_id: &str,
+    ) -> Option<Local<'static, Option<Local<'static, ()>>>> {
         None
     }
-    fn port_reach(&self, _entry: &LiveWorkspace, _port: u16, _standing: bool) -> Option<Local<'static, PortRoute>> {
+    fn port_reach(
+        &self,
+        _entry: &LiveWorkspace,
+        _port: u16,
+        _standing: bool,
+    ) -> Option<Local<'static, PortRoute>> {
         None
     }
     fn relayed(&self, _machine_id: Option<&str>) -> bool {
@@ -360,7 +468,11 @@ impl KindModule for LocalKind {
         })
     }
     fn restart_daemon(&self, _entry: &LiveWorkspace) -> Option<Local<'static, ()>> {
-        area_of(&self.area).ctx.has_local_restart().then(|| failing(HostError::new("this host cannot restart its own daemon from here yet")))
+        area_of(&self.area).ctx.has_local_restart().then(|| {
+            failing(HostError::new(
+                "this host cannot restart its own daemon from here yet",
+            ))
+        })
     }
     fn deploy_daemon(&self, _entry: &LiveWorkspace) -> Option<Local<'static, Option<String>>> {
         None
@@ -372,12 +484,21 @@ impl KindModule for PlaceKind {
         let area = area_of(&self.area);
         let at = area.place_of(record)?;
         let machine = at.machine.clone();
-        let shape = Size { cpu: f64::from(at.cpu), mem_mb: at.mem_mb as f64 };
+        let shape = Size {
+            cpu: f64::from(at.cpu),
+            mem_mb: at.mem_mb as f64,
+        };
         #[allow(clippy::arc_with_non_send_sync)]
-        let machine_of: Arc<dyn Fn() -> Arc<dyn Machine>> = Arc::new(move || -> Arc<dyn Machine> { machine.clone() });
+        let machine_of: Arc<dyn Fn() -> Arc<dyn Machine>> =
+            Arc::new(move || -> Arc<dyn Machine> { machine.clone() });
         Ok(place_folder_backend(machine_of, shape))
     }
-    fn exec_stream(&self, entry: &LiveWorkspace, opts: Option<MachineExecOptions>, waiting: Option<TurnWaiting>) -> Arc<dyn ExecStreamFactory> {
+    fn exec_stream(
+        &self,
+        entry: &LiveWorkspace,
+        opts: Option<MachineExecOptions>,
+        waiting: Option<TurnWaiting>,
+    ) -> Arc<dyn ExecStreamFactory> {
         let area = area_of(&self.area);
         let record = entry.record.borrow().clone();
         let at = match area.place_of(&record) {
@@ -388,9 +509,13 @@ impl KindModule for PlaceKind {
         let mut o = opts.unwrap_or_default();
         o.run_dir.get_or_insert(paths.run_dir);
         if let Some(thread) = o.thread.clone() {
-            o.launch_on = Some(at.machine.in_cgroup(&thread_cgroup(&thread), Some(&paths.guest_bin)));
+            o.launch_on = Some(
+                at.machine
+                    .in_cgroup(&thread_cgroup(&thread), Some(&paths.guest_bin)),
+            );
         }
-        let launch: Arc<dyn ExecStreamFactory> = machine_exec_stream(entry.machine.clone(), o, waiting);
+        let launch: Arc<dyn ExecStreamFactory> =
+            machine_exec_stream(entry.machine.clone(), o, waiting);
         launch
     }
     fn admit_folder(&self, record: FolderAdmit) -> Option<Local<'static, ()>> {
@@ -401,9 +526,15 @@ impl KindModule for PlaceKind {
         let name = area.ctx.door_name_of(&place);
         let ctx = Rc::clone(&area.ctx);
         Some(Box::pin(async move {
-            let user = ctx.door_login_user(&place).await.map_err(AreaError::into_host)?;
+            let user = ctx
+                .door_login_user(&place)
+                .await
+                .map_err(AreaError::into_host)?;
             if user != "root" {
-                return Err(HostError::with_kind(place_login_not_root_line(&name, &user), Kind::Usage));
+                return Err(HostError::with_kind(
+                    place_login_not_root_line(&name, &user),
+                    Kind::Usage,
+                ));
             }
             Ok(())
         }))
@@ -414,21 +545,33 @@ impl KindModule for PlaceKind {
     fn home(&self, entry: &LiveWorkspace, agent_id: &str) -> String {
         let area = area_of(&self.area);
         let record = entry.record.borrow().clone();
-        let answer = area.place_of(&record).and_then(|at| area.place_agent_home(record.place.as_deref(), &at.home, agent_id));
+        let answer = area
+            .place_of(&record)
+            .and_then(|at| area.place_agent_home(record.place.as_deref(), &at.home, agent_id));
         warned(&area, answer).unwrap_or_default()
     }
     fn home_dir(&self, record: &WorkspaceRecord) -> Option<String> {
         let area = area_of(&self.area);
         warned(&area, area.place_of(record).map(|at| at.home))
     }
-    fn env(&self, entry: &LiveWorkspace, _agent_id: Option<&str>, home_of: &dyn Fn(&str) -> String) -> IndexMap<String, String> {
+    fn env(
+        &self,
+        entry: &LiveWorkspace,
+        _agent_id: Option<&str>,
+        home_of: &dyn Fn(&str) -> String,
+    ) -> IndexMap<String, String> {
         let area = area_of(&self.area);
         warned(&area, area.place_env(entry, home_of)).unwrap_or_default()
     }
     fn login_stands(&self, entry: &LiveWorkspace, agent_id: &str) -> bool {
         area_of(&self.area).place_login_stands(entry, agent_id)
     }
-    fn import(&self, entry: &LiveWorkspace, _o: ProjectImportOptions, _report: ImportReport) -> Local<'static, ImportLanded> {
+    fn import(
+        &self,
+        entry: &LiveWorkspace,
+        _o: ProjectImportOptions,
+        _report: ImportReport,
+    ) -> Local<'static, ImportLanded> {
         let area = area_of(&self.area);
         let computer = area.ctx.computer_of(entry);
         let name = entry.record.borrow().name.clone();
@@ -448,18 +591,32 @@ impl KindModule for PlaceKind {
             return failing(no_computer(&record.name));
         };
         let script = write_daemon_roots_script(dests, Some(&roots_path_in(&at.home)));
-        let last = dests.last().cloned().unwrap_or_else(|| "undefined".to_string());
+        let last = dests
+            .last()
+            .cloned()
+            .unwrap_or_else(|| "undefined".to_string());
         let ctx = Rc::clone(&area.ctx);
         Box::pin(async move {
-            let wrote = ctx.door_exec(&place, &script, INLINE_EXEC_MS).await.map_err(AreaError::into_host)?;
+            let wrote = ctx
+                .door_exec(&place, &script, INLINE_EXEC_MS)
+                .await
+                .map_err(AreaError::into_host)?;
             if wrote.exit_code != JsInt::from(0) {
                 let name = ctx.door_name_of(&place);
-                return Err(HostError::new(format!("could not make {last} browsable on {name}: {}", tail(&wrote.stderr, 200))));
+                return Err(HostError::new(format!(
+                    "could not make {last} browsable on {name}: {}",
+                    tail(&wrote.stderr, 200)
+                )));
             }
             Ok(())
         })
     }
-    fn land_project(&self, _entry: &LiveWorkspace, _project: ProjectView, _report: StageReport) -> Local<'static, ()> {
+    fn land_project(
+        &self,
+        _entry: &LiveWorkspace,
+        _project: ProjectView,
+        _report: StageReport,
+    ) -> Local<'static, ()> {
         Box::pin(async { Ok(()) })
     }
     fn memory_key(&self, entry: &LiveWorkspace, agent_id: &str) -> Option<String> {
@@ -468,17 +625,12 @@ impl KindModule for PlaceKind {
         let project = area.ctx.project_held(&project_id);
         area.project_memory_key(agent_id, &project)
     }
-    fn end_thread(&self, entry: &LiveWorkspace, thread_id: &str, o: EndThread) -> Option<Local<'static, Option<String>>> {
-        let area = area_of(&self.area);
-        let place = match place_of_entry(entry) {
-            Ok(place) => place,
-            Err(err) => return Some(failing(err)),
-        };
-        let ctx = Rc::clone(&area.ctx);
-        let thread = thread_id.to_string();
-        Some(Box::pin(async move { ctx.end_thread(&place, &thread, o).await.map_err(AreaError::into_host) }))
-    }
-    fn end_owed(&self, entry: &LiveWorkspace, thread_id: &str) -> Option<Local<'static, Option<Local<'static, ()>>>> {
+    fn end_thread(
+        &self,
+        entry: &LiveWorkspace,
+        thread_id: &str,
+        o: EndThread,
+    ) -> Option<Local<'static, Option<String>>> {
         let area = area_of(&self.area);
         let place = match place_of_entry(entry) {
             Ok(place) => place,
@@ -487,7 +639,29 @@ impl KindModule for PlaceKind {
         let ctx = Rc::clone(&area.ctx);
         let thread = thread_id.to_string();
         Some(Box::pin(async move {
-            let Some(owed) = ctx.end_owed(&place, &thread).await.map_err(AreaError::into_host)? else {
+            ctx.end_thread(&place, &thread, o)
+                .await
+                .map_err(AreaError::into_host)
+        }))
+    }
+    fn end_owed(
+        &self,
+        entry: &LiveWorkspace,
+        thread_id: &str,
+    ) -> Option<Local<'static, Option<Local<'static, ()>>>> {
+        let area = area_of(&self.area);
+        let place = match place_of_entry(entry) {
+            Ok(place) => place,
+            Err(err) => return Some(failing(err)),
+        };
+        let ctx = Rc::clone(&area.ctx);
+        let thread = thread_id.to_string();
+        Some(Box::pin(async move {
+            let Some(owed) = ctx
+                .end_owed(&place, &thread)
+                .await
+                .map_err(AreaError::into_host)?
+            else {
                 return Ok(None);
             };
             let paid: Local<'static, ()> = Box::pin(async move {
@@ -497,7 +671,12 @@ impl KindModule for PlaceKind {
             Ok(Some(paid))
         }))
     }
-    fn port_reach(&self, entry: &LiveWorkspace, port: u16, standing: bool) -> Option<Local<'static, PortRoute>> {
+    fn port_reach(
+        &self,
+        entry: &LiveWorkspace,
+        port: u16,
+        standing: bool,
+    ) -> Option<Local<'static, PortRoute>> {
         let area = area_of(&self.area);
         let place = match place_of_entry(entry) {
             Ok(place) => place,
@@ -509,8 +688,14 @@ impl KindModule for PlaceKind {
         };
         let ctx = Rc::clone(&area.ctx);
         Some(Box::pin(async move {
-            let local_port = ctx.door_forward(&place, port, Some(pane), standing).await.map_err(AreaError::into_host)?;
-            Ok(PortRoute { url: format!("http://localhost:{local_port}/"), expires_at: JsNumber(ctx.now() + PANE_HOLD_MS as f64) })
+            let local_port = ctx
+                .door_forward(&place, port, Some(pane), standing)
+                .await
+                .map_err(AreaError::into_host)?;
+            Ok(PortRoute {
+                url: format!("http://localhost:{local_port}/"),
+                expires_at: JsNumber(ctx.now() + PANE_HOLD_MS as f64),
+            })
         }))
     }
     fn relayed(&self, _machine_id: Option<&str>) -> bool {
@@ -519,7 +704,10 @@ impl KindModule for PlaceKind {
     fn wsp_mcp(&self, entry: &LiveWorkspace) -> Option<McpServerSpec> {
         let area = area_of(&self.area);
         let place = place_of_entry(entry).ok()?;
-        let tools = area.ctx.door_folder_computer(&place).is_some_and(|at| at.tools);
+        let tools = area
+            .ctx
+            .door_folder_computer(&place)
+            .is_some_and(|at| at.tools);
         tools.then(guest_wsp_mcp)
     }
     fn turn_reach(&self, _entry: &LiveWorkspace) -> Option<Option<String>> {
@@ -543,12 +731,20 @@ impl KindModule for PlaceKind {
     fn daemon_road(&self, entry: &LiveWorkspace) -> Local<'static, DaemonReachView> {
         let area = area_of(&self.area);
         let name = entry.record.borrow().name.clone();
-        failing(HostError::new(place_serves_daemon_line(&name, &area.ctx.computer_of(entry))))
+        failing(HostError::new(place_serves_daemon_line(
+            &name,
+            &area.ctx.computer_of(entry),
+        )))
     }
     fn scratch(&self, entry: &LiveWorkspace) -> String {
         let area = area_of(&self.area);
         let record = entry.record.borrow().clone();
-        warned(&area, area.place_of(&record).map(|at| place_daemon_paths(&at.home).put_dir)).unwrap_or_default()
+        warned(
+            &area,
+            area.place_of(&record)
+                .map(|at| place_daemon_paths(&at.home).put_dir),
+        )
+        .unwrap_or_default()
     }
     fn dropped(&self, _entry: &LiveWorkspace) -> Local<'static, ()> {
         Box::pin(async { Ok(()) })

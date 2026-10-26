@@ -25,17 +25,22 @@ use wsp_engine::errors::{EngineError, Result as EngineResult};
 use wsp_engine::link_backend::{LinkAsk, MachineLink};
 use wsp_wire::types::recipe_file::{RecipeFile, NO_RECIPE};
 use wsp_wire::views::place::{
-    PlaceSetup, PlaceSetupEvent, PlaceSetupState, PlaceSetupStep, PlaceSync, PlaceSyncEvent, PlaceSyncState, PlaceWait, RecipesChangedEvent,
-    GITHUB_ROW, SETUP_STEP_WORDS,
+    PlaceSetup, PlaceSetupEvent, PlaceSetupState, PlaceSetupStep, PlaceSync, PlaceSyncEvent,
+    PlaceSyncState, PlaceWait, RecipesChangedEvent, GITHUB_ROW, SETUP_STEP_WORDS,
 };
 use wsp_words::exit::{usage_refusal, HostError, Kind};
 use wsp_words::js_date::iso_string;
-use wsp_words::views::place_setup_words::{no_setup_row_refusal, place_no_home_line, place_no_picks_line, place_provisioning_line, place_syncing_line};
+use wsp_words::views::place_setup_words::{
+    no_setup_row_refusal, place_no_home_line, place_no_picks_line, place_provisioning_line,
+    place_syncing_line,
+};
 use wsp_words::workspace_state::absent_computer;
 
 use super::context::PlaceDoorContext;
 use super::helpers::{first_line_of, Cancel, LandedRow, SyncJob};
-use super::types::{ForwardAsk, HeldApplied, HeldRow, PlaceRecord, PlaceResult, Resolved, SetupEvent};
+use super::types::{
+    ForwardAsk, HeldApplied, HeldRow, PlaceRecord, PlaceResult, Resolved, SetupEvent,
+};
 use run::{run_setup, RunAsk};
 
 /// What the setup area reads off the records area (setup.ts:115). Slice b's `PlaceRecordsArea` implements it; the
@@ -76,18 +81,34 @@ pub fn row_step(record: &PlaceRecord, row: &str) -> Option<PlaceSetupStep> {
     if let Some(step) = step_of_word(row) {
         return Some(step);
     }
-    let held = record.applied.as_ref().and_then(|a| a.rows.iter().find(|r| r.row.id == row)).and_then(|r| r.row.step);
+    let held = record
+        .applied
+        .as_ref()
+        .and_then(|a| a.rows.iter().find(|r| r.row.id == row))
+        .and_then(|r| r.row.step);
     if held.is_some() {
         return held;
     }
-    if !record.setup.as_ref().is_some_and(|s| s.waiting.iter().any(|w| w.row == row)) {
+    if !record
+        .setup
+        .as_ref()
+        .is_some_and(|s| s.waiting.iter().any(|w| w.row == row))
+    {
         return None;
     }
-    Some(if row == GITHUB_ROW { PlaceSetupStep::Github } else { PlaceSetupStep::Signins })
+    Some(if row == GITHUB_ROW {
+        PlaceSetupStep::Github
+    } else {
+        PlaceSetupStep::Signins
+    })
 }
 
 /// Whether a run signs an agent in again (setup.ts:105).
-pub fn signs_in_again(only: Option<&OnlyRow>, agent: &str, rows: &[wsp_wire::views::place::PlaceProvisionRow]) -> bool {
+pub fn signs_in_again(
+    only: Option<&OnlyRow>,
+    agent: &str,
+    rows: &[wsp_wire::views::place::PlaceProvisionRow],
+) -> bool {
     let Some(only) = only else { return true };
     if only.row == "signins" {
         return true;
@@ -98,7 +119,13 @@ pub fn signs_in_again(only: Option<&OnlyRow>, agent: &str, rows: &[wsp_wire::vie
     let id = wsp_wire::views::place::sign_in_row_id(agent);
     match rows.iter().find(|r| r.id == id) {
         None => true,
-        Some(row) => row.note.as_deref() == Some(wsp_words::views::place_setup_words::waits_for_install_line(&row.label).as_str()),
+        Some(row) => {
+            row.note.as_deref()
+                == Some(
+                    wsp_words::views::place_setup_words::waits_for_install_line(&row.label)
+                        .as_str(),
+                )
+        }
     }
 }
 
@@ -232,7 +259,12 @@ pub fn host_of(e: &EngineError) -> HostError {
 
 /// `bounded` over an engine road: its answer, or after `ms` on `clock` the error `"{what} was not answered in
 /// {round(ms / 1000)}s"`; the timer is cancelled once the road settles (helpers.ts:56).
-async fn bounded_engine<T>(clock: &dyn Clock, work: impl Future<Output = EngineResult<T>>, ms: u64, what: &str) -> EngineResult<T> {
+async fn bounded_engine<T>(
+    clock: &dyn Clock,
+    work: impl Future<Output = EngineResult<T>>,
+    ms: u64,
+    what: &str,
+) -> EngineResult<T> {
     let (fire, fired) = futures::channel::oneshot::channel::<()>();
     let cancel = clock.schedule(
         Box::new(move || {
@@ -245,7 +277,10 @@ async fn bounded_engine<T>(clock: &dyn Clock, work: impl Future<Output = EngineR
     cancel();
     match outcome {
         Either::Left((answer, _)) => answer,
-        Either::Right(_) => Err(EngineError::Other { message: format!("{what} was not answered in {}s", (ms + 500) / 1000), code: None }),
+        Either::Right(_) => Err(EngineError::Other {
+            message: format!("{what} was not answered in {}s", (ms + 500) / 1000),
+            code: None,
+        }),
     }
 }
 
@@ -284,7 +319,12 @@ impl PlaceSetupArea {
 
     /// Waits for that computer to dial in again, up to `until` on the clock (setup.ts:140).
     pub async fn dials_back(self: &Rc<Self>, place_id: &str, until: u64) -> bool {
-        let up = self.ctx.live.borrow().get(place_id).map(|l| l.socket.is_open());
+        let up = self
+            .ctx
+            .live
+            .borrow()
+            .get(place_id)
+            .map(|l| l.socket.is_open());
         if up == Some(true) {
             return false;
         }
@@ -299,9 +339,16 @@ impl PlaceSetupArea {
         let timer: Rc<RefCell<Option<Rc<dyn Fn()>>>> = Rc::new(RefCell::new(None));
         let place = place_id.to_string();
         let wake: Wake = {
-            let (sender, timer, place, weak) = (Rc::clone(&sender), Rc::clone(&timer), place.clone(), Rc::downgrade(self));
+            let (sender, timer, place, weak) = (
+                Rc::clone(&sender),
+                Rc::clone(&timer),
+                place.clone(),
+                Rc::downgrade(self),
+            );
             Rc::new(move |back: bool| {
-                let Some(tx) = sender.borrow_mut().take() else { return };
+                let Some(tx) = sender.borrow_mut().take() else {
+                    return;
+                };
                 if let Some(area) = weak.upgrade() {
                     let mut waiting = area.waiting.borrow_mut();
                     let empty = match waiting.get_mut(&place) {
@@ -322,9 +369,16 @@ impl PlaceSetupArea {
                 let _ = tx.send(back);
             })
         };
-        self.waiting.borrow_mut().entry(place.clone()).or_default().insert(id, Rc::clone(&wake));
+        self.waiting
+            .borrow_mut()
+            .entry(place.clone())
+            .or_default()
+            .insert(id, Rc::clone(&wake));
         let fire = Rc::clone(&wake);
-        let cancel = self.ctx.clock.schedule(Box::new(move || fire(false)), left as i64);
+        let cancel = self
+            .ctx
+            .clock
+            .schedule(Box::new(move || fire(false)), left as i64);
         *timer.borrow_mut() = Some(cancel);
         rx.await.unwrap_or(false)
     }
@@ -337,23 +391,40 @@ impl PlaceSetupArea {
 
     /// The one busy reading: the sentence a fork or a second setup there is refused with (setup.ts:185).
     pub fn setting_now(&self, record: &PlaceRecord) -> Option<String> {
-        let busy = self.setting.borrow().contains(&record.id) || record.setup.as_ref().is_some_and(|s| s.state == PlaceSetupState::Running);
+        let busy = self.setting.borrow().contains(&record.id)
+            || record
+                .setup
+                .as_ref()
+                .is_some_and(|s| s.state == PlaceSetupState::Running);
         if !busy {
             return None;
         }
-        let running = record.setup.as_ref().and_then(|s| s.steps.iter().find(|l| l.state == wsp_wire::views::place::PlaceSetupLineState::Running).map(|l| l.step));
+        let running = record.setup.as_ref().and_then(|s| {
+            s.steps
+                .iter()
+                .find(|l| l.state == wsp_wire::views::place::PlaceSetupLineState::Running)
+                .map(|l| l.step)
+        });
         Some(place_provisioning_line(&record.name, running.as_ref()))
     }
 
     /// One write of a setup's state onto the record as it stands (setup.ts:193).
     pub async fn write_setup(&self, place_id: &str, patch: SetupPatch) -> PlaceResult<()> {
-        self.records.change(place_id, Box::new(move |now: &PlaceRecord| Some(patch.apply(now)))).await.map(|_| ())
+        self.records
+            .change(
+                place_id,
+                Box::new(move |now: &PlaceRecord| Some(patch.apply(now))),
+            )
+            .await
+            .map(|_| ())
     }
 
     /// `recipes.changed { slug }` on the stream (setup.ts:202).
     pub fn recipes_moved(&self, slug: &str) {
         if let Some(on_setup) = &self.ctx.opts.on_setup {
-            on_setup(&SetupEvent::RecipesChanged(RecipesChangedEvent { slug: slug.to_string() }));
+            on_setup(&SetupEvent::RecipesChanged(RecipesChangedEvent {
+                slug: slug.to_string(),
+            }));
         }
     }
 
@@ -372,32 +443,71 @@ impl PlaceSetupArea {
     }
 
     /// Starts the setup on one computer from its picks (setup.ts:927).
-    pub async fn start_setup(self: &Rc<Self>, place_id: &str, add_id: &str, given: Option<GivenPicks>, row: Option<&str>) -> PlaceResult<Started> {
+    pub async fn start_setup(
+        self: &Rc<Self>,
+        place_id: &str,
+        add_id: &str,
+        given: Option<GivenPicks>,
+        row: Option<&str>,
+    ) -> PlaceResult<Started> {
         if self.ctx.wiring.provision.is_none() {
             return Ok(Started::default());
         }
-        let Some(record) = self.records.record_of(place_id).await? else { return Ok(Started::default()) };
-        let running = record.setup.as_ref().and_then(|s| s.steps.iter().find(|l| l.state == wsp_wire::views::place::PlaceSetupLineState::Running).map(|l| l.step));
+        let Some(record) = self.records.record_of(place_id).await? else {
+            return Ok(Started::default());
+        };
+        let running = record.setup.as_ref().and_then(|s| {
+            s.steps
+                .iter()
+                .find(|l| l.state == wsp_wire::views::place::PlaceSetupLineState::Running)
+                .map(|l| l.step)
+        });
         if self.setting.borrow().contains(place_id) {
-            return Err(HostError::with_kind(place_provisioning_line(&record.name, running.as_ref()), Kind::Conflict));
+            return Err(HostError::with_kind(
+                place_provisioning_line(&record.name, running.as_ref()),
+                Kind::Conflict,
+            ));
         }
         if self.syncing.borrow().contains(place_id) {
-            return Err(HostError::with_kind(place_syncing_line(&record.name), Kind::Conflict));
+            return Err(HostError::with_kind(
+                place_syncing_line(&record.name),
+                Kind::Conflict,
+            ));
         }
-        let Some(home) = record.report.login.get("HOME").cloned() else {
-            return Ok(Started { setup: None, said: Some(place_no_home_line(&record.name)) });
+        let Some(_home) = record.report.login.get("HOME").cloned() else {
+            return Ok(Started {
+                setup: None,
+                said: Some(place_no_home_line(&record.name)),
+            });
         };
-        let Some(picks) = given.as_ref().map(|g| g.picks.clone()).or_else(|| record.picks.clone()) else {
-            return Ok(Started { setup: None, said: Some(place_no_picks_line(&record.name)) });
+        let Some(picks) = given
+            .as_ref()
+            .map(|g| g.picks.clone())
+            .or_else(|| record.picks.clone())
+        else {
+            return Ok(Started {
+                setup: None,
+                said: Some(place_no_picks_line(&record.name)),
+            });
         };
         let ended = match &record.setup {
-            Some(setup) if row.is_some() && setup.state != PlaceSetupState::Running => Some(setup.clone()),
+            Some(setup) if row.is_some() && setup.state != PlaceSetupState::Running => {
+                Some(setup.clone())
+            }
             _ => None,
         };
         let only = match (&ended, row) {
             (Some(_), Some(row)) => match row_step(&record, row) {
-                Some(step) => Some(OnlyRow { step, row: row.to_string() }),
-                None => return Err(usage_refusal(&no_setup_row_refusal(row, &record.name), "Run again a row the computer's page shows.")),
+                Some(step) => Some(OnlyRow {
+                    step,
+                    row: row.to_string(),
+                }),
+                None => {
+                    return Err(usage_refusal(
+                        &no_setup_row_refusal(row, &record.name),
+                        "Run again a row the computer's page shows.",
+                    ))
+                }
             },
             _ => None,
         };
@@ -408,10 +518,19 @@ impl PlaceSetupArea {
             runs.insert(PlaceSetupStep::Context);
         }
         self.setting.borrow_mut().insert(place_id.to_string());
-        let facts = StartFacts { record: &record, given: given.as_ref(), ended, only, runs: &runs };
+        let facts = StartFacts {
+            record: &record,
+            given: given.as_ref(),
+            ended,
+            only,
+            runs: &runs,
+        };
         let started = self.begin_setup(place_id, add_id, picks, facts).await;
         match started {
-            Ok(setup) => Ok(Started { setup: Some(setup), said: None }),
+            Ok(setup) => Ok(Started {
+                setup: Some(setup),
+                said: None,
+            }),
             Err(e) => {
                 self.setting.borrow_mut().shift_remove(place_id);
                 Err(e)
@@ -420,19 +539,47 @@ impl PlaceSetupArea {
     }
 
     /// The part of a start after the computer is held: the setup written, then the run begun behind it.
-    async fn begin_setup(self: &Rc<Self>, place_id: &str, add_id: &str, picks: RecipeFile, facts: StartFacts<'_>) -> PlaceResult<PlaceSetup> {
-        let StartFacts { record, given, ended, only, runs } = facts;
+    async fn begin_setup(
+        self: &Rc<Self>,
+        place_id: &str,
+        add_id: &str,
+        picks: RecipeFile,
+        facts: StartFacts<'_>,
+    ) -> PlaceResult<PlaceSetup> {
+        let StartFacts {
+            record,
+            given,
+            ended,
+            only,
+            runs,
+        } = facts;
         let resuming = match &record.setup {
-            Some(setup) if given.is_none() && setup.state == PlaceSetupState::Running => Some(setup.clone()),
+            Some(setup) if given.is_none() && setup.state == PlaceSetupState::Running => {
+                Some(setup.clone())
+            }
             _ => None,
         };
         let kept: Vec<wsp_wire::views::place::PlaceSetupLine> = match (&ended, &resuming) {
-            (Some(ended), _) => ended.steps.iter().filter(|l| !runs.contains(&l.step)).cloned().collect(),
-            (None, Some(resumed)) => resumed.steps.iter().filter(|l| l.state == wsp_wire::views::place::PlaceSetupLineState::Done).cloned().collect(),
+            (Some(ended), _) => ended
+                .steps
+                .iter()
+                .filter(|l| !runs.contains(&l.step))
+                .cloned()
+                .collect(),
+            (None, Some(resumed)) => resumed
+                .steps
+                .iter()
+                .filter(|l| l.state == wsp_wire::views::place::PlaceSetupLineState::Done)
+                .cloned()
+                .collect(),
             (None, None) => Vec::new(),
         };
         let done: IndexSet<PlaceSetupStep> = kept.iter().map(|l| l.step).collect();
-        let applied_rows: Vec<wsp_wire::views::place::PlaceProvisionRow> = record.applied.as_ref().map(|a| a.rows.iter().map(|r| r.row.clone()).collect()).unwrap_or_default();
+        let applied_rows: Vec<wsp_wire::views::place::PlaceProvisionRow> = record
+            .applied
+            .as_ref()
+            .map(|a| a.rows.iter().map(|r| r.row.clone()).collect())
+            .unwrap_or_default();
         let rerun: Vec<PlaceWait> = record
             .setup
             .as_ref()
@@ -444,7 +591,10 @@ impl PlaceSetupArea {
                     return done.contains(&PlaceSetupStep::Github);
                 }
                 match wsp_wire::views::place::sign_in_of_row(&w.row) {
-                    Some(agent) => done.contains(&PlaceSetupStep::Signins) || !signs_in_again(only.as_ref(), &agent, &applied_rows),
+                    Some(agent) => {
+                        done.contains(&PlaceSetupStep::Signins)
+                            || !signs_in_again(only.as_ref(), &agent, &applied_rows)
+                    }
                     None => false,
                 }
             })
@@ -452,14 +602,24 @@ impl PlaceSetupArea {
         let setup = PlaceSetup {
             state: PlaceSetupState::Running,
             add_id: add_id.to_string(),
-            started_at: resuming.as_ref().map(|r| r.started_at.clone()).unwrap_or_else(|| iso_at(self.ctx.clock.now() as u64)),
+            started_at: resuming
+                .as_ref()
+                .map(|r| r.started_at.clone())
+                .unwrap_or_else(|| iso_at(self.ctx.clock.now() as u64)),
             finished_at: None,
             steps: kept,
             waiting: Vec::new(),
             said: None,
         };
-        let recipe = given.as_ref().map(|g| g.recipe.clone().unwrap_or_else(|| NO_RECIPE.to_string()));
-        let patch = SetupPatch { setup: Some(setup.clone()), picks: Some(picks.clone()), recipe, ..Default::default() };
+        let recipe = given
+            .as_ref()
+            .map(|g| g.recipe.clone().unwrap_or_else(|| NO_RECIPE.to_string()));
+        let patch = SetupPatch {
+            setup: Some(setup.clone()),
+            picks: Some(picks.clone()),
+            recipe,
+            ..Default::default()
+        };
         self.write_setup(place_id, patch).await?;
         let ask = RunAsk {
             place_id: place_id.to_string(),
@@ -489,29 +649,58 @@ impl PlaceSetupArea {
     pub async fn sync_of(&self, record: &PlaceRecord, given: Option<Resolved>) -> Option<SyncRead> {
         let slug = record.recipe.as_deref()?;
         let resolver = self.ctx.opts.recipes.as_ref().and_then(|f| f())?;
-        if slug == NO_RECIPE || record.picks.is_none() || record.setup.as_ref()?.state != PlaceSetupState::Done {
+        if slug == NO_RECIPE
+            || record.picks.is_none()
+            || record.setup.as_ref()?.state != PlaceSetupState::Done
+        {
             return None;
         }
         let resolved = match given {
             Some(given) => given,
             None => resolver.resolve(slug).await.ok()?,
         };
-        if record.applied.as_ref().is_some_and(|a| a.hash == resolved.hash) {
-            return Some(SyncRead { resolved, changes: Vec::new() });
+        if record
+            .applied
+            .as_ref()
+            .is_some_and(|a| a.hash == resolved.hash)
+        {
+            return Some(SyncRead {
+                resolved,
+                changes: Vec::new(),
+            });
         }
         let picks = record.picks.as_ref()?;
-        let changes = recipe_changes(Some(picks), record.applied.as_ref().and_then(|a| a.items.as_ref()), &resolved.file, &resolved.items);
+        let changes = recipe_changes(
+            Some(picks),
+            record.applied.as_ref().and_then(|a| a.items.as_ref()),
+            &resolved.file,
+            &resolved.items,
+        );
         Some(SyncRead { resolved, changes })
     }
 
     /// A computer out of step reads Behind with what moved; one in step drops the word (setup.ts:985).
     pub async fn mark_sync(&self, place_id: &str, sync: Option<PlaceSync>) -> PlaceResult<()> {
-        let Some(held) = self.records.record_of(place_id).await? else { return Ok(()) };
+        let Some(held) = self.records.record_of(place_id).await? else {
+            return Ok(());
+        };
         if held.sync.is_none() && sync.is_none() {
             return Ok(());
         }
-        self.write_setup(place_id, SetupPatch { sync: Some(sync.clone()), ..Default::default() }).await?;
-        self.sync_frame(PlaceSyncEvent { place_id: place_id.to_string(), sync, line: None, applied: None });
+        self.write_setup(
+            place_id,
+            SetupPatch {
+                sync: Some(sync.clone()),
+                ..Default::default()
+            },
+        )
+        .await?;
+        self.sync_frame(PlaceSyncEvent {
+            place_id: place_id.to_string(),
+            sync,
+            line: None,
+            applied: None,
+        });
         Ok(())
     }
 
@@ -536,15 +725,27 @@ impl PlaceSetupArea {
     }
 
     async fn sync_once(self: &Rc<Self>, place_id: &str) -> PlaceResult<()> {
-        let Some(record) = self.records.record_of(place_id).await? else { return Ok(()) };
+        let Some(record) = self.records.record_of(place_id).await? else {
+            return Ok(());
+        };
         if self.ctx.wiring.provision.is_none() {
             return Ok(());
         }
-        let Some(read) = self.sync_of(&record, None).await else { return Ok(()) };
+        let Some(read) = self.sync_of(&record, None).await else {
+            return Ok(());
+        };
         let SyncRead { resolved, changes } = read;
         if changes.is_empty() {
-            if record.applied.as_ref().is_some_and(|a| a.hash != resolved.hash) {
-                let (hash, items, file) = (resolved.hash.clone(), resolved.items.clone(), resolved.file.clone());
+            if record
+                .applied
+                .as_ref()
+                .is_some_and(|a| a.hash != resolved.hash)
+            {
+                let (hash, items, file) = (
+                    resolved.hash.clone(),
+                    resolved.items.clone(),
+                    resolved.file.clone(),
+                );
                 self.records
                     .change(
                         place_id,
@@ -566,15 +767,33 @@ impl PlaceSetupArea {
         let state = PlaceSync {
             state: PlaceSyncState::Running,
             changes: changes.iter().map(|c| c.key.clone()).collect(),
-            since: record.sync.as_ref().map(|s| s.since.clone()).unwrap_or_else(|| iso_at(self.ctx.clock.now() as u64)),
+            since: record
+                .sync
+                .as_ref()
+                .map(|s| s.since.clone())
+                .unwrap_or_else(|| iso_at(self.ctx.clock.now() as u64)),
         };
         let linked = self.ctx.live.borrow().contains_key(place_id);
         if !linked || record.report.login.get("HOME").is_none() {
-            return self.mark_sync(place_id, Some(PlaceSync { state: PlaceSyncState::Behind, ..state })).await;
+            return self
+                .mark_sync(
+                    place_id,
+                    Some(PlaceSync {
+                        state: PlaceSyncState::Behind,
+                        ..state
+                    }),
+                )
+                .await;
         }
         self.mark_sync(place_id, Some(state.clone())).await?;
-        let moved: IndexSet<String> = changes.iter().filter(|c| c.how != RecipeChangeHow::Removed).map(|c| c.key.clone()).collect();
-        let (Some(started), Some(before)) = (record.setup.clone(), record.picks.clone()) else { return Ok(()) };
+        let moved: IndexSet<String> = changes
+            .iter()
+            .filter(|c| c.how != RecipeChangeHow::Removed)
+            .map(|c| c.key.clone())
+            .collect();
+        let (Some(started), Some(before)) = (record.setup.clone(), record.picks.clone()) else {
+            return Ok(());
+        };
         let steps = steps_for(&changes, &resolved.file);
         let job = SyncJob {
             file: resolved.file.clone(),
@@ -614,28 +833,50 @@ impl PlaceSetupArea {
                 let (fire, name_of) = (Rc::clone(&area), place.clone());
                 spawn_local(async move {
                     if let Err(e) = fire.sync_place(&name_of).await {
-                        let name = fire.ctx.kept.borrow().get(&name_of).map(|r| r.name.clone()).unwrap_or_else(|| name_of.clone());
-                        warn(&format!("the sync of {name} stopped: {}", first_line_of(&e)));
+                        let name = fire
+                            .ctx
+                            .kept
+                            .borrow()
+                            .get(&name_of)
+                            .map(|r| r.name.clone())
+                            .unwrap_or_else(|| name_of.clone());
+                        warn(&format!(
+                            "the sync of {name} stopped: {}",
+                            first_line_of(&e)
+                        ));
                     }
                 });
             }),
             after_ms as i64,
         );
-        self.sync_timers.borrow_mut().insert(place_id.to_string(), Box::new(move || cancel()));
+        self.sync_timers
+            .borrow_mut()
+            .insert(place_id.to_string(), Box::new(move || cancel()));
     }
 
     /// The start with its refusal as a sentence (setup.ts:1042).
-    pub async fn started_or_said(self: &Rc<Self>, place_id: &str, add_id: &str, given: Option<GivenPicks>) -> Started {
+    pub async fn started_or_said(
+        self: &Rc<Self>,
+        place_id: &str,
+        add_id: &str,
+        given: Option<GivenPicks>,
+    ) -> Started {
         match self.start_setup(place_id, add_id, given, None).await {
             Ok(started) => started,
-            Err(e) => Started { setup: None, said: Some(first_line_of(&e)) },
+            Err(e) => Started {
+                setup: None,
+                said: Some(first_line_of(&e)),
+            },
         }
     }
 
     /// The road the engine drives one place's machines over (setup.ts:1053). The engine's `MachineLink` is not `Send`
     /// (`#[async_trait(?Send)]`) and `LinkBackend` takes it as an `Arc`, so the link holds its state plainly.
     pub fn link_to(self: &Rc<Self>, place_id: &str) -> Arc<dyn MachineLink> {
-        Arc::new(PlaceLink { area: Rc::clone(self), place: place_id.to_string() })
+        Arc::new(PlaceLink {
+            area: Rc::clone(self),
+            place: place_id.to_string(),
+        })
     }
 }
 
@@ -648,7 +889,13 @@ struct PlaceLink {
 
 impl PlaceLink {
     fn name(&self) -> String {
-        self.area.ctx.kept.borrow().get(&self.place).map(|r| r.name.clone()).unwrap_or_else(|| self.place.clone())
+        self.area
+            .ctx
+            .kept
+            .borrow()
+            .get(&self.place)
+            .map(|r| r.name.clone())
+            .unwrap_or_else(|| self.place.clone())
     }
 
     fn now(&self) -> u64 {
@@ -658,18 +905,32 @@ impl PlaceLink {
 
 #[async_trait(?Send)]
 impl MachineLink for PlaceLink {
-    async fn request(&self, op: &str, params: Map<String, Value>, ask: LinkAsk) -> EngineResult<Map<String, Value>> {
+    async fn request(
+        &self,
+        op: &str,
+        params: Map<String, Value>,
+        ask: LinkAsk,
+    ) -> EngineResult<Map<String, Value>> {
         let area = Rc::clone(&self.area);
         let place = self.place.as_str();
         let keyed = ask.idempotency_key.is_some();
         let relink = area.ctx.relink_wait_ms;
         let mut until: Option<u64> = None;
         loop {
-            let held = area.ctx.live.borrow().get(place).map(|l| (Rc::clone(&l.reach), Rc::clone(&l.socket)));
+            let held = area
+                .ctx
+                .live
+                .borrow()
+                .get(place)
+                .map(|l| (Rc::clone(&l.reach), Rc::clone(&l.socket)));
             let Some((reach, _socket)) = held else {
-                let absent = EngineError::PlaceAbsent { message: absent_computer(&self.name(), None).sentence };
+                let absent = EngineError::PlaceAbsent {
+                    message: absent_computer(&self.name(), None).sentence,
+                };
                 let closed = area.closed_at.borrow().get(place).copied();
-                let Some(closed) = closed.filter(|_| keyed) else { return Err(absent) };
+                let Some(closed) = closed.filter(|_| keyed) else {
+                    return Err(absent);
+                };
                 let wait_until = *until.get_or_insert(closed + relink);
                 if !area.dials_back(place, wait_until).await {
                     return Err(absent);
@@ -682,13 +943,28 @@ impl MachineLink for PlaceLink {
                 let reach = Rc::clone(&reach);
                 let params = params.clone();
                 let op = op.to_string();
-                async move { reach.request(&op, params).await.map_err(|e| EngineError::Other { message: e.message, code: e.code }) }
+                async move {
+                    reach
+                        .request(&op, params)
+                        .await
+                        .map_err(|e| EngineError::Other {
+                            message: e.message,
+                            code: e.code,
+                        })
+                }
             };
             match bounded_engine(&*area.ctx.clock, frame, bound, &what).await {
                 Ok(answer) => return Ok(answer),
                 Err(e) => {
-                    let now_held = area.ctx.live.borrow().get(place).map(|l| (Rc::clone(&l.reach), l.socket.is_open()));
-                    if !keyed || matches!(&now_held, Some((r, open)) if Rc::ptr_eq(r, &reach) && *open) {
+                    let now_held = area
+                        .ctx
+                        .live
+                        .borrow()
+                        .get(place)
+                        .map(|l| (Rc::clone(&l.reach), l.socket.is_open()));
+                    if !keyed
+                        || matches!(&now_held, Some((r, open)) if Rc::ptr_eq(r, &reach) && *open)
+                    {
                         return Err(e);
                     }
                     if let Some((r, _)) = &now_held {
@@ -699,7 +975,12 @@ impl MachineLink for PlaceLink {
                             }
                         }
                     }
-                    let gap = area.closed_at.borrow().get(place).copied().unwrap_or_else(|| self.now());
+                    let gap = area
+                        .closed_at
+                        .borrow()
+                        .get(place)
+                        .copied()
+                        .unwrap_or_else(|| self.now());
                     let t = *until.get_or_insert(gap + relink);
                     if !area.dials_back(place, t).await {
                         return Err(e);
@@ -719,8 +1000,19 @@ impl MachineLink for PlaceLink {
     }
 
     async fn forward(&self, place_port: u16) -> EngineResult<u16> {
-        let ask = ForwardAsk { pane: None, standing: false };
-        self.area.ctx.door().forward(&self.place, place_port, ask).await.map_err(|e| EngineError::Other { message: e.message, code: e.code })
+        let ask = ForwardAsk {
+            pane: None,
+            standing: false,
+        };
+        self.area
+            .ctx
+            .door()
+            .forward(&self.place, place_port, ask)
+            .await
+            .map_err(|e| EngineError::Other {
+                message: e.message,
+                code: e.code,
+            })
     }
 }
 
@@ -738,5 +1030,9 @@ pub type SetupResult<T> = Result<T, HostError>;
 
 /// The row a run lands with no step of its own yet, as the run holds rows.
 pub(crate) fn held_of(row: wsp_wire::views::place::PlaceProvisionRow) -> HeldRow {
-    HeldRow { row, pick: None, created_at: None }
+    HeldRow {
+        row,
+        pick: None,
+        created_at: None,
+    }
 }

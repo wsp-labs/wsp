@@ -10,7 +10,9 @@ use wsp_engine::errors::is_missing;
 use wsp_engine::labels::{BUILDER_LABEL, OWNER_LABEL, SMOKE_LABEL};
 use wsp_engine::machine::{ExecOptions, Machine, MachineBackend};
 use wsp_engine::preview::DAEMON_PORT;
-use wsp_wire::views::golden_image::{GoldenBuilderView, GoldenLogin, GoldenManifest, GoldenStage, GoldenVersion};
+use wsp_wire::views::golden_image::{
+    GoldenBuilderView, GoldenLogin, GoldenManifest, GoldenStage, GoldenVersion,
+};
 use wsp_wire::views::workspace::DaemonReachView;
 use wsp_words::exit::HostError;
 
@@ -48,7 +50,12 @@ impl GoldenArea {
         let swept = ctx.expire_grace().await?;
         for f in &swept.failed {
             let id = f.id.as_deref().unwrap_or("undefined");
-            stage(GoldenStage::Creating, Some(format!("an earlier kept builder {id}: {}", f.message)), None, None);
+            stage(
+                GoldenStage::Creating,
+                Some(format!("an earlier kept builder {id}: {}", f.message)),
+                None,
+                None,
+            );
         }
         ctx.refresh_builders().await?;
 
@@ -56,7 +63,9 @@ impl GoldenArea {
             let list: Vec<BuilderRef> = ctx.builders().borrow().values().cloned().collect();
             list.into_iter().find(|x| {
                 let b = x.borrow();
-                let sealed_here = b.record.sealed.as_ref().is_some_and(|s| f64::from(s.version) == head.version.0 && ctx.in_window(&s.at));
+                let sealed_here = b.record.sealed.as_ref().is_some_and(|s| {
+                    f64::from(s.version) == head.version.0 && ctx.in_window(&s.at)
+                });
                 matches!(b.life, BuilderLife::Own | BuilderLife::Reusable)
                     && b.record.name == name
                     && b.record.place.as_deref().unwrap_or(place.as_str()) == place.as_str()
@@ -66,7 +75,10 @@ impl GoldenArea {
 
         let mut entry: Option<BuilderRef> = None;
         if let Some(kept) = kept {
-            let timer = ctx.grace_timers().borrow_mut().shift_remove(&kept.borrow().record.id);
+            let timer = ctx
+                .grace_timers()
+                .borrow_mut()
+                .shift_remove(&kept.borrow().record.id);
             if let Some(cancel) = timer {
                 cancel();
             }
@@ -82,19 +94,44 @@ impl GoldenArea {
                 Err(_) => false,
             };
             if !alive {
-                ctx.roads().kill_until_gone(at.clone(), machine, ctx.kill_confirm()).await.map_err(ImageError::Engine)?;
+                ctx.roads()
+                    .kill_until_gone(at.clone(), machine, ctx.kill_confirm())
+                    .await
+                    .map_err(ImageError::Engine)?;
                 let id = kept.borrow().record.id.clone();
                 ctx.forget_builder(&id).await?;
             } else {
-                stage(GoldenStage::Creating, Some(format!("your builder from v{}, kept since the save", head.version.0)), None, None);
-                match apply_kept(&*ctx, &kept, &machine, &o.delta, &head, &recipe.setup, &stage).await {
+                stage(
+                    GoldenStage::Creating,
+                    Some(format!(
+                        "your builder from v{}, kept since the save",
+                        head.version.0
+                    )),
+                    None,
+                    None,
+                );
+                match apply_kept(
+                    &*ctx,
+                    &kept,
+                    &machine,
+                    &o.delta,
+                    &head,
+                    &recipe.setup,
+                    &stage,
+                )
+                .await
+                {
                     Ok(()) => {
                         stage(GoldenStage::Ready, None, None, None);
                         entry = Some(kept);
                     }
                     Err(e) => {
                         let mut detail = e.message();
-                        if let Err(k) = ctx.roads().kill_until_gone(at.clone(), machine, ctx.kill_confirm()).await {
+                        if let Err(k) = ctx
+                            .roads()
+                            .kill_until_gone(at.clone(), machine, ctx.kill_confirm())
+                            .await
+                        {
                             detail.push_str(&format!("; {k}"));
                         }
                         ctx.forget_if_gone(&kept, at.clone()).await?;
@@ -105,7 +142,11 @@ impl GoldenArea {
             }
         }
 
-        let road = if entry.is_some() { UpgradeRoad::Builder } else { UpgradeRoad::Fork };
+        let road = if entry.is_some() {
+            UpgradeRoad::Builder
+        } else {
+            UpgradeRoad::Fork
+        };
         let forked = matches!(road, UpgradeRoad::Fork);
         let entry = match entry {
             Some(entry) => entry,
@@ -120,7 +161,11 @@ impl GoldenArea {
         let standing = ctx.forked_from(&head.snapshot_id);
         if o.keep_previous == Some(false) {
             if !standing.is_empty() {
-                ctx.warn(&format!("golden {name} v{} kept: {} still on it", head.version.0, standing.join(", ")));
+                ctx.warn(&format!(
+                    "golden {name} v{} kept: {} still on it",
+                    head.version.0,
+                    standing.join(", ")
+                ));
             } else {
                 if forked && builder_kept {
                     let id = entry.borrow().record.id.clone();
@@ -129,7 +174,10 @@ impl GoldenArea {
                         cancel();
                     }
                     let machine = entry.borrow().builder.machine.clone();
-                    ctx.roads().kill_until_gone(at.clone(), machine, ctx.kill_confirm()).await.map_err(ImageError::Engine)?;
+                    ctx.roads()
+                        .kill_until_gone(at.clone(), machine, ctx.kill_confirm())
+                        .await
+                        .map_err(ImageError::Engine)?;
                     ctx.forget_builder(&id).await?;
                     builder_kept = false;
                 }
@@ -138,11 +186,21 @@ impl GoldenArea {
                         manifest = next;
                         previous_dropped = true;
                     }
-                    Err(e) => ctx.warn(&format!("golden {name} v{} kept: its snapshot was not deleted ({})", head.version.0, e.message())),
+                    Err(e) => ctx.warn(&format!(
+                        "golden {name} v{} kept: its snapshot was not deleted ({})",
+                        head.version.0,
+                        e.message()
+                    )),
                 }
             }
         }
-        Ok(GoldenUpgradeResult { manifest, version: sealed.version, road, previous_dropped, builder_kept })
+        Ok(GoldenUpgradeResult {
+            manifest,
+            version: sealed.version,
+            road,
+            previous_dropped,
+            builder_kept,
+        })
     }
 
     /// golden.ts:418-428 (U9).
@@ -154,10 +212,18 @@ impl GoldenArea {
         ctx.refuse_untouchable(&entry)?;
         let machine = entry.borrow().builder.machine.clone();
         let held = entry.borrow().reach.clone();
-        let reach = ctx.roads().refresh_preview_token(machine.clone(), DAEMON_PORT, held).await.map_err(ImageError::Engine)?;
+        let reach = ctx
+            .roads()
+            .refresh_preview_token(machine.clone(), DAEMON_PORT, held)
+            .await
+            .map_err(ImageError::Engine)?;
         entry.borrow_mut().reach = Some(reach.clone());
         let daemon_token = ctx.daemon_token_of(machine).await?;
-        Ok(DaemonReachView { url: reach.url, expires_at: reach.expires_at, daemon_token })
+        Ok(DaemonReachView {
+            url: reach.url,
+            expires_at: reach.expires_at,
+            daemon_token,
+        })
     }
 
     /// golden.ts:430-434 (U10).
@@ -178,13 +244,24 @@ impl GoldenArea {
         let Some(entry) = found else {
             return kill_unrecorded(&*ctx, builder_id).await;
         };
-        if matches!(entry.borrow().life, BuilderLife::Foreign | BuilderLife::Held) {
+        if matches!(
+            entry.borrow().life,
+            BuilderLife::Foreign | BuilderLife::Held
+        ) {
             ctx.refuse_untouchable(&entry)?;
         }
-        let place = entry.borrow().record.place.clone().unwrap_or_else(|| ctx.places().wired());
+        let place = entry
+            .borrow()
+            .record
+            .place
+            .clone()
+            .unwrap_or_else(|| ctx.places().wired());
         let at = ctx.backend_at(&place)?;
         let machine = entry.borrow().builder.machine.clone();
-        ctx.roads().kill_until_gone(at, machine, ctx.kill_confirm()).await.map_err(ImageError::Engine)?;
+        ctx.roads()
+            .kill_until_gone(at, machine, ctx.kill_confirm())
+            .await
+            .map_err(ImageError::Engine)?;
         ctx.forget_builder(builder_id).await?;
         Ok(())
     }
@@ -207,11 +284,18 @@ async fn kill_unrecorded(ctx: &dyn super::GoldenCtx, builder_id: &str) -> ImageR
     let Some(machine) = machine else {
         return Err(HostError::new(format!("no such builder: {builder_id}")).into());
     };
-    let mine = machine.labels().is_some_and(|l| l.get(OWNER_LABEL) == Some(&owner) && (l.get(BUILDER_LABEL).map(String::as_str) == Some("1") || l.get(SMOKE_LABEL).map(String::as_str) == Some("1")));
+    let mine = machine.labels().is_some_and(|l| {
+        l.get(OWNER_LABEL) == Some(&owner)
+            && (l.get(BUILDER_LABEL).map(String::as_str) == Some("1")
+                || l.get(SMOKE_LABEL).map(String::as_str) == Some("1"))
+    });
     if !mine {
         return Err(HostError::new(format!("no such builder: {builder_id}")).into());
     }
-    ctx.roads().kill_until_gone(backend, machine, ctx.kill_confirm()).await.map_err(ImageError::Engine)
+    ctx.roads()
+        .kill_until_gone(backend, machine, ctx.kill_confirm())
+        .await
+        .map_err(ImageError::Engine)
 }
 
 async fn put_record(ctx: &dyn super::GoldenCtx, entry: &BuilderRef) -> Result<(), HostError> {
@@ -245,7 +329,9 @@ async fn apply_kept(
             },
         )
         .await?;
-    let setup_sha = ctx.roads().next_setup_sha(&head.setup_sha, setup, &delta.import);
+    let setup_sha = ctx
+        .roads()
+        .next_setup_sha(&head.setup_sha, setup, &delta.import);
     {
         let mut b = kept.borrow_mut();
         b.record.import = Some(applied.ledger.clone());
@@ -275,16 +361,36 @@ async fn fork(
     head: &GoldenVersion,
     stage: &StageFn,
 ) -> ImageResult<BuilderRef> {
-    let claim: Rc<dyn Claim> = ctx.claiming(&format!("builder/{name}"), Some(at.clone()), Some(place));
+    let claim: Rc<dyn Claim> =
+        ctx.claiming(&format!("builder/{name}"), Some(at.clone()), Some(place));
     let backend = claim.backend();
     let placeholder: Rc<RefCell<Option<BuilderRef>>> = Rc::new(RefCell::new(None));
     let slot = placeholder.clone();
     let made: Rc<dyn Fn(BuilderRef)> = Rc::new(move |p: BuilderRef| *slot.borrow_mut() = Some(p));
-    let recording = ctx.recording_creates(backend, name, Some(ctx.import_mark(&delta.import)), made, None, place);
-    let size = MachineSize { cpu: recipe.cpu, mem_mb: recipe.mem_mb, envs: recipe.envs.clone(), labels: Some(ctx.builder_labels(recipe.labels.as_ref())) };
+    let recording = ctx.recording_creates(
+        backend,
+        name,
+        Some(ctx.import_mark(&delta.import)),
+        made,
+        None,
+        place,
+    );
+    let size = MachineSize {
+        cpu: recipe.cpu,
+        mem_mb: recipe.mem_mb,
+        envs: recipe.envs.clone(),
+        labels: Some(ctx.builder_labels(recipe.labels.as_ref())),
+    };
     let built = ctx
         .roads()
-        .upgrade_builder(UpgradeBuilderAsk { backend: recording, head: head.clone(), delta: delta.clone(), setup: recipe.setup.clone(), size, on_stage: stage.clone() })
+        .upgrade_builder(UpgradeBuilderAsk {
+            backend: recording,
+            head: head.clone(),
+            delta: delta.clone(),
+            setup: recipe.setup.clone(),
+            size,
+            on_stage: stage.clone(),
+        })
         .await;
     let builder = match built {
         Ok(builder) => builder,
@@ -312,8 +418,17 @@ async fn drop_head(
     manifest: &GoldenManifest,
 ) -> ImageResult<GoldenManifest> {
     ctx.drop_image(head, Some(at.clone())).await?;
-    let next = GoldenManifest { versions: manifest.versions.iter().filter(|v| v.version.0 != head.version.0).cloned().collect(), ..manifest.clone() };
+    let next = GoldenManifest {
+        versions: manifest
+            .versions
+            .iter()
+            .filter(|v| v.version.0 != head.version.0)
+            .cloned()
+            .collect(),
+        ..manifest.clone()
+    };
     ctx.put_copy(place, name, &next).await?;
-    ctx.drop_copy_recipe(place, name, head.version.0 as u32).await?;
+    ctx.drop_copy_recipe(place, name, head.version.0 as u32)
+        .await?;
     Ok(next)
 }
