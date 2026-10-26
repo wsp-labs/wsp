@@ -404,7 +404,7 @@ fn skills_and_servers_pass_their_fields() {
         for key in ["target", "id", "op"] {
             assert!(ask.get(key).is_none(), "{key} is not part of the server");
         }
-        assert!(ask.get("url").map_or(true, Value::is_null), "what was not sent is not sent");
+        assert!(ask.get("url").is_none_or(Value::is_null), "what was not sent is not sent");
 
         rt.script.once::<Result<String, HostError>>("agents.serversRemove", Err(stop()));
         rt.script.once::<Result<String, HostError>>("agents.serversToggle", Err(stop()));
@@ -413,7 +413,7 @@ fn skills_and_servers_pass_their_fields() {
             .await;
         let remove = &args_of(rt, "agents.serversRemove", 0)["ask"];
         assert_eq!((remove["agent"].clone(), remove["name"].clone()), (json!("claude"), json!("s")));
-        assert!(remove.get("scope").map_or(true, Value::is_null));
+        assert!(remove.get("scope").is_none_or(Value::is_null));
         let toggle = args_of(rt, "agents.serversToggle", 0);
         assert_eq!(toggle["ask"]["scope"], json!("user"));
         assert_eq!(toggle["on"], json!(true));

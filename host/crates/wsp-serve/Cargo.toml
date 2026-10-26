@@ -11,6 +11,7 @@ description = "The runtime's op switch and the assembly of its areas: serve.ts, 
 result_large_err = "allow"
 type_complexity = "allow"
 large_enum_variant = "allow"
+arc_with_non_send_sync = "allow"
 
 [dependencies]
 async-trait = "0.1"

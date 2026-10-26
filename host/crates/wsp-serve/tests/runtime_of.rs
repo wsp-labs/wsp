@@ -170,7 +170,7 @@ impl PublicCtx for Sweep {
     }
     fn reap_kept(&self, thread_id: &str) -> futures::future::LocalBoxFuture<'static, ()> {
         self.script.record("reapKept", json!({ "threadId": thread_id }));
-        let hangs = self.script.calls_to("keptHangs").len() > 0;
+        let hangs = !self.script.calls_to("keptHangs").is_empty();
         Box::pin(async move {
             if hangs {
                 futures::future::pending::<()>().await;

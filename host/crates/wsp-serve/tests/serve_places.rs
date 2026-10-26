@@ -24,12 +24,9 @@ use wsp_wire::views::place::DoctorLineEvent;
 use wsp_wire::views::place_more::PlaceView;
 use wsp_wire::wire::devices::{
     join_token, AccountView, ACCOUNT_TICKET_REFUSAL, ACCOUNT_UNSERVED, DEVICES_TICKET_REFUSAL, DEVICE_AUTH_REFUSAL, PAIR_CODE_REFUSAL,
-    PAIR_ISSUE_REFUSAL,
 };
 use wsp_wire::wire::machine_link::{is_joined_computer, no_such_place_refusal};
-use wsp_wire::wire::place_link::{
-    MINT_JOIN_REFUSAL, PLACES_TICKET_REFUSAL, PLACE_DOOR_REFUSAL, PLACE_DOOR_UNSERVED, PLACE_UNKNOWN_REFUSAL, SSH_HOSTS_REFUSAL,
-};
+use wsp_wire::wire::place_link::{PLACES_TICKET_REFUSAL, PLACE_DOOR_REFUSAL, PLACE_DOOR_UNSERVED, PLACE_UNKNOWN_REFUSAL};
 use wsp_words::exit::HostError;
 use wsp_words::place_word::{place_said, PlaceRef};
 use wsp_words::recipe_file::{no_picks_refusal, recipe_from_here_refusal, recipe_summary};
