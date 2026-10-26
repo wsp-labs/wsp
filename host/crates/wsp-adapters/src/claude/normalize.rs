@@ -212,9 +212,8 @@ pub fn own_use(result: TurnResult, saved: Option<&SavedUse>, fresh: bool, spent:
     let unpriced: Vec<String> = if restarted { Vec::new() } else { before.unpriced.iter().flatten().map(|m| base_model(m)).collect() };
     let withheld = |m: &ModelUse| unpriced.contains(&base_model(&m.model));
     let cost_sum = counted.iter().flatten().filter(|m| withheld(m)).fold(0.0, |sum, m| sum + m.cost_usd.map_or(0.0, |c| c.0));
-    let models: Option<Vec<ModelUse>> = counted.map(|ms| {
-        ms.into_iter().map(|m| if withheld(&m) { ModelUse { cost_usd: None, ..m } } else { m }).collect()
-    });
+    let models: Option<Vec<ModelUse>> =
+        counted.map(|ms| ms.into_iter().map(|m| if withheld(&m) { ModelUse { cost_usd: None, ..m } } else { m }).collect());
     let priced_any = models.iter().flatten().any(|m| m.cost_usd.is_some());
     let cost_usd = match paid {
         Some(paid) if !unpriced.is_empty() => {
@@ -357,11 +356,13 @@ pub fn retry_of(event: &Obj, session_id: &str) -> Option<AdapterEvent> {
 pub fn subagent_retry_of(event: &Obj, session_id: &str) -> Option<AdapterEvent> {
     let retry = rec(event.get("subagent_retry"));
     let attempt = num(retry.and_then(|r| r.get("attempt")))?;
-    let why = anthropic_retry_why(
-        string(retry.and_then(|r| r.get("error_category"))),
-        num(retry.and_then(|r| r.get("error_status"))),
-    );
-    Some(AdapterEvent::TurnRetry { session_id: session_id.into(), attempt, of: num(retry.and_then(|r| r.get("max_retries"))), why: Some(why) })
+    let why = anthropic_retry_why(string(retry.and_then(|r| r.get("error_category"))), num(retry.and_then(|r| r.get("error_status"))));
+    Some(AdapterEvent::TurnRetry {
+        session_id: session_id.into(),
+        attempt,
+        of: num(retry.and_then(|r| r.get("max_retries"))),
+        why: Some(why),
+    })
 }
 
 /// adapter.ts:428.
@@ -389,10 +390,7 @@ pub fn subagent_launch(event: &Obj) -> Option<SubagentLaunch> {
     if string(event.get("type")) != Some("system") || string(event.get("subtype")) != Some("task_started") {
         return None;
     }
-    Some(SubagentLaunch {
-        agent_id: string(event.get("task_id"))?.to_string(),
-        tool_use_id: string(event.get("tool_use_id"))?.to_string(),
-    })
+    Some(SubagentLaunch { agent_id: string(event.get("task_id"))?.to_string(), tool_use_id: string(event.get("tool_use_id"))?.to_string() })
 }
 
 /// adapter.ts:445.
@@ -620,7 +618,9 @@ pub fn normalize_event(
             }
             deltas
         }
-        Some("result") => vec![AdapterEvent::TurnDone { session_id: session_id.into(), result: normalize_result(event, refusal), held: None }],
+        Some("result") => {
+            vec![AdapterEvent::TurnDone { session_id: session_id.into(), result: normalize_result(event, refusal), held: None }]
+        }
         Some("rate_limit_event") => match limit_of(rec(event.get("rate_limit_info"))) {
             Some(limit) => vec![AdapterEvent::Limit { session_id: session_id.into(), limit }],
             None => Vec::new(),

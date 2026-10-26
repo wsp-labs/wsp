@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use claude_exec::{FakeStream, StreamOpts};
-use futures::future::{LocalBoxFuture, FutureExt};
+use futures::future::{FutureExt, LocalBoxFuture};
 use futures::stream::{LocalBoxStream, StreamExt};
 use wsp_adapters::pending::{lost_session_prompt, LOST_SESSION_NOTE};
 use wsp_adapters::port::*;
@@ -71,8 +71,14 @@ fn the_launch_words_are_the_ts_ones() {
     assert_eq!(program_word("claude", None), "claude");
     assert_eq!(program_word("claude", Some(&AgentLaunch { program: None, args: Some(vec!["--x".into()]) })), "claude");
     assert_eq!(program_word("claude", Some(&AgentLaunch { program: Some("/opt/it's".into()), args: None })), r#"'/opt/it'\''s'"#);
-    assert_eq!(agent_word("codex", None), r#"sh -c '[ -z "${WSP_AGENT_PID_FILE:-}" ] || echo $$ > "$WSP_AGENT_PID_FILE"; unset WSP_AGENT_PID_FILE; exec "$0" "$@"' codex"#);
-    assert_eq!(launch_words(Some(&AgentLaunch { program: None, args: Some(vec!["--a b".into(), "c".into()]) })), vec!["'--a b'".to_string(), "'c'".to_string()]);
+    assert_eq!(
+        agent_word("codex", None),
+        r#"sh -c '[ -z "${WSP_AGENT_PID_FILE:-}" ] || echo $$ > "$WSP_AGENT_PID_FILE"; unset WSP_AGENT_PID_FILE; exec "$0" "$@"' codex"#
+    );
+    assert_eq!(
+        launch_words(Some(&AgentLaunch { program: None, args: Some(vec!["--a b".into(), "c".into()]) })),
+        vec!["'--a b'".to_string(), "'c'".to_string()]
+    );
     assert_eq!(launch_words(None), Vec::<String>::new());
     let end = AdapterEvent::SessionEnd { session_id: "s-9".into(), exit_code: None, saw_result: false, failure: None };
     assert_eq!(end.session_id(), "s-9");
@@ -226,7 +232,11 @@ async fn a_view_after_the_end_ends_at_once_body() {
     let (late, _) = kept.turn();
     let mut lines = late.lines();
     let first = tokio::time::timeout(Duration::from_secs(2), lines.next()).await.expect("ends at once");
-    assert_eq!(first, Some(Err(ExecFailure { kind: ExecFailureKind::NoAnswer, message: "the machine went away".into() })), "the stored failure is what the late view reads");
+    assert_eq!(
+        first,
+        Some(Err(ExecFailure { kind: ExecFailureKind::NoAnswer, message: "the machine went away".into() })),
+        "the stored failure is what the late view reads"
+    );
     assert_eq!(late.exited().await, Some(1));
 }
 
@@ -242,7 +252,20 @@ impl Finishes for FakeTurn {
 }
 
 fn result(error: Option<&str>, text: Option<&str>) -> TurnResult {
-    TurnResult { status: if error.is_some() { TurnStatus::Failed } else { TurnStatus::Completed }, duration_ms: Some(JsNumber(5.0)), waited_ms: None, cost_usd: None, tokens: None, model: None, models: None, text: text.map(String::from), error: error.map(String::from), unreached: None, refusal: None, limit: None }
+    TurnResult {
+        status: if error.is_some() { TurnStatus::Failed } else { TurnStatus::Completed },
+        duration_ms: Some(JsNumber(5.0)),
+        waited_ms: None,
+        cost_usd: None,
+        tokens: None,
+        model: None,
+        models: None,
+        text: text.map(String::from),
+        error: error.map(String::from),
+        unreached: None,
+        refusal: None,
+        limit: None,
+    }
 }
 
 fn start(id: &str) -> AdapterEvent {
@@ -260,7 +283,10 @@ fn end(id: &str) -> AdapterEvent {
 const LOST: &str = "No conversation found with session ID: old-1";
 
 /// Each launch plays one script of events synchronously, then finishes with that script's result.
-fn launcher(scripts: Vec<(Vec<AdapterEvent>, TurnResult)>, calls: Arc<Mutex<Vec<(String, Option<String>)>>>) -> impl Fn(String, Option<String>, OnEvent) -> Result<Arc<FakeTurn>, AdapterError> + 'static {
+fn launcher(
+    scripts: Vec<(Vec<AdapterEvent>, TurnResult)>,
+    calls: Arc<Mutex<Vec<(String, Option<String>)>>>,
+) -> impl Fn(String, Option<String>, OnEvent) -> Result<Arc<FakeTurn>, AdapterError> + 'static {
     let scripts = Arc::new(Mutex::new(scripts.into_iter()));
     move |prompt, resume, on_event| {
         calls.lock().unwrap().push((prompt, resume));
@@ -283,15 +309,30 @@ async fn a_lost_session_starts_again_seeded_and_says_so_body() {
     let lost = result(Some(LOST), None);
     let answer = result(None, Some("done"));
     let launch = launcher(
-        vec![(vec![start("old-1"), done("old-1", lost.clone()), end("old-1")], lost), (vec![start("new-2"), done("new-2", answer.clone()), end("new-2")], answer.clone())],
+        vec![
+            (vec![start("old-1"), done("old-1", lost.clone()), end("old-1")], lost),
+            (vec![start("new-2"), done("new-2", answer.clone()), end("new-2")], answer.clone()),
+        ],
         calls.clone(),
     );
-    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { Ok("the thread so far".to_string()) }.boxed_local()), on_event };
+    let options = LostSessionStart {
+        prompt: "go on".into(),
+        resume: "old-1".into(),
+        seed: Arc::new(|| async { Ok("the thread so far".to_string()) }.boxed_local()),
+        on_event,
+    };
     let after = start_after_loss(options, LOST.into(), launch).expect("the first launch starts");
     assert_eq!(after.finished.clone().await, answer);
-    assert_eq!(*calls.lock().unwrap(), vec![("go on".to_string(), Some("old-1".to_string())), (lost_session_prompt("the thread so far", "go on"), None)]);
+    assert_eq!(
+        *calls.lock().unwrap(),
+        vec![("go on".to_string(), Some("old-1".to_string())), (lost_session_prompt("the thread so far", "go on"), None)]
+    );
     let note = AdapterEvent::TurnDelta(TurnDelta::new("new-2", DeltaKind::Note, LOST_SESSION_NOTE));
-    assert_eq!(*events.lock().unwrap(), vec![start("old-1"), start("new-2"), note, done("new-2", answer), end("new-2")], "the lost turn's end and its session.end reach nobody");
+    assert_eq!(
+        *events.lock().unwrap(),
+        vec![start("old-1"), start("new-2"), note, done("new-2", answer), end("new-2")],
+        "the lost turn's end and its session.end reach nobody"
+    );
     assert!(!Arc::ptr_eq(&after.first, &after.now.lock().unwrap().clone()), "now is the second launch");
 }
 
@@ -304,8 +345,14 @@ async fn a_session_still_held_runs_as_one_launch_body() {
     let (events, on_event) = claude_exec::collect();
     let calls: Arc<Mutex<Vec<(String, Option<String>)>>> = Default::default();
     let other_failure = result(Some("No conversation found with session ID: someone-else"), None);
-    let launch = launcher(vec![(vec![start("old-1"), done("old-1", other_failure.clone()), end("old-1")], other_failure.clone())], calls.clone());
-    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { panic!("never asked for a seed") }.boxed_local()), on_event };
+    let launch =
+        launcher(vec![(vec![start("old-1"), done("old-1", other_failure.clone()), end("old-1")], other_failure.clone())], calls.clone());
+    let options = LostSessionStart {
+        prompt: "go on".into(),
+        resume: "old-1".into(),
+        seed: Arc::new(|| async { panic!("never asked for a seed") }.boxed_local()),
+        on_event,
+    };
     let after = start_after_loss(options, LOST.into(), launch).expect("starts");
     assert_eq!(after.finished.clone().await, other_failure, "only the exact sentence for this session is a loss");
     assert_eq!(calls.lock().unwrap().len(), 1);
@@ -317,12 +364,33 @@ async fn a_session_still_held_runs_as_one_launch_body() {
 // every class the transport throws but a plain error.
 #[test]
 fn every_transport_kind_but_other_is_a_silent_computer() {
-    let kinds = [ExecFailureKind::Unreached, ExecFailureKind::Unreachable, ExecFailureKind::PlaceAbsent, ExecFailureKind::LaunchUnanswered, ExecFailureKind::Deadline, ExecFailureKind::NoAnswer, ExecFailureKind::Other];
+    let kinds = [
+        ExecFailureKind::Unreached,
+        ExecFailureKind::Unreachable,
+        ExecFailureKind::PlaceAbsent,
+        ExecFailureKind::LaunchUnanswered,
+        ExecFailureKind::Deadline,
+        ExecFailureKind::NoAnswer,
+        ExecFailureKind::Other,
+    ];
     assert_eq!(kinds.map(ExecFailureKind::silent), [true, true, true, true, true, true, false]);
 }
 
 fn failed(error: &str) -> TurnResult {
-    TurnResult { status: TurnStatus::Failed, duration_ms: None, waited_ms: None, cost_usd: None, tokens: None, model: None, models: None, text: None, error: Some(error.into()), unreached: None, refusal: None, limit: None }
+    TurnResult {
+        status: TurnStatus::Failed,
+        duration_ms: None,
+        waited_ms: None,
+        cost_usd: None,
+        tokens: None,
+        model: None,
+        models: None,
+        text: None,
+        error: Some(error.into()),
+        unreached: None,
+        refusal: None,
+        limit: None,
+    }
 }
 
 // Rule P2: release is one flag for good. A view a later turn() opens, and an older view, both close the process's
@@ -397,7 +465,12 @@ async fn a_refused_seed_fails_the_turn_with_its_words_body() {
     let calls: Arc<Mutex<Vec<(String, Option<String>)>>> = Default::default();
     let lost = result(Some(LOST), None);
     let launch = launcher(vec![(vec![start("old-1"), done("old-1", lost.clone()), end("old-1")], lost)], calls.clone());
-    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { Err("seed broke".to_string()) }.boxed_local()), on_event };
+    let options = LostSessionStart {
+        prompt: "go on".into(),
+        resume: "old-1".into(),
+        seed: Arc::new(|| async { Err("seed broke".to_string()) }.boxed_local()),
+        on_event,
+    };
     let after = start_after_loss(options, LOST.into(), launch).expect("the first launch starts");
     assert_eq!(after.finished.clone().await, failed("seed broke"));
     assert_eq!(calls.lock().unwrap().len(), 1);
@@ -428,7 +501,12 @@ async fn a_refused_second_launch_fails_the_turn_with_its_words_body() {
         let r = first.clone();
         Ok(Arc::new(FakeTurn { finished: async move { r }.boxed_local().shared() }))
     };
-    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { Ok("so far".to_string()) }.boxed_local()), on_event };
+    let options = LostSessionStart {
+        prompt: "go on".into(),
+        resume: "old-1".into(),
+        seed: Arc::new(|| async { Ok("so far".to_string()) }.boxed_local()),
+        on_event,
+    };
     let after = start_after_loss(options, LOST.into(), launch).expect("the first launch starts");
     assert_eq!(after.finished.clone().await, failed("no machine"));
     assert_eq!(made.load(Ordering::SeqCst), 2);
@@ -448,7 +526,12 @@ async fn a_loss_is_read_off_the_event_and_never_off_the_result_body() {
     let calls: Arc<Mutex<Vec<(String, Option<String>)>>> = Default::default();
     let lost = result(Some(LOST), None);
     let launch = launcher(vec![(vec![start("old-1"), end("old-1")], lost.clone())], calls.clone());
-    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { panic!("never asked for a seed") }.boxed_local()), on_event };
+    let options = LostSessionStart {
+        prompt: "go on".into(),
+        resume: "old-1".into(),
+        seed: Arc::new(|| async { panic!("never asked for a seed") }.boxed_local()),
+        on_event,
+    };
     let after = start_after_loss(options, LOST.into(), launch).expect("starts");
     assert_eq!(after.finished.clone().await, lost);
     assert_eq!(calls.lock().unwrap().len(), 1);
@@ -466,8 +549,19 @@ async fn no_note_without_the_new_sessions_start_body() {
     let calls: Arc<Mutex<Vec<(String, Option<String>)>>> = Default::default();
     let lost = result(Some(LOST), None);
     let cut = result(Some("cut"), None);
-    let launch = launcher(vec![(vec![start("old-1"), done("old-1", lost.clone()), end("old-1")], lost), (vec![done("new-2", cut.clone()), end("new-2")], cut.clone())], calls.clone());
-    let options = LostSessionStart { prompt: "go on".into(), resume: "old-1".into(), seed: Arc::new(|| async { Ok("so far".to_string()) }.boxed_local()), on_event };
+    let launch = launcher(
+        vec![
+            (vec![start("old-1"), done("old-1", lost.clone()), end("old-1")], lost),
+            (vec![done("new-2", cut.clone()), end("new-2")], cut.clone()),
+        ],
+        calls.clone(),
+    );
+    let options = LostSessionStart {
+        prompt: "go on".into(),
+        resume: "old-1".into(),
+        seed: Arc::new(|| async { Ok("so far".to_string()) }.boxed_local()),
+        on_event,
+    };
     let after = start_after_loss(options, LOST.into(), launch).expect("starts");
     assert_eq!(after.finished.clone().await, cut);
     assert_eq!(*events.lock().unwrap(), vec![start("old-1"), done("new-2", cut), end("new-2")]);
