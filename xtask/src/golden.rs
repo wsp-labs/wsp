@@ -3,6 +3,7 @@
 //! `goldens`), the hash of the TS tree they were recorded from in that folder's `KEY`, and the host's op list and tool
 //! list as they were then in `ops.json` and `tools.json`. A check reads these and never starts the TS host.
 
+use crate::json;
 use serde_json::Value;
 use std::fs;
 use std::io::Write;
@@ -30,7 +31,7 @@ pub fn path_of(dir: &Path, tape: &str) -> PathBuf {
 pub fn read(dir: &Path, tape: &str) -> Result<Option<Value>, String> {
     let path = path_of(dir, tape);
     match fs::read_to_string(&path) {
-        Ok(text) => serde_json::from_str(&text).map(Some).map_err(|e| format!("{}: {e}", path.display())),
+        Ok(text) => json::read(&text).map(Some).map_err(|e| format!("{}: {e}", path.display())),
         Err(_) => Ok(None),
     }
 }
@@ -38,7 +39,7 @@ pub fn read(dir: &Path, tape: &str) -> Result<Option<Value>, String> {
 pub fn write(dir: &Path, tape: &str, golden: &Value) -> Result<(), String> {
     let path = path_of(dir, tape);
     fs::create_dir_all(path.parent().expect("a golden has a folder")).map_err(|e| e.to_string())?;
-    let text = serde_json::to_string_pretty(golden).map_err(|e| e.to_string())? + "\n";
+    let text = json::write_pretty(golden) + "\n";
     fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))
 }
 

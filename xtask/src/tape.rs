@@ -4,6 +4,7 @@
 //! receives and `{"out": frame}` for one it sends, exactly as the door carries them, and `{"close": {code, reason}}`
 //! where the host closes the socket.
 
+use crate::json;
 use serde_json::Value;
 use std::fs;
 use std::path::Path;
@@ -78,7 +79,7 @@ impl Tape {
             if line.trim().is_empty() {
                 continue;
             }
-            let value: Value = serde_json::from_str(line).map_err(|e| format!("{at}: not a JSON line: {e}"))?;
+            let value: Value = json::read(line).map_err(|e| format!("{at}: not a JSON line: {e}"))?;
             let Some(obj) = value.as_object().filter(|o| o.len() == 1) else {
                 return Err(format!("{at}: a tape line is one object with one key, meta, in, out or close"));
             };
