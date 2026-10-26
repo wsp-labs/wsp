@@ -1,0 +1,22 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "seq": 0,
+      "stream": "<uuid-1>"
+    },
+    {
+      "id": 3,
+      "ok": true,
+      "statuses": []
+    }
+  ],
+  "events": []
+}

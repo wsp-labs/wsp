@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "the relay at https://relay.usewsp.com did not answer: fetch failed\n"
+    }
+  ],
+  "events": []
+}

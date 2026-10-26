@@ -1,0 +1,23 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "listing": {
+        "dir": "<tmp>/home",
+        "roots": [
+          "<tmp>/home"
+        ],
+        "folders": [],
+        "hidden": 1
+      }
+    }
+  ],
+  "events": []
+}

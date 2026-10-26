@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp recipe: --tick takes one of used, installed, default, and got \"everything\". Name one of those.\n"
+    }
+  ],
+  "events": []
+}

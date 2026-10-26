@@ -1,0 +1,3 @@
+{"meta":{"door":"ws","source":"packages/runtime/test/places.test.ts > a place dialling back in > answers a signature this computer can check against the host's key over the transcript it challenged with","outs":"recorded"}}
+{"in":{"placeId":"p_00000001","nonce":"6IOmuDgDfM1oImzn3ofjzAPpj9vUKkjZjj9mDRlUJxE=","ephemeral":"T4YbbJBFbZiGssVisOagY16uSOE/qzD/iQY/IcYE/Wc=","id":1,"op":"place.auth"}}
+{"out":{"id":1,"ok":true,"nonce":"rj29zIxusj7Qy2uejJ905sO5aS8FBVMjy44JAf/tc5g=","hostPublicKey":"MCowBQYDK2VwAyEAKkzy3bKLfSq37F147fRT/LSFQchcXIaj+6fmCimKqSc=","signature":"9h/fkjuZk2/FNzpKUp6t4e8YP91J2B+yEBOUGzEvLrVMzRVb+w0L0Hv8kKt7X77LFexIKNBnl+Qt5RoCWcUnBg==","ephemeral":"NarHnRIa/7nkhQQ/4IPtQa60lc/Kn49Yz89O94HrrlE="}}

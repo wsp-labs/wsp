@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp worktree remove takes a project and a branch. usage: wsp worktree remove <project> <branch> [--force] [--yes]\n"
+    }
+  ],
+  "events": []
+}

@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "┌  wsp <version>\n│\n│  Setting up <tmp>/scratch/wsp-keys-<temp>/home/state.json; --state <path> starts a fresh setup instead.\n",
+      "stderr": "wsp init: with no provider key there is no image to build and nothing to fork, and this computer already has your files, so --rebuild would do nothing here. Drop them.\n"
+    }
+  ],
+  "events": []
+}

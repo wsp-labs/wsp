@@ -1,0 +1,17 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": {
+        "json": {
+          "error": "no host named nowhere is connected; this computer holds none, and wsp login puts the hosts on your account here. Run wsp hosts for the list.",
+          "class": "usage",
+          "exit": 3
+        },
+        "layout": "compact, a newline after"
+      }
+    }
+  ],
+  "events": []
+}

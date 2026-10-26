@@ -1,0 +1,18 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": false,
+      "error": "this host is on no account, so it admits no computer through one; run wsp host link on the computer it runs on to put it on yours",
+      "kind": "auth"
+    }
+  ],
+  "events": [
+    {
+      "close": {
+        "code": 4401,
+        "reason": "unauthorized"
+      }
+    }
+  ]
+}
