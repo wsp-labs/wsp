@@ -8,7 +8,7 @@ use indexmap::IndexMap;
 use serde::de::DeserializeOwned;
 use serde_json::{json, Map, Value};
 
-use wsp_core::types::internal::ThreadStamps;
+use wsp_core::types::internal::{ThreadRecord, ThreadStamps};
 use wsp_wire::views::preferences::ThreadFacts;
 use wsp_wire::views::session::{ForkedFrom, SessionView};
 use wsp_wire::views::workspace::Caller;
@@ -18,7 +18,7 @@ use wsp_words::words::computer::thread_word;
 
 use super::entries::RowAt;
 use super::{BootArea, ComputerRow};
-use crate::machines::machines::{Entry, Row, ThreadOn};
+use crate::machines::machines::{Entry, Row};
 
 /// What a mark puts on each thread: the same stamps, or stamps per thread (boot.ts:923). A key whose value is JSON
 /// `null` stands for the TS `undefined`: it is taken off the record.
@@ -337,7 +337,7 @@ impl BootArea {
                 .thread_records()
                 .borrow()
                 .get(thread_id)
-                .and_then(|r| r.record.settled_at);
+                .and_then(|r| r.settled_at);
             return marked.is_some();
         };
         let facts = wsp_words::thread_state::SettleFacts {
@@ -683,7 +683,7 @@ impl BootArea {
                     next.insert(key.clone(), value.clone());
                 }
             }
-            let on: ThreadOn = parse(Value::Object(next.clone()))?;
+            let on: ThreadRecord = parse(Value::Object(next.clone()))?;
             self.rt
                 .thread_records()
                 .borrow_mut()
@@ -723,7 +723,7 @@ impl BootArea {
                 .thread_records()
                 .borrow()
                 .get(id)
-                .and_then(|r| r.record.snoozed_until.as_ref().map(|j| j.0))
+                .and_then(|r| r.snoozed_until.as_ref().map(|j| j.0))
                 .unwrap_or(0.0);
             if snoozed > now && !standing.iter().any(|s| s == id) {
                 standing.push(id.to_string());
@@ -822,7 +822,7 @@ impl BootArea {
         self.ready().await.map_err(|e| e.0)?;
         let record = self.rt.thread_records().borrow().get(thread_id).cloned();
         let Some(record) = record else { return Ok(()) };
-        let Some(arm) = record.record.limit_resume.clone() else {
+        let Some(arm) = record.limit_resume.clone() else {
             return Ok(());
         };
         let latest = self.thread_rows(thread_id).last().cloned();
@@ -834,7 +834,7 @@ impl BootArea {
             }
             None => (None, None),
         };
-        let stands = record.record.settled_at.is_none()
+        let stands = record.settled_at.is_none()
             && entry.is_some()
             && latest_turn.as_deref() == Some(arm.turn_id.as_str())
             && latest_view.as_ref().is_some_and(|v| v.limit.is_some());
@@ -854,14 +854,14 @@ impl BootArea {
         let current = self.rt.thread_records().borrow().get(thread_id).cloned();
         let same_arm = current
             .as_ref()
-            .and_then(|c| c.record.limit_resume.as_ref())
+            .and_then(|c| c.limit_resume.as_ref())
             .is_some_and(|a| a.at == arm.at && a.turn_id == arm.turn_id);
         if !same_arm {
             return Ok(());
         }
         let workspace_id = record.workspace_id.clone();
         if let Some(current) = self.rt.thread_records().borrow_mut().get_mut(thread_id) {
-            current.record.limit_resume = None;
+            current.limit_resume = None;
         }
         if let (Some(held), Some(latest)) = (held, latest.as_ref()) {
             let mut view =

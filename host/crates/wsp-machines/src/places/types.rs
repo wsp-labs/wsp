@@ -676,13 +676,7 @@ pub struct CopyBuild {
     pub stopped: bool,
 }
 
-/// `KillConfirm` (engine golden.ts:35), held here until golden.ts is ported (#2441's ruling): how long a delete is
-/// read back for.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct KillConfirm {
-    pub grace_ms: Option<u64>,
-    pub poll_ms: Option<u64>,
-}
+pub use wsp_engine::gone::KillConfirm;
 
 /// What `onSetup` hears (types.ts:471).
 #[derive(Clone, Debug, PartialEq)]

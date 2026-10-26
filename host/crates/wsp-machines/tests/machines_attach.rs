@@ -20,7 +20,8 @@ use wsp_engine::errors::EngineError;
 use wsp_engine::lifecycle::WorkspacePhase as EnginePhase;
 use wsp_engine::machine::{ExecOptions, Machine};
 use wsp_machines::machines::machines::attach::engine_phase_of;
-use wsp_machines::machines::machines::{MachinesConfig, Refusal};
+use wsp_machines::machines::machines::MachinesConfig;
+use wsp_machines::machines::reach::ForMachine;
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::workspace::WorkspacePhase;
 use wsp_words::exit::{HostError, Kind};
@@ -516,9 +517,9 @@ fn stash_vault_skips_while_a_refusal_stands_and_a_disk_keeping_pause() {
         refused.rt.cfg.borrow_mut().keeps_images = true;
         refused.rt.nap_refusals.borrow_mut().insert(
             "ws_1".into(),
-            Refusal {
+            ForMachine {
                 machine_id: "m-1".into(),
-                said: "no pause".into(),
+                value: "no pause".into(),
             },
         );
         let machine = machine_one();
@@ -957,9 +958,9 @@ fn drop_everything_the_workspace_left_goes_in_order_and_the_event_last() {
         let log = w.log.clone();
         e.entry.borrow_mut().pr_poll =
             Some(Box::new(move || log.push(json!(["prPoll cancelled"]))));
-        let thread_on = |ws: &str| wsp_machines::machines::machines::ThreadOn {
+        let thread_on = |ws: &str| wsp_core::types::internal::ThreadRecord {
             workspace_id: ws.into(),
-            record: Default::default(),
+            ..Default::default()
         };
         w.rt.thread_records
             .borrow_mut()
