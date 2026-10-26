@@ -30,6 +30,8 @@ pub struct Options {
     pub only: Option<String>,
     /// Only these tapes, as a unit's run names them; coverage is then not held to every family either.
     pub ids: Option<BTreeSet<String>>,
+    /// Only the tapes that went through this door, for the progress of one door at a time.
+    pub door: Option<Door>,
     /// The held-back folder, whose tapes run beside the repository's and whose goldens are kept there.
     pub held: Option<PathBuf>,
     /// Record rewrites the goldens of tapes recorded on another computer and marks them as recorded on this one.
@@ -38,7 +40,14 @@ pub struct Options {
 
 impl Options {
     fn narrowed(&self) -> bool {
-        self.only.is_some() || self.ids.is_some()
+        self.only.is_some() || self.ids.is_some() || self.door.is_some()
+    }
+
+    /// Whether the run replays this tape.
+    pub fn keeps(&self, tape: &Tape) -> bool {
+        self.only.as_ref().is_none_or(|text| tape.id.contains(text.as_str()))
+            && self.ids.as_ref().is_none_or(|ids| ids.contains(&tape.id))
+            && self.door.is_none_or(|door| tape.door == door)
     }
 }
 
@@ -251,11 +260,7 @@ fn selected(root: &Path, opts: &Options) -> Result<Vec<Tape>, String> {
         tapes.extend(held);
         tapes.sort_by(|a, b| a.id.cmp(&b.id));
     }
-    Ok(tapes
-        .into_iter()
-        .filter(|t| opts.only.as_ref().is_none_or(|text| t.id.contains(text.as_str())))
-        .filter(|t| opts.ids.as_ref().is_none_or(|ids| ids.contains(&t.id)))
-        .collect())
+    Ok(tapes.into_iter().filter(|t| opts.keeps(t)).collect())
 }
 
 /// A replay's answers held to the golden, and the tape's own written answers held to it as well.
