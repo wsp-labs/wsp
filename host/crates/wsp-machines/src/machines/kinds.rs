@@ -23,6 +23,7 @@ use wsp_wire::views::workspace::{DaemonReachView, ProjectView};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::wire::runtime::BrokerStatus;
 use wsp_words::exit::HostError;
+use wsp_words::words::computer::no_kind_line;
 
 use crate::machines::area_error::AreaResult;
 use crate::machines::brokered::Placeholders;
@@ -163,14 +164,39 @@ pub struct KindsArea {
     pub(crate) broker_said: RefCell<BrokerSaid>,
 }
 
+/// The key a kind's module is held under in `KindsArea::modules`.
+fn kind_word(kind: WorkspaceKind) -> &'static str {
+    match kind {
+        WorkspaceKind::Cloud => "cloud",
+        WorkspaceKind::Local => "local",
+        WorkspaceKind::Place => "place",
+    }
+}
+
 impl KindsArea {
     pub fn new(ctx: Rc<dyn KindsCtx>) -> Rc<KindsArea> {
-        todo!()
+        Rc::new_cyclic(|me| {
+            let mut modules: IndexMap<String, Option<Rc<dyn KindModule>>> = IndexMap::new();
+            modules.insert(kind_word(WorkspaceKind::Cloud).to_string(), Some(Rc::new(table::CloudKind { area: me.clone() })));
+            let local = ctx.has_local().then(|| Rc::new(table::LocalKind { area: me.clone() }) as Rc<dyn KindModule>);
+            modules.insert(kind_word(WorkspaceKind::Local).to_string(), local);
+            let place = ctx.has_place_door().then(|| Rc::new(table::PlaceKind { area: me.clone() }) as Rc<dyn KindModule>);
+            modules.insert(kind_word(WorkspaceKind::Place).to_string(), place);
+            KindsArea {
+                ctx,
+                me: me.clone(),
+                machine_reading: RefCell::default(),
+                modules: RefCell::new(modules),
+                broker_said: RefCell::default(),
+            }
+        })
     }
 
     /// kinds.ts:509 (roads rule 21).
     pub fn module_of(&self, kind: WorkspaceKind) -> Result<Rc<dyn KindModule>, HostError> {
-        todo!()
+        let word = kind_word(kind);
+        let found = self.modules.borrow().get(word).cloned().flatten();
+        found.ok_or_else(|| HostError::new(no_kind_line(word)))
     }
 }
 

@@ -107,6 +107,6 @@ pub struct GoldenArea {
 
 impl GoldenArea {
     pub fn new(ctx: Rc<dyn GoldenCtx>) -> Rc<GoldenArea> {
-        todo!()
+        Rc::new(GoldenArea { ctx })
     }
 }
