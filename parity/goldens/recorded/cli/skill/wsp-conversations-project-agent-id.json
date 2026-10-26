@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp conversations: no project \"<project>\"; wsp add <folder> records one\n"
+    }
+  ],
+  "events": []
+}

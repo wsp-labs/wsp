@@ -1,0 +1,4 @@
+# The units of the Rust host's port, one a line, for cargo xtask unit <unit>:
+# unit<TAB>manifest<TAB>package<TAB>src<TAB>tests<TAB>filter<TAB>ops
+# src is the unit's folder or file; tests its test files or folders, split by commas; filter the name its test run
+# is narrowed to, or -; ops the host ops it answers, split by commas, * matching any run of characters.
