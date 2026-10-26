@@ -38,9 +38,6 @@ export const SLATE_RULES: readonly string[] = [
 /** The look step, said last so it reads as the step after a write, and only where an app here draws looks. */
 export const SLATE_LOOK_RULE = "If slate_look is offered, look once after writing a frame or a large change, never after each patch.";
 
-/** What the frame's branch adds to the pick line, said only with the look rule, since both are about the frame. */
-const FRAME_PICK = "; what no piece draws, a frame: an .html file you wrote";
-
 export const SLATE_INDEX_EXAMPLE = `<slate title="Deploy">
   <run name="ci" cmd="./ci" every={30} />
   <value name="ship" start="" />
@@ -114,7 +111,7 @@ function index(look: boolean): string {
     "Pieces, visual first (! required, (a|b) only these, <items>):",
     ...core.map(pieceLine),
     `Every piece: id, when={cond}; items take when too. tone: ${SLATE_TONES.join(" ")}${narrowTones(core)}. emphasis: normal strong quiet. gap: tight normal loose. format, where none is listed: ${SLATE_FIGURES.join(" ")}.`,
-    `Pick: figures stats; done of many progress; a question decision; categories bars; time is a chart, x in ms or ISO; shares donut; sizes treemap; spans timeline; a flow is a diagram${look ? FRAME_PICK : ""}.`,
+    `Pick: figures stats; done of many progress; a question decision; categories bars; time is a chart, x in ms or ISO; shares donut; sizes treemap; spans timeline; a flow is a diagram; what no piece draws, a frame: an .html file you wrote.`,
     "Sources, read only:",
     ...Object.values(SLATE_SOURCES).filter(s => s.level === "core").map(s => sourceLine(s.name)),
     "Declarations: <value name start> <secret name> <derived name value> <run name cmd env args stdin on timeout every always once confirm then tool resource description> <file name> <when change={$path} or done={$run} do={steps}>",
@@ -227,7 +224,7 @@ function handlersEntry(): string {
  * where an app on the host's computer draws looks. */
 export function slateCatalog(name?: string, o: { look?: boolean } = {}): string {
   if (name === undefined || name === "" || name === "index") return index(o.look === true);
-  const text = entry(name);
+  const text = entry(name, o.look === true);
   // A named entry adds detail only; agents that read one alone guessed pieces like <h1> and <p>.
   return text.startsWith(`${name.trim()} ${NOT_IN}`) ? text : `${text}\n${BACK}`;
 }
@@ -239,7 +236,7 @@ const NOT_IN = "is not in the catalog";
 /** The entries slate_catalog answers by name besides the pieces and the sources. */
 export const SLATE_CHAPTERS = ["runs", "functions", "steps", "handlers", "patch", "examples"] as const;
 
-function entry(name: string): string {
+function entry(name: string, look: boolean): string {
   const n = name.trim();
   if (n === "file") return `The <file name="x.py"> declaration, code a run calls as $SLATE_DIR/x.py, is in slate_catalog runs.`;
   if (SLATE_PIECES[n] !== undefined) return pieceEntry(SLATE_PIECES[n]);
@@ -255,7 +252,7 @@ function entry(name: string): string {
       const options = [...Object.keys(SLATE_PIECES), ...Object.keys(SLATE_SOURCES), ...SLATE_CHAPTERS];
       const fix = nearest(n, options);
       // A guessed name answers the index too: small models asked for "dashboards" or "rows" and never saw a piece.
-      return `${n} is not in the catalog${fix !== undefined ? `; did you mean ${fix}?` : "."} Ask for a piece, a source, runs, patch, functions, steps, handlers or examples; a server's tools are the host's to answer. The whole index:\n\n${index(false)}`;
+      return `${n} is not in the catalog${fix !== undefined ? `; did you mean ${fix}?` : "."} Ask for a piece, a source, runs, patch, functions, steps, handlers or examples; a server's tools are the host's to answer. The whole index:\n\n${index(look)}`;
     }
   }
 }

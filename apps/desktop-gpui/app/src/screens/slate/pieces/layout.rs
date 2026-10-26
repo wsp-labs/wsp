@@ -107,7 +107,7 @@ pub fn is_card_row(slate: &Slate, id: &str) -> bool {
         // A state word alone on the page stands bare; after a card's rows it joins them, as `gather` says.
         Some(
             "section" | "heading" | "text" | "markdown" | "chart" | "donut" | "timeline" | "treemap" | "diagram" | "image" | "images"
-            | "bars" | "button" | "table" | "stats" | "status" | "progress" | "choices",
+            | "frame" | "bars" | "button" | "table" | "stats" | "status" | "progress" | "choices",
         ) => false,
         Some(_) => true,
     }

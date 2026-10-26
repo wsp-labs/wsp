@@ -2,6 +2,7 @@
 // Slates the render tests open by name with ?doc=, each the smallest that shows one layout fault the matrix found.
 import type { SlateJson } from "@wsp/protocol/slate";
 import { GLANCE_CASES } from "./glance";
+import { FRAME_CASES } from "./frames";
 import { IMAGE_CASES } from "./images";
 import { VIZ_CASES } from "./viz";
 
@@ -12,6 +13,7 @@ export const RENDER_CASES: Readonly<Record<string, { text: string; values?: Reco
   ...VIZ_CASES,
   ...IMAGE_CASES,
   ...GLANCE_CASES,
+  ...FRAME_CASES,
   "long-head": {
     text: `<slate><column>
   <section id="retail" title="Bengaluru retail" note="Indicative local jewellery-market rates; making charges and GST can vary by retailer"><status tone="good">Open</status></section>
