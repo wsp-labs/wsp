@@ -25,7 +25,8 @@ fn the_database_its_wal_and_the_folder_over_it_are_the_owners_alone_whatever_the
     fs::set_permissions(&home, fs::Permissions::from_mode(0o755)).unwrap();
     let was = unsafe { libc::umask(0o022) };
     let store = sqlite_store(&home.join("state.json"), writer());
-    let wrote = run(store.put("workspaces", "a", json!({"id": "a"}))).and_then(|_| run(store.put_blob("image-vaults", "default@v1", b"sign-ins".to_vec())));
+    let wrote = run(store.put("workspaces", "a", json!({"id": "a"})))
+        .and_then(|_| run(store.put_blob("image-vaults", "default@v1", b"sign-ins".to_vec())));
     unsafe { libc::umask(was) };
     wrote.unwrap();
     assert_eq!(mode(&home), 0o700);
