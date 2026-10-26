@@ -1,6 +1,6 @@
 # 02 State and storage
 
-What the TS host keeps, where, in what shape, and what it rebuilds at start. The Rust host starts with fresh state and no migrations (the map's locked point 3), so this chapter describes today's layout, says which parts are a contract other processes read, and lists the upgrade code that does not port. Every `file:line` is at `a3b870a6e`.
+What the TS host keeps, where, in what shape, and what it rebuilds at start. The Rust host opens today's `state.db` as it is (the owner's ruling on Proposal 3, 26 Oct 2026), so this chapter describes today's layout, says which parts are a contract other processes read, and lists the upgrade code that does not port. Every `file:line` is at `a3b870a6e`.
 
 ## The state folder
 
@@ -112,7 +112,7 @@ The host throws these and goes no further; it never moves a file itself.
 
 2.28. The checkpointer MUST open its own connection with `mode=rw` (it never creates the file), set the same `busy_timeout`, end when the database file is gone, and checkpoint only when `data_version` moved, counting a pass done only when the WAL's frames all went (`log === checkpointed`). A worker that ends early is made again 2 s later, at most twice in a row (three workers in all); one that lived 20 s or more resets the count. Giving up logs `the checkpoints of <db> stopped (<why>), so a commit takes one past 64 MB of WAL` (`sqlite-store.ts:59,78-131`).
 
-2.29. A fresh database MUST end its open with the schema's statements run (the TS host's seven, six under Proposal 3, which drops `migrations`), the shape row written, and no other row; the runtime's start then writes `owner` and `reads` (rule 2.23). (The TS host also writes `migrations` rows `('store', 1)` and `('transcripts', 1)`, `sqlite-store.ts:141-151`; Proposal 3 drops the table.)
+2.29. A fresh database MUST end its open with the schema's statements run (the TS host's seven less `migrations`: a brand-new file may be made without it), the shape row written with shape 2, and no other row; the runtime's start then writes `owner` and `reads` (rule 2.23). An existing file's `migrations` table and its rows (`('store', 1)` and `('transcripts', 1)`, `sqlite-store.ts:141-151`) MUST be left as they are: the Rust host neither drops the table nor reads it.
 
 ## Transcripts
 
@@ -215,7 +215,7 @@ A snooze timer whose time is past is not armed; a limit-resume timer whose time 
 
 ## Proposal 3: the store
 
-> **Proposal, awaiting the owner's ruling** (ticket decision 3). Pick: SQLite through `rusqlite` with the bundled SQLite, the same seven statements above minus `migrations`, run once on an empty file; the same pragmas; the same JSON-bag layout. Fresh means no import, no shape upgrade and no migration code, not a new layout.
+> **Proposal 3, accepted with a change by the owner (26 Oct 2026, #2442):** SQLite through `rusqlite` with the bundled SQLite, the same tables, pragmas and JSON-bag layout, and the Rust host **opens today's `state.db` as it is**: today's shape number, the existing `migrations` table tolerated, the records read and written exactly as the TS host does. A brand-new file runs the statements above less `migrations`. No import, no shape upgrade and no migration code: a database older than today's shape is refused with the TS host's own line (rule 2.19). Why: the launch ships on the TS host, so people will have real threads and projects before the Rust host takes over, and starting fresh would wipe them at the switch.
 
 Why the same layout and not typed tables:
 
@@ -226,7 +226,7 @@ Why the same layout and not typed tables:
 
 What the Rust host drops (every one is in today's code, `sqlite-store.ts`, `store.ts`, `machines/boot.ts`, `images/records.ts`, `threads/transcripts.ts`, `transcript-reader.ts`):
 
-- the `migrations` table and the per-module migration runner;
+- the per-module migration runner (the `migrations` table itself stays where a file has it; a new file is made without it);
 - the `state.json` import, `state.json.imported`, the JSON store and `WSP_STATE_STORE=json`;
 - transcripts kept inside the state file or as blobs, and their move to rows (`moveBlobs`);
 - events without `pos`, indexes missing `taken`, `children` or `pos`;
@@ -234,7 +234,7 @@ What the Rust host drops (every one is in today's code, `sqlite-store.ts`, `stor
 - session rows with `notify` as a string, no `notifyBy`, `resumeAt`; workspaces with no `kind` or `base`; scoped devices with no `road`; slate records of schema 1; projects with no `git`;
 - `moveOldCopies` and `copies-kept.txt`.
 
-2.19. The Rust host MUST stamp the `shape` row with its own shape number, one past the TS host's `STATE_SHAPE = 2` (`protocol/src/wire/daemon-version.ts:742`), and MUST refuse a database of any other shape with the TS host's refusals of rule 2.26, whose fix the person carries out: the TS host throws and moves nothing (`refuseOtherShape`, `store.ts:142-145`, called at `sqlite-store.ts:286,293,310,318`). A TS host's `state.db` (shape 2) so reads as the older-shape refusal, `... this wsp reads shape 3): move the file aside and this wsp starts a fresh one`. It never reads a TS host's `state.db`. Whether the owner's threads are exported is the map's open question; with the layout unchanged an export is a copy of rows.
+2.19. The Rust host MUST open a TS host's `state.db` as it is and keep its shape: it stamps the `shape` row with the TS host's `STATE_SHAPE = 2` (`protocol/src/wire/daemon-version.ts:742`), never drops or rewrites the `migrations` table of an existing file, and reads and writes every record as the TS host does. It MUST refuse a database of any other shape with the TS host's refusals of rule 2.26, whose fix the person carries out: the TS host throws and moves nothing (`refuseOtherShape`, `store.ts:142-145`, called at `sqlite-store.ts:286,293,310,318`). So a database older than shape 2 reads as the older-shape refusal, and none of the old upgrade paths (the JSON store, transcripts as blobs, events without `pos`) is ported. #2443 holds a parity case that runs the Rust host on a copy of a real `state.db` and diffs its answers against the TS host on the same copy.
 
 2.20. The Rust host MUST run SQLite on the state owner's own thread, synchronously, as node does, so a write is durable in the WAL before the next task runs (03, rule 3.1). The passive checkpointer keeps its own connection on its own thread.
 
