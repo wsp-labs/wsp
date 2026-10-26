@@ -3,6 +3,8 @@
 //! launch line and environment, the interrupt policy, the process a finished turn leaves, steering over the stdin
 //! channel and a reply while the process keeps running.
 
+#![allow(dead_code, unused_imports)]
+
 #[path = "common/claude_exec.rs"]
 mod claude_exec;
 

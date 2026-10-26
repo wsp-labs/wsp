@@ -3,6 +3,8 @@
 //! given while background work runs, the agent's tool shell, what a rewind needs, a retried model call, a
 //! compaction, the plan's limits, a person's launch setup and what a turn cost.
 
+#![allow(dead_code, unused_imports)]
+
 #[path = "common/claude_exec.rs"]
 mod claude_exec;
 
