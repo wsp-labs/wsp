@@ -9,7 +9,7 @@ use super::limits::{credits_of, limit_of, snapshot_of, LimitAccount};
 use crate::pending::{
     answers_of, app_server_initialize, app_server_notification, app_server_request, app_server_script, result_of, ServerAnswer, ServerStage,
 };
-use crate::port::{program_word, AdapterError, HarnessLimit, PlanResets, ResetReading, ResetRoad, ResetSpend};
+use crate::port::{program_word, HarnessLimit, PlanResets, ResetReading, ResetRoad, ResetSpend};
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::types::usage::HarnessLimitAccount;
 
@@ -117,14 +117,14 @@ pub struct CodexPlanResets;
 impl PlanResets for CodexPlanResets {
     /// The port's method answers no error where the TS throws (a relative home, a key that is no slug): this panics
     /// with the refusal's words there. Asked of the port's owner to answer `Result`.
-    fn read_command(&self, road: &ResetRoad) -> Result<String, AdapterError> {
-        reset_read_command(road).map_err(AdapterError)
+    fn read_command(&self, road: &ResetRoad) -> String {
+        reset_read_command(road).unwrap_or_else(|refusal| panic!("{refusal}"))
     }
     fn parse_read(&self, stdout: &str) -> Option<ResetReading> {
         parse_reset_read(stdout)
     }
-    fn spend_command(&self, road: &ResetRoad, idempotency_key: &str, credit_id: Option<&str>) -> Result<String, AdapterError> {
-        reset_credit_command(road, idempotency_key, credit_id).map_err(AdapterError)
+    fn spend_command(&self, road: &ResetRoad, idempotency_key: &str, credit_id: Option<&str>) -> String {
+        reset_credit_command(road, idempotency_key, credit_id).unwrap_or_else(|refusal| panic!("{refusal}"))
     }
     fn parse_spend(&self, stdout: &str) -> ResetSpend {
         parse_reset_credit(stdout)
