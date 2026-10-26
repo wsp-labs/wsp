@@ -33,7 +33,8 @@ use wsp_words::workspace_state::is_local_workspace;
 use super::start::{drop_scope, refuse_now, Prepared};
 use super::{HeldSend, SessionsArea, SessionsCtx};
 use crate::threads::agents::launch::LaunchServers;
-use crate::threads::launch::{LaunchAsked, LaunchPicks};
+use crate::threads::agents::lists::SESSION_TITLE_TIMEOUT_MS;
+use crate::threads::launch::{seed_after_loss, LaunchAsked, LaunchPicks, LostAt, Seed};
 use crate::threads::threads::{CapAt, Entry, Row};
 use crate::threads::turns::{Open, Opening, SnapshotFrom, TurnSnapshot, TurnStart};
 
@@ -323,22 +324,35 @@ fn start_saying(ctx: &Rc<dyn SessionsCtx>, saying: &Rc<Saying>, entry: &Entry, s
     *saying.off_started.borrow_mut() = Some(off);
 }
 
-/// The seed a resuming turn hands its agent: the thread's earlier turns, this one left out (TS `seedAfterLoss` seed).
+/// The seed a resuming turn hands its agent: the thread's earlier turns, this one left out, behind the read of what the
+/// machine holds for the lost session (TS `seedAfterLoss`).
 fn seed_for(
     ctx: &Rc<dyn SessionsCtx>,
+    entry: &Entry,
+    adapter: &Arc<dyn HarnessAdapter>,
+    session: &str,
     ws: &str,
     thread: &str,
     turn: &str,
 ) -> Arc<dyn Fn() -> LocalBoxFuture<'static, Result<String, String>>> {
-    let (ctx, ws, thread, turn) = (ctx.clone(), ws.to_string(), thread.to_string(), turn.to_string());
-    Arc::new(move || {
-        let (ctx, ws, thread, turn) = (ctx.clone(), ws.clone(), thread.clone(), turn.clone());
+    let (reader, ws, thread, turn) = (ctx.clone(), ws.to_string(), thread.to_string(), turn.to_string());
+    let at = LostAt { session_id: session.to_string(), thread_id: thread.clone(), workspace_id: ws.clone() };
+    let earlier: Seed = Rc::new(move || {
+        let (ctx, ws, thread, turn) = (reader.clone(), ws.clone(), thread.clone(), turn.clone());
         async move {
-            let events = ctx.open_thread(&ws, &thread).await.map_err(|e| e.message)?;
+            let events = ctx.open_thread(&ws, &thread).await?;
             let others: Vec<SessionEvent> = events.into_iter().filter(|e| turn_of(e).as_deref() != Some(turn.as_str())).collect();
             Ok(thread_seed(&thread_messages(&others, &thread)))
         }
         .boxed_local()
+    });
+    let seed = match ctx.session_held_of(adapter) {
+        Some(held) => seed_after_loss(Some(held), ctx.harness_exec(entry, SESSION_TITLE_TIMEOUT_MS), at, earlier),
+        None => earlier,
+    };
+    Arc::new(move || {
+        let read = seed();
+        async move { read.await.map_err(|e| e.message) }.boxed_local()
     })
 }
 
@@ -948,8 +962,7 @@ impl SessionsArea {
             Some(kept) => kept.borrow().launch.clone(),
             None => k.clone(),
         });
-        let has_seed = st.resume.is_some();
-        let seed = if has_seed { Some(seed_for(&ctx, &ws, &thread_id, &turn_id)) } else { None };
+        let seed = st.resume.as_deref().map(|session| seed_for(&ctx, &entry, &adapter, session, &ws, &thread_id, &turn_id));
         let images = st.images.clone();
         let copy = outside.as_ref().is_some_and(|out| out.copy);
         let open: Open = match kept.clone() {
