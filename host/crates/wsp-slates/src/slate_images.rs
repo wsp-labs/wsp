@@ -77,14 +77,41 @@ thread_local! {
     static TURNS: RefCell<HashMap<String, Turns>> = RefCell::new(HashMap::new());
 }
 
-/// Gives back the slot a read held; the next waiter takes it straight over.
-struct Slot(String);
+/// A read's place in its thread's turns: the turn it runs in, or the place it waits for one. Dropped at any point, it
+/// gives the turn back, or passes it to the next waiter, so no way out of a read leaves the count high.
+struct Turn {
+    thread: String,
+    queued: Option<oneshot::Receiver<()>>,
+}
 
-impl Drop for Slot {
+impl Turn {
+    fn enter(thread: &str) -> Turn {
+        let queued = TURNS.with(|turns| {
+            let mut turns = turns.borrow_mut();
+            let mine = turns.entry(thread.to_string()).or_default();
+            if mine.running >= IMAGES_AT_ONCE {
+                let (tx, rx) = oneshot::channel();
+                mine.waiting.push_back(tx);
+                Some(rx)
+            } else {
+                mine.running += 1;
+                None
+            }
+        });
+        Turn { thread: thread.to_string(), queued }
+    }
+}
+
+impl Drop for Turn {
     fn drop(&mut self) {
+        if let Some(queued) = self.queued.as_mut() {
+            if queued.try_recv().is_err() {
+                return;
+            }
+        }
         TURNS.with(|turns| {
             let mut turns = turns.borrow_mut();
-            let Some(mine) = turns.get_mut(&self.0) else {
+            let Some(mine) = turns.get_mut(&self.thread) else {
                 return;
             };
             while let Some(next) = mine.waiting.pop_front() {
@@ -95,35 +122,19 @@ impl Drop for Slot {
             mine.running -= 1;
             let idle = mine.running == 0;
             if idle {
-                turns.remove(&self.0);
+                turns.remove(&self.thread);
             }
         });
     }
 }
 
 async fn in_turn<T>(thread: &str, work: impl Future<Output = T>) -> T {
-    let waiting = TURNS.with(|turns| {
-        let mut turns = turns.borrow_mut();
-        let mine = turns.entry(thread.to_string()).or_default();
-        if mine.running >= IMAGES_AT_ONCE {
-            let (tx, rx) = oneshot::channel();
-            mine.waiting.push_back(tx);
-            Some(rx)
-        } else {
-            mine.running += 1;
-            None
-        }
-    });
-    let slot = match waiting {
-        Some(rx) => {
-            let _ = rx.await;
-            Slot(thread.to_string())
-        }
-        None => Slot(thread.to_string()),
-    };
-    let answer = work.await;
-    drop(slot);
-    answer
+    let mut turn = Turn::enter(thread);
+    if let Some(queued) = turn.queued.as_mut() {
+        let _ = queued.await;
+        turn.queued = None;
+    }
+    work.await
 }
 
 /// An answer the window already holds, said as unchanged rather than sent again (slate-images.ts:240).
