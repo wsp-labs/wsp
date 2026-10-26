@@ -43,7 +43,7 @@ describe("the nightly desktop smoke", () => {
     expect(appStep).toContain('WSP_REQUIRE_DAEMON: "1"');
   });
 
-  it("packages one tree for this chip with the release's config and publishes nothing, then drives it with the smoke", () => {
+  it("packages one tree for this chip with the release's config and publishes nothing, then drives it with the smoke, which sends no usage counts", () => {
     const depsAt = workflow.indexOf("pnpm --filter @wsp/desktop run build:deps");
     const appAt = workflow.indexOf("pnpm --filter @wsp/desktop run build:app");
     const packAt = workflow.indexOf("pnpm --filter @wsp/desktop exec electron-builder --config electron-builder.yml --mac --dir --publish never");
@@ -54,5 +54,13 @@ describe("the nightly desktop smoke", () => {
     expect(smokeAt).toBeGreaterThan(packAt);
     expect(desktopScripts["smoke"]).toContain("WSP_DESKTOP_SMOKE=1");
     expect(workflow).not.toContain("WSP_DESKTOP_SCREEN");
+    // The release builds the app with the real PostHog key, so every launch a check makes turns the counts off, or
+    // each release counts as a few dozen new installs.
+    const smoke = readFileSync(join(repo, "apps", "desktop", "test", "smoke.electron.test.ts"), "utf8");
+    const flows = readFileSync(join(repo, "apps", "desktop", "test", "flows.electron.test.ts"), "utf8");
+    expect(smoke).toMatch(/const merged = \{[^}]*\[ANALYTICS_ENV\]: "0"/);
+    expect(flows).toMatch(/const launchEnv[^=]*= \{[^}]*\[ANALYTICS_ENV\]: "0"/);
+    for (const spawned of smoke.matchAll(/const env = \{ \.\.\.process\.env[^}]*\}/g)) expect(spawned[0]).toContain('[ANALYTICS_ENV]: "0"');
+    expect(readFileSync(join(repo, "apps", "desktop-gpui", "scripts", "appimage-launch.sh"), "utf8")).toMatch(/APPIMAGE_EXTRACT_AND_RUN=1 WSP_ANALYTICS=0 "\$image"/);
   });
 });
