@@ -4,7 +4,7 @@
 // launched: this file depends on no option of local-exec, so on a tree with no guard, the one before this fix
 // included, it sends nothing it should not.
 import { execFileSync, spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -37,18 +37,41 @@ describe("a run's .pid file names a pid before it is signalled", () => {
   });
   afterEach(async () => {
     for (const drop of [...reading]) drop();
-    for (const pid of ours) if (groupExists(pid)) real(-pid, "SIGKILL");
-    await vi.waitFor(() => expect([...ours].filter(groupExists)).toEqual([]), { timeout: 15_000 });
+    for (const pid of ours) await gone(pid, true);
     vi.restoreAllMocks();
     rmSync(root, { recursive: true, force: true });
   });
 
+  /** What is left in a group, as ps lists it: what a failed wait says, so a group that outlives a stop names its members. */
+  const members = (pgid: number): string =>
+    execFileSync("ps", ["-axo", "pid=,ppid=,pgid=,stat=,command="], { encoding: "utf8" })
+      .split("\n")
+      .filter(row => row.trim().split(/\s+/)[2] === String(pgid))
+      .join("; ");
+
+  /** Waits for a group to be gone. A group killed while its leader is forking can keep the child that fork made, which
+   * the kernel adds to the group after the signal went round (macOS has no check against it), so a wait that has to end
+   * what the test itself started sends KILL again on every look, as the code's own reap does once its grace is out. */
+  const gone = (pgid: number, again = false): Promise<void> =>
+    vi.waitFor(
+      () => {
+        if (!groupExists(pgid)) return;
+        if (again) real(-pgid, "SIGKILL");
+        throw new Error(`group ${pgid} is still there: ${members(pgid)}`);
+      },
+      { timeout: 15_000 },
+    );
+
   /** A poll that naps for a minute settles nothing while a case reads what teardown did; a kill is noticed by the poll. */
   const options = (pollMs = 10): LocalExecOptions => ({ root, runDir, pollMs, reading });
 
-  const launch = (pollMs?: number): ExecStream & { leader: number } => {
-    const stream = localExecStream(options(pollMs))("sleep 300", { env: {} });
+  /** A run whose command has printed `ready` and is a lone `sleep` by exec, so its group holds the leader and that
+   * one process and nothing is still forking: a stop sent in the first moments of a run can miss a child the leader
+   * was forking as the signal went round, and leave it holding the group for the whole 300 s. */
+  const launch = async (pollMs?: number): Promise<ExecStream & { leader: number }> => {
+    const stream = localExecStream(options(pollMs))("echo ready; exec sleep 300", { env: {} });
     ours.add(stream.pid!);
+    await vi.waitFor(() => expect(readFileSync(`${stream.run}.log`, "utf8")).toBe("ready\n"), { timeout: 15_000 });
     return Object.assign(stream, { leader: stream.pid! });
   };
 
@@ -98,7 +121,7 @@ describe("a run's .pid file names a pid before it is signalled", () => {
     for (const aim of aims) {
       for (const verb of ["teardown", "kill"] as const) {
         sent.length = 0;
-        const stream = launch(verb === "teardown" ? 60_000 : 10);
+        const stream = await launch(verb === "teardown" ? 60_000 : 10);
         const other = aim(stream.run!);
         if (other !== undefined) await vi.waitFor(() => expect(groupExists(other)).toBe(true));
         stream[verb]();
@@ -107,7 +130,7 @@ describe("a run's .pid file names a pid before it is signalled", () => {
         expect(new Set(sent.map(([pid]) => pid))).toEqual(new Set([-stream.leader]));
         expect(sent[0]).toEqual([-stream.leader, verb === "teardown" ? "SIGTERM" : "SIGKILL"]);
         if (other !== undefined) expect(groupExists(other)).toBe(true);
-        await vi.waitFor(() => expect(groupExists(stream.leader)).toBe(false), { timeout: 15_000 });
+        await gone(stream.leader);
       }
     }
     expect(said).toEqual([]);
@@ -115,7 +138,7 @@ describe("a run's .pid file names a pid before it is signalled", () => {
 
   /** A run the host that launched it let go of, as a restart leaves one: the pid file is all an attach has. */
   const orphaned = async (word: string, pollMs: number): Promise<ExecStream & { leader: number }> => {
-    const first = launch(60_000);
+    const first = await launch(60_000);
     const base = first.run!;
     for (const drop of [...reading]) drop();
     backdate(base, 600_000);
@@ -190,10 +213,10 @@ describe("a run's .pid file names a pid before it is signalled", () => {
     }, 30_000);
 
     it("ends a real run's group, as before", async () => {
-      const stream = launch(60_000);
+      const stream = await launch(60_000);
       await localExecStream(options()).sweep!([]);
       expect(sent).toContainEqual([-stream.leader, "SIGTERM"]);
-      await vi.waitFor(() => expect(groupExists(stream.leader)).toBe(false), { timeout: 15_000 });
+      await gone(stream.leader);
       expect(said).toEqual([]);
     }, 20_000);
   });
