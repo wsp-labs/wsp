@@ -213,7 +213,7 @@ fn rollouts_index_keys_listing_lines_and_an_empty_note() {
     assert_eq!(parse_state_listing("!unread\n").unwrap().paths, vec!["!unread".to_string()]);
     assert_eq!(
         parse_merge_output(r#"{"merged":0,"kept":0,"note":""}"#).unwrap(),
-        MergeOutput::Merged { merged: 0, kept: 0, note: Some(String::new()) }
+        MergeOutput::Merged { merged: 0.0, kept: 0.0, note: Some(String::new()) }
     );
 }
 

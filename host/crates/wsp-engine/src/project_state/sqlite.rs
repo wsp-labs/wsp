@@ -318,7 +318,14 @@ fn merge_table_json(t: &MergeTable) -> Value {
 }
 
 fn open(db: &str, flags: OpenFlags) -> Result<Connection> {
-    let conn = Connection::open_with_flags(db, flags).map_err(sql_error)?;
+    // rusqlite adds the path to sqlite's own words for a file that will not open, which node's sqlite does not.
+    let conn = Connection::open_with_flags(db, flags).map_err(|e| match sql_error(e) {
+        EngineError::Other { message, code } => {
+            let message = message.strip_suffix(&format!(": {db}")).map_or(message.clone(), str::to_string);
+            EngineError::Other { message, code }
+        }
+        other => other,
+    })?;
     conn.busy_timeout(Duration::ZERO).map_err(sql_error)?;
     Ok(conn)
 }
@@ -352,6 +359,9 @@ fn named(bound: &[(String, RValue)]) -> Vec<(&str, &dyn ToSql)> {
 fn read_value(value: ValueRef<'_>) -> Result<SqlValue> {
     Ok(match value {
         ValueRef::Null => SqlValue::Null,
+        // node:sqlite's own range check takes `abs` of the integer, which overflows for the smallest one and lets it through,
+        // as the double it reads as.
+        ValueRef::Integer(i64::MIN) => SqlValue::Real(i64::MIN as f64),
         ValueRef::Integer(i) if i.unsigned_abs() > MAX_SAFE_INTEGER => {
             return Err(EngineError::Other {
                 message: format!("Value is too large to be represented as a JavaScript number: {i}"),
