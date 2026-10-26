@@ -628,7 +628,7 @@ async fn merges_into_a_config_linked_inside_the_home_and_the_leave_takes_its_ser
     assert!(claude_server_names(&root).contains(&s("gsc")));
 
     let port = machine_server_port(Arc::new(g.machine.clone()));
-    let out = unmerge_servers(&port, &root, &IndexMap::from([(s("claude"), at(&root, ".claude-cfg"))])).await;
+    let out = unmerge_servers(&port, &root, &IndexMap::from([(s("claude"), at(&root, ".claude-cfg"))])).await.unwrap();
     assert!(out.contains(&ServersOut::Took { path: claude.clone(), names: vec![s("gsc")] }), "{out:?}");
     assert!(is_link(&claude));
     assert_eq!(claude_server_names(&root), vec![s("mine")]);
@@ -654,7 +654,7 @@ async fn the_leave_takes_nothing_out_of_a_config_that_became_a_link_or_grew_past
     let answers = answered(&mut g);
 
     let port = machine_server_port(Arc::new(g.machine.clone()));
-    let out = unmerge_servers(&port, &root, &IndexMap::from([(s("claude"), at(&root, ".claude-cfg"))])).await;
+    let out = unmerge_servers(&port, &root, &IndexMap::from([(s("claude"), at(&root, ".claude-cfg"))])).await.unwrap();
     assert!(longest(&answers) < CONFIG_READ_MAX_BYTES as usize);
     assert_eq!(
         out,
@@ -824,7 +824,7 @@ async fn merges_an_agents_servers_into_the_store_config_outside_the_home_and_tak
     assert_eq!(s(word(again.iter().find(|r| r.id == id("codex/context7")).unwrap().outcome)), "present");
 
     let port = machine_server_port(Arc::new(g.machine.clone()));
-    let out = unmerge_servers(&port, &root, &stores_of(&logins)).await;
+    let out = unmerge_servers(&port, &root, &stores_of(&logins)).await.unwrap();
     let config = at(&logins, "config.toml");
     assert_eq!(
         out.iter().find(|x| matches!(x, ServersOut::Took { path, .. } | ServersOut::Unread { path, .. } if *path == config)),

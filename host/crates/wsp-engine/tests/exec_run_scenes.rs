@@ -11,11 +11,8 @@ use base64::Engine;
 use futures::FutureExt;
 use roads_common::*;
 use serde_json::{json, Value};
-use tokio::io::{AsyncWriteExt, DuplexStream};
-use tokio::sync::oneshot;
 use wsp_engine::exec_detached::exec_detached_in;
 use wsp_engine::machine::{ExecOptions, RunOptions};
-use wsp_engine::ssh_backend::{hold_back_forward, ChildEnd, HeldChild, SshCarried, SshReach};
 
 fn scenes() -> Value {
     let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/scenes/roads.json")).unwrap();

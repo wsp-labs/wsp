@@ -52,9 +52,9 @@ implements since golden waits on #2441.
 ## Open points
 
 1. `parse_facts` keeps elements as they are in the TS, a `{"id":"a"}` with no label or note among them, and a render
-   then prints `undefined`. `BuildFacts` holds whole items only, so the port cannot hold such an element. Only wsp
-   writes the file. Needs a ruling: drop a partial element (the hard test skips that one case meanwhile), or carry
-   `serde_json::Value` items.
+   then prints `undefined`. `BuildFacts` holds whole items only, so the port cannot hold such an element. Ruled (the
+   machines slice's ruling 2, kept by the engine's fix round): a partial element is dropped and the hard test skips that
+   one case.
 2. fish is not installed on aws-mumbai; `the_fish_alias_probe_*` fails on its own assert until it is.
 
 ## Rules against tests

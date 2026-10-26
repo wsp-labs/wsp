@@ -4,18 +4,30 @@
 //! A provider that answers out of memory, or out of one records file two host processes share, so a harness can
 //! serve a fixture state whose workspaces are forks.
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::cancel::Cancel;
 use async_trait::async_trait;
 use indexmap::IndexMap;
+use serde::Serialize;
+use serde_json::{json, Map, Value};
 
-use crate::errors::Result;
+use crate::child_exec::{run_child, ChildOptions};
+use crate::errors::{EngineError, RealRetryClock, Result, RetryClock};
 use crate::machine::{
-    BackendOffers, BackendPricing, BytesLanded, Capabilities, ExecOptions, ExecResult, Lifecycle, Machine, MachineBackend, MachineFacts,
-    MachineKind, MachineLife, MachineListRow, MachineOffers, MachineShape, MachineSpec, MachineState, PreviewReach, RunOptions, Seen,
-    SnapshotOptions, SnapshotRow, Waiting,
+    not_on_this_road, BackendOffers, BackendPricing, BytesLanded, Capabilities, ExecOptions, ExecResult, Lifecycle, LifecycleBudgets,
+    Machine, MachineBackend, MachineFacts, MachineKind, MachineLife, MachineListRow, MachineOffers, MachineShape, MachineSpec,
+    MachineState, OnLine, PreviewReach, RunOptions, Seen, Size, SnapshotOptions, SnapshotRow, SnapshotStoragePricing, Waiting,
+    WireSnapshotStoragePricing,
 };
+use wsp_catalog::json_parse::parse_json;
+use wsp_wire::types::js_number::JsInt;
+use wsp_wire::types::JsNumber;
+use wsp_wire::views::activity::iso_time;
+use wsp_wire::wire::capabilities::{MachineSizeOffer, PauseMode};
+use wsp_words::js::{js_key_order, to_fixed};
+
+use crate::js_value::js_string;
 
 /// fake-backend.ts:75. What a road that reaches for the guest is told.
 pub const FAKE_NO_GUEST: &str = "this is a stand-in provider for testing: its machines are records in memory, so nothing runs on them and nothing can be opened inside them";
@@ -52,7 +64,7 @@ pub trait FakeGuest {
 
 /// fake-backend.ts:126. What a reader is told when the file is there and is not records.
 pub fn stand_in_records_unreadable(path: &str, why: &str) -> String {
-    todo!()
+    format!("{path} is not this stand-in provider's records: {why}")
 }
 
 /// fake-backend.ts:250.
@@ -65,8 +77,117 @@ pub struct FakeBackendOptions {
     pub guest: Option<Arc<dyn FakeGuest>>,
 }
 
-/// fake-backend.ts:113. Where this stand-in's records live; the implementer shapes it.
-struct Records {}
+/// fake-backend.ts:113. Where this stand-in's records live: a file read at every call and written at every change, or
+/// this process alone. Held as the TS object, so a key the file carries beyond `machines` and `snapshots` keeps its place.
+struct Records {
+    file: Option<PathBuf>,
+    memory: Mutex<Map<String, Value>>,
+}
+
+/// fake-backend.ts:108.
+fn empty_held() -> Map<String, Value> {
+    let mut held = Map::new();
+    held.insert("machines".into(), json!({}));
+    held.insert("snapshots".into(), json!([]));
+    held
+}
+
+/// `held.machines` as an object, read for `key`: a file whose `machines` is null throws in the TS as `held.machines[key]`
+/// does, so nothing is written over it.
+fn machines_of(held: &Map<String, Value>, key: &str) -> Result<Map<String, Value>> {
+    match held.get("machines") {
+        Some(Value::Null) => Err(other(format!("Cannot read properties of null (reading '{key}')"))),
+        other => Ok(other.and_then(Value::as_object).cloned().unwrap_or_default()),
+    }
+}
+
+/// `held.snapshots` as a list, read through `reading` (`filter` or the spread's iterator): a file whose `snapshots` is null
+/// throws in the TS as the call does.
+fn snapshots_of(held: &Map<String, Value>, reading: &str) -> Result<Vec<Value>> {
+    match held.get("snapshots") {
+        Some(Value::Null) if reading == "filter" => Err(other("Cannot read properties of null (reading 'filter')")),
+        Some(Value::Null) => Err(other("object null is not iterable (cannot read property Symbol(Symbol.iterator))")),
+        other => Ok(other.and_then(Value::as_array).cloned().unwrap_or_default()),
+    }
+}
+
+fn other(message: impl Into<String>) -> EngineError {
+    EngineError::Other { message: message.into(), code: None }
+}
+
+fn io(e: std::io::Error) -> EngineError {
+    other(e.to_string())
+}
+
+impl Records {
+    /// fake-backend.ts:128. A file that cannot be read is an empty fleet; one that is there and does not parse fails the
+    /// read, and is never written over. JSON that is not an object reads as an empty fleet. The bytes are read as node's
+    /// `"utf8"` reads them, a byte that is no UTF-8 as U+FFFD.
+    fn read(&self) -> Result<Map<String, Value>> {
+        let Some(path) = &self.file else { return Ok(self.memory.lock().unwrap().clone()) };
+        let Ok(bytes) = std::fs::read(path) else { return Ok(empty_held()) };
+        let mut held = empty_held();
+        match parse_json(&String::from_utf8_lossy(&bytes)) {
+            Ok(Value::Object(parsed)) => held.extend(parsed),
+            Ok(_) => {}
+            Err(e) => return Err(other(stand_in_records_unreadable(&path.to_string_lossy(), &e.to_string()))),
+        }
+        Ok(held)
+    }
+
+    /// fake-backend.ts:146. Written beside the file and renamed over it, so a reader sees the records before a change or
+    /// after it, never half of them.
+    fn write(&self, held: Map<String, Value>) -> Result<()> {
+        let Some(path) = &self.file else {
+            *self.memory.lock().unwrap() = held;
+            return Ok(());
+        };
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).map_err(io)?;
+        }
+        let next = PathBuf::from(format!("{}.next", path.display()));
+        let text = serde_json::to_string_pretty(&Value::Object(held)).unwrap_or_default();
+        std::fs::write(&next, format!("{text}\n")).map_err(io)?;
+        std::fs::rename(&next, path).map_err(io)
+    }
+}
+
+/// One machine's record as the TS writes it: `state, shape, labels`.
+#[derive(Serialize)]
+struct MachineRecord {
+    state: MachineState,
+    shape: MachineShape,
+    labels: IndexMap<String, String>,
+}
+
+impl MachineRecord {
+    /// A record as the TS reads it, field by field and none of them required: a record with no state is read as running,
+    /// the state a machine is made in, and a label is the text JavaScript writes for it. A word that is no state is refused,
+    /// since no row can carry it.
+    fn read(record: &Value) -> Result<Self> {
+        let Some(fields) = record.as_object() else {
+            return Err(other("Cannot read properties of null (reading 'state')".to_string()));
+        };
+        let state = match fields.get("state") {
+            None | Some(Value::Null) => MachineState::Running,
+            Some(word) => serde_json::from_value(word.clone()).map_err(|_| other(format!("a machine record holds the state {word}")))?,
+        };
+        let number = |key: &str| fields.get("shape").and_then(|s| s.get(key)).and_then(Value::as_f64).map(JsNumber);
+        let shape = MachineShape {
+            cpu: number("cpu"),
+            mem_mb: number("memMb"),
+            disk_gb: number("diskGb"),
+            created_at: fields.get("shape").and_then(|s| s.get("createdAt")).and_then(Value::as_str).map(str::to_string),
+            used_bytes: number("usedBytes").filter(|n| n.0.fract() == 0.0).map(JsInt),
+        };
+        let labels = fields
+            .get("labels")
+            .and_then(Value::as_object)
+            .map(|labels| labels.iter().map(|(k, v)| (k.clone(), js_string(v))).collect())
+            .unwrap_or_default();
+        Ok(MachineRecord { state, shape, labels })
+    }
+}
 
 /// fake-backend.ts:156. One machine this provider holds.
 pub struct FakeMachine {
@@ -79,64 +200,127 @@ pub struct FakeMachine {
     token_path: Option<String>,
 }
 
+impl FakeMachine {
+    /// One command where a guest is wired, on the caller's own computer in this machine's folder; a refusal that names
+    /// this stand-in where none is.
+    async fn shell(&self, cmd: &str, timeout_ms: Option<u64>, on_line: Option<OnLine>) -> Result<ExecResult> {
+        let Some(guest) = &self.guest else { return Err(other(FAKE_NO_GUEST)) };
+        let at = guest.folder(&self.id);
+        let run = guest.shell(&self.id, cmd).unwrap_or_else(|| GuestShell {
+            cmd: cmd.to_string(),
+            cwd: at.clone(),
+            env: IndexMap::from([("HOME".to_string(), at.to_string_lossy().into_owned())]),
+        });
+        std::fs::create_dir_all(&run.cwd).map_err(io)?;
+        let mut env: IndexMap<String, String> = crate::child_exec::process_env();
+        env.extend(run.env);
+        let args = ["-c".to_string(), run.cmd];
+        Ok(run_child("bash", &args, ChildOptions { cwd: Some(run.cwd), env: Some(env), timeout_ms, on_line, stdin: None }).await)
+    }
+
+    /// fake-backend.ts:203. Appends the snapshot to the records and writes them.
+    fn record_snapshot(&self, name: &str) -> Result<String> {
+        let row_id = format!("fksnap_{}", hex::encode(rand::random::<[u8; 6]>()));
+        let mut held = self.records.read()?;
+        let mut snapshots = snapshots_of(&held, "spread")?;
+        let gib = 8u64 * 1024 * 1024 * 1024;
+        snapshots.push(
+            json!({ "id": row_id, "name": name, "sizeBytes": gib, "restoredBytes": gib, "createdAt": iso_time(RealRetryClock.now()) }),
+        );
+        held.insert("snapshots".into(), Value::Array(snapshots));
+        self.records.write(held)?;
+        Ok(row_id)
+    }
+
+    /// fake-backend.ts:210. A machine no longer recorded is left alone and nothing is written.
+    fn move_to(&self, to: MachineState) -> Result<()> {
+        let mut held = self.records.read()?;
+        let mut machines = machines_of(&held, &self.id)?;
+        let Some(record) = machines.get_mut(&self.id) else { return Ok(()) };
+        if let Some(record) = record.as_object_mut() {
+            record.insert("state".into(), serde_json::to_value(to).unwrap_or_default());
+        }
+        held.insert("machines".into(), Value::Object(machines));
+        self.records.write(held)
+    }
+}
+
 #[async_trait(?Send)]
 impl Machine for FakeMachine {
     fn id(&self) -> &str {
-        todo!()
+        &self.id
     }
     fn kind(&self) -> MachineKind {
-        todo!()
+        MachineKind::Sandbox
     }
     fn labels(&self) -> Option<&IndexMap<String, String>> {
-        todo!()
+        Some(&self.labels)
     }
     fn seen(&self) -> Option<&Seen> {
-        todo!()
+        Some(&self.seen)
     }
     fn daemon_token_path(&self) -> Option<&str> {
-        todo!()
+        self.token_path.as_deref()
     }
     fn offers(&self) -> MachineOffers {
-        todo!()
+        MachineOffers {
+            preview_url: self.guest.is_some(),
+            put_bytes: self.guest.as_ref().is_some_and(|g| g.has_put_bytes()),
+            describe: true,
+            facts: true,
+            ..MachineOffers::default()
+        }
     }
     async fn exec(&self, cmd: &str, opts: ExecOptions) -> Result<ExecResult> {
-        todo!()
+        self.shell(cmd, opts.timeout_ms, None).await
     }
     async fn run(&self, script: &str, opts: RunOptions) -> Result<ExecResult> {
-        todo!()
+        self.shell(script, Some(opts.deadline_ms), opts.on_line.clone()).await
     }
-    async fn snapshot(&self, name: &str, life: MachineLife, opts: SnapshotOptions) -> Result<String> {
-        todo!()
+    async fn snapshot(&self, name: &str, _life: MachineLife, _opts: SnapshotOptions) -> Result<String> {
+        self.record_snapshot(name)
     }
-    async fn pause(&self, wait_ms: Option<u64>) -> Result<()> {
-        todo!()
+    async fn pause(&self, _wait_ms: Option<u64>) -> Result<()> {
+        self.move_to(MachineState::Paused)
     }
-    async fn resume(&self, signal: Option<&Cancel>) -> Result<()> {
-        todo!()
+    async fn resume(&self, _signal: Option<&Cancel>) -> Result<()> {
+        self.move_to(MachineState::Running)
     }
     async fn kill(&self) -> Result<()> {
-        todo!()
+        self.move_to(MachineState::Gone)
     }
     async fn state(&self) -> Result<MachineState> {
-        todo!()
+        let held = self.records.read()?;
+        let recorded =
+            machines_of(&held, &self.id)?.get(&self.id).and_then(|m| serde_json::from_value::<MachineState>(m["state"].clone()).ok());
+        Ok(recorded.unwrap_or(self.seen.state))
     }
-    async fn download_url(&self, path: &str) -> Result<String> {
-        todo!()
+    async fn download_url(&self, _path: &str) -> Result<String> {
+        Err(other("this provider mints no signed download URL"))
     }
-    async fn upload_url(&self, path: &str) -> Result<String> {
-        todo!()
+    async fn upload_url(&self, _path: &str) -> Result<String> {
+        Err(other("this provider mints no signed upload URL"))
     }
     async fn preview_url(&self, port: u16) -> Result<PreviewReach> {
-        todo!()
+        match &self.guest {
+            Some(guest) => guest.reach(&self.id, port).await,
+            None => not_on_this_road(),
+        }
     }
-    async fn put_bytes(&self, path: &str, bytes: &[u8], timeout_ms: Option<u64>) -> Result<Option<BytesLanded>> {
-        todo!()
+    async fn put_bytes(&self, path: &str, bytes: &[u8], _timeout_ms: Option<u64>) -> Result<Option<BytesLanded>> {
+        match &self.guest {
+            Some(guest) if guest.has_put_bytes() => {
+                guest.put_bytes(&self.id, path, bytes).await?;
+                Ok(None)
+            }
+            _ => not_on_this_road(),
+        }
     }
     async fn describe(&self) -> Result<MachineShape> {
-        todo!()
+        Ok(self.shape.clone())
     }
     async fn facts(&self) -> Result<MachineFacts> {
-        todo!()
+        Ok(MachineFacts { os: "Debian GNU/Linux 12".into(), uptime_ms: JsNumber(10_800_000.0), folder: "/root".into() })
     }
 }
 
@@ -147,45 +331,176 @@ pub struct FakeBackend {
     size: (f64, f64),
 }
 
+/// fake-backend.ts:52. The sizes this provider offers.
+const SIZES: [(f64, f64); 3] = [(2.0, 4096.0), (4.0, 8192.0), (8.0, 16384.0)];
+
+/// fake-backend.ts:57. A made-up price, rounded to four places as `toFixed` rounds it.
+fn rate_usd_per_hour(size: Size) -> f64 {
+    let raw = size.cpu * 0.02 + (size.mem_mb / 1024.0) * 0.01;
+    to_fixed(raw, 4).parse::<f64>().unwrap_or(f64::NAN)
+}
+
+/// fake-backend.ts:61.
+struct FakePricing;
+
+impl BackendPricing for FakePricing {
+    fn rate_usd_per_hour(&self, size: Size) -> f64 {
+        rate_usd_per_hour(size)
+    }
+    fn default_size(&self) -> Size {
+        Size { cpu: 4.0, mem_mb: 8192.0 }
+    }
+    fn snapshot_storage(&self) -> SnapshotStoragePricing {
+        SnapshotStoragePricing {
+            wire: WireSnapshotStoragePricing {
+                free_gb: JsNumber(10.0),
+                usd_per_gb_month: JsNumber(0.15),
+                billed_from: "2026-01-01".into(),
+            },
+            free_named: None,
+            usd_per_named_month: None,
+        }
+    }
+    fn builder_disk_gb(&self) -> Option<f64> {
+        Some(20.0)
+    }
+}
+
+/// fake-backend.ts:69. Instant everywhere: nothing waits.
+struct FakeLifecycle;
+
+#[async_trait(?Send)]
+impl Lifecycle for FakeLifecycle {
+    fn budgets(&self) -> LifecycleBudgets {
+        LifecycleBudgets { wake_attempts: JsInt::from(1), daemon_answers_ms: JsNumber(1_000.0), resume_asks: None }
+    }
+}
+
+/// `id(prefix)`: a prefix, an underscore and 12 hex digits.
+fn new_id(prefix: &str) -> String {
+    format!("{prefix}_{}", hex::encode(rand::random::<[u8; 6]>()))
+}
+
 impl FakeBackend {
     /// fake-backend.ts:269.
     pub fn new(opts: FakeBackendOptions) -> Self {
-        todo!()
+        Self {
+            records: Arc::new(Records { file: opts.records, memory: Mutex::new(empty_held()) }),
+            guest: opts.guest,
+            size: opts.size.unwrap_or((4.0, 8192.0)),
+        }
     }
 
     /// The fake's machine itself (the TS hands back its own class), for a caller that reads its seen state.
     pub async fn get_fake(&self, machine_id: &str) -> Result<Arc<FakeMachine>> {
-        todo!()
+        Ok(Arc::new(self.mint(machine_id, None)?))
+    }
+
+    /// fake-backend.ts:297. A known machine is used as recorded and nothing is written; an unknown one is recorded running
+    /// with the spec's figures (0 kept, the size's where none is given) and written.
+    fn mint(&self, machine_id: &str, spec: Option<&MachineSpec>) -> Result<FakeMachine> {
+        let mut held = self.records.read()?;
+        let mut machines = machines_of(&held, machine_id)?;
+        if !machines.contains_key(machine_id) {
+            let figure = |given: Option<JsNumber>, default: f64| given.map_or(default, |x| x.0);
+            let record = MachineRecord {
+                state: MachineState::Running,
+                shape: MachineShape {
+                    cpu: Some(JsNumber(figure(spec.and_then(|s| s.cpu), self.size.0))),
+                    mem_mb: Some(JsNumber(figure(spec.and_then(|s| s.mem_mb), self.size.1))),
+                    disk_gb: Some(JsNumber(figure(spec.and_then(|s| s.disk_gb), 20.0))),
+                    created_at: Some(iso_time(RealRetryClock.now())),
+                    used_bytes: None,
+                },
+                labels: spec.and_then(|s| s.labels.clone()).unwrap_or_default(),
+            };
+            machines.insert(machine_id.to_string(), serde_json::to_value(&record).map_err(|e| other(e.to_string()))?);
+            held.insert("machines".into(), Value::Object(machines.clone()));
+            self.records.write(held)?;
+        }
+        let record = MachineRecord::read(machines.get(machine_id).unwrap_or(&Value::Null))?;
+        Ok(FakeMachine {
+            id: machine_id.to_string(),
+            labels: record.labels,
+            seen: Seen { state: record.state, created_at: record.shape.created_at.clone(), paused_at: None },
+            shape: record.shape,
+            records: self.records.clone(),
+            guest: self.guest.clone(),
+            token_path: self.guest.as_ref().map(|g| g.token_path(machine_id)),
+        })
     }
 }
 
 #[async_trait(?Send)]
 impl MachineBackend for FakeBackend {
     fn capabilities(&self) -> Capabilities {
-        todo!()
+        Capabilities {
+            live_clone_forks: true,
+            pause_mode: Some(PauseMode::Memory),
+            replaces_machine: true,
+            // A machine is reachable at a port only where a guest was wired.
+            preview_urls: self.guest.is_some(),
+            signed_urls: false,
+            callback_relay: false,
+            disk_snapshots: true,
+            images: true,
+            snapshots_any_life: true,
+            snapshot_listing: true,
+            templates: false,
+            kept: false,
+            copies: true,
+            own_network: true,
+            sizes: SIZES
+                .iter()
+                .map(|&(cpu, mem_mb)| MachineSizeOffer {
+                    cpu: JsNumber(cpu),
+                    mem_mb: JsNumber(mem_mb),
+                    rate_usd_per_hour: JsNumber(rate_usd_per_hour(Size { cpu, mem_mb })),
+                    name: None,
+                })
+                .collect(),
+            sizes_last: false,
+        }
     }
     fn pricing(&self) -> Arc<dyn BackendPricing> {
-        todo!()
+        Arc::new(FakePricing)
     }
     fn lifecycle(&self) -> Option<Arc<dyn Lifecycle>> {
-        todo!()
+        Some(Arc::new(FakeLifecycle))
     }
     fn offers(&self) -> BackendOffers {
-        todo!()
+        BackendOffers { list_snapshots: true, ..BackendOffers::default() }
     }
-    async fn create(&self, spec: MachineSpec, waiting: Option<Waiting>, sent: Option<String>) -> Result<Arc<dyn Machine>> {
-        todo!()
+    async fn create(&self, spec: MachineSpec, _waiting: Option<Waiting>, _sent: Option<String>) -> Result<Arc<dyn Machine>> {
+        Ok(Arc::new(self.mint(&new_id("fk"), Some(&spec))?))
     }
+    /// A machine this backend never minted is minted here in the state its id says: a fixture state names its
+    /// machines before any process has held them.
     async fn get(&self, id: &str) -> Result<Arc<dyn Machine>> {
-        todo!()
+        Ok(Arc::new(self.mint(id, None)?))
     }
-    async fn list(&self, labels: Option<&IndexMap<String, String>>) -> Result<Vec<MachineListRow>> {
-        todo!()
+    async fn list(&self, _labels: Option<&IndexMap<String, String>>) -> Result<Vec<MachineListRow>> {
+        let held = self.records.read()?;
+        let machines = match held.get("machines") {
+            Some(Value::Null) => return Err(other("Cannot convert undefined or null to object")),
+            _ => machines_of(&held, "")?,
+        };
+        js_key_order(&machines)
+            .into_iter()
+            .map(|(id, record)| {
+                let record = MachineRecord::read(record)?;
+                Ok(MachineListRow { id: id.clone(), state: record.state, labels: record.labels, size: None })
+            })
+            .collect()
     }
-    async fn list_snapshots(&self, ids: Option<&[String]>) -> Result<Vec<SnapshotRow>> {
-        todo!()
+    async fn list_snapshots(&self, _ids: Option<&[String]>) -> Result<Vec<SnapshotRow>> {
+        let held = self.records.read()?;
+        snapshots_of(&held, "spread")?.into_iter().map(|row| serde_json::from_value(row).map_err(|e| other(e.to_string()))).collect()
     }
     async fn delete_snapshot(&self, id: &str) -> Result<()> {
-        todo!()
+        let mut held = self.records.read()?;
+        let kept: Vec<Value> = snapshots_of(&held, "filter")?.into_iter().filter(|row| row["id"].as_str() != Some(id)).collect();
+        held.insert("snapshots".into(), Value::Array(kept));
+        self.records.write(held)
     }
 }

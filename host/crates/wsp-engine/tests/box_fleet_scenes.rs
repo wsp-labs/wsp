@@ -7,11 +7,7 @@ use std::collections::BTreeSet;
 
 use common::scene::*;
 use serde_json::{json, Value};
-use wsp_engine::machine::{ExecOptions, Machine, MachineBackend, MachineLife, MachineSpec, SnapshotOptions};
-
-fn life() -> MachineLife {
-    MachineLife { first_life: false }
-}
+use wsp_engine::machine::{MachineBackend, MachineSpec};
 
 fn spec(extra: Value) -> MachineSpec {
     let mut v = json!({ "kind": "sandbox", "idempotencyKey": "key-1" });

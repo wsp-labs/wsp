@@ -216,7 +216,7 @@ fn takes_nothing_a_line_names_outside_usr_local_and_opt_under_wsps_own_folder_or
     put(&wsp_dir(&root).join("keep"), "wsp's own\n");
     put(&root.join("opt/real/tool"), "theirs\n");
     symlink(root.join("opt/real"), root.join("opt/via")).unwrap();
-    let forged = vec![
+    let forged = [
         j(&root, "etc/passwd"),
         j(&root, "usr/bin/env"),
         j(&wsp_dir(&root), "keep"),

@@ -318,8 +318,8 @@ pub struct ToolResult {
     pub note: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ms: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bytes: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none", serialize_with = "wsp_words::js::serialize_opt_f64")]
+    pub bytes: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub road: Option<ToolRoad>,
 }
@@ -486,7 +486,7 @@ pub const BUILDER_IDLE_MS: u64 = 6 * 60 * 60_000;
 
 /// golden.ts:291 `templatesOf`, as a test: the backend says it has templates and offers all four template methods.
 pub fn has_templates(backend: &dyn crate::machine::MachineBackend) -> bool {
-    todo!()
+    backend.capabilities().templates && backend.offers().templates
 }
 
 /// golden-import.ts:856.

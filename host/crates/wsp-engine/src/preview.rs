@@ -2,7 +2,7 @@
 //! Port of packages/engine/src/preview.ts. Spec: spec/machine_reads.md.
 use wsp_wire::wire::machine_link::PreviewReach;
 
-use crate::errors::Result;
+use crate::errors::{EngineError, Result};
 use crate::machine::Machine;
 
 /// preview.ts:7. Reuse a minted reach while more than this remains before its expiry.
@@ -16,11 +16,17 @@ pub const DAEMON_LISTENING_CHECK: &str = "(exec 3<>/dev/tcp/127.0.0.1/7070) 2>/d
 
 /// preview.ts:18. Fresh while strictly more than the margin remains: `expires_at - now > PREVIEW_REFRESH_MARGIN_MS`.
 pub fn preview_is_fresh(reach: &PreviewReach, now: i64) -> bool {
-    todo!()
+    reach.expires_at.0 - now as f64 > PREVIEW_REFRESH_MARGIN_MS as f64
 }
 
 /// preview.ts:25. `current` back while it is fresh; else a minted one from `machine.preview_url(port)`. A machine whose
 /// offers have no `preview_url` is an `Other`: `machine <id> is on a backend without preview URLs`, nothing called.
 pub async fn refresh_preview_token(machine: &dyn Machine, port: u16, current: Option<&PreviewReach>, now: i64) -> Result<PreviewReach> {
-    todo!()
+    if let Some(reach) = current.filter(|r| preview_is_fresh(r, now)) {
+        return Ok(reach.clone());
+    }
+    if !machine.offers().preview_url {
+        return Err(EngineError::Other { message: format!("machine {} is on a backend without preview URLs", machine.id()), code: None });
+    }
+    machine.preview_url(port).await
 }

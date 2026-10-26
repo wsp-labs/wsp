@@ -54,6 +54,23 @@ fn need_rows(v: &Value) -> Vec<ToolInstall> {
         .collect()
 }
 
+/// A landing's twelve hex digits are random; the oracle pinned `randomBytes` to `ab` bytes (golden.oracle.ts), so every
+/// landing reads that way.
+fn pinned_landings(calls: &Value) -> Value {
+    let mut text = serde_json::to_string(calls).unwrap();
+    let mark = ".wsp-config-tmp.";
+    let mut at = 0;
+    while let Some(i) = text[at..].find(mark) {
+        let start = at + i + mark.len();
+        let end = start + 12;
+        if end <= text.len() && text[start..end].bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()) {
+            text.replace_range(start..end, "abababababab");
+        }
+        at = start;
+    }
+    serde_json::from_str(&text).unwrap()
+}
+
 #[test]
 fn the_fetchers_are_npx_uvx_and_uv_in_the_ts_order() {
     let f = fixture("mcp_rows");
@@ -66,8 +83,15 @@ fn the_fetchers_are_npx_uvx_and_uv_in_the_ts_order() {
 async fn absent_commands_asks_once_for_every_distinct_command_as_run_and_reads_the_no_lines() {
     let f = fixture("mcp_rows");
     let plan = plan_of(&f["plan"]);
-    for c in cases(&f, "absentCommands") {
-        let m = Scripted::new(&c["rules"], false);
+    // The fixture left each case's `rules` out; golden.oracle.ts:1049-1054 holds them.
+    let missing = "ok npx\nno uvx\nno survivor-bin\nok local-mcp\nno /root/.local/bin/keeper\nok /home/linuxbrew/.linuxbrew/bin/uvx\n";
+    let rules = [
+        json!([{ "has": "command -v", "seq": [{ "stdout": missing }] }]),
+        json!([]),
+        json!([{ "has": "command -v", "seq": [{ "throws": "refused" }] }]),
+    ];
+    for (c, rules) in cases(&f, "absentCommands").iter().zip(&rules) {
+        let m = Scripted::new(rules, false);
         let got = absent_commands(&m, &plan, &report_of(&c["report"]), c["path"].as_str().unwrap_or(TOOLS_PATH)).await;
         assert_eq!(got, strings(&c["out"]), "{}", c["name"]);
         assert_calls(&s(&c["name"]), &m.calls(), &c["calls"]);
@@ -150,7 +174,7 @@ async fn apply_mcp_runs_the_whole_round_and_every_failure_road_as_the_ts() {
         assert_eq!(rows_json(&got), c["out"], "{name}: the rows");
         assert_eq!(stages.value(), c["stages"], "{name}: the stage lines");
         let calls = m.calls();
-        assert_calls(&name, &calls, &c["calls"]);
+        assert_calls(&name, &pinned_landings(&calls), &c["calls"]);
         assert_eq!(calls[0]["unlogged"], json!(true), "{name}: the read's output is the person's own");
     }
 }

@@ -3,6 +3,7 @@
 //!
 //! Whether the provider takes a key: taken, refused in the provider's own words, or never answered at all.
 use serde_json::Value;
+use wsp_words::words::init::{key_refused_line, key_unchecked_line, provider_said_line, saved_key_refused_line};
 
 use crate::errors::ErrorKind;
 use crate::machine::MachineBackend;
@@ -24,11 +25,28 @@ pub const REFUSING: [ErrorKind; 2] = [ErrorKind::Auth, ErrorKind::Plan];
 /// key-check.ts:23. A backend whose offers have no `check_key` is `Taken { answer: None }`, nothing called. A failure
 /// carrying a kind and a status, with the kind `auth` or `plan`, is `Refused`; any other failure is `Unchecked`.
 pub async fn check_provider_key(backend: &dyn MachineBackend) -> KeyCheck {
-    todo!()
+    if !backend.offers().check_key {
+        return KeyCheck::Taken { answer: None };
+    }
+    match backend.check_key().await {
+        Ok(Value::Null) => KeyCheck::Taken { answer: None },
+        Ok(answer) => KeyCheck::Taken { answer: Some(answer) },
+        Err(e) => match (e.kind(), e.status()) {
+            (Some(kind), Some(status)) if REFUSING.contains(&kind) => {
+                KeyCheck::Refused { said: provider_said_line(f64::from(status), &e.to_string()) }
+            }
+            _ => KeyCheck::Unchecked { said: e.to_string() },
+        },
+    }
 }
 
 /// key-check.ts:38. `None` for taken; `key_unchecked_line(said, provider)` for unchecked whatever `saved` says;
 /// `saved_key_refused_line` or `key_refused_line` for refused.
 pub fn key_check_line(check: &KeyCheck, provider: &str, saved: bool) -> Option<String> {
-    todo!()
+    match check {
+        KeyCheck::Taken { .. } => None,
+        KeyCheck::Unchecked { said } => Some(key_unchecked_line(said, provider)),
+        KeyCheck::Refused { said } if saved => Some(saved_key_refused_line(said, provider)),
+        KeyCheck::Refused { said } => Some(key_refused_line(said, provider)),
+    }
 }

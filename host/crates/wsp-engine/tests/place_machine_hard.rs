@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use roads_common::*;
 use serde_json::{json, Map, Value};
-use wsp_engine::machine::{Machine, MachineBackend, Size};
+use wsp_engine::machine::{Machine, Size};
 use wsp_engine::place_machine::*;
 
 /// The daemon of the oracle's run: the login probe, the login shell's PATH, exit 0 for the rest.
