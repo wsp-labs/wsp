@@ -7,6 +7,7 @@ use std::process::{Command, ExitCode};
 use xtask::check::{self, Options};
 use xtask::host::ProcessHost;
 use xtask::seed::fresh_seed;
+use xtask::tape::Door;
 
 #[derive(Parser)]
 #[command(name = "cargo xtask", about = "the repository's own tasks")]
@@ -78,6 +79,9 @@ struct Run {
     /// Only the tapes whose id holds this text.
     #[arg(long)]
     only: Option<String>,
+    /// Only the tapes that went through this door: ws, mcp or cli.
+    #[arg(long, value_parser = door_of)]
+    door: Option<Door>,
     /// The held-back folder, whose tapes run beside the repository's; the reviewer's, never an implementer's.
     #[arg(long)]
     held: Option<PathBuf>,
@@ -85,6 +89,10 @@ struct Run {
     /// takes what wsp installed off the computer it runs on.
     #[arg(long)]
     no_sandbox: bool,
+}
+
+fn door_of(word: &str) -> Result<Door, String> {
+    Door::parse(word).ok_or_else(|| format!("no door is called {word}; the doors are ws, mcp and cli"))
 }
 
 /// Set on the copy of this command that runs inside the sandbox, which trusts it only as the first process of its own
@@ -145,7 +153,7 @@ fn repo_root() -> PathBuf {
 fn options(run: &Run) -> Result<Options, String> {
     let seed = run.seed.map(|s| if s == 0 { fresh_seed() } else { s });
     let held = run.held.as_ref().map(|d| d.canonicalize().map_err(|e| format!("--held {}: {e}", d.display()))).transpose()?;
-    Ok(Options { jobs: run.jobs, seed, only: run.only.clone(), ids: None, held, move_here: false })
+    Ok(Options { jobs: run.jobs, seed, only: run.only.clone(), ids: None, door: run.door, held, move_here: false })
 }
 
 fn host(root: &Path, run: &Run) -> Result<ProcessHost, String> {
