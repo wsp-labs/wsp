@@ -7,9 +7,13 @@
 
 use indexmap::IndexMap;
 use regex::Regex;
-use wsp_wire::types::harness_picks::every_model;
-use wsp_wire::types::thread_defaults::{AccessChoice, AgentSetup, AgentSetupSet, ResolvedFolder};
-use wsp_wire::views::harness::{HarnessCatalog, HarnessCatalogSource};
+use wsp_wire::types::harness_picks::{efforts_for, every_model, marked_default, model_of};
+use wsp_wire::types::thread_defaults::{
+    AccessChoice, AgentSetup, AgentSetupSet, DefaultFrom, ModelPicker, ProjectOverrides, ResolvedAccess, ResolvedFolder, ResolvedPick,
+    ThreadDefaults,
+};
+use wsp_wire::views::harness::{HarnessCatalog, HarnessCatalogSource, HarnessModel, HarnessOption};
+use wsp_wire::views::preferences::Preferences;
 
 use crate::exit::{refusal, usage_refusal, HostError, Kind};
 use crate::semver::compare_versions;
@@ -243,23 +247,50 @@ fn access_word_text(word: AccessChoice) -> &'static str {
     ACCESS_WORDS.iter().find(|(choice, _)| *choice == word).map_or("", |(_, text)| text)
 }
 
+// thread-defaults.ts:294
+// export const accessNotTakenLine = (label: string, word: string, takes: string): string => `${label} takes no ${word} access; it takes ${takes}`;
+/// Why a word was refused: the agent maps it to none of its own modes, and these are the words it takes.
+pub fn access_not_taken_line(label: &str, word: &str, takes: &str) -> String {
+    format!("{label} takes no {word} access; it takes {takes}")
+}
+
+// thread-defaults.ts:296
+// export const noAccessWordsLine = (label: string): string => `${label} takes no access of wsp's words`;
+/// Why a word was refused by an agent that maps none of wsp's words.
+pub fn no_access_words_line(label: &str) -> String {
+    format!("{label} takes no access of wsp's words")
+}
+
 // thread-defaults.ts:290
 // export function accessRefusal(catalog: Pick<HarnessCatalog, "label" | "access" | "permissionModes">, word: AccessChoice): string | null {
 //   if (accessMode(catalog, word) !== undefined) return null;
 //   const takes = ACCESS_CHOICES.filter(w => accessMode(catalog, w) !== undefined);
 //   return takes.length === 0 ? noAccessWordsLine(catalog.label) : accessNotTakenLine(catalog.label, word, takes.join(", "));
 // }
-fn access_refusal(catalog: &HarnessCatalog, word: AccessChoice) -> Option<String> {
+/// Why a word was refused at a set or a start: the agent maps it to none of its own modes. None where it maps one.
+pub fn access_refusal(catalog: &HarnessCatalog, word: AccessChoice) -> Option<String> {
     if access_mode(catalog, word).is_some() {
         return None;
     }
     let takes: Vec<&str> =
         ACCESS_WORDS.iter().filter(|(choice, _)| access_mode(catalog, *choice).is_some()).map(|(_, text)| *text).collect();
     Some(if takes.is_empty() {
-        format!("{} takes no access of wsp's words", catalog.label)
+        no_access_words_line(&catalog.label)
     } else {
-        format!("{} takes no {} access; it takes {}", catalog.label, access_word_text(word), takes.join(", "))
+        access_not_taken_line(&catalog.label, access_word_text(word), &takes.join(", "))
     })
+}
+
+// thread-defaults.ts:154
+// export function accessWord(catalog: Pick<HarnessCatalog, "access">, mode: string): AccessChoice | undefined {
+//   return ACCESS_CHOICES.find(word => catalog.access?.[word] === mode);
+// }
+/// The wsp word for one of a harness's own modes, where its row maps one to it.
+pub fn access_word(catalog: &HarnessCatalog, mode: &str) -> Option<AccessChoice> {
+    ACCESS_WORDS
+        .iter()
+        .map(|(choice, _)| *choice)
+        .find(|word| catalog.access.as_ref().and_then(|access| access.get(word)).map(String::as_str) == Some(mode))
 }
 
 // thread-defaults.ts:365
@@ -341,4 +372,222 @@ pub fn not_run_refusal(
             "Pick a model it lists.",
         ),
     })
+}
+
+/// What `resolveThreadDefaults` reads (thread-defaults.ts:133): `runs` absent means the agents that have lists.
+pub struct DefaultsAsk<'a> {
+    /// The agent a thread runs when nothing names one and no default stands.
+    pub first_agent: &'a str,
+    /// Each agent's lists, its custom models in; none for an agent with no catalog row.
+    pub catalog_of: &'a dyn Fn(&str) -> Option<HarnessCatalog>,
+    pub runs: Option<&'a dyn Fn(&str) -> bool>,
+    /// The agent the start names, or the one the thread already runs on.
+    pub named: Option<&'a str>,
+    pub project: Option<&'a ProjectOverrides>,
+    /// Read for `default_agent` and `agent_defaults` only.
+    pub prefs: &'a Preferences,
+}
+
+// thread-defaults.ts:168
+/// The agent, model, effort and access a new thread starts on, each with where it came from. A layer that names what
+/// the agent here does not take drops to the next one, so a stale override never refuses a start.
+pub fn resolve_thread_defaults(ask: &DefaultsAsk) -> ThreadDefaults {
+    let runs = |id: &str| match ask.runs {
+        Some(runs) => runs(id),
+        None => (ask.catalog_of)(id).is_some(),
+    };
+    let project = ask.project;
+    let project_agent_name = project.and_then(|p| p.agent.as_deref());
+    let default_agent = ask.prefs.default_agent.as_deref();
+    let agent = match (ask.named, project_agent_name, default_agent) {
+        (Some(named), _, _) => ResolvedPick { value: named.to_string(), from: DefaultFrom::Named },
+        (None, Some(agent), _) if runs(agent) => ResolvedPick { value: agent.to_string(), from: DefaultFrom::Project },
+        (None, _, Some(agent)) if runs(agent) => ResolvedPick { value: agent.to_string(), from: DefaultFrom::Default },
+        _ => ResolvedPick { value: ask.first_agent.to_string(), from: DefaultFrom::Catalog },
+    };
+    let Some(catalog) = (ask.catalog_of)(&agent.value) else {
+        return ThreadDefaults { agent, model: None, effort: None, access: None };
+    };
+    let project_agent = project_agent_name.is_none_or(|name| name == agent.value);
+    let names_this_agent = project_agent_name == Some(agent.value.as_str());
+    let own = ask.prefs.agent_defaults.get(&agent.value);
+    let pick_from = |options: &[String],
+                     open: bool,
+                     marked: Option<String>,
+                     from_project: Option<&String>,
+                     from_default: Option<&String>|
+     -> Option<ResolvedPick> {
+        let applies = |value: &str, for_this_agent: bool| if open { for_this_agent } else { options.iter().any(|o| o == value) };
+        if let Some(value) = from_project.filter(|value| project_agent && applies(value, names_this_agent)) {
+            return Some(ResolvedPick { value: value.clone(), from: DefaultFrom::Project });
+        }
+        if let Some(value) = from_default.filter(|value| applies(value, true)) {
+            return Some(ResolvedPick { value: value.clone(), from: DefaultFrom::Default });
+        }
+        marked.map(|value| ResolvedPick { value, from: DefaultFrom::Catalog })
+    };
+    let models = every_model(&catalog);
+    let model_values: Vec<String> = models.iter().map(|m| m.value.clone()).collect();
+    let model = pick_from(
+        &model_values,
+        models.is_empty(),
+        marked_default(&models).map(|m| m.value.clone()),
+        project.and_then(|p| p.model.as_ref()),
+        own.and_then(|o| o.model.as_ref()),
+    );
+    let efforts = efforts_for(&catalog, model_of(&catalog, model.as_ref().map(|m| m.value.as_str())).as_ref());
+    let effort_values: Vec<String> = efforts.iter().map(|e| e.value.clone()).collect();
+    let effort = pick_from(
+        &effort_values,
+        catalog.efforts.is_empty(),
+        marked_default(&efforts).map(|e| e.value.clone()),
+        project.and_then(|p| p.effort.as_ref()),
+        own.and_then(|o| o.effort.as_ref()),
+    );
+    let word = |from: DefaultFrom, value: Option<AccessChoice>| -> Option<ResolvedAccess> {
+        let value = value?;
+        let mode = access_mode(&catalog, value)?.to_string();
+        Some(ResolvedAccess { value, mode, from })
+    };
+    let marked_mode = marked_default(&catalog.permission_modes).map(|o| o.value.as_str());
+    let access = word(DefaultFrom::Project, project.and_then(|p| p.access))
+        .or_else(|| word(DefaultFrom::Default, own.and_then(|o| o.access)))
+        .or_else(|| word(DefaultFrom::Catalog, marked_mode.and_then(|mode| access_word(&catalog, mode))));
+    ThreadDefaults { agent, model, effort, access }
+}
+
+// thread-defaults.ts:205
+/// The list with its default mark on one value alone.
+fn marked<T: Clone>(options: &[T], value: &str, value_of: impl Fn(&T) -> &str, set: impl Fn(&mut T, Option<bool>)) -> Vec<T> {
+    options
+        .iter()
+        .map(|o| {
+            let mut next = o.clone();
+            set(&mut next, (value_of(o) == value).then_some(true));
+            next
+        })
+        .collect()
+}
+
+fn marked_options(options: &[HarnessOption], value: &str) -> Vec<HarnessOption> {
+    marked(options, value, |o| &o.value, |o, mark| o.is_default = mark)
+}
+
+fn marked_models(models: &[HarnessModel], value: &str) -> Vec<HarnessModel> {
+    marked(models, value, |m| &m.value, |m, mark| m.is_default = mark)
+}
+
+// thread-defaults.ts:215
+/// The catalog with its marks moved onto what a new thread here starts on, so the composer's pickers show it and a
+/// start fills it in. Only a value the person's layers picked moves a mark; the catalog's own stand. `defaults.agent`
+/// is not read.
+pub fn marked_for(catalog: &HarnessCatalog, defaults: &ThreadDefaults) -> HarnessCatalog {
+    let moved = |from: DefaultFrom| !matches!(from, DefaultFrom::Catalog | DefaultFrom::Named);
+    let mut next = catalog.clone();
+    if let Some(pick) = defaults.model.as_ref().filter(|p| moved(p.from)) {
+        let in_models = catalog.models.iter().any(|m| m.value == pick.value);
+        next.models = if in_models {
+            marked_models(&next.models, &pick.value)
+        } else {
+            next.models.iter().map(|m| HarnessModel { is_default: None, ..m.clone() }).collect()
+        };
+        if let Some(legacy) = next.legacy_models.take() {
+            next.legacy_models = Some(if in_models { legacy } else { marked_models(&legacy, &pick.value) });
+        }
+    }
+    if let Some(pick) = defaults.effort.as_ref().filter(|p| moved(p.from)) {
+        let takes = |m: &HarnessModel| m.efforts.as_ref().is_none_or(|efforts| efforts.contains(&pick.value));
+        let re_mark = |m: &HarnessModel| {
+            if takes(m) && m.default_effort.is_some() {
+                HarnessModel { default_effort: Some(pick.value.clone()), ..m.clone() }
+            } else {
+                m.clone()
+            }
+        };
+        next.efforts = marked_options(&next.efforts, &pick.value);
+        next.models = next.models.iter().map(re_mark).collect();
+        next.legacy_models = next.legacy_models.take().map(|legacy| legacy.iter().map(re_mark).collect());
+    }
+    if let Some(pick) = defaults.access.as_ref().filter(|p| moved(p.from)) {
+        next.permission_modes = marked_options(&next.permission_modes, &pick.mode);
+    }
+    next
+}
+
+/// What an open list carries that no mark can: the value the person set, for a start to run where it names none.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct OpenDefaults {
+    pub model: Option<String>,
+    pub effort: Option<String>,
+}
+
+// thread-defaults.ts:246
+/// The model and effort a new thread starts on where the agent's list is open (its CLI takes any value).
+pub fn open_defaults(catalog: &HarnessCatalog, defaults: &ThreadDefaults) -> OpenDefaults {
+    let set = |pick: Option<&ResolvedPick>, open: bool| {
+        pick.filter(|p| open && matches!(p.from, DefaultFrom::Project | DefaultFrom::Default)).map(|p| p.value.clone())
+    };
+    OpenDefaults {
+        model: set(defaults.model.as_ref(), every_model(catalog).is_empty()),
+        effort: set(defaults.effort.as_ref(), catalog.efforts.is_empty()),
+    }
+}
+
+// thread-defaults.ts:258
+/// Why an id typed by hand is no model id: the page asks it under the field and the host where it keeps one.
+pub fn model_id_refusal(id: &str) -> Option<String> {
+    if id.is_empty() {
+        return Some("A model id cannot be empty".to_string());
+    }
+    if id.chars().any(crate::js::is_js_whitespace) {
+        return Some("No model id has a space in it".to_string());
+    }
+    if id.starts_with('-') {
+        return Some("No model id starts with \"-\"".to_string());
+    }
+    let plain = |c: char| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | ':' | '/' | '@' | '+' | '[' | ']');
+    let odd = id.chars().find(|c| !plain(*c))?;
+    Some(format!("No model id has {} in it", serde_json::to_string(&odd.to_string()).unwrap_or_default()))
+}
+
+// thread-defaults.ts:267
+/// The catalog with the person's own model ids added after the binary's, so a start and a default may name one.
+pub fn with_custom_models(catalog: &HarnessCatalog, picker: Option<&ModelPicker>) -> HarnessCatalog {
+    let known: Vec<String> = every_model(catalog).into_iter().map(|m| m.value).collect();
+    let mut added: Vec<HarnessModel> = Vec::new();
+    for id in picker.and_then(|p| p.custom.as_ref()).into_iter().flatten() {
+        if known.contains(id) {
+            continue;
+        }
+        added.push(HarnessModel {
+            value: id.clone(),
+            label: id.clone(),
+            description: None,
+            is_default: None,
+            short: None,
+            efforts: None,
+            default_effort: None,
+            context_windows: None,
+            fast: None,
+            added: Some(wsp_frames::True),
+        });
+    }
+    if added.is_empty() {
+        return catalog.clone();
+    }
+    let mut next = catalog.clone();
+    next.models.extend(added);
+    next
+}
+
+// thread-defaults.ts:432
+/// Why a launch did not start: the config folder kept at setup now leads somewhere `why` refuses.
+pub fn config_dir_launch_refusal(agent: &str, agent_id: &str, folder: &str, why: &str) -> String {
+    format!("{agent} does not start with its config folder {folder}: {why}. Set another with wsp agents setup {agent_id} --config, or put its own back with --reset config.")
+}
+
+// thread-defaults.ts:374
+/// Why a start named an agent that is off on the computer its workspace stands on.
+pub fn agent_off_line(agent: &str, computer: &str) -> String {
+    format!("{agent} is off on {computer}, so no thread there runs it")
 }

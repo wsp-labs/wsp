@@ -29,6 +29,7 @@ use wsp_words::exit::{refusal, HostError, Kind};
 use wsp_words::place_state::deleted_before_start_line;
 use wsp_words::projects::runs_in_folder;
 use wsp_words::sub_thread::{sub_machine_taken_refusal, sub_opening};
+use wsp_words::thread_defaults::agent_off_line;
 use wsp_words::words::computer::{
     send_files_across_line, thread_word, wait_across_line, RESTART_OPENS_FIX, RESTART_OPENS_LINE, SEND_FILES_ACROSS_FIX, WAIT_ACROSS_FIX,
 };
@@ -135,11 +136,6 @@ fn turn_env(turn_token: &str, thread_id: &str, launch_env: &IndexMap<String, Str
 fn waiting_probe(waiting: &Waiting) -> TurnWaiting {
     let waiting = waiting.clone();
     Arc::new(move || waiting.get())
-}
-
-/// `agentOffLine` (protocol thread-defaults.ts:374).
-fn agent_off_line(agent: &str, computer: &str) -> String {
-    format!("{agent} is off on {computer}, so no thread there runs it")
 }
 
 impl SessionsArea {
