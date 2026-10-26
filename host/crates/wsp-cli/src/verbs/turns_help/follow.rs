@@ -25,7 +25,7 @@ use wsp_words::words::turn::{no_messages_line, no_reply_line, thread_read_text};
 use wsp_words::words::units::fmt_duration;
 
 use super::picks::reply_field;
-use super::{Ended, Turn, Waited};
+use super::{Ended, HostResult, Turn, Waited};
 use crate::host_lock::SERVICE_WAIT_MS;
 use crate::verbs::client::{
     host_back, other_version, pick, stopped_under, thread_id_of, until_settled, BoxFuture, Frame, FrameOff, FrameSink, HostClient,
@@ -279,7 +279,7 @@ fn take(f: &Frame, turn: &SharedTurn, on: &FollowOn, raw: Option<&RawEvent>, ove
         live.after_cut = true;
     }
     if kind == Some("session.done") {
-        live.result = f.get("result").and_then(|result| serde_json::from_value(result.clone()).ok());
+        live.result = f.get("result").and_then(|result| HostResult::read(result.clone()));
     }
     if kind == Some("session.end") {
         if let Some(reason) = f.get("reason").and_then(Value::as_str) {
@@ -520,8 +520,22 @@ pub async fn with_sub_result(client: &dyn HostClient, named: &[ThreadView], ende
 
 /// The thread's latest turn as its transcript ends it (`thread_result` of `history`), else `ended`.
 pub async fn ended_of(client: &dyn HostClient, workspace_id: &str, thread_id: &str, ended: TurnResult) -> Result<Ended, HostError> {
-    let events = history(client, workspace_id, thread_id).await?;
-    Ok(Ended { thread_id: thread_id.to_owned(), result: thread_result(&events, thread_id).unwrap_or(ended), sub: None })
+    let frames = history_frames(client, workspace_id, thread_id).await?;
+    let result = match thread_result(&events_of(&frames), thread_id) {
+        Some(typed) => raw_done_of(&frames, &typed).unwrap_or_else(|| HostResult::made(typed)),
+        None => HostResult::made(ended),
+    };
+    Ok(Ended { thread_id: thread_id.to_owned(), result, sub: None })
+}
+
+/// The latest `session.done` frame whose result reads as `typed`, kept as the host wrote it.
+fn raw_done_of(frames: &[Value], typed: &TurnResult) -> Option<HostResult> {
+    frames
+        .iter()
+        .rev()
+        .filter(|f| f.as_object().and_then(kind_of) == Some("session.done"))
+        .filter_map(|f| HostResult::read(f.get("result")?.clone()))
+        .find(|r| r.typed == *typed)
 }
 
 /// `history(client, workspaceId, threadId)` (turns-help.ts:759): `sessions.history {workspaceId, threadId, whole: true}`, its `events`.
@@ -642,8 +656,8 @@ pub fn head_line(head: &ThreadHead, offset_seconds_at: &dyn Fn(f64) -> i64) -> S
 async fn answer_of(client: &dyn HostClient, frame: &Frame) -> Result<Ended, HostError> {
     let thread_id = frame.get("threadId").and_then(Value::as_str).unwrap_or_default().to_owned();
     if kind_of(frame) == Some("session.done") {
-        let result = serde_json::from_value::<TurnResult>(frame.get("result").cloned().unwrap_or(Value::Null))
-            .map_err(|_| HostError::new(other_version("session.done")))?;
+        let result = HostResult::read(frame.get("result").cloned().unwrap_or(Value::Null))
+            .ok_or_else(|| HostError::new(other_version("session.done")))?;
         return Ok(Ended { thread_id, result, sub: None });
     }
     let workspace_id = frame.get("workspaceId").and_then(Value::as_str).unwrap_or_default();

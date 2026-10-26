@@ -10,9 +10,8 @@ use serde_json::{json, Value};
 use wsp_wire::types::harness_picks::{context_windows_for, efforts_for, marked_default, PickOption};
 use wsp_wire::types::{parse, Check, JsNumber};
 use wsp_wire::views::golden_image::{
-    agent_of_row, golden_head, golden_image, package_of, tool_row_id, tool_row_prefix, GoldenImage, GoldenManifest,
-    GoldenStage, GoldenVersion, ImageSpec, Recipe, RecipeDigest, RecipeRow, RecipeSource, SealedVault, ToolPin,
-    BREW_ID_PREFIX,
+    agent_of_row, golden_head, golden_image, package_of, tool_row_id, tool_row_prefix, GoldenImage, GoldenManifest, GoldenStage,
+    GoldenVersion, ImageSpec, Recipe, RecipeDigest, RecipeRow, RecipeSource, SealedVault, ToolPin, BREW_ID_PREFIX,
 };
 use wsp_wire::views::harness::{
     keeps_rename, mcp_servers_blocked, no_mcp_servers_line, takes_mcp_servers, HarnessCatalog, HarnessOption, McpServerSpec,

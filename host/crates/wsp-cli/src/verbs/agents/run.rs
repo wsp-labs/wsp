@@ -17,10 +17,10 @@ use wsp_words::words::computer::THIS_COMPUTER;
 use super::super::agents_help::{
     add_tools, added_line, agent_defaults_line, agent_defaults_set, agent_row_lines, agent_setup_lines, agent_setup_set, agents_target,
     default_agent_line, default_agent_set, env_name_of, gone_from_line, is_in_line, plugin_changed, plugin_row_lines, plugin_turned_line,
-    project_asked, removed_line, search_skills_sh, server_changed, server_command, server_row_lines, server_scope, server_tools_of,
-    server_values, shown_text, sign_in_here, signed_in_line, skill_added, skill_changed, skill_hit_lines, skill_row_lines, skill_shown,
-    tool_lines, tools_added_line, tools_project, turned_in_line, turned_line, AgentSetAsk, AgentSetupAsk, PluginChange, ProjectAsked,
-    ServerOp, SignInAsk, SkillChange,
+    project_asked, read_plugins, removed_line, search_skills_sh, server_changed, server_command, server_row_lines, server_scope,
+    server_tools_of, server_values, shown_text, sign_in_here, signed_in_line, skill_added, skill_changed, skill_hit_lines, skill_row_lines,
+    skill_shown, tool_lines, tools_added_line, tools_project, turned_in_line, turned_line, AgentSetAsk, AgentSetupAsk, PluginChange,
+    ProjectAsked, ServerOp, SignInAsk, SkillChange,
 };
 use super::super::client::*;
 use super::super::io::confirmed;
@@ -584,7 +584,7 @@ pub(super) fn run_plugins(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostEr
         )
         .await?;
         let line = plugin_row_lines(&report).join("\n");
-        ctx.out.emit(&facts_and(&report, "plugins", json_of(&report.plugins.clone().unwrap_or_default())), Some(line.as_str()));
+        ctx.out.emit(&facts_and(&report, "plugins", json_of(&read_plugins(&report))), Some(line.as_str()));
         Ok(0)
     })
 }

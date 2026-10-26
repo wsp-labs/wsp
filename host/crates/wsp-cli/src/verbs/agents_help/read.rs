@@ -265,6 +265,11 @@ impl std::ops::Deref for ReadReport {
     }
 }
 
+/// A report's plugin rows as a parse writes them, which is what the plugins verb lists.
+pub fn read_plugins(report: &AgentsReport) -> Vec<ReadPlugin> {
+    report.plugins.clone().unwrap_or_default().into_iter().map(ReadPlugin).collect()
+}
+
 impl Serialize for ReadReport {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut report = serde_json::to_value(&self.0).map_err(serde::ser::Error::custom)?;

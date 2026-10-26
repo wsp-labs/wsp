@@ -557,11 +557,7 @@ pub enum RuntimeOp {
     #[serde(rename = "init.get", rename_all = "camelCase")]
     InitGet { id: ReqId, on: Option<String> },
     #[serde(rename = "init.keys", rename_all = "camelCase")]
-    InitKeys {
-        id: ReqId,
-        provider: Option<String>,
-        key: Option<String>,
-    },
+    InitKeys { id: ReqId, provider: Option<String>, key: Option<String> },
     #[serde(rename = "preferences.get", rename_all = "camelCase")]
     PreferencesGet { id: ReqId },
     #[serde(rename = "preferences.set", rename_all = "camelCase")]

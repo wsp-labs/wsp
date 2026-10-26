@@ -247,6 +247,8 @@ pub async fn thread_rows(client: &dyn HostClient, within: Option<&str>) -> Resul
     let all = workspaces(client).await?;
     let reply = client.request("sessions.list", Frame::new()).await?;
     let sessions: Vec<SessionView> = reply_field(&reply, "sessions.list", "sessions")?;
+    let raw_sessions: HashMap<&str, &Value> =
+        reply.get("sessions").and_then(Value::as_array).into_iter().flatten().filter_map(|s| Some((s.get("id")?.as_str()?, s))).collect();
     let mut stood: HashMap<&str, &SessionView> = HashMap::new();
     for session in &sessions {
         stood.insert(session.workspace_id.as_str(), session);
@@ -284,7 +286,10 @@ pub async fn thread_rows(client: &dyn HostClient, within: Option<&str>) -> Resul
         }
         let branch = branches[&folder].clone();
         let stood_row = stood.get(t.workspace_id.as_str());
+        let raw = raw_sessions.get(t.session_id.as_str());
         out.push(ThreadRowOut {
+            raw_waiting_on: raw.and_then(|s| s.get("waitingOn")).cloned(),
+            raw_sub: raw.and_then(|s| s.get("sub")).cloned(),
             project_name: session_project(&t.workspace_id).map(|p| p.name.clone()).unwrap_or_default(),
             folder,
             branch,

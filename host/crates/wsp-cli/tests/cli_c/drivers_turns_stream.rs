@@ -5,9 +5,8 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 use wsp_cli::verbs::client::{BoxFuture, CliIo, FlagValue, Flags, Frame, OpenedFn, Out as Printer, VerbContext};
-use wsp_cli::verbs::turns_help::{self as t, Picks, SaidAbout, Turn};
+use wsp_cli::verbs::turns_help::{self as t, HostResult, Picks, SaidAbout, Turn};
 use wsp_wire::types::sub_thread::SubOut;
-use wsp_wire::views::session_events::TurnResult;
 use wsp_wire::views::session_events_more::SessionPermissionEvent;
 use wsp_wire::wire::helpers::PermissionOption;
 use wsp_wire::wire::runtime::SessionStartOutcome;
@@ -22,7 +21,7 @@ fn turn_of(v: &Value) -> Turn {
         session: serde_json::from_value(v["session"].clone()).expect("session"),
         thread_id: v["threadId"].as_str().expect("threadId").to_string(),
         outcome: serde_json::from_value::<SessionStartOutcome>(v["outcome"].clone()).expect("outcome"),
-        result: v.get("result").map(|r| serde_json::from_value::<TurnResult>(r.clone()).expect("result")),
+        result: v.get("result").map(|r| HostResult::read(r.clone()).expect("result")),
         reason: v.get("reason").and_then(|r| r.as_str()).map(String::from),
         after_cut: v.get("afterCut").and_then(|a| a.as_bool()).unwrap_or(false),
         notice: v.get("notice").and_then(|n| n.as_str()).map(String::from),
