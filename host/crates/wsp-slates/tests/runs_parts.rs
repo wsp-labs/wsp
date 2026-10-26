@@ -458,7 +458,6 @@ fn run_key_moves_with_each_part_it_lists() {
         CmdRunDecl { once: Some(true), ..cmd("x") },
         CmdRunDecl { then: Some("cat".into()), ..cmd("x") },
         CmdRunDecl { files: Some(IndexMap::from([("a.sh".to_string(), "1".to_string())])), ..cmd("x") },
-        CmdRunDecl { scripts: Some(IndexMap::from([("a.sh".to_string(), "1".to_string())])), ..cmd("x") },
         CmdRunDecl { args: Some(vec![json!("$x")]), ..cmd("x") },
     ];
     let keys: Vec<String> = moved.iter().map(run_key).collect();
@@ -469,6 +468,13 @@ fn run_key_moves_with_each_part_it_lists() {
     unique.sort();
     unique.dedup();
     assert_eq!(unique.len(), keys.len());
+}
+
+// slate-runs.ts:662-668: files and scripts each append the same stableJson of their map, so one map under either name is one key
+#[test]
+fn run_key_reads_files_and_scripts_alike() {
+    let map = || Some(IndexMap::from([("a.sh".to_string(), "1".to_string())]));
+    assert_eq!(run_key(&CmdRunDecl { files: map(), ..cmd("x") }), run_key(&CmdRunDecl { scripts: map(), ..cmd("x") }));
 }
 
 // runs_parts Behaviour 7: stream, always and once count only when true
