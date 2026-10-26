@@ -2,3 +2,19 @@
 # unit<TAB>manifest<TAB>package<TAB>src<TAB>tests<TAB>filter<TAB>ops
 # src is the unit's folder or file; tests its test files or folders, split by commas; filter the name its test run
 # is narrowed to, or -; ops the host ops it answers, split by commas, * matching any run of characters.
+2476-2-kinds	host/crates/wsp-serve/Cargo.toml	wsp-serve	host/crates/wsp-serve/src/runtime/ctx/kinds.rs	host/crates/wsp-serve/tests/ctx_kinds.rs	-	-
+2476-3-transcripts	host/crates/wsp-serve/Cargo.toml	wsp-serve	host/crates/wsp-serve/src/runtime/ctx/transcripts.rs	host/crates/wsp-serve/tests/ctx_transcripts.rs	-	editor.*,ssh.*,daemon.*,appProcs.*
+2476-4-machines	host/crates/wsp-serve/Cargo.toml	wsp-serve	host/crates/wsp-serve/src/runtime/ctx/machines.rs	host/crates/wsp-serve/tests/ctx_machines.rs	-	sys.*,forwards.*
+2476-5-boot	host/crates/wsp-serve/Cargo.toml	wsp-serve	host/crates/wsp-serve/src/runtime/ctx/boot.rs	host/crates/wsp-serve/tests/ctx_boot.rs	-	events.subscribe,place.join,place.prove,place.auth,places.*,pair.*,device.*,devices.*,seal.*,ticket.*
+2476-6-create	host/crates/wsp-serve/Cargo.toml	wsp-serve	host/crates/wsp-serve/src/runtime/ctx/create.rs	host/crates/wsp-serve/tests/ctx_create.rs	-	workspaces.create,workspaces.landing
+2476-7-sub_queue	host/crates/wsp-serve/Cargo.toml	wsp-serve	host/crates/wsp-serve/src/runtime/ctx/sub_queue.rs	host/crates/wsp-serve/tests/ctx_sub_queue.rs	-	workspaces.pullRequest*
+2476-8-folders	host/crates/wsp-serve/Cargo.toml	wsp-serve	host/crates/wsp-serve/src/runtime/ctx/folders.rs	host/crates/wsp-serve/tests/ctx_folders.rs	-	workspaces.list,workspaces.get,worktree.*,folder.*
+2476-9-phases	host/crates/wsp-serve/Cargo.toml	wsp-serve	host/crates/wsp-serve/src/runtime/ctx/phases.rs	host/crates/wsp-serve/tests/ctx_phases.rs	-	workspaces.bringBack,workspaces.checkout,workspaces.commit,workspaces.commitDraft,workspaces.delete,workspaces.discard,workspaces.exec,workspaces.fix,workspaces.forget,workspaces.look,workspaces.merge,workspaces.mergeIn,workspaces.nap,workspaces.portProbe,workspaces.portReach,workspaces.rebuild,workspaces.rename,workspaces.resize,workspaces.resolve,workspaces.restartDaemon,workspaces.review,workspaces.reviewDraft,workspaces.reviewPost,workspaces.start,workspaces.stopWake,workspaces.touch,workspaces.update,workspaces.upgrade,workspaces.viewed,workspaces.wake
+2476-10-review	host/crates/wsp-serve/Cargo.toml	wsp-serve	host/crates/wsp-serve/src/runtime/ctx/review.rs	host/crates/wsp-serve/tests/ctx_review.rs	-	projects.*,project.*,cost.*
+2476-11-agents	host/crates/wsp-serve/Cargo.toml	wsp-serve	host/crates/wsp-serve/src/runtime/ctx/agents.rs	host/crates/wsp-serve/tests/ctx_agents.rs	-	agents.*
+2476-12-turns	host/crates/wsp-serve/Cargo.toml	wsp-serve	host/crates/wsp-serve/src/runtime/ctx/turns.rs	host/crates/wsp-serve/tests/ctx_turns.rs	-	conversations.*
+2476-13-sessions	host/crates/wsp-serve/Cargo.toml	wsp-serve	host/crates/wsp-serve/src/runtime/ctx/sessions.rs	host/crates/wsp-serve/tests/ctx_sessions.rs	-	sessions.*
+2476-14-builders	host/crates/wsp-serve/Cargo.toml	wsp-serve	host/crates/wsp-serve/src/runtime/ctx/builders.rs	host/crates/wsp-serve/tests/ctx_builders.rs	-	golden.*,image.*,recipes.*
+2476-15-usage	host/crates/wsp-serve/Cargo.toml	wsp-serve	host/crates/wsp-serve/src/runtime/ctx/usage.rs	host/crates/wsp-serve/tests/ctx_usage.rs	-	usage.*,status.*,cost.*,account.*
+2476-16-preferences	host/crates/wsp-serve/Cargo.toml	wsp-serve	host/crates/wsp-serve/src/runtime/ctx/preferences.rs	host/crates/wsp-serve/tests/ctx_preferences.rs	-	preferences.*,activity.*,slates.*,skills.*,servers.*,plugins.*
+2476-17-public	host/crates/wsp-serve/Cargo.toml	wsp-serve	host/crates/wsp-serve/src/runtime/ctx/public.rs	host/crates/wsp-serve/tests/ctx_public.rs	-	harnesses.*,capabilities,providers
