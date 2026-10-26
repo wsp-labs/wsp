@@ -13,7 +13,7 @@ use indexmap::IndexMap;
 use serde::de::DeserializeOwned;
 use sha2::{Digest, Sha256};
 
-use wsp_core::clock::{RetryOnClock, Timer};
+use wsp_core::clock::{RetryClockOver, Timer};
 use wsp_core::host_id::template_host;
 use wsp_core::idle::IDLE_OFF_BACKSTOP_MS;
 use wsp_core::types::harness::login_env_on;
@@ -1361,7 +1361,7 @@ impl MachinesArea {
             at.as_ref(),
             machine.as_ref(),
             KillConfirm::default(),
-            &RetryOnClock(clock.clone()),
+            &RetryClockOver::new(clock.clone()),
         )
         .await
         .map_err(host_of)?;

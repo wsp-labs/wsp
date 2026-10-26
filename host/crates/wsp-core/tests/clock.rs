@@ -213,32 +213,68 @@ fn real_clock_clamps_a_negative_delay_to_one_ms() {
     });
 }
 
-/// The engine's retries (`kill_until_gone`, `until_reached`) wait on a `RetryClock`; the runtime hands them its own
-/// clock through `RetryOnClock`, so a test clock moves their time and a sleep ends only when it is moved.
+use futures::FutureExt;
+use wsp_core::clock::RetryClockOver;
+use wsp_engine::errors::RetryClock;
+
 #[test]
-fn retry_on_clock_reads_now_and_sleeps_on_the_clocks_own_timers() {
-    use wsp_core::clock::RetryOnClock;
-    use wsp_engine::errors::RetryClock;
+fn retry_clock_now_reads_the_core_clock() {
+    let fc = FakeClock::new(7_000);
+    let retry = RetryClockOver::new(fc.clock());
+    assert_eq!(retry.now(), 7_000);
+    fc.advance(250);
+    assert_eq!(retry.now(), 7_250);
+}
+
+#[test]
+fn retry_clock_sleep_ends_when_the_core_clock_reaches_it() {
     run_local(async {
-        let fc = FakeClock::new(5_000);
-        let retry = RetryOnClock(fc.clock());
-        assert_eq!(retry.now(), 5_000);
+        let fc = FakeClock::new(0);
+        let retry = RetryClockOver::new(fc.clock());
         let done = Rc::new(RefCell::new(false));
-        let seen = done.clone();
-        let sleeping = tokio::task::spawn_local(async move {
+        let flag = done.clone();
+        let task = tokio::task::spawn_local(async move {
             retry.sleep(300).await;
-            *seen.borrow_mut() = true;
+            *flag.borrow_mut() = true;
         });
         support::settle().await;
-        assert!(!*done.borrow(), "the sleep waits for the clock");
         assert_eq!(fc.pending(), 1);
+        assert!(fc.due_for(300));
         fc.advance(299);
         support::settle().await;
         assert!(!*done.borrow());
         fc.advance(1);
-        sleeping.await.expect("the sleep ends");
+        task.await.unwrap();
         assert!(*done.borrow());
-        let r = RetryOnClock(fc.clock()).random();
-        assert!((0.0..1.0).contains(&r));
+        assert_eq!(fc.pending(), 0);
     });
+}
+
+#[test]
+fn retry_clock_sleep_of_nothing_ends_at_the_next_advance() {
+    let fc = FakeClock::new(50);
+    let retry = RetryClockOver::new(fc.clock());
+    let mut sleeping = retry.sleep(0).boxed_local();
+    assert!(sleeping.as_mut().now_or_never().is_none());
+    fc.advance(0);
+    assert!(sleeping.as_mut().now_or_never().is_some());
+}
+
+#[test]
+fn retry_clock_a_dropped_sleep_leaves_no_timer_behind() {
+    let fc = FakeClock::new(0);
+    let retry = RetryClockOver::new(fc.clock());
+    let mut sleeping = retry.sleep(1_000).boxed_local();
+    assert!(sleeping.as_mut().now_or_never().is_none());
+    assert_eq!(fc.pending(), 1);
+    drop(sleeping);
+    assert_eq!(fc.pending(), 0);
+}
+
+#[test]
+fn retry_clock_random_draws_from_zero_up_to_one() {
+    let retry = RetryClockOver::new(FakeClock::new(0).clock());
+    let draws: Vec<f64> = (0..200).map(|_| retry.random()).collect();
+    assert!(draws.iter().all(|r| (0.0..1.0).contains(r)));
+    assert!(draws.windows(2).any(|w| w[0] != w[1]));
 }
