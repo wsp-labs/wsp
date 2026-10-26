@@ -143,7 +143,15 @@ async fn approve(s: &Rc<dyn Slates>, key: &str, scope: ApprovalScope) -> Result<
 }
 
 fn press_params(version: i64, piece: &str, request_id: &str) -> EventParams {
-    EventParams { thread_id: THREAD.into(), version, piece: piece.into(), event: "press".into(), request_id: request_id.into(), scope: None, row_action: None }
+    EventParams {
+        thread_id: THREAD.into(),
+        version,
+        piece: piece.into(),
+        event: "press".into(),
+        request_id: request_id.into(),
+        scope: None,
+        row_action: None,
+    }
 }
 
 async fn press(s: &Rc<dyn Slates>, piece: &str, request_id: &str) -> Result<SlateEventAnswer, HostError> {
@@ -193,7 +201,9 @@ const PROBE: &str = r##"<slate title="Probe">
 
 use wsp_slates::pending::slate::{SlateProblem, SlateRunDecl};
 use wsp_slates::pending::wire::SlateEmpty;
-use wsp_slates::slates::model::{command_of, own_path, problem, refused, said, size_of, sources_named, trim_snapshots, usage, SlateRecord, SlateSnap, TurnMark};
+use wsp_slates::slates::model::{
+    command_of, own_path, problem, refused, said, size_of, sources_named, trim_snapshots, usage, SlateRecord, SlateSnap, TurnMark,
+};
 use wsp_slates::slates::DeliveryOutcome;
 
 const SETUP: &str = r##"<slate title="Vercel setup">
@@ -363,7 +373,9 @@ fn one_turn_is_kept_whatever_its_size() {
 // slates_model Behaviour 6: the declaration less every, always, timeout and stream
 #[test]
 fn command_of_leaves_out_every_always_timeout_and_stream() {
-    let cmd = decl(json!({"kind": "cmd", "cmd": "echo hi", "env": {"A": "1"}, "timeout": 20, "stream": true, "confirm": "Sure?", "every": 60, "once": true, "always": true}));
+    let cmd = decl(
+        json!({"kind": "cmd", "cmd": "echo hi", "env": {"A": "1"}, "timeout": 20, "stream": true, "confirm": "Sure?", "every": 60, "once": true, "always": true}),
+    );
     assert_eq!(command_of(&cmd), json!({"kind": "cmd", "cmd": "echo hi", "env": {"A": "1"}, "confirm": "Sure?", "once": true}));
     let tool = decl(json!({"kind": "tool", "server": "s", "tool": "t", "every": 30, "always": true}));
     assert_eq!(command_of(&tool), json!({"kind": "tool", "server": "s", "tool": "t"}));
@@ -407,7 +419,10 @@ fn sources_named_needs_a_word_start_and_a_dot() {
 #[test]
 fn problem_is_code_name_message_and_a_fix_when_given() {
     let with = problem("V752", "nothing-to-undo", "there is no earlier slate", Some("write one"));
-    assert_eq!(serde_json::to_string(&with).unwrap(), r#"{"code":"V752","name":"nothing-to-undo","message":"there is no earlier slate","fix":"write one"}"#);
+    assert_eq!(
+        serde_json::to_string(&with).unwrap(),
+        r#"{"code":"V752","name":"nothing-to-undo","message":"there is no earlier slate","fix":"write one"}"#
+    );
     let without = problem("Z802", "no-slate", "none", None);
     assert_eq!(serde_json::to_string(&without).unwrap(), r#"{"code":"Z802","name":"no-slate","message":"none"}"#);
 }
@@ -461,7 +476,23 @@ fn a_stored_record_keeps_the_keys_of_a_fresh_one_in_order_and_adds_previous_and_
         let keys = |row: &Value| row.as_object().unwrap().keys().cloned().collect::<Vec<_>>();
         assert_eq!(
             keys(&row),
-            names(&["threadId", "workspaceId", "rootThreadId", "schema", "version", "revision", "document", "values", "turns", "kept", "comments", "approvals", "problems", "shownOnce", "updatedAt"])
+            names(&[
+                "threadId",
+                "workspaceId",
+                "rootThreadId",
+                "schema",
+                "version",
+                "revision",
+                "document",
+                "values",
+                "turns",
+                "kept",
+                "comments",
+                "approvals",
+                "problems",
+                "shownOnce",
+                "updatedAt"
+            ])
         );
         assert_has(
             &row,
@@ -573,7 +604,11 @@ fn a_changed_command_marks_a_done_result_stale_last_in_the_record_and_keeps_its_
     support::local(async {
         let rig = rig("wsp-slates-stale-");
         let s = &rig.slates;
-        let doc = |cmd: &str, timeout: u32| format!(r##"<slate title="Run"><run name="go" cmd="{cmd}" timeout={{{timeout}}} /><column><button id="b" label="Go" onPress={{start($go)}} /></column></slate>"##);
+        let doc = |cmd: &str, timeout: u32| {
+            format!(
+                r##"<slate title="Run"><run name="go" cmd="{cmd}" timeout={{{timeout}}} /><column><button id="b" label="Go" onPress={{start($go)}} /></column></slate>"##
+            )
+        };
         agent_write(s, &doc("echo one", 20)).await;
         let pressed = s.event(press_params(1, "b", "p1")).await.unwrap();
         approve(s, &pressed.ask.expect("the sheet").key(), ApprovalScope::Once).await.unwrap();
@@ -595,9 +630,15 @@ fn a_run_a_new_document_drops_is_cancelled_and_leaves_nothing_of_its_record() {
         let s = &rig.slates;
         let marker = rig.host.folder().join("finished");
         let doc = |with_run: bool| {
-            let run = if with_run { format!(r##"<run name="long" cmd='sleep 1; touch "{}"' timeout={{20}} />"##, marker.display()) } else { String::new() };
+            let run = if with_run {
+                format!(r##"<run name="long" cmd='sleep 1; touch "{}"' timeout={{20}} />"##, marker.display())
+            } else {
+                String::new()
+            };
             let press = if with_run { "start($long)" } else { "set($n, 2)" };
-            format!(r##"<slate title="Long">{run}<value name="n" start={{1}} /><column><button id="b" label="Go" onPress={{{press}}} /></column></slate>"##)
+            format!(
+                r##"<slate title="Long">{run}<value name="n" start={{1}} /><column><button id="b" label="Go" onPress={{{press}}} /></column></slate>"##
+            )
         };
         agent_write(s, &doc(true)).await;
         let pressed = s.event(press_params(1, "b", "p1")).await.unwrap();
@@ -619,7 +660,11 @@ fn a_document_with_an_always_timer_arms_it_on_its_period_and_a_new_every_arms_ag
         let clock = ManualClock::new(1_000_000);
         let rig = rig_on("wsp-slates-arm-", &clock);
         let s = &rig.slates;
-        let doc = |every: u32| format!(r##"<slate title="Feed"><run name="feed" cmd="echo hi" every={{{every}}} always timeout={{20}} /><column><output run={{$feed}} /></column></slate>"##);
+        let doc = |every: u32| {
+            format!(
+                r##"<slate title="Feed"><run name="feed" cmd="echo hi" every={{{every}}} always timeout={{20}} /><column><output run={{$feed}} /></column></slate>"##
+            )
+        };
         agent_write(s, &doc(30)).await;
         clock.advance(1);
         s.settled().await;
@@ -656,7 +701,10 @@ fn a_rewind_restores_the_turn_s_snapshot_cancels_a_run_in_flight_with_no_reactio
         assert!(num_is(rewound.values.get("fired"), 0.0));
         assert_eq!(rewound.version, before.version + 1);
         assert_eq!(rewound.revision, before.revision + 1);
-        assert_has(&serde_json::to_value(rig.host.recorded.borrow().last().unwrap()).unwrap(), json!({"cause": "restore", "by": "host", "pieces": []}));
+        assert_has(
+            &serde_json::to_value(rig.host.recorded.borrow().last().unwrap()).unwrap(),
+            json!({"cause": "restore", "by": "host", "pieces": []}),
+        );
         support::sleep_ms(300).await;
         s.settled().await;
         assert!(num_is(view(s).await.values.get("fired"), 0.0), "the killed command's end is dropped");

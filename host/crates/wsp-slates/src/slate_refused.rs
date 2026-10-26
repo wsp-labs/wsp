@@ -1,25 +1,46 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Unit helpers: slate-refused.ts at 65f6b89c7. Spec: spec/helpers.md, Behaviour 9.
-use wsp_words::exit::HostError;
+use wsp_words::exit::{HostError, Kind};
 
-use crate::pending::slate::SlateProblem;
+use crate::pending::slate::{SlateProblem, SLATE_LIMITS};
 
-// slate-refused.ts:6
-// const ERRORS_LISTED = SLATE_LIMITS.errorsPerPass;
-//
-// /** A write the parser or the validator refused, with every error it found and the warnings beside them. */
-// export function invalid(errors: SlateProblem[], warnings: SlateProblem[]): Error {
-//   const said = (p: SlateProblem): string => {
-//     const where = [p.line !== undefined ? `line ${p.line}` : undefined, p.piece !== undefined ? (p.prop !== undefined ? `${p.piece}.${p.prop}` : p.piece) : undefined].filter(w => w !== undefined).join(", ");
-//     return `${where === "" ? "" : `${where}: `}${p.code} ${p.name} ${p.message}${p.fix !== undefined ? `. Did you mean ${p.fix}?` : ""}`;
-//   };
-//   // Every error at once, so a slate with seven mistakes takes one rewrite and not seven; one line, as every refusal is.
-//   const listed = errors.slice(0, ERRORS_LISTED);
-//   const more = errors.length > ERRORS_LISTED ? ` And ${errors.length - ERRORS_LISTED} more.` : "";
-//   const message = `slate refused: ${errors.length} error${errors.length === 1 ? "" : "s"}: ${listed.length === 1 ? said(listed[0]!) : listed.map((p, i) => `${i + 1}) ${said(p)}`).join(" ")}${more}`;
-//   return Object.assign(new Error(message), { kind: "invalid", errors: errors.slice(0, ERRORS_LISTED), warnings });
-// }
+const ERRORS_LISTED: usize = SLATE_LIMITS.errors_per_pass;
+
 /// Kind `invalid`, the first 20 errors and every warning as JSON, no fix.
 pub fn invalid(errors: &[SlateProblem], warnings: &[SlateProblem]) -> HostError {
-    todo!()
+    let listed = &errors[..errors.len().min(ERRORS_LISTED)];
+    let more = if errors.len() > ERRORS_LISTED { format!(" And {} more.", errors.len() - ERRORS_LISTED) } else { String::new() };
+    let plural = if errors.len() == 1 { "" } else { "s" };
+    let body = if listed.len() == 1 {
+        said(&listed[0])
+    } else {
+        listed.iter().enumerate().map(|(i, p)| format!("{}) {}", i + 1, said(p))).collect::<Vec<_>>().join(" ")
+    };
+    let message = format!("slate refused: {} error{plural}: {body}{more}", errors.len());
+    HostError {
+        kind: Some(Kind::Invalid),
+        errors: Some(listed.iter().map(to_json).collect()),
+        warnings: Some(warnings.iter().map(to_json).collect()),
+        ..HostError::new(message)
+    }
+}
+
+fn to_json(p: &SlateProblem) -> serde_json::Value {
+    serde_json::to_value(p).expect("a problem serializes")
+}
+
+fn said(p: &SlateProblem) -> String {
+    let mut place = Vec::new();
+    if let Some(line) = p.line {
+        place.push(format!("line {line}"));
+    }
+    if let Some(piece) = &p.piece {
+        place.push(match &p.prop {
+            Some(prop) => format!("{piece}.{prop}"),
+            None => piece.clone(),
+        });
+    }
+    let prefix = if place.is_empty() { String::new() } else { format!("{}: ", place.join(", ")) };
+    let fix = p.fix.as_ref().map_or(String::new(), |f| format!(". Did you mean {f}?"));
+    format!("{prefix}{} {} {}{fix}", p.code, p.name, p.message)
 }

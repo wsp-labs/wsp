@@ -4,11 +4,16 @@
 //! (its faults, the codes it closes them with, its 100 MiB ceiling) and the frames the server writes. Spec:
 //! spec/serve_wire.md, W11-W16.
 
+use std::collections::VecDeque;
+
 /// `maxPayload`: ws's default, which serve.ts does not change.
 pub const MAX_PAYLOAD: usize = 100 * 1024 * 1024;
 
 /// `maxFragments`: ws's server default, the most fragments one message may come in.
 pub const MAX_FRAGMENTS: usize = 16 * 1024;
+
+/// `maxBufferedChunks`: ws's server default, the most reads that may wait buffered for the rest of a frame.
+pub const MAX_BUFFERED_CHUNKS: usize = 256 * 1024;
 
 /// What `Receiver` hands the socket for one thing it read.
 #[derive(Debug, PartialEq)]
@@ -44,6 +49,8 @@ enum State {
 /// ws's `Receiver` for a server: the bytes a socket delivers in, the messages out, in order.
 pub struct Receiver {
     buf: Vec<u8>,
+    /// The sizes of the reads `buf` still holds a part of, as ws's `_buffers` holds them.
+    chunks: VecDeque<usize>,
     state: State,
     fin: bool,
     opcode: u8,
@@ -66,6 +73,7 @@ impl Receiver {
     pub fn new() -> Receiver {
         Receiver {
             buf: Vec::new(),
+            chunks: VecDeque::new(),
             state: State::Info,
             fin: false,
             opcode: 0,
@@ -86,6 +94,14 @@ impl Receiver {
         if self.ended {
             return out;
         }
+        if self.chunks.len() >= MAX_BUFFERED_CHUNKS {
+            self.ended = true;
+            out.push(Err(fault(1008, "Too many buffered chunks", false)));
+            return out;
+        }
+        if !chunk.is_empty() {
+            self.chunks.push_back(chunk.len());
+        }
         self.buf.extend_from_slice(chunk);
         let mut at = 0;
         while !self.ended {
@@ -101,6 +117,15 @@ impl Receiver {
             }
         }
         self.buf.drain(..at);
+        let mut left = at;
+        while let Some(front) = self.chunks.front_mut() {
+            if *front > left {
+                *front -= left;
+                break;
+            }
+            left -= *front;
+            self.chunks.pop_front();
+        }
         out
     }
 

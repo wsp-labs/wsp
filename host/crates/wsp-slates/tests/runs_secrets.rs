@@ -9,7 +9,9 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use support::{temp_root, ManualClock, THREAD};
-use wsp_slates::slate_runs::{create_secrets, encode_uri_component, secret_forms, DefaultApprovals, RunApprovals, SecretHandle, SlateSecrets};
+use wsp_slates::slate_runs::{
+    create_secrets, encode_uri_component, secret_forms, DefaultApprovals, RunApprovals, SecretHandle, SlateSecrets,
+};
 
 const TOKEN: &str = "vrcl_Ab+9/zz&q=1 \u{fc}n\u{ef}_0123456789";
 
@@ -202,7 +204,10 @@ fn a_secret_set_again_keeps_its_place_in_the_file() {
     s.set(THREAD, "b", "two", true);
     clock.advance(1_000);
     s.set(THREAD, "a", "three", true);
-    assert_eq!(std::fs::read_to_string(&file).unwrap(), format!(r#"{{"{THREAD}":{{"a":{{"text":"three","at":2000}},"b":{{"text":"two","at":1000}}}}}}"#));
+    assert_eq!(
+        std::fs::read_to_string(&file).unwrap(),
+        format!(r#"{{"{THREAD}":{{"a":{{"text":"three","at":2000}},"b":{{"text":"two","at":1000}}}}}}"#)
+    );
 }
 
 // runs_secrets Behaviour 4: clear forgets, then answers the handle

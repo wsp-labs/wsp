@@ -24,7 +24,10 @@ fn decl(v: Value) -> SlateRunDecl {
 }
 
 fn doc(runs: Value) -> SlateDoc {
-    serde_json::from_value(json!({ "schema": 2, "root": "root", "values": {}, "derived": {}, "reactions": [], "pieces": {}, "runs": runs, "files": {} })).expect("a document")
+    serde_json::from_value(
+        json!({ "schema": 2, "root": "root", "values": {}, "derived": {}, "reactions": [], "pieces": {}, "runs": runs, "files": {} }),
+    )
+    .expect("a document")
 }
 
 fn obj(v: Value) -> Map<String, Value> {
@@ -39,7 +42,8 @@ fn away(machine: Option<&str>) -> Away {
     Away { computer: "spoo".into(), host: "laptop".into(), machine: machine.map(String::from) }
 }
 
-const HOST_AWAY_A: &str = "$a runs on=\"host\", which is laptop with the sign-ins there, and this thread runs on spoo: drop on=\"host\" and it runs on spoo";
+const HOST_AWAY_A: &str =
+    "$a runs on=\"host\", which is laptop with the sign-ins there, and this thread runs on spoo: drop on=\"host\" and it runs on spoo";
 
 fn nest(n: usize) -> Value {
     let mut v = json!(1);
@@ -190,7 +194,9 @@ fn code_key_keys_what_is_sent() {
 
 fn regex_like_key(key: &str, server: &str) -> bool {
     let prefix = format!("mcp:{server}#");
-    key.starts_with(&prefix) && key.len() == prefix.len() + 32 && key[prefix.len()..].chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+    key.starts_with(&prefix)
+        && key.len() == prefix.len() + 32
+        && key[prefix.len()..].chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
 }
 
 #[test]
@@ -199,12 +205,18 @@ fn code_key_matches_the_ts_hashes() {
     let sent = obj(json!({ "code": "return 1", "since": "2026-10-13T00:00:00Z", "token": slate_secret_mark("cf_token") }));
     let tool = json!({ "kind": "tool", "server": "cf", "tool": "execute", "args": { "code": "return 1", "since": { "bind": "$since" } } });
     assert_eq!(code_key(&with(tool.clone(), None), &sent), "mcp:cf#996f1355ae8f176e493b83d3f838d67d");
-    assert_eq!(code_key(&with(json!({ "kind": "resource", "server": "cf", "uri": "cf://a" }), None), &Map::new()), "mcp:cf#5b4053a011e2b3022238ae93d02bed6c");
+    assert_eq!(
+        code_key(&with(json!({ "kind": "resource", "server": "cf", "uri": "cf://a" }), None), &Map::new()),
+        "mcp:cf#5b4053a011e2b3022238ae93d02bed6c"
+    );
     let mut then = tool;
     then["then"] = json!("sh x.sh");
     assert_eq!(code_key(&with(then, Some(json!({ "x.sh": "a", "a.sh": "b" }))), &sent), "mcp:cf#77d7a8ffb7e8bb661ae4b3039a09da2c");
     let stub = json!({ "kind": "tool", "server": "stub", "tool": "list_items" });
-    assert_eq!(code_key(&with(stub, None), &obj(json!({ "params": { "account": "a", "limit": 1 } }))), "mcp:stub#298f5d9100fc1c99ef0297baa6c00a07");
+    assert_eq!(
+        code_key(&with(stub, None), &obj(json!({ "params": { "account": "a", "limit": 1 } }))),
+        "mcp:stub#298f5d9100fc1c99ef0297baa6c00a07"
+    );
 }
 
 #[test]
@@ -308,7 +320,15 @@ fn piped() -> Piped {
         p.clone() as Rc<dyn McpPipe>
     });
     let t = stdio_transport();
-    let spec = McpServerSpec { transport: t.clone(), cwd: "/".into(), env: IndexMap::new(), secrets: vec![], open: Some(open), post: None, sign_in: None };
+    let spec = McpServerSpec {
+        transport: t.clone(),
+        cwd: "/".into(),
+        env: IndexMap::new(),
+        secrets: vec![],
+        open: Some(open),
+        post: None,
+        sign_in: None,
+    };
     let closes = Rc::new(Cell::new(0));
     let c = closes.clone();
     let client = stdio_client(&t, &spec, Box::new(move || c.set(c.get() + 1)), real_clock());
@@ -421,7 +441,8 @@ async fn stdio_client_fails_a_too_deep_answer_with_the_depth_words() {
         .run_until(async {
             let p = piped();
             let (_id, answer) = p.client.request("tools/call", Map::new(), 60_000);
-            let line = format!("{{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{{\"content\":[],\"structuredContent\":{}}}}}\n", deep_text(100_000));
+            let line =
+                format!("{{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{{\"content\":[],\"structuredContent\":{}}}}}\n", deep_text(100_000));
             p.out(line.as_bytes());
             let got = tokio::time::timeout(std::time::Duration::from_secs(5), answer).await.expect("answered before the deadline");
             assert_eq!(got, Err("the server's answer is nested over 64 deep".to_string()));
@@ -493,15 +514,26 @@ async fn spawn_here_runs_in_its_own_group_with_only_the_spec_environment() {
             let mut tenv = IndexMap::new();
             tenv.insert("BAR".to_string(), "from the transport".to_string());
             tenv.insert("FOO".to_string(), "transport wins".to_string());
-            let t = McpTransport::Stdio { command: "bash".into(), args: vec!["-c".into(), script.into()], env: tenv, cwd: None, tool_timeout_sec: None };
+            let t = McpTransport::Stdio {
+                command: "bash".into(),
+                args: vec!["-c".into(), script.into()],
+                env: tenv,
+                cwd: None,
+                tool_timeout_sec: None,
+            };
             let mut senv = IndexMap::new();
             senv.insert("FOO".to_string(), "from the spec".to_string());
             senv.insert("PATH".to_string(), std::env::var("PATH").unwrap());
-            let spec = McpServerSpec { transport: t.clone(), cwd: cwd.clone(), env: senv, secrets: vec![], open: None, post: None, sign_in: None };
+            let spec =
+                McpServerSpec { transport: t.clone(), cwd: cwd.clone(), env: senv, secrets: vec![], open: None, post: None, sign_in: None };
             let out = Rc::new(RefCell::new(Vec::<u8>::new()));
             let exits = Rc::new(RefCell::new(Vec::<String>::new()));
             let (o, x) = (out.clone(), exits.clone());
-            let events = McpPipeEvents { out: Rc::new(move |b: &[u8]| o.borrow_mut().extend_from_slice(b)), err: Rc::new(|_: &str| {}), exit: Rc::new(move |w: &str| x.borrow_mut().push(w.to_string())) };
+            let events = McpPipeEvents {
+                out: Rc::new(move |b: &[u8]| o.borrow_mut().extend_from_slice(b)),
+                err: Rc::new(|_: &str| {}),
+                exit: Rc::new(move |w: &str| x.borrow_mut().push(w.to_string())),
+            };
             let pipe = (spawn_here())(&t, &spec, events);
             let pid = pipe.pid().expect("a pid here");
             for _ in 0..100 {
@@ -510,7 +542,10 @@ async fn spawn_here_runs_in_its_own_group_with_only_the_spec_environment() {
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(50)).await;
             }
-            assert_eq!(String::from_utf8_lossy(&out.borrow()).to_string(), format!("transport wins|from the transport|unset|{cwd}|{pid}\n"));
+            assert_eq!(
+                String::from_utf8_lossy(&out.borrow()).to_string(),
+                format!("transport wins|from the transport|unset|{cwd}|{pid}\n")
+            );
             pipe.kill();
             for _ in 0..100 {
                 if !exits.borrow().is_empty() {
@@ -522,10 +557,20 @@ async fn spawn_here_runs_in_its_own_group_with_only_the_spec_environment() {
             assert_eq!(unsafe { libc::kill(-(pid as i32), 0) }, -1, "the group is gone");
             pipe.kill();
 
-            let gone = McpTransport::Stdio { command: "/nonexistent/wsp-stub".into(), args: vec![], env: IndexMap::new(), cwd: None, tool_timeout_sec: None };
+            let gone = McpTransport::Stdio {
+                command: "/nonexistent/wsp-stub".into(),
+                args: vec![],
+                env: IndexMap::new(),
+                cwd: None,
+                tool_timeout_sec: None,
+            };
             let said = Rc::new(RefCell::new(Vec::<String>::new()));
             let s = said.clone();
-            let events = McpPipeEvents { out: Rc::new(|_: &[u8]| {}), err: Rc::new(|_: &str| {}), exit: Rc::new(move |w: &str| s.borrow_mut().push(w.to_string())) };
+            let events = McpPipeEvents {
+                out: Rc::new(|_: &[u8]| {}),
+                err: Rc::new(|_: &str| {}),
+                exit: Rc::new(move |w: &str| s.borrow_mut().push(w.to_string())),
+            };
             let _dead = (spawn_here())(&gone, &spec, events);
             for _ in 0..40 {
                 if !said.borrow().is_empty() {
@@ -604,7 +649,15 @@ fn id_of(req: &Seen) -> Value {
 
 fn http_spec(url: &str, headers: &[(&str, &str)]) -> (McpTransport, McpServerSpec) {
     let t = McpTransport::Http { url: url.to_string(), headers: headers.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect() };
-    let spec = McpServerSpec { transport: t.clone(), cwd: "/".into(), env: IndexMap::new(), secrets: vec![], open: None, post: None, sign_in: None };
+    let spec = McpServerSpec {
+        transport: t.clone(),
+        cwd: "/".into(),
+        env: IndexMap::new(),
+        secrets: vec![],
+        open: None,
+        post: None,
+        sign_in: None,
+    };
     (t, spec)
 }
 
@@ -635,7 +688,10 @@ async fn http_client_sends_the_headers_and_keeps_the_session() {
             }
             assert_eq!(seen[0].headers.get("mcp-session-id"), None);
             assert_eq!(seen[1].headers.get("mcp-session-id").map(String::as_str), Some("s-1"));
-            assert_eq!(serde_json::from_str::<Value>(&seen[0].body).unwrap(), json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": { "a": 1 } }));
+            assert_eq!(
+                serde_json::from_str::<Value>(&seen[0].body).unwrap(),
+                json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": { "a": 1 } })
+            );
             assert_eq!(seen[0].body, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"a\":1}}");
             assert_eq!(client.said(), "");
             assert_eq!(client.pid(), None);
@@ -705,9 +761,15 @@ async fn http_client_cuts_a_body_over_2_mb() {
     LocalSet::new()
         .run_until(async {
             let route: Route = Arc::new(|req: &Seen| {
-                let body = format!("{{\"jsonrpc\":\"2.0\",\"id\":{},\"result\":{{\"content\":[{{\"type\":\"text\",\"text\":\"{}\"}}]}}}}", id_of(req), "x".repeat(3 * 1024 * 1024));
+                let body = format!(
+                    "{{\"jsonrpc\":\"2.0\",\"id\":{},\"result\":{{\"content\":[{{\"type\":\"text\",\"text\":\"{}\"}}]}}}}",
+                    id_of(req),
+                    "x".repeat(3 * 1024 * 1024)
+                );
                 if req.path == "/chunked" {
-                    let mut out = b"HTTP/1.1 200 X\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\nconnection: close\r\n\r\n".to_vec();
+                    let mut out =
+                        b"HTTP/1.1 200 X\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\nconnection: close\r\n\r\n"
+                            .to_vec();
                     for part in body.as_bytes().chunks(64 * 1024) {
                         out.extend_from_slice(format!("{:x}\r\n", part.len()).as_bytes());
                         out.extend_from_slice(part);
@@ -749,7 +811,12 @@ async fn fetch_here_follows_no_redirect() {
             let (denied, _spec) = http_spec(&format!("{base}/denied"), &[]);
             assert_eq!(
                 post.send(&denied, req).await,
-                Ok(McpHttpAnswer { status: 403, content_type: Some("text/plain".into()), session_id: Some("s-9".into()), body: String::new() })
+                Ok(McpHttpAnswer {
+                    status: 403,
+                    content_type: Some("text/plain".into()),
+                    session_id: Some("s-9".into()),
+                    body: String::new()
+                })
             );
         })
         .await;
@@ -761,12 +828,26 @@ async fn fetch_here_follows_no_redirect() {
 fn fold_schema_folds_one_line_per_property() {
     // TS slate-mcp.test.ts:119-133.
     assert_eq!(
-        fold_schema(&json!({ "properties": { "params": { "type": "object", "required": ["account"], "properties": { "account": { "type": "string", "description": "The alias. More words." }, "limit": { "type": "integer", "maximum": 50 } } }, "tags": { "type": "array", "items": { "type": "string" } }, "mode": { "enum": ["a", "b"] } }, "required": ["params"] })),
-        vec!["  params: object, required", "  params.account: string, required. The alias.", "  params.limit: integer, max 50", "  tags: string[]", "  mode: \"a\" | \"b\""]
+        fold_schema(
+            &json!({ "properties": { "params": { "type": "object", "required": ["account"], "properties": { "account": { "type": "string", "description": "The alias. More words." }, "limit": { "type": "integer", "maximum": 50 } } }, "tags": { "type": "array", "items": { "type": "string" } }, "mode": { "enum": ["a", "b"] } }, "required": ["params"] })
+        ),
+        vec![
+            "  params: object, required",
+            "  params.account: string, required. The alias.",
+            "  params.limit: integer, max 50",
+            "  tags: string[]",
+            "  mode: \"a\" | \"b\""
+        ]
     );
     assert_eq!(
-        fold_schema(&json!({ "$defs": { "In": { "type": "object", "required": ["id"], "properties": { "id": { "type": "string" }, "folder": { "anyOf": [{ "type": "string" }, { "type": "null" }], "default": null, "description": "Folder name, e.g. 'Inbox'." } } } }, "properties": { "params": { "$ref": "#/$defs/In" } }, "required": ["params"] })),
-        vec!["  params: object, required", "  params.id: string, required", "  params.folder: string | null, default null. Folder name, e.g. 'Inbox'."]
+        fold_schema(
+            &json!({ "$defs": { "In": { "type": "object", "required": ["id"], "properties": { "id": { "type": "string" }, "folder": { "anyOf": [{ "type": "string" }, { "type": "null" }], "default": null, "description": "Folder name, e.g. 'Inbox'." } } } }, "properties": { "params": { "$ref": "#/$defs/In" } }, "required": ["params"] })
+        ),
+        vec![
+            "  params: object, required",
+            "  params.id: string, required",
+            "  params.folder: string | null, default null. Folder name, e.g. 'Inbox'."
+        ]
     );
 }
 
@@ -782,9 +863,21 @@ fn fold_schema_stops_three_deep_and_reads_types() {
             "n": {},
             "bad": 7
         } })),
-        vec!["  a: object", "  a.b: object", "  a.b.c: object", "  xs: object[]", "  xs[].y: string | null, min 0, max length 9, format date", "  k: 3", "  o: string | array", "  n: any"]
+        vec![
+            "  a: object",
+            "  a.b: object",
+            "  a.b.c: object",
+            "  xs: object[]",
+            "  xs[].y: string | null, min 0, max length 9, format date",
+            "  k: 3",
+            "  o: string | array",
+            "  n: any"
+        ]
     );
-    assert_eq!(fold_schema(&json!({ "properties": { "a": { "allOf": [{ "type": "integer" }], "description": "Count." } } })), vec!["  a: integer. Count."]);
+    assert_eq!(
+        fold_schema(&json!({ "properties": { "a": { "allOf": [{ "type": "integer" }], "description": "Count." } } })),
+        vec!["  a: integer. Count."]
+    );
 }
 
 #[test]
@@ -816,7 +909,10 @@ fn fold_schema_cuts_descriptions_to_a_sentence() {
 #[test]
 fn fold_schema_survives_a_ref_loop() {
     // spec rule 12: eight steps, then untyped.
-    assert_eq!(fold_schema(&json!({ "$defs": { "A": { "$ref": "#/$defs/A" } }, "properties": { "a": { "$ref": "#/$defs/A" } } })), vec!["  a: any"]);
+    assert_eq!(
+        fold_schema(&json!({ "$defs": { "A": { "$ref": "#/$defs/A" } }, "properties": { "a": { "$ref": "#/$defs/A" } } })),
+        vec!["  a: any"]
+    );
 }
 
 #[test]
@@ -836,10 +932,18 @@ fn hints_say_returns_data_or_text_only_and_each_true_annotation() {
     assert_eq!(hints_of(&tool(json!({ "name": "a" })), Some(true)), vec!["returns data"]);
     assert_eq!(hints_of(&tool(json!({ "name": "a" })), Some(false)), vec!["text only"]);
     assert_eq!(
-        hints_of(&tool(json!({ "name": "a", "annotations": { "readOnlyHint": true, "destructiveHint": true, "idempotentHint": true, "openWorldHint": true } })), None),
+        hints_of(
+            &tool(
+                json!({ "name": "a", "annotations": { "readOnlyHint": true, "destructiveHint": true, "idempotentHint": true, "openWorldHint": true } })
+            ),
+            None
+        ),
         vec!["text only", "read-only", "destructive", "idempotent", "reaches outside"]
     );
-    assert_eq!(hints_of(&tool(json!({ "name": "a", "annotations": { "readOnlyHint": "true", "destructiveHint": false } })), None), vec!["text only"]);
+    assert_eq!(
+        hints_of(&tool(json!({ "name": "a", "annotations": { "readOnlyHint": "true", "destructiveHint": false } })), None),
+        vec!["text only"]
+    );
     assert_eq!(asks_line(ToolAsks::Never), "This thread's agent runs every tool without asking, and so do its slate's runs.");
     assert_eq!(asks_line(ToolAsks::Every), "This thread's agent asks before every tool, so the person allows each run's code once, on the slate: new arguments, a new then or a new tool ask again.");
     assert_eq!(

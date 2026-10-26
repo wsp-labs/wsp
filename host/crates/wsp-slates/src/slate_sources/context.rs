@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Port of packages/runtime/src/slate-sources/context.ts at 65f6b89c7. Spec: spec/slate_sources.md (rules 1-3).
-#![allow(unused_variables)]
 
 use futures::future::LocalBoxFuture;
 use serde_json::Value;
@@ -45,8 +44,7 @@ pub trait HostSlateSource {
     fn view<'a>(&'a self, ctx: &'a dyn SlateSourceContext) -> LocalBoxFuture<'a, Option<Value>>;
 }
 
-// context.ts:38 json(value)
 /// A value as JSON with absent fields dropped and none as `null`.
 pub fn json<T: serde::Serialize>(value: Option<&T>) -> Value {
-    todo!()
+    value.map_or(Value::Null, |v| serde_json::to_value(v).unwrap_or(Value::Null))
 }
