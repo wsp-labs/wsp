@@ -96,9 +96,9 @@ fn try_json_cap_body(depth: usize) {
     assert!(try_json(&nested(depth)).is_none(), "{} levels do not", depth + 1);
 }
 
-// The cap of the catalog's JSON.parse port as the history reader meets it, on the 1 MiB stack: 1,000 levels read and 1,001 do
-// not (ruling 2).
+// The cap of the catalog's JSON.parse port as the history reader meets it, on the 1 MiB stack: 500 levels read and 501 do
+// not (ruling 1 of round 2 of #2448).
 #[test]
-fn try_json_reads_1000_levels_and_refuses_1001() {
-    in_child("try_json_reads_1000_levels_and_refuses_1001", 1000, try_json_cap_body);
+fn try_json_reads_500_levels_and_refuses_501() {
+    in_child("try_json_reads_500_levels_and_refuses_501", 500, try_json_cap_body);
 }

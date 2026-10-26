@@ -73,13 +73,13 @@ None directly: config text arrives through agents.read and servers.* ops, whose 
 ## Decisions
 
 1. Numbers that `JSON.parse` reads as infinity (`1e400`) read as `null`, which is what `JSON.stringify` writes for
-   infinity (the review found the first draft's error left the whole file unread). Nesting past 1000 levels is
+   infinity (the review found the first draft's error left the whole file unread). Nesting past 500 levels is
    refused ("Maximum call stack size exceeded") where V8's parser has no limit but memory; serde_json's 128 is gone.
 2. `JsRegex` holds `&'static str`: every regex is a catalog literal.
 
 ## After the port
 
-- `JSON.parse` (jsonc.ts:41) reads any depth, and the port refuses past 1,000 levels: a `serde_json::Value` clones recursively (dies at 1,183 levels) and drops recursively (6,509), so a tree kept deeper could abort the host wherever it is cloned or dropped.
+- `JSON.parse` (jsonc.ts:41) reads any depth, and the port refuses past 500 levels, the one cap of the whole host (ruling 1 of round 2 of #2448): a `serde_json::Value` of nested objects clones recursively and dies at 628 levels on a 1 MiB debug stack (nested arrays, 1,183), so a tree kept deeper could abort the host wherever it is cloned.
 
 ## Rules to tests
 

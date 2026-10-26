@@ -63,8 +63,8 @@ fn objects(depth: usize) -> String {
     format!("{}1{}", "{\"a\":".repeat(depth), "}".repeat(depth))
 }
 
-/// Nesting `parse_json` takes: its own cap is 1000 levels, counted from the root.
-const JSON_FITS: usize = 990;
+/// Nesting `parse_json` takes: its own cap is 500 levels, counted from the root.
+const JSON_FITS: usize = 490;
 
 /// A Claude Code config whose server `x` holds `extra`, `extra_depth` levels deep in all, read as three levels more.
 fn claude_file(extra: &str) -> String {
@@ -88,12 +88,12 @@ fn parse_json_body(depth: usize) {
     }
 }
 
-// json_parse.rs:138 value, :151 object and :186 array recurse once per level and refuse at MAX_DEPTH 1000, but the
+// json_parse.rs:138 value, :151 object and :186 array recurse once per level and refuse at MAX_DEPTH 500, but the
 // stack is gone first: a 1 MiB debug stack dies at 878 levels of `[[[...]]]`. Fed by every JSON the catalog reads: the
 // the harnesses' config files (read_jsonc: settings.json, .claude.json, .mcp.json, opencode.json), plugins' json files
 // (plugins.rs:211), a Codex app-server's reply lines (plugins_codex.rs:113), `codex mcp list --json` output
 // (mcp_check.rs:80), `claude auth status` output (signin.rs:493), and the callers in wsp-collect and wsp-engine. Node's
-// JSON.parse answers with the value at 1,000,000 levels (the refusal at 1000 is the port's own choice and also differs).
+// JSON.parse answers with the value at 1,000,000 levels (the refusal at 500 is the port's own choice and also differs).
 // The text is 2 bytes a level, so 100,000 levels is 200 KB.
 #[test]
 fn parse_json_of_deep_nesting() {
@@ -108,13 +108,13 @@ fn parse_json_cap_body(depth: usize) {
     }
 }
 
-// The cap itself, on the 1 MiB stack: 1,000 levels read and 1,001 refuse (ruling 2 of #2448).
+// The cap itself, on the 1 MiB stack: 500 levels read and 501 refuse (ruling 1 of the round 2 brief: one cap of 500 levels for the whole host).
 #[test]
-fn parse_json_reads_1000_levels_and_refuses_1001() {
-    in_child("parse_json_reads_1000_levels_and_refuses_1001", 1000, parse_json_cap_body);
+fn parse_json_reads_500_levels_and_refuses_501() {
+    in_child("parse_json_reads_500_levels_and_refuses_501", 500, parse_json_cap_body);
 }
 
-// ---- trees and writers over a value the parse accepted (999 levels at most) ----
+// ---- trees and writers over a value the parse accepted (499 levels at most) ----
 
 fn edit_json_body(depth: usize) {
     let text = format!(r#"{{"mcpServers":{}}}"#, objects(depth));
@@ -124,7 +124,7 @@ fn edit_json_body(depth: usize) {
 }
 
 // Dies at 433 levels (1 MiB, debug). jsonc_tree.rs:164 (value, object, property, value) recurses once per level with no cap of its own; edit_json reaches
-// it with text read_jsonc took, so only the 1000 levels read_jsonc takes reach it. A config the person keeps
+// it with text read_jsonc took, so only the 500 levels read_jsonc takes reach it. A config the person keeps
 // (settings.json, .mcp.json, opencode.json) that the host edits in place. Node answers with the edited text up to 2,344
 // levels (editJson of the same file) and fails the one call ("could not be changed in place") from there.
 #[test]
@@ -138,7 +138,7 @@ fn parse_tree_body(depth: usize) {
 }
 
 // Dies at 439. jsonc_tree.rs::parse_tree alone, the public entry: no cap, the recursion is the input's. Reached only through
-// edit_json and edit_jsonc after read_jsonc, so 1000 levels at most today.
+// edit_json and edit_jsonc after read_jsonc, so 500 levels at most today.
 #[test]
 fn parse_tree_deep_objects() {
     in_child("parse_tree_deep_objects", JSON_FITS, parse_tree_body);
@@ -151,25 +151,25 @@ fn tree_cap_body(depth: usize) {
     }
 }
 
-// The cap of jsonc_tree.rs::parse_tree, on the 1 MiB stack: 1,000 levels read and 1,001 do not (ruling 2).
+// The cap of jsonc_tree.rs::parse_tree, on the 1 MiB stack: 500 levels read and 501 do not (ruling 1 of the round 2 brief).
 #[test]
-fn parse_tree_reads_1000_levels_and_refuses_1001() {
-    in_child("parse_tree_reads_1000_levels_and_refuses_1001", 1000, tree_cap_body);
+fn parse_tree_reads_500_levels_and_refuses_501() {
+    in_child("parse_tree_reads_500_levels_and_refuses_501", 500, tree_cap_body);
 }
 
 fn edit_json_cap_body(depth: usize) {
     let edit = || (vec![PathSeg::Key("mcpServers".into()), PathSeg::Key("x".into())], Some(serde_json::json!(1)));
     let fits = format!(r#"{{"mcpServers":{}}}"#, objects(depth - 1));
-    assert!(edit_json(&fits, &[edit()]).expect("1,000 levels edit in place").contains("\"x\""));
+    assert!(edit_json(&fits, &[edit()]).expect("500 levels edit in place").contains("\"x\""));
     let past = format!(r#"{{"mcpServers":{}}}"#, objects(depth));
-    let err = edit_json(&past, &[edit()]).expect_err("1,001 levels do not");
+    let err = edit_json(&past, &[edit()]).expect_err("501 levels do not");
     assert!(err.message.starts_with("the file could not be changed in place"), "{}", err.message);
 }
 
 // edit_json answers node's words at its own limit ("could not be changed in place") past the cap (ruling 2).
 #[test]
-fn edit_json_refuses_past_1000_levels_in_place() {
-    in_child("edit_json_refuses_past_1000_levels_in_place", 1000, edit_json_cap_body);
+fn edit_json_refuses_past_500_levels_in_place() {
+    in_child("edit_json_refuses_past_500_levels_in_place", 500, edit_json_cap_body);
 }
 
 fn stringify_body(depth: usize) {
@@ -328,17 +328,17 @@ fn codex_at_the_cap_body(depth: usize) {
     let _ = codex_launch_config(&configs, &values);
 }
 
-// Codex's config walks at the cap, on the 1 MiB stack: a table 1,000 levels down is edited, merged, read and launched.
+// Codex's config walks at the cap, on the 1 MiB stack: a table 500 levels down is edited, merged, read and launched.
 #[test]
-fn codex_answers_at_1000_levels() {
-    in_child("codex_answers_at_1000_levels", 1000, codex_at_the_cap_body);
+fn codex_answers_at_500_levels() {
+    in_child("codex_answers_at_500_levels", 500, codex_at_the_cap_body);
 }
 
-// Every walk over a server definition at the cap, on the 1 MiB stack: a file nested 1,000 levels is read and answered, and
-// 1,001 is refused by the parse (ruling 2, ruling 4).
+// Every walk over a server definition at the cap, on the 1 MiB stack: a file nested 500 levels is read and answered, and
+// 501 is refused by the parse (ruling 1 of the round 2 brief).
 #[test]
-fn formats_answer_at_1000_levels() {
-    in_child("formats_answer_at_1000_levels", 1000, formats_at_the_cap_body);
+fn formats_answer_at_500_levels() {
+    in_child("formats_answer_at_500_levels", 500, formats_at_the_cap_body);
 }
 
 // ---- strings that nest by their own text ----
@@ -417,11 +417,11 @@ fn toml_cap_body(depth: usize) {
     }
 }
 
-// The cap of smol_toml.rs, on the 1 MiB stack: 1,000 levels read and 1,001 refuse, for the tables a header or a dotted
+// The cap of smol_toml.rs, on the 1 MiB stack: 500 levels read and 501 refuse, for the tables a header or a dotted
 // key nests (smol-toml has no cap on them, ruling 2) and for arrays and inline tables (smol-toml's maxDepth, ruling 3).
 #[test]
-fn toml_reads_1000_levels_and_refuses_1001() {
-    in_child("toml_reads_1000_levels_and_refuses_1001", 1000, toml_cap_body);
+fn toml_reads_500_levels_and_refuses_501() {
+    in_child("toml_reads_500_levels_and_refuses_501", 500, toml_cap_body);
 }
 
 fn toml_header_body(depth: usize) {
@@ -469,18 +469,18 @@ fn refer_codex_cap_body(depth: usize) {
             vec!["a"; parts].join(".")
         )
     };
-    let referred = McpFormat::CodexToml.refer(&text(depth - 2), None, &[], &IndexSet::new()).expect("1,000 levels refer");
+    let referred = McpFormat::CodexToml.refer(&text(depth - 2), None, &[], &IndexSet::new()).expect("500 levels refer");
     assert_eq!(referred.servers.len(), 1);
     assert_eq!(referred.entries.len(), 1);
-    let err = McpFormat::CodexToml.refer(&text(depth - 1), None, &[], &IndexSet::new()).expect_err("1,001 levels do not");
+    let err = McpFormat::CodexToml.refer(&text(depth - 1), None, &[], &IndexSet::new()).expect_err("501 levels do not");
     assert!(err.message.contains("excessively nested"), "{}", err.message);
 }
 
-// Codex's refer at the cap, on the 1 MiB stack: a table 1,000 levels down is read, converted and written back, and 1,001
-// is refused as an unreadable file (ruling 2).
+// Codex's refer at the cap, on the 1 MiB stack: a table 500 levels down is read, converted and written back, and 501
+// is refused as an unreadable file (ruling 1 of the round 2 brief).
 #[test]
-fn refer_codex_reads_1000_levels_and_refuses_1001() {
-    in_child("refer_codex_reads_1000_levels_and_refuses_1001", 1000, refer_codex_cap_body);
+fn refer_codex_reads_500_levels_and_refuses_501() {
+    in_child("refer_codex_reads_500_levels_and_refuses_501", 500, refer_codex_cap_body);
 }
 
 fn refer_codex_body(depth: usize) {
@@ -521,7 +521,7 @@ fn alone_stringify_body(depth: usize) {
     std::mem::forget(v);
 }
 
-// Dies at 1548. jsonc.rs:130 write_value alone. Fed by a value parse_json read (999 levels at most) or one a TOML table became
+// Dies at 1548. jsonc.rs:130 write_value alone. Fed by a value parse_json read (499 levels at most) or one a TOML table became
 // (toml_deep_table_header: no cap).
 #[test]
 fn alone_stringify() {

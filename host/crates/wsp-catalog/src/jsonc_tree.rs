@@ -143,7 +143,7 @@ fn find_bytes(bytes: &[u8], from: usize, needle: &[u8]) -> Option<usize> {
 }
 
 /// Containers nested past this are not read: the cap of the JSON.parse port, so a tree kept this deep clones and drops.
-const MAX_DEPTH: usize = 1000;
+const MAX_DEPTH: usize = 500;
 
 enum Frame {
     Object(usize, Vec<Node>),

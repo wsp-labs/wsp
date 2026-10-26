@@ -24,7 +24,12 @@ fn in_child(name: &str, body: fn()) {
         .output()
         .unwrap();
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(out.status.success(), "the whole process died ({}): {}", out.status, stderr.lines().rev().take(2).collect::<Vec<_>>().join(" | "));
+    assert!(
+        out.status.success(),
+        "the whole process died ({}): {}",
+        out.status,
+        stderr.lines().rev().take(2).collect::<Vec<_>>().join(" | ")
+    );
 }
 
 /// `{"a":{"a":...1}}`, `n` objects deep.
@@ -40,50 +45,51 @@ fn same(s: &str, _command: bool) -> String {
     s.to_string()
 }
 
-// Ruling 2 keeps a tree to 1,000 levels because a Value was measured to clone to 1,183; that is an array tree. A tree of
-// objects clones to 627 on the same 1 MiB debug stack (preserve_order maps), and these readers clone the servers table:
-// mcp_json.rs:510,512 (edit, merge), :545-:599 (only), mcp_json_refer.rs:43,63 (refer), mcp_launch.rs:237 (every turn's
-// launch reads the folder's entry). A repo's committed .mcp.json reaches the first four. node (mcp.ts) answers each at 700
-// and at 997 levels.
-fn mcp_edit_700_objects_body() {
+// Ruling 1 keeps a tree to 500 levels, under the 627 a tree of objects clones to on the 1 MiB debug stack. These readers clone
+// the servers table: mcp_json.rs edit, merge and only, mcp_json_refer.rs refer, mcp_launch.rs folder_entry (every turn's
+// launch). The file is 500 levels deep, the deepest the cap reads: 3 levels of the file around 497 of the server's own.
+fn mcp_edit_cap_objects_body() {
     let keep = McpEditScope { keep: vec!["x".into()], ..Default::default() };
-    McpFormat::McpServersJson.edit(&same, &keep, &server_file(&objects(700))).expect("node edits it");
+    McpFormat::McpServersJson.edit(&same, &keep, &server_file(&objects(497))).expect("the cap lets it edit");
 }
 
 #[test]
-fn an_mcp_json_server_holding_700_object_levels_edits() {
-    in_child("an_mcp_json_server_holding_700_object_levels_edits", mcp_edit_700_objects_body);
+fn an_mcp_json_server_holding_object_levels_to_the_cap_edits() {
+    in_child("an_mcp_json_server_holding_object_levels_to_the_cap_edits", mcp_edit_cap_objects_body);
 }
 
-fn mcp_merge_700_objects_body() {
+fn mcp_merge_cap_objects_body() {
     let keep = McpMergeScope { keep: vec!["x".into()], ..Default::default() };
-    McpFormat::McpServersJson.merge(&same, &keep, Some(r#"{"mcpServers":{}}"#), &server_file(&objects(700))).expect("node merges it");
+    McpFormat::McpServersJson
+        .merge(&same, &keep, Some(r#"{"mcpServers":{}}"#), &server_file(&objects(497)))
+        .expect("the cap lets it merge");
 }
 
 #[test]
-fn an_mcp_json_server_holding_700_object_levels_merges() {
-    in_child("an_mcp_json_server_holding_700_object_levels_merges", mcp_merge_700_objects_body);
+fn an_mcp_json_server_holding_object_levels_to_the_cap_merges() {
+    in_child("an_mcp_json_server_holding_object_levels_to_the_cap_merges", mcp_merge_cap_objects_body);
 }
 
-fn mcp_refer_700_objects_body() {
-    McpFormat::McpServersJson.refer(&server_file(&objects(700)), None, &[], &IndexSet::new()).expect("node refers it");
+fn mcp_refer_cap_objects_body() {
+    McpFormat::McpServersJson.refer(&server_file(&objects(497)), None, &[], &IndexSet::new()).expect("node refers it");
 }
 
 #[test]
-fn an_mcp_json_server_holding_700_object_levels_refers() {
-    in_child("an_mcp_json_server_holding_700_object_levels_refers", mcp_refer_700_objects_body);
+fn an_mcp_json_server_holding_object_levels_to_the_cap_refers() {
+    in_child("an_mcp_json_server_holding_object_levels_to_the_cap_refers", mcp_refer_cap_objects_body);
 }
 
-fn launch_700_objects_body() {
-    let text = format!(r#"{{"projects":{{"/w":{{"extra":{},"mcpServers":{{}}}}}}}}"#, objects(700));
-    let configs = LaunchConfigs { user: Some(TurnFile { path: "/h/.claude.json".into(), text }), projects: None, folder: "/w".into(), key: None };
+fn launch_cap_objects_body() {
+    let text = format!(r#"{{"projects":{{"/w":{{"extra":{},"mcpServers":{{}}}}}}}}"#, objects(497));
+    let configs =
+        LaunchConfigs { user: Some(TurnFile { path: "/h/.claude.json".into(), text }), projects: None, folder: "/w".into(), key: None };
     let values = indexmap::IndexMap::from([("T".to_string(), "s".to_string())]);
     let _ = claude_launch_servers(&configs, &values);
 }
 
 #[test]
-fn a_turn_launches_with_700_object_levels_in_the_folders_entry() {
-    in_child("a_turn_launches_with_700_object_levels_in_the_folders_entry", launch_700_objects_body);
+fn a_turn_launches_with_object_levels_to_the_cap_in_the_folders_entry() {
+    in_child("a_turn_launches_with_object_levels_to_the_cap_in_the_folders_entry", launch_cap_objects_body);
 }
 
 // mcp_toml_refer.rs:318: when the line editor does not give back the tree refer wants, the tree is written whole by
@@ -92,7 +98,8 @@ fn a_turn_launches_with_700_object_levels_in_the_folders_entry() {
 // the 1,000 cap. node (mcp.ts:1661, smol-toml's stringify) answers at 400 with `env_vars = [ "TOKEN" ]` and the table
 // kept, and refuses at 998 with "Could not stringify the object: maximum object depth exceeded".
 fn refer_codex_dotted_env_400_body() {
-    let text = format!("[mcp_servers.x]\ncommand = \"c\"\nenv.TOKEN = \"secret-value\"\n[mcp_servers.x.{}]\nk = 1\n", vec!["d"; 400].join("."));
+    let text =
+        format!("[mcp_servers.x]\ncommand = \"c\"\nenv.TOKEN = \"secret-value\"\n[mcp_servers.x.{}]\nk = 1\n", vec!["d"; 400].join("."));
     let referred = McpFormat::CodexToml.refer(&text, None, &[], &IndexSet::new()).expect("node refers it");
     assert!(referred.text.contains("env_vars") && !referred.text.contains("secret-value"));
 }
@@ -117,12 +124,12 @@ fn places_of_a_query_chain_costs_what_its_length_costs() {
     assert!(big < small * 8, "2,000 levels took {small:?} and 8,000 took {big:?}");
 }
 
-// node (mcp.ts:724 editJson) reads a 1,001-level array and refuses it with "the file is not a JSON object"; the port
+// node (mcp.ts:724 editJson) reads a 501-level array and refuses it with "the file is not a JSON object"; the port
 // refuses the read (ruling 2) and edit_json (json_edit.rs:27) answers "could not be changed in place" for any too-deep
 // text, though the first byte says the root is no object.
 #[test]
 fn an_array_root_past_the_cap_is_refused_as_not_an_object() {
-    let text = format!("{}{}", "[".repeat(1_001), "]".repeat(1_001));
+    let text = format!("{}{}", "[".repeat(501), "]".repeat(501));
     let edit = vec![(vec![PathSeg::Key("mcpServers".into()), PathSeg::Key("x".into())], Some(json!({"command": "c"})))];
     assert_eq!(edit_json(&text, &edit).expect_err("not an object").message, "the file is not a JSON object");
 }

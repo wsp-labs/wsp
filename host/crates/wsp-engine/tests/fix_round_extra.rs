@@ -16,11 +16,11 @@ async fn rewritten(text: &str) -> (Result<u64, String>, String) {
 }
 
 /// resolver.ts:219-225: node parses a line nested 3,400 deep and writes it back (`JSON.stringify` throws from about 3,650).
-/// Ruling 2 of wsp-map#2448 keeps 1,000 levels, so the deepest line rewritten whole is the object and 999 arrays; past it
-/// the rewrite fails like the 5,000-level line below (`deep_input.rs` holds the 3,400 and 1,001 levels).
+/// Ruling 1 of round 2 of wsp-map#2448 keeps 500 levels, so the deepest line rewritten whole is the object and 499 arrays; past it
+/// the rewrite fails like the 5,000-level line below (`deep_input.rs` holds the 3,400 and 501 levels).
 #[tokio::test]
 async fn a_line_nested_to_the_cap_is_rewritten_whole_on_a_small_stack() {
-    let deep = format!("{}{}", "[".repeat(999), "]".repeat(999));
+    let deep = format!("{}{}", "[".repeat(499), "]".repeat(499));
     let line = format!("{{\"cwd\":\"/work/p\",\"x\":{deep}}}");
     let (n, text) = rewritten(&format!("{line}\n")).await;
     assert_eq!(n, Ok(1));
