@@ -197,6 +197,7 @@ fn rec(w: &World, id: &str) -> WorkspaceRecord {
 
 /// Every world, every door: the rows that differ, by door.
 #[test]
+#[ignore = "reads a 23 MB fixture git does not hold; from the repository root run: pnpm exec vitest run --config host/crates/wsp-account/oracle/vitest.config.ts --minWorkers=1 --maxWorkers=1 zz-review-rules-fuzz.oracle.ts && cargo test --test review_rules -- --ignored"]
 fn review_rules_fuzz_against_the_ts() {
     let path = format!("{}/tests/fixtures/oracle/zz_review_rules_fuzz.json", env!("CARGO_MANIFEST_DIR"));
     let worlds: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();

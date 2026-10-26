@@ -262,7 +262,8 @@ fn a_session_with_no_number_for_a_start_time_does_not_stop_the_scopes() {
         };
         let area = area_of(&ctx);
         let on = area.scopes_on("pl_1");
-        assert_eq!(on.len(), 60);
+        // proc-scopes.ts:154 drops a start time of -Infinity (-1 >= -Infinity); node keeps 52 of these 60 rows.
+        assert_eq!(on.len(), 52);
         let _ = area.scopes_here();
     });
 }
